@@ -563,13 +563,13 @@ def public(row):
     tid, ts, name, t, fmt, status, champ, n, state = row
     st = json.loads(state)
     st.pop("decks", None)
-    live = None
-    m = next((m for m in st["matches"] if m.get("job")), None)
-    if m:
+    lives = []  # todas as partidas no Forge (com vários jogos ao mesmo tempo há mais do que uma); `live` = a 1.ª
+    for m in (m for m in st["matches"] if m.get("job")):
         s = sim.status(m["job"]) or {"status": "queued"}
-        live = {"match": m["id"], "job": m["job"], "status": s["status"], "position": s.get("position"), "seats": m.get("seats")}
+        lives.append({"match": m["id"], "job": m["job"], "status": s["status"], "position": s.get("position"), "seats": m.get("seats")})
+    live = lives[0] if lives else None
     return {"id": tid, "ts": ts, "name": name, "type": t, "format": fmt, "status": status, "champion": champ, "n": n,
-            **st, "standings": standings(st), "live": live, "me_state": me_state(st),
+            **st, "standings": standings(st), "live": live, "lives": lives, "me_state": me_state(st),
             "starts_in": None if st.get("hold") else max(0.0, round(st.get("start_at", 0) - time.time(), 1)),
             "podium": st.get("podium") or (podium(st) if st.get("champion") is not None else None)}
 
@@ -903,7 +903,9 @@ def step():
     """Um passo: trata os jogos em curso (o que acabou regista-se e avança) e manda partidas prontas para a fila,
     até `cap` ao mesmo tempo (partidas da mesma ronda são independentes)."""
     with LOCK, db() as con:
-        inflight, cap = 0, max(1, sim.PAR["n"])  # partidas em jogo ao mesmo tempo (definição «jogos do Forge ao mesmo tempo»)
+        # partidas em jogo ao mesmo tempo, somando todos os torneios (definição «jogos do Forge ao mesmo tempo»); antes de o
+        # simulador arrancar lê-se do ficheiro, senão o 1.º passo depois de reiniciar mandava só uma
+        inflight, cap = 0, max(1, sim.PAR["n"] if sim._worker else sim.load_parallel(DATA))
         rows = con.execute("SELECT id, status, state, owner FROM tournaments WHERE status IN ('running', 'paused') ORDER BY ts").fetchall()
         tours = [(tid, status, json.loads(s), owner) for tid, status, s, owner in rows]
         for tid, status, st, owner in tours:

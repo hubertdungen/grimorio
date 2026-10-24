@@ -1848,4 +1848,8 @@ export default {
   "Vermelhas — objetivo (quanto chega a ganhar)": "红色——胜利进度（离获胜有多近）",
   "A primeira cor ligada enche as estrelas e dá o número. Por omissão aparecem as três.": "第一个开启的颜色会填满星星并给出数字。默认显示全部三种。",
   "Repor as três": "恢复显示三种",
+  "🎲 Aleatório (sorteado ao começar)": "🎲 随机（开始时抽取）",
+  "Junta um deck do meta ao acaso": "随机加入一副环境套牌",
+  "ao acaso": "随机",
+  "Junta um deck teu ao acaso": "随机加入一副你的套牌",
 }

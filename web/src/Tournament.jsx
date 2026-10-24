@@ -307,11 +307,11 @@ function Live({ data, tid, onGone }) {
       live={going && follow && i >= 0 && i === fl.length - 1} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })}
       next={follow && i >= 0 ? { has: i < fl.length - 1, go: () => openGame(fl[i + 1]), secs: pause.secs, auto: pause.auto } : null} />
   }
-  const lm = t.live && t.matches.find(m => m.id === t.live.match)
+  const lives = (t.lives || (t.live ? [t.live] : [])).map(L => ({ L, lm: t.matches.find(m => m.id === L.match) })).filter(x => x.lm), lm = lives[0]?.lm
   const nameOf = i => (i == null ? '—' : P[i]?.name)
   const k = Math.max(...t.matches.filter(m => m.b === 'W').map(m => m.r), 1)
   const num = Object.fromEntries(t.matches.map((m, i) => [m.id, i + 1]))
-  const tools = { data, P, live: t.live, num, onGame: openGame, me: t.me, casual: t.casual, odds: bets.b?.match, bet: bets.b && { coins: bets.b.coins, place: bets.place, mine: new Set(bets.b.bets.filter(x => x.status === 'open').map(x => x.mid)) } }
+  const tools = { data, P, live: t.live && { ...t.live, ids: new Set(lives.map(x => x.L.match)) }, num, onGame: openGame, me: t.me, casual: t.casual, odds: bets.b?.match, bet: bets.b && { coins: bets.b.coins, place: bets.place, mine: new Set(bets.b.bets.filter(x => x.status === 'open').map(x => x.mid)) } }
   const bracket = t.type === 'elim' || t.type === 'dupla'
   // «o meu deck»: onde está, se caiu e o lugar final (tournament.py me_state)
   const ms = t.me_state, mm = ms?.match && t.matches.find(m => m.id === ms.match)
@@ -344,7 +344,7 @@ function Live({ data, tid, onGone }) {
         </div>
         <StartGate t={t} onStart={() => act('start')} />
         {meLine && <p className={`me-line ${ms.phase}`}><Thumb data={data} p={P[t.me]} /><span><small>{tx('O meu deck · {d}', { d: P[t.me]?.name })}</small><b>{ms.phase === 'done' ? `${MEDAL[ms.place[0] - 1] || '🎖'} ` : ''}{meLine}</b></span></p>}
-        {lm && <p className="tl-now"><span className="spin-dot" /> {t.live.status === 'queued' ? tx('Na fila do Forge (posição {p})', { p: t.live.position }) : tx('A jogar')}: <b>#{num[lm.id]}</b> {(t.live.seats || lm.p).map(nameOf).join(' vs ')} · {tx('jogo {g}', { g: lm.g.length + 1 })}{lm.p.length === 2 && t.bo > 1 ? ` · ${lm.w[0]}–${lm.w[1]}` : ''}{Object.keys(lm.sb || {}).length > 0 && <span className="muted" title={Object.entries(lm.sb).map(([i, sw]) => `${nameOf(+i)}: ${sw.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join('\n')}> · {tx('⇄ com sideboard:')} {Object.keys(lm.sb).map(i => nameOf(+i)).join(', ')}</span>}</p>}
+        {lives.map(({ L, lm }) => <p key={lm.id} className="tl-now"><span className="spin-dot" /> {L.status === 'queued' ? tx('Na fila do Forge (posição {p})', { p: L.position }) : tx('A jogar')}: <b>#{num[lm.id]}</b> {(L.seats || lm.p).map(nameOf).join(' vs ')} · {tx('jogo {g}', { g: lm.g.length + 1 })}{lm.p.length === 2 && t.bo > 1 ? ` · ${lm.w[0]}–${lm.w[1]}` : ''}{Object.keys(lm.sb || {}).length > 0 && <span className="muted" title={Object.entries(lm.sb).map(([i, sw]) => `${nameOf(+i)}: ${sw.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join('\n')}> · {tx('⇄ com sideboard:')} {Object.keys(lm.sb).map(i => nameOf(+i)).join(', ')}</span>}</p>)}
         {!lm && t.status === 'running' && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
         {t.error && <p className="small bad-t">{tx(t.error)}</p>}
         {err && <p className="small bad-t">{err}</p>}
@@ -453,7 +453,7 @@ function SideWhy({ m, P }) {
 }
 
 function Match({ m, data, P, live, num, onGame, label, me, casual, odds, bet }) {
-  const now = live?.match === m.id
+  const now = live?.ids?.has(m.id)
   const slot = k => {
     const i = m.p[k], s = m.src?.[k]
     if (i === -1) return <div className="ts pend" key={`${k}-p`}><span className="tp-thumb" /><span className="muted">{s ? (s[1] === 'w' ? tx('vencedor de #{m}', { m: num[s[0]] }) : tx('vencido de #{m}', { m: num[s[0]] })) : '—'}</span></div>
@@ -550,8 +550,8 @@ function Rounds({ t, data, P, live, num, onGame, me, casual, odds, bet }) {
       {rs.map(r => (
         <div key={r} className="tr-round"><h5>{tx('Ronda {r}', { r })}</h5>
           <div className="tr-ms">{t.matches.filter(m => m.r === r).map(m => m.b === 'P' ? (
-            <div key={m.id} className={`tm pod ${m.st} ${live?.match === m.id ? 'now' : ''} ${m.p.includes(me) ? 'mine' : ''}`} data-mid={m.id}>
-              <div className="tm-h"><span>{tx('Mesa {m}', { m: m.id.split('-')[1] })}</span>{live?.match === m.id && <span className="livepill">{tx('● a jogar')}</span>}</div>
+            <div key={m.id} className={`tm pod ${m.st} ${live?.ids?.has(m.id) ? 'now' : ''} ${m.p.includes(me) ? 'mine' : ''}`} data-mid={m.id}>
+              <div className="tm-h"><span>{tx('Mesa {m}', { m: m.id.split('-')[1] })}</span>{live?.ids?.has(m.id) && <span className="livepill">{tx('● a jogar')}</span>}</div>
               {(m.pl || m.p).map((i, k) => <div key={i} className={`ts ${m.pl ? (k === 0 ? 'win' : '') : ''} ${i === me ? 'me' : ''}`}><Thumb data={data} p={P[i]} /><i className="ts-seed">{m.pl ? tx('{p}.º', { p: k + 1 }) : i + 1}</i><span className="ts-n">{P[i]?.name}</span>{i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[i]?.format} />}{m.st === 'done' && <b className="ts-sc">{m.pl ? `+${k === 0 ? 3 : m.pl.length - 1 - k}` : '+1'}</b>}</div>)}
               {odds?.[m.id] && bet && <BetPop m={m} odds={odds[m.id]} P={P} bet={bet} />}
               {m.g.length > 0 && <div className="tm-g"><GameChips m={m} onGame={onGame} P={P} /></div>}

@@ -1856,4 +1856,8 @@ export default {
   "Vermelhas — objetivo (quanto chega a ganhar)": "Red — win progress (how close it gets to winning)",
   "A primeira cor ligada enche as estrelas e dá o número. Por omissão aparecem as três.": "The first colour switched on fills the stars and gives the number. By default all three are shown.",
   "Repor as três": "Show all three again",
+  "🎲 Aleatório (sorteado ao começar)": "🎲 Random (drawn at start)",
+  "Junta um deck do meta ao acaso": "Add a random meta deck",
+  "ao acaso": "random",
+  "Junta um deck teu ao acaso": "Add one of your decks at random",
 }

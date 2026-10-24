@@ -1848,4 +1848,8 @@ export default {
   "Vermelhas — objetivo (quanto chega a ganhar)": "Rojas — objetivo (cuánto se acerca a ganar)",
   "A primeira cor ligada enche as estrelas e dá o número. Por omissão aparecem as três.": "El primer color activado llena las estrellas y da el número. Por defecto se muestran los tres.",
   "Repor as três": "Volver a los tres",
+  "🎲 Aleatório (sorteado ao começar)": "🎲 Aleatorio (sorteado al empezar)",
+  "Junta um deck do meta ao acaso": "Añade un mazo del meta al azar",
+  "ao acaso": "al azar",
+  "Junta um deck teu ao acaso": "Añade uno de tus mazos al azar",
 }

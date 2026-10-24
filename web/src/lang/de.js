@@ -1848,4 +1848,8 @@ export default {
   "Vermelhas — objetivo (quanto chega a ganhar)": "Rot — Siegfortschritt (wie nah es dem Sieg kommt)",
   "A primeira cor ligada enche as estrelas e dá o número. Por omissão aparecem as três.": "Die erste eingeschaltete Farbe füllt die Sterne und liefert die Zahl. Standardmäßig werden alle drei gezeigt.",
   "Repor as três": "Alle drei wieder zeigen",
+  "🎲 Aleatório (sorteado ao começar)": "🎲 Zufällig (beim Start gezogen)",
+  "Junta um deck do meta ao acaso": "Ein zufälliges Meta-Deck hinzufügen",
+  "ao acaso": "zufällig",
+  "Junta um deck teu ao acaso": "Eines deiner Decks zufällig hinzufügen",
 }

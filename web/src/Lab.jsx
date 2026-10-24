@@ -113,6 +113,8 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
   }, [fmt.key, deck.id, deck.format, casual, metaFmt])
 
   const toggle = o => setSel(s => (s.some(x => x.id === o.id) ? s.filter(x => x.id !== o.id) : [...s, o]))
+  // 🎲 junta um adversário ao acaso (dos que ainda não estão escolhidos)
+  const pickRandom = (list, extra = {}) => { const free = list.filter(o => !sel.some(x => x.id === o.id)); if (free.length) toggle({ ...free[Math.floor(Math.random() * free.length)], ...extra }) }
   const deckA = { name: deck.name, commanders: deck.commanders, main: deck.main, side: deck.side, art: deck.art }  // art: para o tabuleiro
   // modo casual: o formato de cada deck vai para o tabuleiro (chips ao lado dos nomes)
   const fmtOf = (id, d) => d.format || (/^edhrec-/.test(id) ? 'commander' : /^[a-z]+-\d+$/.test(id) ? id.split('-')[0] : '')
@@ -123,7 +125,10 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
 
   // 3–4 jogadores: a mesma mesa joga `matches` jogos (um trabalho do Forge por jogo)
   const runMulti = async () => {
-    const load = async id => (id === 'espelho' ? { ...deckA, name: tx('{d} (espelho)', { d: deck.name }) } : id.startsWith('meus:') ? j(`/api/decks/${id.slice(5)}`) : j(`/api/sim/opponents/${encodeURIComponent(id)}`))
+    const load = async id => {
+      if (id === 'aleatorio') { const pool = [...opps.map(o => o.id), ...mine.map(o => `meus:${o.id}`)]; id = pool[Math.floor(Math.random() * pool.length)] || 'espelho' }  // 🎲 sorteado agora
+      return id === 'espelho' ? { ...deckA, name: tx('{d} (espelho)', { d: deck.name }) } : id.startsWith('meus:') ? j(`/api/decks/${id.slice(5)}`) : j(`/api/sim/opponents/${encodeURIComponent(id)}`)
+    }
     const ds = []
     for (const x of seats.slice(0, nSeats)) {
       const o = await load(x.id), nm = o.name || x.id
@@ -234,6 +239,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
                 <div key={k} className={`seat p-${'bcd'[k]}`}>
                   <b>{'BCD'[k]}{mode === 'equipas' ? ` · ${k === 1 ? tx('o teu parceiro') : tx('adversário')}` : ''}</b>
                   <select value={x.id} onChange={e => setSeat(k, { id: e.target.value })} aria-label={tx('Deck do lugar {s}', { s: 'BCD'[k] })}>
+                    <option value="aleatorio">{tx('🎲 Aleatório (sorteado ao começar)')}</option>
                     <optgroup label={tx('Os meus decks')}><option value="espelho">{tx('⇄ Espelho: {d}', { d: deck.name })}</option>{mine.map(o => <option key={o.id} value={`meus:${o.id}`}>{o.name}{casual ? ` · ${FORMAT[o.format]?.name || o.format}` : ''}</option>)}</optgroup>
                     {opps.length > 0 && <optgroup label={tx('Do meta')}>{opps.map(o => <option key={o.id} value={o.id}>{o.name}{o.share ? ` (${Math.round(o.share * 100)}%)` : ''}</option>)}</optgroup>}
                   </select>
@@ -243,11 +249,11 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
                 </div>
               ))}
             </> : <>
-            <h4>{tx('Do meta')} {casual && <select className="tc-mf" value={metaFmt} onChange={e => setMetaFmt(e.target.value)} aria-label={tx('Decks do meta de')}>{CASUAL_META.map(k => <option key={k} value={k}>{tx('de {f}', { f: FORMAT[k]?.name || k })}</option>)}</select>} {opps.length ? <span className="muted">({opps.length})</span> : null}</h4>
+            <h4>{tx('Do meta')} {opps.length > 0 && <button className="small" onClick={() => pickRandom(opps)} title={tx('Junta um deck do meta ao acaso')}>🎲 {tx('ao acaso')}</button>} {casual && <select className="tc-mf" value={metaFmt} onChange={e => setMetaFmt(e.target.value)} aria-label={tx('Decks do meta de')}>{CASUAL_META.map(k => <option key={k} value={k}>{tx('de {f}', { f: FORMAT[k]?.name || k })}</option>)}</select>} {opps.length ? <span className="muted">({opps.length})</span> : null}</h4>
             <div className="opp-list">{opps.map(o => (
               <label key={o.id} className={`opp ${sel.some(x => x.id === o.id) ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === o.id)} onChange={() => toggle(o)} /> {o.name} <Stars r={rt[`meta:${o.id}${casual ? '|casual' : ''}`]} /> {o.share ? <span className="muted">{Math.round(o.share * 100)}%</span> : null}</label>
             ))}{!opps.length && <p className="muted small">{tx('Sem decks do meta para este formato.')}</p>}</div>
-            <h4>{tx('Os meus decks')}</h4>
+            <h4>{tx('Os meus decks')} {mine.length > 0 && <button className="small" onClick={() => pickRandom(mine, { source: 'meus' })} title={tx('Junta um deck teu ao acaso')}>🎲 {tx('ao acaso')}</button>}</h4>
             <div className="opp-list">
               <label className={`opp mirror ${sel.some(x => x.id === 'espelho') ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === 'espelho')} onChange={() => toggle({ id: 'espelho', name: tx('Espelho'), source: 'espelho' })} /> {tx('⇄ Espelho: o mesmo deck')}</label>
               {mine.map(o => (
