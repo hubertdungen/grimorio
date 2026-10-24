@@ -1530,8 +1530,8 @@ export function DeckGrid({ data, deck, fmt, act }) {
     ;(groups[g] ||= []).push([c, q])
   }
   const order = bySec ? [...(deck.groups || []).map(g => g.nome), tx('Outras')] : [...TYPES.map(t => TYPE_LABEL[t])]
-  const Tile = ({ c, q, zone }) => (
-    <div className="dg-tile">
+  const tile = ({ c, q, zone }) => (  // função e não componente (ver o row do DeckPanel em App.jsx)
+    <div key={`${zone}:${c.i}`} className="dg-tile">
       <button className="dg-img" onClick={() => act.open(c)} title={c.n}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
       {q > 1 && <span className="dg-q">×{q}</span>}
       <div className="dg-bar">
@@ -1561,17 +1561,17 @@ export function DeckGrid({ data, deck, fmt, act }) {
       {order.filter(g => groups[g]).map(g => (
         <section key={g}>
           <h4>{g} <span className="muted">{groups[g].reduce((s, [, q]) => s + q, 0)}</span></h4>
-          <div className="dg-row">{groups[g].sort((a, b) => a[0].cmc - b[0].cmc || a[0].n.localeCompare(b[0].n)).map(([c, q]) => <Tile key={c.i} c={c} q={q} zone="main" />)}</div>
+          <div className="dg-row">{groups[g].sort((a, b) => a[0].cmc - b[0].cmc || a[0].n.localeCompare(b[0].n)).map(([c, q]) => tile({ c, q, zone: 'main' }))}</div>
         </section>
       ))}
       {sum(zones[1][1]) > 0 && (
         <section><h4>Sideboard <span className="muted">{sum(deck.side)}</span></h4><div className="dg-row">
-          {Object.keys(deck.side).map(n => data.byName.get(n)).filter(Boolean).map(c => <Tile key={c.i} c={c} q={deck.side[c.n]} zone="side" />)}
+          {Object.keys(deck.side).map(n => data.byName.get(n)).filter(Boolean).map(c => tile({ c, q: deck.side[c.n], zone: 'side' }))}
         </div></section>
       )}
       {sum(deck.maybe || {}) > 0 && (
         <section className="maybe"><h4>Maybeboard <span className="muted">{sum(deck.maybe)} · {tx('fora do deck, das estatísticas e dos testes')}</span></h4><div className="dg-row">
-          {Object.keys(deck.maybe).map(n => data.byName.get(n)).filter(Boolean).map(c => <Tile key={c.i} c={c} q={deck.maybe[c.n]} zone="maybe" />)}
+          {Object.keys(deck.maybe).map(n => data.byName.get(n)).filter(Boolean).map(c => tile({ c, q: deck.maybe[c.n], zone: 'maybe' }))}
         </div></section>
       )}
     </div>

@@ -430,8 +430,10 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
     a.click()
   }
   const zones = ['main', ...(fmt.side ? ['side'] : []), 'maybe']
-  const Row = ({ n, q, c, zone }) => (
-    <li className="row">
+  // chamada como função e não como componente: um componente definido aqui dentro seria outro a cada render e o
+  // React remontava todas as linhas (perdia-se o scroll da lista ao abrir uma carta)
+  const row = ({ n, q, c, zone }) => (
+    <li key={`${zone}:${n}`} className="row">
       <span className="qty">
         <button onClick={() => c && act.add(c, zone, -1)} aria-label={tx('Menos')}>−</button>
         <b>{q}</b>
@@ -502,7 +504,7 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
       {order.map(t => (
         <section key={t}>
           <h4>{GROUP_L[t] || TYPE_LABEL[t] || t} <span className="muted">{groups[t].reduce((s, [, q]) => s + q, 0)}</span></h4>
-          <ul>{groups[t].sort((a, b) => (a[2]?.cmc ?? 0) - (b[2]?.cmc ?? 0) || a[0].localeCompare(b[0])).map(([n, q, c]) => <Row key={n} {...{ n, q, c, zone: 'main' }} />)}</ul>
+          <ul>{groups[t].sort((a, b) => (a[2]?.cmc ?? 0) - (b[2]?.cmc ?? 0) || a[0].localeCompare(b[0])).map(([n, q, c]) => row({ n, q, c, zone: 'main' }))}</ul>
         </section>
       ))}
       {!order.length && <p className="muted small hint">{tx('Deck vazio. Usa o')} <b>✦ {tx('Novo deck')}</b> {tx('(escolhe 3 a 10 cartas e o Grimório completa o resto), procura cartas, ou escolhe sementes em')} <b>{tx('Sugestões')}</b>.</p>}
@@ -510,13 +512,13 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
       {count(deck.side) > 0 && (
         <section>
           <h4>Sideboard <span className="muted">{count(deck.side)}</span></h4>
-          <ul>{Object.entries(deck.side).map(([n, q]) => <Row key={n} n={n} q={q} c={data.byName.get(n)} zone="side" />)}</ul>
+          <ul>{Object.entries(deck.side).map(([n, q]) => row({ n, q, c: data.byName.get(n), zone: 'side' }))}</ul>
         </section>
       )}
       {count(deck.maybe || {}) > 0 && (
         <section className="maybe">
           <h4>Maybeboard <span className="muted">{count(deck.maybe)} · {tx('fora do deck')}</span></h4>
-          <ul>{Object.entries(deck.maybe).map(([n, q]) => <Row key={n} n={n} q={q} c={data.byName.get(n)} zone="maybe" />)}</ul>
+          <ul>{Object.entries(deck.maybe).map(([n, q]) => row({ n, q, c: data.byName.get(n), zone: 'maybe' }))}</ul>
         </section>
       )}
 
