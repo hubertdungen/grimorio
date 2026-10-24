@@ -282,6 +282,8 @@ export default function App() {
   }), [setDeck])
 
   // imagem própria de uma carta (link ou carregada): fica em deck.art e ganha à edição escolhida; url vazio tira-a
+  // cópias divididas por várias artes (ex.: 4 Islands de uma edição, 4 de outra): [{id, q}]; lista vazia volta a uma só arte
+  const setSplit = useCallback((n, list) => setDeck(d => { const split = { ...(d.split || {}) }; if (list?.length) split[n] = list; else delete split[n]; return { ...d, split } }), [setDeck])
   const setArt = useCallback((n, url) => setDeck(d => { const art = { ...(d.art || {}) }; if (url) art[n] = url; else delete art[n]; return { ...d, art } }), [setDeck])
   // tirar cópias à mão (− e ×): pergunta antes de tirar a última (em formatos de uma cópia só se assim estiver nas Definições)
   const now = useRef({}); now.current = { deck, fmt }
@@ -291,11 +293,11 @@ export default function App() {
       && !(await ask('ultima', { title: tx('Tirar «{c}» do deck?', { c: c.n }), body: tx('Era a última cópia. Podes desfazer com ↶.'), ok: tx('Tirar') }))) return
     add(c, zone, -q)
   }, [add])
-  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setPrefs, open: setOpen, say, pickArt: setArtCard,
+  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard,
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
-  [add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setPrefs, say, setDeck, undo, redo])
+  [add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const openDeck = async id => {

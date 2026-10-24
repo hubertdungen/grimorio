@@ -2063,4 +2063,9 @@ export default {
   "Vale em todos os decks onde não escolheste outra arte para o básico (neste browser).": "Vale para todos los mazos donde no elegiste otra arte para la básica (en este navegador).",
   "voltar à predefinida": "volver a la predeterminada",
   "voltar às da Scryfall": "volver a las de Scryfall",
+  "{a} de {n} cópias com arte escolhida": "{a} de {n} copias con arte elegida",
+  "Clica nas edições abaixo (ou carrega uma imagem tua) para juntar artes e acerta quantas cópias tem cada uma. As que sobram ficam com a arte principal.": "Pulsa las ediciones de abajo (o sube una imagen tuya) para añadir artes y ajusta cuántas copias tiene cada una. Las que sobran quedan con el arte principal.",
+  "Dividir as {n} cópias por várias artes": "Dividir las {n} copias en varias artes",
+  "Já estão as {n} cópias atribuídas: tira uma a outra arte primeiro.": "Ya están asignadas las {n} copias: quita una a otra arte primero.",
+  "{n} com a arte principal": "{n} con el arte principal",
 }

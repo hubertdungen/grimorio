@@ -2071,4 +2071,9 @@ export default {
   "Vale em todos os decks onde não escolheste outra arte para o básico (neste browser).": "Applies to every deck where you didn't choose another art for the basic (in this browser).",
   "voltar à predefinida": "back to default",
   "voltar às da Scryfall": "back to Scryfall's",
+  "{a} de {n} cópias com arte escolhida": "{a} of {n} copies with chosen art",
+  "Clica nas edições abaixo (ou carrega uma imagem tua) para juntar artes e acerta quantas cópias tem cada uma. As que sobram ficam com a arte principal.": "Click the editions below (or upload your own image) to add arts and set how many copies each gets. The rest keep the main art.",
+  "Dividir as {n} cópias por várias artes": "Split the {n} copies across several arts",
+  "Já estão as {n} cópias atribuídas: tira uma a outra arte primeiro.": "All {n} copies are already assigned: take one from another art first.",
+  "{n} com a arte principal": "{n} with the main art",
 }

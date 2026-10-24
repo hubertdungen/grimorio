@@ -1531,10 +1531,19 @@ export function DeckGrid({ data, deck, fmt, act }) {
     ;(groups[g] ||= []).push([c, q])
   }
   const order = bySec ? [...(deck.groups || []).map(g => g.nome), tx('Outras')] : [...TYPES.map(t => TYPE_LABEL[t])]
-  const tile = ({ c, q, zone }) => (  // função e não componente (ver o row do DeckPanel em App.jsx)
-    <div key={`${zone}:${c.i}`} className="dg-tile">
-      <button className="dg-img" onClick={() => act.open(c)} title={c.n}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
-      {q > 1 && <span className="dg-q">×{q}</span>}
+  // cópias divididas por várias artes (terrenos básicos): um cartão por arte, com as suas cópias; as que sobram, com a principal
+  const tile = ({ c, q, zone }) => {
+    const sp = zone === 'main' && deck.split?.[c.n]
+    if (!sp) return tile1({ c, q, zone })
+    let left = q
+    const parts = sp.map(x => { const n = Math.min(x.q, left); left -= n; return { pid: x.id, n } }).filter(x => x.n > 0)
+    if (left > 0) parts.push({ pid: pidOf(deck, c.n), n: left })
+    return parts.map((x, k) => tile1({ c, q, zone, pid: x.pid, part: x.n, k }))
+  }
+  const tile1 = ({ c, q, zone, pid, part, k = 0 }) => (  // função e não componente (ver o row do DeckPanel em App.jsx)
+    <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}`}>
+      <button className="dg-img" onClick={() => act.open(c)} title={c.n}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
+      {(part ?? q) > 1 && <span className="dg-q">×{part ?? q}</span>}
       <div className="dg-bar">
         <button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
         <b>{q}</b>
@@ -1679,6 +1688,18 @@ export function ArtPicker({ c, deck, act, onClose }) {
   const [hoverPid, setHoverPid] = useState(null)
   const pid = hoverPid || preview || pidOf(deck, c.n)
   const onPreview = (id, hover) => (hover ? setHoverPid(id) : (setPreview(id), setHoverPid(null)))
+  // terrenos básicos: as cópias podem ser divididas por várias artes (deck.split); clicar numa edição junta-a à divisão
+  const total = (deck.main[c.n] || 0) + (deck.side[c.n] || 0), slots = deck.split?.[c.n] || []
+  const canSplit = /\bBasic\b/.test(c.t) && total >= 2
+  const [splitOn, setSplitOn] = useState(slots.length > 0)
+  const sum = slots.reduce((a, x) => a + x.q, 0)
+  const putSlots = l => act.setSplit(c.n, l.filter(x => x.q > 0))
+  const addSlot = id => {
+    if (sum >= total) return act.say(tx('Já estão as {n} cópias atribuídas: tira uma a outra arte primeiro.', { n: total }))
+    const k = slots.findIndex(x => x.id === id)
+    putSlots(k >= 0 ? slots.map((x, j) => (j === k ? { ...x, q: x.q + 1 } : x)) : [...slots, { id, q: 1 }])
+  }
+  const act2 = canSplit && splitOn ? { ...act, setPrint: (cc, p) => p && addSlot(p.id), setArt: (n, url) => url && addSlot(url) } : act
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal artpick" onClick={e => e.stopPropagation()}>
@@ -1687,8 +1708,22 @@ export function ArtPicker({ c, deck, act, onClose }) {
         <div className="ap-list">
           <h3>{tx('Arte de {c}', { c: c.n })}</h3>
           <p className="muted small">{tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
-          <Prints c={c} deck={deck} act={act} onPreview={onPreview} />
-          <OwnArt c={c} deck={deck} act={act} />
+          {canSplit && <div className="split-box">
+            <label className="chk"><input type="checkbox" checked={splitOn} onChange={e => { setSplitOn(e.target.checked); if (!e.target.checked) act.setSplit(c.n, null) }} /> {tx('Dividir as {n} cópias por várias artes', { n: total })}</label>
+            {splitOn && <>
+              <p className="muted small">{tx('Clica nas edições abaixo (ou carrega uma imagem tua) para juntar artes e acerta quantas cópias tem cada uma. As que sobram ficam com a arte principal.')}</p>
+              <div className="split-slots">{slots.map((x, k) => (
+                <div key={x.id} className="split-slot" onMouseEnter={() => onPreview(x.id, true)} onMouseLeave={() => onPreview(null, true)}>
+                  <img src={img(c, 'small', false, x.id)} alt="" />
+                  <span className="qty"><button onClick={() => putSlots(slots.map((y, j) => (j === k ? { ...y, q: y.q - 1 } : y)))} aria-label={tx('Menos uma')}>−</button><b>{x.q}</b>
+                    <button disabled={sum >= total} onClick={() => putSlots(slots.map((y, j) => (j === k ? { ...y, q: y.q + 1 } : y)))} aria-label={tx('Mais uma')}>+</button></span>
+                </div>
+              ))}</div>
+              <small className="muted">{tx('{a} de {n} cópias com arte escolhida', { a: sum, n: total })}{sum < total ? ` · ${tx('{n} com a arte principal', { n: total - sum })}` : ''}</small>
+            </>}
+          </div>}
+          <Prints c={c} deck={deck} act={act2} onPreview={onPreview} />
+          <OwnArt c={c} deck={deck} act={act2} />
         </div>
       </div>
     </div>

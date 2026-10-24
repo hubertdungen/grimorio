@@ -405,3 +405,7 @@ console.log('selfcheck universo ok')
   assert.equal(nextGame(fl.slice(0, 3), 0, 'mesa', { mid: 'A', gid: 1 }, () => true).away, false)  // A acabou: muda de mesa
   console.log('selfcheck próximo jogo ok') }
 { const { selfcheck } = await import('./src/artmatch.js'); selfcheck(); console.log('selfcheck imagens da pasta ok') }
+{ const { artPick } = await import('./src/data.js'); const v = [{ id: 'A', q: 4 }, { id: 'B', q: 4 }], n = { A: 0, B: 0 }
+  for (let i = 0; i < 400; i++) n[artPick(v, `a${i}`)]++
+  assert.ok(n.A > 120 && n.B > 120, 'artPick divide as cópias'); assert.equal(artPick(v, 'a7'), artPick(v, 'a7')); assert.equal(artPick('x', 'a1'), 'x'); assert.equal(artPick(null), null)
+  console.log('selfcheck artes por cópia ok') }

@@ -2063,4 +2063,9 @@ export default {
   "Vale em todos os decks onde não escolheste outra arte para o básico (neste browser).": "Gilt für alle Decks, in denen du kein anderes Artwork für das Standardland gewählt hast (in diesem Browser).",
   "voltar à predefinida": "zurück zum Standard",
   "voltar às da Scryfall": "zurück zu Scryfall",
+  "{a} de {n} cópias com arte escolhida": "{a} von {n} Kopien mit gewähltem Artwork",
+  "Clica nas edições abaixo (ou carrega uma imagem tua) para juntar artes e acerta quantas cópias tem cada uma. As que sobram ficam com a arte principal.": "Klicke unten auf Editionen (oder lade ein eigenes Bild hoch), um Artworks hinzuzufügen, und stelle die Kopien pro Artwork ein. Der Rest behält das Haupt-Artwork.",
+  "Dividir as {n} cópias por várias artes": "Die {n} Kopien auf mehrere Artworks verteilen",
+  "Já estão as {n} cópias atribuídas: tira uma a outra arte primeiro.": "Alle {n} Kopien sind schon vergeben: nimm zuerst einem anderen Artwork eine weg.",
+  "{n} com a arte principal": "{n} mit dem Haupt-Artwork",
 }

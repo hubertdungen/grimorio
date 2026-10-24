@@ -2,7 +2,7 @@
 // (game.js) e anima só o que mudou em cada passo (a carta que entrou/virou/atacou/morreu, a vida que mudou).
 // Controlos: pausa, velocidade, passo, salto de turno, linha do tempo com marcas por tipo de evento.
 import { createContext, Fragment, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { img } from './data.js'
+import { img, artPick, artMapOf } from './data.js'
 import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors } from './ui.jsx'
@@ -109,8 +109,8 @@ function In({ as, quiet, className = '', ...p }) {
 // arte própria dos decks (ex.: alteradas no TappedOut): arts = {a: {nome: link}, b: …}; k = lado (o Side diz qual);
 // sem lado, a de qualquer deck que a tenha. Sem arte própria, a da Scryfall.
 const Arts = createContext({ arts: null, k: null })
-const artOf = (arts, k, c) => c && arts && (k ? arts[k]?.[c.n] : Object.values(arts).map(x => x?.[c.n]).find(Boolean))
-const useImg = () => { const { arts, k } = useContext(Arts); return (c, size, back, side = k) => img(c, size, back, artOf(arts, side, c)) }
+const artOf = (arts, k, c, inst) => c && arts && artPick(k ? arts[k]?.[c.n] : Object.values(arts).map(x => x?.[c.n]).find(Boolean), inst)
+const useImg = () => { const { arts, k } = useContext(Arts); return (c, size, back, side = k, inst) => img(c, size, back, artOf(arts, side, c, inst)) }
 
 // ---------- uma carta no campo ----------
 const kwsOf = (c, p) => [...new Set([...(c?.kw || []), ...(p.kw || [])])].filter(k => KW[k])
@@ -119,7 +119,7 @@ function Face({ p, c, back, size = 'small' }) {
   const im = useImg()
   if (p.hidden) return <div className="pc-back" />
   if (!c && p.token) c = tokenCard(p.name, p.pt, p.src)
-  if (c) return <img src={im(c, size, back && !!c.df)} alt={short(p.face || p.name)} loading="lazy" draggable="false" />
+  if (c) return <img src={im(c, size, back && !!c.df, undefined, p.key)} alt={short(p.face || p.name)} loading="lazy" draggable="false" />
   return (
     <div className="pc-token">
       <small>{p.token ? tx('FICHA') : ''}</small>
@@ -434,7 +434,7 @@ function ScoreN({ sc, ended, game, who, fm }) {
 export const HANDS = [['ambas', tx('Mãos: ambas visíveis')], ['minha', tx('Mãos: só a minha')], ['nenhuma', tx('Mãos: ambas escondidas')]]
 
 export default function Replay({ data, game, onBack, backLabel = tx('← Relatório'), deckName, pov = 'a', track = false, bets, bots, live = false, next, speed0, onSpeed, hands: hands0, onHands, onPlayFrom, score, arts: arts0, formats }) {  // arts: {a: {nome: link}, b: …} arte própria de cada deck (torneio: game.arts; Laboratório: game.decks); formats: {a: 'Pauper', b: …} (modo casual)
-  const art = useMemo(() => ({ arts: arts0 || game.arts || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, d?.art]))), k: null }), [arts0, game]), arts = art.arts
+  const art = useMemo(() => ({ arts: arts0 || game.arts || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, artMapOf(d)]))), k: null }), [arts0, game]), arts = art.arts
   const [hands, setHandsS] = useState(hands0 || 'ambas')
   // No Coliseu o tabuleiro escala as cartas (--fit) para caber na altura do ecrã: ao abrir, ao redimensionar e em ecrã inteiro
   const boardRef = useRef(null), fitRef = useRef(null), zoomRef = useRef(null)  // zoomRef: −/⤢/+ (ajuste manual, guardado)

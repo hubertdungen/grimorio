@@ -178,6 +178,19 @@ export async function fetchCollection(ids) {
 
 // arte de uma carta no deck: a do site de origem, senão a edição escolhida
 export const pidOf = (deck, n) => deck?.art?.[n] || deck?.prints?.[n]?.id
+// artes de um deck para o tabuleiro (como sim.art_map no servidor): edição escolhida, imagem própria ou cópias divididas
+export const artMapOf = d => (d ? { ...Object.fromEntries(Object.entries(d.prints || {}).filter(([, p]) => p?.id).map(([n, p]) => [n, p.id])), ...(d.art || {}), ...(d.split || {}) } : null)
+// arte de uma cópia: com as cópias divididas ([{id, q}]), cada cópia (inst = chave estável) fica sempre com a mesma
+export function artPick(v, inst) {
+  if (!Array.isArray(v)) return v || null
+  const total = v.reduce((a, x) => a + (x.q || 0), 0)
+  if (!total) return v[0]?.id || null
+  let h = 0
+  for (const ch of String(inst ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  let k = h % total
+  for (const x of v) { if (k < x.q) return x.id; k -= x.q }
+  return v[0].id
+}
 
 // Extras de um deck lido por link: arte própria do site (j.art, TappedOut) com os nomes canónicos,
 // e as edições «(SET) nº» da lista (Moxfield, Archidekt…) resolvidas na Scryfall.

@@ -691,8 +691,8 @@ def arena_status(con, owner):
     arts = {}  # artes próprias dos meus decks (importadas do site de origem) para o tabuleiro do «ver ao vivo»
     for k in ("a", "b") if cur else ():
         d = cur[k].get("kind") == "meu" and load_deck(con, cur[k])
-        if d and isinstance(d.get("art"), dict) and d["art"]:
-            arts[k] = d["art"]
+        if d and (m := sim.art_map(d)):
+            arts[k] = m
     return {**{k: cfg[k] for k in ARENA}, "mine": cfg["owner"] in ("", owner), "state": ST["state"], "error": ST["error"],
             "played": kv(con, "arena_played") or 0, "today": today, "last": last,
             "avg_secs": round(sum(ST["secs"]) / len(ST["secs"])) if ST["secs"] else None,

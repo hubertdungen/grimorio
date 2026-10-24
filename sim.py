@@ -51,6 +51,17 @@ EDH_FORMATS = ("commander", "duel")
 BASE_LIFE = {"commander": 40, "predh": 40, "paupercommander": 30, "brawl": 25, "standardbrawl": 25}
 
 
+def art_map(deck):
+    """Artes de um deck para o tabuleiro: {carta: id da edição escolhida | imagem própria | [{"id", "q"}] (cópias divididas
+    por várias artes, ex.: 4 Islands de uma edição e 4 de outra)}. A imagem própria ganha à edição; a divisão ganha a tudo."""
+    if not isinstance(deck, dict):
+        return {}
+    out = {n: p["id"] for n, p in (deck.get("prints") or {}).items() if isinstance(p, dict) and p.get("id")}
+    out.update({n: u for n, u in (deck.get("art") or {}).items() if isinstance(u, str) and u})
+    out.update({n: l for n, l in (deck.get("split") or {}).items() if isinstance(l, list) and l})
+    return out
+
+
 def base_life(fmt, n):
     """Vida inicial das regras base de um formato (Brawl a 3+ jogadores: 30)."""
     return 30 if fmt in ("brawl", "standardbrawl") and n > 2 else BASE_LIFE.get(fmt, 20)
@@ -1338,6 +1349,8 @@ def history(con, deck_id):
 # ---------- verificação ----------
 
 def selfcheck():
+    d = {"prints": {"Island": {"id": "p1"}, "Forest": {"id": "p2"}}, "art": {"Forest": "arts/x.webp"}, "split": {"Island": [{"id": "p1", "q": 4}, {"id": "p3", "q": 4}]}}
+    assert art_map(d) == {"Island": [{"id": "p1", "q": 4}, {"id": "p3", "q": 4}], "Forest": "arts/x.webp"} and art_map(None) == {}, "art_map"
     names = {fold(n): n for n in ("Fire // Ice", "Delver of Secrets", "Lightning Bolt", "Lim-Dûl's Vault", "Mountain")}
     deck = {"commanders": ["Lightning Bolt"], "main": {"Fire // Ice": 2, "Delver of Secrets // Insectile Aberration": 4,
                                                        "Lim-Dul's Vault": 1, "Carta Inventada": 1, "Mountain": 20},

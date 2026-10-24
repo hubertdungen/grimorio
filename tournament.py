@@ -655,7 +655,7 @@ def route(method, path, owner, body=None):
             if not r:
                 return 404, {"erro": "Esse jogo não existe."}
             g, ds = json.loads(zlib.decompress(r[0])), json.loads(row[8]).get("decks") or []
-            g["arts"] = {"abcd"[k]: ds[i]["art"] for k, i in enumerate(g.get("seats") or []) if k < 4 and isinstance(i, int) and i < len(ds) and ds[i].get("art")}
+            g["arts"] = {"abcd"[k]: m for k, i in enumerate(g.get("seats") or []) if k < 4 and isinstance(i, int) and i < len(ds) and (m := sim.art_map(ds[i]))}
             return 200, g
         if method == "GET" and len(parts) == 2 and parts[1] == "bets":
             return 200, bets_view(con, owner, tid, row[5], json.loads(row[8]))

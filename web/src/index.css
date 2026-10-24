@@ -1657,3 +1657,9 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .bs-cur { display: flex; gap: 6px; flex-wrap: wrap; }
 .bs-cur span { width: 64px; aspect-ratio: 626 / 457; display: grid; place-items: center; border-radius: 6px; overflow: hidden; background: var(--panel2); border: 1px solid var(--line); }
 .bs-cur img { width: 100%; height: 100%; object-fit: cover; } .bs-cur i { font-style: normal; font-size: 10px; color: var(--muted); }
+/* cópias divididas por várias artes */
+.split-box { display: grid; gap: 6px; margin: 4px 0 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+.split-slots { display: flex; flex-wrap: wrap; gap: 8px; }
+.split-slot { display: grid; justify-items: center; gap: 3px; } .split-slot img { width: 66px; border-radius: 5px; }
+.split-slot .qty { display: inline-flex; align-items: center; gap: 4px; } .split-slot .qty button { width: 22px; height: 22px; padding: 0; line-height: 1; }
+.dg-tile.split .dg-img { box-shadow: 0 0 0 1px #ffffff22; }

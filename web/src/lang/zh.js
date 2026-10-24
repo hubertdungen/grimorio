@@ -2063,4 +2063,9 @@ export default {
   "Vale em todos os decks onde não escolheste outra arte para o básico (neste browser).": "适用于所有未另选基本地卡图的套牌（仅此浏览器）。",
   "voltar à predefinida": "恢复默认",
   "voltar às da Scryfall": "恢复为 Scryfall 默认",
+  "{a} de {n} cópias com arte escolhida": "{n} 张中有 {a} 张已选卡图",
+  "Clica nas edições abaixo (ou carrega uma imagem tua) para juntar artes e acerta quantas cópias tem cada uma. As que sobram ficam com a arte principal.": "点击下方版本（或上传你的图片）添加卡图，并设置每种卡图的张数。其余的保留主卡图。",
+  "Dividir as {n} cópias por várias artes": "将 {n} 张分配到多种卡图",
+  "Já estão as {n} cópias atribuídas: tira uma a outra arte primeiro.": "{n} 张都已分配：请先从其他卡图减去一张。",
+  "{n} com a arte principal": "{n} 张使用主卡图",
 }
