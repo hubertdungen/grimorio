@@ -404,3 +404,4 @@ console.log('selfcheck universo ok')
   assert.equal(id(nextGame(fl, 2, 'mesa', { mid: 'A', gid: 1 }, open)), 4)      // depois de espreitar, volta à mesa A
   assert.equal(nextGame(fl.slice(0, 3), 0, 'mesa', { mid: 'A', gid: 1 }, () => true).away, false)  // A acabou: muda de mesa
   console.log('selfcheck próximo jogo ok') }
+{ const { selfcheck } = await import('./src/artmatch.js'); selfcheck(); console.log('selfcheck imagens da pasta ok') }

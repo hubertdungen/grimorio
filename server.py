@@ -12,6 +12,7 @@ import backup
 import ratings
 import sim
 import tournament
+import artfolder
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(HERE, "web", "dist")
@@ -244,6 +245,16 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/health":
             ok = os.path.isfile(os.path.join(ARGS.data_dir, "data", "meta.json"))
             return self.json({"ok": ok}, 200 if ok else 503)
+        if p == "/api/arts/proxy":  # imagem de uma pasta na net, para o browser a comprimir antes de a guardar (artfolder.py)
+            if not self.owner():
+                return self.json({"erro": "sem utilizador"}, 401)
+            try:
+                body, ctype = artfolder.fetch(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("url", [""])[0])
+            except ValueError as e:
+                return self.json({"erro": str(e)}, 400)
+            except Exception:
+                return self.json({"erro": "Não consegui trazer essa imagem."}, 502)
+            return self.send(200, body, ctype, {"Cache-Control": "private, max-age=600"})
         ma = re.match(r"^/arts/([a-f0-9]{20}\.(?:jpg|png|webp|gif))$", p)  # imagens próprias das cartas (POST /api/arts)
         if ma:
             return self.file(os.path.join(ARGS.data_dir, "arts", ma.group(1)), "max-age=31536000, immutable")
@@ -450,6 +461,15 @@ class H(BaseHTTPRequestHandler):
                     return self.json({"id": rid}, 201)
             except (ValueError, TypeError, AttributeError) as e:
                 return self.json({"erro": str(e) if isinstance(e, ValueError) else "pedido inválido"}, 400)
+        if self.path == "/api/arts/folder":  # lista as imagens de uma pasta na net: {url} → [{name, url}] (artfolder.py)
+            if not self.owner():
+                return self.json({"erro": "sem utilizador"}, 401)
+            try:
+                return self.json(artfolder.listing(str((self.body() or {}).get("url") or "")))
+            except ValueError as e:
+                return self.json({"erro": str(e)}, 400)
+            except Exception:
+                return self.json({"erro": "Não consegui abrir esse link."}, 502)
         if self.path == "/api/arts":  # imagem própria de uma carta: guarda-se pelo conteúdo e devolve o link relativo
             if not self.owner():
                 return self.json({"erro": "sem utilizador"}, 401)

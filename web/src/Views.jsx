@@ -1,3 +1,4 @@
+import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { search, recommend, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
@@ -1582,6 +1583,59 @@ export function DeckGrid({ data, deck, fmt, act }) {
 // Imagem própria: link (https) ou ficheiro carregado (POST /api/arts); «vários links» liga cada link à carta do deck
 // cujo nome aparece no endereço (como nos links do TappedOut: …/bloodthrone-vampire/…), ou a linhas «Nome | link».
 const slugOf = n => n.split(' // ')[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['’,]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+// Imagens próprias de uma pasta (link na net ou pasta do computador): cada imagem vai para a carta com quem partilha
+// mais palavras do nome; revês a lista, e as escolhidas são comprimidas e guardadas aqui (arts/, também offline).
+function ArtFolder({ deck, act }) {
+  const [link, setLink] = useState(''), [list, setList] = useState(null), [busy, setBusy] = useState(''), [err, setErr] = useState('')
+  const names = [...new Set([...(deck.commanders || []), ...Object.keys(deck.main || {}), ...Object.keys(deck.side || {})])]
+  const found = files => { const m = matchArts(names, files); setList(m.map(x => ({ ...x, on: true }))); if (!m.length) setErr(tx('Nenhuma imagem tem palavras em comum com as cartas do deck.')) }
+  const fromLink = async () => {
+    setErr(''); setList(null); setBusy(tx('A ler a pasta…'))
+    try {
+      const r = await fetch('/api/arts/folder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: link.trim() }) })
+      const j = await r.json(); if (!r.ok) throw new Error(j.erro)
+      found(j.map(x => ({ name: x.name, url: x.url, thumb: `/api/arts/proxy?url=${encodeURIComponent(x.url)}` })))
+    } catch (e) { setErr(e.message) } finally { setBusy('') }
+  }
+  const fromDir = fs => { setErr(''); found([...fs].filter(f => /^image\/(jpeg|png|webp|gif)$/.test(f.type)).map(f => ({ name: f.name, file: f, thumb: URL.createObjectURL(f) }))) }
+  const apply = async () => {
+    const todo = list.filter(x => x.on); let n = 0
+    setErr('')
+    for (const x of todo) {
+      setBusy(tx('A guardar {i} de {n}…', { i: n + 1, n: todo.length }))
+      try {
+        const blob = x.file.file || await (await fetch(x.file.thumb)).blob()
+        const small = await shrink(blob)
+        const r = await fetch('/api/arts', { method: 'POST', headers: { 'Content-Type': small.type }, body: small })
+        const j = await r.json(); if (!r.ok) throw new Error(j.erro)
+        act.setArt(x.card, j.url); n++
+      } catch (e) { setErr(`${x.card}: ${e.message}`) }
+    }
+    setBusy(''); setList(null); act.say(tx('{n} imagem própria ligada às cartas|{n} imagens próprias ligadas às cartas', { n }))
+  }
+  return (
+    <div className="artdir">
+      <p className="muted small">{tx('Uma pasta de imagens: cada uma vai para a carta com quem partilha mais palavras do nome (pelo menos uma). Revês antes de aplicar; ficam comprimidas e guardadas aqui, também para jogar offline.')}</p>
+      <form className="row-btns" onSubmit={e => { e.preventDefault(); if (link.trim()) fromLink() }}>
+        <input value={link} onChange={e => setLink(e.target.value)} placeholder={tx('Link da pasta (Google Drive público, GitHub ou página com as imagens)')} />
+        <button type="submit" disabled={!link.trim() || !!busy}>{tx('Ler a pasta')}</button>
+        <label className="dbox-up">📁 {tx('Pasta do computador')}<input type="file" webkitdirectory="" directory="" multiple onChange={e => fromDir(e.target.files || [])} /></label>
+      </form>
+      {busy && <p className="small"><span className="spin-dot" /> {busy}</p>}
+      {err && <p className="small bad-t">{err}</p>}
+      {list?.length > 0 && <>
+        <ul className="artdir-list">{list.map((x, k) => (
+          <li key={x.card} className={x.on ? '' : 'off'}>
+            <label><input type="checkbox" checked={x.on} onChange={e => setList(l => l.map((y, j) => (j === k ? { ...y, on: e.target.checked } : y)))} />
+              <img src={x.file.thumb} alt="" loading="lazy" /><span><b>{x.card}</b><small className="muted">{x.file.name}{x.exact ? '' : ` · ${tx('{n} palavra em comum|{n} palavras em comum', { n: x.shared })}`}</small></span></label>
+          </li>
+        ))}</ul>
+        <div className="row-btns"><button className="primary" disabled={!!busy || !list.some(x => x.on)} onClick={apply}>{tx('Aplicar {n}', { n: list.filter(x => x.on).length })}</button><button className="link" onClick={() => setList(null)}>{tx('cancelar')}</button></div>
+      </>}
+    </div>
+  )
+}
+
 function OwnArt({ c, deck, act }) {
   const [link, setLink] = useState(''), [many, setMany] = useState(''), [err, setErr] = useState('')
   const own = deck.art?.[c.n]
@@ -1610,6 +1664,7 @@ function OwnArt({ c, deck, act }) {
       </form>
       {own && <button className="link small" onClick={() => act.setArt(c.n, null)}>{tx('tirar a imagem própria')}</button>}
       {err && <p className="small bad-t">{err}</p>}
+      <details className="ownart-many"><summary className="small">{tx('Uma pasta de imagens (para o deck todo)')}</summary><ArtFolder deck={deck} act={act} /></details>
       <details className="ownart-many"><summary className="small">{tx('Vários links de uma vez (para o deck todo)')}</summary>
         <p className="muted small">{tx('Um link por linha. Cada um vai para a carta cujo nome aparece no endereço (como nos links do TappedOut); ou escreve «Nome da carta | link».')}</p>
         <textarea value={many} onChange={e => setMany(e.target.value)} rows={4} placeholder={'https://static.tappedout.net/…/carrion-feeder/…png\nBone Picker | https://…'} />
