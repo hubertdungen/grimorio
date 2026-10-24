@@ -19,6 +19,15 @@ const TYPES = {
   liga: [tx('Liga (todos contra todos)'), 4, 16, tx('Cada deck joga uma vez contra cada um dos outros; vitória 3, empate 1. O mais justo e o mais longo.')],
   mesas: [tx('Mesas (multijogador)'), 4, 16, tx('Para Commander e jogos a 3–4: mesas de todos contra todos, um jogo por mesa; pontos pelo lugar (1.º 3, 2.º 2, 3.º 1, 4.º 0). Em cada ronda as mesas refazem-se pelos pontos.')],
 }
+// ícones dos tipos de torneio (traço na cor do texto)
+const TYPE_ICO = {
+  elim: <path d="M3 4h5v6H3M8 7h5M3 14h5v6H3M8 17h5M13 7v10M13 12h8" />,
+  dupla: <><path d="M3 3h5v5H3M8 5.5h4M3 11h5v5H3M8 13.5h4M12 5.5v8M12 9.5h5" /><path d="M17.5 21.2l-3-2.9a1.8 1.8 0 0 1 3-2 1.8 1.8 0 0 1 3 2z" fill="currentColor" stroke="none" /></>,
+  suico: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 7.5v9M7.5 12h9" strokeWidth="3" /></>,
+  liga: <><path d="M12 3l8.5 6.2-3.2 10H6.7L3.5 9.2z" /><path d="M12 3l5.3 16.2M12 3L6.7 19.2M3.5 9.2h17M3.5 9.2l13.8 10M20.5 9.2L6.7 19.2" opacity=".55" /></>,
+  mesas: <><circle cx="12" cy="12" r="5" /><circle cx="12" cy="3.5" r="1.6" fill="currentColor" /><circle cx="12" cy="20.5" r="1.6" fill="currentColor" /><circle cx="3.5" cy="12" r="1.6" fill="currentColor" /><circle cx="20.5" cy="12" r="1.6" fill="currentColor" /></>,
+}
+const TypeIco = ({ k }) => <svg className="tc-ico" viewBox="0 0 24 24" aria-hidden="true">{TYPE_ICO[k]}</svg>
 const STATUS = { running: tx('a decorrer'), paused: tx('em pausa'), done: tx('terminado'), cancelled: tx('cancelado'), error: tx('parado (erro)') }
 const MIN_PER_GAME = 1  // medido: ~45 s por jogo de Pauper no Forge, com o arranque da JVM
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
@@ -220,7 +229,7 @@ function Create({ data, fmt0, onCreated, deckId }) {
           <label className="fmt"><span>{casual ? tx('Regras base (vida e tipo de jogo de todos)') : tx('Formato (todos os decks jogam este)')}</span>
             <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(FORMAT[f].cmd === 'commander' && f !== 'duel' ? 'mesas' : 'elim') }}>{FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited').map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</select></label>
           <div className="tc-types">{Object.entries(TYPES).map(([k, [l, lo, hi]]) => (
-            <button key={k} className={type === k ? 'on' : ''} onClick={() => setType(k)}><b>{l}</b><small>{lo}–{hi} decks</small></button>
+            <button key={k} className={type === k ? 'on' : ''} onClick={() => setType(k)}><TypeIco k={k} /><b>{l}</b><small>{lo}–{hi} decks</small></button>
           ))}</div>
           <p className="small muted tc-info">{info}</p>
           <div className="tc-row">
@@ -412,7 +421,7 @@ function Live({ data, tid, onGone, slot }) {
         <div className="row-btns">
           <h3>🏆 {t.name}</h3>
           <span className={`tl-status ${t.status}`}>{STATUS[t.status] || t.status}</span>
-          <span className="muted small">{TYPES[t.type]?.[0]} · {t.casual ? tx('casual, regras de {f}', { f: FORMAT[t.format]?.name || t.format }) : FORMAT[t.format]?.name || t.format} · {t.type === 'mesas' ? tx('um jogo por mesa') : `Bo${t.bo}`} · {P.length} decks{t.rounds ? ` · ${tx('{n} ronda|{n} rondas', { n: t.rounds })}` : ''} · {when(t.ts)}</span>
+          <span className="muted small"><TypeIco k={t.type} /> {TYPES[t.type]?.[0]} · {t.casual ? tx('casual, regras de {f}', { f: FORMAT[t.format]?.name || t.format }) : FORMAT[t.format]?.name || t.format} · {t.type === 'mesas' ? tx('um jogo por mesa') : `Bo${t.bo}`} · {P.length} decks{t.rounds ? ` · ${tx('{n} ronda|{n} rondas', { n: t.rounds })}` : ''} · {when(t.ts)}</span>
           <span className="tl-act">
             {t.status === 'running' && <button onClick={() => act('pause')} title={tx('O jogo em curso acaba e fica registado')}>{tx('❚❚ Pausar')}</button>}
             {(t.status === 'paused' || t.status === 'error') && <button className="primary" onClick={() => act('resume')}>{tx('▶ Retomar')}</button>}
@@ -704,7 +713,7 @@ function Registry({ data, list, open, reload }) {
         <ul className="lib-list tour-reg">{list.map(x => (
           <li key={x.id}>
             <span className={`tl-status ${x.status}`}>{STATUS[x.status] || x.status}</span>
-            <span><b>{x.name}</b><br /><small className="muted">{TYPES[x.type]?.[0]} · {x.casual ? tx('casual, regras de {f}', { f: FORMAT[x.format]?.name || x.format }) : FORMAT[x.format]?.name || x.format} · {x.n} decks · {when(x.ts)}</small></span>
+            <span><b>{x.name}</b><br /><small className="muted"><TypeIco k={x.type} /> {TYPES[x.type]?.[0]} · {x.casual ? tx('casual, regras de {f}', { f: FORMAT[x.format]?.name || x.format }) : FORMAT[x.format]?.name || x.format} · {x.n} decks · {when(x.ts)}</small></span>
             {x.podium?.length ? <span className="mini-pod">{x.podium.map(p => (
               <span key={p.i} className={`mp mp-${p.place} ${p.me ? 'me' : ''} ${p.src === 'meus' ? 'go' : ''}`} title={`${tx('{p}.º', { p: p.place })} ${p.name}${p.me ? ` (${tx('o meu deck')})` : ''}${p.src === 'meus' ? ` · ${tx('Abrir na Biblioteca')}` : ''}`}
                 {...(p.src === 'meus' ? { role: 'button', tabIndex: 0, onClick: () => showDeck(p.ref), onKeyDown: e => { if (e.key === 'Enter') showDeck(p.ref) } } : {})}><Thumb data={data} p={p} /><i>{MEDAL[p.place - 1]}</i><span>{p.name}</span></span>

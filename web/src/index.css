@@ -458,7 +458,7 @@ h2 .mana img { width: 20px; height: 20px; }
 .opp-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 180px; overflow-y: auto; }
 .opp { display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); font-size: 13px; cursor: pointer; }
 .opp.on { border-color: var(--gold); background: rgba(242, 184, 75, .1); }
-.opp input { display: none; }
+.opp input, .opp input[type=checkbox] { display: none; }
 .lab-opts { display: grid; gap: 12px; align-content: start; }
 .spin-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--gold); border-top-color: transparent; animation: spin .8s linear infinite; vertical-align: -1px; }
 .lab-report { margin-top: 14px; }
@@ -1044,7 +1044,7 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 @media (max-width: 1100px) { .reg-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 900px) { .tc-grid { grid-template-columns: minmax(0, 1fr); } .tl-act { margin-left: 0; } .pd-1 .pd-block { height: 100px; } .pd-2 .pd-block { height: 72px; } .pd-3 .pd-block { height: 52px; } }
 @media (prefers-reduced-motion: reduce) { .tm.now, .champ-sparks i, .ts, .tp-card, .pd-deck, .pd-block, .me-out { animation: none; } .pd-deck { opacity: 1; } .pd-block { transform: none; } }
-.tc-fill input[type=checkbox] { width: auto; }
+.tc-fill input[type=checkbox] { width: 18px; }
 .tl-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 12px; align-items: start; }
 @media (max-width: 1200px) { .tl-grid { grid-template-columns: minmax(0, 1fr); } }
 
@@ -1613,3 +1613,19 @@ button.fg-card { cursor: pointer; } button.fg-card:hover { border-color: var(--g
   .mesa-top { padding: 8px 10px; } .mesa-top .link.small { white-space: nowrap; font-size: 12px; }
   .mesa-logo { font-size: 0; gap: 0; }
 }
+/* ícones dos tipos de torneio */
+.tc-ico { width: 1.2em; height: 1.2em; vertical-align: -.25em; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.tc-types button { grid-template-columns: auto 1fr; column-gap: 9px; align-items: center; }
+.tc-types button .tc-ico { grid-row: span 2; width: 36px; height: 36px; padding: 5px; stroke-width: 1.9; border-radius: 9px; background: #ffffff0d; color: var(--muted); transition: color .15s, background .15s; }
+.tc-types button.on .tc-ico, .tc-types button:hover .tc-ico { color: var(--gold2); background: #f2b84b1f; }
+/* caixas de seleção: arredondadas, com visto dourado animado (em vez das do browser) */
+input[type=checkbox] { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; flex: none; margin: 0; padding: 0; display: inline-grid; place-content: center; vertical-align: -4px;
+  border: 1.5px solid #8a83a6; border-radius: 6px; background: #0f0d1a; cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s; }
+input[type=checkbox]::before { content: ''; width: 11px; height: 11px; background: #1a1205; transform: scale(0); transition: transform .16s cubic-bezier(.3, 1.6, .5, 1);
+  clip-path: polygon(12% 52%, 0 66%, 38% 100%, 100% 24%, 87% 10%, 37% 72%); }
+input[type=checkbox]:hover { border-color: var(--gold2); }
+input[type=checkbox]:checked { background: linear-gradient(135deg, var(--gold2), var(--gold)); border-color: var(--gold); box-shadow: 0 0 0 3px #f2b84b2e; }
+input[type=checkbox]:checked::before { transform: scale(1); }
+input[type=checkbox]:focus-visible { outline: 2px solid var(--gold2); outline-offset: 2px; }
+input[type=checkbox]:disabled { opacity: .45; cursor: default; }
+@media (pointer: coarse) { input[type=checkbox]::before { width: 13px; height: 13px; } }
