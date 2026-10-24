@@ -1913,4 +1913,12 @@ export default {
   "O deck tem {l} terrenos; para o MV médio {m} e o ramp/compra que tem, o ideal são {t}": "Das Deck hat {l} Länder; für MW {m} und sein Ramp/Ziehen ideal sind {t}",
   "Só {h} fontes de {k} para {n} precisas": "Nur {h} {k}-Quellen statt {n} nötiger",
   "{l} terrenos (deck rápido: menos do que a regra é normal)": "{l} Länder (schnelles Deck: weniger als die Regel ist normal)",
+  "Campeões": "Champions",
+  "Só há {k} campeões de torneios anteriores para isto (mínimo {m}).": "Es gibt nur {k} Champions aus früheren Turnieren dafür (mindestens {m}).",
+  "Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.": "Fügt die Sieger früherer Turniere hinzu (dieses Formats; im Casual-Modus aller). Der Sieger erhält die Platin-Trophäe.",
+  "Torneio dos campeões ✓": "Turnier der Champions ✓",
+  "Platina: campeão dos campeões": "Platin: Champion der Champions",
+  "🧙 O meu deck neste torneio": "🧙 Mein Deck in diesem Turnier",
+  "— nenhum (só ver) —": "— keins (nur zuschauen) —",
+  "Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.": "Es wird im Turnierbaum cyan markiert, in Spielen unten (auf deinem Platz) gezeigt und sein Weg verfolgt. Die Wahl wird gemerkt.",
 }

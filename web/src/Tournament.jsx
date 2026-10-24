@@ -6,6 +6,7 @@ import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.j
 import { img, coverOf, colorsOf, HUE } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import Replay from './Board.jsx'
+import { swapSide } from './game.js'
 import { DIFF_INFO } from './difficulty.js'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
@@ -35,7 +36,7 @@ const rkey = (src, id) => `${src === 'meus' ? 'deck' : 'meta'}:${id}`
 const STEPS = Array.from({ length: 13 }, (_, k) => k / 2)
 const dLabel = d => DIFF_INFO[d.id]?.label || d.label  // o nosso rótulo (traduzido) quando o conhecemos
 
-export default function TournamentView({ data, fmt }) {
+export default function TournamentView({ data, fmt, deckId }) {
   // o separador fica guardado (F5 volta ao mesmo sítio)
   const [view, setViewS] = useState(() => ls('grimorio.torneio.vista') || 'criar')
   const setView = v => { setViewS(v); ls('grimorio.torneio.vista', v) }
@@ -58,7 +59,7 @@ export default function TournamentView({ data, fmt }) {
         <button className={view === 'ver' ? 'on' : ''} onClick={() => setView('ver')} disabled={!tid}>{tx('🏆 Ao vivo')}</button>
         <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}>{tx('📜 Registo')} <b>{list.length}</b></button>
       </div><span className="tour-slot" ref={setSlot} /></div>
-      {view === 'criar' && <Create data={data} fmt0={fmt} onCreated={id => { loadList(); open(id) }} />}
+      {view === 'criar' && <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} />}
       {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} onGone={() => { loadList(); setView('registo') }} />}
       {view === 'registo' && <Registry data={data} list={list} open={open} reload={loadList} />}
     </div>
@@ -67,7 +68,7 @@ export default function TournamentView({ data, fmt }) {
 
 // ---------- criar ----------
 
-function Create({ data, fmt0, onCreated }) {
+function Create({ data, fmt0, onCreated, deckId }) {
   const [format, setFormat] = useState(fmt0.key === 'casual' ? 'modern' : fmt0.key)
   const F = FORMAT[format]
   const [type, setType] = useState(F.cmd === 'commander' && format !== 'duel' ? 'mesas' : 'elim')
@@ -104,7 +105,29 @@ function Create({ data, fmt0, onCreated }) {
   }, [format])
   const [, , max, info] = TYPES[type]
   const n = players.length
-  const suggested = `${TYPES[type][0]} · ${F.name} · ${new Date().toLocaleDateString(LOCALE, { day: '2-digit', month: 'short' })}`
+  const [champs, setChamps] = useState(false)  // torneio dos campeões: o vencedor leva o troféu de platina
+  // «o meu deck»: o escolhido da última vez (guardado) ou o deck aberto, se estiver entre os decks do torneio
+  const setMe = ref => { setPlayers(ps => ps.map(x => ({ ...x, me: !!ref && x.src === 'meus' && x.ref === ref }))); ls('grimorio.torneio.eu', ref || '-') }  // «-» = escolheste nenhum
+  useEffect(() => {
+    if (players.some(x => x.me) || ls('grimorio.torneio.eu') === '-') return
+    const want = [ls('grimorio.torneio.eu'), deckId].filter(Boolean).find(r => players.some(x => x.src === 'meus' && x.ref === r))
+    if (want) setPlayers(ps => ps.map(x => ({ ...x, me: x.src === 'meus' && x.ref === want })))
+  }, [players, deckId])
+  const suggested = `${champs ? `🏆 ${tx('Campeões')}` : TYPES[type][0]} · ${casual ? tx('casual') : F.name} · ${new Date().toLocaleDateString(LOCALE, { day: '2-digit', month: 'short' })}`
+  // os vencedores dos torneios acabados: deste formato (sem os casuais) ou, em modo casual, de todos os torneios
+  const loadChampions = async () => {
+    const l = await j('/api/tournaments').catch(() => []), seen = new Set(), out = []
+    for (const t of l) {
+      if (t.status !== 'done' || (!casual && (t.casual || t.format !== format))) continue
+      const w = (t.podium || []).find(x => x.place === 1)
+      if (!w || seen.has(`${w.src}:${w.ref}`) || (w.src === 'meus' && !allMine.some(d => d.id === w.ref))) continue
+      seen.add(`${w.src}:${w.ref}`); out.push(w)
+    }
+    if (out.length < TYPES[type][1]) { setErr(tx('Só há {k} campeões de torneios anteriores para isto (mínimo {m}).', { k: out.length, m: TYPES[type][1] })); return }
+    setErr('')
+    setPlayers(out.slice(0, max).map(w => ({ key: `${w.src}:${w.ref}:${Math.random()}`, src: w.src, ref: w.ref, name: w.name, difficulty: allDiff, fmt: w.format, cover: w.cover || '', colors: w.colors || '' })))
+    setChamps(true)
+  }
   const roundsDef = type === 'suico' ? Math.ceil(Math.log2(Math.max(n, 2))) : 3
   const R = +rounds || roundsDef
   const matches = { elim: n - 1 + (third && n >= 4 ? 1 : 0), dupla: 2 * n - 1, suico: R * Math.ceil(n / 2), liga: (n * (n - 1)) / 2, mesas: R * Math.ceil(n / 4) }[type]
@@ -160,7 +183,7 @@ function Create({ data, fmt0, onCreated }) {
   const start = async () => {
     setBusy(true); setErr('')
     try {
-      const { id } = await post('/api/tournaments', { name: name.trim() || suggested, type, format, casual, hold, bo: type === 'mesas' ? 1 : bo, third, rounds: R, seeding,
+      const { id } = await post('/api/tournaments', { name: name.trim() || suggested, type, format, casual, hold, champions: champs, bo: type === 'mesas' ? 1 : bo, third, rounds: R, seeding,
         players: players.map(({ src, ref, difficulty, cover, colors, me }) => ({ src, ref, difficulty, cover, colors, me })) })
       onCreated(id)
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
@@ -200,6 +223,7 @@ function Create({ data, fmt0, onCreated }) {
               {tx('a')} <select value={smax} onChange={e => setSmax(+e.target.value)} aria-label={tx('Máximo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select></span>
             <label className="chk small"><input type="checkbox" checked={unrated} onChange={e => setUnrated(e.target.checked)} /> {tx('incluir decks sem rating')}</label></>}
             <button onClick={fill} disabled={n >= Math.min(fillN, max)}>{tx('Preencher')}</button>
+            <button className={champs ? 'on' : ''} onClick={champs ? () => setChamps(false) : loadChampions} title={tx('Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.')}>🏆 {champs ? tx('Torneio dos campeões ✓') : tx('Campeões')}</button>
             {n > 0 && <button className="link small" onClick={() => setPlayers([])}>{tx('limpar')}</button>}
           </div>
           <h4>{casual ? tx('Os meus decks') : tx('Os meus decks de {f}', { f: F.name })} <span className="muted">({mine.filter(o => !o.community).length})</span></h4>
@@ -215,6 +239,13 @@ function Create({ data, fmt0, onCreated }) {
           </div>
         </div>
       </div>
+      {players.some(x => x.src === 'meus') && <label className="fmt tc-me"><span>{tx('🧙 O meu deck neste torneio')}</span>
+        <select value={players.find(x => x.me)?.ref || ''} onChange={e => setMe(e.target.value)}>
+          <option value="">{tx('— nenhum (só ver) —')}</option>
+          {[...new Map(players.filter(x => x.src === 'meus').map(x => [x.ref, x])).values()].map(x => <option key={x.ref} value={x.ref}>{x.name}</option>)}
+        </select>
+        <small className="muted">{tx('Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.')}</small>
+      </label>}
       {n > 0 && <div className="tc-players">{players.map((p, k) => (
         <div key={p.key} data-k={k} className={`tp-card ${p.me ? 'me' : ''} ${dragK === k ? 'dragging' : ''}`} style={{ '--edge': edge(p.colors) }}>
           <div className="tp-art" onPointerDown={e => dragStart(e, k)} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} title={tx('Arrasta para mudar a ordem')}>{data.byName.get(p.cover) ? <img src={img(data.byName.get(p.cover), 'art_crop')} alt="" loading="lazy" /> : <span>✦</span>}<i className="tp-seed" title="seed">{seeding === 'ordem' ? k + 1 : '?'}</i><span className="tp-src">{p.src === 'meus' ? tx('meu') : 'meta'}{casual && p.fmt ? ` · ${FORMAT[p.fmt]?.name || p.fmt}` : ''}</span></div>
@@ -282,7 +313,9 @@ function Live({ data, tid, onGone, slot }) {
   const fl = useMemo(() => (onlyMine && t?.me != null ? games.filter(x => x.m.p.includes(t.me)) : games), [games, onlyMine, t?.me])  // o que se segue
   const openGame = async x => {
     try {
-      const g = await j(`/api/tournaments/${tid}/games/${x.id}`)
+      let g = await j(`/api/tournaments/${tid}/games/${x.id}`)
+      const me0 = t.me == null ? -1 : g.seats.indexOf(t.me)
+      if (me0 > 0) { const sv = [...g.seats]; [sv[0], sv[me0]] = [sv[me0], sv[0]]; g = { ...swapSide(g, 'abcd'[me0]), seats: sv } }  // o meu deck fica em baixo, no lugar do jogador
       const names = g.seats.map(i => P[i]?.name || '?'), m = x.m
       const prev = m.g.slice(0, x.k).filter(y => !y.x)
       const score = names.length === 2 ? { a: prev.filter(y => y.w === g.seats[0]).length, b: prev.filter(y => y.w === g.seats[1]).length, g: prev.length + 1, bo: t.bo, serie: 1, series: 1, sw: 0, sl: 0, k: 1, total: 1 } : null

@@ -552,6 +552,8 @@ def create(owner, d):
         st.update(format=fmt, players=players, decks=decks, **({"casual": True} if casual else {}), **({"me": me} if me is not None else {}))
         # começo: START_WAIT s para apostar (ou, com hold, só quando o dono carregar em «Começar»)
         st.update(start_at=time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
+        if d.get("champions"):  # torneio dos campeões (vencedores de torneios anteriores): o 1.º leva o troféu de platina
+            st["champions"] = True
         tid = uuid.uuid4().hex[:12]
         name = str(d.get("name") or "").strip()[:120] or "Torneio"
         con.execute("INSERT INTO tournaments VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -609,7 +611,8 @@ def trophies(con, owner):
             row, same = rows.get(x["i"], {}), round(similarity(st["decks"][x["i"]], cur[x["ref"]]), 3)
             out.setdefault(x["ref"], []).append({
                 "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "casual": bool(st.get("casual")),
-                "place": x["place"], "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
+                "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1,
+                "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
                 "first": [y["name"] for y in pod if y["place"] == 1 and y["i"] != x["i"]],
                 "second": [y["name"] for y in pod if y["place"] == 2 and y["i"] != x["i"]], "same": same, "valid": same >= SAME})
     for v in out.values():
@@ -634,9 +637,9 @@ def route(method, path, owner, body=None):
     with db() as con:
         if method == "GET" and not parts:
             rows = con.execute("SELECT id, ts, name, type, format, status, champion, n, json_extract(state, '$.casual'),"
-                               " json_extract(state, '$.podium'), json_extract(state, '$.me') FROM tournaments WHERE owner=? ORDER BY ts DESC",
+                               " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions') FROM tournaments WHERE owner=? ORDER BY ts DESC",
                                (owner,)).fetchall()
-            out = [dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me"), r)) for r in rows]
+            out = [dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions"), r)) for r in rows]
             for x in out:  # os acabados antes de haver pódio calculam-no agora
                 x["podium"] = json.loads(x["podium"]) if x["podium"] else podium(json.loads(con.execute(
                     "SELECT state FROM tournaments WHERE id=?", (x["id"],)).fetchone()[0])) if x["champion"] is not None else None

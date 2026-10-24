@@ -1913,4 +1913,12 @@ export default {
   "O deck tem {l} terrenos; para o MV médio {m} e o ramp/compra que tem, o ideal são {t}": "套牌有 {l} 张地；按平均法术力值 {m} 及其加速/抓牌，理想是 {t} 张",
   "Só {h} fontes de {k} para {n} precisas": "{k} 来源只有 {h} 个，需要 {n} 个",
   "{l} terrenos (deck rápido: menos do que a regra é normal)": "{l} 张地（快攻套牌：少于规则建议是正常的）",
+  "Campeões": "冠军",
+  "Só há {k} campeões de torneios anteriores para isto (mínimo {m}).": "符合条件的往届冠军只有 {k} 个（至少 {m} 个）。",
+  "Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.": "加入往届赛事的冠军（本赛制；休闲模式下为全部）。获胜者获得白金奖杯。",
+  "Torneio dos campeões ✓": "冠军赛 ✓",
+  "Platina: campeão dos campeões": "白金：冠军中的冠军",
+  "🧙 O meu deck neste torneio": "🧙 我在本赛事中的套牌",
+  "— nenhum (só ver) —": "— 无（只观看）—",
+  "Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.": "它会在对阵图中以青色标出，在对局中显示在下方（你的位置），并跟踪其进程。选择会被记住。",
 }

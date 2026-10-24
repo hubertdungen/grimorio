@@ -342,7 +342,7 @@ export default function App() {
           </div>
           <div hidden={colMode !== 'bots'}><LabView {...{ data, deck, fmt, act, ctx, playFrom }} /></div>
           {colMode === 'jogar' && <div className="view"><PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} /></div>}
-          {colMode === 'torneio' && <TournamentView data={data} fmt={fmt} />}
+          {colMode === 'torneio' && <TournamentView data={data} fmt={fmt} deckId={deck.id} />}
           {colMode === 'ratings' && <RatingsView data={data} fmt={fmt} />}
         </div>
       )}

@@ -1921,4 +1921,12 @@ export default {
   "O deck tem {l} terrenos; para o MV médio {m} e o ramp/compra que tem, o ideal são {t}": "The deck has {l} lands; for average MV {m} and its ramp/draw, the ideal is {t}",
   "Só {h} fontes de {k} para {n} precisas": "Only {h} {k} sources for the {n} needed",
   "{l} terrenos (deck rápido: menos do que a regra é normal)": "{l} lands (fast deck: fewer than the rule is normal)",
+  "Campeões": "Champions",
+  "Só há {k} campeões de torneios anteriores para isto (mínimo {m}).": "There are only {k} champions from earlier tournaments for this (minimum {m}).",
+  "Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.": "Adds the winners of earlier tournaments (of this format; in casual mode, of all). The winner gets the platinum trophy.",
+  "Torneio dos campeões ✓": "Champions tournament ✓",
+  "Platina: campeão dos campeões": "Platinum: champion of champions",
+  "🧙 O meu deck neste torneio": "🧙 My deck in this tournament",
+  "— nenhum (só ver) —": "— none (just watch) —",
+  "Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.": "It's outlined in cyan in the bracket, shown at the bottom (your seat) in games and its path is followed. The choice is remembered.",
 }

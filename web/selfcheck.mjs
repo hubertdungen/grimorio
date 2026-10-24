@@ -387,3 +387,6 @@ import { tx, LANGS } from './src/i18n.js'
 import { selfcheck as universeCheck } from './src/universe.js'
 universeCheck()
 console.log('selfcheck universo ok')
+
+// swapSide: o deck de quem vê passa para o lugar 'a' (repetições de torneio)
+{ const { swapSide } = await import('./src/game.js'); const r = swapSide({ winner: 'b', events: [{ p: 'b', card: 'a', txt: 'b' }] }, 'b'); assert.equal(r.winner, 'a'); assert.equal(r.events[0].p, 'a'); assert.equal(r.events[0].card, 'a'); assert.equal(r.events[0].txt, 'b'); console.log('selfcheck lados ok') }

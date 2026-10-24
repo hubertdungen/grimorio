@@ -447,3 +447,19 @@ export function replayStates(events, data, life = 20, setup = null, exact = fals
   for (const e of events) out.push(applyEvent(out[out.length - 1], e, data))
   return out
 }
+
+// Troca o lado `x` com 'a' em todo o jogo (eventos, vencedor, lugares, equipas, resumos…): o deck de quem vê fica em
+// baixo, no lugar do jogador. Só mexe em textos que são exatamente uma letra de lado e em chaves de lado; o texto livre
+// dos eventos (txt, card, name…) fica igual.
+const SIDE_KEYS = new Set(['a', 'b', 'c', 'd']), KEEP = new Set(['txt', 'card', 'name', 'k', 'ph', 'reason', 'mc', 'pt'])
+export function swapSide(v, x) {
+  if (!x || x === 'a') return v
+  const sw = s => (s === x ? 'a' : s === 'a' ? x : s)
+  const walk = (o, key) => {
+    if (typeof o === 'string') return KEEP.has(key) ? o : SIDE_KEYS.has(o) ? sw(o) : o
+    if (Array.isArray(o)) return o.map(e => walk(e, key))
+    if (o && typeof o === 'object') return Object.fromEntries(Object.entries(o).map(([k, e]) => [SIDE_KEYS.has(k) ? sw(k) : k, KEEP.has(k) ? e : walk(e, k)]))
+    return o
+  }
+  return walk(v, '')
+}

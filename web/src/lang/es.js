@@ -1913,4 +1913,12 @@ export default {
   "O deck tem {l} terrenos; para o MV médio {m} e o ramp/compra que tem, o ideal são {t}": "El mazo tiene {l} tierras; para el VM medio {m} y su rampa/robo, lo ideal son {t}",
   "Só {h} fontes de {k} para {n} precisas": "Solo {h} fuentes de {k} para {n} necesarias",
   "{l} terrenos (deck rápido: menos do que a regra é normal)": "{l} tierras (mazo rápido: menos de lo que dice la regla es normal)",
+  "Campeões": "Campeones",
+  "Só há {k} campeões de torneios anteriores para isto (mínimo {m}).": "Solo hay {k} campeones de torneos anteriores para esto (mínimo {m}).",
+  "Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.": "Añade a los ganadores de torneos anteriores (de este formato; en modo casual, de todos). El ganador se lleva el trofeo de platino.",
+  "Torneio dos campeões ✓": "Torneo de campeones ✓",
+  "Platina: campeão dos campeões": "Platino: campeón de campeones",
+  "🧙 O meu deck neste torneio": "🧙 Mi mazo en este torneo",
+  "— nenhum (só ver) —": "— ninguno (solo mirar) —",
+  "Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.": "Queda marcado en cian en el cuadro, aparece abajo (en tu lugar) en las partidas y se sigue su recorrido. La elección se guarda.",
 }

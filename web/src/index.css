@@ -1452,3 +1452,9 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .dbox-com { padding: 0 4px; background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1.3; opacity: .55; }
 .dbox-com:hover, .dbox-com.on { opacity: 1; border-color: var(--line); }
 .badge.com { background: rgba(126, 226, 168, .14); color: #7ee2a8; }
+/* troféu de platina (torneio dos campeões): brilho a passar */
+.cup.plat { filter: drop-shadow(0 0 3px rgba(190, 228, 255, .9)); animation: platshine 2.6s ease-in-out infinite; }
+@keyframes platshine { 0%, 100% { filter: drop-shadow(0 0 2px rgba(190, 228, 255, .7)) brightness(1); } 50% { filter: drop-shadow(0 0 6px rgba(220, 240, 255, 1)) brightness(1.35); } }
+@media (prefers-reduced-motion: reduce) { .cup.plat { animation: none; } }
+.tc-me { display: grid; gap: 4px; max-width: 520px; margin: 8px 0; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(110, 231, 249, .45); background: rgba(110, 231, 249, .06); }
+.tc-me > span { color: var(--cyan); font-weight: 600; }
