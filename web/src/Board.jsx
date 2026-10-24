@@ -163,12 +163,17 @@ const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // 
   )
 })
 
-// fichas e terrenos iguais ficam empilhados (×N); o resto um a um
+// fichas e terrenos iguais ficam empilhados (×N); o resto um a um. Com a fila cheia (mais de CROWD cartas) empilham-se
+// todas as cartas iguais no mesmo estado (virada, marcadores, dano); só as que atacam ou bloqueiam ficam sempre à parte.
+// Uma pilha mostra no máximo 4 cartas sobrepostas; o «×N» diz quantas são.
+const CROWD = 8
 function groups(perms, groupable) {
-  const out = [], by = new Map()
+  const out = [], by = new Map(), crowd = perms.length > CROWD
   for (const p of perms) {
     const simple = groupable(p) && !p.attacking && !p.blocking && !p.damage && !p.pump && !Object.keys(p.counters || {}).length && !p.hidden
-    const k = simple ? `${p.name}|${p.flipped ? 1 : 0}` : p.key
+    const packed = crowd && !p.attacking && !p.blocking && !p.hidden
+    const k = simple ? `${p.name}|${p.flipped ? 1 : 0}`
+      : packed ? `${p.name}|${p.flipped ? 1 : 0}|${p.tapped ? 1 : 0}|${p.damage || 0}|${p.pump || ''}|${JSON.stringify(p.counters || {})}` : p.key
     if (by.has(k)) by.get(k).items.push(p)
     else { const g = { key: p.key, items: [p] }; by.set(k, g); out.push(g) }
   }
@@ -181,7 +186,7 @@ function Row({ perms, data, fx, att, cls, groupable, empty, quiet, who }) {  // 
     <div className={`brow ${cls}`}>
       {gs.map(g => (
         <div key={g.key} className={`grp ${g.items.length > 1 ? 'many' : ''}`}>
-          {g.items.map((p, j) => <Perm key={p.key} p={p} data={data} hl={fx.hl.has(p.key) ? fx.par : 0} pop={fx.pops.get(p.key) || null} att={att.get(p.key)} n={j === g.items.length - 1 ? g.items.length : 0} quiet={quiet} tgt={who?.[p.attacking] ? [p.attacking, short(who[p.attacking])] : null} />)}
+          {g.items.slice(-4).map((p, j, vis) => <Perm key={p.key} p={p} data={data} hl={fx.hl.has(p.key) ? fx.par : 0} pop={fx.pops.get(p.key) || null} att={att.get(p.key)} n={j === vis.length - 1 ? g.items.length : 0} quiet={quiet} tgt={who?.[p.attacking] ? [p.attacking, short(who[p.attacking])] : null} />)}
         </div>
       ))}
       {!gs.length && empty && <span className="brow-empty">{empty}</span>}
