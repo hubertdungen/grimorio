@@ -9,6 +9,7 @@ import Replay from './Board.jsx'
 import { Cup, PLACE, TIERS, tierOf } from './Library.jsx'
 import { swapSide, nextGame } from './game.js'
 import { DIFF_INFO } from './difficulty.js'
+import { ask } from './confirm.jsx'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
 
@@ -383,7 +384,7 @@ function Live({ data, tid, onGone, slot }) {
   const bets = useBets(tid, t)
   if (!t) return <section className="card">{err ? <p className="bad-t">{err}</p> : <p><span className="spin-dot" /> {tx('A abrir o torneio…')}</p>}</section>
   const act = async a => { try { await post(`/api/tournaments/${tid}/${a}`); setT(await j(`/api/tournaments/${tid}`)) } catch (e) { setErr(e.message) } }
-  const del = async () => { if (!confirm(tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: t.name }))) return; await j(`/api/tournaments/${tid}`, { method: 'DELETE' }); onGone() }
+  const del = async () => { if (!(await ask('torneio', { title: tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: t.name }), ok: tx('Apagar') }))) return; await j(`/api/tournaments/${tid}`, { method: 'DELETE' }); onGone() }
   const nextOf = i => nextGame(fl, i, nextMode, home.current, mid => t.matches.find(m => m.id === mid)?.st === 'done')  // «Depois de um jogo»
   if (watch) {
     const i = fl.findIndex(x => x.id === watch.gid), nx = nextOf(i)
@@ -425,7 +426,7 @@ function Live({ data, tid, onGone, slot }) {
           <span className="tl-act">
             {t.status === 'running' && <button onClick={() => act('pause')} title={tx('O jogo em curso acaba e fica registado')}>{tx('❚❚ Pausar')}</button>}
             {(t.status === 'paused' || t.status === 'error') && <button className="primary" onClick={() => act('resume')}>{tx('▶ Retomar')}</button>}
-            {going && <button onClick={() => confirm(tx('Cancelar o torneio? O jogo em curso pára já.')) && act('cancel')}>{tx('■ Cancelar')}</button>}
+            {going && <button onClick={async () => (await ask('torneio', { title: tx('Cancelar o torneio? O jogo em curso pára já.'), ok: tx('Cancelar o torneio') })) && act('cancel')}>{tx('■ Cancelar')}</button>}
             <button className="link small" onClick={del}>{tx('apagar')}</button>
           </span>
         </div>
@@ -704,7 +705,7 @@ function Podium({ data, t }) {
 // ---------- registo ----------
 
 function Registry({ data, list, open, reload }) {
-  const del = async x => { if (!confirm(tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: x.name }))) return; await j(`/api/tournaments/${x.id}`, { method: 'DELETE' }); reload() }
+  const del = async x => { if (!(await ask('torneio', { title: tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: x.name }), ok: tx('Apagar') }))) return; await j(`/api/tournaments/${x.id}`, { method: 'DELETE' }); reload() }
   return (
     <div className="reg-grid">
       <section className="card">

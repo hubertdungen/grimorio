@@ -6,7 +6,8 @@ import { Empty, Mana, Stars } from './ui.jsx'
 import { img, HUE, coverOf, colorsOf } from './data.js'
 import ProfileImport from './ProfileImport.jsx'
 import DeckSearch from './DeckSearch.jsx'
-import DeckCompare, { ConfirmDelete, similarity } from './DeckCompare.jsx'
+import DeckCompare, { similarity } from './DeckCompare.jsx'
+import { ask } from './confirm.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 import { SyncHint } from './Settings.jsx'
 
@@ -170,7 +171,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   const [tro, setTro] = useState({})  // troféus por deck
   useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const [view, setView] = useState(() => ls('grimorio.lib.view') || 'grelha')
-  const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false), [del, setDel] = useState(null)
+  const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false)
   const toggleSel = id => setSel(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]))
   // alterações em massa aos selecionados: o mesmo GET+PUT de um deck, campo posto a um valor (não alternado)
   const bulk = async (patch, msg) => {
@@ -198,7 +199,8 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
     setMine(m => m.map(x => (x.id === d.id ? { ...x, fav: !d.fav } : x)))
   }
   const remove = async d => {
-    await fetch(`/api/decks/${d.id}`, { method: 'DELETE' }); setDel(null); setSel(s => s.filter(x => x !== d.id))
+    if (!(await ask('apagar', { title: tx('Apagar «{name}»?', { name: d.name }), body: tx('Vai para o lixo e podes recuperá-lo durante 30 dias.'), ok: tx('Apagar') }))) return
+    await fetch(`/api/decks/${d.id}`, { method: 'DELETE' }); setSel(s => s.filter(x => x !== d.id))
     say(tx('«{name}» foi para o lixo (30 dias).', { name: d.name })); reload()
   }
   // formatos fechados (▸) e filtro «só este formato»; lembrados neste browser
@@ -215,7 +217,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   useEffect(() => { setMeta([]); fetch(`/api/sim/opponents?format=${mf}`).then(r => r.json()).then(setMeta).catch(() => setMeta([])) }, [mf])
 
   const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) }).then(r => r.json())
-  const duplicate = async id => { const d = await (await fetch(`/api/decks/${id}`)).json(); const n = await post('/api/decks', { ...d, id: undefined, name: tx('{name} (cópia)', { name: d.name }) }); say(tx('Duplicado: {name}', { name: n.name })); reload() }
+  const duplicate = async id => { const d = await (await fetch(`/api/decks/${id}`)).json(); if (!(await ask('duplicar', { title: tx('Duplicar «{name}»?', { name: d.name }), body: tx('Fica uma cópia nova na Biblioteca, com «(cópia)» no nome.'), ok: tx('Duplicar'), danger: false }))) return; const n = await post('/api/decks', { ...d, id: undefined, name: tx('{name} (cópia)', { name: d.name }) }); say(tx('Duplicado: {name}', { name: n.name })); reload() }
   const setCover = async (id, name) => {
     const d = await (await fetch(`/api/decks/${id}`)).json()
     await fetch(`/api/decks/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...d, cover: name, coverImg: null }) }); setMine(m => m.map(x => (x.id === id ? { ...x, cover: name, coverImg: null } : x)))
@@ -320,8 +322,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <div className="row"><button className="danger" onClick={removeSel}><Ico n="trash" /> {tx('Apagar')}</button><button onClick={() => setBulkDel(false)}>{tx('Cancelar')}</button></div>
         </div></div>}
         {cmp && <DeckCompare data={data} decks={sel.map(id => mine.find(d => d.id === id)).filter(Boolean)} onClose={() => setCmp(false)}
-          onOpen={id => { setCmp(false); openDeck(id).then(() => goTab('deck')) }} onFav={toggleFav} onDelete={setDel} />}
-        {del && <ConfirmDelete deck={del} onYes={() => remove(del)} onNo={() => setDel(null)} />}
+          onOpen={id => { setCmp(false); openDeck(id).then(() => goTab('deck')) }} onFav={toggleFav} onDelete={remove} />}
         {fmts.length > 1 && <div className="fmt-chips">
           <button className={!only ? 'on' : ''} onClick={() => setOnly('')}>{tx('Todos')} <i>{mine.length}</i></button>
           {fmts.map(([f, ds]) => <button key={f} className={only === f ? 'on' : ''} onClick={() => { setOnly(only === f ? '' : f); setClosed(c => { const n = { ...c }; delete n[f]; return n }) }}>{fname(f)} <i>{ds.length}</i></button>)}
@@ -332,7 +333,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
             <button className="fmt-head" onClick={() => setClosed(c => { const n = { ...c }; if (n[f]) delete n[f]; else n[f] = 1; return n })} aria-expanded={!closed[f]}>
               <i className="chev">▾</i><b>{fname(f)}</b><span className="muted">{ds.length} {ds.length === 1 ? 'deck' : 'decks'}</span><span className="fmt-line" />
             </button>
-            {view === 'grelha' ? <div className="dgrid">{ds.map(d => <DeckBox key={d.id} d={d} data={data} openDeck={openDeck} goTab={goTab} duplicate={duplicate} setCover={setCover} setImg={setImg} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} tro={tro[d.id]} onCom={toggleCom} selected={sel.includes(d.id)} onSelect={toggleSel} onFav={toggleFav} onDelete={setDel} />)}</div> : <ul className="lib-list">{ds.map(d => (
+            {view === 'grelha' ? <div className="dgrid">{ds.map(d => <DeckBox key={d.id} d={d} data={data} openDeck={openDeck} goTab={goTab} duplicate={duplicate} setCover={setCover} setImg={setImg} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} tro={tro[d.id]} onCom={toggleCom} selected={sel.includes(d.id)} onSelect={toggleSel} onFav={toggleFav} onDelete={remove} />)}</div> : <ul className="lib-list">{ds.map(d => (
               <li key={d.id}>
                 <button className="link plain" onClick={() => openDeck(d.id).then(() => goTab('deck'))}><b>{d.name}</b></button>
                 <span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span>
@@ -357,7 +358,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <div key={gid(g)} className="dupe-g">
             <span className={`chip ${g.top >= 0.999 ? 'bad' : ''}`}>{g.top >= 0.999 ? tx('iguais') : tx('{p}% iguais', { p: Math.round(g.top * 100) })}</span>
             {g.decks.map(d => <span key={d.id} className="dupe-d"><b>{d.name}</b><small className="muted">{FORMAT[d.format]?.name || d.format} · {when(d.updated)}</small>
-              <button onClick={() => setDel(d)} className="ib" title={tx('Apagar este (vai para o lixo)')} aria-label={tx('Apagar')}><Ico n="trash" /></button></span>)}
+              <button onClick={() => remove(d)} className="ib" title={tx('Apagar este (vai para o lixo)')} aria-label={tx('Apagar')}><Ico n="trash" /></button></span>)}
             <button className="primary" onClick={() => { setSel(g.decks.slice(0, 3).map(d => d.id)); setCmp(true) }}>⇄ {tx('Comparar')}</button>
             <button className="link small" onClick={() => setIgn(i => [...i, gid(g)])} title={tx('Esconder este grupo: são decks diferentes de propósito')}>{tx('ignorar')}</button>
           </div>

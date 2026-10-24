@@ -10,6 +10,7 @@ import { toForgeState } from './forgeState.js'
 import { DIFF_INFO } from './difficulty.js'
 import { planSideboard, applySwaps } from './sideboard.js'
 import { aiCaveats } from './tests.js'
+import { ask } from './confirm.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 
 // Até onde confiar nos testes: o que a IA do Forge joga mal neste deck
@@ -97,7 +98,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
     setPlayed(rs.flatMap((r, ri) => r.games.map(g => ({ ...g, opp: r.opp, matchId: r.matchId, bo,
       serie: rs.slice(0, ri + 1).filter(x => x.opp === r.opp).length, series: rs.filter(x => x.opp === r.opp).length }))))
   }
-  const delSaved = async id => { if (!confirm(tx('Apagar este teste guardado?'))) return; await fetch(`/api/sim/runs/${id}`, { method: 'DELETE' }); loadSaved(); act.refreshTests?.() }
+  const delSaved = async id => { if (!(await ask('teste', { title: tx('Apagar este teste guardado?'), ok: tx('Apagar') }))) return; await fetch(`/api/sim/runs/${id}`, { method: 'DELETE' }); loadSaved(); act.refreshTests?.() }
   const [cur, setCur] = useState(0)
   const [showLive, setShowLive] = useState(true)
   // pausa entre jogos (preferência deste browser)

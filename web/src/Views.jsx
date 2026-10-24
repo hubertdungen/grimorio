@@ -1535,12 +1535,12 @@ export function DeckGrid({ data, deck, fmt, act }) {
       <button className="dg-img" onClick={() => act.open(c)} title={c.n}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
       {q > 1 && <span className="dg-q">×{q}</span>}
       <div className="dg-bar">
-        <button onClick={() => act.add(c, zone, -1)} aria-label={tx('Menos uma')}>−</button>
+        <button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
         <b>{q}</b>
         <button onClick={() => act.add(c, zone, 1)} aria-label={tx('Mais uma')}>+</button>
         <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte')}>🎨</button>
         {['main', ...(fmt.side ? ['side'] : []), 'maybe'].filter(z => z !== zone).map(z => <button key={z} className="dg-mv" onClick={() => act.move(c, zone, z)} title={ZONE_T[z]}>{ZONE_S[z]}</button>)}
-        <button className="dg-x" onClick={() => act.add(c, zone, -q)} aria-label={tx('Retirar do deck')} title={tx('Retirar do deck')}>×</button>
+        <button className="dg-x" onClick={() => act.remove(c, zone, q)} aria-label={tx('Retirar do deck')} title={tx('Retirar do deck')}>×</button>
       </div>
     </div>
   )

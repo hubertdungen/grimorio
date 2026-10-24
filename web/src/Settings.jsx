@@ -1,6 +1,7 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
 import { useEffect, useState } from 'react'
+import { ask, ConfirmSettings } from './confirm.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 import { LangPick, ProfileManage } from './Profiles.jsx'
 import { getStarLayers, setStarLayers, useColors, setColors, COLORS0 } from './ui.jsx'
@@ -68,7 +69,7 @@ function DataSync({ prof }) {
   const run = async f => { setBusy(true); setErr(''); setMsg(''); try { await f() } catch (e) { setErr(e.message) } finally { setBusy(false) } }
   const sync = body => run(async () => setSt(await postJ('/api/sync', body)))
   const imp = file => run(async () => {
-    if (replace && !confirm(tx('Substituir TUDO o que está nesta instalação pela cópia? (a base atual fica guardada ao lado, por segurança)'))) return
+    if (replace && !(await ask('copia', { title: tx('Substituir TUDO o que está nesta instalação pela cópia? (a base atual fica guardada ao lado, por segurança)'), ok: tx('Substituir') }))) return
     const r = await fetch(`/api/backup/import?mode=${replace ? 'replace' : 'merge'}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file })
     const j = await r.json().catch(() => ({}))
     if (!r.ok) throw new Error(j.erro || r.status)
@@ -133,6 +134,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
       <section className="card"><h3>{tx('Estrelas dos decks')}</h3><StarLayers /></section>
       <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>
+      <section className="card"><h3>{tx('Confirmações')}</h3><p className="muted small">{tx('Perguntar antes de:')}</p><ConfirmSettings /></section>
       <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
     </div>

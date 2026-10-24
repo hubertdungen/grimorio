@@ -1,0 +1,73 @@
+// Confirmações antes de ações difíceis de desfazer. ask(chave, {...}) devolve uma Promise<boolean>; se essa confirmação
+// estiver desligada (Definições › Confirmações, ou «não voltar a perguntar»), resolve logo a true.
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { tx } from './i18n.js'
+
+export const CONFIRMS = [
+  ['apagar', tx('Apagar um deck')],
+  ['duplicar', tx('Duplicar um deck')],
+  ['ultima', tx('Tirar a última cópia de uma carta do deck')],
+  ['ultimaSingleton', tx('… também em formatos de uma cópia (Commander/EDH)')],
+  ['formato', tx('Mudar o formato de um deck com cartas')],
+  ['torneio', tx('Apagar ou cancelar um torneio')],
+  ['teste', tx('Apagar um teste guardado')],
+  ['registo', tx('Limpar os registos da mesa (vida e dados)')],
+  ['copia', tx('Substituir tudo por uma cópia de segurança')],
+]
+const OFF0 = { ultimaSingleton: false }  // em Commander cada «−» tira a última cópia: perguntar sempre seria chato
+const K = 'grimorio.confirmar', subs = new Set()
+let cfg = (() => { try { return { ...OFF0, ...JSON.parse(localStorage.getItem(K) || '{}') } } catch { return { ...OFF0 } } })()
+export const confirmOn = k => cfg[k] !== false
+export function setConfirm(k, v) {
+  cfg = { ...cfg, [k]: v }
+  try { localStorage.setItem(K, JSON.stringify(cfg)) } catch { /* sem armazenamento */ }
+  subs.forEach(f => f())
+}
+export const useConfirmCfg = () => useSyncExternalStore(f => { subs.add(f); return () => subs.delete(f) }, () => cfg)
+
+let show = null
+export function ask(key, { title, body = '', ok = tx('Sim'), danger = true } = {}) {
+  if (!confirmOn(key)) return Promise.resolve(true)
+  return new Promise(res => (show ? show({ key, title, body, ok, danger, res }) : res(window.confirm(title))))
+}
+
+export function ConfirmHost() {
+  const [q, setQ] = useState(null), [never, setNever] = useState(false), okRef = useRef(null)
+  useEffect(() => { show = x => { setNever(false); setQ(x) }; return () => { show = null } }, [])
+  const done = v => { if (v && never) setConfirm(q.key, false); q.res(v); setQ(null) }
+  useEffect(() => {
+    if (!q) return
+    okRef.current?.focus()
+    const k = e => { if (e.key === 'Escape') { e.preventDefault(); done(false) } }
+    addEventListener('keydown', k)
+    return () => removeEventListener('keydown', k)
+  })
+  if (!q) return null
+  return (
+    <div className="modal-bg ask-bg" onClick={e => { if (e.target === e.currentTarget) done(false) }}>
+      <div className="modal ask" role="alertdialog" aria-modal="true" aria-label={q.title}>
+        <h3>{q.title}</h3>
+        {q.body && <p className="muted">{q.body}</p>}
+        <label className="chk small"><input type="checkbox" checked={never} onChange={e => setNever(e.target.checked)} /> {tx('Não voltar a perguntar (muda-se nas Definições)')}</label>
+        <div className="row-btns">
+          <button ref={okRef} className={q.danger ? 'danger' : 'primary'} onClick={() => done(true)}>{q.ok}</button>
+          <button onClick={() => done(false)}>{tx('Cancelar')}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Definições › Confirmações
+export function ConfirmSettings() {
+  const c = useConfirmCfg()
+  return (
+    <div className="ask-set">
+      {CONFIRMS.map(([k, l]) => (
+        <label key={k} className={`chk ${k === 'ultimaSingleton' ? 'sub' : ''}`}>
+          <input type="checkbox" checked={c[k] !== false} disabled={k === 'ultimaSingleton' && c.ultima === false} onChange={e => setConfirm(k, e.target.checked)} /> {l}
+        </label>
+      ))}
+    </div>
+  )
+}

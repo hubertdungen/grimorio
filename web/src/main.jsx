@@ -24,8 +24,8 @@ window.fetch = async (...a) => {
 }
 
 // a app só carrega depois do dicionário da língua: as tabelas fixas dos módulos já nascem traduzidas
-ready.catch(() => {}).then(() => import('./App.jsx'))
-  .then(m => createRoot(document.getElementById('root')).render(createElement(StrictMode, null, createElement(m.default))))
+ready.catch(() => {}).then(() => Promise.all([import('./App.jsx'), import('./confirm.jsx')]))
+  .then(([m, c]) => createRoot(document.getElementById('root')).render(createElement(StrictMode, null, createElement(m.default), createElement(c.ConfirmHost))))
 
 // Sliders: a parte preenchida do trilho segue o valor (--p); o Firefox tem ::-moz-range-progress, o Chrome precisa disto
 const fill = el => { const lo = +el.min || 0, hi = +el.max || 100; el.style.setProperty('--p', `${((el.value - lo) / (hi - lo || 1)) * 100}%`) }

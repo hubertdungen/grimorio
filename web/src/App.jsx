@@ -1,5 +1,6 @@
 import Home from './Home.jsx'
 import Mesa from './Mesa.jsx'
+import { ask, confirmOn } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras } from './data.js'
@@ -282,11 +283,19 @@ export default function App() {
 
   // imagem própria de uma carta (link ou carregada): fica em deck.art e ganha à edição escolhida; url vazio tira-a
   const setArt = useCallback((n, url) => setDeck(d => { const art = { ...(d.art || {}) }; if (url) art[n] = url; else delete art[n]; return { ...d, art } }), [setDeck])
-  const act = useMemo(() => ({ add, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setPrefs, open: setOpen, say, pickArt: setArtCard,
+  // tirar cópias à mão (− e ×): pergunta antes de tirar a última (em formatos de uma cópia só se assim estiver nas Definições)
+  const now = useRef({}); now.current = { deck, fmt }
+  const remove = useCallback(async (c, zone, q) => {
+    const { deck: d, fmt: f } = now.current, left = (d[zone]?.[c.n] || 0) - q
+    if (zone !== 'maybe' && left <= 0 && (f.copies !== 1 || confirmOn('ultimaSingleton'))
+      && !(await ask('ultima', { title: tx('Tirar «{c}» do deck?', { c: c.n }), body: tx('Era a última cópia. Podes desfazer com ↶.'), ok: tx('Tirar') }))) return
+    add(c, zone, -q)
+  }, [add])
+  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setPrefs, open: setOpen, say, pickArt: setArtCard,
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
-  [add, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setPrefs, say, setDeck, undo, redo])
+  [add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setPrefs, say, setDeck, undo, redo])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const openDeck = async id => {
@@ -296,7 +305,7 @@ export default function App() {
     setDeckRaw({ ...emptyDeck(), ...d }); store.set('grimorio.deck', id); setSaveState('')
   }
   const delDeck = async () => {
-    if (!deck.id || !confirm(tx('Eliminar «{name}»? Fica 30 dias no lixo da Biblioteca.', { name: deck.name }))) return
+    if (!deck.id || !(await ask('apagar', { title: tx('Eliminar «{name}»?', { name: deck.name }), body: tx('Fica 30 dias no lixo da Biblioteca.'), ok: tx('Eliminar') }))) return
     await api(`/api/decks/${deck.id}`, { method: 'DELETE' })
     setDecks(ds => ds.filter(x => x.id !== deck.id))
     newDeck()
@@ -435,7 +444,7 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
   const row = ({ n, q, c, zone }) => (
     <li key={`${zone}:${n}`} className="row">
       <span className="qty">
-        <button onClick={() => c && act.add(c, zone, -1)} aria-label={tx('Menos')}>−</button>
+        <button onClick={() => c && act.remove(c, zone, 1)} aria-label={tx('Menos')}>−</button>
         <b>{q}</b>
         <button onClick={() => c && act.add(c, zone, 1)} aria-label={tx('Mais')}>+</button>
       </span>
@@ -450,7 +459,7 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
       <input className="deck-name" value={deck.name} onChange={e => setDeck(d => ({ ...d, name: e.target.value }))} aria-label={tx('Nome do deck')} />
       <label className="fmt">
         <span>{tx('Formato')}</span>
-        <select value={deck.format} onChange={e => setDeck(d => ({ ...d, format: e.target.value }))}>
+        <select value={deck.format} onChange={async e => { const f = e.target.value; if (Object.keys(deck.main).length && !(await ask('formato', { title: tx('Mudar o formato para {f}?', { f: FORMAT[f]?.name || f }), body: tx('As cartas ficam; a validação, as metas e as sugestões passam a ser as do novo formato.'), ok: tx('Mudar'), danger: false }))) return; setDeck(d => ({ ...d, format: f })) }}>
           {['Multijogador', 'Construído', 'Arena', 'Outros'].map(g => (
             <optgroup key={g} label={tx(g)}>{FORMATS.filter(f => f.group === g).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</optgroup>
           ))}

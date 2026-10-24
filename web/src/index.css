@@ -1629,3 +1629,8 @@ input[type=checkbox]:checked::before { transform: scale(1); }
 input[type=checkbox]:focus-visible { outline: 2px solid var(--gold2); outline-offset: 2px; }
 input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 @media (pointer: coarse) { input[type=checkbox]::before { width: 13px; height: 13px; } }
+/* janela de confirmação e Definições › Confirmações */
+.ask-bg { z-index: 90; }
+.modal.ask { width: min(440px, 100%); padding: 20px 22px; display: grid; gap: 12px; animation: pop .18s ease-out; }
+.modal.ask h3 { margin: 0; line-height: 1.35; } .modal.ask p { margin: 0; }
+.ask-set { display: grid; gap: 6px; } .ask-set .chk.sub { margin-left: 26px; font-size: 13px; color: var(--muted); }

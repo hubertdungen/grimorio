@@ -80,15 +80,4 @@ export default function DeckCompare({ data, decks, onClose, onOpen, onFav, onDel
   )
 }
 
-// Confirmação antes de apagar (o deck vai para o lixo da Biblioteca durante 30 dias)
-export function ConfirmDelete({ deck, onYes, onNo }) {
-  return (
-    <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onNo() }}>
-      <div className="modal confirm" role="alertdialog" aria-label={tx('Confirmar apagar')}>
-        <h3>{tx('Apagar «{name}»?', { name: deck.name })}</h3>
-        <p className="muted">{tx('Vai para o lixo da Biblioteca e fica lá 30 dias; podes restaurá-lo até lá.')}</p>
-        <div className="row-btns"><button onClick={onNo} autoFocus>{tx('Cancelar')}</button><button className="danger" onClick={onYes}>🗑 {tx('Apagar')}</button></div>
-      </div>
-    </div>
-  )
-}
+

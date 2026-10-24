@@ -2,6 +2,7 @@
 // física, registo). Cada um guarda o seu estado no browser; abrir os dados por cima do contador não mexe nas vidas.
 import { useEffect, useRef, useState } from 'react'
 import { Logo } from './ui.jsx'
+import { ask } from './confirm.jsx'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
 
@@ -116,7 +117,7 @@ function Life({ s, set, openDice }) {
           ) })}</div>
         ))}
       </div>
-      <Log title={tx('Registo da vida')} empty={tx('As mudanças de vida e veneno aparecem aqui.')} onClear={() => set(x => ({ ...x, log: [] }))} items={s.log.map((e, k) => (
+      <Log title={tx('Registo da vida')} empty={tx('As mudanças de vida e veneno aparecem aqui.')} onClear={async () => (await ask('registo', { title: tx('Limpar o registo da vida?'), ok: tx('Limpar') })) && set(x => ({ ...x, log: [] }))} items={s.log.map((e, k) => (
         <li key={k}><time>{hhmm(e.t)}</time> {e.reset ? <b>↺ {tx('Novo jogo')}</b> : e.first ? <span><i className="dot" style={{ background: e.c }} /> 👑 {tx('{n} começa', { n: e.first })}</span>
           : <span><i className="dot" style={{ background: e.c }} /> {e.p} <b className={e.d < 0 ? 'neg' : 'pos'}>{e.d > 0 ? `+${e.d}` : e.d}</b> {e.field === 'poison' ? `☠ → ${e.to}` : `→ ${e.to}`}</span>}</li>
       ))} />
@@ -260,7 +261,7 @@ function Dice({ s, set, compact = false }) {
         ))}
         {live.length > 0 && !rolling && live.some(d => d.type !== 'moeda') && <div className="dc-sum">{live.filter(d => d.type !== 'moeda').length > 1 ? `Σ ${sum}` : sum}</div>}
       </div>
-      <Log title={tx('Registo dos dados')} empty={tx('Cada lançamento fica aqui.')} onClear={() => set(x => ({ ...x, log: [] }))} items={s.log.map((e, k) => (
+      <Log title={tx('Registo dos dados')} empty={tx('Cada lançamento fica aqui.')} onClear={async () => (await ask('registo', { title: tx('Limpar o registo dos dados?'), ok: tx('Limpar') })) && set(x => ({ ...x, log: [] }))} items={s.log.map((e, k) => (
         <li key={k}><time>{hhmm(e.t)}</time> {e.items.map((it, j) => <span key={j} className={`dl ${it.type === 'd20' && it.v === 20 ? 'crit' : it.type === 'd20' && it.v === 1 ? 'fumble' : ''}`}><small>{it.type === 'moeda' ? '🪙' : it.type}</small> {face(it.type, it.v)}</span>)}
           {e.items.filter(i => i.type !== 'moeda').length > 1 && <b> = {e.sum}</b>}</li>
       ))} />
