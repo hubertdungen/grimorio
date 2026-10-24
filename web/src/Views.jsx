@@ -6,7 +6,7 @@ import { CardTile, Mana, Oracle, Tags, price, Empty, Stars } from './ui.jsx'
 import Map3D from './Map3D.jsx'
 import { autoBuild } from './autobuild.js'
 import { deckSynergy } from './synergy.js'
-import { manaNeeds, recommendLands } from './mana.js'
+import { manaNeeds, recommendLands, reanimTargets } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 import { prepareSwaps, cutPlan, landPlan } from './swap.js'
 import AddOrSwap from './AddSwap.jsx'
@@ -123,7 +123,7 @@ function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
   const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.ajustar') === '1' } catch { return false } })
   const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.ajustar', v ? '1' : '0') } catch { /* sem armazenamento */ } }
   const ev = ctx.tests, games = ev?.exact || 0
-  const plan = useMemo(() => (open && games >= 3 ? adjustPlan(data, deck, ev, { needs, maxOf: c => maxCopies(c, fmt, ctx.bit) }) : []), [open, games, data, deck, ev, needs, fmt, ctx.bit])
+  const plan = useMemo(() => (open && games >= 3 ? adjustPlan(data, deck, ev, { needs, maxOf: c => maxCopies(c, fmt, ctx.bit), skip: reanimTargets(data, deck) }) : []), [open, games, data, deck, ev, needs, fmt, ctx.bit])
   if (fmt.copies === 1) return null  // singleton (Commander, Gladiator…): não há cópias a ajustar
   const Row = ({ r, sign, k }) => (
     <button className={`cutp-card ${sign > 0 ? 'in' : ''}`} onClick={() => act.open(r.c)}><img src={img(r.c, 'art_crop', false, pidOf(deck, r.c.n))} alt="" loading="lazy" />

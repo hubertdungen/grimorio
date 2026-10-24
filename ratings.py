@@ -5,7 +5,7 @@ Elo jogo a jogo (não por ronda: Bo1 e Bo3 pesam o mesmo por jogo): começa em 1
 e só conta para rondas ganhas/perdidas quando acaba (final=True); o resultado sai de todos os jogos com esse round_id.
 
 Estrelas (0,0–6,0, uma casa decimal) = 6 × a probabilidade de ganhar a um deck médio do formato (Elo 1500), pelo Elo:
-3★ = ganha metade, 6★ = ganha sempre (> 99%), 0★ = perde sempre. É desempenho, não posição na tabela: o melhor deck de
+3★ = ganha metade, 6★ = ganha (quase) sempre: 97% ou mais; 0★ = perde sempre. É desempenho, não posição na tabela: o melhor deck de
 um formato só chega perto de 6 se ganhar quase tudo.
 Escalão = ⌊estrelas⌋ (o 6 só leva quem tem 6,0), com ranking dentro do escalão pelo Elo. Sem jogos conta 3,0★ provisório.
 
@@ -229,9 +229,13 @@ def from_lab(con, d, owner):
 
 # ---------- estrelas, tabela e escolhas ----------
 
+TOP_P = 0.97  # a partir daqui conta como «ganha sempre»: 6★
+
+
 def stars(elo, dist=None):
     """Elo -> 0,0–6,0: 6 × P(ganhar a um deck de Elo médio) (ver o topo do ficheiro). `dist` já não conta (chamadas antigas)."""
-    return round(TOP * expected(elo, START), 1)
+    p = expected(elo, START)
+    return TOP if p >= TOP_P else min(round(TOP * p, 1), TOP - 0.1)  # 6★ = quase sempre (≥ 97%); abaixo, 6 × P
 
 
 def dist(con, fmt):
@@ -852,7 +856,7 @@ def selfcheck():
     assert r == (2, 2, 1, 1, "ana"), r
     # estrelas = 6 × P(ganhar a um deck médio): 3★ a meio, 6★ só a ganhar quase sempre
     assert stars(1500) == 3 and stars(1662) == 4.3 and stars(1800) == 5.1 and stars(1200) == 0.9
-    assert stars(2400) == 6 and stars(2000) < 6 and stars(600) == 0
+    assert stars(2400) == 6 and stars(2000) < 6 and stars(600) == 0 and stars(2110) == 6 and stars(2090) == 5.8
     # tabela: escalões e ranking dentro do escalão; o deck apagado some; provisórios marcados
     rng = random.Random(3)
     for i in range(12):

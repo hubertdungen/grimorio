@@ -57,10 +57,10 @@ export function perfOf(ev) {
 // «± Ajustar quantidades»: com os jogos, mais cópias das cartas que ganham e menos das que pesam, aos pares para o deck
 // manter o tamanho. Só cartas que não são terreno vistas em 3+ jogos; nunca desce uma função abaixo da meta do formato
 // (needs = {função: [tem, meta]}); maxOf(carta) = máximo de cópias (singleton → 1, e aí não há nada a ajustar).
-export function adjustPlan(data, deck, ev, { needs = {}, maxOf = () => 4, n = 5 } = {}) {
+export function adjustPlan(data, deck, ev, { needs = {}, maxOf = () => 4, n = 5, skip = new Set() } = {}) {
   const P = perfOf(ev), main = deck.main || {}
   const row = name => { const c = data.byName.get(name), p = P.get(name); return c && c.mt !== 'Land' && p && ev.cards[name].seen >= 3 ? { c, s: p.s, why: p.why, q: main[name] } : null }
-  const all = Object.keys(main).map(row).filter(Boolean)
+  const all = Object.keys(main).filter(x => !skip.has(x)).map(row).filter(Boolean)  // skip: alvos de reanimação (ficar na mão é normal)
   const up = all.filter(r => r.s >= 0.3 && r.q < maxOf(r.c)).sort((a, b) => b.s - a.s)
   const down = all.filter(r => r.s <= -0.25 && r.q >= 2 && !r.c.tg.some(t => needs[t] && needs[t][0] - 1 < needs[t][1])).sort((a, b) => a.s - b.s)
   return Array.from({ length: Math.min(up.length, down.length, n) }, (_, i) => {

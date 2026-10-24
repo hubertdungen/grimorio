@@ -375,7 +375,7 @@ function build(data, deck, fmt, ctx, opts) {
   const nDeck = Math.max(40, s.lands + s.spells)
   // ponytail: terrenos e cores tratados como independentes e sem contar o ramp; serve para comparar duas cartas
   const castProb = c => {
-    if (!c.cmc || s.lands < 8 || altCost(c)) return 1
+    if (!c.cmc || s.lands < 8 || altCost(c) || reanTarget(c)) return 1  // alvos de reanimação não se lançam com mana
     const t = Math.ceil(c.cmc), n = Math.min(nDeck, 6 + t)
     let p = atLeast(nDeck, s.lands, n, t)
     for (const k of deckCols) { const m = pipsOf(c, k); if (m) p *= atLeast(nDeck, N.cols[k].have, n, m) }
@@ -509,10 +509,11 @@ function build(data, deck, fmt, ctx, opts) {
       if (illegal) push(0.6, 'linha fraca', ctx?.identity != null ? tx('Fora da identidade ou ilegal no formato') : tx('Ilegal no formato'))
       // o que os jogos dizem
       // respostas (remoção, contra) ficam na mão à espera de alvo: estar presa conta metade
-      if (d) push((0.25 + 0.35 * d.dead / d.seen) * (X.tg.some(t => t === 'counter' || t === 'removal') ? 0.5 : 1), 'linha fraca', deadTxt(d))
-      if (x && ev.wins >= 3 && x.seenW >= 2 && x.castW <= 1) push(0.2, 'linha fraca', x.castW ? tx('Nos teus {w} jogos ganhos só a lançaste 1 vez', { w: ev.wins }) : tx('Nos teus {w} jogos ganhos nunca a lançaste', { w: ev.wins }))
+      const rt = reanTarget(X)  // alvo de reanimação: ficar na mão / não ser lançado é o normal (vai para o cemitério)
+      if (d && !rt) push((0.25 + 0.35 * d.dead / d.seen) * (X.tg.some(t => t === 'counter' || t === 'removal') ? 0.5 : 1), 'linha fraca', deadTxt(d))
+      if (!rt && x && ev.wins >= 3 && x.seenW >= 2 && x.castW <= 1) push(0.2, 'linha fraca', x.castW ? tx('Nos teus {w} jogos ganhos só a lançaste 1 vez', { w: ev.wins }) : tx('Nos teus {w} jogos ganhos nunca a lançaste', { w: ev.wins }))
       if (x && x.seen >= 3 && wrDelta(x) <= -0.15) push(0.2, 'linha fraca', tx('Com ela na mão ganhaste {a} de {n} jogos; sem ela, {p}', { a: x.seenW, n: x.seen, p: pct((ev.winsExact - x.seenW) / Math.max(1, ev.exact - x.seen)) }))
-      if (x && x.lateN >= 2 && x.lateSum / x.lateN >= 2) push(0.1, 'curva', tx('Nos testes saiu em média {d} turnos depois do custo', { d: num(x.lateSum / x.lateN, 1) }))
+      if (!rt && x && x.lateN >= 2 && x.lateSum / x.lateN >= 2) push(0.1, 'curva', tx('Nos testes saiu em média {d} turnos depois do custo', { d: num(x.lateSum / x.lateN, 1) }))
       // eficiência de mana: mesmo efeito mais caro, cores exigentes, lançar a tempo
       if (role && X.cmc > S.cmc && !(reanTarget(X) && reanTarget(S)) && !altCost(X)) push(Math.min(0.45, 0.15 * (X.cmc - S.cmc)), 'mais caro', null)
       const pX = castProb(X)

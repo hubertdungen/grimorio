@@ -36,8 +36,18 @@ export function landInfo(c) {
 const SRC = { 100: [0, 16, 22, 27], 60: [0, 13, 18, 22], 40: [0, 8, 11, 13] }
 
 /** Necessidades de mana do deck: terrenos alvo, fontes por cor (tem/precisa), terrenos virados. */
+// Deck de reanimação (tem cartas «reanimate»): as criaturas grandes (MV ≥ 6 ou poder ≥ 6) vêm do cemitério, não se
+// lançam — não contam para as cores nem para o custo médio (que decide quantos terrenos)
+export function reanimTargets(data, deck) {
+  const cs = Object.keys(deck.main || {}).map(n => data.byName.get(n)).filter(Boolean)
+  if (!cs.some(c => c.tg?.includes('reanimate'))) return new Set()
+  return new Set(cs.filter(c => c.mt === 'Creature' && ((parseInt(c.pt) || 0) >= 6 || c.cmc >= 6)).map(c => c.n))
+}
+
 export function manaNeeds(data, deck, fmt) {
-  const s = stats(deck, data)
+  const RT = reanimTargets(data, deck)
+  const s0 = stats(RT.size ? { ...deck, main: Object.fromEntries(Object.entries(deck.main).filter(([n]) => !RT.has(n))) } : deck, data)
+  const s = RT.size ? { ...s0, spells: s0.spells + [...RT].reduce((a, n) => a + deck.main[n], 0) } : s0  // o deck tem o mesmo tamanho
   const total = Math.max(fmt.size[0] || 60, 40)
   const table = total >= 99 ? SRC[100] : total >= 60 ? SRC[60] : SRC[40]
   const target = landAdvice(fmt, s.spells >= 10 ? s.avgMv : 3, s.cheapRampDraw)
@@ -49,7 +59,7 @@ export function manaNeeds(data, deck, fmt) {
   const entries = [...Object.entries(deck.main), ...deck.commanders.map(n => [n, 1])]
   for (const [n, q] of entries) {
     const c = data.byName.get(n)
-    if (!c) continue
+    if (!c || RT.has(n)) continue
     if (c.mt === 'Land') {
       const L = landInfo(c)
       if (L.tapped === 'sim') tapped += q
