@@ -1,5 +1,5 @@
 // Biblioteca: os meus decks (abrir, duplicar, testar), o lixo (restaurar) e decks do meta para guardar como meus.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT } from './formats.js'
 import { Empty, Mana, Stars } from './ui.jsx'
@@ -18,8 +18,22 @@ function DeckRating({ d, rt, rtc }) {
   return <span className="dbox-rt"><Stars r={rt} />{rtc && <small className="cas-st" title={tx('Rating casual (jogos em modo casual, com decks de todos os formatos): {s} de 6 estrelas · {n} jogos', { s: num(rtc.stars, 1), n: rtc.games }) + (rtc.prov ? tx(' · provisório') : '')}>casual ★{num(rtc.stars, 1)}</small>}</span>
 }
 
-// Troféus: torneios que o deck ganhou (até 3 sobrepostos e «+N»); passar o rato ou tocar mostra a lista.
-// Um troféu só conta enquanto a lista não mudar mais de 10% da que ganhou (tournament.py trophies).
+// Troféus: pódios em torneios — ouro, prata e bronze (até 3 sobrepostos e «+N»); casuais em degradê com azul (como as
+// estrelas). Passar o rato ou tocar mostra a lista. Só contam enquanto a lista não mudar mais de 10% (tournament.py trophies).
+const MEDAL = { 1: ['#ffd98a', '#e9a93a'], 2: ['#f4f7fb', '#a9b4c2'], 3: ['#f0b27a', '#a8652f'] }
+const CUP = 'M6 3h12v2h3v3a4 4 0 0 1-4 4h-.3A6 6 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1A6 6 0 0 1 7.3 12H7a4 4 0 0 1-4-4V5h3V3zm-1 4v1a2 2 0 0 0 1.2 1.8A6 6 0 0 1 6 9V7H5zm13 0v2a6 6 0 0 1-.2.8A2 2 0 0 0 19 8V7h-1z'
+function Cup({ place, casual, off }) {
+  const id = `cup${useId().replace(/[^\w-]/g, '')}`, [hi, lo] = MEDAL[place] || MEDAL[1]
+  return (
+    <svg className={`cup ${off ? 'off' : ''}`} viewBox="0 0 24 24" aria-hidden="true">
+      <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+        {casual ? <><stop offset="0" stopColor="#4ea8ff" /><stop offset=".55" stopColor={hi} /><stop offset="1" stopColor={lo} /></> : <><stop offset="0" stopColor={hi} /><stop offset="1" stopColor={lo} /></>}
+      </linearGradient></defs>
+      <path d={CUP} fill={`url(#${id})`} stroke={casual ? '#4ea8ff' : '#0008'} strokeWidth=".8" />
+    </svg>
+  )
+}
+const PLACE = { 1: tx('1.º lugar'), 2: tx('2.º lugar'), 3: tx('3.º lugar') }
 function Trophies({ list }) {
   const [open, setOpen] = useState(null)  // posição no ecrã (o cartão do deck corta o que sai dele)
   useEffect(() => {  // fecha ao tocar fora ou ao rolar a página (está preso ao ecrã)
@@ -32,21 +46,22 @@ function Trophies({ list }) {
   if (!list?.length) return null
   const show = e => { const r = e.currentTarget.getBoundingClientRect(); setOpen({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left - 8, innerWidth - 330)) }) }
   const ok = list.filter(x => x.valid), shown = ok.length ? ok : list.slice(0, 1)
+  const n = p => ok.filter(x => x.place === p).length
+  const sum = [1, 2, 3].filter(n).map(p => `${n(p)}× ${PLACE[p]}`).join(' · ') || tx('Nenhum troféu válido')
   return (
     <span className={`tro ${ok.length ? '' : 'lost'}`} onMouseEnter={show} onMouseLeave={() => setOpen(null)}>
-      <button className="tro-ic" onClick={e => { e.stopPropagation(); if (open) setOpen(null); else show({ currentTarget: e.currentTarget.parentNode }) }} aria-expanded={!!open}
-        aria-label={tx('{n} torneio ganho|{n} torneios ganhos', { n: ok.length })}>
-        {shown.slice(0, 3).map((x, k) => <i key={x.tid} style={{ zIndex: 3 - k }}>🏆</i>)}
+      <button className="tro-ic" onClick={e => { e.stopPropagation(); if (open) setOpen(null); else show({ currentTarget: e.currentTarget.parentNode }) }} aria-expanded={!!open} aria-label={sum}>
+        {shown.slice(0, 3).map((x, k) => <i key={`${x.tid}-${x.place}`} style={{ zIndex: 3 - k }}><Cup place={x.place} casual={x.casual} off={!x.valid} /></i>)}
         {shown.length > 3 && <small>+{shown.length - 3}</small>}
       </button>
       {open && createPortal(
         <span className="tro-pop" role="tooltip" style={open}>
-          <b>{tx('{n} torneio ganho|{n} torneios ganhos', { n: ok.length })}</b>
+          <b>{sum}</b>
           {list.map(x => (
-            <span key={x.tid} className={`tro-row ${x.valid ? '' : 'off'}`}>
-              <span>🏆 {x.name}</span>
-              <small>{new Date(x.ts * 1000).toLocaleDateString(LOCALE)}{x.casual ? ` · ${tx('casual')}` : ''} · {tx('{n} decks', { n: x.n })} · {tx('{v}V {d}D', { v: x.rec[0], d: x.rec[1] })}{x.rec[2] ? ` ${x.rec[2]}E` : ''}{x.second.length ? ` · ${tx('2.º: {d}', { d: x.second.join(', ') })}` : ''}</small>
-              {!x.valid && <small className="tro-why">{tx('Não conta: a lista mudou {p} desde esta vitória (máx. 10%)', { p: `${Math.round((1 - x.same) * 100)}%` })}</small>}
+            <span key={`${x.tid}-${x.place}`} className={`tro-row ${x.valid ? '' : 'off'}`}>
+              <span className="tro-t"><Cup place={x.place} casual={x.casual} off={!x.valid} /> {PLACE[x.place]} · {x.name}</span>
+              <small>{new Date(x.ts * 1000).toLocaleDateString(LOCALE)}{x.casual ? ` · ${tx('casual')}` : ''} · {tx('{n} decks', { n: x.n })} · {tx('{v}V {d}D', { v: x.rec[0], d: x.rec[1] })}{x.rec[2] ? ` ${x.rec[2]}E` : ''}{x.place > 1 && x.first.length ? ` · ${tx('1.º: {d}', { d: x.first.join(', ') })}` : x.second.length ? ` · ${tx('2.º: {d}', { d: x.second.join(', ') })}` : ''}</small>
+              {!x.valid && <small className="tro-why">{tx('Não conta: a lista mudou {p} desde este torneio (máx. 10%)', { p: `${Math.round((1 - x.same) * 100)}%` })}</small>}
             </span>
           ))}
         </span>, document.body)}
@@ -163,7 +178,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '' }
   const setSort = v => { setSortS(v); ls('grimorio.lib.sort', v) }
   const sorted = useMemo(() => {
     const W = 'WUBRG', st = (d, k) => rt[`deck:${d.id}`]?.[k] ?? -1
-    const won = d => (tro[d.id] || []).filter(x => x.valid).length
+    const won = d => (tro[d.id] || []).filter(x => x.valid).reduce((t, x) => t + ({ 1: 100, 2: 10, 3: 1 }[x.place] || 0), 0)  // ouro > prata > bronze
     const key = {
       alterado: d => -(d.updated || 0), criado: d => -(d.created || d.updated || 0), nome: null,
       cores: d => { const c = colorsOf(d, data); return c.length * 100 + (c.length ? W.indexOf(c[0]) * 10 + W.indexOf(c[c.length - 1]) : 0) },
@@ -198,7 +213,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '' }
           <select className="small lib-sort" value={sort} onChange={e => setSort(e.target.value)} aria-label={tx('Ordenar')}>
             {[['alterado', tx('Ordenar: última alteração')], ['criado', tx('Ordenar: data de criação')], ['nome', tx('Ordenar: nome')], ['cores', tx('Ordenar: cores')],
               ['amarelo', tx('Ordenar: rating (amarelo)')], ['azul', tx('Ordenar: todos os jogos (azul)')], ['vermelho', tx('Ordenar: objetivo (vermelho)')], ['casual', tx('Ordenar: rating casual')],
-              ['trofeus', tx('Ordenar: torneios ganhos')]].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              ['trofeus', tx('Ordenar: troféus')]].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
           <span className="seg small">{[['grelha', tx('▦ Grelha')], ['lista', tx('☰ Lista')]].map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}</span></h3>
         {!mine.length && <Empty>{tx('Ainda não tens decks guardados. Usa «✦ Novo deck» ou guarda um do meta abaixo.')}</Empty>}

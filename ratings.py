@@ -272,6 +272,24 @@ def goal_stars(p):
     return round(min(TOP, 5 * max(0.0, p)), 1)
 
 
+def reset(con, key):
+    """O deck mudou mais de 10% da lista com que ganhou os ratings (server.py, ao gravar): recomeça do zero. Apaga o
+    amarelo e o casual (linhas de `ratings`) e marca a hora: os jogos de antes ficam na história e continuam a contar
+    para os adversários, mas para este deck passam a ser de «key@antes» (azul e vermelho em layers(), Elo em history())."""
+    con.execute("DELETE FROM ratings WHERE key=?", (key,))
+    kv(con, f"reset:{key}", time.time())
+
+
+def resets(con):
+    """{chave: hora do último recomeço}."""
+    return {k[6:]: json.loads(v) for k, v in con.execute("SELECT k, v FROM ratings_kv WHERE k LIKE 'reset:%'")}
+
+
+def rated(con, key):
+    """O deck tem algum rating (normal ou casual) desde o último recomeço."""
+    return con.execute("SELECT 1 FROM ratings WHERE key=? AND games>0 LIMIT 1", (key,)).fetchone() is not None
+
+
 def layers(con):
     """{chave: {blue, blue_elo, blue_games, red, red_games, goal, routes}}: as camadas por cima do rating normal.
     Azul = Elo com TODOS os jogos (normais e casuais de todos os formatos num só Elo, as mesmas regras de K), refeito a
@@ -280,8 +298,9 @@ def layers(con):
     Vermelho = média do progresso rumo à vitória (a_prog/b_prog, todos os jogos, casuais incluídos: é desempenho)
     -> goal_stars; routes = média de cada via e `by` = em quantos jogos ganhos cada via foi a que decidiu."""
     # ponytail: refaz o Elo todo a cada pedido (~1 ms por mil jogos); guardar numa tabela se passar das centenas de milhares
-    elo, out = {}, {}
-    for ak, bk, w, pa, pb, pj in con.execute("SELECT a_key, b_key, winner, a_prog, b_prog, prog FROM rating_games ORDER BY id"):
+    elo, out, R = {}, {}, resets(con)
+    for ts, ak, bk, w, pa, pb, pj in con.execute("SELECT ts, a_key, b_key, winner, a_prog, b_prog, prog FROM rating_games ORDER BY id"):
+        ak, bk = (k + "@antes" if k in R and ts < R[k] else k for k in (ak, bk))  # jogos de antes de um recomeço
         ra, rb = elo.setdefault(ak, [START, 0]), elo.setdefault(bk, [START, 0])
         s = 1.0 if w == "a" else 0.0 if w == "b" else 0.5
         x = expected(ra[0], rb[0])
@@ -365,7 +384,7 @@ def history(con, key, fmt):
     elo, rounds = [START], {}
     for ts, ak, bk, w, src, rid, ae, be in con.execute(
             "SELECT ts, a_key, b_key, winner, source, round_id, a_elo, b_elo FROM rating_games WHERE format=?"
-            " AND (a_key=? OR b_key=?) ORDER BY id", (fmt, key, key)):
+            " AND (a_key=? OR b_key=?) AND ts>=? ORDER BY id", (fmt, key, key, resets(con).get(key, 0))):
         me = ak == key
         elo.append(round(ae if me else be, 1))
         opp = bk if me else ak
@@ -951,6 +970,13 @@ def selfcheck():
     c2.execute("UPDATE rating_games SET a_prog=NULL, b_prog=NULL, prog=NULL")
     c2.execute("""UPDATE rating_games SET summary='{"a": {"damage_by_card": {"X": 10}}, "b": {}}' WHERE format='pauper'""")
     assert backfill(c2) == 3 and backfill(c2) == 0 and layers(c2)["meta:p"]["goal"] == 1.0
+    # recomeço (lista mudou >10%): o deck perde amarelo, azul e vermelho; o adversário guarda os seus jogos
+    reset(c2, "meta:p")
+    ly3 = layers(c2)
+    assert "meta:p" not in ly3 and "meta:p@antes" in ly3 and ly3["meta:q"]["blue_games"] == 6
+    assert not rated(c2, "meta:p") and "meta:p" not in all_stars(c2, "") and history(c2, "meta:p", "pauper")["rounds"] == []
+    record_round(c2, "pauper", D("meta:p"), D("meta:q"), ["a"], "arena")
+    assert layers(c2)["meta:p"]["blue_games"] == 1 and rated(c2, "meta:p")
     print("selfcheck ok")
 
 

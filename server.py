@@ -286,7 +286,7 @@ class H(BaseHTTPRequestHandler):
             did = p.rsplit("/", 1)[1]
             with db() as con:
                 r = con.execute("SELECT body FROM decks WHERE id=? AND owner=?", (did, self.owner())).fetchone()
-            return self.send(200, r[0].encode()) if r else self.json({"erro": "deck não existe"}, 404)
+                return self.json(with_rated(con, did, json.loads(r[0]))) if r else self.json({"erro": "deck não existe"}, 404)
         if p.startswith("/assets/"):
             return self.file(os.path.join(DIST, p.lstrip("/")), "public, max-age=31536000, immutable")
         rel = p.lstrip("/")
@@ -517,10 +517,20 @@ class H(BaseHTTPRequestHandler):
                 if r and k not in d and json.loads(r[1]).get(k):
                     d[k] = json.loads(r[1])[k]
             d["created"] = (r and json.loads(r[1]).get("created")) or d["updated"]  # data de criação: a da 1.ª gravação, nunca muda
+            # ratings presos à lista: se mudar mais de 10% da lista de referência, recomeçam do zero (o editor avisa antes)
+            d.pop("rated", None)
+            reset = False
+            if r and ratings.rated(con, f"deck:{d['id']}"):
+                base = with_rated(con, d["id"], json.loads(r[1]))["rated"]["list"]
+                if tournament.similarity(base, rated_list(d)) < tournament.SAME:
+                    ratings.reset(con, f"deck:{d['id']}")
+                    reset = True
+                else:
+                    d["rated"] = {"list": base}
             con.execute("INSERT OR REPLACE INTO decks (id, name, format, body, updated, owner, deleted) VALUES (?,?,?,?,?,?,NULL)",
                         (d["id"], str(d.get("name", ""))[:200], str(d.get("format", ""))[:40],
                          json.dumps(d, ensure_ascii=False), d["updated"], self.owner()))
-        return self.json(d, code)
+        return self.json({**d, **({"rated_reset": True} if reset else {})}, code)
 
     def owner(self):
         # 1) login do proxy (Caddy + Authelia) em Remote-User; 2) --owner/GRIMORIO_OWNER fixo; 3) perfil do cookie (None sem perfil)
@@ -667,6 +677,20 @@ def selfcheck():
         srv.shutdown()
         import shutil
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def rated_list(d):
+    return {"main": d.get("main") or {}, "commanders": d.get("commanders") or []}
+
+
+def with_rated(con, did, d):
+    """`rated` = a lista com que o deck ganhou os ratings (só enquanto os tiver): a guardada ou, ainda sem nenhuma, a de
+    agora. Depois de um recomeço o deck fica sem `rated` até voltar a ter jogos."""
+    if not ratings.rated(con, f"deck:{did}"):
+        d.pop("rated", None)
+    elif not (d.get("rated") or {}).get("list"):
+        d["rated"] = {"list": rated_list(d)}
+    return d
 
 
 def backfill_created(con):

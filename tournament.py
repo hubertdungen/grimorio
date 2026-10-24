@@ -587,24 +587,29 @@ SAME = 0.9  # um troféu conta enquanto a lista de hoje tiver ≥ 90% da que gan
 
 
 def trophies(con, owner):
-    """{id do deck: [torneios que ganhou, do mais recente]}: resumo de cada um (data, tipo, formato, nº de decks, registo
-    do campeão, 2.º lugar) e `same` = semelhança da lista de hoje com a que ganhou; `valid` = same ≥ SAME."""
+    """{id do deck: [pódios em torneios: ouro, prata e bronze, cada lugar do mais recente]}: resumo de cada um (data, tipo,
+    formato, nº de decks, lugar, registo, 1.º e 2.º lugar) e `same` = semelhança da lista de hoje com a do torneio;
+    `valid` = same ≥ SAME (o troféu só conta enquanto a lista não mudar mais de 10%)."""
     cur = {i: json.loads(b or "{}") for i, b in con.execute(
         "SELECT id, body FROM decks WHERE owner=? AND (deleted IS NULL OR deleted=0)", (owner,))}
     out = {}
     for tid, ts, name, typ, fmt, raw in con.execute("SELECT id, ts, name, type, format, state FROM tournaments"
                                                     " WHERE owner=? AND status='done' ORDER BY ts DESC", (owner,)):
         st = json.loads(raw)
-        c = st.get("champion")
-        p = c is not None and st["players"][c]
-        if not p or p.get("src") != "meus" or p.get("ref") not in cur or not st.get("decks"):
+        if st.get("champion") is None or not st.get("decks"):
             continue
-        row = next((x for x in standings(st) if x["i"] == c), {})
-        same = round(similarity(st["decks"][c], cur[p["ref"]]), 3)
-        out.setdefault(p["ref"], []).append({
-            "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "casual": bool(st.get("casual")),
-            "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
-            "second": [x["name"] for x in podium(st) if x["place"] == 2], "same": same, "valid": same >= SAME})
+        pod, rows = podium(st), {x["i"]: x for x in standings(st)}
+        for x in pod:  # ouro, prata e bronze (empates no 3.º: todos bronze)
+            if x.get("src") != "meus" or x.get("ref") not in cur:
+                continue
+            row, same = rows.get(x["i"], {}), round(similarity(st["decks"][x["i"]], cur[x["ref"]]), 3)
+            out.setdefault(x["ref"], []).append({
+                "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "casual": bool(st.get("casual")),
+                "place": x["place"], "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
+                "first": [y["name"] for y in pod if y["place"] == 1 and y["i"] != x["i"]],
+                "second": [y["name"] for y in pod if y["place"] == 2 and y["i"] != x["i"]], "same": same, "valid": same >= SAME})
+    for v in out.values():
+        v.sort(key=lambda t: (t["place"], -t["ts"]))
     return out
 
 

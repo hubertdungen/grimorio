@@ -15,6 +15,7 @@ import RatingsView from './Ratings.jsx'
 import { loadGames } from './tests.js'
 import { gameEvidence, applySwap } from './swap.js'
 import Library from './Library.jsx'
+import { similarity } from './DeckCompare.jsx'
 import './index.css'
 import { tx, LOCALE } from './i18n.js'
 import Settings from './Settings.jsx'
@@ -172,9 +173,25 @@ export default function App() {
   }, [])
   useEffect(() => { store.set('grimorio.tab', tab) }, [tab])
 
+  // Ratings presos à lista: deck.rated = a lista com que ganhou os ratings (do servidor). Aos 7% de mudança avisa; aos 10%
+  // os ratings recomeçam do zero ao gravar, por isso a gravação espera pela escolha: desfazer ou continuar.
+  const chg = useMemo(() => (deck.rated?.list ? 1 - similarity(data, deck.rated.list, deck) : 0), [data, deck])
+  const [okReset, setOkReset] = useState(false)
+  const block = chg >= 0.1 && !okReset
+  const warned = useRef(false)
+  useEffect(() => { setOkReset(false); warned.current = false }, [deck.id])
+  useEffect(() => {
+    if (chg < 0.05) warned.current = false
+    else if (chg >= 0.07 && chg < 0.1 && !warned.current) {
+      warned.current = true
+      say(tx('Atenção: a lista já mudou {p} desde que ganhou os ratings. A 10% os ratings recomeçam do zero.', { p: `${Math.round(chg * 100)}%` }), true)
+    }
+  }, [chg, say])
+
   // Gravação automática (cria o deck no servidor à primeira alteração).
   useEffect(() => {
     if (!dirty.current) return
+    if (block) return setSaveState(tx('à espera da tua escolha'))
     setSaveState(tx('a guardar…'))
     const t = setTimeout(async () => {
       try {
@@ -182,13 +199,14 @@ export default function App() {
         const saved = deck.id ? await api(`/api/decks/${deck.id}`, { method: 'PUT', body }) : await api('/api/decks', { method: 'POST', body })
         dirty.current = false
         if (!deck.id) setDeckRaw(d => ({ ...d, id: saved.id }))
+        if (saved.rated_reset) { setDeckRaw(d => ({ ...d, rated: undefined })); setOkReset(false); say(tx('Os ratings deste deck recomeçaram do zero: a lista mudou mais de 10%.')) }
         store.set('grimorio.deck', saved.id)
         setSaveState(tx('guardado'))
         api('/api/decks').then(setDecks).catch(() => {})
       } catch (e) { setSaveState(tx('erro ao guardar: {e}', { e: e.message })) }
     }, 700)
     return () => clearTimeout(t)
-  }, [deck])
+  }, [deck, block]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Jogos do deck (Laboratório e torneios): entram nas sugestões e nos cortes; o Lab pede para recarregar ao guardar.
   const [tests, setTests] = useState(null)
@@ -357,6 +375,15 @@ export default function App() {
       {showAuto && <AutoBuildDialog {...{ data, deck, fmt, ctx, setDeck, say, act, onClose: () => setShowAuto(false) }} />}
       {showRefresh && <RefreshDialog {...{ data, deck, setDeck, say, onClose: () => setShowRefresh(false) }} />}
       {showImport && <ImportDialog {...{ data, deck, setDeck, say, onClose: () => setShowImport(false), onImported: () => setTab('analise') }} />}
+      {block && (
+        <div className="modal-bg">
+          <div className="modal confirm" role="alertdialog" aria-label={tx('Os ratings deste deck vão recomeçar')}>
+            <h3>{tx('Os ratings deste deck vão recomeçar')}</h3>
+            <p className="muted">{tx('A lista mudou {p} desde que ganhou os ratings (o máximo é 10%). Se gravares assim, as estrelas amarelas, azuis e vermelhas e o rating casual recomeçam do zero; os jogos antigos ficam na história. Os troféus seguem a regra deles.', { p: `${Math.round(chg * 100)}%` })}</p>
+            <div className="row-btns"><button className="primary" onClick={undo} autoFocus>↶ {tx('Desfazer a última alteração')}</button><button className="danger" onClick={() => setOkReset(true)}>{tx('Continuar e recomeçar os ratings')}</button></div>
+          </div>
+        </div>
+      )}
       {toast && <div className="toast">{toast.msg}{toast.undo && histN[0] > 0 && <button className="link toast-undo" onClick={undo}>↶ {tx('Desfazer')}</button>}</div>}
     </div>
   )
