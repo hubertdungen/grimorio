@@ -70,7 +70,7 @@ function Trophies({ list }) {
   )
 }
 
-function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rtc, tro, selected, onSelect, onFav, onDelete }) {
+function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rtc, tro, selected, onSelect, onFav, onCom, onDelete }) {
   const [link, setLink] = useState('')
   const [pick, setPick] = useState(false)
   const c = coverOf(d, data), cols = colorsOf(d, data)
@@ -87,11 +87,11 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
       <button className={`dbox-fav ${d.fav ? 'on' : ''}`} onClick={() => onFav(d)} title={d.fav ? tx('Tirar dos favoritos') : tx('Pôr nos favoritos')}>{d.fav ? '★' : '☆'}</button>
       <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
         {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
-        <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}</span>
+        <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}{d.community && <span title={tx('Deck da comunidade (de outra pessoa)')}> · 🌐 {tx('Comunidade')}</span>}</span>
       </button>
       <div className="dbox-body">
         <b title={d.name}>{d.name}</b>
-        <span className="dbox-meta">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><Trophies list={tro} /><DeckRating d={d} rt={rt} rtc={rtc} /></span>
+        <span className="dbox-meta">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}>{d.community ? '🌐' : '🧙'}</button><Trophies list={tro} /><DeckRating d={d} rt={rt} rtc={rtc} /></span>
         <span className="row-btns">
           <button onClick={() => open('deck')}>{tx('Abrir')}</button>
           <button onClick={() => open('teste')} title={tx('Testar no Forge')}>⚔</button>
@@ -130,6 +130,11 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   const [view, setView] = useState(() => ls('grimorio.lib.view') || 'grelha')
   const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false), [del, setDel] = useState(null)
   const toggleSel = id => setSel(s => (s.includes(id) ? s.filter(x => x !== id) : s.length >= 3 ? [...s.slice(1), id] : [...s, id]))
+  const toggleCom = async d => {  // meu ↔ comunidade (deck de outra pessoa guardado na Biblioteca)
+    const full = await (await fetch(`/api/decks/${d.id}`)).json()
+    await fetch(`/api/decks/${d.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...full, community: !d.community }) })
+    setMine(m => m.map(x => (x.id === d.id ? { ...x, community: !d.community } : x)))
+  }
   const toggleFav = async d => {
     const full = await (await fetch(`/api/decks/${d.id}`)).json()
     await fetch(`/api/decks/${d.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...full, fav: !d.fav }) })
@@ -249,7 +254,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
             <button className="fmt-head" onClick={() => setClosed(c => { const n = { ...c }; if (n[f]) delete n[f]; else n[f] = 1; return n })} aria-expanded={!closed[f]}>
               <i className="chev">▾</i><b>{fname(f)}</b><span className="muted">{ds.length} {ds.length === 1 ? 'deck' : 'decks'}</span><span className="fmt-line" />
             </button>
-            {view === 'grelha' ? <div className="dgrid">{ds.map(d => <DeckBox key={d.id} d={d} data={data} openDeck={openDeck} goTab={goTab} duplicate={duplicate} setCover={setCover} setImg={setImg} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} tro={tro[d.id]} selected={sel.includes(d.id)} onSelect={toggleSel} onFav={toggleFav} onDelete={setDel} />)}</div> : <ul className="lib-list">{ds.map(d => (
+            {view === 'grelha' ? <div className="dgrid">{ds.map(d => <DeckBox key={d.id} d={d} data={data} openDeck={openDeck} goTab={goTab} duplicate={duplicate} setCover={setCover} setImg={setImg} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} tro={tro[d.id]} onCom={toggleCom} selected={sel.includes(d.id)} onSelect={toggleSel} onFav={toggleFav} onDelete={setDel} />)}</div> : <ul className="lib-list">{ds.map(d => (
               <li key={d.id}>
                 <button className="link plain" onClick={() => openDeck(d.id).then(() => goTab('deck'))}><b>{d.name}</b></button>
                 <span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span>

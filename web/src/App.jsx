@@ -629,6 +629,7 @@ function ImportDialog({ data, deck, setDeck, say, onClose, onImported }) {
     setFetching(false)
   }
   const [mode, setMode] = useState('replace')
+  const [community, setCommunity] = useState(false)  // deck de outra pessoa (comunidade), não meu
   const [busy, setBusy] = useState(false)
   const go = async () => {
     const p = parseList(text, data)
@@ -639,7 +640,7 @@ function ImportDialog({ data, deck, setDeck, say, onClose, onImported }) {
     // formato: o do site se a lista for legal nele; senão detectado pelas cartas (link, ou lista colada num deck vazio)
     const fx = (info || !count(deck.main)) && mode === 'replace' ? fixFormat(data, p, info?.format) : null
     setDeck(d => {
-      if (mode === 'replace') return { ...d, ...(info ? { name: info.name || d.name } : {}), ...(info?.cover ? { coverImg: info.cover } : {}), ...(fx ? { format: fx.format } : {}), commanders: p.commanders.length ? p.commanders : d.commanders, main: p.main, side: p.side, maybe: p.maybe, prints, art, ...src, groups: [] }
+      if (mode === 'replace') return { ...d, community: community || undefined, ...(info ? { name: info.name || d.name } : {}), ...(info?.cover ? { coverImg: info.cover } : {}), ...(fx ? { format: fx.format } : {}), commanders: p.commanders.length ? p.commanders : d.commanders, main: p.main, side: p.side, maybe: p.maybe, prints, art, ...src, groups: [] }
       const z = k => { const o = { ...(d[k] || {}) }; for (const [n, q] of Object.entries(p[k])) o[n] = (o[n] || 0) + q; return o }
       return { ...d, main: z('main'), side: z('side'), maybe: z('maybe'), prints: { ...(d.prints || {}), ...prints }, art: { ...(d.art || {}), ...art }, commanders: [...new Set([...d.commanders, ...p.commanders])] }
     })
@@ -662,6 +663,7 @@ function ImportDialog({ data, deck, setDeck, say, onClose, onImported }) {
         <p className="muted small">{tx('Cola uma lista do Arena, Moxfield, Archidekt ou MTGO («4 Lightning Bolt», «1x Sol Ring (CMR) 263 *F*», secções Commander/Deck/Sideboard). A edição indicada fica como estilo da carta.')}</p>
         <textarea autoFocus value={text} onChange={e => setText(e.target.value)} placeholder={'Commander\n1 Atraxa, Praetors\' Voice\n\nDeck\n1 Sol Ring\n...'} />
         <div className="row-btns">
+          {mode === 'replace' && <label className="chk small" title={tx('Decks da comunidade: guardados na tua Biblioteca, mas são de outras pessoas; nos torneios e na Arena escolhes se entram')}><input type="checkbox" checked={community} onChange={e => setCommunity(e.target.checked)} /> {tx('🌐 É um deck da comunidade (não é meu)')}</label>}
           <select value={mode} onChange={e => setMode(e.target.value)}><option value="replace">{tx('Substituir o deck {name}', { name: deck.name })}</option><option value="merge">{tx('Juntar ao deck')}</option></select>
           <button className="primary" onClick={go} disabled={!text.trim() || busy}>{busy ? tx('A obter edições…') : tx('Importar')}</button>
           <button onClick={onClose}>{tx('Cancelar')}</button>

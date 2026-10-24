@@ -86,7 +86,8 @@ function Create({ data, fmt0, onCreated }) {
   const [meta, setMeta] = useState([])
   const [diffs, setDiffs] = useState([])
   const [fillN, setFillN] = useState(8)
-  const [fillSrc, setFillSrc] = useState('ambos')
+  const [srcs, setSrcs] = useState(['meu', 'meta'])  // de onde vem o «Preencher»: meus, comunidade (decks de outros guardados) e meta
+  const okMine = o => srcs.includes(o.community ? 'com' : 'meu')
   const [allDiff, setAllDiff] = useState('default')
   const [smin, setSmin] = useState(0)
   const [smax, setSmax] = useState(6)
@@ -128,9 +129,9 @@ function Create({ data, fmt0, onCreated }) {
     const byKey = Object.fromEntries([...mine.map(o => [rkey('meus', o.id), ['meus', o]]), ...meta.map(o => [rkey('meta', o.id), ['meta', o]])])
     // pede todos os candidatos já baralhados (os sem rating vêm como 3,0★ com games 0) e filtra aqui: «sem rating» entra
     // pela caixa, independentemente do intervalo de estrelas
-    const picked = casual ? null : await j(`/api/ratings/pick?format=${format}&n=999&min=0&max=6&sources=${{ ambos: 'meu,meta', meus: 'meu', meta: 'meta' }[fillSrc]}`)
+    const picked = casual ? null : await j(`/api/ratings/pick?format=${format}&n=999&min=0&max=6&sources=${srcs.join(',')}`)
       .then(r => (Array.isArray(r) ? r.filter(x => (x.games ? x.stars >= smin && x.stars <= smax : unrated)).map(x => byKey[x.key] || (x.src === 'meta' && ['meta', { id: x.ref, name: x.name }])).filter(Boolean) : null)).catch(() => null)
-    const pool = (picked || [...(fillSrc !== 'meta' ? mine.map(o => ['meus', o]) : []), ...(fillSrc !== 'meus' ? meta.map(o => ['meta', o]) : [])]
+    const pool = (picked || [...mine.filter(okMine).map(o => ['meus', o]), ...(srcs.includes('meta') ? meta.map(o => ['meta', o]) : [])]
       .filter(([s, o]) => inStars(s, o.id)).sort(() => Math.random() - 0.5))
       .filter(([s, o]) => !used.has(`${s}:${o.id}`))
     if (pool.length < want) setErr(tx('Só há {k} decks diferentes com esta fonte e estas estrelas: preenchi o que deu.', { k: pool.length })); else setErr('')
@@ -193,15 +194,18 @@ function Create({ data, fmt0, onCreated }) {
           <p className="small muted tc-info">{tx('Marca um dos teus com')} <b>{tx('☆ eu')}</b> {tx('para jogar «como se fosses tu»: fica destacado e vês até onde chegas.')}</p>
           <div className="tc-fill">
             <span>{tx('🎲 Preencher até')}</span><input type="number" min="2" max={max} value={fillN} onChange={e => setFillN(+e.target.value)} />
-            <select value={fillSrc} onChange={e => setFillSrc(e.target.value)}><option value="ambos">{tx('com os meus e os do meta')}</option><option value="meus">{tx('só com os meus decks')}</option><option value="meta">{tx('só com decks do meta')}</option></select>
+            <span className="seg small tc-srcs" role="group" aria-label={tx('De onde')}>{[['meu', tx('🧙 Meus')], ['com', tx('🌐 Comunidade')], ['meta', tx('📊 Meta')]].map(([k, l]) => (
+              <button key={k} className={srcs.includes(k) ? 'on' : ''} aria-pressed={srcs.includes(k)} onClick={() => setSrcs(v => (v.includes(k) ? (v.length > 1 ? v.filter(x => x !== k) : v) : [...v, k]))}>{l}</button>))}</span>
             {!casual && <><span className="tc-stars">{tx('estrelas')} <select value={smin} onChange={e => setSmin(+e.target.value)} aria-label={tx('Mínimo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select>
               {tx('a')} <select value={smax} onChange={e => setSmax(+e.target.value)} aria-label={tx('Máximo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select></span>
             <label className="chk small"><input type="checkbox" checked={unrated} onChange={e => setUnrated(e.target.checked)} /> {tx('incluir decks sem rating')}</label></>}
             <button onClick={fill} disabled={n >= Math.min(fillN, max)}>{tx('Preencher')}</button>
             {n > 0 && <button className="link small" onClick={() => setPlayers([])}>{tx('limpar')}</button>}
           </div>
-          <h4>{casual ? tx('Os meus decks') : tx('Os meus decks de {f}', { f: F.name })} <span className="muted">({mine.length})</span></h4>
-          <div className="opp-list">{mine.map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name}{casual && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}{!mine.length && <span className="muted small">{tx('Nenhum deck teu neste formato.')}</span>}</div>
+          <h4>{casual ? tx('Os meus decks') : tx('Os meus decks de {f}', { f: F.name })} <span className="muted">({mine.filter(o => !o.community).length})</span></h4>
+          <div className="opp-list">{mine.filter(o => !o.community).map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name}{casual && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}{!mine.length && <span className="muted small">{tx('Nenhum deck teu neste formato.')}</span>}</div>
+          {mine.some(o => o.community) && <><h4>{tx('🌐 Da comunidade')} <span className="muted">({mine.filter(o => o.community).length})</span></h4>
+          <div className="opp-list">{mine.filter(o => o.community).map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name}{casual && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}{!mine.length && <span className="muted small">{tx('Nenhum deck teu neste formato.')}</span>}</div></>}
           <h4>{tx('Do meta')} {casual ? <select className="tc-mf" value={mf} onChange={e => setMetaFmt(e.target.value)} aria-label={tx('Decks do meta de')}>{CASUAL_META.map(k => <option key={k} value={k}>{tx('de {f}', { f: FORMAT[k]?.name || k })}</option>)}</select> : null} <span className="muted">({meta.length})</span></h4>
           <div className="opp-list">{meta.map(o => <button key={o.id} className={`opp ${has('meta', o.id) ? 'on' : ''}`} onClick={() => add('meta', o)}>+ {o.name} {o.share ? <span className="muted">{Math.round(o.share * 100)}%</span> : null} <Stars r={stars[rkey('meta', o.id)]} /></button>)}{!meta.length && <span className="muted small">{tx('Sem decks do meta para este formato.')}</span>}</div>
           <div className="tc-diff">
@@ -322,7 +326,7 @@ function Live({ data, tid, onGone, slot }) {
         title: xs.map(x => (x.kind === 'champ' ? tx('Aposta no campeão: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }) : tx('Aposta nesta partida: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }))).join('\n'),
       }
     }
-    return <>{slot && createPortal(<button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>, slot)}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
+    return <>{slot && createPortal(<button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>, slot)}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} bots={Object.fromEntries((watch.seats || []).map((i, k) => { const d = DIFF_INFO[P[i]?.difficulty]; return ['abcd'[k], d && { label: d.label, title: tx('Bot do Forge: {d} — {r}', { d: d.label, r: d.resumo }) }] }).filter(x => x[1]))} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
       live={going && follow && i >= 0 && i === fl.length - 1} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })}
       next={follow && i >= 0 ? { has: i < fl.length - 1, go: () => openGame(fl[i + 1]), secs: pause.secs, auto: pause.auto } : null} /></>
   }

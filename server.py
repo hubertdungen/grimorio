@@ -266,7 +266,7 @@ class H(BaseHTTPRequestHandler):
             out = []
             for r in rows:  # resumo para a caixa do deck: capa, comandantes e lista (as cores calculam-se no browser)
                 d = json.loads(r[4])
-                out.append({"id": r[0], "name": r[1], "format": r[2], "updated": r[3], "deleted": r[5], "count": d.get("count", 0), "created": d.get("created") or r[3],
+                out.append({"id": r[0], "name": r[1], "format": r[2], "updated": r[3], "deleted": r[5], "count": d.get("count", 0), "created": d.get("created") or r[3], "community": bool(d.get("community")),
                             "cover": d.get("cover"), "coverImg": d.get("coverImg"), "fav": bool(d.get("fav")), "casual": bool(d.get("casual")), "commanders": d.get("commanders") or [], "seeds": (d.get("seeds") or [])[:3],
                             "main": d.get("main") or {}, **({"art": d["art"]} if d.get("art") else {})})  # artes próprias (capa)
             return self.json(out)

@@ -35,7 +35,7 @@ export default function DeckSearch({ data, say, onDone }) {
       const p = parseList(j.text, data)
       await fetch('/api/decks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
         name: j.name || d.name, format: fixFormat(data, p, j.format || d.format).format, commanders: p.commanders, main: p.main, side: p.side, maybe: p.maybe,
-        seeds: [], ...await importExtras(data, p, j), source: d.url, groups: [], notes: tx('Importado de {src}: {url}', { src: j.source, url: d.url }) + (d.owner ? tx(' (de {owner})', { owner: d.owner }) : ''),
+        seeds: [], ...await importExtras(data, p, j), source: d.url, community: true,  // decks públicos de outros: comunidade groups: [], notes: tx('Importado de {src}: {url}', { src: j.source, url: d.url }) + (d.owner ? tx(' (de {owner})', { owner: d.owner }) : ''),
         coverImg: j.cover || d.cover || null, count: Object.values(p.main).reduce((a, b) => a + b, 0) + p.commanders.length }) })
       setDone(x => ({ ...x, [d.url]: true })); say?.(tx('Importado: {name}', { name: j.name || d.name })); onDone?.()
     } catch (e) { say?.(tx('Não consegui importar: {err}', { err: e.message })) }
