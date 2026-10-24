@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { img, TAG_LABEL } from './data.js'
 import { tx, num } from './i18n.js'
@@ -92,6 +92,17 @@ function Tip({ at, r, v, label }) {
     </div>, document.body)
 }
 
+// Camadas visíveis (Definições › Estrelas): 'ybr' = amarelo, azul e vermelho (por omissão); qualquer subconjunto
+const SL_KEY = 'grimorio.stars', slSubs = new Set()
+let starLayers = (() => { try { return localStorage.getItem(SL_KEY) || 'ybr' } catch { return 'ybr' } })()
+export const getStarLayers = () => starLayers
+export function setStarLayers(v) {
+  starLayers = [...'ybr'].filter(k => v.includes(k)).join('') || 'ybr'
+  try { localStorage.setItem(SL_KEY, starLayers) } catch { /* sem armazenamento */ }
+  slSubs.forEach(f => f())
+}
+const useStarLayers = () => useSyncExternalStore(f => { slSubs.add(f); return () => slSubs.delete(f) }, getStarLayers)
+
 export function Stars({ r, v = r?.stars, prov = r?.prov, bare = false, label = '' }) {
   const uid = useId().replace(/[^\w-]/g, ''), [at, setAt] = useState(null), hold = useRef(null), held = useRef(false), me = useRef(null)
   useEffect(() => {
@@ -101,16 +112,20 @@ export function Stars({ r, v = r?.stars, prov = r?.prov, bare = false, label = '
     window.addEventListener('scroll', off, true)
     return () => { document.removeEventListener('pointerdown', off); window.removeEventListener('scroll', off, true) }
   }, [at])
-  const b = r?.blue, rd = r?.red
-  if (v == null && b == null && rd == null) return <span className="stars none" title={tx('sem rating ainda')} role="img" aria-label={tx('sem rating ainda')}>★</span>
-  const y = v ?? 0, lo = Math.min(y, b ?? y), hi = Math.max(y, b ?? y), top = Math.max(hi, rd ?? 0)
-  const [cLo, cHi] = b != null && b < y ? [COL.b, COL.y] : [COL.y, COL.b]
+  // a primeira camada visível (amarelo › azul › vermelho) é a principal: cheia e dá o número; o azul só se sobrepõe ao
+  // amarelo e o vermelho fica por baixo das outras (sozinho, enche as estrelas)
+  const L = useStarLayers(), raw = { y: v, b: r?.blue, r: r?.red }
+  const mk = L.includes('y') ? 'y' : L.includes('b') ? 'b' : 'r', MC = COL[mk], mv = raw[mk]
+  const b = mk === 'y' && L.includes('b') ? raw.b : null, rd = mk !== 'r' && L.includes('r') ? raw.r : null
+  if (mv == null && b == null && rd == null) return <span className="stars none" title={tx('sem rating ainda')} role="img" aria-label={tx('sem rating ainda')}>★</span>
+  const y = mv ?? 0, lo = Math.min(y, b ?? y), hi = Math.max(y, b ?? y), top = Math.max(hi, rd ?? 0)
+  const [cLo, cHi] = b != null && b < y ? [COL.b, MC] : [MC, COL.b]
   // o amarelo vê-se sempre: com o amarelo maior ou igual, a parte comum fica em degradê azul→amarelo e o resto amarelo;
   // com o azul maior, primeiro o amarelo e depois o azul
   const blend = b != null && b > 0 && b <= y
   const slots = Math.max(1, Math.min(6, Math.ceil(top - 1e-9)))
   const f = (x, i) => Math.max(0, Math.min(1, x - i)) * 100
-  const t = [`${label}${tx('Normal')} ${num(y, 1)}`, b != null && `${tx('Todos os jogos')} ${num(b, 1)}`, rd != null && `${tx('Objetivo')} ${num(rd, 1)}`].filter(Boolean).join(' · ')
+  const t = [`${label}${tx('Normal')} ${raw.y == null ? '—' : num(raw.y, 1)}`, raw.b != null && `${tx('Todos os jogos')} ${num(raw.b, 1)}`, raw.r != null && `${tx('Objetivo')} ${num(raw.r, 1)}`].filter(Boolean).join(' · ')
   const show = () => r && me.current && setAt(me.current.getBoundingClientRect())
   return (
     <span ref={me} className={`stars${prov ? ' prov' : ''}`} role="img" aria-label={t}
@@ -140,7 +155,7 @@ export function Stars({ r, v = r?.stars, prov = r?.prov, bare = false, label = '
           </svg>
         )
       })}
-      {!bare && <b>{v == null ? '—' : num(v, 1)}</b>}
+      {!bare && <b style={mk === 'y' ? undefined : { color: MC }}>{mv == null ? '—' : num(mv, 1)}</b>}
       {at && <Tip at={at} r={{ ...r, prov }} v={v} label={label} />}
     </span>
   )

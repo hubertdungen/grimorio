@@ -1842,4 +1842,10 @@ export default {
   "Escolhe um ficheiro .grimorio (até 500 MB).": "请选择 .grimorio 文件（最大 500 MB）。",
   "A sincronização por pasta é das instalações sem login (computador ou servidor de um dono).": "文件夹同步仅适用于无需登录的安装（个人电脑或单一所有者的服务器）。",
   "A pasta não existe (ou o disco da nuvem não está ligado).": "文件夹不存在（或云端磁盘未连接）。",
+  "Estrelas dos decks": "套牌星级",
+  "Amarelas — rating normal (jogos não casuais)": "黄色——普通评分（非休闲对局）",
+  "Azuis — todos os jogos, casuais incluídos": "蓝色——全部对局，含休闲",
+  "Vermelhas — objetivo (quanto chega a ganhar)": "红色——胜利进度（离获胜有多近）",
+  "A primeira cor ligada enche as estrelas e dá o número. Por omissão aparecem as três.": "第一个开启的颜色会填满星星并给出数字。默认显示全部三种。",
+  "Repor as três": "恢复显示三种",
 }

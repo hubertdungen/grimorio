@@ -1842,4 +1842,10 @@ export default {
   "Escolhe um ficheiro .grimorio (até 500 MB).": "Elige un archivo .grimorio (hasta 500 MB).",
   "A sincronização por pasta é das instalações sem login (computador ou servidor de um dono).": "La sincronización por carpeta es para instalaciones sin inicio de sesión (ordenador o servidor de un solo dueño).",
   "A pasta não existe (ou o disco da nuvem não está ligado).": "La carpeta no existe (o la unidad de la nube no está conectada).",
+  "Estrelas dos decks": "Estrellas de los mazos",
+  "Amarelas — rating normal (jogos não casuais)": "Amarillas — rating normal (partidas no casuales)",
+  "Azuis — todos os jogos, casuais incluídos": "Azules — todas las partidas, casuales incluidas",
+  "Vermelhas — objetivo (quanto chega a ganhar)": "Rojas — objetivo (cuánto se acerca a ganar)",
+  "A primeira cor ligada enche as estrelas e dá o número. Por omissão aparecem as três.": "El primer color activado llena las estrellas y da el número. Por defecto se muestran los tres.",
+  "Repor as três": "Volver a los tres",
 }

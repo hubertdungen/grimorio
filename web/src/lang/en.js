@@ -1850,4 +1850,10 @@ export default {
   "Escolhe um ficheiro .grimorio (até 500 MB).": "Choose a .grimorio file (up to 500 MB).",
   "A sincronização por pasta é das instalações sem login (computador ou servidor de um dono).": "Folder sync is for installs without a login (a computer, or a single-owner server).",
   "A pasta não existe (ou o disco da nuvem não está ligado).": "The folder doesn't exist (or the cloud drive isn't connected).",
+  "Estrelas dos decks": "Deck stars",
+  "Amarelas — rating normal (jogos não casuais)": "Yellow — normal rating (non-casual games)",
+  "Azuis — todos os jogos, casuais incluídos": "Blue — all games, casual included",
+  "Vermelhas — objetivo (quanto chega a ganhar)": "Red — win progress (how close it gets to winning)",
+  "A primeira cor ligada enche as estrelas e dá o número. Por omissão aparecem as três.": "The first colour switched on fills the stars and gives the number. By default all three are shown.",
+  "Repor as três": "Show all three again",
 }

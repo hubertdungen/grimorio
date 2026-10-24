@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { tx, num, LOCALE } from './i18n.js'
 import { LangPick, ProfileManage } from './Profiles.jsx'
+import { getStarLayers, setStarLayers } from './ui.jsx'
 import { getSettings, setEnabled, setVolume, play } from './sfx.js'
 
 const PER_GAME = 900, RESERVE = 1000  // MB: ~0,9 GB por jogo do Forge; 1 GB fica para o sistema e o browser
@@ -129,6 +130,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
         <p className="muted small">{tx('Os nomes e os textos das cartas ficam em inglês (dados do Scryfall).')} {tx('A escolha fica guardada neste browser.')}</p></section>
       <section className="card"><h3>{tx('Jogos do Forge ao mesmo tempo')}</h3><ForgeGames /></section>
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
+      <section className="card"><h3>{tx('Estrelas dos decks')}</h3><StarLayers /></section>
       <section className="card"><h3>{tx('Torneios')}</h3><TourHold /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
     </div>
@@ -144,6 +146,19 @@ function TourHold() {
     <>
       <label className="chk"><input type="checkbox" checked={on} onChange={e => set(e.target.checked)} /> {tx('Só começar quando eu der OK')}</label>
       <p className="muted small">{tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}</p>
+    </>
+  )
+}
+
+// que camadas de estrelas aparecem nos decks (por omissão as três); pelo menos uma fica sempre ligada
+function StarLayers() {
+  const [on, setOn] = useState(getStarLayers)
+  const flip = k => { const n = on.includes(k) ? on.replace(k, '') : on + k; if (!n) return; setStarLayers(n); setOn(getStarLayers()) }
+  const L = [['y', '#f2b84b', tx('Amarelas — rating normal (jogos não casuais)')], ['b', '#4ea8ff', tx('Azuis — todos os jogos, casuais incluídos')], ['r', '#ff4d5e', tx('Vermelhas — objetivo (quanto chega a ganhar)')]]
+  return (
+    <>
+      {L.map(([k, c, l]) => <label key={k} className="chk"><input type="checkbox" checked={on.includes(k)} disabled={on === k} onChange={() => flip(k)} /> <i className="st-dot" style={{ background: c }} /> {l}</label>)}
+      <p className="muted small">{tx('A primeira cor ligada enche as estrelas e dá o número. Por omissão aparecem as três.')} {on !== 'ybr' && <button className="link small" onClick={() => { setStarLayers('ybr'); setOn('ybr') }}>{tx('Repor as três')}</button>}</p>
     </>
   )
 }
