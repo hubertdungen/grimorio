@@ -4,9 +4,9 @@ Elo jogo a jogo (não por ronda: Bo1 e Bo3 pesam o mesmo por jogo): começa em 1
 (provisório) e K=20 depois; esperado = 1/(1+10^((Rb-Ra)/400)); empate vale ½. Uma ronda é uma partida (Bo1 ou Bo3)
 e só conta para rondas ganhas/perdidas quando acaba (final=True); o resultado sai de todos os jogos com esse round_id.
 
-Estrelas (0,0–6,0, uma casa decimal): desempenho pelo Elo do formato, numa escala fixa — 1500 (a média) = 3,0★ e cada
-100 pontos uma estrela (≤1200 → 0★, ≥1800 → 6★). 6★ quer dizer um deck muito forte (ganha ~85% contra um deck médio), e
-não «o primeiro da tabela»: num formato sem nenhum dominante o melhor pode ficar abaixo de 6.
+Estrelas (0,0–6,0, uma casa decimal) = 6 × a probabilidade de ganhar a um deck médio do formato (Elo 1500), pelo Elo:
+3★ = ganha metade, 6★ = ganha sempre (> 99%), 0★ = perde sempre. É desempenho, não posição na tabela: o melhor deck de
+um formato só chega perto de 6 se ganhar quase tudo.
 Escalão = ⌊estrelas⌋ (o 6 só leva quem tem 6,0), com ranking dentro do escalão pelo Elo. Sem jogos conta 3,0★ provisório.
 
 Dois ratings por deck: o normal (format = o formato do deck; só jogos legais e não casuais) e o casual (format =
@@ -230,8 +230,8 @@ def from_lab(con, d, owner):
 # ---------- estrelas, tabela e escolhas ----------
 
 def stars(elo, dist=None):
-    """Elo -> 0,0–6,0 pela escala fixa (ver o topo do ficheiro). `dist` já não conta: fica para não mexer nas chamadas."""
-    return round(max(0.0, min(TOP, TOP / 2 + (elo - START) / 100)), 1)
+    """Elo -> 0,0–6,0: 6 × P(ganhar a um deck de Elo médio) (ver o topo do ficheiro). `dist` já não conta (chamadas antigas)."""
+    return round(TOP * expected(elo, START), 1)
 
 
 def dist(con, fmt):
@@ -845,11 +845,9 @@ def selfcheck():
     from_lab(con, {"deck_id": "d1", "opp_key": "meta:pauper-1", "format": "pauper", "winner": "a"}, "outro")  # não é dele
     r = con.execute("SELECT games, wins, rounds, round_wins, owner FROM ratings WHERE key='deck:d1'").fetchone()
     assert r == (2, 2, 1, 1, "ana"), r
-    # estrelas: escala fixa pelo desempenho (1500 = 3★, +100 = +1★), seja qual for o tamanho do formato
-    assert stars(1500, []) == 3 and stars(1800, []) == 6 and stars(1900, []) == 6 and stars(1200, []) == 0
-    assert stars(1530, [1500] * 3) == 3.3
-    ds = [1400 + 10 * i for i in range(22)]
-    assert stars(max(ds), ds) == 4.1 and stars(1662) == 4.6  # o melhor da tabela não leva 6★ só por ser o melhor
+    # estrelas = 6 × P(ganhar a um deck médio): 3★ a meio, 6★ só a ganhar quase sempre
+    assert stars(1500) == 3 and stars(1662) == 4.3 and stars(1800) == 5.1 and stars(1200) == 0.9
+    assert stars(2400) == 6 and stars(2000) < 6 and stars(600) == 0
     # tabela: escalões e ranking dentro do escalão; o deck apagado some; provisórios marcados
     rng = random.Random(3)
     for i in range(12):

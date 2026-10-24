@@ -1887,4 +1887,6 @@ export default {
   "Aplicar: +{k} {a}, −{k} {b}": "应用：+{k} {a}，−{k} {b}",
   "estrelas de 0,0 a 6,0 pelo desempenho nos jogos casuais: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "按休闲对局表现给出 0.0–6.0 星：Elo 1500（平均）= 3.0★，每 100 分一颗星；6★ 表示非常强的套牌，而不只是榜首",
   "estrelas de 0,0 a 6,0 pelo desempenho no formato: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "按该赛制表现给出 0.0–6.0 星：Elo 1500（平均）= 3.0★，每 100 分一颗星；6★ 表示非常强的套牌，而不只是榜首",
+  "estrelas de 0,0 a 6,0 = a probabilidade de ganhar a um deck médio nos jogos casuais (pelo Elo): 3★ ganha metade, 6★ ganha sempre": "0.0–6.0 星 = 在休闲对局中击败平均套牌的概率（按 Elo）：3★ 赢一半，6★ 总是赢",
+  "estrelas de 0,0 a 6,0 = a probabilidade de ganhar a um deck médio do formato (pelo Elo): 3★ ganha metade, 6★ ganha sempre": "0.0–6.0 星 = 击败该赛制平均套牌的概率（按 Elo）：3★ 赢一半，6★ 总是赢",
 }

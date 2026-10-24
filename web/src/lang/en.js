@@ -1895,4 +1895,6 @@ export default {
   "Aplicar: +{k} {a}, −{k} {b}": "Apply: +{k} {a}, −{k} {b}",
   "estrelas de 0,0 a 6,0 pelo desempenho nos jogos casuais: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "stars from 0.0 to 6.0 by performance in casual games: Elo 1500 (average) = 3.0★ and every 100 points one star; 6★ is a very strong deck, not just the top of the table",
   "estrelas de 0,0 a 6,0 pelo desempenho no formato: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "stars from 0.0 to 6.0 by performance in the format: Elo 1500 (average) = 3.0★ and every 100 points one star; 6★ is a very strong deck, not just the top of the table",
+  "estrelas de 0,0 a 6,0 = a probabilidade de ganhar a um deck médio nos jogos casuais (pelo Elo): 3★ ganha metade, 6★ ganha sempre": "stars from 0.0 to 6.0 = the chance of beating an average deck in casual games (from Elo): 3★ wins half, 6★ always wins",
+  "estrelas de 0,0 a 6,0 = a probabilidade de ganhar a um deck médio do formato (pelo Elo): 3★ ganha metade, 6★ ganha sempre": "stars from 0.0 to 6.0 = the chance of beating an average deck in the format (from Elo): 3★ wins half, 6★ always wins",
 }
