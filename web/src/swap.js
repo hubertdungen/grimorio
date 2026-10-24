@@ -5,10 +5,10 @@
 // ganha menos quando aparece; e protege o que faz o deck GANHAR pela via que ele ganha (dano, dreno, mill,
 // veneno, combo) ou o segura (remoção, compra, bloqueios). Terrenos só por terrenos.
 // Puro (browser e node). prepareSwaps calcula o deck uma vez; cada sugestão custa < 1 ms.
-import { passes, deckCombos, deckPlan, fmtBit, RB, PAIRS, TAG_LABEL, SIDE_CATS } from './data.js'
+import { passes, deckCombos, deckPlan, deckCuts, fmtBit, RB, PAIRS, TAG_LABEL, SIDE_CATS } from './data.js'
 import { stats } from './deck.js'
 import { maxCopies, targetsFor } from './formats.js'
-import { manaNeeds, landInfo } from './mana.js'
+import { manaNeeds, landInfo, recommendLands } from './mana.js'
 import { SYN } from './synergy.js'
 import { testEvidence, testsBoost, heldTurns } from './tests.js'
 import { tx, LOCALE } from './i18n.js'
@@ -188,6 +188,67 @@ export function cutPlan(fn, cands, ev, { minSeen = 3, n = 10 } = {}) {
     }
   }
   return { cuts: [...by.values()].sort((a, b) => b.score - a.score).slice(0, n), games }
+}
+
+/**
+ * «⛰ Terrenos»: equilíbrio e otimização dos terrenos, sem precisar de jogos (o motor das trocas usa-os quando há).
+ * 1) quantidade: com o deck quase completo, −1 terreno por +1 carta (sobram 2+) ou o contrário (faltam 2+), até 3;
+ * 2) cores: cor com fontes a menos → um terreno que a dê no lugar de um básico da cor que sobra;
+ * 3) melhores terrenos: as sugestões de recommendLands que o motor troca por um terreno do deck de forma clara.
+ * fn = prepareSwaps(…); recs = sugestões (cartas que não são terreno vêm daqui). Devolve {N, diff, acts}.
+ */
+const BASIC = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' }
+export function landPlan(data, deck, fmt, ctx, { fn = null, recs = [], co = null, meta = null } = {}) {
+  const N = manaNeeds(data, deck, fmt), get = n => data.byName.get(n)
+  const lands = Object.entries(deck.main || {}).map(([n, q]) => [get(n), q]).filter(([c]) => c?.mt === 'Land')
+  const done = N.s.spells + N.s.lands + (deck.commanders?.length || 0) >= N.total * 0.9
+  // a regra (Karsten) pede terrenos a mais em decks agressivos, que jogam de propósito com menos: aí não se pede «mais»
+  const raw = done ? N.lands - N.target : 0, diff = raw >= 3 || (raw <= -3 && N.s.avgMv >= 2) ? raw : 0
+  const acts = [], used = new Set()
+  const surplus = k => (N.cols[k]?.have || 0) - (N.cols[k]?.need || 0)
+  const landOut = except => {  // um básico da cor com mais sobra; senão um terreno que entra virado
+    const b = lands.filter(([c]) => /\bBasic\b/.test(c.t) && !used.has(c.n)).map(([c]) => ({ c, k: Object.keys(BASIC).find(k => BASIC[k] === c.n) }))
+      .filter(x => x.k && x.k !== except && surplus(x.k) > 0).sort((a, b2) => surplus(b2.k) - surplus(a.k))[0]
+    return b?.c || lands.find(([c]) => !used.has(c.n) && landInfo(c).tapped === 'sim')?.[0] || null
+  }
+  const rl = recommendLands(data, { deck, fmt, ctx, co, meta, need: N, limit: 12 })
+  const why0 = tx('O deck tem {l} terrenos; para o MV médio {m} e o ramp/compra que tem, o ideal são {t}', { l: N.lands, m: N.s.avgMv.toFixed(1), t: N.target })
+  if (diff >= 2) {
+    for (const r of recs.filter(r => r.c.mt !== 'Land').slice(0, Math.min(3, diff))) {
+      const o = landOut(); if (!o) break
+      used.add(o.n); acts.push({ kind: 'menos', out: o.n, in: r.c, q: 1, why: [why0, r.why?.[0]?.txt].filter(Boolean) })
+    }
+  } else if (diff <= -2) {
+    const cmd = (deck.commanders || []).map(n => get(n)?.i).filter(i => i != null)
+    const FNS = ['removal', 'draw', 'ramp', 'counter', 'wipe', 'protection', 'tutor']  // cartas de função não saem por terrenos
+    const weak = deckCuts(data, deck, { ctx, co, commanders: cmd, recs, limit: 8 }).filter(x => !x.c.tg.some(t => FNS.includes(t)))
+    for (const x of weak.slice(0, Math.min(3, -diff))) {
+      const k = Object.keys(N.cols).sort((a, b) => surplus(a) - surplus(b))[0]
+      const multi = rl.find(r => !used.has(r.c.n) && !r.land.any && [...r.land.colors].filter(c => N.cols[c] && surplus(c) < 2).length >= 2)?.c
+      const inn = multi || (k ? get(BASIC[k]) : rl[0]?.c)
+      if (!inn) break
+      used.add(inn.n); used.add(x.c.n)
+      acts.push({ kind: 'mais', out: x.c.n, in: inn, q: 1, why: [why0, ...x.why.slice(0, 1)] })
+    }
+  }
+  for (const [k, v] of Object.entries(N.cols)) {  // cores com fontes a menos
+    if (v.have >= v.need) continue
+    const inn = rl.find(r => !used.has(r.c.n) && (r.land.any || r.land.colors.has(k)))?.c || get(BASIC[k])
+    const o = landOut(k)
+    if (!inn || !o) continue
+    used.add(inn.n); used.add(o.n)
+    acts.push({ kind: 'cor', out: o.n, in: inn, q: 1, why: [tx('Só {h} fontes de {k} para {n} precisas', { h: v.have, k, n: v.need })] })
+  }
+  if (fn) for (const r of rl.slice(0, 8)) {  // melhores terrenos (o motor diz qual sai e porquê)
+    if (used.has(r.c.n)) continue
+    let list = []
+    try { list = fn(r.c, { limit: 1 }) || [] } catch { continue }
+    const x = list[0]
+    if (list.none || !x || x.why[0] === WEAK || used.has(x.out)) continue
+    used.add(x.out); used.add(r.c.n)
+    acts.push({ kind: 'melhor', out: x.out, in: r.c, q: x.q, why: [...x.why, ...r.why.slice(0, 1).map(w => w.txt ?? w)].slice(0, 3) })
+  }
+  return { N, diff, acts }
 }
 
 /** Troca q cópias de outName por inName na zona onde outName está (deck, sideboard ou comandantes). */

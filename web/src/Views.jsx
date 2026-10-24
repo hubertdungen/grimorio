@@ -8,7 +8,7 @@ import { autoBuild } from './autobuild.js'
 import { deckSynergy } from './synergy.js'
 import { manaNeeds, recommendLands } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
-import { prepareSwaps, cutPlan } from './swap.js'
+import { prepareSwaps, cutPlan, landPlan } from './swap.js'
 import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan } from './universe.js'
 
@@ -84,6 +84,40 @@ function useTastes(data, deck) {
 }
 
 // Personalização opcional das sugestões (fica guardada no deck).
+// ⛰ Terrenos: quantos, que cores e que terrenos (swap.js landPlan); não precisa de jogos
+const LAND_KIND = { menos: tx('menos 1 terreno, mais 1 carta'), mais: tx('mais 1 terreno, menos 1 carta'), cor: tx('cor em falta'), melhor: tx('terreno melhor') }
+function LandPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
+  const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.terrenos') === '1' } catch { return false } })
+  const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.terrenos', v ? '1' : '0') } catch { /* sem armazenamento */ } }
+  const plan = useMemo(() => (open ? landPlan(data, deck, fmt, ctx, { fn: swaps, recs }) : null), [open, data, deck, fmt, ctx, swaps, recs])
+  const card = (n, c) => c || data.byName.get(n)
+  return (
+    <div className={`prefs cutp ${open ? 'on' : ''}`}>
+      <button className="prefs-head" onClick={() => setOpen(!open)}>
+        <span>⛰ {tx('Terrenos')}</span><small className="muted">{plan ? `${plan.N.s.avgMv < 2 && plan.N.lands < plan.N.target ? tx('{l} terrenos (deck rápido: menos do que a regra é normal)', { l: plan.N.lands }) : tx('{l} de {t} ideais', { l: plan.N.lands, t: plan.N.target })} · ${tx('{n} sugestão|{n} sugestões', { n: plan.acts.length })}` : tx('quantidade, cores e terrenos melhores')}</small><span className="chev">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && plan && (
+        <div className="cutp-body">
+          <p className="muted small">{Object.entries(plan.N.cols).map(([k, v]) => <span key={k} className={v.have < v.need ? 'bad-t' : ''}><Mana cost={`{${k}}`} /> {v.have}/{v.need} </span>)}</p>
+          {!plan.acts.length ? <p className="muted small">{tx('Os terrenos estão equilibrados: quantidade, cores e qualidade sem nada claro a mudar.')}</p>
+            : <ul className="cutp-list">{plan.acts.map(x => { const o = card(x.out), i = x.in; return (
+              <li key={x.kind + x.out + i.n}>
+                <small className="muted">{LAND_KIND[x.kind]}</small>
+                <div className="cutp-pair">
+                  <button className="cutp-card" onClick={() => o && act.open(o)}>{o && <img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" />}<span><b>− {x.q > 1 ? `${x.q}× ` : ''}{x.out}</b></span></button>
+                  <span className="cutp-arrow">→</span>
+                  <button className="cutp-card in" onClick={() => act.open(i)}><img src={img(i, 'art_crop')} alt="" loading="lazy" /><span><b>+ {x.q > 1 ? `${x.q}× ` : ''}{i.n}</b><Mana cost={i.mc} /></span></button>
+                </div>
+                <ul className="why">{x.why.map((w, k) => <li key={k} className="falta">{w}</li>)}</ul>
+                <div className="row-btns"><button className="primary small" onClick={() => act.swap(i, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button></div>
+              </li>
+            ) })}</ul>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ± Ajustar quantidades: mais cópias do que ganha jogos, menos do que pesa (aos pares; universe.js adjustPlan)
 function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
   const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.ajustar') === '1' } catch { return false } })
@@ -657,6 +691,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
       <PrefsPanel {...{ deck, fmt, act }} />
       <CutPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug }} />
       <AdjustPanel {...{ data, deck, fmt, ctx, act, needs }} />
+      <LandPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug }} />
       <Filters f={f} set={x => { setSugTag(''); setF(x) }} compact noTag />
       <ReasonFilter recs={allSug} kind={kind} setKind={setKind} tag={f.tag} setTag={t => { setSugTag(''); setF(x => ({ ...x, tag: t })) }} needs={needs} />
       {seeds.length > 0 && <p className="muted small">{tx('Classificadas por semelhança mecânica (modelo de texto local), combos do Commander Spellbook e popularidade.')} <button className="link" onClick={() => act.showOnMap(recs[0]?.c || data.cards[seeds[0]])}>{tx('Ver no universo →')}</button></p>}
