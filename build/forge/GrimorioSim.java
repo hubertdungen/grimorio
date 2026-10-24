@@ -264,11 +264,11 @@ public class GrimorioSim {
             Card c = decider == player && origin.contains(ZoneType.Library) && fetchList != null && fetchList.size() > 1
                     && fetchList.stream().allMatch(Card::isLand) ? landForHand(fetchList) : null;
             if (c == null && decider == player && destination == ZoneType.Graveyard && origin.contains(ZoneType.Library) && fetchList != null && reanimator()) {
-                // Unmarked Grave/Entomb num deck que reanima: a melhor criatura grande (não lendária, custo 5+); as que têm
+                // Unmarked Grave/Entomb num deck que reanima: a melhor criatura grande (custo 5+, lendária só se dá para a reanimar); as que têm
                 // gatilhos (ao entrar/atacar: Archon of Cruelty, Agent of Treachery) antes das só grandes (Serra's Emissary)
                 int bv = -1;
                 for (Card x : fetchList) {
-                    if (!x.isCreature() || x.getType().isLegendary() || x.getCMC() < 5) continue;
+                    if (!bigOk(x)) continue;
                     int v = ComputerUtilCard.evaluateCreature(x) + (x.getTriggers().isEmpty() ? 0 : 1000);
                     if (v > bv) { bv = v; c = x; }
                 }
@@ -517,16 +517,33 @@ public class GrimorioSim {
 
         boolean reanimator() { return reanimatesIn(player.getCardsIn(ZoneType.Hand)) || reanimatesIn(player.getCardsIn(ZoneType.Library)); }
 
-        // grande que se quer no cemitério: criatura não lendária de custo 5+ que ainda não dá para lançar
-        boolean fat(Card c) { return c.isCreature() && !c.getType().isLegendary() && c.getCMC() >= 5 && c.getCMC() > player.getLandsInPlay().size() + 1; }
+        // Lendárias contam como alvo se algum feitiço de reanimar do deck as aceitar (Reanimate, Animate Dead, Exhume…);
+        // num deck só com Persist e afins («nonLegendary») ficam de fora. Visto uma vez, como millsOpponent().
+        Boolean legends;
+        boolean legendsOk() {
+            if (legends == null) {
+                legends = false;
+                for (Card c : player.getCardsIn(Arrays.asList(ZoneType.Library, ZoneType.Hand, ZoneType.Graveyard)))
+                    for (SpellAbility s = c.getFirstSpellAbility(); s != null && !legends; s = s.getSubAbility()) {
+                        if (s.getApi() != ApiType.ChangeZone || !"Graveyard".equals(s.getParam("Origin")) || !"Battlefield".equals(s.getParam("Destination"))) continue;
+                        String v = String.valueOf(s.getParam("ValidTgts")) + "," + s.getParam("ChangeType");
+                        legends = !v.contains("nonLegendary");
+                    }
+            }
+            return legends;
+        }
+        boolean bigOk(Card c) { return c.isCreature() && c.getCMC() >= 5 && (!c.getType().isLegendary() || legendsOk()); }
+
+        // grande que se quer no cemitério: criatura de custo 5+ (lendária só se dá para a reanimar) que ainda não dá para lançar
+        boolean fat(Card c) { return bigOk(c) && c.getCMC() > player.getLandsInPlay().size() + 1; }
 
         boolean gyTarget() {
-            for (Card c : player.getCardsIn(ZoneType.Graveyard)) if (c.isCreature() && !c.getType().isLegendary() && c.getCMC() >= 5) return true;
+            for (Card c : player.getCardsIn(ZoneType.Graveyard)) if (bigOk(c)) return true;
             return false;
         }
 
         boolean bigComing(List<Card> hand) {
-            for (Card h : hand) if (fat(h) || (h.isCreature() && !h.getType().isLegendary() && h.getCMC() >= 4 && h.getCMC() > player.getLandsInPlay().size()) || entombs(h.getFirstSpellAbility())) return true;
+            for (Card h : hand) if (fat(h) || (h.isCreature() && (!h.getType().isLegendary() || legendsOk()) && h.getCMC() >= 4 && h.getCMC() > player.getLandsInPlay().size()) || entombs(h.getFirstSpellAbility())) return true;
             return false;
         }
 
