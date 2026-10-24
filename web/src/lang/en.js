@@ -2111,4 +2111,6 @@ export default {
   "— quanto chega, em média, ao objetivo de ganhar (100% = 3★, 200% = 6★: acima de 3★ só quem passa do objetivo)": "— how close it gets, on average, to the goal of winning (100% = 3★, 200% = 6★: above 3★ only those that go past the goal)",
   "Clica em várias (até {m}): as cópias variam entre elas.": "Click several (up to {m}): the copies vary between them.",
   "{n} escolhida|{n} escolhidas": "{n} chosen|{n} chosen",
+  "só favoritos": "favourites only",
+  "Só os decks que marcaste com ★ na Biblioteca": "Only the decks you marked with ★ in the Library",
 }

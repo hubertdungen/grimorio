@@ -118,6 +118,8 @@ function Create({ data, fmt0, onCreated, deckId }) {
   const [fillN, setFillN] = useState(8)
   const [srcs, setSrcs] = useState(['meu', 'meta'])  // de onde vem o «Preencher»: meus, comunidade (decks de outros guardados) e meta
   const okMine = o => srcs.includes(o.community ? 'com' : 'meu')
+  const [favOnly, setFavOnlyS] = useState(() => ls('grimorio.torneio.favoritos') === '1')  // «Preencher» só com os meus favoritos
+  const setFavOnly = v => { setFavOnlyS(v); ls('grimorio.torneio.favoritos', v ? '1' : '0') }
   const [allDiff, setAllDiff] = useState('default')
   const [smin, setSmin] = useState(0)
   const [smax, setSmax] = useState(6)
@@ -185,7 +187,7 @@ function Create({ data, fmt0, onCreated, deckId }) {
       .then(r => (Array.isArray(r) ? r.filter(x => (x.games ? x.stars >= smin && x.stars <= smax : unrated)).map(x => byKey[x.key] || (x.src === 'meta' && ['meta', { id: x.ref, name: x.name }])).filter(Boolean) : null)).catch(() => null)
     const pool = (picked || [...mine.filter(okMine).map(o => ['meus', o]), ...(srcs.includes('meta') ? meta.map(o => ['meta', o]) : [])]
       .filter(([s, o]) => inStars(s, o.id)).sort(() => Math.random() - 0.5))
-      .filter(([s, o]) => !used.has(`${s}:${o.id}`))
+      .filter(([s, o]) => !used.has(`${s}:${o.id}`) && (!favOnly || (s === 'meus' && o.fav)))
     if (pool.length < want) setErr(tx('Só há {k} decks diferentes com esta fonte e estas estrelas: preenchi o que deu.', { k: pool.length })); else setErr('')
     const add = await Promise.all(pool.slice(0, want).map(([s, o]) => entry(s, o, allDiff).catch(() => null)))
     setPlayers(p => [...p, ...add.filter(Boolean)])
@@ -251,6 +253,7 @@ function Create({ data, fmt0, onCreated, deckId }) {
             {!casual && <><span className="tc-stars">{tx('estrelas')} <select value={smin} onChange={e => setSmin(+e.target.value)} aria-label={tx('Mínimo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select>
               {tx('a')} <select value={smax} onChange={e => setSmax(+e.target.value)} aria-label={tx('Máximo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select></span>
             <label className="chk small"><input type="checkbox" checked={unrated} onChange={e => setUnrated(e.target.checked)} /> {tx('incluir decks sem rating')}</label></>}
+            <label className="chk small" title={tx('Só os decks que marcaste com ★ na Biblioteca')}><input type="checkbox" checked={favOnly} onChange={e => setFavOnly(e.target.checked)} /> ★ {tx('só favoritos')}</label>
             <button onClick={fill} disabled={n >= Math.min(fillN, max)}>{tx('Preencher')}</button>
             <button className={champs ? 'on' : ''} onClick={champs ? () => setChamps(false) : loadChampions} title={tx('Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.')}>🏆 {champs ? tx('Torneio dos campeões ✓') : tx('Campeões')}</button>
             {n > 0 && <button className="link small" onClick={() => setPlayers([])}>{tx('limpar')}</button>}

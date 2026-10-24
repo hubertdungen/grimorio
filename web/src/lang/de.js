@@ -2103,4 +2103,6 @@ export default {
   "— quanto chega, em média, ao objetivo de ganhar (100% = 3★, 200% = 6★: acima de 3★ só quem passa do objetivo)": "— wie nah es im Schnitt dem Siegziel kommt (100% = 3★, 200% = 6★: über 3★ nur, wer über das Ziel hinausgeht)",
   "Clica em várias (até {m}): as cópias variam entre elas.": "Klicke mehrere an (bis {m}): die Kopien wechseln zwischen ihnen.",
   "{n} escolhida|{n} escolhidas": "{n} gewählt|{n} gewählt",
+  "só favoritos": "nur Favoriten",
+  "Só os decks que marcaste com ★ na Biblioteca": "Nur die Decks, die du in der Bibliothek mit ★ markiert hast",
 }

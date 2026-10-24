@@ -2103,4 +2103,6 @@ export default {
   "— quanto chega, em média, ao objetivo de ganhar (100% = 3★, 200% = 6★: acima de 3★ só quem passa do objetivo)": "— 平均离获胜目标有多近（100% = 3★，200% = 6★：超过 3★ 的只有超出目标的套牌）",
   "Clica em várias (até {m}): as cópias variam entre elas.": "可点选多张（最多 {m} 张）：副本会在其中轮换。",
   "{n} escolhida|{n} escolhidas": "已选 {n} 张|已选 {n} 张",
+  "só favoritos": "仅收藏",
+  "Só os decks que marcaste com ★ na Biblioteca": "只用你在套牌库中标记 ★ 的套牌",
 }

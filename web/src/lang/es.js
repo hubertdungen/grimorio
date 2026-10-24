@@ -2103,4 +2103,6 @@ export default {
   "— quanto chega, em média, ao objetivo de ganhar (100% = 3★, 200% = 6★: acima de 3★ só quem passa do objetivo)": "— cuánto se acerca, de media, al objetivo de ganar (100% = 3★, 200% = 6★: por encima de 3★ solo quien pasa del objetivo)",
   "Clica em várias (até {m}): as cópias variam entre elas.": "Pulsa varias (hasta {m}): las copias varían entre ellas.",
   "{n} escolhida|{n} escolhidas": "{n} elegida|{n} elegidas",
+  "só favoritos": "solo favoritos",
+  "Só os decks que marcaste com ★ na Biblioteca": "Solo los mazos que marcaste con ★ en la Biblioteca",
 }
