@@ -1717,4 +1717,6 @@ export default {
   "Refazer (Ctrl+Shift+Z)": "Rehacer (Ctrl+Shift+Z)",
   "Desfeito": "Deshecho",
   "Refeito": "Rehecho",
+  "venceu «{d}»": "ganó «{d}»",
+  "«{d}» venceu no turno {t}": "«{d}» ganó en el turno {t}",
 }

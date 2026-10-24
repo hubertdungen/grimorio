@@ -1717,4 +1717,6 @@ export default {
   "Refazer (Ctrl+Shift+Z)": "Wiederholen (Strg+Umschalt+Z)",
   "Desfeito": "Rückgängig gemacht",
   "Refeito": "Wiederhergestellt",
+  "venceu «{d}»": "„{d}“ hat gewonnen",
+  "«{d}» venceu no turno {t}": "„{d}“ gewinnt in Zug {t}",
 }

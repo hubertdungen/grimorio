@@ -425,7 +425,7 @@ function ScoreN({ sc, ended, game, who, fm }) {
 
 export const HANDS = [['ambas', tx('Mãos: ambas visíveis')], ['minha', tx('Mãos: só a minha')], ['nenhuma', tx('Mãos: ambas escondidas')]]
 
-export default function Replay({ data, game, onBack, backLabel = tx('← Relatório'), deckName, live = false, next, speed0, onSpeed, hands: hands0, onHands, onPlayFrom, score, arts: arts0, formats }) {  // arts: {a: {nome: link}, b: …} arte própria de cada deck (torneio: game.arts; Laboratório: game.decks); formats: {a: 'Pauper', b: …} (modo casual)
+export default function Replay({ data, game, onBack, backLabel = tx('← Relatório'), deckName, pov = 'a', track = false, live = false, next, speed0, onSpeed, hands: hands0, onHands, onPlayFrom, score, arts: arts0, formats }) {  // arts: {a: {nome: link}, b: …} arte própria de cada deck (torneio: game.arts; Laboratório: game.decks); formats: {a: 'Pauper', b: …} (modo casual)
   const art = useMemo(() => ({ arts: arts0 || game.arts || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, d?.art]))), k: null }), [arts0, game]), arts = art.arts
   const [hands, setHandsS] = useState(hands0 || 'ambas')
   // No Coliseu o tabuleiro escala as cartas (--fit) para caber na altura do ecrã: ao abrir, ao redimensionar e em ecrã inteiro
@@ -556,7 +556,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
         {score?.wins ? <ScoreN sc={score} ended={ended} game={game} who={who} fm={fm} /> : score ? <Score sc={score} ended={ended} winner={game.winner} a={mates.length ? [deckName, ...mates.map(k => who[k])].join(' + ') : deckName} b={mates.length ? tops.map(k => who[k]).join(' + ') : game.opp} fa={!mates.length && fm('a')} fb={!mates.length && fm('b')} />
           : formats ? <b>{S.map((k, j) => <span key={k}>{j ? (multi ? ' · ' : ' vs ') : ''}{who[k]} {fm(k)}</span>)}</b> : <b>{multi ? S.map(k => who[k]).join(' · ') : `${deckName} vs ${game.opp}`}</b>}
         {live && <span className="livepill">{tx('● a jogar')}</span>}
-        {!score && ended && <span className="muted small">{tx('jogo {g} · {r} no turno {t}', { g: game.g, r: game.winner === 'a' ? tx('vitória') : lost(game.winner) ? tx('derrota') : tx('empate'), t: game.turns })}</span>}
+        {!score && ended && <span className="muted small">{tx('jogo {g} · {r} no turno {t}', { g: game.g, r: pov !== 'a' ? (lost(game.winner) || game.winner === 'a' ? tx('venceu «{d}»', { d: who[game.winner] }) : tx('empate')) : game.winner === 'a' ? tx('vitória') : lost(game.winner) ? tx('derrota') : tx('empate'), t: game.turns })}</span>}
       </div>
       <div className="rp-ctrl">
         <button onClick={() => go(0)} title={tx('Início')} aria-label={tx('Início')}>⏮</button>
@@ -576,7 +576,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
         <span className="muted small">{i}/{evs.length}</span>
       </div>
       <div className="bwrap">
-        <div className={`table ${multi ? 'multi' : ''}`}>
+        <div className={`table ${multi ? 'multi' : ''} ${track && pov ? `track-${pov}` : ''}`}>
           {multi
             ? <div className="opps" style={{ '--np': tops.length }}>{tops.map(k => <Side key={k} k={k} name={who[k]} {...sp} top compact who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div>
             : <Side k="b" name={game.opp} {...sp} top hand={oppHand('b')} />}
@@ -605,8 +605,8 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
             return mates.length ? <div className="mine withmate">{me}{mates.map(k => <Side key={k} k={k} name={who[k]} {...sp} compact who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div> : me
           })()}
           {ended && (
-            <div className={`endbanner ${game.winner === 'a' ? 'win' : lost(game.winner) ? 'loss' : 'draw'}`} role="status">
-              <b>{game.winner === 'a' ? (mates.length ? tx('Vitória da equipa no turno {t}', { t: game.turns }) : tx('Vitória no turno {t}', { t: game.turns })) : !lost(game.winner) ? tx('Empate') : mates.length ? tx('Derrota da equipa no turno {t}', { t: game.turns }) : multi ? `${game.places ? tx('{p} lugar', { p: ord(game.places.indexOf('a') + 1) }) : tx('Derrota')}${s.a.out ? ` — ${tx('eliminado no turno {n}', { n: s.a.out })}` : ''}` : tx('Derrota no turno {t}', { t: game.turns })}</b>
+            <div className={`endbanner ${!game.winner || game.winner === 'draw' ? 'draw' : pov === 'a' ? (game.winner === 'a' ? 'win' : 'loss') : !pov ? 'neutral' : game.winner === pov ? 'win' : 'loss'}`} role="status">
+              <b>{pov !== 'a' ? (!game.winner || game.winner === 'draw' ? tx('Empate') : tx('«{d}» venceu no turno {t}', { d: who[game.winner], t: game.turns })) : game.winner === 'a' ? (mates.length ? tx('Vitória da equipa no turno {t}', { t: game.turns }) : tx('Vitória no turno {t}', { t: game.turns })) : !lost(game.winner) ? tx('Empate') : mates.length ? tx('Derrota da equipa no turno {t}', { t: game.turns }) : multi ? `${game.places ? tx('{p} lugar', { p: ord(game.places.indexOf('a') + 1) }) : tx('Derrota')}${s.a.out ? ` — ${tx('eliminado no turno {n}', { n: s.a.out })}` : ''}` : tx('Derrota no turno {t}', { t: game.turns })}</b>
               {multi && game.places && !mates.length && <span>{game.places.map((k, j) => `${ord(j + 1)} ${short(who[k])}`).join(' · ')}</span>}
               <span>{tx('Vida final: {x}', { x: S.map(k => `${who[k]} ${s[k].life}`).join(' · ') })}</span>
               <span className="row-btns">

@@ -1725,4 +1725,6 @@ export default {
   "Refazer (Ctrl+Shift+Z)": "Redo (Ctrl+Shift+Z)",
   "Desfeito": "Undone",
   "Refeito": "Redone",
+  "venceu «{d}»": "“{d}” won",
+  "«{d}» venceu no turno {t}": "“{d}” won on turn {t}",
 }

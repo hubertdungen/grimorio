@@ -1717,4 +1717,6 @@ export default {
   "Refazer (Ctrl+Shift+Z)": "重做 (Ctrl+Shift+Z)",
   "Desfeito": "已撤销",
   "Refeito": "已重做",
+  "venceu «{d}»": "「{d}」获胜",
+  "«{d}» venceu no turno {t}": "「{d}」在第 {t} 回合获胜",
 }

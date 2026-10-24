@@ -259,7 +259,8 @@ function Live({ data, tid, onGone }) {
       const names = g.seats.map(i => P[i]?.name || '?'), m = x.m
       const prev = m.g.slice(0, x.k).filter(y => !y.x)
       const score = names.length === 2 ? { a: prev.filter(y => y.w === g.seats[0]).length, b: prev.filter(y => y.w === g.seats[1]).length, g: prev.length + 1, bo: t.bo, serie: 1, series: 1, sw: 0, sl: 0, k: 1, total: 1 } : null
-      setWatch({ gid: x.id, deckName: names[0], score, formats: t.casual ? Object.fromEntries(g.seats.map((i, k) => ['abcd'[k], FORMAT[P[i]?.format]?.name || P[i]?.format])) : null, game: { ...g, g: x.k + 1, opp: names[1], ...(names.length > 2 && { opps: Object.fromEntries(names.slice(1).map((nm, k) => ['bcd'[k], nm])) }), startLife: t.casual ? baseLife(t.format, names.length) : fmt.cmd ? 40 : 20 } })
+      const mk = t.me == null ? -1 : g.seats.indexOf(t.me)
+      setWatch({ gid: x.id, deckName: names[0], pov: mk >= 0 ? 'abcd'[mk] : null, score, formats: t.casual ? Object.fromEntries(g.seats.map((i, k) => ['abcd'[k], FORMAT[P[i]?.format]?.name || P[i]?.format])) : null, game: { ...g, g: x.k + 1, opp: names[1], ...(names.length > 2 && { opps: Object.fromEntries(names.slice(1).map((nm, k) => ['bcd'[k], nm])) }), startLife: t.casual ? baseLife(t.format, names.length) : fmt.cmd ? 40 : 20 } })
     } catch (e) { setErr(e.message) }
   }
   // seguir ao vivo: abre cada jogo novo assim que acaba (se não estiveres já a ver um)
@@ -273,7 +274,7 @@ function Live({ data, tid, onGone }) {
   const del = async () => { if (!confirm(tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: t.name }))) return; await j(`/api/tournaments/${tid}`, { method: 'DELETE' }); onGone() }
   if (watch) {
     const i = fl.findIndex(x => x.id === watch.gid)
-    return <Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} score={watch.score} formats={watch.formats} onBack={() => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
+    return <Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track score={watch.score} formats={watch.formats} onBack={() => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
       live={going && follow && i >= 0 && i === fl.length - 1} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })}
       next={follow && i >= 0 ? { has: i < fl.length - 1, go: () => openGame(fl[i + 1]), secs: pause.secs, auto: pause.auto } : null} />
   }

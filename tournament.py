@@ -20,7 +20,7 @@ torneios e no Laboratório). Só decks com sideboard e de formatos que o permite
 Modo casual: decks de formatos diferentes; `format` passa a ser o das regras base (tipo de jogo e vida de todos) e cada
 deck com comandante joga com ele (sim.submit casual=True). Decks marcados casuais só entram em torneios casuais.
 Cada partida a dois que acaba entra nos ratings (ratings.record_round, chave deck:<id> ou meta:<id>; os casuais no
-rating casual, casual=True); as mesas não entram (o Elo é a dois e o lugar numa mesa de 4 não é uma vitória sobre cada um).
+rating casual, casual=True, e também os torneios sem decks meta: só azul e vermelho); as mesas não entram (o Elo é a dois e o lugar numa mesa de 4 não é uma vitória sobre cada um).
 «O meu deck» (st.me): um dos participantes é «eu»; me_state diz onde está, se caiu e o lugar final. No fim fica o pódio
 (st.podium: lugares 1–3 de ranking(), com empates no 3.º sem jogo de 3.º lugar) para o registo e o hall da fama.
 """
@@ -631,6 +631,12 @@ def stop(con, tid, state):
 
 # ---------- a thread que faz avançar os torneios ----------
 
+def counts_yellow(st):
+    """O rating normal (amarelo) só se mexe com decks meta na mesa: um torneio só entre os meus decks, ou casual, vai para
+    o casual (conta no azul e no vermelho, não no amarelo)."""
+    return not st.get("casual") and any(p["src"] == "meta" for p in st["players"])
+
+
 def rate(con, tid, st, m, owner):
     """Partida a dois acabada -> ratings; isentos, 2.ª final saltada e mesas ficam de fora."""
     if ratings is None or m["b"] == "P" or m.get("bye") or m.get("skip"):
@@ -641,7 +647,7 @@ def rate(con, tid, st, m, owner):
     who = lambda i: ratings.ref(st["players"][i]["src"], st["players"][i]["ref"], st["players"][i]["name"], owner)  # noqa: E731
     if games:
         try:
-            kw = {"casual": True} if st.get("casual") else {}
+            kw = {} if counts_yellow(st) else {"casual": True}
             if hasattr(ratings, "progs_of"):  # progresso rumo à vitória de cada um (estrelas vermelhas), dos jogos inteiros
                 rows = dict(con.execute(f"SELECT id, game FROM tournament_games WHERE id IN ({','.join('?' * len(gs))})",
                                         [x["id"] for x in gs]).fetchall())
@@ -870,6 +876,8 @@ def selfcheck():
     assert [x["place"] for x in podium(st)] == [1, 2, 3, 3]
     st["me"] = 0
     assert me_state(st)["place"] == [1, 1] and podium(st)[0].get("me")
+    assert counts_yellow(st) and not counts_yellow({**st, "casual": True})
+    assert not counts_yellow({"players": [{"src": "meus"}, {"src": "meus"}]})
     for _ in range(20):  # dupla: 1.º, 2.º e 3.º sem empates
         st = build("dupla", 6)
         st["players"] = [{"name": str(i)} for i in range(6)]

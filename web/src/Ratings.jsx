@@ -94,7 +94,7 @@ function LiveArena({ data, a, onClose }) {
       <div className="modal la-box">
         {!id ? <p className="muted">{a.on ? tx('A Arena não tem nenhum jogo a decorrer agora (está entre rondas ou à espera de vez). Esta janela segue o próximo assim que começar.') : tx('A Arena não tem nenhum jogo a decorrer agora (está desligada). Esta janela segue o próximo assim que começar.')}</p>
           : !game ? <p className="muted"><span className="spin-dot" /> {tx('A ligar ao jogo…')}</p>
-            : <Replay key={game.key} data={data} game={game} live={!!game.inProgress} deckName={a.cur.a} onBack={onClose} backLabel={tx('× Fechar')} />}
+            : <Replay key={game.key} data={data} game={game} live={!!game.inProgress} deckName={a.cur.a} pov={null} onBack={onClose} backLabel={tx('× Fechar')} />}
         {!id && <button onClick={onClose}>{tx('Fechar')}</button>}
       </div>
     </div>

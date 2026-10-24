@@ -635,7 +635,9 @@ h2 .mana img { width: 20px; height: 20px; }
 .hc.unk { cursor: default; }
 .myhand.exact .hc { width: 72px; margin-left: -18px; }
 .endbanner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; display: grid; justify-items: center; gap: 6px; padding: 14px 22px; border-radius: 14px; background: #0d0f18e6; border: 1px solid #ffffff30; box-shadow: 0 10px 40px #000c; text-align: center; animation: fadein .35s ease-out; max-width: calc(100% - 24px); }
-.endbanner b { font-size: 22px; } .endbanner.win b { color: #7ee2a8; } .endbanner.loss b { color: #ff8a9e; } .endbanner.draw b { color: var(--gold2); }
+.endbanner b { font-size: 22px; } .endbanner.win b { color: #7ee2a8; } .endbanner.loss b { color: #ff8a9e; } .endbanner.draw b { color: var(--gold2); } .endbanner.neutral b { color: var(--fg, #e8e6f0); }
+/* o meu deck num torneio: contorno ciano no lado dele (o dourado continua a ser o de quem joga) */
+.table.track-a .bside.p-a, .table.track-b .bside.p-b, .table.track-c .bside.p-c, .table.track-d .bside.p-d { outline: 2px solid rgba(110, 231, 249, .75); outline-offset: 2px; }
 .endbanner .row-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
 /* registo */
 .blog { list-style: none; margin: 0; padding: 8px; max-height: 640px; overflow-y: auto; font-size: 12px; display: grid; gap: 2px; align-content: start; background: var(--bg2); border-radius: 12px; }
@@ -1015,7 +1017,7 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .tp-card.me { box-shadow: 0 0 0 2px var(--cyan), 0 6px 18px #0008; }
 .ts.me { box-shadow: inset 3px 0 0 var(--cyan); } .ts.me .ts-n { color: var(--cyan); }
 .ts.me.win .ts-n { color: var(--gold2); }
-.tm.mine:not(.now) { border-color: rgba(110, 231, 249, .55); }
+.tm.mine:not(.now) { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan), 0 0 14px rgba(110, 231, 249, .15); }
 .me-row td { background: rgba(110, 231, 249, .07); }
 .me-line { display: flex; gap: 10px; align-items: center; margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(110, 231, 249, .45); background: rgba(110, 231, 249, .07); }
 .me-line > span { display: grid; } .me-line small { color: var(--muted); font-size: 11px; } .me-line b { font-size: 16px; }

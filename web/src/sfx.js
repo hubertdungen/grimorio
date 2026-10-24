@@ -2,7 +2,7 @@
 // com osciladores, ruído filtrado e envelopes. Liga-se à repetição do tabuleiro por playEvent(ev, s, data, {speed}).
 //
 // Preferências em localStorage 'grimorio.sfx' = {on, vol}. Por omissão: ligado a 0,5 — com a curva vol² é metade do
-// ganho máximo (picos ~−19 dBFS): discreto ao lado de música ou de um vídeo, mas ouve-se; desliga-se num toque.
+// ganho máximo: discreto ao lado de música ou de um vídeo, mas ouve-se; desliga-se num toque.
 // O AudioContext só nasce depois do primeiro gesto do utilizador (os browsers bloqueiam o autoplay); até lá, play()
 // não faz nada. Fora do browser (node, SSR) tudo é no-op.
 
@@ -60,111 +60,126 @@ function noise(c, out, t, { f = 1000, f2, q = 1, type = 'bandpass', dur = 0.15, 
   s.connect(filt(c, t, type, f, f2, dur, q)).connect(v).connect(out)
   s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02)
 }
-// sino: parciais inarmónicos (r) com amplitudes (k) — dá o timbre de campainha/metal
-function bell(c, out, t, f, g = 0.08, dur = 0.4, r = [1, 2.76, 5.4], k = [1, 0.35, 0.12]) {
-  r.forEach((x, i) => tone(c, out, t, { f: f * x, dur: dur / (1 + i * 0.6), a: 0.003, g: g * k[i] }))
+// carta: o estalo do papel a soltar-se + o deslizar na mesa
+function card(c, out, t, g = 0.08) {
+  noise(c, out, t, { type: 'highpass', f: 3000, dur: 0.035, a: 0.001, g })
+  noise(c, out, t + 0.01, { f: 1800, f2: 3800, q: 0.7, dur: 0.12, a: 0.03, g: g * 0.5 })
+}
+// baque: pancada surda na mesa / tambor (seno a cair + ruído grave)
+function thud(c, out, t, g = 0.2, f = 110, dur = 0.2) {
+  tone(c, out, t, { f, f2: f * 0.42, dur, a: 0.002, g })
+  noise(c, out, t, { type: 'lowpass', f: 700, dur: 0.06, a: 0.001, g: g * 0.45 })
+}
+// sopro: ruído com o filtro a varrer (espada, magia a passar), a crescer até meio
+const whoosh = (c, out, t, f, f2, dur, g, q = 1.2) => noise(c, out, t, { f, f2, q, dur, a: dur * 0.45, g })
+// metal: ruído por filtros estreitos (escudo, fivela) — soa a metal sem ser um apito
+function clank(c, out, t, g = 0.1, fs = [1700, 2950, 4300]) { fs.forEach((f, i) => noise(c, out, t, { f, q: 18, dur: 0.18 - i * 0.03, a: 0.001, g: g * (1 - i * 0.25) })) }
+// metais: dentes-de-serra desafinados com o filtro a fechar (trompa, fanfarra)
+function brass(c, out, t, notes, dur = 0.5, g = 0.035) {
+  for (const m of notes) for (const det of [-7, 6]) tone(c, out, t, { type: 'sawtooth', f: hz(m), dur, a: 0.04, g, lp: 2400, lp2: 700, det })
 }
 const ticks = (c, out, t, n, gap, o) => { for (let i = 0; i < n; i++) noise(c, out, t + i * gap, { ...o, g: o.g * (1 - i / (n + 2)) }) }
 
-// cor dominante e tipo da carta: o feitiço lançado soa à cor (W claro, U água, B sombra, R fogo, G madeira)
-function castColour(c, out, t, col) {
-  switch (col) {
-    case 'W': bell(c, out, t, hz(81), 0.09, 0.5); bell(c, out, t + 0.06, hz(88), 0.06, 0.45); noise(c, out, t, { type: 'highpass', f: 6000, dur: 0.3, g: 0.025 }); break
-    case 'U': tone(c, out, t, { f: hz(76), f2: hz(83), dur: 0.42, a: 0.03, g: 0.1, lp: 1800 }); tone(c, out, t + 0.04, { f: hz(71), f2: hz(76), dur: 0.38, a: 0.03, g: 0.06, det: 8 }); break
-    case 'B': tone(c, out, t, { type: 'triangle', f: hz(50), f2: hz(45), dur: 0.48, a: 0.02, g: 0.16, lp: 700 }); tone(c, out, t + 0.03, { f: hz(53), dur: 0.42, a: 0.03, g: 0.07 }); noise(c, out, t, { type: 'lowpass', f: 300, dur: 0.4, a: 0.05, g: 0.06 }); break
-    case 'R': noise(c, out, t, { f: 1200, f2: 3200, q: 1.5, dur: 0.32, g: 0.11 }); ticks(c, out, t + 0.02, 5, 0.045, { f: 2500, q: 3, dur: 0.03, g: 0.05 }); tone(c, out, t, { type: 'sawtooth', f: hz(57), f2: hz(69), dur: 0.32, g: 0.06, lp: 1400 }); break
-    case 'G': tone(c, out, t, { type: 'triangle', f: hz(67), dur: 0.32, a: 0.003, g: 0.14 }); tone(c, out, t + 0.05, { type: 'triangle', f: hz(74), dur: 0.3, a: 0.003, g: 0.08 }); tone(c, out, t, { f: 110, f2: 60, dur: 0.22, g: 0.1 }); break
-    case 'M': [72, 79, 88].forEach((m, i) => bell(c, out, t + i * 0.04, hz(m), 0.055, 0.5)); break
-    default: bell(c, out, t, 523, 0.08, 0.45, [1, 1.47, 2.09], [1, 0.5, 0.25])  // incolor: metal
-  }
-}
-function castType(c, out, t, ty) {
-  if (/Creature/.test(ty)) tone(c, out, t, { f: 130, f2: 62, dur: 0.26, g: 0.14 })  // invocação: um baque grave
-  else if (/Instant|Sorcery/.test(ty)) noise(c, out, t, { f: 500, f2: 3500, q: 1.2, dur: 0.28, a: 0.02, g: 0.07 })
-  else if (/Planeswalker/.test(ty)) { tone(c, out, t, { type: 'triangle', f: hz(45), dur: 0.55, a: 0.04, g: 0.07 }); tone(c, out, t, { type: 'triangle', f: hz(52), dur: 0.55, a: 0.04, g: 0.05 }) }
-  else if (/Artifact/.test(ty)) bell(c, out, t + 0.08, 1400, 0.045, 0.16, [1, 1.47], [1, 0.4])
-  else if (/Enchantment/.test(ty)) { bell(c, out, t + 0.1, hz(93), 0.03, 0.3); bell(c, out, t + 0.16, hz(96), 0.025, 0.3) }
+// magia: um acorde suave que cresce (a cor da carta) + a textura da cor (W brilho, U água, B sombra, R fogo, G madeira)
+const CHORD = { W: [76, 83, 88], U: [69, 76, 81], B: [45, 52, 57], R: [57, 64, 69], G: [55, 62, 67], M: [64, 71, 76, 83], C: [72, 79] }
+function magic(c, out, t, col, g = 0.03, dur = 0.55) {
+  ;(CHORD[col] || CHORD.C).forEach((m, i) => tone(c, out, t + i * 0.015, { type: 'triangle', f: hz(m), dur, a: dur * 0.35, g: g / (1 + i * 0.3), det: i % 2 ? 7 : -7 }))
+  if (col === 'W') noise(c, out, t, { type: 'highpass', f: 7000, dur: 0.45, a: 0.15, g: 0.02 })
+  else if (col === 'U') whoosh(c, out, t, 400, 1200, 0.45, 0.05, 2)
+  else if (col === 'B') noise(c, out, t, { type: 'lowpass', f: 250, dur: 0.5, a: 0.15, g: 0.08 })
+  else if (col === 'R') { whoosh(c, out, t, 600, 2800, 0.35, 0.07); ticks(c, out, t + 0.05, 5, 0.05, { f: 2600, q: 3, dur: 0.025, g: 0.04 }) }
+  else if (col === 'G') thud(c, out, t, 0.08, 220, 0.12)
 }
 const colOf = col => (!col ? 'C' : col.length > 1 ? 'M' : col)
-const TURN = { a: [76, 83], b: [69, 76], c: [79, 86], d: [72, 79] }  // cada jogador tem o seu intervalo
 
 // receitas: (c, out, t, o) → duração nominal em segundos. o = {amount, colour, type, side}
 const R = {
-  click: (c, out, t) => (tone(c, out, t, { f: 1800, f2: 1200, dur: 0.03, a: 0.001, g: 0.05 }), 0.04),
-  zoom: (c, out, t) => (noise(c, out, t, { f: 600, f2: 3000, dur: 0.18, a: 0.03, g: 0.06 }), tone(c, out, t, { f: 660, f2: 990, dur: 0.15, a: 0.02, g: 0.03 }), 0.18),
-  tap: (c, out, t) => (tone(c, out, t, { type: 'triangle', f: 900, f2: 500, dur: 0.05, a: 0.001, g: 0.1 }), noise(c, out, t, { f: 2500, dur: 0.03, g: 0.04 }), 0.06),
-  untap: (c, out, t) => (tone(c, out, t, { type: 'triangle', f: 500, f2: 900, dur: 0.06, a: 0.004, g: 0.07 }), 0.07),
-  draw: (c, out, t, o) => { const n = Math.min(o.amount || 1, 4); ticks(c, out, t, n, 0.06, { f: 1200, f2: 3500, q: 0.8, dur: 0.14, a: 0.02, g: 0.1 }); return 0.14 + (n - 1) * 0.06 },
-  land: (c, out, t) => (tone(c, out, t, { f: 110, f2: 55, dur: 0.25, g: 0.32 }), noise(c, out, t, { type: 'lowpass', f: 400, dur: 0.12, g: 0.12 }), tone(c, out, t, { type: 'triangle', f: 220, dur: 0.2, g: 0.05 }), 0.25),
-  cast: (c, out, t, o) => (castColour(c, out, t, colOf(o.colour)), castType(c, out, t, o.type || ''), 0.5),
-  resolve: (c, out, t, o) => { const f = { W: 81, U: 76, B: 62, R: 69, G: 67 }[colOf(o.colour)] || 72; bell(c, out, t, hz(f), 0.08, 0.35); bell(c, out, t + 0.05, hz(f + 7), 0.05, 0.3); return 0.4 },
-  counter: (c, out, t) => (tone(c, out, t, { type: 'square', f: 880, f2: 110, dur: 0.22, g: 0.06, lp: 2500, lp2: 600 }), noise(c, out, t, { type: 'highpass', f: 3000, dur: 0.1, g: 0.05 }), 0.25),
-  countered: (c, out, t) => (noise(c, out, t, { f: 3000, f2: 300, q: 2, dur: 0.4, a: 0.01, g: 0.1 }), tone(c, out, t, { f: 600, f2: 200, dur: 0.3, g: 0.05 }), 0.4),
-  trigger: (c, out, t) => (bell(c, out, t, hz(88), 0.05, 0.2), bell(c, out, t + 0.05, hz(95), 0.04, 0.2), 0.25),
-  activate: (c, out, t) => (R.tap(c, out, t), tone(c, out, t + 0.02, { type: 'triangle', f: 400, f2: 800, dur: 0.12, a: 0.01, g: 0.08 }), 0.15),
-  attack: (c, out, t) => (noise(c, out, t, { f: 800, f2: 4000, q: 2, dur: 0.22, a: 0.04, g: 0.16 }), tone(c, out, t, { f: 180, f2: 90, dur: 0.2, a: 0.02, g: 0.1 }), 0.25),
-  block: (c, out, t) => (bell(c, out, t, 320, 0.13, 0.3, [1, 2.4, 3.9], [1, 0.5, 0.3]), noise(c, out, t, { f: 1800, dur: 0.06, g: 0.12 }), 0.3),
+  click: (c, out, t) => (noise(c, out, t, { type: 'highpass', f: 2500, dur: 0.025, a: 0.001, g: 0.05 }), 0.03),
+  zoom: (c, out, t) => (whoosh(c, out, t, 500, 2200, 0.16, 0.05), 0.16),
+  tap: (c, out, t) => (card(c, out, t, 0.035), 0.12),
+  untap: (c, out, t) => (card(c, out, t, 0.02), 0.12),
+  draw: (c, out, t, o) => { const n = Math.min(o.amount || 1, 4); for (let i = 0; i < n; i++) noise(c, out, t + i * 0.08, { f: 1500, f2: 3200, q: 0.8, dur: 0.11, a: 0.03, g: 0.07 }); return 0.11 + (n - 1) * 0.08 },
+  land: (c, out, t) => (card(c, out, t, 0.04), thud(c, out, t + 0.02, 0.2, 95), 0.22),
+  cast: (c, out, t, o) => {
+    const ty = o.type || ''
+    card(c, out, t, 0.05); magic(c, out, t + 0.03, colOf(o.colour))
+    if (/Creature/.test(ty)) thud(c, out, t + 0.32, 0.16, 120)  // a criatura chega à mesa
+    else if (/Planeswalker/.test(ty)) brass(c, out, t + 0.1, [45, 52], 0.6, 0.025)
+    else if (/Artifact/.test(ty)) clank(c, out, t + 0.3, 0.05)
+    else if (/Instant|Sorcery/.test(ty)) whoosh(c, out, t, 600, 3000, 0.3, 0.06)
+    return 0.6
+  },
+  resolve: (c, out, t) => (noise(c, out, t, { type: 'lowpass', f: 1500, f2: 400, dur: 0.2, a: 0.02, g: 0.05 }), 0.2),
+  counter: (c, out, t) => (whoosh(c, out, t, 3000, 500, 0.22, 0.09, 2), clank(c, out, t + 0.12, 0.07), 0.32),
+  countered: (c, out, t) => (noise(c, out, t, { type: 'highpass', f: 4000, f2: 600, dur: 0.38, a: 0.01, g: 0.07 }), ticks(c, out, t + 0.03, 6, 0.05, { f: 3500, q: 4, dur: 0.02, g: 0.05 }), 0.4),
+  trigger: (c, out, t) => (noise(c, out, t, { f: 5200, q: 8, dur: 0.14, a: 0.03, g: 0.025 }), 0.14),
+  activate: (c, out, t) => (card(c, out, t, 0.03), whoosh(c, out, t + 0.02, 700, 1800, 0.14, 0.04), 0.16),
+  attack: (c, out, t) => (whoosh(c, out, t, 500, 2600, 0.24, 0.14, 1.5), thud(c, out, t + 0.14, 0.14, 75), 0.34),
+  block: (c, out, t) => (thud(c, out, t, 0.14, 140), clank(c, out, t, 0.09), 0.25),
   damage: (c, out, t, o) => {  // escala com a quantidade (1–10+): mais grave, mais forte, mais longo
-    const n = Math.min(Math.max(o.amount || 1, 1), 10), dur = 0.16 + n * 0.022
-    tone(c, out, t, { f: 170 - n * 6, f2: 45, dur, g: 0.16 + n * 0.022 })
-    noise(c, out, t, { type: 'lowpass', f: 1400 - n * 60, dur: 0.08 + n * 0.01, g: 0.09 + n * 0.012 })
-    return dur
+    const n = Math.min(Math.max(o.amount || 1, 1), 10)
+    thud(c, out, t, 0.18 + n * 0.02, 105 - n * 4, 0.18 + n * 0.02)
+    noise(c, out, t, { type: 'lowpass', f: 2600, dur: 0.05, a: 0.001, g: 0.08 + n * 0.01 })
+    if (n >= 5) tone(c, out, t, { f: 55, f2: 35, dur: 0.4, a: 0.01, g: 0.12 })
+    return n >= 5 ? 0.4 : 0.18 + n * 0.02
   },
-  poison: (c, out, t) => { [0, 0.07, 0.15].forEach((d, i) => tone(c, out, t + d, { f: 300 + i * 70, f2: 520 + i * 60, dur: 0.07, a: 0.01, g: 0.06, lp: 1200 })); tone(c, out, t, { type: 'triangle', f: 90, dur: 0.42, a: 0.05, g: 0.06 }); return 0.45 },
-  lifegain: (c, out, t) => ([72, 76, 79].forEach((m, i) => bell(c, out, t + i * 0.07, hz(m), 0.07, 0.32)), 0.46),
-  lifeloss: (c, out, t) => (tone(c, out, t, { type: 'triangle', f: 330, f2: 165, dur: 0.35, a: 0.01, g: 0.09, lp: 1200 }), 0.35),
-  destroy: (c, out, t) => (noise(c, out, t, { type: 'lowpass', f: 2000, f2: 200, dur: 0.4, g: 0.16 }), tone(c, out, t, { f: 140, f2: 40, dur: 0.45, g: 0.16 }), 0.45),
-  exile: (c, out, t) => (noise(c, out, t, { f: 400, f2: 6000, q: 4, dur: 0.5, a: 0.08, g: 0.1 }), tone(c, out, t, { f: 500, f2: 1500, dur: 0.45, a: 0.06, g: 0.035 }), 0.5),
-  bounce: (c, out, t) => (tone(c, out, t, { f: 250, f2: 800, dur: 0.18, a: 0.01, g: 0.09 }), noise(c, out, t, { f: 1500, dur: 0.1, g: 0.04 }), 0.2),
-  token: (c, out, t, o) => {
-    const n = Math.min(o.amount || 1, 3)
-    for (let i = 0; i < n; i++) { tone(c, out, t + i * 0.07, { f: 500 * 1.12 ** i, f2: 1000 * 1.12 ** i, dur: 0.08, a: 0.002, g: 0.1 }); bell(c, out, t + i * 0.07 + 0.04, 1320 * 1.12 ** i, 0.04, 0.2) }
-    return 0.24 + (n - 1) * 0.07
-  },
-  counters: (c, out, t, o) => { const up = (o.amount ?? 1) >= 0; tone(c, out, t, { type: 'triangle', f: up ? 700 : 1000, f2: up ? 1000 : 700, dur: 0.1, g: 0.08 }); bell(c, out, t + 0.05, up ? 1500 : 900, 0.035, 0.15); return 0.2 },
-  pump: (c, out, t) => (tone(c, out, t, { type: 'sawtooth', f: 110, f2: 220, dur: 0.35, a: 0.08, g: 0.08, lp: 300, lp2: 1600 }), 0.35),
-  attach: (c, out, t) => (tone(c, out, t, { type: 'triangle', f: 600, f2: 300, dur: 0.08, a: 0.002, g: 0.08 }), bell(c, out, t + 0.05, 900, 0.06, 0.2, [1, 1.47], [1, 0.4]), 0.25),
-  transform: (c, out, t) => (tone(c, out, t, { f: 300, f2: 900, dur: 0.5, a: 0.1, g: 0.05 }), tone(c, out, t, { f: 450, f2: 1350, dur: 0.5, a: 0.1, g: 0.04, det: 12 }), noise(c, out, t, { f: 500, f2: 3000, q: 2, dur: 0.5, a: 0.1, g: 0.05 }), 0.55),
-  discard: (c, out, t) => (noise(c, out, t, { f: 2500, f2: 800, dur: 0.12, a: 0.01, g: 0.1 }), 0.12),
-  mill: (c, out, t, o) => { const n = Math.min(o.amount || 1, 5); ticks(c, out, t, n, 0.045, { f: 2000, dur: 0.06, g: 0.07 }); return 0.06 + (n - 1) * 0.045 },
-  shuffle: (c, out, t) => (ticks(c, out, t, 8, 0.025, { f: 3000, q: 1.5, dur: 0.03, g: 0.06 }), 0.23),
-  mulligan: (c, out, t) => (ticks(c, out, t, 12, 0.025, { f: 2800, q: 1.5, dur: 0.03, g: 0.06 }), tone(c, out, t + 0.1, { type: 'triangle', f: 220, f2: 196, dur: 0.25, g: 0.05 }), 0.35),
-  turn: (c, out, t, o) => { const [x, y] = TURN[o.side] || TURN.a; bell(c, out, t, hz(x), 0.08, 0.45); bell(c, out, t + 0.12, hz(y), 0.07, 0.45); return 0.57 },
-  combat: (c, out, t) => (tone(c, out, t, { f: 90, f2: 60, dur: 0.15, a: 0.004, g: 0.12 }), 0.15),  // fase de combate: tambor discreto; as outras fases não soam
-  goad: (c, out, t) => ([0, 0.12].forEach(d => tone(c, out, t + d, { type: 'square', f: 300, f2: 450, dur: 0.1, g: 0.04, lp: 1500 })), 0.22),
-  crown: (c, out, t) => ([79, 86, 91].forEach((m, i) => bell(c, out, t + i * 0.06, hz(m), 0.06, 0.35)), 0.47),  // monarca, iniciativa, emblema
-  energy: (c, out, t) => (tone(c, out, t, { type: 'triangle', f: 1500, f2: 3000, dur: 0.1, g: 0.05 }), noise(c, out, t, { type: 'highpass', f: 4000, dur: 0.08, g: 0.04 }), 0.1),
-  eliminated: (c, out, t) => ([62, 57, 50].forEach((m, i) => tone(c, out, t + i * 0.18, { type: 'triangle', f: hz(m), dur: 0.32, a: 0.01, g: 0.1, lp: 1200 })), 0.7),
+  poison: (c, out, t) => { [0, 0.08, 0.15].forEach((d, i) => noise(c, out, t + d, { f: 350 + i * 90, f2: 900 + i * 150, q: 14, dur: 0.07, a: 0.005, g: 0.09 })); noise(c, out, t, { type: 'lowpass', f: 300, dur: 0.4, a: 0.1, g: 0.05 }); return 0.42 },
+  lifegain: (c, out, t) => (magic(c, out, t, 'W', 0.035, 0.6), 0.6),
+  lifeloss: (c, out, t) => (thud(c, out, t, 0.1, 90), whoosh(c, out, t, 1200, 300, 0.3, 0.04), 0.3),
+  destroy: (c, out, t) => (noise(c, out, t, { type: 'lowpass', f: 3000, f2: 200, dur: 0.4, a: 0.002, g: 0.16 }), ticks(c, out, t + 0.02, 5, 0.04, { f: 1800, q: 2, dur: 0.04, g: 0.07 }), thud(c, out, t, 0.18, 80), 0.42),
+  exile: (c, out, t) => (whoosh(c, out, t, 300, 6000, 0.55, 0.09, 3), noise(c, out, t + 0.25, { type: 'highpass', f: 6500, dur: 0.35, a: 0.05, g: 0.025 }), 0.6),
+  bounce: (c, out, t) => (whoosh(c, out, t, 400, 2400, 0.2, 0.08), card(c, out, t + 0.15, 0.03), 0.27),
+  token: (c, out, t, o) => { const n = Math.min(o.amount || 1, 3); for (let i = 0; i < n; i++) { thud(c, out, t + i * 0.08, 0.08, 240, 0.12); noise(c, out, t + i * 0.08, { f: 2500, q: 3, dur: 0.04, a: 0.001, g: 0.04 }) } return 0.12 + (n - 1) * 0.08 },
+  counters: (c, out, t, o) => (noise(c, out, t, { f: (o.amount ?? 1) >= 0 ? 3200 : 2200, q: 6, dur: 0.035, a: 0.001, g: 0.06 }), 0.05),
+  pump: (c, out, t) => (tone(c, out, t, { type: 'sawtooth', f: 90, f2: 180, dur: 0.3, a: 0.06, g: 0.05, lp: 250, lp2: 1400 }), whoosh(c, out, t, 300, 1500, 0.3, 0.04), 0.3),
+  attach: (c, out, t) => (card(c, out, t, 0.03), clank(c, out, t + 0.05, 0.05, [2400, 3900]), 0.2),
+  transform: (c, out, t) => (whoosh(c, out, t, 300, 3000, 0.5, 0.07, 2), magic(c, out, t + 0.1, 'M', 0.03, 0.5), 0.6),
+  discard: (c, out, t) => (card(c, out, t, 0.05), noise(c, out, t + 0.03, { f: 2200, f2: 900, dur: 0.12, a: 0.01, g: 0.04 }), 0.15),
+  mill: (c, out, t, o) => { const n = Math.min(o.amount || 1, 5); for (let i = 0; i < n; i++) noise(c, out, t + i * 0.05, { f: 2200, f2: 3600, q: 0.8, dur: 0.07, a: 0.01, g: 0.05 }); return 0.07 + (n - 1) * 0.05 },
+  shuffle: (c, out, t) => (ticks(c, out, t, 10, 0.022, { f: 3200, q: 1, dur: 0.025, g: 0.045 }), 0.24),
+  mulligan: (c, out, t) => (R.shuffle(c, out, t), R.shuffle(c, out, t + 0.28), 0.52),
+  turn: (c, out, t, o) => (whoosh(c, out, t, 250, 900, 0.3, 0.035), thud(c, out, t + 0.12, o.side === 'a' ? 0.1 : 0.07, o.side === 'a' ? 70 : 60, 0.3), 0.42),
+  combat: (c, out, t) => (thud(c, out, t, 0.16, 70, 0.3), thud(c, out, t + 0.16, 0.12, 65, 0.3), 0.46),  // tambores de guerra; as outras fases não soam
+  goad: (c, out, t) => (brass(c, out, t, [45, 52], 0.35, 0.03), 0.35),
+  crown: (c, out, t) => (brass(c, out, t, [67, 74], 0.45, 0.025), magic(c, out, t, 'W', 0.025, 0.5), 0.5),  // monarca, iniciativa, emblema
+  energy: (c, out, t) => (noise(c, out, t, { type: 'highpass', f: 3500, dur: 0.08, a: 0.002, g: 0.05 }), tone(c, out, t, { type: 'sawtooth', f: 200, f2: 1600, dur: 0.12, g: 0.03, lp: 2500 }), 0.13),
+  eliminated: (c, out, t) => (brass(c, out, t, [50, 57], 0.5, 0.035), brass(c, out, t + 0.3, [45, 52], 0.7, 0.035), thud(c, out, t + 0.3, 0.16, 55, 0.5), 1),
   win: (c, out, t) => {
-    [72, 76, 79, 84].forEach((m, i) => bell(c, out, t + i * 0.1, hz(m), 0.08, 0.5))
-    ;[60, 64, 67].forEach(m => tone(c, out, t + 0.3, { type: 'triangle', f: hz(m), dur: 0.7, a: 0.05, g: 0.05 }))
-    return 1
+    brass(c, out, t, [60, 67], 0.22, 0.04); brass(c, out, t + 0.18, [64, 72], 0.22, 0.04)
+    brass(c, out, t + 0.36, [60, 67, 72, 76], 1, 0.035); thud(c, out, t + 0.36, 0.2, 70, 0.6)
+    noise(c, out, t + 0.36, { type: 'highpass', f: 6000, dur: 1, a: 0.01, g: 0.04 })  // prato
+    return 1.36
   },
-  loss: (c, out, t) => {
-    [69, 65, 62].forEach((m, i) => tone(c, out, t + i * 0.2, { type: 'triangle', f: hz(m), dur: 0.4, a: 0.01, g: 0.09, lp: 1400 }))
-    tone(c, out, t + 0.4, { f: hz(38), dur: 0.55, a: 0.05, g: 0.1 })
-    return 0.95
-  },
-  tie: (c, out, t) => (bell(c, out, t, hz(74), 0.07, 0.4), bell(c, out, t + 0.18, hz(74), 0.06, 0.4), 0.58),
-  match: (c, out, t) => (bell(c, out, t, hz(79), 0.08, 0.4), bell(c, out, t + 0.1, hz(84), 0.08, 0.45), 0.55),  // partida de torneio acabada
+  loss: (c, out, t) => (brass(c, out, t, [57, 64], 0.5, 0.035), brass(c, out, t + 0.4, [53, 60], 0.5, 0.035), brass(c, out, t + 0.8, [50, 57], 0.9, 0.03), thud(c, out, t + 0.8, 0.16, 50, 0.6), 1.7),
+  tie: (c, out, t) => (brass(c, out, t, [62, 69], 0.5, 0.035), thud(c, out, t, 0.12, 70, 0.4), thud(c, out, t + 0.25, 0.1, 70, 0.4), 0.65),
+  match: (c, out, t) => (brass(c, out, t, [67, 74], 0.25, 0.035), brass(c, out, t + 0.2, [72, 79], 0.5, 0.035), thud(c, out, t + 0.2, 0.14, 70, 0.4), 0.7),  // partida de torneio acabada
   champion: (c, out, t) => {
-    [67, 72, 76, 79].forEach((m, i) => bell(c, out, t + i * 0.09, hz(m), 0.07, 0.4))
-    ;[72, 76, 79, 84].forEach(m => tone(c, out, t + 0.4, { type: 'triangle', f: hz(m), dur: 1.1, a: 0.06, g: 0.045 }))
-    bell(c, out, t + 0.4, hz(96), 0.05, 0.9)
-    noise(c, out, t + 0.4, { type: 'highpass', f: 7000, dur: 1, a: 0.2, g: 0.02 })
-    return 1.5
+    brass(c, out, t, [60, 67], 0.18, 0.04); brass(c, out, t + 0.15, [60, 67], 0.18, 0.04); brass(c, out, t + 0.3, [64, 72], 0.18, 0.04)
+    brass(c, out, t + 0.45, [60, 67, 72, 76, 79], 1.3, 0.03); thud(c, out, t + 0.3, 0.12, 65, 0.3); thud(c, out, t + 0.45, 0.22, 65, 0.8)
+    noise(c, out, t + 0.45, { type: 'highpass', f: 5500, dur: 1.4, a: 0.01, g: 0.05 })
+    return 1.85
   },
 }
 export const kinds = Object.keys(R)
 
 // ---------- cadeia de saída e contexto ----------
-// volume (curva vol², ×2 de ganho: as receitas têm picos ≤ 0,27) → compressor/limitador → saída
+// volume (curva vol², ×2 de ganho) → passa-baixo (tira o agudo que cansa) → compressor/limitador → saída;
+// cada voz manda ainda um pouco para uma sala (reverb de ruído a decair): os sons ficam com espaço, não «secos»
 const amp = v => 2 * v * v
+function room(c, secs = 1.1) {
+  const n = Math.floor(c.sampleRate * secs), b = c.createBuffer(2, n, c.sampleRate)
+  for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 3.5 }
+  return b
+}
 function chain(c, vol) {
-  const g = c.createGain(), comp = c.createDynamicsCompressor()
+  const g = c.createGain(), lp = c.createBiquadFilter(), comp = c.createDynamicsCompressor(), rev = c.createConvolver(), send = c.createGain()
   g.gain.value = amp(vol)
+  lp.type = 'lowpass'; lp.frequency.value = 9000
   comp.threshold.value = -14; comp.knee.value = 6; comp.ratio.value = 12; comp.attack.value = 0.002; comp.release.value = 0.15
-  g.connect(comp).connect(c.destination)
+  g.connect(lp).connect(comp).connect(c.destination)
+  rev.buffer = room(c); send.gain.value = 0.22
+  send.connect(rev).connect(g)
+  g.send = send
   return g
 }
 function ensure() {
@@ -198,12 +213,11 @@ function admit(kind, now) {
 }
 
 const PAN = { a: -0.2, b: 0.2, c: 0.35, d: -0.35 }
-function voice(c, dest, side) {
-  if (!side || !c.createStereoPanner) return dest
-  const p = c.createStereoPanner()
-  p.pan.value = PAN[side] ?? 0
-  p.connect(dest)
-  return p
+function voice(c, dest, side) {  // panorâmica por jogador; liga ao seco e à sala
+  const v = side && c.createStereoPanner ? c.createStereoPanner() : c.createGain()
+  if (v.pan) v.pan.value = PAN[side] ?? 0
+  v.connect(dest); if (dest.send) v.connect(dest.send)
+  return v
 }
 
 // play('damage', {amount: 3, side: 'b'}); opts: amount, colour ('R', 'WU'…), type (linha de tipo), side ('a'…'d')
@@ -218,7 +232,7 @@ export function play(kind, opts = {}) {
 // ---------- eventos do tabuleiro ----------
 // a alta velocidade (≥ 4×) calam-se os sons miúdos; o que muda o jogo continua a soar
 const MINOR = new Set(['tap', 'untap', 'phase', 'draw', 'trigger', 'activate', 'resolve', 'counters', 'pump', 'mill', 'search', 'attach', 'goad', 'player'])
-const SIMPLE = { land: 'land', counter: 'counter', countered: 'countered', trigger: 'trigger', activate: 'activate', attack: 'attack', block: 'block', poison: 'poison', destroy: 'destroy', exile: 'exile', bounce: 'bounce', discard: 'discard', pump: 'pump', attach: 'attach', transform: 'transform', search: 'shuffle', goad: 'goad', tap: 'tap', untap: 'untap' }
+const SIMPLE = { land: 'land', counter: 'counter', countered: 'countered', trigger: 'trigger', activate: 'activate', attack: 'attack', block: 'block', poison: 'poison', destroy: 'destroy', exile: 'exile', bounce: 'bounce', discard: 'discard', pump: 'pump', attach: 'attach', transform: 'transform', search: 'shuffle', goad: 'goad', tap: 'tap' }  // destapar (tudo de uma vez, todos os turnos) fica calado
 let prevEv = null
 
 // ev = o evento acabado de aplicar; s = o estado depois dele (states[i]); data = cartas (byName) para cor e tipo
