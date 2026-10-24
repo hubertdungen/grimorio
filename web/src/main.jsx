@@ -1,15 +1,22 @@
 import { StrictMode, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import { ready, tx } from './i18n.js'
+import { ready, tx, LANG } from './i18n.js'
 
 // Erros do servidor: chegam em pt ({"erro": ...}); os textos fixos traduzem-se aqui para todos os pedidos da app.
+// Os nomes «X (deck médio)» que o servidor gera também.
 // code "profile" (401) = não há perfil escolhido: a app mostra «Quem vai jogar?».
 // ponytail: só textos exatos; os que levam valores no meio (f-strings do Python) ficam em pt
-const _fetch = window.fetch.bind(window)
+const _fetch = window.fetch.bind(window), MEDIO = '(deck médio)'
 window.fetch = async (...a) => {
   const r = await _fetch(...a)
-  if (r.ok || !(r.headers.get('content-type') || '').includes('json')) return r
+  if (!(r.headers.get('content-type') || '').includes('json')) return r
+  if (r.ok) {  // nomes gerados no servidor em pt (decks médios do EDHREC) traduzem-se só à vista
+    if (LANG === 'pt' || !String(a[0]?.url || a[0]).includes('/api/')) return r
+    const s = await r.clone().text()
+    if (!s.includes(MEDIO)) return r
+    return new Response(s.replaceAll(MEDIO, JSON.stringify(tx(MEDIO)).slice(1, -1)), { status: r.status, statusText: r.statusText, headers: r.headers })
+  }
   const j = await r.clone().json().catch(() => null)
   if (j?.code === 'profile') window.dispatchEvent(new Event('grimorio:profile'))
   if (typeof j?.erro !== 'string') return r

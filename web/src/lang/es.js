@@ -1719,4 +1719,9 @@ export default {
   "Refeito": "Rehecho",
   "venceu «{d}»": "ganó «{d}»",
   "«{d}» venceu no turno {t}": "«{d}» ganó en el turno {t}",
+  "O que é o Universo?": "¿Qué es el Universo?",
+  "Cada ponto é uma carta. Cartas com texto e funções parecidas ficam perto umas das outras; o teu deck brilha como uma constelação.": "Cada punto es una carta. Las cartas con texto y funciones parecidas quedan cerca unas de otras; tu mazo brilla como una constelación.",
+  "Serve para descobrir cartas à volta das tuas: as sugestões pulsam ligadas à carta com que combinam. Clique para ver, duplo clique para juntar ao deck; arrasta para rodar e usa a roda para aproximar.": "Sirve para descubrir cartas alrededor de las tuyas: las sugerencias laten unidas a la carta con la que combinan. Clic para ver, doble clic para añadir al mazo; arrastra para girar y usa la rueda para acercar.",
+  "? O que é o Universo": "? Qué es el Universo",
+  "(deck médio)": "(mazo medio)",
 }

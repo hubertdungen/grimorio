@@ -1,6 +1,8 @@
 **English** · [Português](README.pt.md) · [Español](README.es.md) · [Deutsch](README.de.md) · [简体中文](README.zh-CN.md)
 
-# Grimório
+<p align="center"><img src="web/public/logo.svg" width="112" alt="Grimório"></p>
+
+<h1 align="center">Grimório</h1>
 
 **Build, test and battle your Magic: The Gathering decks — with explained suggestions and real AI-vs-AI games.**
 
@@ -11,6 +13,15 @@ rules engine so you can watch the games, read a report and improve the list.
 
 The interface is available in **English** (default), **Português**, **Español**, **Deutsch** and **简体中文**
 (Settings › Language).
+
+## Screenshots
+
+<table>
+<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="Home"></a><br><sub>Home</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="Build: deck list, search and explained suggestions"></a><br><sub>Build: deck list, search and explained suggestions</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="Suggestions by role, combos and real decks"></a><br><sub>Suggestions by role, combos and real decks</sub></td><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="Universe: the 3D map of every card"></a><br><sub>Universe: the 3D map of every card</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseum: watch Forge play your deck"></a><br><sub>Coliseum: watch Forge play your deck</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Tournaments with standings and a live bracket"></a><br><sub>Tournaments with standings and a live bracket</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: stars per deck and the automatic Arena"></a><br><sub>Ratings: stars per deck and the automatic Arena</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="Library with covers, stars and comparison"></a><br><sub>Library with covers, stars and comparison</sub></td></tr>
+</table>
 
 ## Install
 

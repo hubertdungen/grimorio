@@ -139,6 +139,11 @@ h2 .mana img { width: 20px; height: 20px; }
 .map-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .map-ui { position: absolute; top: 14px; left: 14px; width: min(380px, calc(100% - 28px)); display: grid; gap: 8px; padding: 12px; background: rgba(19, 17, 31, .82); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(8px); }
 .map-ui p { margin: 0; }
+.map-hint { position: relative; display: grid; gap: 4px; padding: 9px 30px 9px 11px; border-radius: 10px; border: 1px solid rgba(110, 231, 249, .35); background: rgba(110, 231, 249, .06); font-size: 12.5px; line-height: 1.4; }
+.map-hint b { font-size: 13px; color: var(--cyan); }
+.map-hint p { color: var(--muted); }
+.map-hint-x { position: absolute; top: 4px; right: 4px; padding: 2px 7px; background: none; border: 0; color: var(--muted); cursor: pointer; }
+.map-hint-open { justify-self: start; color: var(--muted); }
 .k-seed { color: var(--gold); } .k-sugg { color: var(--cyan); } .k-deck { color: #ddd; }
 .map-card { position: absolute; right: 14px; top: 14px; width: 240px; display: grid; gap: 8px; z-index: 3; animation: pop .25s ease-out; }
 .map-card .why { background: rgba(19, 17, 31, .9); border-radius: 8px; padding: 4px; }
@@ -978,6 +983,8 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .tm-g { display: flex; flex-wrap: wrap; padding-top: 3px; }
 .tm-g .gchip { font-size: 11px; padding: 1px 7px; } .gchip.x { opacity: .5; text-decoration: line-through; }
 /* classificação e rondas */
+.ts-stand { min-width: 0; overflow-x: auto; }  /* a tabela não sai da caixa: rola se não couber */
+.ts-stand .ts-table th, .ts-stand .ts-table td { padding-left: 5px; padding-right: 5px; }
 .ts-table th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 4px 8px; }
 .ts-name { display: inline-flex; gap: 8px; align-items: center; }
 .champ-row td { background: rgba(242, 184, 75, .1); }

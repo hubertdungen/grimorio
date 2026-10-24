@@ -1719,4 +1719,9 @@ export default {
   "Refeito": "已重做",
   "venceu «{d}»": "「{d}」获胜",
   "«{d}» venceu no turno {t}": "「{d}」在第 {t} 回合获胜",
+  "O que é o Universo?": "什么是宇宙？",
+  "Cada ponto é uma carta. Cartas com texto e funções parecidas ficam perto umas das outras; o teu deck brilha como uma constelação.": "每个点都是一张牌。文字与作用相近的牌彼此靠近；你的套牌像一个星座一样闪耀。",
+  "Serve para descobrir cartas à volta das tuas: as sugestões pulsam ligadas à carta com que combinam. Clique para ver, duplo clique para juntar ao deck; arrasta para rodar e usa a roda para aproximar.": "用来发现你的牌周围的牌：建议会闪烁，并连到与之配合的那张牌。单击查看，双击加入套牌；拖动旋转，滚轮缩放。",
+  "? O que é o Universo": "? 什么是宇宙",
+  "(deck médio)": "（平均套牌）",
 }

@@ -612,6 +612,8 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
   const [kind, setKind] = useState('')
   const [tag, setTag] = useState('')
   const [panel, setPanel] = useState(true)
+  const [hint, setHint] = useState(() => { try { return localStorage.getItem('grimorio.hint.universo') !== '0' } catch { return true } })
+  const showHint = v => { setHint(v); try { localStorage.setItem('grimorio.hint.universo', v ? '1' : '0') } catch { /* sem armazenamento */ } }
   const { recs: allRecs, seeds, seedsIdx, have, plan, needs, tastes, swaps } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
   const recs = useMemo(() => applyFilter(allRecs, kind, tag).slice(0, 18), [allRecs, kind, tag])
   const marks = useMemo(() => {
@@ -650,6 +652,14 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
     <div className="view mapview">
       <Map3D data={data} marks={marks} dim={dim} links={links} focus={focus} onPick={pick} onAdd={addI} frame={frame} follow={follow} tips={tips} />
       <div className="map-ui">
+        {hint ? (
+          <div className="map-hint" role="note">
+            <button className="map-hint-x" onClick={() => showHint(false)} aria-label={tx('Fechar')}>✕</button>
+            <b>{tx('O que é o Universo?')}</b>
+            <p>{tx('Cada ponto é uma carta. Cartas com texto e funções parecidas ficam perto umas das outras; o teu deck brilha como uma constelação.')}</p>
+            <p>{tx('Serve para descobrir cartas à volta das tuas: as sugestões pulsam ligadas à carta com que combinam. Clique para ver, duplo clique para juntar ao deck; arrasta para rodar e usa a roda para aproximar.')}</p>
+          </div>
+        ) : <button className="link plain small map-hint-open" onClick={() => showHint(true)}>{tx('? O que é o Universo')}</button>}
         <div className="seedpick">
           <input value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Voar até uma carta…')} />
           {hits.length > 0 && <ul className="ac">{hits.map(c => <li key={c.i}><button onClick={() => { pick(c.i); setQ('') }}><img src={img(c, 'small')} alt="" />{c.n}</button></li>)}</ul>}

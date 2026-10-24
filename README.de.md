@@ -1,6 +1,8 @@
 [English](README.md) · [Português](README.pt.md) · [Español](README.es.md) · **Deutsch** · [简体中文](README.zh-CN.md)
 
-# Grimório
+<p align="center"><img src="web/public/logo.svg" width="112" alt="Grimório"></p>
+
+<h1 align="center">Grimório</h1>
 
 **Baue, teste und lass deine Magic: The Gathering-Decks gegeneinander antreten – mit erklärten Vorschlägen und echten Partien KI gegen KI.**
 
@@ -12,6 +14,15 @@ und deine Liste verbessern.
 
 Die Oberfläche gibt es auf **English** (Standard), **Português**, **Español**, **Deutsch** und **简体中文**
 (Einstellungen › Sprache).
+
+## Screenshots
+
+<table>
+<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="Startseite"></a><br><sub>Startseite</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="Bauen: Deckliste, Suche und erklärte Vorschläge"></a><br><sub>Bauen: Deckliste, Suche und erklärte Vorschläge</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="Vorschläge nach Rolle, Combos und echte Decks"></a><br><sub>Vorschläge nach Rolle, Combos und echte Decks</sub></td><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="Universum: die 3D-Karte aller Karten"></a><br><sub>Universum: die 3D-Karte aller Karten</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Kolosseum: sieh Forge dein Deck spielen"></a><br><sub>Kolosseum: sieh Forge dein Deck spielen</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Turniere mit Tabelle und Live-Turnierbaum"></a><br><sub>Turniere mit Tabelle und Live-Turnierbaum</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: Sterne pro Deck und die automatische Arena"></a><br><sub>Ratings: Sterne pro Deck und die automatische Arena</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="Bibliothek mit Covern, Sternen und Vergleich"></a><br><sub>Bibliothek mit Covern, Sternen und Vergleich</sub></td></tr>
+</table>
 
 ## Installation
 

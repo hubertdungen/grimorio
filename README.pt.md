@@ -1,6 +1,8 @@
 [English](README.md) · **Português** · [Español](README.es.md) · [Deutsch](README.de.md) · [简体中文](README.zh-CN.md)
 
-# Grimório
+<p align="center"><img src="web/public/logo.svg" width="112" alt="Grimório"></p>
+
+<h1 align="center">Grimório</h1>
 
 **Constrói, testa e põe à prova os teus decks de Magic: The Gathering — com sugestões explicadas e jogos reais IA contra IA.**
 
@@ -11,6 +13,15 @@ de código aberto [Forge](https://github.com/Card-Forge/forge), para poderes ver
 
 A interface está disponível em **English** (predefinição), **Português**, **Español**, **Deutsch** e **简体中文**
 (Definições › Língua).
+
+## Capturas de ecrã
+
+<table>
+<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="Página inicial"></a><br><sub>Página inicial</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="Construir: lista, pesquisa e sugestões explicadas"></a><br><sub>Construir: lista, pesquisa e sugestões explicadas</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="Sugestões por função, combos e decks reais"></a><br><sub>Sugestões por função, combos e decks reais</sub></td><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="Universo: o mapa 3D de todas as cartas"></a><br><sub>Universo: o mapa 3D de todas as cartas</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseu: vê o Forge jogar o teu deck"></a><br><sub>Coliseu: vê o Forge jogar o teu deck</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Torneios com classificação e árvore ao vivo"></a><br><sub>Torneios com classificação e árvore ao vivo</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: estrelas por deck e a Arena automática"></a><br><sub>Ratings: estrelas por deck e a Arena automática</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="Biblioteca com capas, estrelas e comparação"></a><br><sub>Biblioteca com capas, estrelas e comparação</sub></td></tr>
+</table>
 
 ## Instalar
 

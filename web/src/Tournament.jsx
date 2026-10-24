@@ -422,7 +422,7 @@ function Bracket({ t, k, ...tools }) {
 function Standings({ t, data, P, me, casual }) {
   const pods = t.type === 'mesas'
   return (
-    <section className="card">
+    <section className="card ts-stand">
       <h4>{tx('Classificação')}</h4>
       <table className="lab-table ts-table"><thead><tr><th>#</th><th>Deck</th><th>{tx('Pts')}</th>{pods ? <><th>{tx('1.ºs lugares')}</th><th>{tx('Mesas')}</th></> : <><th>{tx('V-D-E')}</th><th title={tx('% de vitórias dos adversários')}>OMW%</th><th title={tx('% de jogos ganhos')}>GW%</th></>}<th>{tx('Dificuldade')}</th></tr></thead>
         <tbody>{t.standings.map((s, k) => (

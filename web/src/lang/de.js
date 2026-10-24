@@ -1719,4 +1719,9 @@ export default {
   "Refeito": "Wiederhergestellt",
   "venceu «{d}»": "„{d}“ hat gewonnen",
   "«{d}» venceu no turno {t}": "„{d}“ gewinnt in Zug {t}",
+  "O que é o Universo?": "Was ist das Universum?",
+  "Cada ponto é uma carta. Cartas com texto e funções parecidas ficam perto umas das outras; o teu deck brilha como uma constelação.": "Jeder Punkt ist eine Karte. Karten mit ähnlichem Text und ähnlicher Rolle liegen nah beieinander; dein Deck leuchtet als Sternbild.",
+  "Serve para descobrir cartas à volta das tuas: as sugestões pulsam ligadas à carta com que combinam. Clique para ver, duplo clique para juntar ao deck; arrasta para rodar e usa a roda para aproximar.": "Damit entdeckst du Karten rund um deine: Vorschläge pulsieren, verbunden mit der Karte, zu der sie passen. Klick zum Ansehen, Doppelklick zum Hinzufügen; ziehen zum Drehen, Mausrad zum Zoomen.",
+  "? O que é o Universo": "? Was ist das Universum",
+  "(deck médio)": "(Durchschnittsdeck)",
 }

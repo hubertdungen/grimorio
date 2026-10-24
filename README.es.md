@@ -1,6 +1,8 @@
 [English](README.md) · [Português](README.pt.md) · **Español** · [Deutsch](README.de.md) · [简体中文](README.zh-CN.md)
 
-# Grimório
+<p align="center"><img src="web/public/logo.svg" width="112" alt="Grimório"></p>
+
+<h1 align="center">Grimório</h1>
 
 **Construye, prueba y pon a combatir tus mazos de Magic: The Gathering, con sugerencias explicadas y partidas reales de IA contra IA.**
 
@@ -12,6 +14,15 @@ informe y mejorar la lista.
 
 La interfaz está disponible en **English** (predeterminado), **Português**, **Español**, **Deutsch** y **简体中文**
 (Ajustes › Idioma).
+
+## Capturas de pantalla
+
+<table>
+<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="Inicio"></a><br><sub>Inicio</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="Construir: lista, búsqueda y sugerencias explicadas"></a><br><sub>Construir: lista, búsqueda y sugerencias explicadas</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="Sugerencias por función, combos y mazos reales"></a><br><sub>Sugerencias por función, combos y mazos reales</sub></td><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="Universo: el mapa 3D de todas las cartas"></a><br><sub>Universo: el mapa 3D de todas las cartas</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseo: mira a Forge jugar tu mazo"></a><br><sub>Coliseo: mira a Forge jugar tu mazo</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Torneos con clasificación y cuadro en directo"></a><br><sub>Torneos con clasificación y cuadro en directo</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: estrellas por mazo y la Arena automática"></a><br><sub>Ratings: estrellas por mazo y la Arena automática</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="Biblioteca con portadas, estrellas y comparación"></a><br><sub>Biblioteca con portadas, estrellas y comparación</sub></td></tr>
+</table>
 
 ## Instalación
 

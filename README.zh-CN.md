@@ -1,6 +1,8 @@
 [English](README.md) · [Português](README.pt.md) · [Español](README.es.md) · [Deutsch](README.de.md) · **简体中文**
 
-# Grimório
+<p align="center"><img src="web/public/logo.svg" width="112" alt="Grimório"></p>
+
+<h1 align="center">Grimório</h1>
 
 **构筑、测试你的万智牌（Magic: The Gathering）套牌，再让它们上场一较高下——建议都附带理由，还有真正的 AI 对 AI 对局。**
 
@@ -10,6 +12,15 @@ Grimório 是一款免费的套牌构筑工具，支持所有赛制（指挥官 
 你可以观看对局、阅读报告，然后把套牌调得更好。
 
 界面支持 **English**（默认）、**Português**、**Español**、**Deutsch** 和 **简体中文**（设置 › 语言）。
+
+## 截图
+
+<table>
+<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="首页"></a><br><sub>首页</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="构筑：牌表、搜索与带解释的建议"></a><br><sub>构筑：牌表、搜索与带解释的建议</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="按作用分类的建议、组合技与真实套牌"></a><br><sub>按作用分类的建议、组合技与真实套牌</sub></td><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="宇宙：所有卡牌的 3D 地图"></a><br><sub>宇宙：所有卡牌的 3D 地图</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="竞技场：观看 Forge 用你的套牌对战"></a><br><sub>竞技场：观看 Forge 用你的套牌对战</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="赛事：排名与实时对阵图"></a><br><sub>赛事：排名与实时对阵图</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="评分：每副套牌的星级与自动 Arena"></a><br><sub>评分：每副套牌的星级与自动 Arena</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="牌库：封面、星级与对比"></a><br><sub>牌库：封面、星级与对比</sub></td></tr>
+</table>
 
 ## 安装
 

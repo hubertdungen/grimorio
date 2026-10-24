@@ -1727,4 +1727,9 @@ export default {
   "Refeito": "Redone",
   "venceu «{d}»": "“{d}” won",
   "«{d}» venceu no turno {t}": "“{d}” won on turn {t}",
+  "O que é o Universo?": "What is the Universe?",
+  "Cada ponto é uma carta. Cartas com texto e funções parecidas ficam perto umas das outras; o teu deck brilha como uma constelação.": "Each dot is a card. Cards with similar text and roles sit close together; your deck shines as a constellation.",
+  "Serve para descobrir cartas à volta das tuas: as sugestões pulsam ligadas à carta com que combinam. Clique para ver, duplo clique para juntar ao deck; arrasta para rodar e usa a roda para aproximar.": "Use it to discover cards around yours: suggestions pulse, linked to the card they work with. Click to view, double-click to add to the deck; drag to rotate and scroll to zoom.",
+  "? O que é o Universo": "? What is the Universe",
+  "(deck médio)": "(average deck)",
 }
