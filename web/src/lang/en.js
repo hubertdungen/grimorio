@@ -1754,4 +1754,8 @@ export default {
   "As apostas no campeão já fecharam.": "Champion bets are closed.",
   "As apostas nesta partida já fecharam.": "Bets on this match are closed.",
   "Esse deck já não pode ganhar o torneio.": "That deck can no longer win the tournament.",
+  "{n} torneio ganho|{n} torneios ganhos": "{n} tournament won|{n} tournaments won",
+  "{n} decks": "{n} decks",
+  "2.º: {d}": "2nd: {d}",
+  "Não conta: a lista mudou {p} desde esta vitória (máx. 10%)": "Doesn't count: the list changed {p} since this win (max 10%)",
 }

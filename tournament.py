@@ -570,10 +570,51 @@ def public(row):
             "podium": st.get("podium") or (podium(st) if st.get("champion") is not None else None)}
 
 
+def similarity(a, b):
+    """Semelhança entre duas listas (0–1): soma dos mínimos / soma dos máximos das quantidades de cada carta, o
+    comandante conta como uma cópia (o mesmo que web/src/DeckCompare.jsx)."""
+    def q(d):
+        m = dict(d.get("main") or {})
+        for n in d.get("commanders") or []:
+            m[n] = m.get(n, 0) + 1
+        return m
+    A, B = q(a), q(b)
+    hi = sum(max(A.get(n, 0), B.get(n, 0)) for n in set(A) | set(B))
+    return sum(min(A.get(n, 0), B.get(n, 0)) for n in set(A) | set(B)) / hi if hi else 0.0
+
+
+SAME = 0.9  # um troféu conta enquanto a lista de hoje tiver ≥ 90% da que ganhou (mudou no máximo 10%)
+
+
+def trophies(con, owner):
+    """{id do deck: [torneios que ganhou, do mais recente]}: resumo de cada um (data, tipo, formato, nº de decks, registo
+    do campeão, 2.º lugar) e `same` = semelhança da lista de hoje com a que ganhou; `valid` = same ≥ SAME."""
+    cur = {i: json.loads(b or "{}") for i, b in con.execute(
+        "SELECT id, body FROM decks WHERE owner=? AND (deleted IS NULL OR deleted=0)", (owner,))}
+    out = {}
+    for tid, ts, name, typ, fmt, raw in con.execute("SELECT id, ts, name, type, format, state FROM tournaments"
+                                                    " WHERE owner=? AND status='done' ORDER BY ts DESC", (owner,)):
+        st = json.loads(raw)
+        c = st.get("champion")
+        p = c is not None and st["players"][c]
+        if not p or p.get("src") != "meus" or p.get("ref") not in cur or not st.get("decks"):
+            continue
+        row = next((x for x in standings(st) if x["i"] == c), {})
+        same = round(similarity(st["decks"][c], cur[p["ref"]]), 3)
+        out.setdefault(p["ref"], []).append({
+            "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "casual": bool(st.get("casual")),
+            "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
+            "second": [x["name"] for x in podium(st) if x["place"] == 2], "same": same, "valid": same >= SAME})
+    return out
+
+
 def route(method, path, owner, body=None):
     """/api/tournaments… -> (código, objeto)."""
     parts = path.split("?")[0].strip("/").split("/")[2:]
     tid = parts[0] if parts and len(parts[0]) == 12 and parts[0].isalnum() else None
+    if method == "GET" and parts == ["trophies"]:
+        with db() as con:
+            return 200, trophies(con, owner)
     if parts and not tid:
         return 404, {"erro": "não existe"}
     if method == "POST" and not parts:
@@ -1127,6 +1168,8 @@ def selfcheck():
     d2 = apply_swaps(deck, sw)
     assert d2["main"] == {"Bear": 4, "Shatter": 2} and d2["side"] == {"Shatter": 1, "Fog": 2, "Dragon": 2} and deck["main"]["Dragon"] == 2
     bets_selfcheck(rng)
+    assert similarity({"main": {"A": 4, "B": 4}}, {"main": {"A": 4, "B": 4}}) == 1
+    assert similarity({"main": {"A": 4, "B": 4}, "commanders": ["C"]}, {"main": {"A": 4, "B": 3, "D": 1}, "commanders": ["C"]}) == 8 / 10
     print("selfcheck ok")
 
 

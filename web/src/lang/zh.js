@@ -1746,4 +1746,8 @@ export default {
   "As apostas no campeão já fecharam.": "冠军下注已截止。",
   "As apostas nesta partida já fecharam.": "这场比赛的下注已截止。",
   "Esse deck já não pode ganhar o torneio.": "这副套牌已无法赢得赛事。",
+  "{n} torneio ganho|{n} torneios ganhos": "赢得 {n} 个赛事|赢得 {n} 个赛事",
+  "{n} decks": "{n} 副套牌",
+  "2.º: {d}": "亚军：{d}",
+  "Não conta: a lista mudou {p} desde esta vitória (máx. 10%)": "不计入：自这次夺冠后牌表已改动 {p}（上限 10%）",
 }

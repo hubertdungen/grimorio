@@ -1746,4 +1746,8 @@ export default {
   "As apostas no campeão já fecharam.": "Siegerwetten sind geschlossen.",
   "As apostas nesta partida já fecharam.": "Wetten auf dieses Match sind geschlossen.",
   "Esse deck já não pode ganhar o torneio.": "Dieses Deck kann das Turnier nicht mehr gewinnen.",
+  "{n} torneio ganho|{n} torneios ganhos": "{n} Turnier gewonnen|{n} Turniere gewonnen",
+  "{n} decks": "{n} Decks",
+  "2.º: {d}": "2.: {d}",
+  "Não conta: a lista mudou {p} desde esta vitória (máx. 10%)": "Zählt nicht: die Liste hat sich seit diesem Sieg um {p} geändert (max. 10 %)",
 }

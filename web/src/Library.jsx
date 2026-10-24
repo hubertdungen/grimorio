@@ -1,5 +1,6 @@
 // Biblioteca: os meus decks (abrir, duplicar, testar), o lixo (restaurar) e decks do meta para guardar como meus.
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT } from './formats.js'
 import { Empty, Mana, Stars } from './ui.jsx'
 import { img, HUE, coverOf, colorsOf } from './data.js'
@@ -17,7 +18,43 @@ function DeckRating({ d, rt, rtc }) {
   return <span className="dbox-rt"><Stars r={rt} />{rtc && <small className="cas-st" title={tx('Rating casual (jogos em modo casual, com decks de todos os formatos): {s} de 6 estrelas · {n} jogos', { s: num(rtc.stars, 1), n: rtc.games }) + (rtc.prov ? tx(' · provisório') : '')}>casual ★{num(rtc.stars, 1)}</small>}</span>
 }
 
-function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rtc, selected, onSelect, onFav, onDelete }) {
+// Troféus: torneios que o deck ganhou (até 3 sobrepostos e «+N»); passar o rato ou tocar mostra a lista.
+// Um troféu só conta enquanto a lista não mudar mais de 10% da que ganhou (tournament.py trophies).
+function Trophies({ list }) {
+  const [open, setOpen] = useState(null)  // posição no ecrã (o cartão do deck corta o que sai dele)
+  useEffect(() => {  // fecha ao tocar fora ou ao rolar a página (está preso ao ecrã)
+    if (!open) return
+    const c = e => { if (!e.target.closest?.('.tro')) setOpen(null) }
+    const off = () => setOpen(null)
+    document.addEventListener('pointerdown', c); addEventListener('scroll', off, true)
+    return () => { document.removeEventListener('pointerdown', c); removeEventListener('scroll', off, true) }
+  }, [open])
+  if (!list?.length) return null
+  const show = e => { const r = e.currentTarget.getBoundingClientRect(); setOpen({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left - 8, innerWidth - 330)) }) }
+  const ok = list.filter(x => x.valid), shown = ok.length ? ok : list.slice(0, 1)
+  return (
+    <span className={`tro ${ok.length ? '' : 'lost'}`} onMouseEnter={show} onMouseLeave={() => setOpen(null)}>
+      <button className="tro-ic" onClick={e => { e.stopPropagation(); if (open) setOpen(null); else show({ currentTarget: e.currentTarget.parentNode }) }} aria-expanded={!!open}
+        aria-label={tx('{n} torneio ganho|{n} torneios ganhos', { n: ok.length })}>
+        {shown.slice(0, 3).map((x, k) => <i key={x.tid} style={{ zIndex: 3 - k }}>🏆</i>)}
+        {shown.length > 3 && <small>+{shown.length - 3}</small>}
+      </button>
+      {open && createPortal(
+        <span className="tro-pop" role="tooltip" style={open}>
+          <b>{tx('{n} torneio ganho|{n} torneios ganhos', { n: ok.length })}</b>
+          {list.map(x => (
+            <span key={x.tid} className={`tro-row ${x.valid ? '' : 'off'}`}>
+              <span>🏆 {x.name}</span>
+              <small>{new Date(x.ts * 1000).toLocaleDateString(LOCALE)} · {tx('{n} decks', { n: x.n })} · {tx('{v}V {d}D', { v: x.rec[0], d: x.rec[1] })}{x.rec[2] ? ` ${x.rec[2]}E` : ''}{x.second.length ? ` · ${tx('2.º: {d}', { d: x.second.join(', ') })}` : ''}</small>
+              {!x.valid && <small className="tro-why">{tx('Não conta: a lista mudou {p} desde esta vitória (máx. 10%)', { p: `${Math.round((1 - x.same) * 100)}%` })}</small>}
+            </span>
+          ))}
+        </span>, document.body)}
+    </span>
+  )
+}
+
+function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rtc, tro, selected, onSelect, onFav, onDelete }) {
   const [link, setLink] = useState('')
   const [pick, setPick] = useState(false)
   const c = coverOf(d, data), cols = colorsOf(d, data)
@@ -38,7 +75,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
       </button>
       <div className="dbox-body">
         <b title={d.name}>{d.name}</b>
-        <span className="dbox-meta">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><DeckRating d={d} rt={rt} rtc={rtc} /></span>
+        <span className="dbox-meta">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><Trophies list={tro} /><DeckRating d={d} rt={rt} rtc={rtc} /></span>
         <span className="row-btns">
           <button onClick={() => open('deck')}>{tx('Abrir')}</button>
           <button onClick={() => open('teste')} title={tx('Testar no Forge')}>⚔</button>
@@ -72,6 +109,8 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '' }
   const [meta, setMeta] = useState([])
   const [busy, setBusy] = useState('')
   const [rt, setRt] = useState({})  // estrelas dos ratings
+  const [tro, setTro] = useState({})  // troféus por deck
+  useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const [view, setView] = useState(() => ls('grimorio.lib.view') || 'grelha')
   const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false), [del, setDel] = useState(null)
   const toggleSel = id => setSel(s => (s.includes(id) ? s.filter(x => x !== id) : s.length >= 3 ? [...s.slice(1), id] : [...s, id]))
@@ -160,10 +199,11 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '' }
             <button className="fmt-head" onClick={() => setClosed(c => { const n = { ...c }; if (n[f]) delete n[f]; else n[f] = 1; return n })} aria-expanded={!closed[f]}>
               <i className="chev">▾</i><b>{fname(f)}</b><span className="muted">{ds.length} {ds.length === 1 ? 'deck' : 'decks'}</span><span className="fmt-line" />
             </button>
-            {view === 'grelha' ? <div className="dgrid">{ds.map(d => <DeckBox key={d.id} d={d} data={data} openDeck={openDeck} goTab={goTab} duplicate={duplicate} setCover={setCover} setImg={setImg} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} selected={sel.includes(d.id)} onSelect={toggleSel} onFav={toggleFav} onDelete={setDel} />)}</div> : <ul className="lib-list">{ds.map(d => (
+            {view === 'grelha' ? <div className="dgrid">{ds.map(d => <DeckBox key={d.id} d={d} data={data} openDeck={openDeck} goTab={goTab} duplicate={duplicate} setCover={setCover} setImg={setImg} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} tro={tro[d.id]} selected={sel.includes(d.id)} onSelect={toggleSel} onFav={toggleFav} onDelete={setDel} />)}</div> : <ul className="lib-list">{ds.map(d => (
               <li key={d.id}>
                 <button className="link plain" onClick={() => openDeck(d.id).then(() => goTab('deck'))}><b>{d.name}</b></button>
                 <span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span>
+                <Trophies list={tro[d.id]} />
                 <DeckRating d={d} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} />
                 <span className="row-btns">
                   <button onClick={() => openDeck(d.id).then(() => goTab('deck'))}>{tx('Abrir')}</button>

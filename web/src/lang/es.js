@@ -1746,4 +1746,8 @@ export default {
   "As apostas no campeão já fecharam.": "Las apuestas al campeón ya cerraron.",
   "As apostas nesta partida já fecharam.": "Las apuestas en esta partida ya cerraron.",
   "Esse deck já não pode ganhar o torneio.": "Ese mazo ya no puede ganar el torneo.",
+  "{n} torneio ganho|{n} torneios ganhos": "{n} torneo ganado|{n} torneos ganados",
+  "{n} decks": "{n} mazos",
+  "2.º: {d}": "2.º: {d}",
+  "Não conta: a lista mudou {p} desde esta vitória (máx. 10%)": "No cuenta: la lista cambió un {p} desde esta victoria (máx. 10%)",
 }
