@@ -1234,3 +1234,9 @@ button.brand { padding: 0; border: 0; background: none; text-align: left; } butt
 .home-card small { position: absolute; top: 10px; right: 12px; color: var(--gold2); font-size: 11px; }
 .home-foot { margin: 0; text-align: center; }
 .rp-zoom { display: inline-flex; gap: 2px; } .rp-zoom button { min-width: 34px; padding: 4px 8px; } @media (max-width: 900px) { .rp-zoom { display: none; } }
+/* torneio: o conteúdo de cada caixa de participante fica dentro da caixa */
+.tp-body { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.tp-body > * { min-width: 0; max-width: 100%; }
+.tp-body .dbox-meta { flex-wrap: wrap; row-gap: 2px; }
+.tp-body select { width: 100%; text-overflow: ellipsis; }
+.tp-body .row-btns { flex-wrap: wrap; }
