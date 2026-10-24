@@ -84,7 +84,9 @@ Games that are being played stop too. Your decks are saved as you go: nothing is
 | Linux | `~/.local/share/grimorio` |
 
 Your decks, profiles, tests, tournaments and ratings are in **`grimorio.db`** in that folder, and your own deck covers
-are in `covers`. To make a backup, copy those two (with Grimório stopped).
+are in `covers`. To make a backup, use **Settings › Data & backups › Export everything** (one `.grimorio` file you can
+keep anywhere); to keep two computers in step, or to keep a copy in Google Drive, OneDrive, Dropbox or Syncthing, tick
+*Sync with a cloud folder* there. Free options and 3-step guides: [Backups and cloud sync](../README.md#backups-and-cloud-sync).
 
 ## Updating
 

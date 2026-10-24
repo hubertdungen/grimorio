@@ -37,6 +37,43 @@ pruebas, torneos y ratings se guardan por separado. Varias personas pueden compa
 Si quieres instalarlo en un servidor doméstico para varios dispositivos, o desarrollarlo, consulta
 [Configuración para desarrolladores](#configuración-para-desarrolladores).
 
+## Copias y sincronización en la nube
+
+Todo lo que creas vive en tu propia instalación (`grimorio.db` en la carpeta de datos). Hay dos formas opcionales de
+guardarlo, ambas gratis y ambas en **Ajustes › Datos y copias**:
+
+- **Exportar todo** descarga un archivo `.grimorio` (mazos, perfiles, pruebas, torneos, apuestas, ratings y las
+  portadas de tus mazos). **Importar** lo restaura: por defecto *fusiona* (no se pierde nada, gana la versión más reciente
+  de cada mazo) o *sustituye* todo; antes guarda siempre tus datos actuales al lado (`grimorio.db.before-import-…`).
+- **Sincronizar con una carpeta en la nube** mantiene varios ordenadores al día con cualquier app gratuita que sincronice
+  una carpeta. Grimório trabaja siempre sobre su copia local, así que funciona sin conexión (en un avión, p. ej.): la app
+  sube y baja los cambios cuando vuelve la conexión. Cada ordenador escribe solo su archivo en esa carpeta y fusiona los
+  de los demás.
+
+| App gratuita | Espacio gratis | Cuenta | Windows / macOS / Linux / Android |
+|---|---|---|---|
+| Google Drive para ordenador | 15 GB (compartidos con Gmail) | Google | ✓ / ✓ / — (usa Syncthing o Nextcloud) / app |
+| OneDrive | 5 GB | Microsoft | ✓ (incluido) / ✓ / cliente no oficial / app |
+| Dropbox | 2 GB | Dropbox | ✓ / ✓ / ✓ / app |
+| Syncthing | ilimitado (sin nube: tus dispositivos se sincronizan directamente) | ninguna | ✓ / ✓ / ✓ / Syncthing-Fork |
+| Nextcloud | según el proveedor, o tu propio servidor | Nextcloud | ✓ / ✓ / ✓ / app |
+| iCloud Drive | 5 GB | Apple | iCloud para Windows / ✓ / — / — |
+
+**Google Drive en 3 pasos.** 1) Instala *Google Drive para ordenador* e inicia sesión (en Windows aparece la unidad `G:`
+con *Mi unidad*). 2) En Grimório: Ajustes › Datos y copias › marca *Sincronizar con una carpeta en la nube*, elige la
+sugerencia *Google Drive* (`G:\Mi unidad\Grimorio`) y pulsa *Usar esta carpeta*. 3) En el otro ordenador, la misma
+cuenta de Google y la misma carpeta. Listo.
+
+**Syncthing en 3 pasos** (sin cuenta, nada en la nube de nadie). 1) Instala Syncthing en los dos dispositivos
+([syncthing.net](https://syncthing.net); en Android: *Syncthing-Fork*). 2) Añade cada dispositivo al otro y comparte una
+carpeta, p. ej. `~/Sync/Grimorio`. 3) Elige esa carpeta en Grimório en los dos. Se sincronizan cuando ambos están
+encendidos.
+
+Si el mismo mazo cambió en dos ordenadores entre sincronizaciones, gana el más reciente y el otro se guarda como
+*«nombre (conflito)»*: nunca se pierde una versión. Un torneo que sigue en curso llega en pausa al otro ordenador (solo
+uno lo juega a la vez). En un servidor con inicio de sesión, cada persona exporta e importa solo sus datos; la carpeta
+en la nube es para ordenadores y servidores de un solo dueño.
+
 ## Funciones
 
 - **Construcción de mazos para todos los formatos**: legalidad, objetivos propios de cada formato, consejos de base
@@ -116,6 +153,7 @@ escritorio: `packaging/build.py` y `.github/workflows/release.yml`.
 | Ruta | Qué es |
 |---|---|
 | `server.py` | servidor HTTP con la stdlib: API, mazos (SQLite), perfiles, importaciones, proxies |
+| `backup.py` | exportar/importar copias `.grimorio` y la sincronización opcional por carpeta en la nube (reglas de fusión, ratings recalculados) |
 | `sim.py`, `build/forge/` | ejecutor de Forge (Docker o Java local) y el lanzador `GrimorioSim` (eventos exactos de la partida, ajustes de la IA, pistas de IA por carta) |
 | `tournament.py`, `ratings.py` | torneos y ratings / Arena |
 | `deck_import.py`, `ia.py`, `play.py` | importadores de webs, proveedores de IA opcionales, jugar contra Forge (noVNC, solo con Docker) |

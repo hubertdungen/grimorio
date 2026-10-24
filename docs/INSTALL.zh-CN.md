@@ -84,6 +84,10 @@ Grimório 在你自己的电脑上运行：一个小程序负责启动它，你�
 你的套牌、档案、测试、赛事和评分都保存在该文件夹中的 **`grimorio.db`** 里，你自己的套牌封面在 `covers` 里。
 要备份的话，复制这两样即可（先关闭 Grimório）。
 
+**备份与云端：** 在 **设置 › 数据与备份** 中可把全部内容导出为一个 `.grimorio` 文件，或连接 Google 云端硬盘、
+OneDrive、Dropbox、Syncthing 的文件夹，让两台电脑保持一致（离线可用，联网后同步）。免费方案和 3 步指南：
+[备份与云同步](../README.zh-CN.md#备份与云同步)。
+
 ## 更新
 
 1. 按上面的方法从 [Releases](https://github.com/hubertdungen/grimorio/releases) 下载新版本。

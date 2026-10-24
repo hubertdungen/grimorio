@@ -37,6 +37,44 @@ Turniere und Ratings bleiben getrennt. Mehrere Leute können sich eine Installat
 Du willst Grimório auf einem Heimserver für mehrere Geräte betreiben oder daran mitentwickeln? Dann lies
 [Entwickler-Setup](#entwickler-setup).
 
+## Sicherungen und Cloud-Sync
+
+Alles, was du erstellst, liegt in deiner eigenen Installation (`grimorio.db` im Datenordner). Es gibt zwei optionale,
+kostenlose Wege, es zu sichern, beide unter **Einstellungen › Daten & Sicherungen**:
+
+- **Alles exportieren** lädt eine `.grimorio`-Datei herunter (Decks, Profile, Tests, Turniere, Wetten, Ratings und
+  deine Deck-Cover). **Importieren** stellt sie wieder her: standardmäßig wird *zusammengeführt* (nichts geht verloren,
+  die neueste Version jedes Decks gewinnt) oder alles *ersetzt*; deine aktuellen Daten werden vorher immer daneben
+  gesichert (`grimorio.db.before-import-…`).
+- **Mit einem Cloud-Ordner synchronisieren** hält mehrere Computer auf dem gleichen Stand – mit jeder kostenlosen App,
+  die einen Ordner synchronisiert. Grimório arbeitet immer mit seiner lokalen Kopie und funktioniert daher auch offline
+  (z. B. im Flugzeug): die App lädt die Änderungen hoch und herunter, sobald du wieder online bist. Jeder Computer
+  schreibt nur seine eigene Datei in diesen Ordner und führt die der anderen zusammen.
+
+| Kostenlose App | Freier Speicher | Konto | Windows / macOS / Linux / Android |
+|---|---|---|---|
+| Google Drive für den Computer | 15 GB (mit Gmail geteilt) | Google | ✓ / ✓ / — (Syncthing oder Nextcloud nehmen) / App |
+| OneDrive | 5 GB | Microsoft | ✓ (eingebaut) / ✓ / inoffizieller Client / App |
+| Dropbox | 2 GB | Dropbox | ✓ / ✓ / ✓ / App |
+| Syncthing | unbegrenzt (keine Cloud: deine Geräte synchronisieren direkt) | keins | ✓ / ✓ / ✓ / Syncthing-Fork |
+| Nextcloud | je nach Anbieter, oder dein eigener Server | Nextcloud | ✓ / ✓ / ✓ / App |
+| iCloud Drive | 5 GB | Apple | iCloud für Windows / ✓ / — / — |
+
+**Google Drive in 3 Schritten.** 1) *Google Drive für den Computer* installieren und anmelden (unter Windows erscheint
+das Laufwerk `G:` mit *Meine Ablage*). 2) In Grimório: Einstellungen › Daten & Sicherungen › *Mit einem Cloud-Ordner
+synchronisieren* ankreuzen, den Vorschlag *Google Drive* (`G:\My Drive\Grimorio`) wählen und *Diesen Ordner
+verwenden* drücken. 3) Auf dem anderen Computer dasselbe Google-Konto und denselben Ordner. Fertig.
+
+**Syncthing in 3 Schritten** (kein Konto, nichts in fremden Clouds). 1) Syncthing auf beiden Geräten installieren
+([syncthing.net](https://syncthing.net); Android: *Syncthing-Fork*). 2) Die Geräte gegenseitig hinzufügen und einen
+Ordner teilen, z. B. `~/Sync/Grimorio`. 3) Diesen Ordner in Grimório auf beiden wählen. Synchronisiert wird, wenn beide
+eingeschaltet sind.
+
+Wurde dasselbe Deck zwischen zwei Syncs auf zwei Computern geändert, gewinnt die neueste Version, die andere bleibt als
+*„Name (conflito)“* erhalten – keine Version geht verloren. Ein laufendes Turnier kommt auf dem anderen Computer
+pausiert an (nur einer spielt es zur gleichen Zeit). Auf einem Server mit Login exportiert und importiert jede Person
+nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem Besitzer gedacht.
+
 ## Funktionen
 
 - **Deckbau für alle Formate** – Legalität, formatspezifische Zielwerte, Tipps zur Manabasis, Kurve, Budget, Brackets.
@@ -113,6 +151,7 @@ kopiert wurden; die Pakete erledigen das. Desktop-Pakete: `packaging/build.py` u
 | Pfad | Was |
 |---|---|
 | `server.py` | HTTP-Server nur mit der Standardbibliothek: API, Decks (SQLite), Profile, Importe, Proxys |
+| `backup.py` | `.grimorio`-Sicherungen exportieren/importieren und der optionale Cloud-Ordner-Sync (Zusammenführungsregeln, Ratings neu berechnet) |
 | `sim.py`, `build/forge/` | Forge-Runner (Docker oder lokales Java) und der Launcher `GrimorioSim` (exakte Spielereignisse, KI-Anpassungen, KI-Hinweise pro Karte) |
 | `tournament.py`, `ratings.py` | Turniere und Ratings / Arena |
 | `deck_import.py`, `ia.py`, `play.py` | Importer für Websites, optionale KI-Anbieter, gegen Forge spielen (noVNC, nur Docker) |

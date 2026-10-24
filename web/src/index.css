@@ -1391,3 +1391,18 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .library h3 { flex-wrap: wrap; row-gap: 6px; }
 .lib-sort { margin-left: auto; width: auto; max-width: 100%; font-size: 12.5px; padding: 4px 8px; }
 .lib-sort + .seg { margin-left: 6px !important; }
+
+/* Definições › Dados e cópias (exportar/importar, pasta na nuvem) e a dica da Biblioteca */
+.set-data { display: grid; gap: 10px; }
+.set-data p { margin: 0; }
+.set-data .btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 11px; color: inherit; text-decoration: none; transition: background .15s, border-color .15s; }
+.set-data .btn:hover { border-color: #4a4272; background: #29234a; }
+.set-data .btn.off { opacity: .5; pointer-events: none; }
+.set-sync { display: grid; gap: 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #ffffff05; }
+.set-folder { display: flex; flex-wrap: wrap; gap: 6px; } .set-folder input { flex: 1 1 260px; min-width: 0; }
+.set-status { margin: 0; padding-left: 18px; display: grid; gap: 3px; overflow-wrap: anywhere; }
+.good-t { color: #7ee2a8; }
+.sync-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0; padding: 7px 11px; border-radius: 10px;
+  border: 1px solid rgba(110, 231, 249, .35); background: rgba(110, 231, 249, .06); }
+.sync-hint button { margin-left: auto; }

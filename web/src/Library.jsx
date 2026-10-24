@@ -8,6 +8,7 @@ import ProfileImport from './ProfileImport.jsx'
 import DeckSearch from './DeckSearch.jsx'
 import DeckCompare, { ConfirmDelete, similarity } from './DeckCompare.jsx'
 import { tx, num, LOCALE } from './i18n.js'
+import { SyncHint } from './Settings.jsx'
 
 const META_FMTS = ['commander', 'duel', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'premodern']
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
@@ -201,6 +202,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '' }
               ['trofeus', tx('Ordenar: torneios ganhos')]].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
           <span className="seg small">{[['grelha', tx('▦ Grelha')], ['lista', tx('☰ Lista')]].map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}</span></h3>
+        <SyncHint />
         {!mine.length && <Empty>{tx('Ainda não tens decks guardados. Usa «✦ Novo deck» ou guarda um do meta abaixo.')}</Empty>}
         {sel.length > 0 && <div className="cmp-bar">
           <b>{tx('{n} deck selecionado|{n} decks selecionados', { n: sel.length })}</b><span className="muted small">{tx('escolhe 2 ou 3 para comparar')}</span>

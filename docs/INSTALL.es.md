@@ -92,6 +92,10 @@ Las partidas que se estén jugando también se detienen. Tus mazos se guardan so
 Tus mazos, perfiles, pruebas, torneos y ratings están en **`grimorio.db`**, dentro de esa carpeta, y las portadas de
 mazo que hayas puesto tú están en `covers`. Para hacer una copia de seguridad, copia esos dos (con Grimório detenido).
 
+**Copias y nube:** en **Ajustes › Datos y copias** exportas todo a un archivo `.grimorio` o conectas una carpeta de
+Google Drive, OneDrive, Dropbox o Syncthing para mantener dos ordenadores iguales (funciona sin conexión y sincroniza
+después). Opciones gratuitas y guías en 3 pasos: [Copias y sincronización en la nube](../README.es.md#copias-y-sincronización-en-la-nube).
+
 ## Actualizar
 
 1. Descarga la nueva versión desde [Releases](https://github.com/hubertdungen/grimorio/releases), como antes.
