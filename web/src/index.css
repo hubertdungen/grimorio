@@ -1331,12 +1331,13 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
    Cada fila reserva a carta + as etiquetas (marcadores por cima, F/R por baixo) e não muda de linha:
    com muitas cartas os grupos encolhem e sobrepõem-se um pouco. */
 @media (min-width: 901px) {
-  .coliseu .brow.front { height: calc(var(--cw) * 1.4 + 30px); min-height: 0; flex-wrap: nowrap; }
+  .coliseu .brow.front { height: calc(var(--cw) * 1.85); min-height: 0; flex-wrap: nowrap; }  /* carta + ~0,45 dela para as etiquetas */
   .coliseu .brow.rear { min-height: calc(var(--lw) * 1.4 + 10px); flex-wrap: nowrap; }
   .coliseu .brow.lands, .coliseu .brow.others { flex-wrap: nowrap; min-width: 0; }
   .coliseu .brow > .grp { flex: 0 1 auto; min-width: 0; }
   .coliseu .ribbon > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .coliseu .bmid { height: 66px; min-height: 0; }  /* cabe a pilha (cartas lançadas) sem a faixa crescer */
+  .coliseu .bmid { height: calc(var(--cw) * .85 + 14px); min-height: 0; }  /* cabe a pilha (cartas lançadas) sem a faixa crescer */
+  .coliseu .stack .stk { width: calc(var(--cw) * .6); }
   /* a zona de cada jogador guarda o lugar da mão mesmo vazia */
   .coliseu .bside.top .bhud { min-height: calc(var(--ohw) * 1.4 + 34px); }
   .coliseu .bside.bottom .bhud { min-height: calc(var(--hw) * 1.4 + 18px); }
