@@ -463,7 +463,20 @@ function showPeek(e, c, pid) {
   peekEl.style.top = `${Math.min(window.innerHeight - 350, Math.max(8, r.top - 120))}px`
   peekEl.style.left = `${r.right + 12}px`
   peekEl.style.display = 'block'
+  watchPeek(peekEl, e.currentTarget)
 }
+// o pré-visualizador fecha-se se a linha por baixo desaparecer (ex.: «−» tirou a última cópia), a qualquer clique ou scroll
+let peekAnchor, peekTimer
+function watchPeek(el, a) {
+  peekAnchor = a
+  if (!window.__peekGuard) {
+    window.__peekGuard = true
+    for (const ev of ['pointerdown', 'scroll', 'keydown']) addEventListener(ev, () => document.querySelectorAll('img.peek').forEach(p => { p.style.display = 'none' }), true)
+  }
+  clearInterval(peekTimer)
+  peekTimer = setInterval(() => { if (!peekAnchor?.isConnected || !peekAnchor.matches(':hover')) { el.style.display = 'none'; clearInterval(peekTimer) } }, 250)
+}
+
 function hidePeek() { if (peekEl) peekEl.style.display = 'none' }
 
 function ImportDialog({ data, deck, setDeck, say, onClose, onImported }) {

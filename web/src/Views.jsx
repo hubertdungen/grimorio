@@ -450,7 +450,20 @@ function showCardPeek(e, c, pid) {
   peek.style.top = `${Math.min(window.innerHeight - 350, Math.max(8, r.top - 120))}px`
   peek.style.left = `${Math.min(window.innerWidth - 250, r.right + 12)}px`
   peek.style.display = 'block'
+  watchPeek(peek, e.currentTarget)
 }
+// o pré-visualizador fecha-se se a linha por baixo desaparecer (ex.: «−» tirou a última cópia), a qualquer clique ou scroll
+let peekAnchor, peekTimer
+function watchPeek(el, a) {
+  peekAnchor = a
+  if (!window.__peekGuard) {
+    window.__peekGuard = true
+    for (const ev of ['pointerdown', 'scroll', 'keydown']) addEventListener(ev, () => document.querySelectorAll('img.peek').forEach(p => { p.style.display = 'none' }), true)
+  }
+  clearInterval(peekTimer)
+  peekTimer = setInterval(() => { if (!peekAnchor?.isConnected || !peekAnchor.matches(':hover')) { el.style.display = 'none'; clearInterval(peekTimer) } }, 250)
+}
+
 function hideCardPeek() { if (peek) peek.style.display = 'none' }
 
 const inDeck = (deck, n) => (deck.main[n] || 0) + (deck.side[n] || 0) + (deck.commanders.includes(n) ? 1 : 0) + (deck.signature === n ? 1 : 0)
