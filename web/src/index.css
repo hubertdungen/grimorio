@@ -1421,3 +1421,6 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .sync-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 8px 0; padding: 7px 11px; border-radius: 10px;
   border: 1px solid rgba(110, 231, 249, .35); background: rgba(110, 231, 249, .06); }
 .sync-hint button { margin-left: auto; }
+
+/* capa com a arte própria do site (é a carta inteira): mostra a zona da ilustração */
+.dbox-art img.own-art { object-position: 50% 15%; }

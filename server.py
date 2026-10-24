@@ -265,7 +265,7 @@ class H(BaseHTTPRequestHandler):
                 d = json.loads(r[4])
                 out.append({"id": r[0], "name": r[1], "format": r[2], "updated": r[3], "deleted": r[5], "count": d.get("count", 0), "created": d.get("created") or r[3],
                             "cover": d.get("cover"), "coverImg": d.get("coverImg"), "fav": bool(d.get("fav")), "casual": bool(d.get("casual")), "commanders": d.get("commanders") or [], "seeds": (d.get("seeds") or [])[:3],
-                            "main": d.get("main") or {}})
+                            "main": d.get("main") or {}, **({"art": d["art"]} if d.get("art") else {})})  # artes próprias (capa)
             return self.json(out)
         if p == "/api/me":  # nome para mostrar (o do perfil, nunca o id interno)
             return self.json({"user": (self.profile() or {}).get("name") if self.mode() == "profiles" else self.owner()})

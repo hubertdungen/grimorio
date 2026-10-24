@@ -86,7 +86,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
       <label className="dbox-check" title={tx('Selecionar para comparar')}><input type="checkbox" checked={!!selected} onChange={() => onSelect(d.id)} /></label>
       <button className={`dbox-fav ${d.fav ? 'on' : ''}`} onClick={() => onFav(d)} title={d.fav ? tx('Tirar dos favoritos') : tx('Pôr nos favoritos')}>{d.fav ? '★' : '☆'}</button>
       <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
-        {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
+        {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
         <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}</span>
       </button>
       <div className="dbox-body">
