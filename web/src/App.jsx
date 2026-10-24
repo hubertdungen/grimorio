@@ -276,11 +276,13 @@ export default function App() {
     return { ...d, prints, art }
   }), [setDeck])
 
-  const act = useMemo(() => ({ add, move, setCommander, toggleSeed, setSignature, setPrint, setPrefs, open: setOpen, say, pickArt: setArtCard,
+  // imagem própria de uma carta (link ou carregada): fica em deck.art e ganha à edição escolhida; url vazio tira-a
+  const setArt = useCallback((n, url) => setDeck(d => { const art = { ...(d.art || {}) }; if (url) art[n] = url; else delete art[n]; return { ...d, art } }), [setDeck])
+  const act = useMemo(() => ({ add, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setPrefs, open: setOpen, say, pickArt: setArtCard,
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
-  [add, move, setCommander, toggleSeed, setSignature, setPrint, setPrefs, say, setDeck, undo, redo])
+  [add, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setPrefs, say, setDeck, undo, redo])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const openDeck = async id => {

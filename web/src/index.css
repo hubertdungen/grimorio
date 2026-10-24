@@ -1437,3 +1437,7 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .cutp-card span { display: grid; min-width: 0; } .cutp-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cutp-card:not(.in) > img { filter: saturate(.6); }
 .cutp-arrow { color: var(--gold2); font-size: 18px; }
+/* imagem própria das cartas (escolher arte) */
+.ownart { margin-top: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); display: grid; gap: 6px; }
+.ownart summary { cursor: pointer; } .ownart input:not([type=file]) { flex: 1 1 200px; min-width: 0; }
+.ownart textarea { width: 100%; font: 12px/1.4 monospace; }

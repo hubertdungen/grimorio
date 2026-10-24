@@ -83,6 +83,10 @@ def snapshot(data_dir, dest, owner=None, device=""):
             for f in sorted(os.listdir(cdir)) if os.path.isdir(cdir) else []:
                 if COVER.match(f) and (mine is None or f.split(".")[0] in mine):
                     z.write(os.path.join(cdir, f), f"covers/{f}")
+            adir = os.path.join(data_dir, "arts")  # imagens próprias das cartas (pelo conteúdo: podem ir todas)
+            for f in sorted(os.listdir(adir)) if os.path.isdir(adir) else []:
+                if ART.match(f):
+                    z.write(os.path.join(adir, f), f"arts/{f}")
         try:
             os.replace(tmpzip, dest)
         except OSError:
@@ -120,6 +124,22 @@ def open_zip(path, data_dir):
         raise
 
 
+ART = re.compile(r"^[a-f0-9]{20}\.(?:jpg|png|webp|gif)$")
+
+
+def _arts(z, data_dir):
+    """Imagens próprias das cartas: o nome é o conteúdo, por isso só se juntam as que faltam."""
+    adir, n = os.path.join(data_dir, "arts"), 0
+    for name in z.namelist():
+        f = name[len("arts/"):] if name.startswith("arts/") else ""
+        if ART.match(f) and not os.path.exists(os.path.join(adir, f)):
+            os.makedirs(adir, exist_ok=True)
+            with open(os.path.join(adir, f), "wb") as out:
+                out.write(z.read(name))
+            n += 1
+    return n
+
+
 def _covers(z, data_dir, owner_ids=None, overwrite=False):
     cdir = os.path.join(data_dir, "covers")
     n = 0
@@ -154,11 +174,12 @@ def import_file(data_dir, path, mode="merge", owner=None, since=None, keep=True)
                 src = sqlite3.connect(tmpdb)
                 src.backup(live)
                 src.close()
-                st = {"replaced": True, "covers": _covers(z, data_dir, overwrite=True)}
+                st = {"replaced": True, "covers": _covers(z, data_dir, overwrite=True), "arts": _arts(z, data_dir)}
             else:
                 st = merge(live, tmpdb, man.get("created", 0) if since is None else since, owner)
                 mine = {r[0] for r in live.execute("SELECT id FROM decks WHERE owner=?", (owner,))} if owner else None
                 st["covers"] = _covers(z, data_dir, mine)
+                st["arts"] = _arts(z, data_dir)
             live.commit()
             live.close()
         return {**st, "from": {k: man.get(k) for k in ("created", "device", "counts")}}

@@ -103,7 +103,7 @@ export function mainType(c) {
 // `pid`: id Scryfall de uma impressão escolhida (estilo alternativo); senão, a predefinida.
 // pid: id de uma impressão da Scryfall ou o link da arte própria do deck (https://…, ex.: alterada no TappedOut)
 export const img = (c, size = 'normal', back = false, pid = null) => {
-  if (pid?.startsWith('https:')) { if (!back) return pid; pid = null }
+  if (pid?.startsWith('https:') || pid?.startsWith('arts/')) { if (!back) return pid; pid = null }  // imagem própria (site de origem ou carregada)
   const id = pid || c.id
   return `https://cards.scryfall.io/${size}/${back ? 'back' : 'front'}/${id[0]}/${id[1]}/${id}.jpg`
 }

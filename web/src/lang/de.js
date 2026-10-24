@@ -1868,4 +1868,13 @@ export default {
   "OpenAI GPT (pago)": "OpenAI GPT (kostenpflichtig)",
   "DeepSeek (pago, barato)": "DeepSeek (kostenpflichtig, günstig)",
   "Anthropic Claude (pago, mais forte)": "Anthropic Claude (kostenpflichtig, am stärksten)",
+  "Escolhe um adversário ao acaso (do meta ou dos teus decks)": "Zufälligen Gegner wählen (Meta oder deine Decks)",
+  "{n} imagem própria ligada às cartas|{n} imagens próprias ligadas às cartas": "{n} eigenes Bild mit Karten verknüpft|{n} eigene Bilder mit Karten verknüpft",
+  "Imagem própria": "Eigenes Bild",
+  "(em uso)": "(in Verwendung)",
+  "Cola o link da imagem (https://…)": "Bildlink einfügen (https://…)",
+  "tirar a imagem própria": "eigenes Bild entfernen",
+  "Vários links de uma vez (para o deck todo)": "Mehrere Links auf einmal (für das ganze Deck)",
+  "Um link por linha. Cada um vai para a carta cujo nome aparece no endereço (como nos links do TappedOut); ou escreve «Nome da carta | link».": "Ein Link pro Zeile. Jeder geht an die Karte, deren Name in der Adresse steht (wie bei TappedOut-Links); oder schreibe „Kartenname | Link“.",
+  "Ligar às cartas": "Mit Karten verknüpfen",
 }

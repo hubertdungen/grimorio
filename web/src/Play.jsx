@@ -83,6 +83,7 @@ export default function PlayView({ deck, fmt, fromState = null }) {
               <option value="espelho:">{tx('O teu próprio deck (espelho)')}</option>
             </select>
           </label>
+          <button onClick={() => { const pool = [...opps.map(o => `meta:${o.id}`), ...mine.map(d => `meu:${d.id}`)]; if (pool.length) setOpp(pool[Math.floor(Math.random() * pool.length)]) }} title={tx('Escolhe um adversário ao acaso (do meta ou dos teus decks)')}>🎲 {tx('ao acaso')}</button>
           <label className="fmt"><span>{tx('Dificuldade da IA')}</span>
             <select value={diff} onChange={e => setDiff(e.target.value)}>
               {(diffs.length ? diffs : [{ id: 'default', label: 'Normal' }]).map(d => <option key={d.id} value={d.id}>{DIFF_INFO[d.id]?.label || d.label}</option>)}

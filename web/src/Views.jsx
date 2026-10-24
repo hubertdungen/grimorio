@@ -1475,6 +1475,46 @@ export function DeckGrid({ data, deck, fmt, act }) {
 }
 
 // Escolher a arte (edição/estilo) de uma carta: pré-visualização grande + todas as impressões.
+// Imagem própria: link (https) ou ficheiro carregado (POST /api/arts); «vários links» liga cada link à carta do deck
+// cujo nome aparece no endereço (como nos links do TappedOut: …/bloodthrone-vampire/…), ou a linhas «Nome | link».
+const slugOf = n => n.split(' // ')[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/['’,]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+function OwnArt({ c, deck, act }) {
+  const [link, setLink] = useState(''), [many, setMany] = useState(''), [err, setErr] = useState('')
+  const own = deck.art?.[c.n]
+  const up = async f => {
+    setErr('')
+    try { const r = await fetch('/api/arts', { method: 'POST', headers: { 'Content-Type': f.type }, body: f }); const j = await r.json(); if (!r.ok) throw new Error(j.erro); act.setArt(c.n, j.url) } catch (e) { setErr(e.message) }
+  }
+  const bulk = () => {
+    const names = [...(deck.commanders || []), ...Object.keys(deck.main || {}), ...Object.keys(deck.side || {})]
+    let n = 0
+    for (const line of many.split(/\n+/).map(x => x.trim()).filter(Boolean)) {
+      const [a, b] = line.includes('|') ? line.split('|').map(x => x.trim()) : [null, line]
+      if (!/^https:\/\//.test(b)) continue
+      const hit = a ? names.find(x => x.toLowerCase() === a.toLowerCase()) : names.filter(x => b.toLowerCase().includes(slugOf(x))).sort((p, q) => slugOf(q).length - slugOf(p).length)[0]
+      if (hit) { act.setArt(hit, b); n++ }
+    }
+    act.say(tx('{n} imagem própria ligada às cartas|{n} imagens próprias ligadas às cartas', { n })); if (n) setMany('')
+  }
+  return (
+    <details className="ownart" open={!!own}>
+      <summary><b>{tx('Imagem própria')}</b> {own && <span className="muted small">{tx('(em uso)')}</span>}</summary>
+      <form className="row-btns" onSubmit={e => { e.preventDefault(); if (/^https:\/\//.test(link.trim())) { act.setArt(c.n, link.trim()); setLink('') } else setErr(tx('O link da imagem tem de começar por https://')) }}>
+        <input value={link} onChange={e => setLink(e.target.value)} placeholder={tx('Cola o link da imagem (https://…)')} />
+        <button type="submit">{tx('Usar')}</button>
+        <label className="dbox-up">⬆ {tx('Carregar imagem')}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => { const f = e.target.files?.[0]; if (f) up(f) }} /></label>
+      </form>
+      {own && <button className="link small" onClick={() => act.setArt(c.n, null)}>{tx('tirar a imagem própria')}</button>}
+      {err && <p className="small bad-t">{err}</p>}
+      <details className="ownart-many"><summary className="small">{tx('Vários links de uma vez (para o deck todo)')}</summary>
+        <p className="muted small">{tx('Um link por linha. Cada um vai para a carta cujo nome aparece no endereço (como nos links do TappedOut); ou escreve «Nome da carta | link».')}</p>
+        <textarea value={many} onChange={e => setMany(e.target.value)} rows={4} placeholder={'https://static.tappedout.net/…/carrion-feeder/…png\nBone Picker | https://…'} />
+        <button onClick={bulk} disabled={!many.trim()}>{tx('Ligar às cartas')}</button>
+      </details>
+    </details>
+  )
+}
+
 export function ArtPicker({ c, deck, act, onClose }) {
   const [preview, setPreview] = useState(null)
   const [hoverPid, setHoverPid] = useState(null)
@@ -1489,6 +1529,7 @@ export function ArtPicker({ c, deck, act, onClose }) {
           <h3>{tx('Arte de {c}', { c: c.n })}</h3>
           <p className="muted small">{tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
           <Prints c={c} deck={deck} act={act} onPreview={onPreview} />
+          <OwnArt c={c} deck={deck} act={act} />
         </div>
       </div>
     </div>

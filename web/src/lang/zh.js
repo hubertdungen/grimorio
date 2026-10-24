@@ -1868,4 +1868,13 @@ export default {
   "OpenAI GPT (pago)": "OpenAI GPT（付费）",
   "DeepSeek (pago, barato)": "DeepSeek（付费，便宜）",
   "Anthropic Claude (pago, mais forte)": "Anthropic Claude（付费，最强）",
+  "Escolhe um adversário ao acaso (do meta ou dos teus decks)": "随机选择对手（环境或你的套牌）",
+  "{n} imagem própria ligada às cartas|{n} imagens próprias ligadas às cartas": "已将 {n} 张自定义图片关联到卡牌|已将 {n} 张自定义图片关联到卡牌",
+  "Imagem própria": "自定义图片",
+  "(em uso)": "（使用中）",
+  "Cola o link da imagem (https://…)": "粘贴图片链接（https://…）",
+  "tirar a imagem própria": "移除自定义图片",
+  "Vários links de uma vez (para o deck todo)": "一次粘贴多个链接（整副套牌）",
+  "Um link por linha. Cada um vai para a carta cujo nome aparece no endereço (como nos links do TappedOut); ou escreve «Nome da carta | link».": "每行一个链接。每个链接会关联到地址中出现其名称的卡牌（如 TappedOut 链接）；或写成“卡牌名 | 链接”。",
+  "Ligar às cartas": "关联到卡牌",
 }

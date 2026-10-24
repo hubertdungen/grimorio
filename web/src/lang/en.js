@@ -1876,4 +1876,13 @@ export default {
   "OpenAI GPT (pago)": "OpenAI GPT (paid)",
   "DeepSeek (pago, barato)": "DeepSeek (paid, cheap)",
   "Anthropic Claude (pago, mais forte)": "Anthropic Claude (paid, strongest)",
+  "Escolhe um adversário ao acaso (do meta ou dos teus decks)": "Pick a random opponent (meta or your decks)",
+  "{n} imagem própria ligada às cartas|{n} imagens próprias ligadas às cartas": "{n} custom image linked to cards|{n} custom images linked to cards",
+  "Imagem própria": "Custom image",
+  "(em uso)": "(in use)",
+  "Cola o link da imagem (https://…)": "Paste the image link (https://…)",
+  "tirar a imagem própria": "remove the custom image",
+  "Vários links de uma vez (para o deck todo)": "Several links at once (for the whole deck)",
+  "Um link por linha. Cada um vai para a carta cujo nome aparece no endereço (como nos links do TappedOut); ou escreve «Nome da carta | link».": "One link per line. Each goes to the card whose name appears in the address (as in TappedOut links); or write “Card name | link”.",
+  "Ligar às cartas": "Link to cards",
 }

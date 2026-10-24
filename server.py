@@ -3,7 +3,7 @@
 Serve a app React compilada (web/dist), os dados gerados por build/build.sh
 (já comprimidos em .gz) e guarda os decks numa SQLite fora do exFAT.
 """
-import argparse, functools, http.cookies, json, os, re, sqlite3, time, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, functools, hashlib, http.cookies, json, os, re, sqlite3, time, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
@@ -244,6 +244,9 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/health":
             ok = os.path.isfile(os.path.join(ARGS.data_dir, "data", "meta.json"))
             return self.json({"ok": ok}, 200 if ok else 503)
+        ma = re.match(r"^/arts/([a-f0-9]{20}\.(?:jpg|png|webp|gif))$", p)  # imagens próprias das cartas (POST /api/arts)
+        if ma:
+            return self.file(os.path.join(ARGS.data_dir, "arts", ma.group(1)), "max-age=31536000, immutable")
         mc = re.match(r"^/covers/([a-z0-9-]{8,40}\.(?:jpg|png|webp|gif))$", p)
         if mc:  # capas próprias dos decks (carregadas pelo dono)
             return self.file(os.path.join(ARGS.data_dir, "covers", mc.group(1)), "max-age=31536000")
@@ -447,6 +450,21 @@ class H(BaseHTTPRequestHandler):
                     return self.json({"id": rid}, 201)
             except (ValueError, TypeError, AttributeError) as e:
                 return self.json({"erro": str(e) if isinstance(e, ValueError) else "pedido inválido"}, 400)
+        if self.path == "/api/arts":  # imagem própria de uma carta: guarda-se pelo conteúdo e devolve o link relativo
+            if not self.owner():
+                return self.json({"erro": "sem utilizador"}, 401)
+            ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}.get((self.headers.get("Content-Type") or "").split(";")[0].strip().lower())
+            n = int(self.headers.get("Content-Length") or 0)
+            if not ext or not 0 < n <= 6_000_000:
+                return self.json({"erro": "A imagem tem de ser jpg, png, webp ou gif até 6 MB."}, 400)
+            data = self.rfile.read(n)
+            name = f"{hashlib.sha1(data).hexdigest()[:20]}.{ext}"
+            adir = os.path.join(ARGS.data_dir, "arts")
+            os.makedirs(adir, exist_ok=True)
+            if not os.path.exists(os.path.join(adir, name)):
+                with open(os.path.join(adir, name), "wb") as f:
+                    f.write(data)
+            return self.json({"url": f"arts/{name}"}, 201)
         m = re.match(r"^/api/decks/([a-z0-9-]{8,40})/cover$", self.path)
         if m:  # capa própria: imagem no corpo (jpg/png/webp/gif até 6 MB) ou {"url": "https://…"}; {"url": null} tira-a
             did, ct = m.group(1), (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
