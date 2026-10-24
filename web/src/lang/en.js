@@ -1966,4 +1966,12 @@ export default {
   "a mesma mesa": "the same table",
   "A mesma mesa: segue a próxima partida desta mesa; se ainda não houver, mostra o jogo seguinte de outra mesa e volta à tua quando ela tiver jogo novo": "Same table: follows this table's next game; if there isn't one yet, shows the next game from another table and comes back when yours has a new one",
   "Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.": "When watching a live tournament, which game opens when the one you are watching ends.",
+  "Cores nos jogos": "Colours in games",
+  "A tua cor": "Your colour",
+  "Adversário com cor": "Opponent in colour",
+  "Jogos sem o teu deck": "Games without your deck",
+  "cores aleatórias (cada deck sempre a mesma)": "random colours (each deck always the same)",
+  "sem cor": "no colour",
+  "A tua cor marca também o teu deck nos torneios (árvore, classificação, pódio).": "Your colour also marks your deck in tournaments (bracket, standings, podium).",
+  "repor as cores": "reset colours",
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { tx, num, LOCALE } from './i18n.js'
 import { LangPick, ProfileManage } from './Profiles.jsx'
-import { getStarLayers, setStarLayers } from './ui.jsx'
+import { getStarLayers, setStarLayers, useColors, setColors, COLORS0 } from './ui.jsx'
 import { getSettings, setEnabled, setVolume, play } from './sfx.js'
 import { NextMode } from './Tournament.jsx'
 
@@ -132,6 +132,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Jogos do Forge ao mesmo tempo')}</h3><ForgeGames /></section>
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
       <section className="card"><h3>{tx('Estrelas dos decks')}</h3><StarLayers /></section>
+      <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>
       <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
     </div>
@@ -139,6 +140,23 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
 }
 
 // torneios novos: começam sozinhos 10 s depois de criados (tempo para apostar) ou só com o OK (escolha guardada)
+// a tua cor (também marca o teu deck nos torneios), a do adversário ou sem cor, e os jogos sem o teu deck
+function GameColors() {
+  const c = useColors()
+  return (
+    <div className="gcol">
+      <label><input type="color" value={c.me} onChange={e => setColors({ me: e.target.value })} /> {tx('A tua cor')}</label>
+      <label><input type="color" value={c.opp} disabled={!c.oppOn} onChange={e => setColors({ opp: e.target.value })} /> <input type="checkbox" checked={c.oppOn} onChange={e => setColors({ oppOn: e.target.checked })} /> {tx('Adversário com cor')}</label>
+      <label className="fmt"><span>{tx('Jogos sem o teu deck')}</span>
+        <select value={c.others} onChange={e => setColors({ others: e.target.value })}>
+          <option value="aleatorio">{tx('cores aleatórias (cada deck sempre a mesma)')}</option>
+          <option value="simples">{tx('sem cor')}</option>
+        </select></label>
+      <p className="muted small">{tx('A tua cor marca também o teu deck nos torneios (árvore, classificação, pódio).')} <button className="link small" onClick={() => setColors(COLORS0)}>{tx('repor as cores')}</button></p>
+    </div>
+  )
+}
+
 function TourHold() {
   const K = 'grimorio.torneio.hold'
   const [on, setOn] = useState(() => { try { return localStorage.getItem(K) === '1' } catch { return false } })

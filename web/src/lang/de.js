@@ -1958,4 +1958,12 @@ export default {
   "a mesma mesa": "derselbe Tisch",
   "A mesma mesa: segue a próxima partida desta mesa; se ainda não houver, mostra o jogo seguinte de outra mesa e volta à tua quando ela tiver jogo novo": "Derselbe Tisch: folgt dem nächsten Spiel dieses Tisches; gibt es noch keins, zeigt es das nächste Spiel eines anderen Tisches und kehrt zurück, sobald deiner ein neues hat",
   "Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.": "Beim Live-Turnier: welches Spiel geöffnet wird, wenn das aktuelle endet.",
+  "Cores nos jogos": "Farben in Spielen",
+  "A tua cor": "Deine Farbe",
+  "Adversário com cor": "Gegner farbig",
+  "Jogos sem o teu deck": "Spiele ohne dein Deck",
+  "cores aleatórias (cada deck sempre a mesma)": "zufällige Farben (jedes Deck immer gleich)",
+  "sem cor": "ohne Farbe",
+  "A tua cor marca também o teu deck nos torneios (árvore, classificação, pódio).": "Deine Farbe markiert dein Deck auch in Turnieren (Baum, Tabelle, Podium).",
+  "repor as cores": "Farben zurücksetzen",
 }

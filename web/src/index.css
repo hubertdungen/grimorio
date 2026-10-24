@@ -642,7 +642,7 @@ h2 .mana img { width: 20px; height: 20px; }
 .endbanner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; display: grid; justify-items: center; gap: 6px; padding: 14px 22px; border-radius: 14px; background: #0d0f18e6; border: 1px solid #ffffff30; box-shadow: 0 10px 40px #000c; text-align: center; animation: fadein .35s ease-out; max-width: calc(100% - 24px); }
 .endbanner b { font-size: 22px; } .endbanner.win b { color: #7ee2a8; } .endbanner.loss b { color: #ff8a9e; } .endbanner.draw b { color: var(--gold2); } .endbanner.neutral b { color: var(--fg, #e8e6f0); }
 /* o meu deck num torneio: contorno ciano no lado dele (o dourado continua a ser o de quem joga) */
-.table.track-a .bside.p-a, .table.track-b .bside.p-b, .table.track-c .bside.p-c, .table.track-d .bside.p-d { outline: 2px solid rgba(110, 231, 249, .75); outline-offset: 2px; }
+.table.track-a .bside.p-a, .table.track-b .bside.p-b, .table.track-c .bside.p-c, .table.track-d .bside.p-d { outline: 2px solid color-mix(in srgb, var(--me, #6ee7f9) 75%, transparent); outline-offset: 2px; }
 .endbanner .row-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
 /* registo */
 .blog { list-style: none; margin: 0; padding: 8px; max-height: 640px; overflow-y: auto; font-size: 12px; display: grid; gap: 2px; align-content: start; background: var(--bg2); border-radius: 12px; }
@@ -1002,7 +1002,7 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .pd-deck img, .pd-noart { width: 100%; aspect-ratio: 626 / 380; object-fit: cover; border-radius: 9px; display: grid; place-items: center; background: #111; color: var(--muted); font-size: 26px; }
 .pd-deck > b { font-size: 13px; padding: 0 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 .pd-sub { display: flex; gap: 6px; justify-content: center; align-items: center; min-height: 18px; padding-bottom: 3px; }
-.pd-deck.me { box-shadow: 0 0 0 2px var(--cyan), 0 0 24px rgba(110, 231, 249, .45); }
+.pd-deck.me { box-shadow: 0 0 0 2px var(--me, var(--cyan)), 0 0 24px color-mix(in srgb, var(--me, #6ee7f9) 45%, transparent); }
 .pd-block { display: grid; place-items: center; gap: 2px; border-radius: 12px 12px 4px 4px; color: #1b1405; transform-origin: bottom; transform: scaleY(0); animation: pdrise .6s ease-out forwards; animation-delay: var(--d); }
 .pd-block span { font-size: 26px; } .pd-block b { font-size: 22px; }
 .pd-1 { --d: .7s; } .pd-2 { --d: .35s; } .pd-3 { --d: 0s; }
@@ -1017,14 +1017,14 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
   animation: spark 3.2s ease-out calc(var(--k) * .23s) infinite; }
 @keyframes spark { 0% { opacity: 0; transform: translateY(0) scale(.6); } 20% { opacity: .9; } 100% { opacity: 0; transform: translateY(-120px) scale(1.2); } }
 /* «o meu deck» (ciano, para não se confundir com o dourado dos vencedores) */
-.me-tag { font-style: normal; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; border-radius: 99px; background: var(--cyan); color: #06222a; flex: none; }
+.me-tag { font-style: normal; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 0 6px; border-radius: 99px; background: var(--me, var(--cyan)); color: #06222a; flex: none; }
 .fmt-tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 0 6px; border-radius: 99px; border: 1px solid #5b5394; color: #cfc8ef; background: #2a2550; white-space: nowrap; flex: none; vertical-align: middle; line-height: 16px; }
 .sc-n .fmt-tag { margin: 0 6px; }
-.me-btn.on { background: rgba(110, 231, 249, .15); border-color: var(--cyan); color: var(--cyan); }
-.tp-card.me { box-shadow: 0 0 0 2px var(--cyan), 0 6px 18px #0008; }
-.ts.me { box-shadow: inset 3px 0 0 var(--cyan); } .ts.me .ts-n { color: var(--cyan); }
+.me-btn.on { background: color-mix(in srgb, var(--me, #6ee7f9) 15%, transparent); border-color: var(--me, var(--cyan)); color: var(--me, var(--cyan)); }
+.tp-card.me { box-shadow: 0 0 0 2px var(--me, var(--cyan)), 0 6px 18px #0008; }
+.ts.me { box-shadow: inset 3px 0 0 var(--me, var(--cyan)); } .ts.me .ts-n { color: var(--me, var(--cyan)); }
 .ts.me.win .ts-n { color: var(--gold2); }
-.tm.mine:not(.now) { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan), 0 0 14px rgba(110, 231, 249, .15); }
+.tm.mine:not(.now) { border-color: var(--me, var(--cyan)); box-shadow: 0 0 0 1px var(--me, var(--cyan)), 0 0 14px color-mix(in srgb, var(--me, #6ee7f9) 15%, transparent); }
 .me-row td { background: rgba(110, 231, 249, .07); }
 .me-line { display: flex; gap: 10px; align-items: center; margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(110, 231, 249, .45); background: rgba(110, 231, 249, .07); }
 .me-line > span { display: grid; } .me-line small { color: var(--muted); font-size: 11px; } .me-line b { font-size: 16px; }
@@ -1038,7 +1038,7 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .mini-pod { display: grid; gap: 2px; min-width: 0; }
 .mp { display: flex; gap: 6px; align-items: center; font-size: 12px; min-width: 0; } .mp .tp-thumb { width: 26px; height: 18px; }
 .mp i { font-style: normal; } .mp > span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mp-1 > span:last-child { color: var(--gold2); font-weight: 600; } .mp.me > span:last-child { color: var(--cyan); }
+.mp-1 > span:last-child { color: var(--gold2); font-weight: 600; } .mp.me > span:last-child { color: var(--me, var(--cyan)); }
 .fame .row-btns { margin-bottom: 8px; }
 .fame td:not(:first-child), .fame th:not(:first-child) { text-align: center; }
 @media (max-width: 1100px) { .reg-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -1518,3 +1518,5 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .tp-body .row-btns .link { margin-left: auto; }
 /* procura de decks públicos: a mesma linha fixa (cores + cartas) */
 .dbox-meta { min-width: 0; }
+.gcol { display: grid; gap: 8px; } .gcol > label { display: flex; align-items: center; gap: 8px; }
+.gcol input[type=color] { width: 38px; height: 28px; padding: 2px; border-radius: 6px; cursor: pointer; } .gcol input[type=color]:disabled { opacity: .35; cursor: default; }

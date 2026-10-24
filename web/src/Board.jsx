@@ -5,6 +5,7 @@ import { createContext, Fragment, memo, useContext, useEffect, useLayoutEffect, 
 import { img } from './data.js'
 import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
+import { useColors, sideColors } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { PHASES, replayStates, lookup, isCreature, isLand, powTough, typeOf } from './game.js'
 
@@ -513,6 +514,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
   const ended = evs.length > 0 && i >= evs.length && !game.inProgress  // ao vivo: só acaba quando o Forge acaba
   const fast = speed >= 4
   const who = { a: deckName, b: game.opp, ...game.opps }  // opps: {b, c, d} com 3+ jogadores
+  const cols = useColors(), sideVars = useMemo(() => sideColors(cols, pov, who), [cols, pov, deckName, game.opp, game.opps])  // eslint-disable-line react-hooks/exhaustive-deps
   const fx = useMemo(() => ({ hl: new Set(s.fx?.keys || []), par: (s.i % 2) + 1, pops: new Map((s.fx?.pops || []).map(x => [x.key, { ...x, i: s.i }])), life: s.fx?.life, player: s.fx?.player }), [s])
   const att = useMemo(() => {
     const m = new Map()
@@ -564,7 +566,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
   const sp = { formats, s, data, fx, att, fast: fast || pos.jump, start, openZone, bets, bots }
   const oppHand = k => game.exact && <Hand z={s[k]} data={data} quiet={fast || pos.jump} exact opp hidden={hands !== 'ambas'} label={mates.includes(k) ? tx('Mão do parceiro') : null} />
   return (
-    <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''}`}
+    <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''}`} style={sideVars}
       onPointerOver={onOver} onPointerLeave={() => zoom && !zoom.pin && setZoom(null)}
       onPointerDown={onPress} onPointerUp={unPress} onPointerCancel={unPress} onPointerMove={unPress} onClick={onTap} onContextMenu={e => { if (e.target.closest('[data-z]')) e.preventDefault() }}>
       <div className="rp-bar">

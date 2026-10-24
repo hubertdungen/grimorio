@@ -365,6 +365,7 @@ function Live({ data, tid, onGone, slot }) {
   }, [watch, tid])
   // seguir ao vivo: abre cada jogo novo assim que acaba (se não estiveres já a ver um)
   useEffect(() => {
+    if (!t) return  // só depois de o torneio carregar (senão a lista vazia → cheia parecia um jogo novo e abria o último)
     const top = fl.length ? fl[fl.length - 1].id : 0
     if (lastSeen.current !== null && top > lastSeen.current && follow && !watch) openGame(fl[fl.length - 1])
     lastSeen.current = top

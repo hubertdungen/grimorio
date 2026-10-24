@@ -1958,4 +1958,12 @@ export default {
   "a mesma mesa": "同一桌",
   "A mesma mesa: segue a próxima partida desta mesa; se ainda não houver, mostra o jogo seguinte de outra mesa e volta à tua quando ela tiver jogo novo": "同一桌：跟随本桌的下一局；若还没有，先显示其他桌的下一局，等本桌有新对局时再回来",
   "Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.": "观看直播锦标赛时，当前对局结束后打开哪一局。",
+  "Cores nos jogos": "对局中的颜色",
+  "A tua cor": "你的颜色",
+  "Adversário com cor": "对手显示颜色",
+  "Jogos sem o teu deck": "没有你套牌的对局",
+  "cores aleatórias (cada deck sempre a mesma)": "随机颜色（每副套牌固定）",
+  "sem cor": "无颜色",
+  "A tua cor marca também o teu deck nos torneios (árvore, classificação, pódio).": "你的颜色也会在锦标赛中标记你的套牌（对阵图、排名、领奖台）。",
+  "repor as cores": "恢复默认颜色",
 }

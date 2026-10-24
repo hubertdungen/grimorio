@@ -103,6 +103,32 @@ export function setStarLayers(v) {
 }
 const useStarLayers = () => useSyncExternalStore(f => { slSubs.add(f); return () => slSubs.delete(f) }, getStarLayers)
 
+// Cores nos jogos (Definições › Cores): a tua (também marca o teu deck nos torneios), a do adversário (ou sem cor) e
+// os jogos sem o teu deck (cores aleatórias por deck, sempre as mesmas, ou sem cor)
+export const COLORS0 = { me: '#6ee7f9', opp: '#ff6b8a', oppOn: true, others: 'aleatorio' }
+const CO_KEY = 'grimorio.cores', coSubs = new Set(), NEUTRAL = '#9a93b5'
+let colors = (() => { try { return { ...COLORS0, ...JSON.parse(localStorage.getItem(CO_KEY) || '{}') } } catch { return COLORS0 } })()
+const paintMe = () => { try { document.documentElement.style.setProperty('--me', colors.me) } catch { /* sem DOM */ } }
+paintMe()
+export const getColors = () => colors
+export function setColors(v) {
+  colors = { ...colors, ...v }
+  try { localStorage.setItem(CO_KEY, JSON.stringify(colors)) } catch { /* sem armazenamento */ }
+  paintMe(); coSubs.forEach(f => f())
+}
+export const useColors = () => useSyncExternalStore(f => { coSubs.add(f); return () => coSubs.delete(f) }, getColors)
+const hueOf = str => { let h = 0; for (const ch of String(str || '')) h = (h * 31 + ch.codePointAt(0)) % 360; return h }
+// variáveis --pa…--pd do tabuleiro: pov = o lado do teu deck (ou null num jogo sem ele); names = {a: nome, b: …}
+export function sideColors(c, pov, names) {
+  const out = {}, opps = [...'abcd'].filter(k => k !== pov)
+  for (const k of 'abcd') {
+    const n = opps.indexOf(k)  // 0 = o adversário principal; 1 e 2 = os outros (3-4 jogadores): outras cores derivadas da dele
+    out[`--p${k}`] = pov ? (k === pov ? c.me : !c.oppOn ? NEUTRAL : n === 0 ? c.opp : `hsl(${(hueOf(c.opp) + n * 70) % 360} 70% 66%)`)
+      : c.others === 'aleatorio' ? `hsl(${hueOf(names?.[k] || k)} 72% 66%)` : NEUTRAL
+  }
+  return out
+}
+
 export function Stars({ r, v = r?.stars, prov = r?.prov, bare = false, label = '' }) {
   const uid = useId().replace(/[^\w-]/g, ''), [at, setAt] = useState(null), hold = useRef(null), held = useRef(false), me = useRef(null)
   useEffect(() => {
