@@ -108,10 +108,13 @@ export const BASICS = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Waste
 const BK = 'grimorio.basicos'
 let basicDef = (() => { try { return JSON.parse(localStorage.getItem(BK) || '{}') } catch { return {} } })()
 export const getBasicDefaults = () => basicDef
+// cada básico pode ter várias artes por omissão (até 10): a lista, e a forma «cópias divididas» para o tabuleiro
+export const basicList = n => { const v = basicDef[n]; return Array.isArray(v) ? v : v ? [v] : [] }
+export const basicSplit = n => { const l = basicList(n); return l.length > 1 ? l.map(p => ({ id: p.id, q: 1 })) : null }
 export function setBasicDefaults(v) { basicDef = v || {}; try { localStorage.setItem(BK, JSON.stringify(basicDef)) } catch { /* sem armazenamento */ } }
 export const img = (c, size = 'normal', back = false, pid = null) => {
   if (pid?.startsWith('https:') || pid?.startsWith('arts/')) { if (!back) return pid; pid = null }  // imagem própria (site de origem ou carregada)
-  const id = pid || basicDef[c.n]?.id || c.id
+  const id = pid || basicList(c.n)[0]?.id || c.id
   return `https://cards.scryfall.io/${size}/${back ? 'back' : 'front'}/${id[0]}/${id[1]}/${id}.${size === 'png' ? 'png' : 'jpg'}`
 }
 

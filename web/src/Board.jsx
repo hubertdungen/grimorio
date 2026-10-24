@@ -2,7 +2,7 @@
 // (game.js) e anima só o que mudou em cada passo (a carta que entrou/virou/atacou/morreu, a vida que mudou).
 // Controlos: pausa, velocidade, passo, salto de turno, linha do tempo com marcas por tipo de evento.
 import { createContext, Fragment, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { img, artPick, artMapOf } from './data.js'
+import { img, artPick, artMapOf, basicSplit } from './data.js'
 import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors } from './ui.jsx'
@@ -109,7 +109,7 @@ function In({ as, quiet, className = '', ...p }) {
 // arte própria dos decks (ex.: alteradas no TappedOut): arts = {a: {nome: link}, b: …}; k = lado (o Side diz qual);
 // sem lado, a de qualquer deck que a tenha. Sem arte própria, a da Scryfall.
 const Arts = createContext({ arts: null, k: null })
-const artOf = (arts, k, c, inst) => c && arts && artPick(k ? arts[k]?.[c.n] : Object.values(arts).map(x => x?.[c.n]).find(Boolean), inst)
+const artOf = (arts, k, c, inst) => c && artPick((arts && (k ? arts[k]?.[c.n] : Object.values(arts).map(x => x?.[c.n]).find(Boolean))) || basicSplit(c.n), inst)  // sem arte do deck: as várias artes por omissão dos básicos
 const useImg = () => { const { arts, k } = useContext(Arts); return (c, size, back, side = k, inst) => img(c, size, back, artOf(arts, side, c, inst)) }
 
 // ---------- uma carta no campo ----------
