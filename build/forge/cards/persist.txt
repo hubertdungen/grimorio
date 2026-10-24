@@ -1,0 +1,10 @@
+# Grimório: o guião do Forge 2.0.15 com dicas só para a IA; as regras da carta ficam iguais.
+# AITgts: a IA só reanima criaturas de custo 4 ou mais (antes gastava-a numa Dauthi Voidwalker com a Archon a caminho).
+# AIPriorityModifier: entre feitiços do mesmo custo, reanimar vem primeiro (antes lançava Feed the Swarm e ficava sem mana).
+Name:Persist
+ManaCost:1 B
+Types:Sorcery
+A:SP$ ChangeZone | ValidTgts$ Creature.nonLegendary+YouOwn | TgtPrompt$ Select target nonlegendary creature card from your graveyard | Origin$ Graveyard | Destination$ Battlefield | WithCountersType$ M1M1 | AITgts$ Creature.cmcGE4 | SpellDescription$ Return target nonlegendary creature card from your graveyard to the battlefield with a -1/-1 counter on it.
+SVar:AIPriorityModifier:3
+DeckHas:Ability$Graveyard
+Oracle:Return target nonlegendary creature card from your graveyard to the battlefield with a -1/-1 counter on it.

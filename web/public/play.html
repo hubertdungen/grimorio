@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #101014; overflow: hidden; color: #ddd; font: 14px system-ui, sans-serif }
+  #screen { position: absolute; inset: 0 }
+  #msg { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; text-align: center; padding: 16px; pointer-events: none }
+  #msg button { pointer-events: auto; font: inherit; padding: 6px 14px; border-radius: 6px; border: 1px solid #555; background: #222; color: #eee; cursor: pointer }
+  #msg[hidden] { display: none }
+</style>
+</head>
+<body>
+<div id="screen"></div>
+<div id="msg"><span id="txt">A ligar ao Forge…</span><button id="again" hidden>Ligar de novo</button></div>
+<script type="module">
+// Cliente VNC do jogo contra o Forge (play.py). ?resize=remote ajusta a resolução do Forge ao tamanho da janela;
+// por omissão a imagem (1600×900) é escalada para caber.
+import RFB from './play/novnc/core/rfb.js'
+const q = new URLSearchParams(location.search)
+const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + location.pathname.replace(/[^/]*$/, '') + 'play/ws'
+const msg = document.getElementById('msg'), txt = document.getElementById('txt'), again = document.getElementById('again')
+const tell = state => { try { parent.postMessage({ grimorioPlay: state }, location.origin) } catch { /* sem pai */ } }
+let tries = 0, rfb = null
+function connect() {
+  msg.hidden = false; again.hidden = true; txt.textContent = tries ? 'O Forge está a arrancar… (pode levar meio minuto)' : 'A ligar ao Forge…'
+  rfb = new RFB(document.getElementById('screen'), url, { shared: true })
+  const remote = q.get('resize') === 'remote'
+  rfb.scaleViewport = !remote
+  rfb.resizeSession = remote
+  rfb.focusOnClick = true
+  rfb.background = '#101014'
+  rfb.addEventListener('connect', () => { tries = 0; msg.hidden = true; rfb.focus(); tell('connected') })
+  rfb.addEventListener('disconnect', () => {
+    rfb = null; tell('disconnected')
+    if (++tries <= 60) { setTimeout(connect, 2000); return }
+    msg.hidden = false; again.hidden = false; txt.textContent = 'Sem ligação ao Forge. O jogo terminou ou parou por inatividade.'
+  })
+}
+again.onclick = () => { tries = 0; connect() }
+connect()
+</script>
+</body>
+</html>

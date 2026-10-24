@@ -1,0 +1,719 @@
+"""Grimório — ratings dos decks: vitórias de jogos e de rondas, Elo, estrelas 0–6 e a Arena automática.
+
+Elo jogo a jogo (não por ronda: Bo1 e Bo3 pesam o mesmo por jogo): começa em 1500, K=40 nos primeiros PROV jogos
+(provisório) e K=20 depois; esperado = 1/(1+10^((Rb-Ra)/400)); empate vale ½. Uma ronda é uma partida (Bo1 ou Bo3)
+e só conta para rondas ganhas/perdidas quando acaba (final=True); o resultado sai de todos os jogos com esse round_id.
+
+Estrelas (0,0–6,0, uma casa decimal): percentil do Elo entre os decks estabelecidos (≥ PROV jogos) desse formato,
+p = (abaixo + ½·iguais − ½)/(n − 1) entre 0 e 1 (o pior estabelecido 0,0, o melhor 6,0), estrelas = 6·p. Com menos de
+POOL decks estabelecidos usa uma escala fixa: 1500 = 3,0★ e cada 100 pontos uma estrela (≤1200 → 0★, ≥1800 → 6★).
+Escalão = ⌊estrelas⌋ (o 6 só leva quem tem 6,0), com ranking dentro do escalão pelo Elo. Sem jogos conta 3,0★ provisório.
+
+Dois ratings por deck: o normal (format = o formato do deck; só jogos legais e não casuais) e o casual (format =
+CASUAL, um só grupo para todos os formatos): jogos em modo casual (Laboratório, torneios, Arena) e qualquer jogo de um
+deck marcado casual (body.casual, pode violar as regras do formato) — esses decks só têm rating casual.
+
+Chaves: deck:<id> (os meus, com dono) e meta:<id do sim.opponents> (partilhados por todos). Alimentam isto o
+Laboratório (from_lab, 1 contra 1), os torneios (record_round) e a Arena automática (thread `arena_loop`), que joga
+rondas no Forge sozinha quando ninguém está a usar o simulador (os trabalhos dela vão para o fim da fila do sim).
+"""
+import contextlib, json, os, random, re, sqlite3, sys, threading, time, uuid, zlib
+import sim
+
+PROV, POOL = 10, 8         # jogos até deixar de ser provisório; decks estabelecidos para usar percentis
+K_PROV, K = 40, 20
+START = 1500.0
+TOP = 6.0                  # estrelas máximas
+CASUAL = "casual"          # formato do rating casual
+META_TOP = 30              # decks do meta por formato que entram nas escolhas ao calhas e na Arena
+SAME_TIER = 0.7            # Arena: probabilidade de emparelhar dentro do mesmo escalão
+IDLE = 60                  # s sem trabalhos de outros no simulador antes de a Arena jogar
+MIN_FREE_MB = 2500         # RAM livre mínima para a Arena arrancar um jogo (o contentor do Forge leva até 3 GB)
+DATA = DB = None
+BUSY = lambda: False  # noqa: E731 — o server.py diz se há um jogo teu aberto contra o Forge
+
+
+# ---------- base de dados ----------
+
+def schema(con):
+    con.execute("CREATE TABLE IF NOT EXISTS ratings (key TEXT, format TEXT, kind TEXT, owner TEXT, name TEXT, elo REAL,"
+                " games INT, wins INT, losses INT, draws INT, rounds INT, round_wins INT, round_losses INT, updated REAL,"
+                " PRIMARY KEY (key, format))")
+    con.execute("CREATE TABLE IF NOT EXISTS rating_games (id INTEGER PRIMARY KEY, ts REAL, format TEXT, a_key TEXT,"
+                " b_key TEXT, winner TEXT, source TEXT, round_id TEXT, a_elo REAL, b_elo REAL)")
+    con.execute("CREATE INDEX IF NOT EXISTS rating_games_round ON rating_games (round_id)")
+    con.execute("CREATE TABLE IF NOT EXISTS ratings_kv (k TEXT PRIMARY KEY, v TEXT)")
+    with contextlib.suppress(sqlite3.OperationalError):  # resumo do jogo (dano por carta) dos jogos da Arena
+        con.execute("ALTER TABLE rating_games ADD COLUMN summary TEXT")
+    return con
+
+
+def db():
+    return schema(sqlite3.connect(DB, timeout=15))
+
+
+# ---------- Elo e registo ----------
+
+def expected(ra, rb):
+    return 1 / (1 + 10 ** ((rb - ra) / 400))
+
+
+def _get(con, fmt, d):
+    r = con.execute("SELECT elo, games FROM ratings WHERE key=? AND format=?", (d["key"], fmt)).fetchone()
+    if r:
+        con.execute("UPDATE ratings SET name=? WHERE key=? AND format=?", (str(d.get("name") or "")[:200], d["key"], fmt))
+        return list(r)
+    con.execute("INSERT INTO ratings VALUES (?,?,?,?,?,?,0,0,0,0,0,0,0,?)", (d["key"], fmt, d.get("kind") or "meta",
+                d.get("owner") or "", str(d.get("name") or "")[:200], START, time.time()))
+    return [START, 0]
+
+
+def casual_deck(con, key):
+    """deck:<id> marcado casual no editor (pode violar as regras do formato)."""
+    if not key.startswith("deck:"):
+        return False
+    try:
+        r = con.execute("SELECT json_extract(body, '$.casual') FROM decks WHERE id=?", (key[5:],)).fetchone()
+    except sqlite3.OperationalError:
+        return False
+    return bool(r and r[0])
+
+
+NOT_CASUAL = "key NOT IN (SELECT 'deck:' || id FROM decks WHERE json_extract(body, '$.casual'))"
+
+
+def record_round(con, fmt, a, b, games, source, round_id=None, final=True, casual=False):
+    """a, b = {key, kind ('meu'|'meta'), name, owner}; games = ['a'|'b'|'draw', …] do ponto de vista de a (só os novos).
+    Jogos e Elo atualizam-se jogo a jogo; com final=True a ronda fecha com todos os jogos já guardados com este round_id
+    (os de chamadas anteriores com final=False incluídos). casual=True (ou um deck casual de um dos lados) -> vai para
+    o rating casual (format CASUAL) em vez do do formato. Devolve o round_id."""
+    rid = str(round_id or uuid.uuid4().hex)[:120]
+    if a["key"] == b["key"]:
+        return rid
+    if casual or casual_deck(con, a["key"]) or casual_deck(con, b["key"]):
+        fmt = CASUAL
+    ra, rb = _get(con, fmt, a), _get(con, fmt, b)
+    for w in games:
+        if w not in ("a", "b", "draw"):
+            continue
+        s = 1.0 if w == "a" else 0.0 if w == "b" else 0.5
+        x = expected(ra[0], rb[0])
+        ra[0], rb[0] = ra[0] + (K_PROV if ra[1] < PROV else K) * (s - x), rb[0] + (K_PROV if rb[1] < PROV else K) * (x - s)
+        ra[1] += 1
+        rb[1] += 1
+        for d, r, win, loss in ((a, ra, w == "a", w == "b"), (b, rb, w == "b", w == "a")):
+            con.execute("UPDATE ratings SET elo=?, games=games+1, wins=wins+?, losses=losses+?, draws=draws+?, updated=?"
+                        " WHERE key=? AND format=?", (r[0], win, loss, w == "draw", time.time(), d["key"], fmt))
+        con.execute("INSERT INTO rating_games (ts, format, a_key, b_key, winner, source, round_id, a_elo, b_elo)"
+                    " VALUES (?,?,?,?,?,?,?,?,?)", (time.time(), fmt, a["key"], b["key"], w, source, rid, ra[0], rb[0]))
+    if final:
+        wa = wb = 0
+        for ak, w in con.execute("SELECT a_key, winner FROM rating_games WHERE round_id=?", (rid,)):
+            if w != "draw":
+                wa += (w == "a") == (ak == a["key"])
+                wb += (w == "a") != (ak == a["key"])
+        if con.execute("SELECT 1 FROM rating_games WHERE round_id=?", (rid,)).fetchone():
+            for d, me, op in ((a, wa, wb), (b, wb, wa)):
+                con.execute("UPDATE ratings SET rounds=rounds+1, round_wins=round_wins+?, round_losses=round_losses+?"
+                            " WHERE key=? AND format=?", (me > op, op > me, d["key"], fmt))
+    return rid
+
+
+def ref(src, ref_id, name, owner):
+    """Participante de um torneio ({src: 'meus'|'meta', ref}) -> lado para record_round."""
+    return {"key": ("deck:" if src == "meus" else "meta:") + str(ref_id), "kind": "meu" if src == "meus" else "meta",
+            "name": name, "owner": owner if src == "meus" else ""}
+
+
+def from_lab(con, d, owner):
+    """POST /api/sim/record de 1 contra 1: o deck contra opp_key (meta:<id> ou deck:<id>, listas coladas e o espelho
+    não contam). `bo` diz quando a série acaba: ganha quem passa de bo//2 ou ao fim de bo jogos; casual=True (modo
+    casual do Laboratório) -> rating casual."""
+    key, did = str(d.get("opp_key") or ""), str(d.get("deck_id") or "")
+    if not did or d.get("winner") not in ("a", "b", "draw") or not re.fullmatch(r"(meta|deck):[a-z0-9-]{1,130}", key):
+        return
+    mine = lambda i: con.execute("SELECT name FROM decks WHERE id=? AND owner=? AND deleted IS NULL", (i, owner)).fetchone()  # noqa: E731
+    r, fmt = mine(did), str(d.get("format") or "").lower()[:40]
+    if not r:
+        return
+    a = {"key": "deck:" + did, "kind": "meu", "name": r[0], "owner": owner}
+    if key.startswith("deck:"):
+        r = mine(key[5:])
+        if not r:
+            return
+        b = {"key": key, "kind": "meu", "name": r[0], "owner": owner}
+    else:
+        b = {"key": key, "kind": "meta", "name": str(d.get("opp_name") or key)[:200], "owner": ""}
+    rid = f"lab:{did}:{str(d.get('match_id') or uuid.uuid4().hex)[:60]}"  # um deck casual vai sempre para o casual
+    ws = [w if ak == a["key"] or w == "draw" else "ab"[w == "a"] for ak, w in
+          con.execute("SELECT a_key, winner FROM rating_games WHERE round_id=?", (rid,))] + [d["winner"]]
+    bo = max(1, min(9, int(d.get("bo") or 1)))
+    record_round(con, fmt, a, b, [d["winner"]], "lab", rid,
+                 final=max(ws.count("a"), ws.count("b")) > bo // 2 or len(ws) >= bo, casual=bool(d.get("casual")))
+
+
+# ---------- estrelas, tabela e escolhas ----------
+
+def stars(elo, dist):
+    """dist = Elos dos decks estabelecidos do formato -> 0,0–6,0 (ver o topo do ficheiro)."""
+    if len(dist) < POOL:
+        return round(max(0.0, min(TOP, TOP / 2 + (elo - START) / 100)), 1)
+    p = (sum(x < elo for x in dist) + sum(x == elo for x in dist) / 2 - 0.5) / (len(dist) - 1)
+    return round(TOP * max(0.0, min(1.0, p)), 1)
+
+
+def dist(con, fmt):
+    return [r[0] for r in con.execute("SELECT elo FROM ratings WHERE format=? AND games>=?", (fmt, PROV))]
+
+
+VISIBLE = ("(kind='meta' OR (owner=? AND key IN (SELECT 'deck:' || id FROM decks WHERE owner=? AND deleted IS NULL)))")
+COLS = ("key", "format", "kind", "owner", "name", "elo", "games", "wins", "losses", "draws", "rounds", "round_wins", "round_losses", "updated")
+
+
+def table(con, fmt, owner):
+    """Decks do meta + os meus (que ainda existem) deste formato, do melhor para o pior, com estrelas e escalões.
+    fmt "all" = todos os formatos normais juntos (cada um com as estrelas do seu formato); CASUAL = o rating casual.
+    Os decks casuais só aparecem no casual."""
+    where = f"format!='{CASUAL}' AND {NOT_CASUAL}" if fmt == "all" else "format=?" if fmt == CASUAL else f"format=? AND {NOT_CASUAL}"
+    rows = [dict(zip(COLS, r)) for r in con.execute(f"SELECT {', '.join(COLS)} FROM ratings WHERE {where} AND games>0 AND {VISIBLE}",
+                                                    ((fmt,) if fmt != "all" else ()) + (owner, owner))]
+    dists, seen = {}, {}
+    for r in rows:
+        r["stars"] = stars(r["elo"], dists.setdefault(r["format"], dist(con, r["format"])))
+    rows.sort(key=lambda r: (-r["stars"], -r["elo"]))
+    for i, r in enumerate(rows):
+        r["elo"] = round(r["elo"], 1)
+        r["tier"] = int(r["stars"])
+        r["rank"], r["provisional"] = i + 1, r["games"] < PROV
+        seen[r["tier"]] = r["rank_in_tier"] = seen.get(r["tier"], 0) + 1
+        r["win_pct"] = round(100 * (r["wins"] + r["draws"] / 2) / r["games"], 1)
+        r["round_pct"] = round(100 * r["round_wins"] / r["rounds"], 1) if r["rounds"] else None
+    return rows
+
+
+def all_stars(con, owner):
+    """{chave: {stars, prov, elo, games, format}} de tudo o que tenho visível (caixas da Biblioteca, listas do Lab);
+    o rating casual vem em «chave|casual» e os decks casuais só têm esse."""
+    out, dists = {}, {}
+    for key, fmt, elo, games in con.execute(f"SELECT key, format, elo, games FROM ratings WHERE games>0 AND {VISIBLE}"
+                                            f" AND (format='{CASUAL}' OR {NOT_CASUAL})", (owner, owner)):
+        ds = dists.setdefault(fmt, dist(con, fmt))
+        out[key if key not in out and fmt != CASUAL else f"{key}|{fmt}"] = {"stars": stars(elo, ds), "prov": games < PROV, "elo": round(elo),
+                                                          "games": games, "format": fmt}
+    return out
+
+
+def candidates(con, fmt, owner, sources=("meu", "meta")):
+    """Decks que podem ser escolhidos: os meus deste formato (sem os casuais) e os do meta (sim.opponents), com rating
+    ou 3,0★ provisório. fmt CASUAL = todos os meus (casuais incluídos) e o meta de todos os formatos, com o rating
+    casual; `format` = o formato do próprio deck."""
+    out, cas = [], fmt == CASUAL
+    if "meu" in sources:
+        out += [{"key": f"deck:{i}", "kind": "meu", "src": "meus", "ref": i, "name": n, "owner": owner, "format": f}
+                for i, n, f, c in con.execute("SELECT id, name, lower(format), json_extract(body, '$.casual') FROM decks"
+                                              " WHERE owner=? AND deleted IS NULL", (owner,)) if cas or f == fmt and not c]
+    if "meta" in sources:
+        for f in sim.META_FORMATS + ("commander",) if cas else (fmt,):
+            try:
+                os_ = sim.opponents(DATA, f, top=META_TOP)
+            except Exception:  # o EDHREC sem rede e sem cache
+                os_ = []
+            out += [{"key": f"meta:{o['id']}", "kind": "meta", "src": "meta", "ref": o["id"], "name": o["name"], "owner": "",
+                     "format": f} for o in os_]
+    ds = dist(con, fmt)
+    for c in out:
+        r = con.execute("SELECT elo, games FROM ratings WHERE key=? AND format=?", (c["key"], fmt)).fetchone()
+        elo, games = r if r and r[1] else (START, 0)
+        c.update(elo=round(elo, 1), games=games, stars=stars(elo, ds) if games else TOP / 2, provisional=games < PROV)
+        c["tier"] = int(c["stars"])
+    return out
+
+
+def pick(con, fmt, owner, n, min_stars=0.0, max_stars=TOP, sources=("meu", "meta"), rng=random):
+    """n decks ao calhas com estrelas entre min e max (inclusive): [{key, kind, src, ref, name, stars, elo, …}]."""
+    c = [x for x in candidates(con, fmt, owner, sources) if min_stars <= x["stars"] <= max_stars]
+    return rng.sample(c, min(max(0, int(n)), len(c)))
+
+
+def history(con, key, fmt):
+    """Rondas (as mais recentes primeiro) e a curva do Elo de um deck."""
+    names = dict(con.execute("SELECT key, name FROM ratings WHERE format=?", (fmt,)))
+    elo, rounds = [START], {}
+    for ts, ak, bk, w, src, rid, ae, be in con.execute(
+            "SELECT ts, a_key, b_key, winner, source, round_id, a_elo, b_elo FROM rating_games WHERE format=?"
+            " AND (a_key=? OR b_key=?) ORDER BY id", (fmt, key, key)):
+        me = ak == key
+        elo.append(round(ae if me else be, 1))
+        opp = bk if me else ak
+        r = rounds.setdefault(rid, {"round_id": rid, "ts": ts, "source": src, "opp": opp, "opp_name": names.get(opp, opp),
+                                    "w": 0, "l": 0, "d": 0})
+        r["ts"] = ts
+        r["d" if w == "draw" else "w" if (w == "a") == me else "l"] += 1
+    return {"elo": elo, "rounds": list(rounds.values())[::-1][:40]}
+
+
+def deck_info(con, rows, owner):
+    """Capa e cores no browser: lista de cartas dos meus decks (decks) e dos do meta (sim.opponent)."""
+    for r in rows:
+        try:
+            if r["key"].startswith("deck:"):
+                x = con.execute("SELECT body FROM decks WHERE id=? AND owner=?", (r["key"][5:], owner)).fetchone()
+                d = json.loads(x[0]) if x else {}
+            else:
+                d = sim.opponent(DATA, r["key"][5:]) or {}
+        except (ValueError, OSError):
+            d = {}
+        r["deck"] = {k: d.get(k) for k in ("cover", "commanders", "seeds", "main")}
+        r["deck_format"] = str(d.get("format") or r["key"][5:].split("-")[0].replace("edhrec", "commander")).lower()
+    return rows
+
+
+def deck_record(con, did, owner):
+    """Análise › registo de um deck meu: por adversário V-D-E, dano médio feito e levado, cartas que mais dano fazem
+    (e em quantas vitórias foram a que mais fez) e as dos adversários que mais doem. Fontes sem duplicar: Laboratório
+    (sim_games), torneios (tournament_games, os casuais e as mesas incluídos) e Arena (rating_games; os jogos do Lab e
+    dos torneios também lá estão, por isso daí só se lê a Arena). Dano levado só nos jogos a dois."""
+    if not con.execute("SELECT 1 FROM decks WHERE id=? AND owner=?", (did, owner)).fetchone():
+        return None
+    games = []  # (fonte, adversário, 'w'|'l'|'d', resumo meu, resumos dos adversários)
+    for opp, w, sm in con.execute("SELECT opp_name, winner, summary FROM sim_games WHERE deck_id=?", (did,)):
+        sm = json.loads(sm or "{}")
+        games.append(("lab", opp or "?", "w" if w == "a" else "d" if w == "draw" else "l", sm.get("a"),
+                      [v for k, v in sm.items() if k in "bcd"]))
+    with contextlib.suppress(sqlite3.OperationalError):  # sem a tabela dos torneios
+        for tid, st in con.execute("SELECT id, state FROM tournaments WHERE owner=?", (owner,)).fetchall():
+            ps = json.loads(st).get("players") or []
+            me = {i for i, p in enumerate(ps) if p.get("src") == "meus" and str(p.get("ref")) == did}
+            if not me:
+                continue
+            for (blob,) in con.execute("SELECT game FROM tournament_games WHERE tid=?", (tid,)):
+                g = json.loads(zlib.decompress(blob))
+                seats, sm = g.get("seats") or [], g.get("summary") or {}
+                mine = [k for k, i in enumerate(seats) if i in me]
+                if g.get("crashed") or len(mine) != 1:
+                    continue
+                side, others = sim.SIDES[mine[0]], [k for k in range(len(seats)) if k != mine[0]]
+                opp = " · ".join(ps[seats[k]]["name"].split(" (")[0] for k in others)
+                w = g.get("winner")
+                games.append(("torneio", opp, "w" if w == side else "d" if w in (None, "draw") else "l", sm.get(side),
+                              [sm.get(sim.SIDES[k]) for k in others if sm.get(sim.SIDES[k])]))
+    key, names = "deck:" + did, dict(con.execute("SELECT key, name FROM ratings"))
+    for ak, bk, w, sm in con.execute("SELECT a_key, b_key, winner, summary FROM rating_games WHERE source='arena'"
+                                     " AND (a_key=? OR b_key=?)", (key, key)):
+        me, sm = "a" if ak == key else "b", json.loads(sm or "{}")
+        op = "b" if me == "a" else "a"
+        games.append(("arena", names.get(bk if me == "a" else ak, "?"), "d" if w == "draw" else "w" if w == me else "l",
+                      sm.get(me), [sm[op]] if sm.get(op) else []))
+    opp, cards, hurt, dealt, taken, src = {}, {}, {}, [], [], {}
+    tot = lambda s: sum((s.get("damage_by_card") or {}).values()) + sum((s.get("poison_by_card") or {}).values())  # noqa: E731
+    for so, name, r, s, os_ in games:
+        o = opp.setdefault(name, {"name": name, "w": 0, "l": 0, "d": 0, "src": []})
+        o[r] += 1
+        o["src"] += [so] if so not in o["src"] else []
+        src[so] = src.get(so, 0) + 1
+        if s:
+            dealt.append(tot(s))
+            dm = s.get("damage_by_card") or {}
+            for c, n in {**(s.get("poison_by_card") or {}), **dm}.items():
+                x = cards.setdefault(c, {"card": c, "dmg": 0, "games": 0, "top_wins": 0})
+                x["dmg"] += n
+                x["games"] += 1
+            if r == "w" and dm:
+                cards[max(dm, key=dm.get)]["top_wins"] += 1
+        if s and len(os_) == 1:
+            taken.append(tot(os_[0]))
+            for c, n in (os_[0].get("damage_by_card") or {}).items():
+                hurt[c] = hurt.get(c, 0) + n
+    avg = lambda v: round(sum(v) / len(v), 1) if v else None  # noqa: E731
+    return {"games": len(games), "w": sum(g[2] == "w" for g in games), "l": sum(g[2] == "l" for g in games),
+            "d": sum(g[2] == "d" for g in games), "by_source": src, "dealt": avg(dealt), "taken": avg(taken),
+            "with_dmg": len(dealt), "opponents": sorted(opp.values(), key=lambda o: -(o["w"] + o["l"] + o["d"])),
+            "cards": sorted(cards.values(), key=lambda x: -x["dmg"])[:12],
+            "hurt": [{"card": c, "dmg": n} for c, n in sorted(hurt.items(), key=lambda x: -x[1])[:8]]}
+
+
+# ---------- Arena automática ----------
+
+ARENA = {"on": False, "owner": "", "sources": ["meu", "meta"], "formats": ["pauper"], "min": 0.0, "max": TOP, "bo": 1,
+         "difficulty": "default", "pause": 30, "max_rounds": 0, "per_hour": 20, "casual": False}
+ST = {"state": "", "job": None, "error": None, "since": 0.0, "seen": 0.0, "last_end": 0.0, "secs": []}
+ALOCK = threading.RLock()
+
+
+def kv(con, k, v=None):
+    if v is None:
+        r = con.execute("SELECT v FROM ratings_kv WHERE k=?", (k,)).fetchone()
+        return json.loads(r[0]) if r else None
+    con.execute("INSERT OR REPLACE INTO ratings_kv VALUES (?,?)", (k, json.dumps(v, ensure_ascii=False)))
+
+
+def settings(con):
+    s = kv(con, "arena") or {}
+    if "casual" not in s and s.get("max") == 5.0:  # guardado na escala antiga de 0–5
+        s["max"] = TOP
+    return {**ARENA, **s}
+
+
+def free_mb():
+    try:
+        with open("/proc/meminfo") as f:
+            return int(next(l for l in f if l.startswith("MemAvailable")).split()[1]) // 1024
+    except (OSError, StopIteration, ValueError):
+        return 1 << 20
+
+
+def others_busy():
+    """Alguém mais quer o Forge: jogo teu aberto ou trabalhos que não são da Arena na fila/a jogar."""
+    if BUSY():
+        return "Há um jogo teu aberto contra o Forge."
+    with sim.LOCK:
+        if any(j["status"] in ("queued", "running") for jid, j in sim.JOBS.items() if jid != ST["job"]):
+            ST["seen"] = time.time()
+            return "O simulador está a jogar os teus testes ou um torneio."
+    return None
+
+
+def wait_reason(con, cfg):
+    r = others_busy()
+    if r:
+        return r
+    if time.time() - ST["seen"] < IDLE:
+        return f"À espera de o simulador estar parado há {IDLE} s."
+    try:
+        if con.execute("SELECT 1 FROM tournaments WHERE status='running' LIMIT 1").fetchone():
+            return "Há um torneio a decorrer."
+    except sqlite3.OperationalError:
+        pass
+    if free_mb() < MIN_FREE_MB:
+        return f"Pouca RAM livre ({free_mb()} MB)."
+    left = ST["last_end"] + cfg["pause"] - time.time()
+    if left > 0:
+        return f"Pausa entre rondas ({int(left)} s)."
+    hour = con.execute("SELECT COUNT(DISTINCT round_id) FROM rating_games WHERE source='arena' AND ts>?",
+                       (time.time() - 3600,)).fetchone()[0]
+    if hour >= cfg["per_hour"]:
+        return f"Limite de {cfg['per_hour']} rondas por hora."
+    return None
+
+
+def pairing(con, cfg, rng=random):
+    """Formato ao calhas entre os escolhidos; A com peso 1/(1+jogos) (os menos jogados primeiro); B do mesmo
+    escalão em SAME_TIER das vezes, senão qualquer um do intervalo de estrelas. Casual: um só grupo com os decks de
+    todos os formatos escolhidos (e os meus decks casuais desses formatos), com o rating casual; as regras base são as
+    do formato do deck A."""
+    pools = {}
+    for fmt in [CASUAL] if cfg.get("casual") else cfg["formats"]:
+        c = [x for x in candidates(con, fmt, cfg["owner"], cfg["sources"]) if cfg["min"] <= x["stars"] <= cfg["max"]
+             and x["format"] in cfg["formats"]]
+        if len(c) >= 2:
+            pools[fmt] = c
+    if not pools:
+        return None
+    fmt = rng.choice(sorted(pools))
+    c = pools[fmt]
+    a = rng.choices(c, weights=[1 / (1 + x["games"]) for x in c])[0]
+    rest = [x for x in c if x["key"] != a["key"]]
+    same = [x for x in rest if x["tier"] == a["tier"]]
+    b = rng.choice(same if same and rng.random() < SAME_TIER else rest)
+    side = lambda x: {k: x[k] for k in ("key", "kind", "src", "ref", "name", "owner", "stars")}  # noqa: E731
+    return {"format": fmt, "base": a["format"], "a": side(a), "b": side(b), "games": [], "errors": 0, "bo": cfg["bo"],
+            "round_id": "arena:" + uuid.uuid4().hex[:12], "started": time.time()}
+
+
+def load_deck(con, x):
+    if x["kind"] == "meu":
+        r = con.execute("SELECT body FROM decks WHERE id=? AND owner=? AND deleted IS NULL", (x["ref"], x["owner"])).fetchone()
+        return json.loads(r[0]) if r else None
+    return sim.opponent(DATA, x["ref"])
+
+
+def finish(con, cfg, cur):
+    record_round(con, cur["format"], cur["a"], cur["b"], [], "arena", cur["round_id"], final=bool(cur["games"]))
+    ST["secs"] = (ST["secs"] + [round(time.time() - cur["started"])])[-20:]
+    ST["last_end"] = time.time()
+    played = (kv(con, "arena_played") or 0) + 1
+    kv(con, "arena_played", played)
+    kv(con, "arena_cur", {})
+    if cfg["max_rounds"] and played >= cfg["max_rounds"]:
+        kv(con, "arena", {**cfg, "on": False})
+        ST["state"] = f"Parou sozinha ao fim de {played} rondas."
+
+
+def arena_step(con):
+    """Um passo da Arena (de 2 em 2 s): vê o jogo em curso, regista, e só arranca outro quando ninguém mais precisa
+    do Forge. Se aparecer um trabalho teu ou um jogo contra o Forge, o jogo da Arena é cancelado e repete-se depois."""
+    cfg, cur = settings(con), kv(con, "arena_cur") or {}
+    if ST["job"]:
+        j = sim.status(ST["job"])
+        if j and j["status"] in ("queued", "running"):
+            r = others_busy()
+            if r or not cfg["on"]:
+                sim.cancel(ST["job"])
+                ST.update(job=None, state=f"Jogo cancelado e adiado: {r}" if r else "Desligada.")
+            return
+        ST["job"] = None
+        if not cur:
+            return
+        if j and j["status"] == "done":
+            flip = cur.pop("flip", False)
+            ws = [{"a": "b", "b": "a"}.get(g["winner"], g["winner"]) if flip else g["winner"]
+                  for g in j["games"] if not g.get("crashed") and g.get("winner") in ("a", "b", "draw")]
+            record_round(con, cur["format"], cur["a"], cur["b"], ws, "arena", cur["round_id"], final=False)
+            g = next((g for g in j["games"] if not g.get("crashed")), None)
+            if ws and g and g.get("summary"):  # dano por carta para a análise do deck (Análise › registo)
+                sides = ("b", "a") if flip else ("a", "b")
+                sm = {k: {x: (g["summary"].get(s) or {}).get(x) or {} for x in ("damage_by_card", "poison_by_card")}
+                      for k, s in zip("ab", sides)}
+                con.execute("UPDATE rating_games SET summary=? WHERE id=(SELECT max(id) FROM rating_games WHERE round_id=?)",
+                            (json.dumps({**sm, "turns": g.get("turns")}, ensure_ascii=False), cur["round_id"]))
+            cur["games"] += ws
+            cur["errors"] += not ws
+        else:
+            cur["errors"] += 1
+            ST["error"] = (j or {}).get("error") or "O trabalho perdeu-se."
+        bo = cur["bo"]
+        if max(cur["games"].count("a"), cur["games"].count("b")) > bo // 2 or len(cur["games"]) >= bo or cur["errors"] >= 3:
+            finish(con, cfg, cur)
+        else:
+            kv(con, "arena_cur", cur)
+        return
+    if not cfg["on"]:
+        ST["state"] = ST["state"] if ST["state"].startswith("Parou") else "Desligada."
+        return
+    r = wait_reason(con, cfg)
+    if r:
+        ST["state"] = r
+        return
+    if not cur:
+        cur = pairing(con, cfg)
+        if not cur:
+            ST["state"] = "Não há pelo menos dois decks nos formatos e estrelas escolhidos."
+            return
+    A, B = load_deck(con, cur["a"]), load_deck(con, cur["b"])
+    if not A or not B:
+        kv(con, "arena_cur", {})
+        ST["error"] = "Um dos decks já não existe; escolho outro par."
+        return
+    flip = len(cur["games"]) % 2 == 1  # nas séries troca quem começa
+    base = cur.get("base") or cur["format"]  # casual: as regras base são as do formato do deck A
+    cmd = sim.GAME_TYPE.get(base, "Constructed") != "Constructed"
+    seats = [{"deck": d, "difficulty": cfg["difficulty"]} for d in ((B, A) if flip else (A, B))]
+    try:  # background: os trabalhos da Arena ficam sempre atrás dos teus na fila do sim
+        ST["job"] = sim.submit(DATA, {"format": base, "casual": cur["format"] == CASUAL, "games": 1, "clock": 600 if cmd else 300,
+                                      "seats": seats, "background": True})
+    except ValueError as e:
+        kv(con, "arena_cur", {})
+        ST["error"] = f"{cur['a']['name']} contra {cur['b']['name']}: {e}"
+        return
+    cur["flip"] = flip
+    kv(con, "arena_cur", cur)
+    ST.update(state="A jogar.", error=None, since=time.time())
+
+
+def arena_loop():
+    con = db()
+    while True:
+        time.sleep(2)
+        try:
+            with ALOCK, con:
+                arena_step(con)
+        except Exception as e:  # um par estragado não pode parar a Arena
+            ST["error"] = f"Falha inesperada: {e}"
+            print(f"[arena] {e!r}", file=sys.stderr, flush=True)
+
+
+def arena_status(con, owner):
+    cfg, cur = settings(con), kv(con, "arena_cur") or {}
+    day = time.mktime(time.localtime()[:3] + (0, 0, 0, 0, 0, -1))
+    today = con.execute("SELECT COUNT(DISTINCT round_id) FROM rating_games WHERE source='arena' AND ts>=?", (day,)).fetchone()[0]
+    names = {}
+    for k, f, n in con.execute("SELECT key, format, name FROM ratings"):
+        names[(k, f)] = n
+    last = []
+    for rid, f, ak, bk, ws, ts in con.execute(
+            "SELECT round_id, format, a_key, b_key, group_concat(winner), max(ts) FROM rating_games WHERE source='arena'"
+            " GROUP BY round_id ORDER BY max(ts) DESC LIMIT 12"):
+        ws = ws.split(",")
+        last.append({"format": f, "a": names.get((ak, f), ak), "b": names.get((bk, f), bk), "ts": ts,
+                     "wa": ws.count("a"), "wb": ws.count("b"), "draws": ws.count("draw"), "open": rid == cur.get("round_id")})
+    j = sim.status(ST["job"]) if ST["job"] else None
+    return {**{k: cfg[k] for k in ARENA}, "mine": cfg["owner"] in ("", owner), "state": ST["state"], "error": ST["error"],
+            "played": kv(con, "arena_played") or 0, "today": today, "last": last,
+            "avg_secs": round(sum(ST["secs"]) / len(ST["secs"])) if ST["secs"] else None,
+            "cur": cur and {"format": cur["format"], "a": cur["a"]["name"], "b": cur["b"]["name"], "a_stars": cur["a"].get("stars"),
+                            "b_stars": cur["b"].get("stars"), "wa": cur["games"].count("a"), "wb": cur["games"].count("b"),
+                            "bo": cur["bo"], "base": cur.get("base"), "job": j and {"id": ST["job"], "status": j["status"], "position": j.get("position"),
+                                                           "secs": round(time.time() - ST["since"])}}}
+
+
+def arena_set(con, owner, d):
+    """Guarda as definições; on=True liga (a contagem de rondas desta sessão recomeça), on=False desliga."""
+    cfg = settings(con)
+    num = lambda v, lo, hi, dflt: max(lo, min(hi, float(v))) if isinstance(v, (int, float)) else dflt  # noqa: E731
+    if isinstance(d.get("sources"), list) and set(d["sources"]) <= {"meu", "meta"} and d["sources"]:
+        cfg["sources"] = d["sources"]
+    if isinstance(d.get("formats"), list):
+        cfg["formats"] = [f for f in d["formats"] if isinstance(f, str) and re.fullmatch(r"[a-z]{2,20}", f)][:12]
+    cfg["min"], cfg["max"] = (round(2 * num(d.get(k), 0, TOP, cfg[k])) / 2 for k in ("min", "max"))
+    cfg["casual"] = bool(d.get("casual", cfg["casual"]))
+    cfg["min"] = min(cfg["min"], cfg["max"])
+    cfg["bo"] = 3 if d.get("bo", cfg["bo"]) == 3 else 1
+    if d.get("difficulty") in {x[0] for x in sim.DIFFICULTIES}:
+        cfg["difficulty"] = d["difficulty"]
+    cfg["pause"] = int(num(d.get("pause"), 0, 3600, cfg["pause"]))
+    cfg["max_rounds"] = int(num(d.get("max_rounds"), 0, 1000, cfg["max_rounds"]))
+    cfg["per_hour"] = int(num(d.get("per_hour"), 1, 60, cfg["per_hour"]))
+    if "on" in d:
+        if d["on"] and not cfg["on"]:
+            kv(con, "arena_played", 0)
+            ST.update(state="A preparar.", error=None)
+        cfg["on"], cfg["owner"] = bool(d["on"]), owner
+    kv(con, "arena", cfg)
+
+
+# ---------- rotas e arranque ----------
+
+def route(method, path, owner, body=None):
+    """/api/ratings… e /api/arena -> (código, objeto)."""
+    import urllib.parse
+    u = urllib.parse.urlsplit(path)
+    q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
+    p, fmt = u.path.rstrip("/"), q.get("format", "").lower()[:40]
+    try:
+        with ALOCK if p == "/api/arena" else contextlib.nullcontext(), db() as con:
+            if p == "/api/arena":
+                if method == "POST":
+                    arena_set(con, owner, body or {})
+                return 200, arena_status(con, owner)
+            if p == "/api/ratings":
+                fmts = [r[0] for r in con.execute(f"SELECT DISTINCT format FROM ratings WHERE games>0 AND format!='{CASUAL}'"
+                                                  f" AND {VISIBLE}", (owner, owner))]
+                return 200, {"rows": deck_info(con, table(con, fmt, owner), owner), "formats": fmts, "prov": PROV}
+            if p == "/api/ratings/stars":
+                return 200, all_stars(con, owner)
+            if p == "/api/ratings/pick":
+                src = [s for s in q.get("sources", "meu,meta").split(",") if s in ("meu", "meta")]
+                return 200, pick(con, fmt, owner, int(q.get("n") or 8), float(q.get("min") or 0), float(q.get("max") or TOP), src)
+            m = re.fullmatch(r"/api/ratings/deck/((?:deck|meta):[a-z0-9-]{1,130})", urllib.parse.unquote(p))
+            if m:
+                r = con.execute("SELECT kind, owner FROM ratings WHERE key=? AND format=?", (m.group(1), fmt)).fetchone()
+                if not r or r[0] == "meu" and r[1] != owner:
+                    return 404, {"erro": "Esse deck não tem rating neste formato."}
+                return 200, history(con, m.group(1), fmt)
+    except ValueError:
+        return 400, {"erro": "pedido inválido"}
+    return 404, {"erro": "rota desconhecida"}
+
+
+def init(data_dir, busy=None):
+    """Arranque do servidor: tabelas e a thread da Arena (retoma sozinha se estava ligada, incluindo a ronda a meio)."""
+    global DATA, DB, BUSY
+    DATA, DB = data_dir, os.path.join(data_dir, "grimorio.db")
+    BUSY = busy or BUSY
+    db().close()
+    ST["seen"] = time.time()  # dá tempo a quem estava a usar o simulador antes de reiniciar
+    threading.Thread(target=arena_loop, daemon=True).start()
+
+
+# ---------- verificação ----------
+
+def selfcheck():
+    con = schema(sqlite3.connect(":memory:"))
+    con.execute("CREATE TABLE decks (id TEXT PRIMARY KEY, name TEXT, format TEXT, body TEXT, updated REAL, owner TEXT, deleted REAL)")
+    D = lambda k, kind="meta", owner="": {"key": k, "kind": kind, "name": k, "owner": owner}  # noqa: E731
+    # Elo: iguais -> ±20 (K provisório 40); a soma conserva-se enquanto os K são iguais
+    record_round(con, "pauper", D("meta:x"), D("meta:y"), ["a"], "lab")
+    ex, ey = (con.execute("SELECT elo FROM ratings WHERE key=?", (k,)).fetchone()[0] for k in ("meta:x", "meta:y"))
+    assert abs(ex - 1520) < 1e-9 and abs(ey - 1480) < 1e-9, (ex, ey)
+    assert abs(expected(1600, 1400) - 0.7597) < 1e-3 and abs(expected(1500, 1500) - 0.5) < 1e-12
+    # Bo3 dividido em chamadas: a ronda só conta no fim, com os jogos todos (2–1 para y)
+    rid = record_round(con, "pauper", D("meta:x"), D("meta:y"), ["b"], "torneio", "r1", final=False)
+    record_round(con, "pauper", D("meta:y"), D("meta:x"), ["b"], "torneio", "r1", final=False)  # lados trocados: x ganha
+    assert con.execute("SELECT SUM(rounds) FROM ratings").fetchone()[0] == 2  # só a ronda Bo1 do início
+    record_round(con, "pauper", D("meta:x"), D("meta:y"), ["b"], "torneio", rid)
+    x = dict(zip(COLS, con.execute(f"SELECT {', '.join(COLS)} FROM ratings WHERE key='meta:x'").fetchone()))
+    assert (x["games"], x["wins"], x["losses"], x["rounds"], x["round_wins"], x["round_losses"]) == (4, 2, 2, 2, 1, 1), x
+    # Lab: Bo3 pelo match_id; 2–0 fecha a série
+    con.execute("INSERT INTO decks VALUES ('d1', 'Meu', 'pauper', '{}', 0, 'ana', NULL)")
+    for w in ("a", "a"):
+        from_lab(con, {"deck_id": "d1", "opp_key": "meta:pauper-1", "opp_name": "Affinity", "format": "pauper", "match_id": "m1",
+                       "winner": w, "bo": 3}, "ana")
+    from_lab(con, {"deck_id": "d1", "opp_key": "meta:pauper-1", "format": "pauper", "winner": "a"}, "outro")  # não é dele
+    r = con.execute("SELECT games, wins, rounds, round_wins, owner FROM ratings WHERE key='deck:d1'").fetchone()
+    assert r == (2, 2, 1, 1, "ana"), r
+    # estrelas: poucos decks -> faixas fixas; muitos -> percentis em 11 degraus
+    assert stars(1500, []) == 3 and stars(1800, []) == 6 and stars(1900, []) == 6 and stars(1200, []) == 0
+    assert stars(1530, [1500] * 3) == 3.3
+    ds = [1400 + 10 * i for i in range(22)]
+    assert stars(min(ds), ds) == 0 and stars(max(ds), ds) == 6 and stars(1505, ds) == 3
+    assert [stars(e, ds) for e in ds] == sorted(stars(e, ds) for e in ds)
+    # tabela: escalões e ranking dentro do escalão; o deck apagado some; provisórios marcados
+    rng = random.Random(3)
+    for i in range(12):
+        for _ in range(12):
+            j = rng.randrange(12)
+            if j != i:
+                record_round(con, "modern", D(f"meta:m{i}"), D(f"meta:m{j}"), ["a" if rng.random() < (i + 1) / 13 else "b"], "arena")
+    con.execute("INSERT INTO decks VALUES ('d2', 'Apagado', 'modern', '{}', 0, 'ana', 1)")
+    record_round(con, "modern", D("deck:d2", "meu", "ana"), D("meta:m0"), ["a"], "lab")
+    t = table(con, "modern", "ana")
+    assert len(t) == 12 and [r["rank"] for r in t] == list(range(1, 13)) and all(r["elo"] >= s["elo"] for r, s in zip(t, t[1:]))
+    for tier in {r["tier"] for r in t}:
+        assert [r["rank_in_tier"] for r in t if r["tier"] == tier] == list(range(1, 1 + sum(r["tier"] == tier for r in t)))
+    assert t[0]["stars"] >= 5 and t[-1]["stars"] <= 1 and not any(r["provisional"] for r in t)
+    assert table(con, "pauper", "ana")[0]["provisional"]
+    # escolher por estrelas: sem rating = 3,0★; os meus e os do meta
+    sim.opponents = lambda d, f, top=12: [{"id": f"modern-{i}", "name": f"Meta {i}"} for i in range(3)]
+    con.execute("INSERT INTO decks VALUES ('d3', 'Novo', 'modern', '{}', 0, 'ana', NULL)")
+    assert {x["key"] for x in pick(con, "modern", "ana", 10, 3, 3)} == {"deck:d3", "meta:modern-0", "meta:modern-1", "meta:modern-2"}
+    assert not pick(con, "modern", "ana", 10, 3.5, 6) and len(pick(con, "modern", "ana", 2, 0, 6, ("meu",))) == 1
+    assert pick(con, "modern", "outro", 10, 0, 5, ("meu",)) == []
+    # Arena: o par fica no intervalo e prefere o mesmo escalão
+    for i in range(12):
+        con.execute("UPDATE ratings SET key=? WHERE key=?", (f"meta:modern-{i}", f"meta:m{i}"))
+    sim.opponents = lambda d, f, top=12: [{"id": f"modern-{i}", "name": f"Meta {i}"} for i in range(12)]
+    cfg = {**ARENA, "owner": "ana", "formats": ["modern"], "min": 1.0, "max": 5.0}
+    same = 0
+    for _ in range(200):
+        p = pairing(con, cfg, rng)
+        assert 1 <= p["a"]["stars"] <= 5 and 1 <= p["b"]["stars"] <= 5 and p["a"]["key"] != p["b"]["key"]
+        same += int(p["a"]["stars"]) == int(p["b"]["stars"])
+    assert same > 120, same
+    h = history(con, "deck:d1", "pauper")
+    assert h["elo"][0] == START and len(h["elo"]) == 3 and h["rounds"][0]["w"] == 2 and h["rounds"][0]["opp_name"] == "Affinity"
+    # casual: o modo casual e os decks casuais vão para o rating casual; o normal não lhes mexe
+    con.execute("""INSERT INTO decks VALUES ('d4', 'Proibido', 'modern', '{"casual": true}', 0, 'ana', NULL)""")
+    before = con.execute("SELECT elo, games FROM ratings WHERE key='meta:modern-0' AND format='modern'").fetchone()
+    record_round(con, "modern", D("deck:d4", "meu", "ana"), D("meta:modern-0"), ["a"], "torneio")  # deck casual
+    from_lab(con, {"deck_id": "d1", "opp_key": "meta:modern-0", "format": "pauper", "winner": "a", "casual": True}, "ana")
+    record_round(con, "modern", D("meta:modern-1"), D("meta:modern-0"), ["b"], "torneio", casual=True)
+    assert con.execute("SELECT elo, games FROM ratings WHERE key='meta:modern-0' AND format='modern'").fetchone() == before
+    assert not con.execute("SELECT 1 FROM ratings WHERE key='deck:d4' AND format!=?", (CASUAL,)).fetchone()
+    assert con.execute("SELECT games FROM ratings WHERE key='meta:modern-0' AND format=?", (CASUAL,)).fetchone() == (3,)
+    assert [r["key"] for r in table(con, CASUAL, "ana")][:1] and all(r["format"] == CASUAL for r in table(con, CASUAL, "ana"))
+    st = all_stars(con, "ana")
+    assert "deck:d4" not in st and "deck:d4|casual" in st and "deck:d1|casual" in st and st["deck:d1"]["format"] == "pauper"
+    t = table(con, "all", "ana")
+    assert {r["format"] for r in t} == {"pauper", "modern"} and [(-r["stars"], -r["elo"]) for r in t] == sorted((-r["stars"], -r["elo"]) for r in t)
+    assert "deck:d4" not in {x["key"] for x in candidates(con, "modern", "ana")}
+    assert {"deck:d1", "deck:d3", "deck:d4"} <= {x["key"] for x in candidates(con, CASUAL, "ana")}
+    p = pairing(con, {**cfg, "casual": True, "min": 0, "max": TOP}, rng)
+    assert p["format"] == CASUAL and p["base"] == "modern"
+    # registo do deck: Lab + Arena (com resumo), sem contar duas vezes os jogos do Lab que também estão em rating_games
+    con.execute("CREATE TABLE sim_games (id INTEGER PRIMARY KEY, ts REAL, deck_id TEXT, deck_name TEXT, format TEXT, opp_name TEXT,"
+                " opp_archetype TEXT, game_no INTEGER, match_id TEXT, winner TEXT, turns INTEGER, a_side_in TEXT, a_side_out TEXT, summary TEXT)")
+    sm = lambda a, b: json.dumps({"a": {"damage_by_card": a}, "b": {"damage_by_card": b}})  # noqa: E731
+    con.execute("INSERT INTO sim_games (deck_id, opp_name, winner, summary) VALUES ('d1', 'Affinity', 'a', ?)", (sm({"Bolt": 6, "Guide": 14}, {"Ornithopter": 3}),))
+    con.execute("INSERT INTO sim_games (deck_id, opp_name, winner, summary) VALUES ('d1', 'Affinity', 'b', ?)", (sm({"Bolt": 3}, {"Ornithopter": 20}),))
+    record_round(con, "pauper", {**D("meta:pauper-1"), "name": "Affinity"}, D("deck:d1", "meu", "ana"), ["b"], "arena", "ar1")
+    con.execute("UPDATE rating_games SET summary=? WHERE round_id='ar1'", (sm({"Elf": 2}, {"Bolt": 20}),))
+    r = deck_record(con, "d1", "ana")
+    aff = next(o for o in r["opponents"] if o["name"] == "Affinity")
+    assert (r["games"], aff["w"], aff["l"], r["by_source"]) == (3, 2, 1, {"lab": 2, "arena": 1}), r
+    assert r["dealt"] == round((20 + 3 + 20) / 3, 1) and r["taken"] == round((3 + 20 + 2) / 3, 1)
+    assert r["cards"][0] == {"card": "Bolt", "dmg": 29, "games": 3, "top_wins": 1} and deck_record(con, "d1", "outro") is None
+    print("selfcheck ok")
+
+
+if __name__ == "__main__":
+    selfcheck()

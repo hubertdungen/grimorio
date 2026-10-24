@@ -1,0 +1,349 @@
+// Verificação rápida das regras e das listas: `node web/selfcheck.mjs`
+import assert from 'node:assert/strict'
+import { FORMAT, validate, maxCopies, landAdvice } from './src/formats.js'
+import { parseList, exportList, emptyDeck, sourceOf } from './src/deck.js'
+import { landInfo, basicsFor } from './src/mana.js'
+
+const F = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'commander']
+const bits = (...fs) => fs.reduce((s, f) => s | (1 << F.indexOf(f)), 0)
+const C = [
+  { n: 'Atraxa, Praetors\' Voice', t: 'Legendary Creature — Phyrexian Angel Horror', o: 'Flying', ci: 'WUBG', lg: bits('legacy', 'vintage', 'commander'), rs: 0, r: 'm' },
+  { n: 'Sol Ring', t: 'Artifact', o: '{T}: Add {C}{C}.', ci: '', lg: bits('vintage', 'commander'), rs: bits('vintage'), r: 'u' },
+  { n: 'Lightning Bolt', t: 'Instant', o: 'Lightning Bolt deals 3 damage to any target.', ci: 'R', lg: bits('modern', 'legacy', 'vintage', 'pauper', 'commander'), rs: 0, r: 'c' },
+  { n: 'Forest', t: 'Basic Land — Forest', o: '({T}: Add {G}.)', ci: 'G', lg: bits(...F), rs: 0, r: 'c' },
+  { n: 'Relentless Rats', t: 'Creature — Rat', o: 'A deck can have any number of cards named Relentless Rats.', ci: 'B', lg: bits(...F), rs: 0, r: 'u' },
+  { n: 'Fire // Ice', t: 'Instant // Instant', o: '...', ci: 'UR', lg: bits('modern', 'legacy', 'vintage', 'commander'), rs: 0, r: 'u' },
+]
+const byName = new Map(C.map(c => [c.n, c]))
+const byLower = new Map()
+for (const c of C) { byLower.set(c.n.toLowerCase(), c); for (const p of c.n.split(' // ')) byLower.set(p.toLowerCase(), c) }
+const data = { meta: { formats: F }, byName, byLower }
+
+// Cópias: básicos e "any number" sem limite; restrita = 1 no Vintage.
+assert.equal(maxCopies(byName.get('Forest'), FORMAT.modern, 2), Infinity)
+assert.equal(maxCopies(byName.get('Relentless Rats'), FORMAT.commander, 6), Infinity)
+assert.equal(maxCopies(byName.get('Sol Ring'), FORMAT.vintage, 4), 1)
+assert.equal(maxCopies(byName.get('Lightning Bolt'), FORMAT.modern, 2), 4)
+
+// Commander: identidade de cor, tamanho e singleton.
+const d = { ...emptyDeck('commander'), commanders: ['Atraxa, Praetors\' Voice'], main: { 'Sol Ring': 2, 'Lightning Bolt': 1, Forest: 96 } }
+const msgs = validate(d, FORMAT.commander, data).map(i => i.msg).join('\n')
+assert.match(msgs, /Sol Ring: 2 cópias/)
+assert.match(msgs, /Lightning Bolt está fora da identidade/)
+assert.doesNotMatch(msgs, /Faltam|Sobram/) // 1 + 2 + 1 + 96 = 100
+assert.match(validate({ ...d, main: { Forest: 10 } }, FORMAT.commander, data)[0].msg, /Faltam 89/)
+
+// Legalidade no formato.
+assert.match(validate({ ...emptyDeck('modern'), main: { 'Sol Ring': 1, Forest: 59 } }, FORMAT.modern, data).map(i => i.msg).join(), /Sol Ring não é legal/)
+
+// Listas: cabeçalhos, "1x", edição, foil, SB:, cartas desconhecidas, nome de uma face.
+const txt = `Commander\n1 Atraxa, Praetors' Voice\n\nDeck\n1x Sol Ring (CMR) 263 *F*\n4 Lightning Bolt\nFire\n2 Carta Inventada\nSB: 3 Forest`
+const p = parseList(txt, data)
+assert.deepEqual(p.commanders, ['Atraxa, Praetors\' Voice'])
+assert.deepEqual(p.main, { 'Sol Ring': 1, 'Lightning Bolt': 4, 'Fire // Ice': 1 })
+assert.deepEqual(p.side, { Forest: 3 })
+assert.deepEqual(p.unknown, ['Carta Inventada'])
+assert.deepEqual(p.printRefs, [{ name: 'Sol Ring', set: 'CMR', cn: '263', foil: true }])
+
+// Exportar com o estilo escolhido volta a ler igual.
+const out = exportList({ ...emptyDeck(), commanders: p.commanders, main: p.main, side: p.side, prints: { 'Sol Ring': { set: 'CMR', cn: '263', foil: true } } })
+assert.match(out, /1 Sol Ring \(CMR\) 263 \*F\*/)
+const back = parseList(out, data)
+assert.deepEqual(back.main, p.main)
+assert.deepEqual(back.printRefs, p.printRefs)
+// Maybeboard (Moxfield/Archidekt/TappedOut pelo link): secção própria, fora do deck; tokens continuam ignorados.
+const mb = parseList('Deck\n4 Lightning Bolt\n\nMaybeboard\n1 Sol Ring (CMR) 263\nConsidering\n2 Forest\nTokens\n1 Fire // Ice', data)
+assert.deepEqual(mb.main, { 'Lightning Bolt': 4 })
+assert.deepEqual(mb.maybe, { 'Sol Ring': 1, Forest: 2 })
+// link de origem: campo source ou as notas dos decks importados antes
+assert.equal(sourceOf({ notes: 'Importado de tappedout: https://tappedout.net/mtg-decks/x/\nnotas' }), 'https://tappedout.net/mtg-decks/x/')
+assert.equal(sourceOf({ source: 'https://archidekt.com/decks/1', notes: '' }), 'https://archidekt.com/decks/1')
+assert.equal(sourceOf({ notes: 'sem link' }), '')
+
+// Terrenos (Karsten, limitado a 33–40 no Commander): custo médio 3 sem ramp barato daria 41 → 40; com 15 de ramp/compra baratos ~37.
+assert.equal(landAdvice(FORMAT.commander, 3, 0), 40)
+assert.equal(landAdvice(FORMAT.commander, 3, 15), 37)
+assert.equal(landAdvice(FORMAT.modern, 2, 4), 22)
+// Terrenos: cores, virado/condicional, fetch.
+const L = (n, t, o) => landInfo({ n, t, o })
+const pool = L('Breeding Pool', 'Land — Forest Island', "({T}: Add {G} or {U}.)\nAs Breeding Pool enters, you may pay 2 life. If you don't, it enters tapped.")
+assert.deepEqual([...pool.colors].sort(), ['G', 'U'])
+assert.equal(pool.tapped, 'às vezes')
+const gate = L('Simic Guildgate', 'Land — Gate', 'Simic Guildgate enters tapped.\n{T}: Add {G} or {U}.')
+assert.equal(gate.tapped, 'sim')
+const wilds = L('Evolving Wilds', 'Land', '{T}, Sacrifice Evolving Wilds: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.')
+assert.ok(wilds.fetch && wilds.colors.has('*'))
+assert.ok(L('Mishra\'s Factory', 'Land', '{1}: Mishra\'s Factory becomes a 2/2 Assembly-Worker artifact creature until end of turn.').util.includes('vira criatura (manland)'))
+// Básicos vão para a cor com menos fontes face ao alvo.
+const b = basicsFor(null, { cols: { G: { have: 10, full: 20 }, U: { have: 2, full: 16 } } }, 6, 'GU')
+assert.ok(b.Island >= 5, JSON.stringify(b))
+console.log('selfcheck ok')
+// Combos: 2 peças num deck de 99 até ao turno 8 (15 cartas vistas) ≈ 2%; com 5 tutores sobe bastante; comandante já é peça.
+import { comboProb } from './src/data.js'
+const p2 = comboProb({ pieces: 2, deckSize: 99, turn: 8 })
+assert.ok(p2 > 0.015 && p2 < 0.03, String(p2))
+assert.ok(comboProb({ pieces: 2, tutors: 5, deckSize: 99, turn: 8 }) > p2 * 3)
+assert.equal(comboProb({ pieces: 0, deckSize: 99, turn: 8 }), 1)
+console.log('selfcheck combos ok')
+// Formato detetado pelas cartas
+import { inferFormat } from './src/formats.js'
+assert.equal(inferFormat(data, { commanders: ["Atraxa, Praetors' Voice"], main: { Forest: 99 } }), 'commander')
+assert.equal(inferFormat(data, { commanders: [], main: { 'Lightning Bolt': 4, Forest: 56 } }), 'pauper')
+assert.equal(inferFormat(data, { commanders: [], main: { 'Sol Ring': 1, Forest: 59 } }), 'vintage')
+console.log('selfcheck formato ok')
+// Modelo do tabuleiro (game.js) com eventos tirados de registos reais do Forge (sim.py, parse_game)
+import { replayStates, powTough } from './src/game.js'
+{
+  const G = [
+    { n: 'Krenko, Mob Boss', t: 'Legendary Creature — Goblin Warrior', o: '{T}: Create X 1/1 red Goblin creature tokens.', pt: '3/3', kw: [] },
+    { n: 'Mountain', t: 'Basic Land — Mountain', o: '({T}: Add {R}.)', pt: '', kw: [] },
+    { n: 'Steam Vents', t: 'Land — Island Mountain', o: '({T}: Add {U} or {R}.)', pt: '', kw: [] },
+    { n: 'Goblin Guide', t: 'Creature — Goblin Scout', o: 'Haste', pt: '2/2', kw: ['Haste'] },
+    { n: 'Leatherback Baloth', t: 'Creature — Beast', o: '', pt: '4/5', kw: [] },
+    { n: 'Arcbound Ravager', t: 'Artifact Creature — Beast', o: 'Modular 1', pt: '0/0', kw: ['Modular'] },
+    { n: 'Delver of Secrets // Insectile Aberration', t: 'Creature — Human Wizard // Creature — Human Insect', o: '…\n//\nFlying', pt: '', kw: ['Flying'], df: 1 },
+  ]
+  const gm = { byName: new Map(G.map(c => [c.n, c])), byLower: new Map() }
+  for (const c of G) for (const p of [c.n, ...c.n.split(' // ')]) gm.byLower.set(p.toLowerCase(), c)
+  const E = [
+    { t: 0, k: 'mulligan', p: 'a', n: 7, card: 'kept' },
+    { t: 1, k: 'turn', p: 'a', reveal: { a: ['Mountain', 'Goblin Guide'] } },
+    { t: 1, k: 'land', p: 'a', card: 'Mountain', id: 26 },
+    { t: 1, k: 'tap', p: 'a', card: 'Mountain', id: 26 },
+    { t: 1, k: 'cast', p: 'a', card: 'Goblin Guide' },
+    { t: 1, k: 'resolve', p: 'a', card: 'Goblin Guide', pt: '2/2' },
+    { t: 1, k: 'cast', p: 'a', card: 'Krenko, Mob Boss' },
+    { t: 1, k: 'resolve', p: 'a', card: 'Krenko, Mob Boss', pt: '3/3' },
+    { t: 1, k: 'phase', p: 'a', ph: 'combat' },
+    { t: 1, k: 'attack', p: 'a', card: 'Goblin Guide', id: 10, target: 'b' },
+    { t: 2, k: 'turn', p: 'b' },
+    { t: 2, k: 'search', p: 'b', to: 'battlefield' },
+    { t: 2, k: 'tap', p: 'b', card: 'Steam Vents', id: 114 },
+    { t: 2, k: 'cast', p: 'b', card: 'Arcbound Ravager' },
+    { t: 2, k: 'resolve', p: 'b', card: 'Arcbound Ravager', pt: '0/0' },
+    { t: 2, k: 'token', p: 'b', card: 'Vampire Token', n: 2, pt: '1/1', kw: ['Lifelink'] },
+    { t: 2, k: 'attack', p: 'b', card: 'Vampire Token', id: 206, target: 'a' },
+    { t: 2, k: 'block', p: 'a', card: 'Goblin Guide', id: 10, target: 'Vampire Token', tid: 206 },
+    { t: 2, k: 'damage', p: 'a', card: 'Goblin Guide', id: 10, n: 2, target: 'Vampire Token', tid: 206, combat: 1, gone: 1 },
+    { t: 2, k: 'damage', p: 'b', card: 'Vampire Token', id: 206, n: 1, target: 'Goblin Guide', tid: 10, combat: 1 },
+    { t: 2, k: 'life', p: 'b', n: 18 },
+    { t: 2, k: 'counters', p: 'b', card: 'Arcbound Ravager', ct: '+1/+1', n: 2 },
+    { t: 2, k: 'transform', card: 'Delver of Secrets // Insectile Aberration', id: 79, to: 'Insectile Aberration' },
+    { t: 2, k: 'exile', p: 'a', card: 'Krenko, Mob Boss', id: 100, target: 'battlefield>exile' },
+    { t: 3, k: 'turn', p: 'a' },
+  ]
+  const st = replayStates(E, gm, 20, { a: { commanders: ['Krenko, Mob Boss'], size: 99 }, b: { commanders: [], size: 60 } })
+  const at = (n, side) => st[n][side]
+  // terreno jogado, virado para mana; a mão conhecida perde as cartas jogadas; o comandante sai da zona de comando
+  assert.equal(at(4, 'a').perms[0].tapped, true)
+  assert.deepEqual(at(8, 'a').known, [])
+  assert.equal(at(8, 'a').command[0].casts, 1)
+  assert.equal(at(8, 'a').library, 92)
+  // ataque vira a criatura (com ímpeto: sem enjoo); a do Krenko entra enjoada
+  const gg = at(10, 'a').perms.find(p => p.name === 'Goblin Guide')
+  assert.ok(gg.tapped && gg.attacking === 'b' && !gg.sick && gg.fid === 10)
+  assert.equal(at(10, 'a').perms.find(p => p.name === 'Krenko, Mob Boss').sick, true)
+  // turno do outro: desvira só os dele e compra (≈); terreno procurado é adotado quando dá mana
+  assert.equal(at(11, 'a').perms[0].tapped, true)
+  assert.equal(at(11, 'b').hand, 8)
+  const vents = at(13, 'b').perms.find(p => p.fid === 114)
+  assert.ok(vents && vents.name === 'Steam Vents' && vents.tapped && !vents.hidden)
+  // Modular 1 lido do texto da carta; fichas com P/R; bloqueio; dano letal a uma ficha que o Forge nunca mais mostra
+  assert.equal(at(15, 'b').perms.find(p => p.name === 'Arcbound Ravager').counters['+1/+1'], 1)
+  assert.equal(at(16, 'b').perms.filter(p => p.token).length, 2)
+  assert.ok(at(18, 'a').perms.find(p => p.fid === 10).blocking)
+  assert.ok(at(19, 'b').perms.find(p => p.fid === 206).dying)
+  assert.equal(at(20, 'b').perms.filter(p => p.token).length, 1)
+  assert.equal(at(20, 'a').perms.find(p => p.fid === 10).damage, 1)
+  assert.equal(st[21].fx.life.d, -2)
+  const rav = at(22, 'b').perms.find(p => p.name === 'Arcbound Ravager')
+  assert.deepEqual(powTough(gm, rav), { p: 3, t: 3, boosted: true, hurt: false })
+  assert.equal(at(23, 'a').perms.find(p => p.fid === 79).flipped, true)
+  // o comandante exilado volta à zona de comando; no turno seguinte limpa-se o dano e desvira
+  assert.equal(at(24, 'a').command[0].out, false)
+  assert.equal(at(24, 'a').exile.length, 0)
+  const end = at(25, 'a').perms.find(p => p.fid === 10)
+  assert.ok(!end.tapped && !end.damage && !end.blocking)
+  console.log('selfcheck tabuleiro ok')
+}
+// Jogo exato (lançador GrimorioSim): eventos que o sim.py tira das linhas reais do seu selfcheck
+{
+  const G = [
+    { n: 'Forest', t: 'Basic Land — Forest', o: '', pt: '', kw: [] },
+    { n: 'Llanowar Elves', t: 'Creature — Elf Druid', o: '{T}: Add {G}.', pt: '1/1', kw: [] },
+    { n: 'Walking Ballista', t: 'Artifact Creature — Construct', o: 'Walking Ballista enters with X +1/+1 counters on it.', pt: '0/0', kw: [] },
+  ]
+  const gm = { byName: new Map(G.map(c => [c.n, c])), byLower: new Map(G.map(c => [c.n.toLowerCase(), c])) }
+  const E = [
+    {"t": 0, "k": "mulligan", "p": "b", "n": 7, "card": "kept", "hd": {"a": ["Goblin Guide"], "b": ["Llanowar Elves"]}},
+    {"t": 0, "k": "mulligan", "p": "a", "n": 7, "card": "kept"},
+    {"t": 1, "k": "turn", "p": "b", "hd": {"a": ["Goblin Guide", "Mountain", "Rift Bolt"], "b": ["Llanowar Elves", "Forest", "Elvish Mystic"]}, "lib": {"a": 53, "b": 53}},
+    {"t": 1, "k": "land", "p": "b", "card": "Forest", "id": 108, "zn": [{"id": 108, "card": "Forest", "from": "hand", "to": "battlefield", "fp": "b", "tp": "b"}], "hd": {"b": ["Llanowar Elves", "Elvish Mystic"]}, "lib": {"b": 53}},
+    {"t": 1, "k": "tap", "p": "b", "card": "Forest", "id": 108, "hd": {"b": ["Elvish Mystic"]}, "lib": {"b": 53}},
+    {"t": 1, "k": "cast", "p": "b", "card": "Llanowar Elves", "zn": [{"id": 86, "card": "Llanowar Elves", "from": "hand", "to": "stack", "fp": "b", "tp": null}]},
+    {"t": 1, "k": "resolve", "p": "b", "card": "Llanowar Elves", "pt": "1/1", "zn": [{"id": 86, "card": "Llanowar Elves", "from": "stack", "to": "battlefield", "fp": null, "tp": "b"}]},
+    {"t": 2, "k": "turn", "p": "a", "hd": {"a": ["Goblin Guide", "Mountain", "Rift Bolt"], "b": ["Elvish Mystic"]}, "lib": {"a": 53, "b": 53}, "ut": [108]},
+    {"t": 2, "k": "draw", "p": "a", "card": "Mountain", "id": 26, "x": 1, "zn": [{"id": 26, "card": "Mountain", "from": "library", "to": "hand", "fp": "a", "tp": "a"}], "n": 1, "hd": {"a": ["Goblin Guide", "Mountain", "Rift Bolt", "Mountain"]}, "lib": {"a": 52}},
+    {"t": 2, "k": "tap", "card": "Mountain", "id": 23, "hd": {"a": ["Goblin Guide", "Mountain", "Mountain"]}, "lib": {"a": 52}, "p": "a"},
+    {"t": 2, "k": "cast", "p": "a", "card": "Rift Bolt", "target": "Llanowar Elves", "tid": 86, "zn": [{"id": 46, "card": "Rift Bolt", "from": "hand", "to": "stack", "fp": "a", "tp": null}]},
+    {"t": 2, "k": "damage", "p": "a", "card": "Rift Bolt", "id": 46, "n": 3, "target": "Llanowar Elves", "tid": 86},
+    {"t": 2, "k": "resolve", "p": "a", "card": "Rift Bolt", "id": 46, "zn": [{"id": 46, "card": "Rift Bolt", "from": "stack", "to": "graveyard", "fp": null, "tp": "a"}]},
+    {"t": 2, "k": "destroy", "p": "b", "card": "Llanowar Elves", "id": 86, "x": 1, "zn": [{"id": 86, "card": "Llanowar Elves", "from": "battlefield", "to": "graveyard", "fp": "b", "tp": "b"}], "target": "battlefield>graveyard"},
+    {"t": 2, "k": "cast", "p": "a", "card": "Walking Ballista", "zn": [{"id": 53, "card": "Walking Ballista", "from": "hand", "to": "stack", "fp": "a", "tp": null}], "hd": {"a": ["Goblin Guide", "Mountain", "Mountain"]}, "lib": {"a": 52}},
+    {"t": 2, "k": "other"},
+    {"t": 2, "k": "resolve", "p": "a", "card": "Walking Ballista", "pt": "0/0", "zn": [{"id": 53, "card": "Walking Ballista", "from": "stack", "to": "battlefield", "fp": null, "tp": "a", "ctr": {"+1/+1": 1}}]},
+    {"t": 2, "k": "token", "p": "a", "card": "Soldier Token", "id": 199, "x": 1, "zn": [{"id": 199, "card": "Soldier Token", "from": null, "to": "battlefield", "fp": null, "tp": "a", "tok": 1, "pt": "1/1", "kw": ["Flying"]}], "n": 1, "pt": "1/1", "kw": ["Flying"]},
+    {"t": 2, "k": "counters", "p": "a", "card": "Walking Ballista", "id": 53, "ct": "+1/+1", "n": -1, "abs": 0, "x": 1},
+    {"t": 2, "k": "destroy", "p": "a", "card": "Walking Ballista", "id": 53, "x": 1, "zn": [{"id": 53, "card": "Walking Ballista", "from": "battlefield", "to": "graveyard", "fp": "a", "tp": "a"}], "target": "battlefield>graveyard"},
+  ]
+  const st = replayStates(E, gm, 20, { a: { commanders: [], size: 60 }, b: { commanders: [], size: 60 } }, true)
+  const at = (n, side) => st[n][side]
+  // mão exata desde o mulligan, sem cartas de costas; biblioteca exata no turno
+  assert.deepEqual(at(1, 'a').known, ['Goblin Guide']); assert.equal(at(1, 'a').hand, 1)
+  assert.equal(at(3, 'b').library, 53); assert.equal(at(3, 'b').hand, 3)
+  // terreno pelo zn (com o id do Forge), mão sem ele; o feitiço sai da mão ao pagar
+  assert.deepEqual(at(4, 'b').perms.map(p => [p.name, p.fid]), [['Forest', 108]])
+  assert.deepEqual(at(5, 'b').known, ['Elvish Mystic'])
+  assert.ok(at(7, 'b').perms.some(p => p.fid === 86 && p.sick))
+  // desvira só o que o Forge desvirou (o Forest é do outro jogador: fica como está)
+  assert.equal(at(8, 'b').perms.find(p => p.fid === 108).tapped, true)
+  // compra com o nome da carta
+  assert.deepEqual(at(9, 'a').known, ['Goblin Guide', 'Mountain', 'Rift Bolt', 'Mountain']); assert.equal(at(9, 'a').library, 52)
+  // instantâneo para o cemitério; a criatura morre pela mudança de zona (sem inferir pelo dano)
+  assert.ok(!at(12, 'b').perms.find(p => p.fid === 86).dying)
+  assert.deepEqual(at(13, 'a').graveyard, ['Rift Bolt'])
+  assert.ok(at(14, 'b').perms.find(p => p.fid === 86).dying); assert.deepEqual(at(14, 'b').graveyard, ['Llanowar Elves'])
+  // marcadores com que entra vêm do Forge (não do texto da carta); ficha com o id e voar
+  assert.deepEqual(at(17, 'a').perms.find(p => p.fid === 53).counters, { '+1/+1': 1 })
+  const tok = at(18, 'a').perms.find(p => p.fid === 199)
+  assert.ok(tok.token && tok.pt === '1/1' && tok.kw[0] === 'Flying')
+  assert.deepEqual(at(19, 'a').perms.find(p => p.fid === 53).counters, {})
+  assert.deepEqual(at(20, 'a').graveyard, ['Rift Bolt', 'Walking Ballista'])
+  console.log('selfcheck tabuleiro exato ok')
+}
+
+// Ninjutsu (eventos reais do Forge): a atacante devolvida sai do combate para a mão; o ninja entra virado e a atacar
+{
+  const G = [
+    { n: 'Changeling Outcast', t: 'Creature — Shapeshifter', o: '', pt: '1/1', kw: [] },
+    { n: 'Ingenious Infiltrator', t: 'Creature — Vedalken Ninja', o: 'Ninjutsu {U}{B}', pt: '2/3', kw: [] },
+  ]
+  const gm = { byName: new Map(G.map(c => [c.n, c])), byLower: new Map(G.map(c => [c.n.toLowerCase(), c])) }
+  const zn = (id, card, from, to) => [{ id, card, from, to, fp: 'b', tp: 'b' }]
+  const E = [
+    { t: 1, k: 'turn', p: 'b', hd: { b: ['Changeling Outcast', 'Ingenious Infiltrator'] }, ut: [] },
+    { t: 1, k: 'resolve', p: 'b', card: 'Changeling Outcast', pt: '1/1', zn: [{ id: 101, card: 'Changeling Outcast', from: 'stack', to: 'battlefield', fp: null, tp: 'b' }] },
+    { t: 3, k: 'turn', p: 'b', ut: [] },
+    { t: 3, k: 'phase', p: 'b', ph: 'combat' },
+    { t: 3, p: 'b', k: 'attack', card: 'Changeling Outcast', id: 101, target: 'a' },
+    { t: 3, k: 'bounce', p: 'b', card: 'Changeling Outcast', id: 101, x: 1, zn: zn(101, 'Changeling Outcast', 'battlefield', 'hand'), target: 'battlefield>hand', hd: { b: ['Ingenious Infiltrator', 'Changeling Outcast'] } },
+    { t: 3, k: 'activate', p: 'b', card: 'Ingenious Infiltrator' },
+    { t: 3, k: 'zone', p: 'b', card: 'Ingenious Infiltrator', id: 120, x: 1, zn: zn(120, 'Ingenious Infiltrator', 'hand', 'battlefield'), hd: { b: ['Changeling Outcast'] } },
+    { t: 3, k: 'resolve', p: 'b', card: 'Ingenious Infiltrator', id: 120, txt: 'Ingenious Infiltrator (120) - Ai(2)-B puts Ingenious Infiltrator (120) from their hand onto the battlefield tapped and attacking.' },
+  ]
+  const st = replayStates(E, gm, 20, { a: { size: 60 }, b: { size: 60 } }, true)
+  const last = st.at(-1).b
+  assert.deepEqual(last.perms.map(p => p.name), ['Ingenious Infiltrator'])
+  const nin = last.perms[0]
+  assert.ok(nin.tapped && nin.attacking === 'a' && !nin.sick, JSON.stringify(nin))
+  assert.deepEqual(last.known, ['Changeling Outcast'])
+  // o que entra noutra resolução (sem «attacking») continua normal
+  assert.ok(st[2].b.perms[0].sick && !st[2].b.perms[0].attacking)
+  console.log('selfcheck ninjutsu ok')
+}
+
+// Testes do Laboratório → provas, fator «testes» e sideboard (jogo exato sintético).
+import { testEvidence, testsBoost, stuckIn } from './src/tests.js'
+import { planSideboard } from './src/sideboard.js'
+{
+  const K = (n, mt, t, o, extra = {}) => ({ n, mt, t, o, tg: [], kw: [], cmc: 2, ...extra })
+  const cs = [K('Brick', 'Creature', 'Creature — Wall', '', { cmc: 3 }), K('Bolt', 'Instant', 'Instant', 'Bolt deals 3 damage to any target.', { tg: ['removal'] }),
+    K('Mountain', 'Land', 'Basic Land — Mountain', ''), K('Drake', 'Creature', 'Creature — Drake', 'Flying', { kw: ['Flying'] }), K('Shock', 'Instant', 'Instant', 'Shock deals 2 damage.'),
+    K('Plummet', 'Instant', 'Instant', 'Destroy target creature with flying.')]
+  const D = { byName: new Map(cs.map(c => [c.n, c])) }
+  const ev = [{ t: 0, k: 'mulligan', p: 'b', hd: { a: ['Brick', 'Bolt', 'Mountain'], b: ['Drake'] } }, { t: 1, k: 'turn', p: 'a' }, { t: 2, k: 'turn', p: 'b' },
+    { t: 3, k: 'turn', p: 'a' }, { t: 3, k: 'cast', p: 'a', card: 'Bolt', hd: { a: ['Brick', 'Mountain'] } }, { t: 5, k: 'turn', p: 'a' }]
+  const g = { winner: 'b', exact: true, events: ev, summary: { a: { used: ['Bolt', 'Mountain'], cast: [[3, 'Bolt']], damage_by_card: { Bolt: 3 } }, b: { cast: [[2, 'Drake'], [4, 'Drake'], [4, 'Shock']], damage_by_card: { Drake: 6 } } } }
+  assert.deepEqual(stuckIn(g), ['Brick']) // 3 turnos na mão sem uso; o terreno foi usado
+  const T = testEvidence(D, [g, g, { ...g, exact: false, winner: 'a' }])
+  assert.deepEqual(T.dead.Brick, { seen: 2, dead: 2 }) // só os jogos exatos contam para a mão
+  assert.equal(T.impact.Bolt.dmg, 9)
+  assert.deepEqual([T.cats.flyers.games, T.cats.flyers.lost], [3, 2])
+  const tb = testsBoost(D.byName.get('Plummet'), T)
+  assert.ok(tb.v > 0 && tb.v <= 0.1)
+  assert.equal(tb.txt, 'Testes: perdeste 2 de 3 jogos contra criaturas voadoras (Drake); isto responde')
+  assert.equal(testsBoost(D.byName.get('Shock'), T), null)
+  assert.equal(testsBoost(D.byName.get('Plummet'), { ...T, games: 0 }), null)
+  const sw = planSideboard(D, { main: { Brick: 2, Bolt: 4, Mountain: 20 }, side: { Plummet: 2 } }, { main: { Drake: 4, Shock: 4 } }, [g], [])
+  assert.deepEqual(sw.map(s => [s.in, s.out, s.q]), [['Plummet', 'Brick', 2]])
+  assert.match(sw[0].why, /trava voadores \(lançou 2 criaturas voadoras; tiraram-te 6 de vida\)/)
+  assert.equal(sw[0].outWhy, 'ficou presa na mão')
+  // nunca comprada (nem lançada) nos jogos exatos: não conta como «não chegou a ser jogada»
+  const sw3 = planSideboard(D, { main: { Drake: 2, Mountain: 20 }, side: { Plummet: 2 } }, { main: { Drake: 4, Shock: 4 } }, [g], [])
+  assert.equal(sw3[0].outWhy, 'pouco útil contra este deck')
+  console.log('selfcheck testes/sideboard ok')
+}
+
+// 3 jogadores (todos contra todos, jogo exato): ataque a um jogador concreto, dano a C, eliminação a meio do jogo
+{
+  const G = [{ n: 'Goblin Guide', t: 'Creature — Goblin Scout', o: 'Haste', pt: '2/2', kw: ['Haste'] }]
+  const gm = { byName: new Map(G.map(c => [c.n, c])), byLower: new Map(G.map(c => [c.n.toLowerCase(), c])) }
+  const setup = { a: { commanders: [], size: 60 }, b: { commanders: [], size: 60 }, c: { commanders: [], size: 60 } }
+  const E = [
+    { t: 1, k: 'turn', p: 'a', hd: { a: ['Goblin Guide'], b: [], c: [] }, lib: { a: 53, b: 53, c: 53 } },
+    { t: 1, k: 'resolve', p: 'a', card: 'Goblin Guide', zn: [{ id: 10, card: 'Goblin Guide', from: 'stack', to: 'battlefield', fp: null, tp: 'a' }], hd: { a: [] } },
+    { t: 1, k: 'attack', p: 'a', card: 'Goblin Guide', id: 10, target: 'c' },
+    { t: 1, k: 'damage', p: 'a', card: 'Goblin Guide', id: 10, n: 2, target: 'c', combat: 1 },
+    { t: 1, k: 'life', p: 'c', n: 0 },
+    { t: 1, k: 'outcome', p: 'c', txt: 'Ai(3)-C has lost because life total reached 0' },
+    { t: 2, k: 'turn', p: 'b' },
+  ]
+  const st = replayStates(E, gm, 20, setup, true)
+  assert.deepEqual(st[0].sides, ['a', 'b', 'c'])
+  assert.equal(st[3].a.perms[0].attacking, 'c')  // ataca o jogador C, não «o outro»
+  assert.deepEqual(st[4].fx.player, { p: 'c', n: 2, psn: false })
+  assert.equal(st[5].c.life, 0); assert.equal(st[5].b.life, 20)
+  assert.equal(st[6].c.out, 1); assert.equal(st[6].b.out, undefined)  // C eliminado no turno 1; B continua
+  assert.ok(!st[7].a.perms[0].attacking)
+  // a dois, nada muda: sem lado C e a derrota não marca «eliminado»
+  const two = replayStates([{ t: 1, k: 'outcome', p: 'b', txt: 'Ai(2)-B has lost' }], gm, 20, { a: {}, b: {} }, true)
+  assert.deepEqual(two[0].sides, ['a', 'b']); assert.equal(two[1].b.out, undefined); assert.equal(two[1].over.loser, 'b')
+  console.log('selfcheck multijogador ok')
+}
+// Sinergias gerais (synergy.js) com textos reais da Scryfall
+import { rolesOf } from './src/data.js'
+import { deckSynergy } from './src/synergy.js'
+{
+  const S = [
+    ['Bonesplitter', 'Artifact — Equipment', 'Equipped creature gets +2/+0.\nEquip {1}', '', ['Equip']],
+    ['Golem-Skin Gauntlets', 'Artifact — Equipment', 'Equipped creature gets +1/+0 for each Equipment attached to it.\nEquip {2}', '', ['Equip']],
+    ['Auriok Glaivemaster', 'Creature — Human Soldier', 'As long as this creature is equipped, it gets +1/+1 and has first strike.', 'W', []],
+    ['Puresteel Paladin', 'Creature — Human Knight', 'Whenever an Equipment you control enters, you may draw a card.\nMetalcraft — Equipment you control have equip {0} as long as you control three or more artifacts.', 'W', ['Metalcraft']],
+    ['Benevolent Blessing', 'Enchantment — Aura', "Enchant creature\nEnchanted creature has protection from the chosen color. This effect doesn't remove Auras and Equipment you control that are already attached to it.", 'W', ['Enchant']],
+    ['Axebane Guardian', 'Creature — Human Druid', 'Defender\n{T}: Add X mana in any combination of colors, where X is the number of creatures you control with defender.', 'G', ['Defender']],
+    ['Wall of Glare', 'Creature — Wall', 'Defender (This creature can\'t attack.)\nThis creature can block any number of creatures.', 'W', ['Defender']],
+    ['Smash to Dust', 'Sorcery', 'Choose one —\n• Destroy target artifact.\n• Destroy target creature with defender.', 'R', []],
+    ['Carrion Feeder', 'Creature — Zombie', 'This creature can\'t block.\nSacrifice a creature: Put a +1/+1 counter on this creature.', 'B', []],
+    ['Carrier Thrall', 'Creature — Vampire', 'When this creature dies, create a 1/1 colorless Eldrazi Scion creature token.', 'B', []],
+    ['Mortician Beetle', 'Creature — Insect', 'Whenever a player sacrifices a creature, you may put a +1/+1 counter on this creature.', 'B', []],
+    ['Lightning Bolt', 'Instant', 'Lightning Bolt deals 3 damage to any target.', 'R', []],
+  ].map(([n, t, o, ci, kw], i) => ({ n, t, o, ci, co: ci, kw, i, cmc: 2, pt: '', lg: 1, er: 100 + i, tg: [] }))
+  for (const c of S) c.ro = rolesOf(c)
+  const sd = { cards: S, byName: new Map(S.map(c => [c.n, c])), meta: { formats: [] } }
+  const ctx = { bit: -1, allowUn: true, identity: null }
+  const syn = main => deckSynergy(sd, { main, commanders: [] }, ctx)
+  const eq = syn({ Bonesplitter: 4, 'Golem-Skin Gauntlets': 2, 'Auriok Glaivemaster': 4 })
+  const e = eq.cats.find(x => x.s.k === 'equip')
+  assert.equal(eq.cats[0].s.k, 'equip')
+  assert.deepEqual(e.en.map(x => x.c.n).sort(), ['Bonesplitter', 'Golem-Skin Gauntlets'])
+  assert.ok(e.pay.some(x => x.c.n === 'Auriok Glaivemaster') && !e.pay.some(x => x.c.n === 'Bonesplitter'))
+  assert.deepEqual(e.sug.map(x => x.c.n), ['Puresteel Paladin']) // nas cores (W), fora do deck; Benevolent Blessing é só lembrete
+  assert.ok(eq.pairs.some(p => p.a[0].n === 'Golem-Skin Gauntlets' && /Equipment/.test(p.why)))
+  const wall = syn({ 'Axebane Guardian': 4, 'Wall of Glare': 4 }).cats.find(x => x.s.k === 'defender')
+  assert.ok(wall.pay.some(x => x.c.n === 'Axebane Guardian') && wall.en.length === 2)
+  assert.ok(!syn({ 'Axebane Guardian': 4, 'Wall of Glare': 4, 'Smash to Dust': 1 }).cats.find(x => x.s.k === 'defender').pay.some(x => x.c.n === 'Smash to Dust'))
+  const sac = syn({ 'Carrion Feeder': 4, 'Carrier Thrall': 4, 'Mortician Beetle': 4 }).cats[0]
+  assert.equal(sac.s.k, 'sac'); assert.ok(sac.pay.some(x => x.c.n === 'Mortician Beetle') && sac.en.some(x => x.c.n === 'Carrier Thrall'))
+  assert.equal(syn({ 'Lightning Bolt': 4 }).cats.length, 0)
+  console.log('selfcheck sinergias ok')
+}

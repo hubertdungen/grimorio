@@ -1,0 +1,15 @@
+# Grimório: o guião do Forge 2.0.15 com dicas só para a IA; as regras da carta ficam iguais.
+# O DamageDealAi calcula o dano antes de pagar o custo (Sacrificed$CardPower = 0) e nunca a lançava.
+# AIExpectAmount: conta com o poder da criatura mais forte; AIPreference + AIPreferBestCard: sacrifica essa mesma.
+# Com isto o Forge só a usa para acabar o jogo (deixar o adversário abaixo de 5) ou no 2.º principal com a mão cheia.
+Name:Rite of Consumption
+ManaCost:1 B
+Types:Sorcery
+A:SP$ DealDamage | Cost$ 1 B Sac<1/Creature> | ValidTgts$ Player,Planeswalker | TgtPrompt$ Select target player or planeswalker | NumDmg$ X | AIExpectAmount$ Z | SubAbility$ DBGainLife | SpellDescription$ CARDNAME deals damage equal to the sacrificed creature's power to target player or planeswalker. You gain life equal to the damage dealt this way.
+SVar:DBGainLife:DB$ GainLife | Defined$ You | LifeAmount$ Y | StackDescription$ You gain life equal to the damage dealt this way.
+SVar:X:Sacrificed$CardPower
+SVar:Y:Count$TotalDamageDoneByThisTurn
+SVar:Z:Count$Valid Creature.YouCtrl$GreatestCardPower
+SVar:AIPreference:SacCost$Creature
+SVar:AIPreferBestCard:True
+Oracle:As an additional cost to cast this spell, sacrifice a creature.\nRite of Consumption deals damage equal to the sacrificed creature's power to target player or planeswalker. You gain life equal to the damage dealt this way.

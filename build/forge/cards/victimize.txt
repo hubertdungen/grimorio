@@ -1,0 +1,15 @@
+# Grimório: o guião do Forge (SP$ Sacrifice + sub-habilidade que reanima) reescrito para a IA o conseguir jogar.
+# A IA do Forge decide pela habilidade de topo: o SacrificeAi só aceita sacrificar uma criatura que valha <= 135
+# e recusava sempre (nem uma Fallaji Archaeologist 0/3 passa). Agora o topo é a reanimação de dois alvos (a IA
+# escolhe as melhores do cemitério) e o sacrifício é pago na resolução: sem sacrifício, nada volta, como na carta.
+# Diferença: o sacrifício fica opcional («podes sacrificar»), o que nunca compensa recusar.
+# Defined$ Targeted: o ChangeZoneAi só aceita pagar o UnlessCost se as cartas «Defined» forem criaturas; sem isto
+# lia a própria Victimize, recusava o sacrifício e a carta resolvia sem efeito.
+# AICheckSVar: a IA só a lança com pelo menos uma criatura para sacrificar. AIPriorityModifier: como na Persist.
+Name:Victimize
+ManaCost:2 B
+Types:Sorcery
+A:SP$ ChangeZone | ValidTgts$ Creature.YouCtrl | TgtPrompt$ Select two target creature cards in your graveyard | TargetMin$ 2 | TargetMax$ 2 | Origin$ Graveyard | Destination$ Battlefield | Tapped$ True | Defined$ Targeted | UnlessCost$ Sac<1/Creature> | UnlessPayer$ You | UnlessSwitched$ True | AICheckSVar$ Y | AISVarCompare$ GE1 | SpellDescription$ Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the battlefield tapped.
+SVar:Y:Count$Valid Creature.YouCtrl
+SVar:AIPriorityModifier:3
+Oracle:Choose two target creature cards in your graveyard. Sacrifice a creature. If you do, return the chosen cards to the battlefield tapped.

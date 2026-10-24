@@ -1,0 +1,10 @@
+# Grimório: o guião do Forge 2.0.15 sem «AI:RemoveDeck:All» (com ele a IA nunca a lançava) e com AILogic no topo:
+# o ChooseTypeAi recusa tudo o que não tem AILogic. Que tipo escolher decide-o o lançador (GrimorioSim, Brain:
+# o tipo com mais cartas na biblioteca, terrenos se faltarem). As regras da carta ficam iguais.
+Name:Winding Way
+ManaCost:1 G
+Types:Sorcery
+A:SP$ ChooseType | Type$ Card | ValidTypes$ Creature,Land | AILogic$ Library | SubAbility$ DBDig | StackDescription$ SpellDescription | SpellDescription$ Choose creature or land.
+SVar:DBDig:DB$ Dig | DigNum$ 4 | Reveal$ True | ChangeNum$ All | ChangeValid$ Card.ChosenType | DestinationZone2$ Graveyard | StackDescription$ SpellDescription | SpellDescription$ Reveal the top four cards of your library. Put all cards of the chosen type revealed this way into your hand and the rest into your graveyard.
+DeckHas:Ability$Graveyard
+Oracle:Choose creature or land. Reveal the top four cards of your library. Put all cards of the chosen type revealed this way into your hand and the rest into your graveyard.
