@@ -1869,4 +1869,11 @@ export default {
   "vista em {n} jogos": "seen in {n} games",
   "Trocar por esta": "Swap for this one",
   "ou:": "or:",
+  "Google Gemini (grátis, com limite diário)": "Google Gemini (free, daily limit)",
+  "Groq (grátis, com limite por minuto)": "Groq (free, per-minute limit)",
+  "OpenRouter (modelos :free)": "OpenRouter (:free models)",
+  "Ollama local (grátis, precisa de máquina com RAM)": "Local Ollama (free, needs a machine with RAM)",
+  "OpenAI GPT (pago)": "OpenAI GPT (paid)",
+  "DeepSeek (pago, barato)": "DeepSeek (paid, cheap)",
+  "Anthropic Claude (pago, mais forte)": "Anthropic Claude (paid, strongest)",
 }

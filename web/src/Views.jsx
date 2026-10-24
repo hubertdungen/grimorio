@@ -1277,7 +1277,7 @@ export function IASettings({ cfg, setCfg, onDone }) {
     <div className="ia-set">
       <label className="fmt"><span>{tx('Fornecedor')}</span>
         <select value={prov} onChange={e => { setProv(e.target.value); setModel('') }}>
-          {cfg.providers.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}
+          {cfg.providers.map(x => <option key={x.id} value={x.id}>{tx(x.label)}</option>)}
         </select>
       </label>
       <label className="fmt"><span>{tx('Modelo')}</span><input value={model} onChange={e => setModel(e.target.value)} placeholder={p?.model} /></label>
@@ -1345,7 +1345,7 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
     <div className="modal-bg" onClick={onClose}>
       <div className="modal auto ia" onClick={e => e.stopPropagation()}>
         <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
-        <h3>✦ {tx('Assistente IA')} <span className="muted small">{tx('extra opcional')}{cfg && cfg.provider !== 'off' ? ` · ${cfg.providers.find(p => p.id === cfg.provider)?.label}` : ''}</span> {cfg && <button className="link small" onClick={() => setShowSet(!showSet)}>{tx('definições')}</button>}</h3>
+        <h3>✦ {tx('Assistente IA')} <span className="muted small">{tx('extra opcional')}{cfg && cfg.provider !== 'off' ? ` · ${tx(cfg.providers.find(p => p.id === cfg.provider)?.label || '')}` : ''}</span> {cfg && <button className="link small" onClick={() => setShowSet(!showSet)}>{tx('definições')}</button>}</h3>
         {cfg && showSet && <IASettings cfg={cfg} setCfg={setCfg} onDone={() => setShowSet(false)} />}
         {cfg && !showSet && cfg.provider !== 'off' && (
           <>

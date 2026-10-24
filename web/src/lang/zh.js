@@ -1861,4 +1861,11 @@ export default {
   "vista em {n} jogos": "在 {n} 局中出现",
   "Trocar por esta": "换成这张",
   "ou:": "或：",
+  "Google Gemini (grátis, com limite diário)": "Google Gemini（免费，有每日限额）",
+  "Groq (grátis, com limite por minuto)": "Groq（免费，有每分钟限额）",
+  "OpenRouter (modelos :free)": "OpenRouter（:free 模型）",
+  "Ollama local (grátis, precisa de máquina com RAM)": "本地 Ollama（免费，需要内存充足的机器）",
+  "OpenAI GPT (pago)": "OpenAI GPT（付费）",
+  "DeepSeek (pago, barato)": "DeepSeek（付费，便宜）",
+  "Anthropic Claude (pago, mais forte)": "Anthropic Claude（付费，最强）",
 }

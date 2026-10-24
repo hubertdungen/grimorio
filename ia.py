@@ -17,6 +17,10 @@ PROVIDERS = {
                    "label": "OpenRouter (modelos :free)", "keyUrl": "https://openrouter.ai/keys"},
     "ollama": {"kind": "openai", "base": "http://127.0.0.1:11434/v1", "model": "llama3.1",
                "label": "Ollama local (grátis, precisa de máquina com RAM)", "nokey": True},
+    "openai": {"kind": "openai", "base": "https://api.openai.com/v1", "model": "gpt-5-mini",
+               "label": "OpenAI GPT (pago)", "keyUrl": "https://platform.openai.com/api-keys"},
+    "deepseek": {"kind": "openai", "base": "https://api.deepseek.com", "model": "deepseek-chat",
+                 "label": "DeepSeek (pago, barato)", "keyUrl": "https://platform.deepseek.com/api_keys"},
     "anthropic": {"kind": "anthropic", "model": "claude-opus-5-5",
                   "label": "Anthropic Claude (pago, mais forte)", "keyUrl": "https://console.anthropic.com/settings/keys"},
 }
