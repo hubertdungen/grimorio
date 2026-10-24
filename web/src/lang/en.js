@@ -1929,4 +1929,6 @@ export default {
   "🧙 O meu deck neste torneio": "🧙 My deck in this tournament",
   "— nenhum (só ver) —": "— none (just watch) —",
   "Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.": "It's outlined in cyan in the bracket, shown at the bottom (your seat) in games and its path is followed. The choice is remembered.",
+  "▴ mostrar menos": "▴ show less",
+  "▾ mostrar tudo": "▾ show all",
 }

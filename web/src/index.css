@@ -1458,3 +1458,11 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 @media (prefers-reduced-motion: reduce) { .cup.plat { animation: none; } }
 .tc-me { display: grid; gap: 4px; max-width: 520px; margin: 8px 0; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(110, 231, 249, .45); background: rgba(110, 231, 249, .06); }
 .tc-me > span { color: var(--cyan); font-weight: 600; }
+/* Análise: colunas em cascata (cada cartão logo abaixo do anterior), sem os buracos das linhas da grelha */
+.analysis { display: block; columns: 320px; column-gap: 14px; }
+.analysis > * { break-inside: avoid; margin: 0 0 14px; }
+.analysis > .prio { column-span: all; }
+.fold-in { overflow: hidden; }
+.fold.shut .fold-in { -webkit-mask-image: linear-gradient(#000 85%, transparent); mask-image: linear-gradient(#000 85%, transparent); }
+.fold-btn { display: block; margin: 6px auto 0; }
+.cardref { font: inherit; color: var(--gold2); text-decoration: underline dotted; text-underline-offset: 2px; padding: 0; }

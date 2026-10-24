@@ -1921,4 +1921,6 @@ export default {
   "🧙 O meu deck neste torneio": "🧙 Mi mazo en este torneo",
   "— nenhum (só ver) —": "— ninguno (solo mirar) —",
   "Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.": "Queda marcado en cian en el cuadro, aparece abajo (en tu lugar) en las partidas y se sigue su recorrido. La elección se guarda.",
+  "▴ mostrar menos": "▴ mostrar menos",
+  "▾ mostrar tudo": "▾ mostrar todo",
 }

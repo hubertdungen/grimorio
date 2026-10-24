@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { search, recommend, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList } from './deck.js'
@@ -1046,7 +1046,7 @@ function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
     </section>
   )
   const sideCard = side.length > 0 && (
-    <section className="card">
+    <Fold>
       <h3>{tx('Sideboard sugerido')} <span className="muted small">{tx('{n} listas de {f}', { n: meta.decks, f: fmt.name })}</span></h3>
       <ul className="land-list">{side.map(({ c, m }) => (
         <li key={c.i}>
@@ -1057,14 +1057,14 @@ function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
         </li>
       ))}</ul>
       {sideCount < fmt.side && <button className="primary" onClick={fillSide}>{tx('Completar o sideboard até {n}', { n: fmt.side })}</button>}
-    </section>
+    </Fold>
   )
   const manaCard = (
-    <section className="card">
+    <Fold>
       <h3>{tx('Base de mana')}</h3>
       <p className="muted small">{tx('Fontes por cor: tem/precisa nesta fase (aprox. Frank Karsten; um custo com {gg} pede mais fontes verdes do que {g}). Os terrenos sugeridos cruzam cores em falta, ritmo (entra virado ou não), mecânica com o deck e dados reais.', { gg: '{G}{G}', g: '{G}' })}</p>
       <ManaBlock {...{ data, deck, fmt, ctx, act, co, swaps }} full />
-    </section>
+    </Fold>
   )
   const cuts = useMemo(() => deckCuts(data, deck, { ctx, co, commanders: cmdIdx, needs, recs, meta, archetype }), [data, deck, ctx, co, cmdIdx, needs, recs, meta, archetype])
   const swap = (from, to) => { act.add(from, 'main', -(deck.main[from.n] || 1)); act.add(to) }
@@ -1082,7 +1082,7 @@ function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
         )) : <p className="muted small">{tx('Ainda sem eixo claro. Os eixos aparecem quando há cartas que geram algo (fichas, marcadores, cemitério…) e outras que o aproveitam.')}</p>}
         {plan[0] && <p className="muted small">{tx('As sugestões dão mais peso a cartas que alimentam ou aproveitam estes eixos, e dizem com que cartas do deck interagem.')}</p>}
       </section>
-      <section className="card">
+      <Fold>
         <h3>{tx('Cortes e trocas sugeridos')}</h3>
         {cuts.length ? (
           <ul className="cuts">{cuts.map(x => (
@@ -1099,7 +1099,7 @@ function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
             </li>
           ))}</ul>
         ) : <p className="muted small">{tx('Junta pelo menos 8 cartas que não sejam terrenos para ver o que encaixa pior.')}</p>}
-      </section>
+      </Fold>
     </>
   )
 }
@@ -1140,7 +1140,7 @@ function DeckRecord({ deck, data, act }) {
   const wdl = o => <span className="rec-wdl"><b className="res-w">{o.w}</b>-<b className="res-l">{o.l}</b>{o.d ? <>-{o.d}</> : null}</span>
   const pct = o => Math.round((100 * (o.w + o.d / 2)) / Math.max(1, o.w + o.l + o.d))
   return (
-    <section className="card">
+    <Fold>
       <h3>{tx('Registo de jogos')} {rec?.games > 0 && <span className="muted small">{tx('{n} jogo|{n} jogos', { n: rec.games })} · {wdl(rec)} · {pct(rec)}% · {Object.entries(rec.by_source).map(([k, n]) => `${SRC_LABEL[k] || k} ${n}`).join(' · ')}</span>}</h3>
       {rec?.rating && <RatingLayers r={rec.rating} />}
       {!rec?.games ? <p className="muted small">{deck.id ? tx('Ainda sem jogos: testa-o no Laboratório, põe-no num torneio ou liga a Arena automática nos Ratings.') : tx('Guarda o deck para começar a juntar o registo.')}</p> : <>
@@ -1161,6 +1161,19 @@ function DeckRecord({ deck, data, act }) {
           ))}</ul>{!rec.hurt.length && <small className="muted">{tx('Sem dano registado.')}</small>}</div>
         </div>
       </>}
+    </Fold>
+  )
+}
+
+// Cartão da Análise que encolhe quando é muito alto (listas compridas): mostra ~FOLD px e um «mostrar tudo»
+const FOLD = 640
+function Fold({ children }) {
+  const ref = useRef(null), [tall, setTall] = useState(false), [open, setOpen] = useState(false)
+  useLayoutEffect(() => { const el = ref.current; if (el) setTall(el.scrollHeight > FOLD + 120) })
+  return (
+    <section className={`card fold ${tall && !open ? 'shut' : ''}`}>
+      <div ref={ref} className="fold-in" style={tall && !open ? { maxHeight: FOLD } : undefined}>{children}</div>
+      {tall && <button className="link small fold-btn" onClick={() => setOpen(o => !o)}>{open ? tx('▴ mostrar menos') : tx('▾ mostrar tudo')}</button>}
     </section>
   )
 }
@@ -1452,6 +1465,15 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
 }
 
 // Diagnóstico: as melhorias mais importantes primeiro (aparece no topo da Análise e depois de importar).
+// texto com nomes de cartas: cada nome mostra a carta com o rato por cima e abre-a com um toque/clique (tablet)
+function Linked({ txt, names, data, deck, act }) {
+  const ns = (names || []).filter(Boolean).sort((a, b) => b.length - a.length)
+  if (!ns.length) return txt
+  const re = new RegExp(`(${ns.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`)
+  return txt.split(re).map((part, k) => { const c = ns.includes(part) && data.byName.get(part); return c
+    ? <button key={k} className="link plain cardref" {...hoverPeek(c, pidOf(deck, c.n))} onClick={() => { hideCardPeek(); act.open(c) }}>{part}</button> : part })
+}
+
 export function PriorityCard({ data, deck, fmt, ctx, act, issues, cuts, needs }) {
   const need = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
   const have = useMemo(() => deckIndices(deck, data), [deck, data])
@@ -1463,18 +1485,18 @@ export function PriorityCard({ data, deck, fmt, ctx, act, issues, cuts, needs })
   for (const [k, x] of Object.entries(need.cols)) if (x.have < x.need) items.push({ k: 'mana', txt: tx('Poucas fontes de {k}: {h} para ~{w} (o custo mais exigente tem {n} símbolo).|Poucas fontes de {k}: {h} para ~{w} (o custo mais exigente tem {n} símbolos).', { k, h: x.have, w: x.need, n: x.maxPips }) })
   for (const [t, [h, n]] of Object.entries(needs).filter(([, [h, n]]) => h < n).sort((a, b) => (b[1][1] - b[1][0]) - (a[1][1] - a[1][0])).slice(0, 3))
     items.push({ k: 'falta', txt: tx('{t}: {h} de {w} recomendadas.', { t: TAG_LABEL[t], h, w: n }), go: () => act.suggestFor(t), goL: tx('ver sugestões') })
-  for (const x of cuts.slice(0, 3)) items.push({ k: 'corte', txt: `${x.c.n}: ${x.why[0] || tx('encaixa pouco')}${x.swap ? ` → ${tx('trocar por {c}', { c: x.swap.c.n })}` : ''}`, go: x.swap ? () => { act.add(x.c, 'main', -(deck.main[x.c.n] || 1)); act.add(x.swap.c) } : null, goL: tx('trocar') })
+  for (const x of cuts.slice(0, 3)) items.push({ k: 'corte', cards: [x.c.n, x.swap?.c.n], txt: `${x.c.n}: ${x.why[0] || tx('encaixa pouco')}${x.swap ? ` → ${tx('trocar por {c}', { c: x.swap.c.n })}` : ''}`, go: x.swap ? () => { act.add(x.c, 'main', -(deck.main[x.c.n] || 1)); act.add(x.swap.c) } : null, goL: tx('trocar') })
   if (fmt.side > 0) for (const [n, q] of Object.entries(deck.main)) {
     const c = data.byName.get(n)
-    if (c?.tg.includes('hate')) items.push({ k: 'corte', txt: tx('{c} é sobretudo uma resposta de sideboard (contra estratégias específicas).', { c: n }), go: () => { act.add(c, 'main', -q); act.add(c, 'side', q) }, goL: tx('passar para o sideboard') })
+    if (c?.tg.includes('hate')) items.push({ k: 'corte', cards: [n], txt: tx('{c} é sobretudo uma resposta de sideboard (contra estratégias específicas).', { c: n }), go: () => { act.add(c, 'main', -q); act.add(c, 'side', q) }, goL: tx('passar para o sideboard') })
   }
   for (const [t, [h, n]] of Object.entries(needs).filter(([t]) => t === 'wincon' || t === 'creature')) if (h < n && !items.some(x => x.txt.startsWith(TAG_LABEL[t]))) items.push({ k: 'falta', txt: tx('{t}: {h} de {w}.', { t: TAG_LABEL[t], h, w: n }), go: () => act.suggestFor(t), goL: tx('ver sugestões') })
-  for (const x of near) items.push({ k: 'combo', txt: tx('A uma carta de um combo: junta {c} ({r}).', { c: data.cards[x.missing[0]].n, r: x.cb[2][0] }), go: () => act.add(data.cards[x.missing[0]]), goL: `+ ${tx('deck')}` })
+  for (const x of near) items.push({ k: 'combo', cards: [data.cards[x.missing[0]].n], txt: tx('A uma carta de um combo: junta {c} ({r}).', { c: data.cards[x.missing[0]].n, r: x.cb[2][0] }), go: () => act.add(data.cards[x.missing[0]]), goL: `+ ${tx('deck')}` })
   if (!items.length) return null
   return (
     <section className="card prio">
       <h3>{tx('Melhorias prioritárias')}</h3>
-      <ol>{items.slice(0, 10).map((x, k) => <li key={k} className={x.k}><span>{x.txt}</span>{x.go && <button className="link small" onClick={x.go}>{x.goL || tx('resolver')}</button>}</li>)}</ol>
+      <ol>{items.slice(0, 10).map((x, k) => <li key={k} className={x.k}><span><Linked txt={x.txt} names={x.cards} {...{ data, deck, act }} /></span>{x.go && <button className="link small" onClick={x.go}>{x.goL || tx('resolver')}</button>}</li>)}</ol>
     </section>
   )
 }

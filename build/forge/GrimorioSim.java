@@ -42,6 +42,7 @@ import forge.game.cost.CostPart;
 import forge.game.cost.CostPayLife;
 import forge.game.cost.CostPayment;
 import forge.game.card.CardCollection;
+import forge.game.card.CardCollectionView;
 import forge.game.player.DelayedReveal;
 import forge.util.collect.FCollectionView;
 import forge.ai.AiProfileUtil;
@@ -234,6 +235,8 @@ public class GrimorioSim {
         public List<SpellAbility> chooseSpellAbilityToPlay() {
             SpellAbility sa = hint();
             if (sa == null) sa = counter();
+            if (sa == null) sa = reanimate(false);
+            if (sa == null) sa = entomb();
             if (sa == null) sa = disrupt();
             if (sa != null) return List.of(sa);
             List<SpellAbility> r = super.chooseSpellAbilityToPlay();
@@ -245,7 +248,7 @@ public class GrimorioSim {
                 return r;
             }
             sa = cantrip();
-            if (sa == null) sa = reanimate();
+            if (sa == null) sa = reanimate(true);
             return sa != null ? List.of(sa) : r;
         }
 
@@ -260,6 +263,11 @@ public class GrimorioSim {
                 DelayedReveal delayedReveal, String selectPrompt, boolean isOptional, Player decider) {
             Card c = decider == player && origin.contains(ZoneType.Library) && fetchList != null && fetchList.size() > 1
                     && fetchList.stream().allMatch(Card::isLand) ? landForHand(fetchList) : null;
+            if (c == null && decider == player && destination == ZoneType.Graveyard && origin.contains(ZoneType.Library) && fetchList != null && reanimator()) {
+                int bv = -1;  // Unmarked Grave/Entomb num deck que reanima: a maior criatura (não lendária, custo 5+)
+                for (Card x : fetchList)
+                    if (x.isCreature() && !x.getType().isLegendary() && x.getCMC() >= 5 && ComputerUtilCard.evaluateCreature(x) > bv) { bv = ComputerUtilCard.evaluateCreature(x); c = x; }
+            }
             if (c == null) return super.chooseSingleCardForZoneChange(destination, origin, sa, fetchList, delayedReveal, selectPrompt, isOptional, decider);
             if (delayedReveal != null) reveal(delayedReveal);
             return c;
@@ -367,8 +375,15 @@ public class GrimorioSim {
                 String[] valid = sa.hasParam("DiscardValid") ? sa.getParam("DiscardValid").split(",") : null;
                 Player t = null;
                 int most = 0;
+                // reanimador com a grande presa na mão, o feitiço de reanimar na mão e nada no cemitério nem maneira de lá
+                // pôr nada: o descarte vai para nós (a escolha é chooseCardsToDiscardFrom → a grande)
+                if (reanimatesIn(hand) && !gyTarget() && hand.stream().noneMatch(h -> entombs(h.getFirstSpellAbility())) && player.getLife() >= 10
+                        && sa.canTarget(player) && hand.stream().anyMatch(h -> fat(h) && (valid == null || h.isValid(valid, player, c, sa)))) {
+                    t = player;
+                    most = Integer.MAX_VALUE;
+                }
                 for (Player o : player.getOpponents()) {
-                    if (!sa.canTarget(o) || !o.canDiscardBy(sa, true)) continue;
+                    if (t == player || !sa.canTarget(o) || !o.canDiscardBy(sa, true)) continue;
                     int n = 0;
                     for (Card x : o.getCardsIn(ZoneType.Hand)) if (valid == null || x.isValid(valid, player, c, sa)) n++;
                     if (n > most) { most = n; t = o; }
@@ -415,29 +430,23 @@ public class GrimorioSim {
             return false;
         }
 
-        // Reanimar (Persist e afins: feitiço que traz uma criatura do nosso cemitério). O guião do Persist só deixa a IA
-        // do Forge escolher criaturas de custo 4+ (cards/persist.txt, para não a gastar à espera da Archon of Cruelty);
-        // num deck só de criaturas pequenas ficava para sempre na mão. Quando a IA passa no Main 2, reanima a melhor que
-        // lá está — a não ser que haja na mão uma criatura grande que ainda não dá para lançar (vai para o cemitério
-        // por um descarte e é essa que se quer trazer) ou uma carta que mete criaturas da biblioteca no cemitério
-        // (Unmarked Grave, Entomb…: a IA lança-a e o Persist vai depois para a grande).
-        SpellAbility reanimate() {
+        // ---------- plano de cemitério (reanimador) ----------
+        // Reanimar (Persist, Victimize, Reanimate…): feitiço nosso que traz uma criatura do cemitério para o campo.
+        //   - grande no cemitério (custo 5+): é a jogada do turno — logo no Main 1, depois do terreno, e sem guardar mana
+        //     para contrafeitiços (a Archon na mesa vale mais do que a resposta);
+        //   - só pequenas: no Main 2, quando a IA do Forge já passou, e nunca com uma grande a caminho (na mão sem mana
+        //     para a lançar, ou uma Unmarked Grave/Entomb na mão para a pôr lá). O guião do Persist (cards/persist.txt)
+        //     já só deixa a IA do Forge escolher criaturas de custo 4+.
+        SpellAbility reanimate(boolean fallback) {  // fallback: depois de a IA do Forge passar
             Game g = player.getGame();
             PhaseHandler ph = g.getPhaseHandler();
-            if (!g.getStack().isEmpty() || !ph.isPlayerTurn(player) || !ph.is(PhaseType.MAIN2)) return null;
-            int lands = player.getLandsInPlay().size();
+            if (!g.getStack().isEmpty() || !ph.isPlayerTurn(player) || !ph.getPhase().isMain()) return null;
             List<Card> hand = new ArrayList<>(player.getCardsIn(ZoneType.Hand));
-            if (hand.stream().anyMatch(h -> h.isCreature() && !h.getType().isLegendary() && h.getCMC() >= 4 && h.getCMC() > lands)) return null;
-            for (Card h : hand) {
-                SpellAbility e = h.getFirstSpellAbility();
-                if (e != null && e.getApi() == ApiType.ChangeZone && "Library".equals(e.getParam("Origin")) && "Graveyard".equals(e.getParam("Destination"))) return null;
-            }
             for (Card c : hand) {
                 SpellAbility sa = c.getFirstSpellAbility();
                 if (sa == null || sa.getApi() != ApiType.ChangeZone || !sa.isSpell() || !sa.usesTargeting() || sa.getPayCosts() == null
                         || !sa.getPayCosts().isOnlyManaCost() || sa.getTargetRestrictions().getMinTargets(c, sa) > 1
                         || !"Graveyard".equals(sa.getParam("Origin")) || !"Battlefield".equals(sa.getParam("Destination"))) continue;
-                if (!tried.add(ph.getTurn() + ":" + c.getId() + ":reanimate")) continue;
                 sa.setActivatingPlayer(player);
                 sa.resetTargets();
                 Card best = null;
@@ -447,13 +456,102 @@ public class GrimorioSim {
                     int v = ComputerUtilCard.evaluateCreature(x);
                     if (v > bv) { bv = v; best = x; }
                 }
-                if (best == null || !sa.canPlay() || !ComputerUtilCost.canPayCost(sa, player, false)) continue;
-                int keep = reserve(hand, c, false);
+                if (best == null) continue;
+                boolean big = best.getCMC() >= 5;
+                if (!big && (!fallback || !ph.is(PhaseType.MAIN2) || bigComing(hand))) continue;
+                if (big && landFirst(hand)) return null;
+                if (!tried.add(ph.getTurn() + ":" + ph.getPhase() + ":" + c.getId() + ":reanimate")) continue;
+                if (!sa.canPlay() || !ComputerUtilCost.canPayCost(sa, player, false)) continue;
+                int keep = big ? 0 : reserve(hand, c, false);
                 if (keep > 0 && !ComputerUtilMana.canPayManaCost(sa, player, keep, false)) continue;
                 sa.getTargets().add(best);
                 return sa;
             }
             return null;
+        }
+
+        // Encher o cemitério (Unmarked Grave, Entomb, Buried Alive…): com um feitiço de reanimar na mão e nada que valha a
+        // pena no cemitério, é a primeira coisa a lançar no nosso turno — o Forge deixava-a ~2 turnos na mão a lançar
+        // outras coisas. A carta que vai para o cemitério escolhe-a chooseSingleCardForZoneChange (a maior criatura).
+        SpellAbility entomb() {
+            Game g = player.getGame();
+            PhaseHandler ph = g.getPhaseHandler();
+            if (!g.getStack().isEmpty() || !ph.isPlayerTurn(player) || !ph.getPhase().isMain()) return null;
+            List<Card> hand = new ArrayList<>(player.getCardsIn(ZoneType.Hand));
+            if (gyTarget() || !reanimatesIn(hand) || landFirst(hand)) return null;
+            for (Card c : hand) {
+                SpellAbility sa = c.getFirstSpellAbility();
+                if (!entombs(sa) || sa.getPayCosts() == null || !sa.getPayCosts().isOnlyManaCost()) continue;
+                if (!tried.add(ph.getTurn() + ":" + ph.getPhase() + ":" + c.getId() + ":entomb")) continue;
+                sa.setActivatingPlayer(player);
+                if (sa.canPlay() && ComputerUtilCost.canPayCost(sa, player, false)) return sa;
+            }
+            return null;
+        }
+
+        static boolean reanimates(SpellAbility sa) {
+            for (SpellAbility s = sa; s != null; s = s.getSubAbility())
+                if (s.getApi() == ApiType.ChangeZone && "Graveyard".equals(s.getParam("Origin")) && "Battlefield".equals(s.getParam("Destination"))) return true;
+            return false;
+        }
+
+        static boolean entombs(SpellAbility sa) {
+            return sa != null && sa.isSpell() && sa.getApi() == ApiType.ChangeZone && "Library".equals(sa.getParam("Origin"))
+                    && "Graveyard".equals(sa.getParam("Destination"));
+        }
+
+        static boolean reanimatesIn(Iterable<Card> cards) {
+            for (Card c : cards) if (c.getFirstSpellAbility() != null && c.getFirstSpellAbility().isSpell() && reanimates(c.getFirstSpellAbility())) return true;
+            return false;
+        }
+
+        boolean reanimator() { return reanimatesIn(player.getCardsIn(ZoneType.Hand)) || reanimatesIn(player.getCardsIn(ZoneType.Library)); }
+
+        // grande que se quer no cemitério: criatura não lendária de custo 5+ que ainda não dá para lançar
+        boolean fat(Card c) { return c.isCreature() && !c.getType().isLegendary() && c.getCMC() >= 5 && c.getCMC() > player.getLandsInPlay().size() + 1; }
+
+        boolean gyTarget() {
+            for (Card c : player.getCardsIn(ZoneType.Graveyard)) if (c.isCreature() && !c.getType().isLegendary() && c.getCMC() >= 5) return true;
+            return false;
+        }
+
+        boolean bigComing(List<Card> hand) {
+            for (Card h : hand) if (fat(h) || (h.isCreature() && !h.getType().isLegendary() && h.getCMC() >= 4 && h.getCMC() > player.getLandsInPlay().size()) || entombs(h.getFirstSpellAbility())) return true;
+            return false;
+        }
+
+        boolean landFirst(List<Card> hand) {  // no Main 1, o terreno do turno vem antes
+            return player.getGame().getPhaseHandler().is(PhaseType.MAIN1) && player.getLandsPlayedThisTurn() == 0 && hand.stream().anyMatch(Card::isLand);
+        }
+
+        // Descartar da própria mão (Thoughtseize em nós, limite de mão, Faithless Looting…): num deck que reanima, as
+        // grandes que não dá para lançar vão primeiro — o Forge deitava fora «a pior carta» e guardava a Archon.
+        CardCollection binFats(Iterable<Card> valid, int n) {
+            if (n <= 0 || !reanimator()) return null;
+            List<Card> fats = new ArrayList<>();
+            for (Card c : valid) if (fat(c)) fats.add(c);
+            if (fats.isEmpty()) return null;
+            fats.sort((x, y) -> ComputerUtilCard.evaluateCreature(y) - ComputerUtilCard.evaluateCreature(x));
+            CardCollection out = new CardCollection(fats.subList(0, Math.min(n, fats.size())));
+            if (out.size() < n) {
+                CardCollection rest = new CardCollection(valid);
+                rest.removeAll(out);
+                CardCollectionView more = getAi().getCardsToDiscard(n - out.size(), n - out.size(), rest, null);
+                if (more != null) out.addAll(more);
+            }
+            return out;
+        }
+
+        @Override
+        public CardCollection chooseCardsToDiscardFrom(Player p, SpellAbility sa, CardCollection validCards, int min, int max, CardCollectionView visibleToChooser) {
+            CardCollection f = p == player ? binFats(validCards, Math.max(min, Math.min(max, 1))) : null;
+            return f != null ? f : super.chooseCardsToDiscardFrom(p, sa, validCards, min, max, visibleToChooser);
+        }
+
+        @Override
+        public CardCollectionView chooseCardsToDiscardToMaximumHandSize(int numDiscard) {
+            CardCollection f = binFats(player.getCardsIn(ZoneType.Hand), numDiscard);
+            return f != null ? f : super.chooseCardsToDiscardToMaximumHandSize(numDiscard);
         }
 
         // Compra/seleção barata (Consider, Opt, Preordain, Faithless Looting, Thought Scour, Ancient Stirrings…) com a
@@ -538,13 +636,34 @@ public class GrimorioSim {
             for (SpellAbility s = sa; s != null; s = s.getSubAbility()) {
                 if (!s.usesTargeting()) continue;
                 s.resetTargets();
-                Player t = s.getApi() == ApiType.RevealHand || s.getTargetRestrictions().canOnlyTgtOpponent()
+                Player t = s.getApi() == ApiType.RevealHand || s.getTargetRestrictions().canOnlyTgtOpponent() || (s.getApi() == ApiType.Mill && millsOpponent())
                         ? player.getOpponents().stream().filter(s::canTarget).findFirst().orElse(null)
                         : s.canTarget(player) ? player : null;
                 if (t == null) return false;
                 s.getTargets().add(t);
             }
             return true;
+        }
+
+        // Deck de moer o adversário (Hedron Crab, Dream Twist, Jace…): 8+ cartas que moem um jogador à escolha. Aí o
+        // Thought Scour do cantrip() mói o adversário; nos outros (Delver, reanimador) continua a moer-nos a nós.
+        Boolean mills;
+
+        boolean millsOpponent() {
+            if (mills == null) {
+                int n = 0;
+                for (Card c : player.getCardsIn(Arrays.asList(ZoneType.Library, ZoneType.Hand, ZoneType.Battlefield, ZoneType.Graveyard))) {
+                    List<SpellAbility> all = new ArrayList<>(c.getSpellAbilities());
+                    for (forge.game.trigger.Trigger tr : c.getTriggers()) if (tr.ensureAbility() != null) all.add(tr.ensureAbility());
+                    boolean m = false;
+                    for (SpellAbility a : all)
+                        for (SpellAbility s = a; s != null && !m; s = s.getSubAbility())
+                            m = s.getApi() == ApiType.Mill && s.usesTargeting() && s.getTargetRestrictions().canTgtPlayer();
+                    if (m) n++;
+                }
+                mills = n >= 8;
+            }
+            return mills;
         }
 
         SpellAbility hint() {

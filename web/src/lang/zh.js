@@ -1921,4 +1921,6 @@ export default {
   "🧙 O meu deck neste torneio": "🧙 我在本赛事中的套牌",
   "— nenhum (só ver) —": "— 无（只观看）—",
   "Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.": "它会在对阵图中以青色标出，在对局中显示在下方（你的位置），并跟踪其进程。选择会被记住。",
+  "▴ mostrar menos": "▴ 收起",
+  "▾ mostrar tudo": "▾ 展开全部",
 }

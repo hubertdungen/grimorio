@@ -1921,4 +1921,6 @@ export default {
   "🧙 O meu deck neste torneio": "🧙 Mein Deck in diesem Turnier",
   "— nenhum (só ver) —": "— keins (nur zuschauen) —",
   "Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.": "Es wird im Turnierbaum cyan markiert, in Spielen unten (auf deinem Platz) gezeigt und sein Weg verfolgt. Die Wahl wird gemerkt.",
+  "▴ mostrar menos": "▴ weniger zeigen",
+  "▾ mostrar tudo": "▾ alles zeigen",
 }
