@@ -272,8 +272,9 @@ def table(con, fmt, owner):
 
 
 def goal_stars(p):
-    """Progresso médio rumo à vitória -> estrelas vermelhas: linear, 100% = 5★, 120% ou mais = 6★ (0% = 0★)."""
-    return round(min(TOP, 5 * max(0.0, p)), 1)
+    """Progresso médio rumo à vitória -> estrelas vermelhas: linear, 100% = 3★, 200% = 6★ (0% = 0★). Acima de 3★ só fica
+    quem passa do objetivo — dano, veneno ou mill a mais depois de já ter o suficiente para ganhar."""
+    return round(min(TOP, 3 * max(0.0, p)), 1)
 
 
 def reset(con, key):
@@ -962,13 +963,13 @@ def selfcheck():
     ly = layers(c2)
     assert ly["meta:p"]["blue_elo"] == round(c2.execute("SELECT elo FROM ratings WHERE key='meta:p'").fetchone()[0])
     assert ly["meta:p"]["blue"] == stars(c2.execute("SELECT elo FROM ratings WHERE key='meta:p'").fetchone()[0], [])
-    assert ly["meta:p"]["red"] == 6.0 and ly["meta:p"]["goal"] == 1.2 and ly["meta:q"]["red"] == 0 and ly["meta:p"]["by"] == {"dmg": 3}
+    assert ly["meta:p"]["red"] == 3.6 and ly["meta:p"]["goal"] == 1.2 and ly["meta:q"]["red"] == 0 and ly["meta:p"]["by"] == {"dmg": 3}
     record_round(c2, "pauper", D("meta:p"), D("meta:q"), ["b"] * 3, "arena", casual=True)  # casual: só o azul se mexe
     ly2 = layers(c2)
     assert ly2["meta:p"]["blue_elo"] < ly["meta:p"]["blue_elo"] and ly2["meta:p"]["red_games"] == 3 and ly2["meta:p"]["blue_games"] == 6
-    assert goal_stars(0.5) == 2.5 and goal_stars(1) == 5 and goal_stars(1.1) == 5.5 and goal_stars(1.3) == 6 and goal_stars(0) == 0
+    assert goal_stars(0.5) == 1.5 and goal_stars(1) == 3 and goal_stars(1.5) == 4.5 and goal_stars(2) == 6 and goal_stars(3) == 6 and goal_stars(0) == 0
     st = all_stars(c2, "")
-    assert st["meta:p"]["red"] == 6 and st["meta:p|casual"]["blue"] == st["meta:p"]["blue"]
+    assert st["meta:p"]["red"] == 3.6 and st["meta:p|casual"]["blue"] == st["meta:p"]["blue"]
     # recuperar o progresso dos jogos antigos: Arena pelo resumo guardado
     c2.execute("UPDATE rating_games SET a_prog=NULL, b_prog=NULL, prog=NULL")
     c2.execute("""UPDATE rating_games SET summary='{"a": {"damage_by_card": {"X": 10}}, "b": {}}' WHERE format='pauper'""")

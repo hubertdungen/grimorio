@@ -1138,7 +1138,7 @@ function RatingLayers({ r }) {
       {r.routes && <ul className="rec-list rec-routes">{Object.entries(r.routes).filter(([, x]) => x > 0).sort((a, b) => b[1] - a[1]).map(([k, x]) => (
         <li key={k}><span>{ROUTE_LABEL[k]}</span><b>{Math.round(x * 100)}%</b><i className="rec-bar" style={{ '--p': `${Math.min(100, x * 50)}%` }} /></li>
       ))}</ul>}
-      {wins > 0 && <p className="muted small">{tx('Ganha por: {v}', { v: by.map(([k, n]) => `${ROUTE_LABEL[k]} ${Math.round((100 * n) / wins)}%`).join(' · ') })} · {tx('objetivo: média por jogo de quanto chega a ganhar (dano ÷ vida inicial, veneno ÷ 10, comandante ÷ 21, cartas tiradas da biblioteca ÷ biblioteca inicial; a melhor via conta, até 200%); 100% = 5★, 120% ou mais = 6★')}</p>}
+      {wins > 0 && <p className="muted small">{tx('Ganha por: {v}', { v: by.map(([k, n]) => `${ROUTE_LABEL[k]} ${Math.round((100 * n) / wins)}%`).join(' · ') })} · {tx('objetivo: média por jogo de quanto chega a ganhar (dano ÷ vida inicial, veneno ÷ 10, comandante ÷ 21, cartas tiradas da biblioteca ÷ biblioteca inicial; a melhor via conta, até 200%); 100% = 3★, 200% = 6★')}</p>}
     </div>
   )
 }

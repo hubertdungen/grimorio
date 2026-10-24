@@ -86,7 +86,7 @@ function Tip({ at, r, v, label }) {
       {label && <div className="muted">{label}</div>}
       <p><i className="st-dot" style={{ background: COL.y }} /><b>{tx('Normal')} {v != null && num(v, 1)}</b> {tx('— jogos não casuais (o número mostrado)')}{r.games ? ` · ${tx('{n} jogo|{n} jogos', { n: r.games })} · Elo ${r.elo}` : ''}</p>
       <p><i className="st-dot" style={{ background: COL.b }} /><b>{tx('Todos os jogos')} {r.blue != null && num(r.blue, 1)}</b> {tx('— inclui os casuais')}{r.blue_games ? ` · ${tx('{n} jogo|{n} jogos', { n: r.blue_games })}` : ''}</p>
-      <p><i className="st-dot" style={{ background: COL.r }} /><b>{tx('Objetivo')} {r.red != null && num(r.red, 1)}</b> {tx('— quanto chega, em média, ao objetivo de ganhar (100% = 5★, 120% ou mais = 6★)')}
+      <p><i className="st-dot" style={{ background: COL.r }} /><b>{tx('Objetivo')} {r.red != null && num(r.red, 1)}</b> {tx('— quanto chega, em média, ao objetivo de ganhar (100% = 3★, 200% = 6★: acima de 3★ só quem passa do objetivo)')}
         {r.goal != null && <> · <b>{pc(r.goal)}</b>{rt.length ? `: ${rt.map(([k, x]) => `${ROUTE[k]} ${pc(x)}`).join(' · ')}` : ''}{by ? ` · ${tx('ganha sobretudo por {v}', { v: ROUTE[by[0]] })}` : ''}</>}</p>
       {r.prov && <p className="muted small">{PROV_TIP}</p>}
     </div>, document.body)
