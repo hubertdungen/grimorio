@@ -1,6 +1,7 @@
 // Torneio no Coliseu: vários decks jogam entre si no Forge. O servidor (tournament.py) agenda as partidas e guarda tudo;
 // aqui cria-se o torneio, vê-se a chave/classificação a mexer ao vivo, revêem-se os jogos e consulta-se o registo.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
 import { img, coverOf, colorsOf, HUE } from './data.js'
 import { Mana, Stars } from './ui.jsx'
@@ -39,6 +40,7 @@ export default function TournamentView({ data, fmt }) {
   const [view, setViewS] = useState(() => ls('grimorio.torneio.vista') || 'criar')
   const setView = v => { setViewS(v); ls('grimorio.torneio.vista', v) }
   const [tid, setTid] = useState(null)
+  const [slot, setSlot] = useState(null)  // ao lado das abas: o «← Voltar ao torneio» de um jogo aberto vai para aqui
   const [list, setList] = useState([])
   const loadList = () => j('/api/tournaments').then(l => { setList(l); return l }).catch(() => [])
   useEffect(() => {  // ao entrar: volta ao torneio que estava aberto, ou ao que está a decorrer
@@ -51,13 +53,13 @@ export default function TournamentView({ data, fmt }) {
   const open = id => { setTid(id); ls('grimorio.torneio', id); setView('ver') }
   return (
     <div className="view tour">
-      <div className="seg tour-nav">
+      <div className="tour-top"><div className="seg tour-nav">
         <button className={view === 'criar' ? 'on' : ''} onClick={() => setView('criar')}>{tx('✦ Criar')}</button>
         <button className={view === 'ver' ? 'on' : ''} onClick={() => setView('ver')} disabled={!tid}>{tx('🏆 Ao vivo')}</button>
         <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}>{tx('📜 Registo')} <b>{list.length}</b></button>
-      </div>
+      </div><span className="tour-slot" ref={setSlot} /></div>
       {view === 'criar' && <Create data={data} fmt0={fmt} onCreated={id => { loadList(); open(id) }} />}
-      {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} onGone={() => { loadList(); setView('registo') }} />}
+      {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} onGone={() => { loadList(); setView('registo') }} />}
       {view === 'registo' && <Registry data={data} list={list} open={open} reload={loadList} />}
     </div>
   )
@@ -241,7 +243,7 @@ const Fmt = ({ f }) => (f ? <span className="fmt-tag">{FORMAT[f]?.name || f}</sp
 const roundName = (m, k) => (m.b === 'W' ? (m.r === k ? tx('Final') : m.r === k - 1 ? tx('Meias-finais') : m.r === k - 2 ? tx('Quartos de final') : tx('Ronda {r}', { r: m.r }))
   : m.b === 'L' ? tx('Vencidos · ronda {r}', { r: m.r }) : m.b === '3' ? tx('3.º lugar') : m.r === 1 ? tx('Grande final') : tx('2.ª final'))
 
-function Live({ data, tid, onGone }) {
+function Live({ data, tid, onGone, slot }) {
   const [t, setT] = useState(null)
   const [err, setErr] = useState('')
   const [watch, setWatch] = useState(null)  // {gid, game, deckName, score}
@@ -320,9 +322,9 @@ function Live({ data, tid, onGone }) {
         title: xs.map(x => (x.kind === 'champ' ? tx('Aposta no campeão: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }) : tx('Aposta nesta partida: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }))).join('\n'),
       }
     }
-    return <Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} score={watch.score} formats={watch.formats} onBack={() => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
+    return <>{slot && createPortal(<button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>, slot)}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
       live={going && follow && i >= 0 && i === fl.length - 1} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })}
-      next={follow && i >= 0 ? { has: i < fl.length - 1, go: () => openGame(fl[i + 1]), secs: pause.secs, auto: pause.auto } : null} />
+      next={follow && i >= 0 ? { has: i < fl.length - 1, go: () => openGame(fl[i + 1]), secs: pause.secs, auto: pause.auto } : null} /></>
   }
   const lives = (t.lives || (t.live ? [t.live] : [])).map(L => ({ L, lm: t.matches.find(m => m.id === L.match) })).filter(x => x.lm), lm = lives[0]?.lm
   const nameOf = i => (i == null ? '—' : P[i]?.name)
