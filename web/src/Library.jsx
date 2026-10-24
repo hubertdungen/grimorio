@@ -309,7 +309,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
         {!mine.length && <Empty>{tx('Ainda não tens decks guardados. Usa «✦ Novo deck» ou guarda um do meta abaixo.')}</Empty>}
         {sel.length > 0 && <div className="cmp-bar">
           <b>{tx('{n} deck selecionado|{n} decks selecionados', { n: sel.length })}</b>
-          <button className="primary" disabled={sel.length < 2 || sel.length > 3} title={tx('escolhe 2 ou 3 para comparar')} onClick={() => setCmp(true)}>⇄ {tx('Comparar')}</button>
+          <button className="primary" disabled={sel.length < 2 || sel.length > 4} title={tx('escolhe 2 a 4 para comparar')} onClick={() => setCmp(true)}>⇄ {tx('Comparar')}</button>
           <span className="cmp-mass">
             <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}>🌐 {tx('Comunidade')}</button>
             <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}>🧙 {tx('Meus')}</button>
@@ -330,7 +330,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <div className="row"><button className="danger" onClick={removeSel}><Ico n="trash" /> {tx('Apagar')}</button><button onClick={() => setBulkDel(false)}>{tx('Cancelar')}</button></div>
         </div></div>}
         {cmp && <DeckCompare data={data} decks={sel.map(id => mine.find(d => d.id === id)).filter(Boolean)} onClose={() => setCmp(false)}
-          onOpen={id => { setCmp(false); openDeck(id).then(() => goTab('deck')) }} onFav={toggleFav} onDelete={remove} />}
+          onOpen={id => { setCmp(false); openDeck(id).then(() => goTab('deck')) }} onFav={toggleFav} onDelete={remove} rt={rt} trophies={d => (tro[d.id]?.length ? <Trophies list={tro[d.id]} /> : null)} />}
         {fmts.length > 1 && <div className="fmt-chips">
           <button className={!only ? 'on' : ''} onClick={() => setOnly('')}>{tx('Todos')} <i>{mine.length}</i></button>
           {fmts.map(([f, ds]) => <button key={f} className={only === f ? 'on' : ''} onClick={() => { setOnly(only === f ? '' : f); setClosed(c => { const n = { ...c }; delete n[f]; return n }) }}>{fname(f)} <i>{ds.length}</i></button>)}
@@ -367,7 +367,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
             <span className={`chip ${g.top >= 0.999 ? 'bad' : ''}`}>{g.top >= 0.999 ? tx('iguais') : tx('{p}% iguais', { p: Math.round(g.top * 100) })}</span>
             {g.decks.map(d => <span key={d.id} className="dupe-d"><b>{d.name}</b><small className="muted">{FORMAT[d.format]?.name || d.format} · {when(d.updated)}</small>
               <button onClick={() => remove(d)} className="ib" title={tx('Apagar este (vai para o lixo)')} aria-label={tx('Apagar')}><Ico n="trash" /></button></span>)}
-            <button className="primary" onClick={() => { setSel(g.decks.slice(0, 3).map(d => d.id)); setCmp(true) }}>⇄ {tx('Comparar')}</button>
+            <button className="primary" onClick={() => { setSel(g.decks.slice(0, 4).map(d => d.id)); setCmp(true) }}>⇄ {tx('Comparar')}</button>
             <button className="link small" onClick={() => setIgn(i => [...i, gid(g)])} title={tx('Esconder este grupo: são decks diferentes de propósito')}>{tx('ignorar')}</button>
           </div>
         ))}

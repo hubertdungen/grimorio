@@ -2113,4 +2113,11 @@ export default {
   "{n} escolhida|{n} escolhidas": "{n} chosen|{n} chosen",
   "só favoritos": "favourites only",
   "Só os decks que marcaste com ★ na Biblioteca": "Only the decks you marked with ★ in the Library",
+  "com rating (amarelo) · todos os jogos (azul)": "rated (yellow) · all games (blue)",
+  "escolhe 2 a 4 para comparar": "pick 2 to 4 to compare",
+  "Ganha por": "Wins by",
+  "Jogos": "Games",
+  "quanto chega, em média, ao objetivo de ganhar": "how close it gets, on average, to the goal of winning",
+  "Rating": "Rating",
+  "Troféus": "Trophies",
 }

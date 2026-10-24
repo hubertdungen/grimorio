@@ -1,12 +1,14 @@
-// Comparar 2–3 decks: resumo lado a lado e cartas em comum / só num deles, com as quantidades de cada um.
+// Comparar 2–4 decks: resumo lado a lado (lista, curva, ratings, jogos, objetivo, troféus) e cartas em comum / só num
+// deles, com as quantidades de cada um.
 import { useEffect, useMemo, useState } from 'react'
 import { stats } from './deck.js'
 import { FORMAT } from './formats.js'
 import { img } from './data.js'
-import { Mana } from './ui.jsx'
+import { Mana, Stars } from './ui.jsx'
 import { tx, num } from './i18n.js'
 
-const L = ['A', 'B', 'C']
+const L = ['A', 'B', 'C', 'D']
+const ROUTE = { dmg: tx('dano'), psn: tx('veneno'), cmd: tx('comandante'), mill: tx('biblioteca'), alt: tx('vitória alternativa') }
 // Semelhança entre duas listas (0–1): soma dos mínimos / soma dos máximos das quantidades de cada carta
 // (Jaccard com pesos). Ignora nome e capa; sem terrenos mede o «miolo» do deck.
 export function similarity(data, a, b, lands = true) {
@@ -23,7 +25,7 @@ const pct = x => `${Math.round(x * 100)}%`
 const qty = (d, n) => (d.main?.[n] || 0) + ((d.commanders || []).includes(n) ? 1 : 0)
 const colorsOf = (data, d) => 'WUBRG'.split('').filter(x => [...(d.commanders || []), ...Object.keys(d.main || {})].some(n => { const c = data.byName.get(n); return c && c.mt !== 'Land' && (c.ci || '').includes(x) }))
 
-export default function DeckCompare({ data, decks, onClose, onOpen, onFav, onDelete }) {
+export default function DeckCompare({ data, decks, onClose, onOpen, onFav, onDelete, rt = {}, trophies = null }) {  // rt: estrelas por chave; trophies(d): os troféus do deck
   const [show, setShow] = useState('dif')  // dif | comum | todas
   const [lands, setLands] = useState(false)
   // artes próprias dos decks (vêm só no deck completo, não no resumo da Biblioteca)
@@ -58,6 +60,12 @@ export default function DeckCompare({ data, decks, onClose, onOpen, onFav, onDel
           {line(tx('Custo médio'), (d, s) => num(s.avgMv, 2))}
           {line(tx('Curva'), (d, s) => <span className="cmp-curve">{s.curve.map((v, i) => <i key={i} style={{ height: `${Math.min(100, v * 6)}%` }} title={`${i}${i === 7 ? '+' : ''}: ${v}`} />)}</span>)}
           {line(tx('Preço'), (d, s) => (s.price ? `${s.price.toFixed(0)} €` : '—'))}
+          {line(tx('Rating'), d => (rt[`deck:${d.id}`] ? <Stars r={rt[`deck:${d.id}`]} /> : <span className="muted">{tx('sem rating')}</span>))}
+          {line(tx('Jogos'), d => { const r = rt[`deck:${d.id}`]; return r ? <span title={tx('com rating (amarelo) · todos os jogos (azul)')}>{r.games || 0} · {r.blue_games || 0}</span> : '—' })}
+          {line(tx('Objetivo'), d => { const r = rt[`deck:${d.id}`]; return r?.goal != null ? <span title={tx('quanto chega, em média, ao objetivo de ganhar')}>{Math.round(r.goal * 100)}% · {num(r.red, 1)}★</span> : '—' })}
+          {line(tx('Ganha por'), d => { const by = Object.entries(rt[`deck:${d.id}`]?.by || {}).sort((a, b) => b[1] - a[1]), w = by.reduce((a, [, n]) => a + n, 0); return w ? by.map(([k, n]) => `${ROUTE[k] || k} ${Math.round((100 * n) / w)}%`).join(' · ') : '—' })}
+          {line(tx('Casual'), d => { const r = rt[`deck:${d.id}|casual`]; return r ? <span>★{num(r.stars, 1)} <span className="muted small">({r.games} {tx('jogos')})</span></span> : '—' })}
+          {trophies && line(tx('Troféus'), d => trophies(d) || '—')}
           {line(tx('Semelhança'), (d, s, k) => <span className="cmp-sim">{decks.map((o, j) => j === k ? null : (
             <span key={o.id} title={tx('Sem terrenos: {p}', { p: pct(similarity(data, d, o, false)) })}>{tx('com')} <span className={`cmp-l l${j}`}>{L[j]}</span> <b>{pct(similarity(data, d, o))}</b> <small>{tx('({p} sem terrenos)', { p: pct(similarity(data, d, o, false)) })}</small></span>))}</span>)}
           {line('', d => <span className="row-btns"><button onClick={() => onOpen(d.id)}>{tx('Abrir')}</button><button className={d.fav ? 'on' : ''} onClick={() => onFav(d)} title={tx('Favorito')}>{d.fav ? '★' : '☆'}</button><button onClick={() => onDelete(d)} title={tx('Apagar')}>🗑</button></span>)}

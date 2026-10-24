@@ -2105,4 +2105,11 @@ export default {
   "{n} escolhida|{n} escolhidas": "已选 {n} 张|已选 {n} 张",
   "só favoritos": "仅收藏",
   "Só os decks que marcaste com ★ na Biblioteca": "只用你在套牌库中标记 ★ 的套牌",
+  "com rating (amarelo) · todos os jogos (azul)": "计分对局（黄）· 全部对局（蓝）",
+  "escolhe 2 a 4 para comparar": "选择 2 到 4 副进行比较",
+  "Ganha por": "获胜方式",
+  "Jogos": "对局",
+  "quanto chega, em média, ao objetivo de ganhar": "平均离获胜目标有多近",
+  "Rating": "评分",
+  "Troféus": "奖杯",
 }

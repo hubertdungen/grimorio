@@ -2105,4 +2105,11 @@ export default {
   "{n} escolhida|{n} escolhidas": "{n} elegida|{n} elegidas",
   "só favoritos": "solo favoritos",
   "Só os decks que marcaste com ★ na Biblioteca": "Solo los mazos que marcaste con ★ en la Biblioteca",
+  "com rating (amarelo) · todos os jogos (azul)": "con rating (amarillo) · todas las partidas (azul)",
+  "escolhe 2 a 4 para comparar": "elige de 2 a 4 para comparar",
+  "Ganha por": "Gana por",
+  "Jogos": "Partidas",
+  "quanto chega, em média, ao objetivo de ganhar": "cuánto se acerca, de media, al objetivo de ganar",
+  "Rating": "Rating",
+  "Troféus": "Trofeos",
 }

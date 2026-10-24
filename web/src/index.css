@@ -1139,7 +1139,7 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .cmp-sum, .cmp-cards { width: 100%; border-collapse: collapse; font-size: 14px; } .cmp-sum th { text-align: left; color: var(--muted); font-weight: 500; width: 120px; }
 .cmp-sum td, .cmp-sum th, .cmp-cards td, .cmp-cards th { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .cmp-l { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-size: 12px; font-weight: 700; color: #0b0a14; }
-.cmp-l.l0 { background: var(--cyan); } .cmp-l.l1 { background: #ff6b8a; } .cmp-l.l2 { background: var(--gold); }
+.cmp-l.l0 { background: var(--cyan); } .cmp-l.l1 { background: #ff6b8a; } .cmp-l.l2 { background: var(--gold); } .cmp-l.l3 { background: #4ade80; }
 .cmp-curve { display: inline-flex; align-items: flex-end; gap: 2px; height: 28px; } .cmp-curve i { width: 7px; min-height: 2px; background: linear-gradient(#c794ff, #6ee7f9); border-radius: 2px 2px 0 0; }
 .cmp-filt { margin: 10px 0 6px; } .cmp-filt button.on { border-color: var(--gold); }
 .cmp-card { display: flex; align-items: center; gap: 8px; } .cmp-cards td img { width: 30px; border-radius: 3px; } .cmp-cards th:first-child { text-align: left; }

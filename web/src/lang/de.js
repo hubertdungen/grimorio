@@ -2105,4 +2105,11 @@ export default {
   "{n} escolhida|{n} escolhidas": "{n} gewählt|{n} gewählt",
   "só favoritos": "nur Favoriten",
   "Só os decks que marcaste com ★ na Biblioteca": "Nur die Decks, die du in der Bibliothek mit ★ markiert hast",
+  "com rating (amarelo) · todos os jogos (azul)": "gewertet (gelb) · alle Spiele (blau)",
+  "escolhe 2 a 4 para comparar": "wähle 2 bis 4 zum Vergleichen",
+  "Ganha por": "Gewinnt durch",
+  "Jogos": "Spiele",
+  "quanto chega, em média, ao objetivo de ganhar": "wie nah es im Schnitt dem Siegziel kommt",
+  "Rating": "Rating",
+  "Troféus": "Trophäen",
 }
