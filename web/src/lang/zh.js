@@ -1803,4 +1803,10 @@ export default {
   "Ordenar: troféus": "排序：奖杯",
   "Abrir na Biblioteca": "在牌库中打开",
   "Arrasta para mudar a ordem": "拖动以改变顺序",
+  "Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar": "否则赛事会在第一局前等待 10 秒，留出投注时间",
+  "Só começar quando eu der OK": "等我确认后才开始",
+  "À espera do teu OK para começar: aproveita para apostar.": "等待你的确认后开始：趁现在投注吧。",
+  "Começar": "开始",
+  "Começa em {s} s: tempo para apostar.": "{s} 秒后开始：投注时间。",
+  "Começar já": "立即开始",
 }

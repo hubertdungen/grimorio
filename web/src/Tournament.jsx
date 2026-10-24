@@ -73,6 +73,7 @@ function Create({ data, fmt0, onCreated }) {
   const [name, setName] = useState('')
   const [players, setPlayers] = useState([])
   const [casual, setCasual] = useState(false)  // formatos misturados; `format` passa a ser o das regras base
+  const [hold, setHold] = useState(() => ls('grimorio.torneio.hold') === '1')  // só começa com o OK (escolha guardada, também nas Definições)
   const [metaFmt, setMetaFmt] = useState('')
   const mf = casual ? metaFmt || format : format
   const [allMine, setAllMine] = useState([])
@@ -153,7 +154,7 @@ function Create({ data, fmt0, onCreated }) {
   const start = async () => {
     setBusy(true); setErr('')
     try {
-      const { id } = await post('/api/tournaments', { name: name.trim() || suggested, type, format, casual, bo: type === 'mesas' ? 1 : bo, third, rounds: R, seeding,
+      const { id } = await post('/api/tournaments', { name: name.trim() || suggested, type, format, casual, hold, bo: type === 'mesas' ? 1 : bo, third, rounds: R, seeding,
         players: players.map(({ src, ref, difficulty, cover, colors, me }) => ({ src, ref, difficulty, cover, colors, me })) })
       onCreated(id)
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
@@ -218,6 +219,7 @@ function Create({ data, fmt0, onCreated }) {
       ))}</div>}
       <div className="row-btns tc-go">
         <button className="primary" onClick={start} disabled={busy || n < TYPES[type][1] || n > max}>{tx('🏆 Começar o torneio')}</button>
+        <label className="chk small" title={tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}><input type="checkbox" checked={hold} onChange={e => { setHold(e.target.checked); ls('grimorio.torneio.hold', e.target.checked ? '1' : '0') }} /> {tx('Só começar quando eu der OK')}</label>
         <span className="small muted">{n < TYPES[type][1] ? tx('Faltam {k} decks (mínimo {m}).', { k: TYPES[type][1] - n, m: TYPES[type][1] }) : tx('{p} partidas · ≈ {g} jogos · ≈ {t} min (um jogo de cada vez no Forge)', { p: matches, g: games, t: Math.max(1, Math.round((games * MIN_PER_GAME * (type === 'mesas' ? 2 : 1)) / 5) * 5) })}</span>
         {err && <span className="small bad-t">{err}</span>}
       </div>
@@ -340,6 +342,7 @@ function Live({ data, tid, onGone }) {
           {t.me != null && <label className="chk small"><input type="checkbox" checked={onlyMine} onChange={e => setOnlyMine(e.target.checked)} /> {tx('seguir só os meus jogos')}</label>}
           {fl.length > 0 && <button className="small" onClick={() => openGame(fl[fl.length - 1])}>{onlyMine && t.me != null ? tx('▶ último jogo meu') : tx('▶ último jogo')}</button>}
         </div>
+        <StartGate t={t} onStart={() => act('start')} />
         {meLine && <p className={`me-line ${ms.phase}`}><Thumb data={data} p={P[t.me]} /><span><small>{tx('O meu deck · {d}', { d: P[t.me]?.name })}</small><b>{ms.phase === 'done' ? `${MEDAL[ms.place[0] - 1] || '🎖'} ` : ''}{meLine}</b></span></p>}
         {lm && <p className="tl-now"><span className="spin-dot" /> {t.live.status === 'queued' ? tx('Na fila do Forge (posição {p})', { p: t.live.position }) : tx('A jogar')}: <b>#{num[lm.id]}</b> {(t.live.seats || lm.p).map(nameOf).join(' vs ')} · {tx('jogo {g}', { g: lm.g.length + 1 })}{lm.p.length === 2 && t.bo > 1 ? ` · ${lm.w[0]}–${lm.w[1]}` : ''}{Object.keys(lm.sb || {}).length > 0 && <span className="muted" title={Object.entries(lm.sb).map(([i, sw]) => `${nameOf(+i)}: ${sw.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join('\n')}> · {tx('⇄ com sideboard:')} {Object.keys(lm.sb).map(i => nameOf(+i)).join(', ')}</span>}</p>}
         {!lm && t.status === 'running' && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
@@ -563,6 +566,18 @@ function Rounds({ t, data, P, live, num, onGame, me, casual, odds, bet }) {
 // pódio: 2.º · 1.º · 3.º (sem jogo de 3.º lugar os dois das meias-finais partilham o bronze)
 // decks meus no pódio, no registo e no hall da fama abrem-se na Biblioteca (App.jsx ouve «grimorio:deck»)
 const showDeck = id => window.dispatchEvent(new CustomEvent('grimorio:deck', { detail: id }))
+
+// antes do 1.º jogo: contagem de 10 s (tempo para apostar) ou, com «só começar com o meu OK», o botão Começar
+function StartGate({ t, onStart }) {
+  const [left, setLeft] = useState(t.starts_in)
+  useEffect(() => { setLeft(t.starts_in) }, [t.starts_in])
+  const ticking = left > 0
+  useEffect(() => { if (!ticking) return; const i = setInterval(() => setLeft(x => Math.max(0, x - 1)), 1000); return () => clearInterval(i) }, [ticking])
+  if (t.status !== 'running' || t.matches.some(m => m.g.length || m.job)) return null
+  if (t.hold) return <p className="t-gate">⏸ {tx('À espera do teu OK para começar: aproveita para apostar.')} <button className="primary" onClick={onStart}>▶ {tx('Começar')}</button></p>
+  if (ticking) return <p className="t-gate">⏳ {tx('Começa em {s} s: tempo para apostar.', { s: Math.ceil(left) })} <button onClick={onStart}>▶ {tx('Começar já')}</button></p>
+  return null
+}
 
 function Podium({ data, t }) {
   const s1 = t.standings.find(x => x.i === t.champion)

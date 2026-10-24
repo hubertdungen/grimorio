@@ -1803,4 +1803,10 @@ export default {
   "Ordenar: troféus": "Ordenar: trofeos",
   "Abrir na Biblioteca": "Abrir en la Biblioteca",
   "Arrasta para mudar a ordem": "Arrastra para cambiar el orden",
+  "Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar": "Si no, el torneo espera 10 s antes de la primera partida para dar tiempo a apostar",
+  "Só começar quando eu der OK": "Empezar solo cuando yo dé el OK",
+  "À espera do teu OK para começar: aproveita para apostar.": "Esperando tu OK para empezar: aprovecha para apostar.",
+  "Começar": "Empezar",
+  "Começa em {s} s: tempo para apostar.": "Empieza en {s} s: tiempo para apostar.",
+  "Começar já": "Empezar ya",
 }

@@ -56,6 +56,20 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
         <p className="muted small">{tx('Os nomes e os textos das cartas ficam em inglês (dados do Scryfall).')} {tx('A escolha fica guardada neste browser.')}</p></section>
       <section className="card"><h3>{tx('Jogos do Forge ao mesmo tempo')}</h3><ForgeGames /></section>
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
+      <section className="card"><h3>{tx('Torneios')}</h3><TourHold /></section>
     </div>
+  )
+}
+
+// torneios novos: começam sozinhos 10 s depois de criados (tempo para apostar) ou só com o OK (escolha guardada)
+function TourHold() {
+  const K = 'grimorio.torneio.hold'
+  const [on, setOn] = useState(() => { try { return localStorage.getItem(K) === '1' } catch { return false } })
+  const set = v => { setOn(v); try { localStorage.setItem(K, v ? '1' : '0') } catch { /* sem armazenamento */ } }
+  return (
+    <>
+      <label className="chk"><input type="checkbox" checked={on} onChange={e => set(e.target.checked)} /> {tx('Só começar quando eu der OK')}</label>
+      <p className="muted small">{tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}</p>
+    </>
   )
 }

@@ -1811,4 +1811,10 @@ export default {
   "Ordenar: troféus": "Sort: trophies",
   "Abrir na Biblioteca": "Open in the Library",
   "Arrasta para mudar a ordem": "Drag to change the order",
+  "Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar": "Otherwise the tournament waits 10 s before the first game so there's time to bet",
+  "Só começar quando eu der OK": "Only start when I say OK",
+  "À espera do teu OK para começar: aproveita para apostar.": "Waiting for your OK to start: a good time to place bets.",
+  "Começar": "Start",
+  "Começa em {s} s: tempo para apostar.": "Starts in {s} s: time to place bets.",
+  "Começar já": "Start now",
 }

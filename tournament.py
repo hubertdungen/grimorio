@@ -32,6 +32,7 @@ try:
 except ImportError:
     ratings = None
 
+START_WAIT = 10  # segundos entre criar o torneio e o 1.º jogo (tempo para apostar)
 TYPES = {"elim": (4, 16), "dupla": (4, 16), "suico": (4, 32), "liga": (4, 16), "mesas": (4, 16)}
 MAX_EXTRA = 2   # jogos a mais numa partida de eliminação para desfazer empates
 MAX_ERRORS = 3  # jogos partidos / trabalhos falhados por partida antes de a fechar
@@ -549,6 +550,8 @@ def create(owner, d):
         st = build(t, n, bo, bool(d.get("third")), rounds)
         me = next((i for i, p in enumerate(players) if p.pop("me", None)), None)
         st.update(format=fmt, players=players, decks=decks, **({"casual": True} if casual else {}), **({"me": me} if me is not None else {}))
+        # começo: START_WAIT s para apostar (ou, com hold, só quando o dono carregar em «Começar»)
+        st.update(start_at=time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
         tid = uuid.uuid4().hex[:12]
         name = str(d.get("name") or "").strip()[:120] or "Torneio"
         con.execute("INSERT INTO tournaments VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -567,6 +570,7 @@ def public(row):
         live = {"match": m["id"], "job": m["job"], "status": s["status"], "position": s.get("position"), "seats": m.get("seats")}
     return {"id": tid, "ts": ts, "name": name, "type": t, "format": fmt, "status": status, "champion": champ, "n": n,
             **st, "standings": standings(st), "live": live, "me_state": me_state(st),
+            "starts_in": None if st.get("hold") else max(0.0, round(st.get("start_at", 0) - time.time(), 1)),
             "podium": st.get("podium") or (podium(st) if st.get("champion") is not None else None)}
 
 
@@ -666,6 +670,14 @@ def route(method, path, owner, body=None):
             con.execute("DELETE FROM tournament_games WHERE tid=?", (tid,))
             con.execute("DELETE FROM tournaments WHERE id=? AND owner=?", (tid, owner))
             return 200, {"ok": True}
+        if method == "POST" and len(parts) == 2 and parts[1] == "start":  # «Começar» / «Começar já»
+            with LOCK:
+                row = con.execute("SELECT status, state FROM tournaments WHERE id=?", (tid,)).fetchone()
+                st = json.loads(row[1])
+                st.pop("hold", None)
+                st["start_at"] = time.time()
+                con.execute("UPDATE tournaments SET state=? WHERE id=?", (json.dumps(st, ensure_ascii=False), tid))
+            return 200, {"status": row[0]}
         if method == "POST" and len(parts) == 2 and parts[1] in ("pause", "resume", "cancel"):
             with LOCK:
                 status = con.execute("SELECT status FROM tournaments WHERE id=?", (tid,)).fetchone()[0]
@@ -874,6 +886,11 @@ def rate(con, tid, st, m, owner):
             print(f"[torneio {tid}] ratings: {e!r}", file=sys.stderr, flush=True)
 
 
+def started(st):
+    """Já pode jogar: passou o tempo de apostas e não está à espera do OK do dono."""
+    return not st.get("hold") and time.time() >= st.get("start_at", 0)
+
+
 def next_match(st):
     """A próxima partida a mandar para o Forge: pronta, sem trabalho, e sem nenhum deck que já esteja a jogar noutra mesa
     (com vários jogos ao mesmo tempo, cada deck joga uma partida de cada vez: o sideboard e a aprendizagem usam o jogo
@@ -919,7 +936,7 @@ def step():
         if BUSY():
             return
         for tid, status, st, owner in tours:
-            if status != "running":
+            if status != "running" or not started(st):
                 continue
             while inflight < cap:
                 m = next_match(st)
@@ -1185,6 +1202,7 @@ def selfcheck():
     assert similarity({"main": {"A": 4, "B": 4}, "commanders": ["C"]}, {"main": {"A": 4, "B": 3, "D": 1}, "commanders": ["C"]}) == 8 / 10
     lg = {"matches": [{"id": "a", "st": "ready", "p": [0, 1], "job": "j1"}, {"id": "b", "st": "ready", "p": [1, 2]}, {"id": "c", "st": "ready", "p": [2, 3]}]}
     assert next_match(lg)["id"] == "c"  # o deck 1 está a jogar: «b» espera, «c» (decks livres) avança
+    assert started({"start_at": 0}) and not started({"start_at": time.time() + 9}) and not started({"start_at": 0, "hold": True})
     print("selfcheck ok")
 
 

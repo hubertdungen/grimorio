@@ -1403,3 +1403,5 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .tc-players .tp-art { cursor: grab; touch-action: none; user-select: none; }
 .tc-players .tp-art img { pointer-events: none; -webkit-user-drag: none; }
 .tp-card.dragging { opacity: .75; transform: scale(1.03); box-shadow: 0 0 0 2px var(--gold2), 0 12px 28px #000c; cursor: grabbing; z-index: 2; position: relative; }
+/* antes do 1.º jogo de um torneio */
+.t-gate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(242, 184, 75, .45); background: rgba(242, 184, 75, .07); color: var(--gold2); }
