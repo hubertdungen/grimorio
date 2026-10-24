@@ -1,0 +1,132 @@
+# Desktop packages (Windows .zip with Grimorio.exe, Linux .tar.gz) and the prebuilt card data, attached to the
+# GitHub Release of a v* tag. Run it by hand (Actions › Release › Run workflow) to get the files as build artifacts
+# without publishing anything. The steps are packaging/build.py's; see docs/INSTALL.md for what users get.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      data:
+        description: "Card data: rebuild (~1 h, Scryfall + MTGTop8) or reuse the latest release's grimorio-data.zip"
+        type: choice
+        options: [reuse, rebuild]
+        default: reuse
+
+permissions:
+  contents: write
+
+env:
+  WORK: ${{ github.workspace }}/work
+
+jobs:
+  common:
+    name: Web app, Forge and GrimorioSim
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: cd web && npm ci && npx vite build
+      - uses: actions/setup-java@v4  # javac for GrimorioSim (class files run on any Java 17)
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/cache@v4  # the official Forge release is ~300 MB
+        with:
+          path: work/forge-installer-2.0.15.tar.bz2
+          key: forge-2.0.15
+      - run: python3 packaging/build.py forge "$WORK"
+      - run: GRIMORIO_DATA_DIR="$WORK" build/forge/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: common
+          path: |
+            web/dist
+            work/forge
+            work/forge-ext
+          retention-days: 3
+
+  data:
+    name: Card data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      GRIMORIO_DATA_DIR: ${{ github.workspace }}/gd
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reuse the latest release's data
+        if: github.event_name == 'workflow_dispatch' && inputs.data == 'reuse'
+        run: mkdir -p dist && gh release download --repo "$GITHUB_REPOSITORY" --pattern 'grimorio-data.zip*' --dir dist
+      - name: Build (Scryfall, Commander Spellbook, embeddings, 3D map — in Docker)
+        if: github.event_name == 'push' || inputs.data == 'rebuild'
+        run: build/build.sh
+      - name: Tournament meta (MTGTop8)
+        if: github.event_name == 'push' || inputs.data == 'rebuild'
+        continue-on-error: true  # the app works without it (no meta opponents)
+        run: python3 build/meta_mtgtop8.py --max-decks 400
+      - if: github.event_name == 'push' || inputs.data == 'rebuild'
+        run: python3 packaging/build.py data "$GRIMORIO_DATA_DIR" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: data
+          path: dist/grimorio-data.zip*
+          retention-days: 3
+
+  package:
+    name: Package (${{ matrix.platform }})
+    needs: common
+    strategy:
+      matrix:
+        include:
+          - { platform: linux, os: ubuntu-24.04 }
+          - { platform: windows, os: windows-2022 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: common
+          path: .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - if: matrix.platform == 'windows'
+        run: python -m pip install pyinstaller==6.16.0 pillow==11.3.0
+      - name: Build
+        run: |
+          V="${GITHUB_REF_NAME#v}"; [[ "$GITHUB_REF_TYPE" == tag ]] || V="0.0.0-${GITHUB_SHA::7}"
+          python packaging/build.py package ${{ matrix.platform }} "$WORK" "$V" dist
+      - if: matrix.platform == 'windows'  # the .exe starts, finds its files and prints the help
+        run: dist/Grimorio/Grimorio.exe --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.platform }}
+          path: dist/*.*
+          retention-days: 7
+
+  release:
+    name: Attach to the release
+    if: github.ref_type == 'tag'
+    needs: [package, data]
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - run: ls -la assets
+      - run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Grimório ${GITHUB_REF_NAME#v}" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber assets/*

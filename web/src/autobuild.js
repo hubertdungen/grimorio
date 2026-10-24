@@ -4,6 +4,7 @@ import { recommend, fmtBit, TAG_LABEL, detectArchetype, deckCombos, comboProb, c
 import { stats, count } from './deck.js'
 import { landAdvice, maxCopies, targetsFor } from './formats.js'
 import { manaNeeds, recommendLands, basicsFor } from './mana.js'
+import { tx } from './i18n.js'
 
 // Custo máximo por função: ramp caro já não é ramp.
 const MAX_MV = { ramp: 3, draw: 5, removal: 4, counter: 3, protection: 3, creature: 6 }
@@ -21,7 +22,7 @@ export function autoBuild(data, deck, fmt, { ctx, co = null, bracket = null, met
   const sim = { ...deck, main: { ...deck.main } }
   const total = Math.max(fmt.size[0] || 60, 40)
   const current = () => count(sim.main) + sim.commanders.length + (sim.signature ? 1 : 0)
-  if (current() >= total) return { adds: [], msg: `O deck já tem ${current()} cartas.` }
+  if (current() >= total) return { adds: [], msg: tx('O deck já tem {n} cartas.', { n: current() }) }
   const bit = fmtBit(data, fmt)
   // Sem comandante, escolhe as cores principais pelos símbolos das cartas iniciais: 2, ou 3 se a terceira pesar ≥25%.
   // As cartas iniciais fora dessas cores ficam (são tuas) mas é dito que pedem splash.
@@ -68,7 +69,7 @@ export function autoBuild(data, deck, fmt, { ctx, co = null, bracket = null, met
     if (spellRoom <= 0) break
     const have = [...cmdIdx, ...Object.keys(sim.main).map(n => data.byName.get(n)?.i).filter(x => x != null)]
     const seeds = [...cmdIdx, ...Object.keys(sim.main).map(n => data.byName.get(n)).filter(c => c && c.mt !== 'Land').map(c => c.i).reverse()]
-    if (!seeds.length) return { adds: [], msg: fmt.cmd ? 'Escolhe primeiro o comandante (ou junta umas cartas).' : 'Junta primeiro algumas cartas de que gostas.' }
+    if (!seeds.length) return { adds: [], msg: fmt.cmd ? tx('Escolhe primeiro o comandante (ou junta umas cartas).') : tx('Junta primeiro algumas cartas de que gostas.') }
     const needs = Object.fromEntries(Object.entries(targetsFor(fmt, deckPlan(data, have), prefs)).map(([t, n]) => [t, [s.tags[t] || 0, n]]))
     const gcCount = have.filter(i => data.cards[i].gc).length
     const archetype = detectArchetype(meta, have)
@@ -98,11 +99,11 @@ export function autoBuild(data, deck, fmt, { ctx, co = null, bracket = null, met
         if (k <= 0 || room <= 0) break
         if (taken.has(r.c.i)) continue
         const why = r.why.filter(w => w.k !== 'falta').slice(0, 1).map(w => w.txt)
-        take(r, `Função: ${TAG_LABEL[t]}`, [`${TAG_LABEL[t]} em falta (${h}/${n})`, r.c.cmc <= 2 ? `barata (MV ${r.c.cmc})` : '', ...why].filter(Boolean).join(' · '))
+        take(r, tx('Função: {t}', { t: TAG_LABEL[t] }), [tx('{t} em falta ({h}/{n})', { t: TAG_LABEL[t], h, n }), r.c.cmc <= 2 ? tx('barata (MV {mv})', { mv: r.c.cmc }) : '', ...why].filter(Boolean).join(' · '))
         k--
       }
     }
-    for (const r of recs) { if (room <= 0) break; take(r, 'Sinergia', r.why.filter(w => w.k !== 'falta').slice(0, 2).map(w => w.txt).join(' · ') || r.why[0]?.txt) }
+    for (const r of recs) { if (room <= 0) break; take(r, tx('Sinergia'), r.why.filter(w => w.k !== 'falta').slice(0, 2).map(w => w.txt).join(' · ') || r.why[0]?.txt) }
   }
 
   // 3) base de mana: terrenos sugeridos (cores em falta, ritmo, mecânica, dados) + básicos pela cor mais curta
@@ -118,14 +119,14 @@ export function autoBuild(data, deck, fmt, { ctx, co = null, bracket = null, met
     for (const r of recommendLands(data, { deck: sim, fmt, ctx, co, meta, need, limit: 60 })) {
       if (k >= nonbasic) break
       if (r.score < 0.05) continue
-      const q = put(r.c, fmt.copies === 1 ? 1 : Math.min(4, nonbasic - k), 'Terrenos', r.why.slice(0, 2).map(w => w.txt).join(' · ') || 'Produz as cores do deck')
+      const q = put(r.c, fmt.copies === 1 ? 1 : Math.min(4, nonbasic - k), tx('Terrenos'), r.why.slice(0, 2).map(w => w.txt).join(' · ') || tx('Produz as cores do deck'))
       k += q
       for (const c of colors) if (r.land.any || r.land.colors.has(c) || r.land.colors.has('*')) need.cols[c].have += q
     }
     const rest = total - current()
     for (const [name, q] of Object.entries(basicsFor(data, need, rest, ctx.identity))) {
       const c = data.byName.get(name)
-      if (c) put(c, q, 'Terrenos básicos', `Equilibra as fontes: ${Object.entries(need.cols).map(([x, v]) => `${x} ${v.have}/${v.full}`).join(', ')}`)
+      if (c) put(c, q, tx('Terrenos básicos'), tx('Equilibra as fontes: {s}', { s: Object.entries(need.cols).map(([x, v]) => `${x} ${v.have}/${v.full}`).join(', ') }))
     }
   }
   // Combos do deck final e probabilidade de cada um até ao turno de referência.

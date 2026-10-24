@@ -636,11 +636,18 @@ def rate(con, tid, st, m, owner):
     if ratings is None or m["b"] == "P" or m.get("bye") or m.get("skip"):
         return
     a, b = m["p"]
-    games = ["a" if x["w"] == a else "b" if x["w"] == b else "draw" for x in m["g"] if not x.get("x")]
+    gs = [x for x in m["g"] if not x.get("x")]
+    games = ["a" if x["w"] == a else "b" if x["w"] == b else "draw" for x in gs]
     who = lambda i: ratings.ref(st["players"][i]["src"], st["players"][i]["ref"], st["players"][i]["name"], owner)  # noqa: E731
     if games:
         try:
             kw = {"casual": True} if st.get("casual") else {}
+            if hasattr(ratings, "progs_of"):  # progresso rumo à vitória de cada um (estrelas vermelhas), dos jogos inteiros
+                rows = dict(con.execute(f"SELECT id, game FROM tournament_games WHERE id IN ({','.join('?' * len(gs))})",
+                                        [x["id"] for x in gs]).fetchall())
+                kw["progs"] = [ratings.progs_of(json.loads(zlib.decompress(rows[x["id"]])), st.get("base") or st["format"],
+                                                (sim.SIDES[x["s"].index(a)], sim.SIDES[x["s"].index(b)]))
+                               if x["id"] in rows else None for x in gs]
             try:
                 ratings.record_round(con, st["format"], a=who(a), b=who(b), games=games, source="torneio", round_id=f"{tid}:{m['id']}", **kw)
             except TypeError:  # ratings sem rating casual: os casuais ficam de fora

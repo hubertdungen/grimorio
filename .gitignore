@@ -25,3 +25,5 @@ dist-ssr
 web/dist/
 .claude/
 __pycache__/
+# packaging/build.py (CI): Forge download, forge-ext, packages
+/work/

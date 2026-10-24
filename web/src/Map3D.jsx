@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { tx } from './i18n.js'
 
 const CI = { W: [0.96, 0.92, 0.78], U: [0.31, 0.64, 1], B: [0.66, 0.55, 0.85], R: [1, 0.36, 0.29], G: [0.24, 0.81, 0.48] }
 const GOLD = [0.95, 0.72, 0.29], GREY = [0.6, 0.64, 0.7], LAND = [0.69, 0.55, 0.42]
@@ -297,15 +298,15 @@ export default function Map3D({ data, marks, dim, links, onPick, onAdd, focus, f
         <div className="map-tip" style={{ left: Math.min(hover.x + 14, (host.current?.clientWidth || 9999) - 260), top: hover.y + 10 }}>
           <b>{hc.n}</b><small>{hc.t}</small>
           {tips?.get(hover.i) && <em>{tips.get(hover.i)}</em>}
-          <small className="map-tip-k">clique: ver · duplo clique: juntar ao deck</small>
+          <small className="map-tip-k">{tx('clique: ver · duplo clique: juntar ao deck')}</small>
         </div>
       )}
       <div className="map-legend">
         <span><i style={{ background: '#f5ebc7' }} />W</span><span><i style={{ background: '#4fa3ff' }} />U</span>
         <span><i style={{ background: '#a88cd9' }} />B</span><span><i style={{ background: '#ff5c4a' }} />R</span>
-        <span><i style={{ background: '#3dcf7a' }} />G</span><span><i style={{ background: '#f2b84b' }} />Multicor</span>
-        <span><i style={{ background: '#9aa3b2' }} />Incolor</span><span><i style={{ background: '#b08c6b' }} />Terreno</span>
-        <span><i style={{ background: '#c794ff' }} />os teus decks</span><span className="lg-line lg-combo">combo</span><span className="lg-line lg-inter">alimenta → aproveita</span>
+        <span><i style={{ background: '#3dcf7a' }} />G</span><span><i style={{ background: '#f2b84b' }} />{tx('Multicor')}</span>
+        <span><i style={{ background: '#9aa3b2' }} />{tx('Incolor')}</span><span><i style={{ background: '#b08c6b' }} />{tx('Terreno')}</span>
+        <span><i style={{ background: '#c794ff' }} />{tx('os teus decks')}</span><span className="lg-line lg-combo">combo</span><span className="lg-line lg-inter">{tx('alimenta → aproveita')}</span>
       </div>
     </div>
   )

@@ -2,11 +2,14 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'rea
 import { search, recommend, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList } from './deck.js'
-import { CardTile, Mana, Oracle, Tags, price, Empty } from './ui.jsx'
+import { CardTile, Mana, Oracle, Tags, price, Empty, Stars } from './ui.jsx'
 import Map3D from './Map3D.jsx'
 import { autoBuild } from './autobuild.js'
 import { deckSynergy } from './synergy.js'
 import { manaNeeds, recommendLands } from './mana.js'
+import { tx, num, LOCALE } from './i18n.js'
+import { prepareSwaps } from './swap.js'
+import AddOrSwap from './AddSwap.jsx'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -87,48 +90,48 @@ export function PrefsPanel({ deck, fmt, act, compact = false }) {
   useEffect(() => { if (open) fetch('/api/decks').then(r => r.json()).then(setDecks).catch(() => {}) }, [open])
   const set = p => act.setPrefs(p)
   const nivel = pf.nivel ?? 3, meta = pf.meta ?? 0.5
-  const summary = pf.on ? [LEVELS[nivel], meta < 0.3 ? 'original' : meta > 0.7 ? 'segue o meta' : '', ...(pf.estilo || []).map(k => STYLES[k]?.label), pf.gosto && pf.gosto !== 'off' ? 'ao teu gosto' : '', pf.orcamento ? `≤ ${pf.orcamento} €` : ''].filter(Boolean).join(' · ') : 'desligada: sugestão completa, sem viés'
+  const summary = pf.on ? [LEVELS[nivel], meta < 0.3 ? tx('original') : meta > 0.7 ? tx('segue o meta') : '', ...(pf.estilo || []).map(k => STYLES[k]?.label), pf.gosto && pf.gosto !== 'off' ? tx('ao teu gosto') : '', pf.orcamento ? `≤ ${pf.orcamento} €` : ''].filter(Boolean).join(' · ') : tx('desligada: sugestão completa, sem viés')
   return (
     <div className={`prefs ${pf.on ? 'on' : ''}`}>
       <button className="prefs-head" onClick={() => setOpen(!open)}>
-        <span>⚙ Personalizar</span><small className="muted">{summary}</small><span className="chev">{open ? '▾' : '▸'}</span>
+        <span>⚙ {tx('Personalizar')}</span><small className="muted">{summary}</small><span className="chev">{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div className="prefs-body">
-          <label className="switch"><input type="checkbox" checked={!!pf.on} onChange={e => set({ on: e.target.checked })} /> <span>{pf.on ? 'Personalização ligada' : 'Ligar personalização (opcional)'}</span></label>
+          <label className="switch"><input type="checkbox" checked={!!pf.on} onChange={e => set({ on: e.target.checked })} /> <span>{pf.on ? tx('Personalização ligada') : tx('Ligar personalização (opcional)')}</span></label>
           <fieldset disabled={!pf.on}>
-            <label className="sl"><span>Nível de jogo <b>{LEVELS[nivel]}</b>{fmt.cmd === 'commander' ? <em> · bracket {nivel}</em> : null}</span>
+            <label className="sl"><span>{tx('Nível de jogo')} <b>{LEVELS[nivel]}</b>{fmt.cmd === 'commander' ? <em> · bracket {nivel}</em> : null}</span>
               <input type="range" min="1" max="5" step="1" value={nivel} onChange={e => set({ nivel: +e.target.value })} />
-              <span className="sl-ends"><i>fun/jank</i><i>competitivo</i></span>
+              <span className="sl-ends"><i>fun/jank</i><i>{tx('competitivo')}</i></span>
             </label>
-            <label className="sl"><span>Seguir o meta <b>{meta < 0.3 ? 'original' : meta > 0.7 ? 'staples' : 'equilibrado'}</b></span>
+            <label className="sl"><span>{tx('Seguir o meta')} <b>{meta < 0.3 ? tx('original') : meta > 0.7 ? 'staples' : tx('equilibrado')}</b></span>
               <input type="range" min="0" max="1" step="0.1" value={meta} onChange={e => set({ meta: +e.target.value })} />
-              <span className="sl-ends"><i>pouco jogadas</i><i>o que todos jogam</i></span>
+              <span className="sl-ends"><i>{tx('pouco jogadas')}</i><i>{tx('o que todos jogam')}</i></span>
             </label>
-            <div className="sl"><span>Estilo e viés <em>(vários)</em></span>
+            <div className="sl"><span>{tx('Estilo e viés')} <em>{tx('(vários)')}</em></span>
               <div className="fchips">{Object.entries(STYLES).map(([k, S]) => {
                 const on = (pf.estilo || []).includes(k)
                 return <button key={k} className={`fchip ${on ? 'on' : ''}`} onClick={() => set({ estilo: on ? pf.estilo.filter(x => x !== k) : [...(pf.estilo || []), k] })}>{S.label}</button>
               })}</div>
             </div>
             {(pf.estilo || []).length > 0 && (
-              <label className="sl"><span>Força do estilo <b>{(pf.estiloForca ?? 1).toFixed(2).replace('.', ',')}×</b> <em>· automaticamente menor quanto mais segues o meta</em></span>
+              <label className="sl"><span>{tx('Força do estilo')} <b>{num(pf.estiloForca ?? 1, 2)}×</b> <em>· {tx('automaticamente menor quanto mais segues o meta')}</em></span>
                 <input type="range" min="0.5" max="2" step="0.25" value={pf.estiloForca ?? 1} onChange={e => set({ estiloForca: +e.target.value })} />
-                <span className="sl-ends"><i>só um toque</i><i>manda no deck</i></span>
+                <span className="sl-ends"><i>{tx('só um toque')}</i><i>{tx('manda no deck')}</i></span>
               </label>
             )}
-            <label className="sl"><span>Inspirar-me nos meus decks</span>
+            <label className="sl"><span>{tx('Inspirar-me nos meus decks')}</span>
               <select value={pf.gosto || 'off'} onChange={e => set({ gosto: e.target.value })}>
-                <option value="off">Não</option><option value="todos">Todos os meus decks</option><option value="escolher">Escolher decks…</option>
+                <option value="off">{tx('Não')}</option><option value="todos">{tx('Todos os meus decks')}</option><option value="escolher">{tx('Escolher decks…')}</option>
               </select>
             </label>
             {pf.gosto === 'escolher' && (
               <div className="deck-checks">{decks.filter(d => d.id !== deck.id).map(d => {
                 const on = (pf.gostoDecks || []).includes(d.id)
                 return <label key={d.id} className="chk"><input type="checkbox" checked={on} onChange={() => set({ gostoDecks: on ? pf.gostoDecks.filter(x => x !== d.id) : [...(pf.gostoDecks || []), d.id] })} /> {d.name} <span className="muted">({d.count})</span></label>
-              })}{decks.length <= 1 && <p className="muted small">Ainda não há outros decks guardados.</p>}</div>
+              })}{decks.length <= 1 && <p className="muted small">{tx('Ainda não há outros decks guardados.')}</p>}</div>
             )}
-            <label className="sl"><span>Orçamento por carta <b>{pf.orcamento ? `até ${pf.orcamento} €` : 'sem limite'}</b></span>
+            <label className="sl"><span>{tx('Orçamento por carta')} <b>{pf.orcamento ? tx('até {v} €', { v: pf.orcamento }) : tx('sem limite')}</b></span>
               <input type="range" min="0" max="50" step="1" value={pf.orcamento || 0} onChange={e => set({ orcamento: +e.target.value || null })} />
             </label>
           </fieldset>
@@ -170,12 +173,14 @@ function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
   const recs = useMemo(() => recommend(data, { seeds, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt) }),
     [data, seeds, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt])
   const plan = useMemo(() => deckPlan(data, have), [data, have])
-  return { recs, seeds, seedsIdx, have, usingDeck: !seedsIdx.length, plan, co, cmdIdx, needs, bracket, meta, archetype, tastes }
+  // trocas: preparadas só quando um «+» as pede (o rato em cima ou o menu aberto); swap.js guarda-as por deck
+  const swaps = useMemo(() => (c, o) => prepareSwaps(data, deck, fmt, ctx, { co, archetype, evidence: ctx.tests })(c, o), [data, deck, fmt, ctx, co, archetype])
+  return { recs, seeds, seedsIdx, have, usingDeck: !seedsIdx.length, plan, co, cmdIdx, needs, bracket, meta, archetype, tastes, swaps }
 }
 
 const Why = ({ why }) => <ul className="why">{why.map((w, k) => <li key={k} className={w.k}>{w.combo ? <a href={`https://commanderspellbook.com/combo/${w.combo}/`} target="_blank" rel="noreferrer">{w.txt}</a> : w.txt}</li>)}</ul>
 
-const PART_LABEL = { estilo: 'Estilo escolhido', gosto: 'O teu gosto', original: 'Originalidade', torneios: 'Torneios (MTGTop8)', texto: 'Texto parecido', comandante: 'Comandante', decksReais: 'Decks reais (EDHREC)', combos: 'Combos', interacoes: 'Interações', falta: 'O que falta ao deck', tribo: 'Tribo e palavras-chave', popular: 'Popularidade', testes: 'Testes do Laboratório' }
+const PART_LABEL = { estilo: tx('Estilo escolhido'), gosto: tx('O teu gosto'), original: tx('Originalidade'), torneios: tx('Torneios (MTGTop8)'), texto: tx('Texto parecido'), comandante: tx('Comandante'), decksReais: tx('Decks reais (EDHREC)'), combos: 'Combos', interacoes: tx('Interações'), falta: tx('O que falta ao deck'), tribo: tx('Tribo e palavras-chave'), popular: tx('Popularidade'), testes: tx('Testes do Laboratório') }
 const pct = x => `${Math.min(99, Math.round(x * 100))}%`
 
 // O raciocínio inteiro de uma sugestão: peso de cada fator e os dados por trás.
@@ -187,23 +192,23 @@ function WhyDetail({ r }) {
       {Object.entries(parts).filter(([, v]) => Math.abs(v) > 0.004).sort((a, b) => b[1] - a[1]).map(([k, v]) => (
         <div key={k} className="whyd-bar"><span>{PART_LABEL[k]}</span><i style={{ width: `${Math.max(2, (v / max) * 100)}%` }} className={v < 0 ? 'neg' : ''} /><em>{(v * 100).toFixed(0)}</em></div>
       ))}
-      {d.mArch && <p>Nas listas de <b>{d.mArch.name}</b> (MTGTop8), {pct(d.mArch.incl)} usam-na, com {d.mArch.copies.toFixed(1).replace('.', ',')} cópias em média.</p>}
-      {d.mRow && <p>Em {pct(d.mRow.incl)} das {d.metaDecks} listas recentes de {d.metaName}{d.mRow.copies ? ` (≈${d.mRow.copies.toFixed(1).replace('.', ',')} cópias)` : ''}{d.mRow.side ? `; em ${pct(d.mRow.side)} dos sideboards` : ''}.</p>}
-      {d.mPart?.length > 0 && <p>Em torneios aparece com: {d.mPart.map(p => `${p.from} (${pct(p.cond)} das listas dela)`).join('; ')}.</p>}
-      {d.edhCmd && <p>No EDHREC, <b>{pct(d.edhCmd.incl)}</b> dos {d.edhCmd.pot.toLocaleString('pt-PT')} decks de {d.edhCmd.from} usam-na; sinergia <b>{d.edhCmd.syn > 0 ? '+' : ''}{pct(d.edhCmd.syn)}</b> face a decks das mesmas cores.</p>}
-      {d.edhCards.length > 0 && <p>Aparece com: {d.edhCards.map(e => `${e.from} (${e.lift.toFixed(1).replace('.', ',')}×, ${pct(e.incl)} dos decks dela)`).join('; ')}.</p>}
+      {d.mArch && <p>{tx('Nas listas de {a} (MTGTop8), {p} usam-na, com {c} cópias em média.', { a: d.mArch.name, p: pct(d.mArch.incl), c: num(d.mArch.copies) })}</p>}
+      {d.mRow && <p>{tx('Em {p} das {n} listas recentes de {f}', { p: pct(d.mRow.incl), n: d.metaDecks, f: d.metaName })}{d.mRow.copies ? ` (${tx('≈{c} cópias', { c: num(d.mRow.copies) })})` : ''}{d.mRow.side ? `; ${tx('em {p} dos sideboards', { p: pct(d.mRow.side) })}` : ''}.</p>}
+      {d.mPart?.length > 0 && <p>{tx('Em torneios aparece com:')} {d.mPart.map(p => `${p.from} (${tx('{p} das listas dela', { p: pct(p.cond) })})`).join('; ')}.</p>}
+      {d.edhCmd && <p>{tx('No EDHREC, {p} dos {n} decks de {c} usam-na; sinergia {s} face a decks das mesmas cores.', { p: pct(d.edhCmd.incl), n: d.edhCmd.pot.toLocaleString(LOCALE), c: d.edhCmd.from, s: (d.edhCmd.syn > 0 ? '+' : '') + pct(d.edhCmd.syn) })}</p>}
+      {d.edhCards.length > 0 && <p>{tx('Aparece com:')} {d.edhCards.map(e => `${e.from} (${num(e.lift)}×, ${tx('{p} dos decks dela', { p: pct(e.incl) })})`).join('; ')}.</p>}
       {d.combos.map(cb => (
-        <p key={cb.id}><a href={`https://commanderspellbook.com/combo/${cb.id}/`} target="_blank" rel="noreferrer">Combo</a> com {cb.with.join(' + ')}{cb.missing.length ? <> (falta {cb.missing.join(', ')})</> : null}: {cb.produces.join(', ')}{cb.requires.length ? `; precisa também de ${cb.requires.join(', ')}` : ''}{cb.decks ? ` · ${cb.decks.toLocaleString('pt-PT')} decks` : ''}.</p>
+        <p key={cb.id}><a href={`https://commanderspellbook.com/combo/${cb.id}/`} target="_blank" rel="noreferrer">Combo</a> {tx('com {c}', { c: cb.with.join(' + ') })}{cb.missing.length ? <> ({tx('falta {x}', { x: cb.missing.join(', ') })})</> : null}: {cb.produces.join(', ')}{cb.requires.length ? `; ${tx('precisa também de {x}', { x: cb.requires.join(', ') })}` : ''}{cb.decks ? ` · ${cb.decks.toLocaleString(LOCALE)} decks` : ''}.</p>
       ))}
-      {d.inter.map((x, k) => <p key={k}>{x.side === 'usa' ? 'Aproveita' : 'Alimenta'} {x.who.length} carta{x.who.length > 1 ? 's' : ''} que {x.label}: {x.who.slice(0, 6).join(', ')}{x.who.length > 6 ? '…' : ''}.</p>)}
-      {d.roles.length > 0 && <p className="muted">Papéis desta carta: {d.roles.join(', ')}.</p>}
-      <p className="muted">Pelo texto, está mais perto do deck do que {pct(d.simPct)} das cartas{d.near ? ` (a mais próxima é ${d.near})` : ''}{d.cmdPct != null ? `, e mais perto do comandante do que ${pct(d.cmdPct)}` : ''}.</p>
+      {d.inter.map((x, k) => <p key={k}>{x.side === 'usa' ? tx('Aproveita {n} carta que {l}|Aproveita {n} cartas que {l}', { n: x.who.length, l: x.label }) : tx('Alimenta {n} carta que {l}|Alimenta {n} cartas que {l}', { n: x.who.length, l: x.label })}: {x.who.slice(0, 6).join(', ')}{x.who.length > 6 ? '…' : ''}.</p>)}
+      {d.roles.length > 0 && <p className="muted">{tx('Papéis desta carta:')} {d.roles.join(', ')}.</p>}
+      <p className="muted">{tx('Pelo texto, está mais perto do deck do que {p} das cartas', { p: pct(d.simPct) })}{d.near ? ` (${tx('a mais próxima é {c}', { c: d.near })})` : ''}{d.cmdPct != null ? `, ${tx('e mais perto do comandante do que {p}', { p: pct(d.cmdPct) })}` : ''}.</p>
     </div>
   )
 }
 
 // Filtro das sugestões: razão (porque é sugerida) e função (o que faz), com contadores.
-const REASONS = [['', 'Tudo', '✦'], ['combo', 'Combos', '∞'], ['edh', 'Decks reais', '◉'], ['meta', 'Torneios', '♜'], ['inter', 'Interações', '⇄'], ['falta', 'O que falta', '◔'], ['estilo', 'Estilo', '◆'], ['gosto', 'O teu gosto', '♥'], ['testes', 'Testes', '⚗']]
+const REASONS = [['', tx('Tudo'), '✦'], ['combo', 'Combos', '∞'], ['edh', tx('Decks reais'), '◉'], ['meta', tx('Torneios'), '♜'], ['inter', tx('Interações'), '⇄'], ['falta', tx('O que falta'), '◔'], ['estilo', tx('Estilo'), '◆'], ['gosto', tx('O teu gosto'), '♥'], ['testes', tx('Testes'), '⚗']]
 const FUNC_TAGS = ['creature', 'wincon', 'reanimate', 'ramp', 'draw', 'removal', 'wipe', 'counter', 'tutor', 'protection', 'recursion', 'tokens', 'sacrifice', 'counters', 'lifegain', 'graveyard', 'etb', 'spellslinger', 'artifacts', 'enchantments', 'discard', 'evasion']
 const hasKind = (r, k) => !k || r.why.some(w => w.k === k || (k === 'combo' && w.k === 'combo2'))
 const applyFilter = (recs, kind, tag) => recs.filter(r => hasKind(r, kind) && (!tag || r.c.tg.includes(tag)))
@@ -214,7 +219,7 @@ function ReasonFilter({ recs, kind, setKind, tag, setTag, needs = {}, extra = nu
     .filter(x => x.n || x.gap).sort((a, b) => (b.gap > 0) - (a.gap > 0) || b.gap - a.gap || b.n - a.n)
   return (
     <div className="rfilter">
-      <div className="seg" role="tablist" aria-label="Razão">
+      <div className="seg" role="tablist" aria-label={tx('Razão')}>
         {REASONS.map(([k, l, ic]) => {
           const n = base.filter(r => hasKind(r, k)).length
           if (k && !n && kind !== k) return null
@@ -227,12 +232,12 @@ function ReasonFilter({ recs, kind, setKind, tag, setTag, needs = {}, extra = nu
         {extra}
       </div>
       {tags.length > 0 && (
-        <div className="fchips" aria-label="Função">
-          {tag && <button className="fchip clear" onClick={() => setTag('')}>× todas as funções</button>}
+        <div className="fchips" aria-label={tx('Função')}>
+          {tag && <button className="fchip clear" onClick={() => setTag('')}>× {tx('todas as funções')}</button>}
           {tags.map(x => (
             <button key={x.t} className={`fchip ${tag === x.t ? 'on' : ''} ${x.gap ? 'gap' : ''}`} onClick={() => setTag(tag === x.t ? '' : x.t)}
-              title={x.gap ? `O deck tem ${needs[x.t][0]} de ${needs[x.t][1]} recomendadas` : ''}>
-              {TAG_LABEL[x.t]}<b>{x.n}</b>{x.gap > 0 && <em>faltam {x.gap}</em>}
+              title={x.gap ? tx('O deck tem {a} de {b} recomendadas', { a: needs[x.t][0], b: needs[x.t][1] }) : ''}>
+              {TAG_LABEL[x.t]}<b>{x.n}</b>{x.gap > 0 && <em>{tx('faltam {n}', { n: x.gap })}</em>}
             </button>
           ))}
         </div>
@@ -243,7 +248,7 @@ function ReasonFilter({ recs, kind, setKind, tag, setTag, needs = {}, extra = nu
 const NOLANDS = { noLands: true }
 
 // Base de mana: equilíbrio de terrenos, fontes por cor e terrenos sugeridos (com mecânica).
-function ManaBlock({ data, deck, fmt, ctx, act, co, limit = 4, full = false }) {
+function ManaBlock({ data, deck, fmt, ctx, act, co, swaps, limit = 4, full = false }) {
   const need = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
   const lands = useMemo(() => recommendLands(data, { deck, fmt, ctx, co, need, limit: full ? 12 : limit }), [data, deck, fmt, ctx, co, need, limit, full])
   const short = Object.entries(need.cols).filter(([, x]) => x.have < x.need)
@@ -251,17 +256,17 @@ function ManaBlock({ data, deck, fmt, ctx, act, co, limit = 4, full = false }) {
   return (
     <div className="mana-block">
       <p className="small">
-        <b>{nLand}</b> terrenos {need.deficit > 1 ? <span className="bad-t">({need.deficit} a menos para esta fase do deck)</span> : need.deficit < -2 ? <span className="bad-t">({-need.deficit} a mais)</span> : <span className="ok-t">(equilibrado)</span>}
-        <span className="muted"> · alvo ~{need.target} em {need.total}{need.tapped ? ` · ${need.tapped} entram virados` : ''}</span>
+        <b>{nLand}</b> {tx('terrenos')} {need.deficit > 1 ? <span className="bad-t">({tx('{n} a menos para esta fase do deck', { n: need.deficit })})</span> : need.deficit < -2 ? <span className="bad-t">({tx('{n} a mais', { n: -need.deficit })})</span> : <span className="ok-t">({tx('equilibrado')})</span>}
+        <span className="muted"> · {tx('alvo ~{a} em {b}', { a: need.target, b: need.total })}{need.tapped ? ` · ${tx('{n} entram virados', { n: need.tapped })}` : ''}</span>
       </p>
       <div className="srcs">
         {Object.entries(need.cols).map(([k, x]) => (
-          <span key={k} className={`src ${x.have < x.need ? 'low' : ''}`} title={`${x.pips} símbolos de ${k}; o custo mais exigente tem ${x.maxPips}. Recomendado ~${x.full} fontes com a base de mana completa.`}>
+          <span key={k} className={`src ${x.have < x.need ? 'low' : ''}`} title={tx('{p} símbolos de {k}; o custo mais exigente tem {m}. Recomendado ~{f} fontes com a base de mana completa.', { p: x.pips, k, m: x.maxPips, f: x.full })}>
             <img src={`https://svgs.scryfall.io/card-symbols/${k}.svg`} alt={k} /> {x.have}/{x.need}
           </span>
         ))}
       </div>
-      {short.length > 0 && <p className="small bad-t">Faltam fontes de {short.map(([k]) => k).join(', ')}: os terrenos abaixo dão prioridade a essas cores.</p>}
+      {short.length > 0 && <p className="small bad-t">{tx('Faltam fontes de {c}: os terrenos abaixo dão prioridade a essas cores.', { c: short.map(([k]) => k).join(', ') })}</p>}
       <ul className="land-list">
         {lands.map(r => (
           <li key={r.c.i} {...hoverPeek(r.c)}>
@@ -270,7 +275,7 @@ function ManaBlock({ data, deck, fmt, ctx, act, co, limit = 4, full = false }) {
               <div className="live-name"><button className="link plain" onClick={() => act.open(r.c)}>{r.c.n}</button></div>
               <Why why={r.why} />
             </div>
-            <button className="act add" onClick={() => act.add(r.c)} title="Juntar ao deck">+</button>
+            <AddOrSwap c={r.c} act={act} swaps={swaps}><button className="act add" onClick={() => act.add(r.c)} title={tx('Juntar ao deck')}>+</button></AddOrSwap>
           </li>
         ))}
       </ul>
@@ -279,35 +284,36 @@ function ManaBlock({ data, deck, fmt, ctx, act, co, limit = 4, full = false }) {
 }
 
 // Painel ao lado da pesquisa: muda a cada carta que entra no deck.
-function LivePanel({ data, deck, fmt, ctx, act }) {
+function LivePanel({ data, deck, fmt, ctx, act, onSwaps }) {
   const [open, setOpen] = useState(() => !matchMedia('(max-width: 900px)').matches) // no telemóvel começa fechado
   const [kind, setKind] = useState('')
   const [tag, setTag] = useState('')
   const [exp, setExp] = useState(null)
-  const { recs: all, seeds, plan, bracket, co, archetype, meta, needs } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
+  const { recs: all, seeds, plan, bracket, co, archetype, meta, needs, swaps } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
+  useEffect(() => { onSwaps?.(() => swaps) }, [onSwaps, swaps]) // a grelha da pesquisa usa as mesmas trocas
   const need = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
   const landsFirst = need.deficit > 2 || Object.values(need.cols).some(x => x.have < x.need * 0.7)
   const recs = applyFilter(all, kind === 'terrenos' ? '' : kind, tag).slice(0, 15)
   return (
     <aside className={`live ${open ? 'open' : ''}`}>
       <button className="live-head" onClick={() => setOpen(!open)}>
-        <b>Sugestões para este deck</b><span className="muted small">{seeds.length ? `a partir de ${seeds.length} carta${seeds.length > 1 ? 's' : ''}` : ''}</span><span className="chev">{open ? '▾' : '▸'}</span>
+        <b>{tx('Sugestões para este deck')}</b><span className="muted small">{seeds.length ? tx('a partir de {n} carta|a partir de {n} cartas', { n: seeds.length }) : ''}</span><span className="chev">{open ? '▾' : '▸'}</span>
       </button>
       {open && <div className="live-prefs"><PrefsPanel {...{ deck, fmt, act }} compact /></div>}
       {open && seeds.length > 0 && (
         <div className="live-meta">
-          {plan.length > 0 && <p className="small"><span className="muted">Plano detetado:</span> {plan.map(x => <span key={x.label} className="plan-chip">{x.label} <b>{x.n}</b></span>)}</p>}
-          {archetype && <p className="small"><span className="muted">Arquétipo provável:</span> <span className="plan-chip arch">{archetype.name}</span> <span className="muted">{Math.round(archetype.fit * 100)}% do núcleo · {Math.round(archetype.share * 100)}% do meta</span></p>}
-          {meta && !archetype && seeds.length >= 4 && <p className="small muted">Ainda não parece nenhum arquétipo do meta de {fmt.name}.</p>}
-          {bracket && <p className="small muted">Bracket {bracket}: {bracket <= 2 ? 'sem Game Changers nem combos' : bracket === 3 ? 'até 3 Game Changers' : 'sem limites'}.</p>}
+          {plan.length > 0 && <p className="small"><span className="muted">{tx('Plano detetado:')}</span> {plan.map(x => <span key={x.label} className="plan-chip">{x.label} <b>{x.n}</b></span>)}</p>}
+          {archetype && <p className="small"><span className="muted">{tx('Arquétipo provável:')}</span> <span className="plan-chip arch">{archetype.name}</span> <span className="muted">{tx('{a}% do núcleo · {b}% do meta', { a: Math.round(archetype.fit * 100), b: Math.round(archetype.share * 100) })}</span></p>}
+          {meta && !archetype && seeds.length >= 4 && <p className="small muted">{tx('Ainda não parece nenhum arquétipo do meta de {f}.', { f: fmt.name })}</p>}
+          {bracket && <p className="small muted">Bracket {bracket}: {bracket <= 2 ? tx('sem Game Changers nem combos') : bracket === 3 ? tx('até 3 Game Changers') : tx('sem limites')}.</p>}
           <ReasonFilter recs={all} kind={kind === 'terrenos' ? '__' : kind} setKind={setKind} tag={tag} setTag={setTag} needs={needs}
-            extra={<button role="tab" aria-selected={kind === 'terrenos'} className={kind === 'terrenos' ? 'on' : ''} onClick={() => setKind(kind === 'terrenos' ? '' : 'terrenos')} title="Terrenos"><i>▤</i><span>Terrenos</span></button>} />
+            extra={<button role="tab" aria-selected={kind === 'terrenos'} className={kind === 'terrenos' ? 'on' : ''} onClick={() => setKind(kind === 'terrenos' ? '' : 'terrenos')} title={tx('Terrenos')}><i>▤</i><span>{tx('Terrenos')}</span></button>} />
         </div>
       )}
       {open && seeds.length > 0 && kind !== 'terrenos' && landsFirst && (
-        <div className="mana-sec"><h4>Base de mana · prioridade</h4><ManaBlock {...{ data, deck, fmt, ctx, act, co }} /></div>
+        <div className="mana-sec"><h4>{tx('Base de mana · prioridade')}</h4><ManaBlock {...{ data, deck, fmt, ctx, act, co, swaps }} /></div>
       )}
-      {open && seeds.length > 0 && kind === 'terrenos' && <div className="mana-sec"><ManaBlock {...{ data, deck, fmt, ctx, act, co }} limit={12} /></div>}
+      {open && seeds.length > 0 && kind === 'terrenos' && <div className="mana-sec"><ManaBlock {...{ data, deck, fmt, ctx, act, co, swaps }} limit={12} /></div>}
       {open && kind !== 'terrenos' && (seeds.length ? (
         <ul className="live-list">
           {recs.map(r => (
@@ -316,16 +322,16 @@ function LivePanel({ data, deck, fmt, ctx, act }) {
               <div className="live-txt">
                 <div className="live-name"><button className="link plain" onClick={() => act.open(r.c)}>{r.c.n}</button><Mana cost={r.c.mc} /></div>
                 <Why why={r.why} />
-                <button className="link small whyb" onClick={() => setExp(exp === r.c.i ? null : r.c.i)}>{exp === r.c.i ? 'esconder' : 'porquê? ▾'}</button>
+                <button className="link small whyb" onClick={() => setExp(exp === r.c.i ? null : r.c.i)}>{exp === r.c.i ? tx('esconder') : tx('porquê? ▾')}</button>
                 {exp === r.c.i && <WhyDetail r={r} />}
               </div>
-              <span className="live-acts"><button className="act add" onClick={() => act.add(r.c)} title="Juntar ao deck">+</button><button className="act art" onClick={() => act.pickArt(r.c)} title="Escolher arte">🎨</button></span>
+              <span className="live-acts"><AddOrSwap c={r.c} act={act} swaps={swaps}><button className="act add" onClick={() => act.add(r.c)} title={tx('Juntar ao deck')}>+</button></AddOrSwap><button className="act art" onClick={() => act.pickArt(r.c)} title={tx('Escolher arte')}>🎨</button></span>
             </li>
           ))}
-          {!recs.length && <li className="muted small">Nenhuma sugestão com este tipo de razão.</li>}
-          {!landsFirst && !kind && !tag && <li className="mana-sec-li"><h4>Base de mana</h4><ManaBlock {...{ data, deck, fmt, ctx, act, co }} limit={3} /></li>}
+          {!recs.length && <li className="muted small">{tx('Nenhuma sugestão com este tipo de razão.')}</li>}
+          {!landsFirst && !kind && !tag && <li className="mana-sec-li"><h4>{tx('Base de mana')}</h4><ManaBlock {...{ data, deck, fmt, ctx, act, co, swaps }} limit={3} /></li>}
         </ul>
-      ) : <p className="muted small live-empty">Junta o comandante ou umas cartas e as sugestões aparecem aqui, com o porquê de cada uma.</p>)}
+      ) : <p className="muted small live-empty">{tx('Junta o comandante ou umas cartas e as sugestões aparecem aqui, com o porquê de cada uma.')}</p>)}
     </aside>
   )
 }
@@ -369,10 +375,10 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
     }
     if (meta) for (const [i, m] of [...meta.byCard.entries()].filter(([, m]) => m.side >= 0.08).sort((a, b) => b[1].side - a[1].side)) {
       const c = data.cards[i]
-      if (left > 0 && passes(c, null, ctx) && [...c.ci].every(k => cols.has(k))) put(c, Math.max(1, Math.round(m.sideCopies)), `em ${Math.round(m.side * 100)}% dos sideboards de ${fmt.name}`)
+      if (left > 0 && passes(c, null, ctx) && [...c.ci].every(k => cols.has(k))) put(c, Math.max(1, Math.round(m.sideCopies)), tx('em {p}% dos sideboards de {f}', { p: Math.round(m.side * 100), f: fmt.name }))
     }
     const cats = sideSuggest(data, sim, ctx, 4)
-    for (let k = 0; k < 4 && left > 0; k++) for (const g of cats) if (g.cards[k]) put(g.cards[k], 2, `${g.label.toLowerCase()} · MV ${g.cards[k].cmc}, muito jogada`)
+    for (let k = 0; k < 4 && left > 0; k++) for (const g of cats) if (g.cards[k]) put(g.cards[k], 2, `${g.label.toLowerCase()} · ${tx('MV {v}, muito jogada', { v: g.cards[k].cmc })}`)
     return out
   }, [res, fmt, deck, data, ctx, meta])
   const sideChosen = sideProp.filter(x => !sideOff.has(x.c.i)), sn = sideChosen.reduce((s, x) => s + x.q, 0)
@@ -383,24 +389,25 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
       for (const x of sideChosen) side[x.c.n] = (side[x.c.n] || 0) + x.q
       return { ...d, main, side }
     })
-    say(`Juntei ${n} cartas ao deck${sn ? ` e ${sn} ao sideboard` : ''}.`)
+    say(sn ? tx('Juntei {n} cartas ao deck e {s} ao sideboard.', { n, s: sn }) : tx('Juntei {n} carta ao deck.|Juntei {n} cartas ao deck.', { n }), true)
     onClose()
   }
-  const order = Object.keys(groups).sort((a, b) => (a.startsWith('Função') ? 0 : a === 'Sinergia' ? 1 : 2) - (b.startsWith('Função') ? 0 : b === 'Sinergia' ? 1 : 2))
+  const rank = g => (g.startsWith(tx('Função')) ? 0 : g === tx('Sinergia') ? 1 : 2)  // nomes dos grupos vêm do autobuild.js, já traduzidos
+  const order = Object.keys(groups).sort((a, b) => rank(a) - rank(b))
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal auto" onClick={e => e.stopPropagation()}>
-        <button className="close" onClick={onClose} aria-label="Fechar">×</button>
-        <h3>Completar deck · {fmt.name}</h3>
+        <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
+        <h3>{tx('Completar deck')} · {fmt.name}</h3>
         {act && <PrefsPanel {...{ deck, fmt, act }} compact />}
-        {!res ? <div className="auto-wait"><div className="spinner" /><p className="muted">A montar: funções em falta, sinergia com o plano e base de mana…</p></div>
+        {!res ? <div className="auto-wait"><div className="spinner" /><p className="muted">{tx('A montar: funções em falta, sinergia com o plano e base de mana…')}</p></div>
           : res.msg ? <p>{res.msg}</p> : (
             <>
-              <p className="muted small">Proposta de {res.adds.reduce((s, a) => s + a.q, 0)} cartas. Desmarca o que não quiseres; nada muda no deck até carregares em Aplicar.</p>
-              {res.offColor?.length > 0 && <p className="small bad-t">Cores principais: {res.colors}. Fora delas (pedem splash ou saem): {res.offColor.join(', ')}.</p>}
+              <p className="muted small">{tx('Proposta de {n} cartas. Desmarca o que não quiseres; nada muda no deck até carregares em Aplicar.', { n: res.adds.reduce((s, a) => s + a.q, 0) })}</p>
+              {res.offColor?.length > 0 && <p className="small bad-t">{tx('Cores principais: {c}. Fora delas (pedem splash ou saem): {o}.', { c: res.colors, o: res.offColor.join(', ') })}</p>}
               {res.combos?.length > 0 && (
                 <div className="auto-combos">
-                  <b>Combos no deck final</b> <span className="muted small">probabilidade de os ter montado até ao turno {res.turn} ({res.tutors} tutor{res.tutors === 1 ? '' : 'es'}; aproximação)</span>
+                  <b>{tx('Combos no deck final')}</b> <span className="muted small">{tx('probabilidade de os ter montado até ao turno {t} ({n} tutor; aproximação)|probabilidade de os ter montado até ao turno {t} ({n} tutores; aproximação)', { t: res.turn, n: res.tutors })}</span>
                   <ul>{res.combos.map(x => <li key={x.id}><span className="cp">≈{pctP(x.p)}</span> {x.cards.join(' + ')} <span className="muted">→ {x.result}</span></li>)}</ul>
                 </div>
               )}
@@ -421,7 +428,7 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
               {sideProp.length > 0 && (
                 <div className="auto-list auto-side">
                   <section>
-                    <h4>Sideboard sugerido <span className="muted">{sn}/{fmt.side} · desmarca o que não quiseres; depois ajusta no deck</span></h4>
+                    <h4>{tx('Sideboard sugerido')} <span className="muted">{sn}/{fmt.side} · {tx('desmarca o que não quiseres; depois ajusta no deck')}</span></h4>
                     <ul>{sideProp.map(x => (
                       <li key={x.c.i} className={sideOff.has(x.c.i) ? 'off' : ''}>
                         <input type="checkbox" checked={!sideOff.has(x.c.i)} onChange={() => setSideOff(o => { const y = new Set(o); y.has(x.c.i) ? y.delete(x.c.i) : y.add(x.c.i); return y })} aria-label={x.c.n} />
@@ -432,7 +439,7 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
                   </section>
                 </div>
               )}
-              <div className="row-btns"><button className="primary" onClick={apply} disabled={!n && !sn}>Aplicar {n} cartas{sn ? ` + ${sn} no sideboard` : ''}</button><button onClick={onClose}>Cancelar</button></div>
+              <div className="row-btns"><button className="primary" onClick={apply} disabled={!n && !sn}>{tx('Aplicar {n} carta|Aplicar {n} cartas', { n })}{sn ? ` + ${tx('{n} no sideboard', { n: sn })}` : ''}</button><button onClick={onClose}>{tx('Cancelar')}</button></div>
             </>
           )}
       </div>
@@ -468,16 +475,16 @@ function hideCardPeek() { if (peek) peek.style.display = 'none' }
 
 const inDeck = (deck, n) => (deck.main[n] || 0) + (deck.side[n] || 0) + (deck.commanders.includes(n) ? 1 : 0) + (deck.signature === n ? 1 : 0)
 
-function Actions({ c, deck, fmt, act }) {
+function Actions({ c, deck, fmt, act, swaps }) {
   const q = inDeck(deck, c.n)
   return (
     <>
-      <button className="act add" onClick={() => act.add(c)} title="Juntar ao deck">+{q ? <sup>{q}</sup> : null}</button>
-      {fmt.side > 0 && <button className="act" onClick={() => act.add(c, 'side')} title="Juntar ao sideboard">SB</button>}
-      {fmt.cmd && canBeCommander(c, fmt) && <button className={`act ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)} title={fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : 'Comandante'}>♛</button>}
-      {fmt.cmd === 'oathbreaker' && /Instant|Sorcery/.test(c.t) && <button className={`act ${deck.signature === c.n ? 'on' : ''}`} onClick={() => act.setSignature(c)} title="Feitiço de assinatura">✦</button>}
-      <button className={`act seed ${deck.seeds.includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSeed(c)} title="Semente das sugestões">★</button>
-      <button className="act art" onClick={() => act.pickArt(c)} title="Escolher arte (edições e estilos)">🎨</button>
+      <AddOrSwap c={c} act={act} swaps={swaps} up><button className="act add" onClick={() => act.add(c)} title={tx('Juntar ao deck')}>+{q ? <sup>{q}</sup> : null}</button></AddOrSwap>
+      {fmt.side > 0 && <button className="act" onClick={() => act.add(c, 'side')} title={tx('Juntar ao sideboard')}>SB</button>}
+      {fmt.cmd && canBeCommander(c, fmt) && <button className={`act ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)} title={fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}>♛</button>}
+      {fmt.cmd === 'oathbreaker' && /Instant|Sorcery/.test(c.t) && <button className={`act ${deck.signature === c.n ? 'on' : ''}`} onClick={() => act.setSignature(c)} title={tx('Feitiço de assinatura')}>✦</button>}
+      <button className={`act seed ${deck.seeds.includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSeed(c)} title={tx('Semente das sugestões')}>★</button>
+      <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte (edições e estilos)')}>🎨</button>
     </>
   )
 }
@@ -493,19 +500,19 @@ function Filters({ f, set, compact, noTag }) {
             <img src={`https://svgs.scryfall.io/card-symbols/${k}.svg`} alt={k} />
           </button>
         ))}
-        <button className={`pip ${f.colorless ? 'on' : ''}`} onClick={() => up('colorless', !f.colorless)} title="Incolor"><img src="https://svgs.scryfall.io/card-symbols/C.svg" alt="C" /></button>
+        <button className={`pip ${f.colorless ? 'on' : ''}`} onClick={() => up('colorless', !f.colorless)} title={tx('Incolor')}><img src="https://svgs.scryfall.io/card-symbols/C.svg" alt="C" /></button>
         {f.colors.length > 0 && (
-          <select value={f.colorMode} onChange={e => up('colorMode', e.target.value)} aria-label="Modo de cor">
-            <option value="incl">inclui</option><option value="within">no máximo</option><option value="exact">exatamente</option>
+          <select value={f.colorMode} onChange={e => up('colorMode', e.target.value)} aria-label={tx('Modo de cor')}>
+            <option value="incl">{tx('inclui')}</option><option value="within">{tx('no máximo')}</option><option value="exact">{tx('exatamente')}</option>
           </select>
         )}
       </div>
-      <select value={f.type} onChange={e => up('type', e.target.value)} aria-label="Tipo"><option value="">Todos os tipos</option>{TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}<option value="Legendary">Lendárias</option></select>
-      {!noTag && <select value={f.tag} onChange={e => up('tag', e.target.value)} aria-label="Função"><option value="">Qualquer função</option>{Object.entries(TAG_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}
-      <input value={f.sub} onChange={e => up('sub', e.target.value)} placeholder="Subtipo (Elf, Dragon…)" className="w-sub" />
-      <span className="mv">MV <input type="number" min="0" value={f.cmcMin} onChange={e => up('cmcMin', e.target.value)} aria-label="Custo mínimo" />–<input type="number" min="0" value={f.cmcMax} onChange={e => up('cmcMax', e.target.value)} aria-label="Custo máximo" /></span>
-      {!compact && <select value={f.rarity} onChange={e => up('rarity', e.target.value)} aria-label="Raridade"><option value="">Raridade</option><option value="c">Comum</option><option value="u">Incomum</option><option value="r">Rara</option><option value="m">Mítica</option></select>}
-      <span className="mv">até <input type="number" min="0" step="0.5" value={f.priceMax} onChange={e => up('priceMax', e.target.value)} placeholder="€" aria-label="Preço máximo" /> €</span>
+      <select value={f.type} onChange={e => up('type', e.target.value)} aria-label={tx('Tipo')}><option value="">{tx('Todos os tipos')}</option>{TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}<option value="Legendary">{tx('Lendárias')}</option></select>
+      {!noTag && <select value={f.tag} onChange={e => up('tag', e.target.value)} aria-label={tx('Função')}><option value="">{tx('Qualquer função')}</option>{Object.entries(TAG_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}
+      <input value={f.sub} onChange={e => up('sub', e.target.value)} placeholder={tx('Subtipo (Elf, Dragon…)')} className="w-sub" />
+      <span className="mv">MV <input type="number" min="0" value={f.cmcMin} onChange={e => up('cmcMin', e.target.value)} aria-label={tx('Custo mínimo')} />–<input type="number" min="0" value={f.cmcMax} onChange={e => up('cmcMax', e.target.value)} aria-label={tx('Custo máximo')} /></span>
+      {!compact && <select value={f.rarity} onChange={e => up('rarity', e.target.value)} aria-label={tx('Raridade')}><option value="">{tx('Raridade')}</option><option value="c">{tx('Comum')}</option><option value="u">{tx('Incomum')}</option><option value="r">{tx('Rara')}</option><option value="m">{tx('Mítica')}</option></select>}
+      <span className="mv">{tx('até')} <input type="number" min="0" step="0.5" value={f.priceMax} onChange={e => up('priceMax', e.target.value)} placeholder="€" aria-label={tx('Preço máximo')} /> €</span>
     </div>
   )
 }
@@ -518,27 +525,28 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   const dq = useDeferredValue(q), df = useDeferredValue(f)
   const res = useMemo(() => search(data, dq, df, ctx), [data, dq, df, ctx])
   const [showF, setShowF] = useState(false)
+  const [swaps, setSwaps] = useState(null)
   const nActive = ['type', 'tag', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].filter(k => f[k]).length + (f.colors.length ? 1 : 0) + (f.colorless ? 1 : 0)
   return (
     <div className="view">
       <div className="searchbar">
-        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Procurar cartas por nome…" className="big" />
-        <label className="chk"><input type="checkbox" checked={f.inText} onChange={e => setF(x => ({ ...x, inText: e.target.checked }))} /> também no texto</label>
-        <select value={f.sort} onChange={e => setF(x => ({ ...x, sort: e.target.value }))} aria-label="Ordenar">
-          <option value="pop">Mais jogadas</option><option value="name">Nome</option><option value="cmc">Custo</option><option value="price">Preço</option><option value="new">Mais recentes</option>
+        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar cartas por nome…')} className="big" />
+        <label className="chk"><input type="checkbox" checked={f.inText} onChange={e => setF(x => ({ ...x, inText: e.target.checked }))} /> {tx('também no texto')}</label>
+        <select value={f.sort} onChange={e => setF(x => ({ ...x, sort: e.target.value }))} aria-label={tx('Ordenar')}>
+          <option value="pop">{tx('Mais jogadas')}</option><option value="name">{tx('Nome')}</option><option value="cmc">{tx('Custo')}</option><option value="price">{tx('Preço')}</option><option value="new">{tx('Mais recentes')}</option>
         </select>
       </div>
-      <button className="filters-toggle" onClick={() => setShowF(!showF)}>Filtros{nActive ? ` (${nActive})` : ''} {showF ? '▴' : '▾'}</button>
+      <button className="filters-toggle" onClick={() => setShowF(!showF)}>{tx('Filtros')}{nActive ? ` (${nActive})` : ''} {showF ? '▴' : '▾'}</button>
       <div className={`filters-wrap ${showF ? 'open' : ''}`}><Filters f={f} set={setF} /></div>
       <div className="search-layout">
       <div>
-      <p className="muted small">{res.total.toLocaleString('pt-PT')} cartas{ctx.bit >= 0 ? ` legais em ${fmt.name}` : ''}{ctx.identity != null ? ` na identidade ${ctx.identity || 'incolor'}` : ''}{res.total > res.cards.length ? ` · a mostrar ${res.cards.length}` : ''}</p>
+      <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">
-        {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act }} />} />)}
+        {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} />)}
       </div>
-      {!res.total && <Empty>Nenhuma carta com estes filtros.</Empty>}
+      {!res.total && <Empty>{tx('Nenhuma carta com estes filtros.')}</Empty>}
       </div>
-      <LivePanel {...{ data, deck, fmt, ctx, act }} />
+      <LivePanel {...{ data, deck, fmt, ctx, act }} onSwaps={setSwaps} />
       </div>
     </div>
   )
@@ -549,7 +557,7 @@ function SeedPicker({ data, ctx, act }) {
   const hits = useMemo(() => (q.length < 2 ? [] : search(data, q, null, { ...ctx, identity: null }, 8).cards), [data, q, ctx])
   return (
     <div className="seedpick">
-      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Junta uma carta de que gostas…" />
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Junta uma carta de que gostas…')} />
       {hits.length > 0 && (
         <ul className="ac">{hits.map(c => <li key={c.i}><button onClick={() => { act.toggleSeed(c); setQ('') }}><img src={img(c, 'small')} alt="" />{c.n}</button></li>)}</ul>
       )}
@@ -561,32 +569,32 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
   const [f, setF] = useState(() => ({ ...F0, tag: sugTag }))
   const df = useDeferredValue(f)
   const [kind, setKind] = useState('')
-  const { recs: allSug, seeds, usingDeck, needs } = useDeckRecs(data, deck, fmt, ctx, df, 80)
+  const { recs: allSug, seeds, usingDeck, needs, swaps } = useDeckRecs(data, deck, fmt, ctx, df, 80)
   const recs = applyFilter(allSug, kind, '')
   return (
     <div className="view">
       <div className="seeds">
         <div>
-          <h3>Sementes</h3>
-          <p className="muted small">{usingDeck ? (seeds.length ? 'Sem sementes: as sugestões partem do deck inteiro.' : 'Escolhe 3 a 5 cartas de que gostas e o Grimório mostra o universo de cartas que combinam com elas.') : 'As sugestões partem destas cartas (e evitam o que já está no deck).'}</p>
+          <h3>{tx('Sementes')}</h3>
+          <p className="muted small">{usingDeck ? (seeds.length ? tx('Sem sementes: as sugestões partem do deck inteiro.') : tx('Escolhe 3 a 5 cartas de que gostas e o Grimório mostra o universo de cartas que combinam com elas.')) : tx('As sugestões partem destas cartas (e evitam o que já está no deck).')}</p>
         </div>
         <div className="chips">
-          {deck.seeds.map(n => { const c = data.byName.get(n); return c && <span key={n} className="chip"><button className="link" onClick={() => act.open(c)}>{n}</button><button onClick={() => act.toggleSeed(c)} aria-label="Retirar">×</button></span> })}
-          {deck.seeds.length > 0 && <button className="link small" onClick={() => setDeck(d => ({ ...d, seeds: [] }))}>limpar</button>}
+          {deck.seeds.map(n => { const c = data.byName.get(n); return c && <span key={n} className="chip"><button className="link" onClick={() => act.open(c)}>{n}</button><button onClick={() => act.toggleSeed(c)} aria-label={tx('Retirar')}>×</button></span> })}
+          {deck.seeds.length > 0 && <button className="link small" onClick={() => setDeck(d => ({ ...d, seeds: [] }))}>{tx('limpar')}</button>}
         </div>
         <SeedPicker {...{ data, ctx, act }} />
       </div>
       <PrefsPanel {...{ deck, fmt, act }} />
       <Filters f={f} set={x => { setSugTag(''); setF(x) }} compact noTag />
       <ReasonFilter recs={allSug} kind={kind} setKind={setKind} tag={f.tag} setTag={t => { setSugTag(''); setF(x => ({ ...x, tag: t })) }} needs={needs} />
-      {seeds.length > 0 && <p className="muted small">Classificadas por semelhança mecânica (modelo de texto local), combos do Commander Spellbook e popularidade. <button className="link" onClick={() => act.showOnMap(recs[0]?.c || data.cards[seeds[0]])}>Ver no universo →</button></p>}
+      {seeds.length > 0 && <p className="muted small">{tx('Classificadas por semelhança mecânica (modelo de texto local), combos do Commander Spellbook e popularidade.')} <button className="link" onClick={() => act.showOnMap(recs[0]?.c || data.cards[seeds[0]])}>{tx('Ver no universo →')}</button></p>}
       <div className="grid">
         {recs.map(r => (
-          <CardTile key={r.c.i} c={r.c} onOpen={act.open} actions={<Actions {...{ c: r.c, deck, fmt, act }} />}
-            note={<><Why why={r.why} /><details className="whyx"><summary className="small">porquê?</summary><WhyDetail r={r} /></details></>} />
+          <CardTile key={r.c.i} c={r.c} onOpen={act.open} actions={<Actions {...{ c: r.c, deck, fmt, act, swaps }} />}
+            note={<><Why why={r.why} /><details className="whyx"><summary className="small">{tx('porquê?')}</summary><WhyDetail r={r} /></details></>} />
         ))}
       </div>
-      {!seeds.length && <Empty>Sem sementes nem cartas no deck. Junta uma carta acima.</Empty>}
+      {!seeds.length && <Empty>{tx('Sem sementes nem cartas no deck. Junta uma carta acima.')}</Empty>}
     </div>
   )
 }
@@ -604,7 +612,7 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
   const [kind, setKind] = useState('')
   const [tag, setTag] = useState('')
   const [panel, setPanel] = useState(true)
-  const { recs: allRecs, seeds, seedsIdx, have, plan, needs, tastes } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
+  const { recs: allRecs, seeds, seedsIdx, have, plan, needs, tastes, swaps } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
   const recs = useMemo(() => applyFilter(allRecs, kind, tag).slice(0, 18), [allRecs, kind, tag])
   const marks = useMemo(() => {
     const m = new Map()
@@ -643,17 +651,17 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
       <Map3D data={data} marks={marks} dim={dim} links={links} focus={focus} onPick={pick} onAdd={addI} frame={frame} follow={follow} tips={tips} />
       <div className="map-ui">
         <div className="seedpick">
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Voar até uma carta…" />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Voar até uma carta…')} />
           {hits.length > 0 && <ul className="ac">{hits.map(c => <li key={c.i}><button onClick={() => { pick(c.i); setQ('') }}><img src={img(c, 'small')} alt="" />{c.n}</button></li>)}</ul>}
         </div>
         <div className="map-toggles">
-          <label className="chk"><input type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /> seguir o deck</label>
-          <label className="chk"><input type="checkbox" checked={foco} onChange={e => setFoco(e.target.checked)} /> só deck e sugestões</label>
-          <label className="chk"><input type="checkbox" checked={showLines} onChange={e => setShowLines(e.target.checked)} /> ligações</label>
-          {!foco && <label className="chk"><input type="checkbox" checked={onlyLegal} onChange={e => setOnlyLegal(e.target.checked)} /> apagar as que não servem</label>}
+          <label className="chk"><input type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /> {tx('seguir o deck')}</label>
+          <label className="chk"><input type="checkbox" checked={foco} onChange={e => setFoco(e.target.checked)} /> {tx('só deck e sugestões')}</label>
+          <label className="chk"><input type="checkbox" checked={showLines} onChange={e => setShowLines(e.target.checked)} /> {tx('ligações')}</label>
+          {!foco && <label className="chk"><input type="checkbox" checked={onlyLegal} onChange={e => setOnlyLegal(e.target.checked)} /> {tx('apagar as que não servem')}</label>}
         </div>
-        {plan.length > 0 && <p className="small"><span className="muted">Plano:</span> {plan.map(x => <span key={x.label} className="plan-chip">{x.label} <b>{x.n}</b></span>)}</p>}
-        <p className="muted small">{have.length ? `${have.length} cartas no deck · ${deckL.filter(l => l.kind === 'combo').length ? 'linhas douradas = combos · ' : ''}tracejado = quem alimenta quem` : 'Clica numa carta para a ver; duplo clique junta-a ao deck.'}</p>
+        {plan.length > 0 && <p className="small"><span className="muted">{tx('Plano:')}</span> {plan.map(x => <span key={x.label} className="plan-chip">{x.label} <b>{x.n}</b></span>)}</p>}
+        <p className="muted small">{have.length ? `${tx('{n} cartas no deck', { n: have.length })} · ${deckL.filter(l => l.kind === 'combo').length ? `${tx('linhas douradas = combos')} · ` : ''}${tx('tracejado = quem alimenta quem')}` : tx('Clica numa carta para a ver; duplo clique junta-a ao deck.')}</p>
       </div>
 
       {sel && (
@@ -662,17 +670,17 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
           {selRec && <Why why={selRec.why.slice(0, 3)} />}
           <div className="row-btns">
             <button className="primary" onClick={() => act.add(sel)}>+ Deck</button>
-            <button onClick={() => act.toggleSeed(sel)}>{deck.seeds.includes(sel.n) ? '★' : '☆'} Semente</button>
-            <button onClick={() => act.open(sel)}>Detalhes</button>
-            <button onClick={() => setSel(null)} aria-label="Fechar">×</button>
+            <button onClick={() => act.toggleSeed(sel)}>{deck.seeds.includes(sel.n) ? '★' : '☆'} {tx('Semente')}</button>
+            <button onClick={() => act.open(sel)}>{tx('Detalhes')}</button>
+            <button onClick={() => setSel(null)} aria-label={tx('Fechar')}>×</button>
           </div>
         </div>
       )}
 
       <aside className={`map-recs ${panel ? '' : 'closed'} ${sel ? 'with-card' : ''}`}>
-        <button className="live-head" onClick={() => setPanel(!panel)}><b>Sugestões</b><span className="muted small">{seeds.length ? `${recs.length}` : ''}</span><span className="chev">{panel ? '▾' : '▸'}</span></button>
+        <button className="live-head" onClick={() => setPanel(!panel)}><b>{tx('Sugestões')}</b><span className="muted small">{seeds.length ? `${recs.length}` : ''}</span><span className="chev">{panel ? '▾' : '▸'}</span></button>
         {panel && <div className="live-prefs"><PrefsPanel {...{ deck, fmt, act }} compact /></div>}
-        {panel && tastes.length > 0 && <p className="small muted map-taste">♥ {tastes.length} deck{tastes.length > 1 ? 's' : ''} teu{tastes.length > 1 ? 's' : ''} no mapa (violeta): {tastes.map(t => t.name).join(', ')}</p>}
+        {panel && tastes.length > 0 && <p className="small muted map-taste">♥ {tx('{n} deck teu no mapa (violeta):|{n} decks teus no mapa (violeta):', { n: tastes.length })} {tastes.map(t => t.name).join(', ')}</p>}
         {panel && (seeds.length ? (
           <>
             <ReasonFilter recs={allRecs} kind={kind} setKind={setKind} tag={tag} setTag={setTag} needs={needs} />
@@ -684,12 +692,12 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
                     <div className="live-name"><button className="link plain" onClick={() => pick(r.c.i)}>{r.c.n}</button><Mana cost={r.c.mc} /></div>
                     <Why why={r.why.slice(0, 2)} />
                   </div>
-                  <button className="act add" onClick={() => act.add(r.c)} title="Juntar ao deck">+</button>
+                  <AddOrSwap c={r.c} act={act} swaps={swaps}><button className="act add" onClick={() => act.add(r.c)} title={tx('Juntar ao deck')}>+</button></AddOrSwap>
                 </li>
               ))}
             </ul>
           </>
-        ) : <p className="muted small live-empty">Junta o comandante ou umas cartas (duplo clique num ponto) e as sugestões aparecem a pulsar à volta do deck.</p>)}
+        ) : <p className="muted small live-empty">{tx('Junta o comandante ou umas cartas (duplo clique num ponto) e as sugestões aparecem a pulsar à volta do deck.')}</p>)}
       </aside>
     </div>
   )
@@ -705,18 +713,18 @@ function Combo({ data, cb, missing, act, deck }) {
           return (
             <button key={i} className={`mini ${miss ? 'miss' : ''}`} onClick={() => act.open(c)} title={c.n}>
               <img src={img(c, 'small')} alt={c.n} loading="lazy" />
-              {miss && <span>falta</span>}
+              {miss && <span>{tx('falta')}</span>}
             </button>
           )
         })}
       </div>
       <div className="combo-txt">
         <b>{produces.join(' · ') || 'Combo'}</b>
-        {requires.length > 0 && <small>Precisa também de: {requires.join(', ')}</small>}
-        <small className="muted">{idx.map(i => data.cards[i].n).join(' + ')}{pop ? ` · ${pop.toLocaleString('pt-PT')} decks` : ''}{bracket ? ` · bracket ${bracket}` : ''}</small>
+        {requires.length > 0 && <small>{tx('Precisa também de:')} {requires.join(', ')}</small>}
+        <small className="muted">{idx.map(i => data.cards[i].n).join(' + ')}{pop ? ` · ${pop.toLocaleString(LOCALE)} decks` : ''}{bracket ? ` · bracket ${bracket}` : ''}</small>
         <span className="row-btns">
           {missing.map(i => <button key={i} className="primary" onClick={() => act.add(data.cards[i])} disabled={inDeck(deck, data.cards[i].n) > 0}>+ {data.cards[i].n}</button>)}
-          <a href={`https://commanderspellbook.com/combo/${id}/`} target="_blank" rel="noreferrer">passos ↗</a>
+          <a href={`https://commanderspellbook.com/combo/${id}/`} target="_blank" rel="noreferrer">{tx('passos ↗')}</a>
         </span>
       </div>
     </li>
@@ -726,7 +734,7 @@ function Combo({ data, cb, missing, act, deck }) {
 // Cartas do deck numa categoria de sinergia: nome com cópias, espreitar ao passar, abrir ao tocar.
 function SynChips({ list, deck, act, max = 10 }) {
   const [all, setAll] = useState(false)
-  if (!list.length) return <span className="muted small">nenhuma ainda</span>
+  if (!list.length) return <span className="muted small">{tx('nenhuma ainda')}</span>
   return (
     <span className="syn-chips">
       {(all ? list : list.slice(0, max)).map(({ c, q }) => <button key={c.i} className="syn-chip" onClick={() => act.open(c)} {...hoverPeek(c, pidOf(deck, c.n))}>{q > 1 && <b>{q}×</b>}{c.n.split(' // ')[0]}</button>)}
@@ -742,20 +750,20 @@ function SynCat({ x, deck, act }) {
     <li className="syn">
       <div className="syn-h">
         <span className="syn-ic" aria-hidden>{s.ic}</span><b>{s.name}</b>
-        <span className="syn-bar" title={`Força ${pct}%`}><i style={{ width: `${pct}%` }} /></span><span className="syn-pct">{pct}%</span>
+        <span className="syn-bar" title={tx('Força {p}%', { p: pct })}><i style={{ width: `${pct}%` }} /></span><span className="syn-pct">{pct}%</span>
       </div>
       <p className="syn-why">{s.why}</p>
       {reasons.map(r => <p key={r} className="syn-warn">{r}</p>)}
-      <div className="syn-side"><span className="syn-l">Ativam <em>{E}</em></span><SynChips list={en} {...{ deck, act }} /></div>
-      <div className="syn-side"><span className="syn-l">Beneficiam <em>{P}</em></span><SynChips list={pay} {...{ deck, act }} /></div>
+      <div className="syn-side"><span className="syn-l">{tx('Ativam')} <em>{E}</em></span><SynChips list={en} {...{ deck, act }} /></div>
+      <div className="syn-side"><span className="syn-l">{tx('Beneficiam')} <em>{P}</em></span><SynChips list={pay} {...{ deck, act }} /></div>
       {sug.length > 0 && (
         <details className="syn-sug">
-          <summary>Pode reforçar <span className="muted">{sug.length}</span></summary>
+          <summary>{tx('Pode reforçar')} <span className="muted">{sug.length}</span></summary>
           <ul>{sug.map(({ c, side }) => (
             <li key={c.i}>
               <button className="link" onClick={() => act.open(c)} {...hoverPeek(c)}>{c.n}</button>
-              <span className="muted small">{side === 'pay' ? 'beneficia' : 'ativa'}</span>
-              <button className="primary" onClick={() => act.add(c)} disabled={inDeck(deck, c.n) > 0}>+ deck</button>
+              <span className="muted small">{side === 'pay' ? tx('beneficia') : tx('ativa')}</span>
+              <button className="primary" onClick={() => act.add(c)} disabled={inDeck(deck, c.n) > 0}>+ {tx('deck')}</button>
             </li>
           ))}</ul>
         </details>
@@ -770,15 +778,15 @@ export function CombosView({ data, deck, ctx, act }) {
   // ponytail: o índice das categorias (~0,6 s na 1.ª vez, 34k cartas) bloqueia a abertura do separador; passar para um worker se pesar no telemóvel
   const syn = useMemo(() => deckSynergy(data, deck, ctx), [data, deck, ctx])
   const [n, setN] = useState(30)
-  if (!have.length) return <div className="view"><Empty>Junta cartas ao deck (ou sementes) para ver as sinergias, os combos que já tens e os que estão a uma carta.</Empty></div>
+  if (!have.length) return <div className="view"><Empty>{tx('Junta cartas ao deck (ou sementes) para ver as sinergias, os combos que já tens e os que estão a uma carta.')}</Empty></div>
   return (
     <div className="view">
-      <h3>Sinergias do deck <span className="muted">{syn.cats.length}</span></h3>
-      <p className="muted small">Cartas que funcionam bem juntas: umas <b>ativam</b> o tema, outras <b>beneficiam</b> dele. A força pesa as duas metades face ao tamanho do deck.</p>
-      {syn.cats.length ? <ul className="syns">{syn.cats.map(x => <SynCat key={x.s.k} {...{ x, deck, act }} />)}</ul> : <p className="muted small">Nenhum tema claro ainda.</p>}
+      <h3>{tx('Sinergias do deck')} <span className="muted">{syn.cats.length}</span></h3>
+      <p className="muted small">{tx('Cartas que funcionam bem juntas: umas ativam o tema, outras beneficiam dele. A força pesa as duas metades face ao tamanho do deck.')}</p>
+      {syn.cats.length ? <ul className="syns">{syn.cats.map(x => <SynCat key={x.s.k} {...{ x, deck, act }} />)}</ul> : <p className="muted small">{tx('Nenhum tema claro ainda.')}</p>}
       {syn.pairs.length > 0 && (
         <>
-          <h3>Pares fortes <span className="muted">{syn.pairs.length}</span></h3>
+          <h3>{tx('Pares fortes')} <span className="muted">{syn.pairs.length}</span></h3>
           <ul className="syn-pairs">{syn.pairs.map((p, k) => (
             <li key={k}>
               <SynChips list={p.a.map(c => ({ c, q: 1 }))} {...{ deck, act }} max={4} />
@@ -788,11 +796,11 @@ export function CombosView({ data, deck, ctx, act }) {
           ))}</ul>
         </>
       )}
-      <h3>Combos fechados (infinitos / vitória) <span className="muted">{full.length}</span></h3>
-      {full.length ? <ul className="combos">{full.slice(0, 50).map(x => <Combo key={x.k} {...x} {...{ data, act, deck }} />)}</ul> : <p className="muted small">Nenhum combo completo ainda (Commander Spellbook).</p>}
-      <h3>A uma carta de distância <span className="muted">{near.length}</span></h3>
+      <h3>{tx('Combos fechados (infinitos / vitória)')} <span className="muted">{full.length}</span></h3>
+      {full.length ? <ul className="combos">{full.slice(0, 50).map(x => <Combo key={x.k} {...x} {...{ data, act, deck }} />)}</ul> : <p className="muted small">{tx('Nenhum combo completo ainda (Commander Spellbook).')}</p>}
+      <h3>{tx('A uma carta de distância')} <span className="muted">{near.length}</span></h3>
       <ul className="combos">{near.slice(0, n).map(x => <Combo key={x.k} {...x} {...{ data, act, deck }} />)}</ul>
-      {near.length > n && <button onClick={() => setN(n + 30)}>Mostrar mais</button>}
+      {near.length > n && <button onClick={() => setN(n + 30)}>{tx('Mostrar mais')}</button>}
     </div>
   )
 }
@@ -806,7 +814,7 @@ const Bar = ({ v, max, label, target, onClick }) => (
 )
 
 function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
-  const { recs, plan, co, cmdIdx, needs, meta, archetype, have } = useDeckRecs(data, deck, fmt, ctx, null, 150)
+  const { recs, plan, co, cmdIdx, needs, meta, archetype, have, swaps } = useDeckRecs(data, deck, fmt, ctx, null, 150)
   const side = useMemo(() => {
     if (!meta || !fmt.side) return []
     const cols = new Set(have.flatMap(i => [...data.cards[i].ci]))
@@ -823,38 +831,38 @@ function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
   }
   const heurCard = heur.length > 0 && (
     <section className="card">
-      <h3>Sideboard sugerido <span className="muted small">{sideCount}/{fmt.side} · respostas por tipo de ameaça, nas tuas cores</span></h3>
+      <h3>{tx('Sideboard sugerido')} <span className="muted small">{sideCount}/{fmt.side} · {tx('respostas por tipo de ameaça, nas tuas cores')}</span></h3>
       {heur.map(g => (
         <div key={g.label}><h4>{g.label}</h4><ul className="land-list">{g.cards.map(c => (
           <li key={c.i}>
             <button className="live-img" onClick={() => act.open(c)}><img src={img(c, 'art_crop')} alt="" loading="lazy" /></button>
             <div className="live-txt"><div className="live-name"><button className="link plain" onClick={() => act.open(c)}>{c.n}</button><Mana cost={c.mc} /></div></div>
-            <button className="act" onClick={() => act.add(c, 'side', 2)} title="Juntar 2 ao sideboard">+SB</button>
+            <button className="act" onClick={() => act.add(c, 'side', 2)} title={tx('Juntar 2 ao sideboard')}>+SB</button>
           </li>
         ))}</ul></div>
       ))}
-      {sideCount < fmt.side && <button className="primary" onClick={fillSide}>Completar o sideboard até {fmt.side}</button>}
+      {sideCount < fmt.side && <button className="primary" onClick={fillSide}>{tx('Completar o sideboard até {n}', { n: fmt.side })}</button>}
     </section>
   )
   const sideCard = side.length > 0 && (
     <section className="card">
-      <h3>Sideboard sugerido <span className="muted small">{meta.decks} listas de {fmt.name}</span></h3>
+      <h3>{tx('Sideboard sugerido')} <span className="muted small">{tx('{n} listas de {f}', { n: meta.decks, f: fmt.name })}</span></h3>
       <ul className="land-list">{side.map(({ c, m }) => (
         <li key={c.i}>
           <button className="live-img" onClick={() => act.open(c)}><img src={img(c, 'art_crop')} alt="" loading="lazy" /></button>
           <div className="live-txt"><div className="live-name"><button className="link plain" onClick={() => act.open(c)}>{c.n}</button><Mana cost={c.mc} /></div>
-            <ul className="why"><li className="edh">Em {Math.round(m.side * 100)}% dos sideboards (≈{m.sideCopies.toFixed(1).replace('.', ',')} cópias)</li>{c.tg.filter(t => ['removal', 'counter', 'wipe', 'discard', 'lifegain', 'graveyard'].includes(t)).slice(0, 2).map(t => <li key={t} className="tema">{TAG_LABEL[t]}</li>)}</ul></div>
-          <button className="act" onClick={() => act.add(c, 'side', Math.max(1, Math.round(m.sideCopies)))} title="Juntar ao sideboard">+SB</button>
+            <ul className="why"><li className="edh">{tx('Em {p}% dos sideboards (≈{c} cópias)', { p: Math.round(m.side * 100), c: num(m.sideCopies) })}</li>{c.tg.filter(t => ['removal', 'counter', 'wipe', 'discard', 'lifegain', 'graveyard'].includes(t)).slice(0, 2).map(t => <li key={t} className="tema">{TAG_LABEL[t]}</li>)}</ul></div>
+          <button className="act" onClick={() => act.add(c, 'side', Math.max(1, Math.round(m.sideCopies)))} title={tx('Juntar ao sideboard')}>+SB</button>
         </li>
       ))}</ul>
-      {sideCount < fmt.side && <button className="primary" onClick={fillSide}>Completar o sideboard até {fmt.side}</button>}
+      {sideCount < fmt.side && <button className="primary" onClick={fillSide}>{tx('Completar o sideboard até {n}', { n: fmt.side })}</button>}
     </section>
   )
   const manaCard = (
     <section className="card">
-      <h3>Base de mana</h3>
-      <p className="muted small">Fontes por cor: tem/precisa nesta fase (aprox. Frank Karsten; um custo com {'{G}{G}'} pede mais fontes verdes do que {'{G}'}). Os terrenos sugeridos cruzam cores em falta, ritmo (entra virado ou não), mecânica com o deck e dados reais.</p>
-      <ManaBlock {...{ data, deck, fmt, ctx, act, co }} full />
+      <h3>{tx('Base de mana')}</h3>
+      <p className="muted small">{tx('Fontes por cor: tem/precisa nesta fase (aprox. Frank Karsten; um custo com {gg} pede mais fontes verdes do que {g}). Os terrenos sugeridos cruzam cores em falta, ritmo (entra virado ou não), mecânica com o deck e dados reais.', { gg: '{G}{G}', g: '{G}' })}</p>
+      <ManaBlock {...{ data, deck, fmt, ctx, act, co, swaps }} full />
     </section>
   )
   const cuts = useMemo(() => deckCuts(data, deck, { ctx, co, commanders: cmdIdx, needs, recs, meta, archetype }), [data, deck, ctx, co, cmdIdx, needs, recs, meta, archetype])
@@ -866,30 +874,30 @@ function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
       {sideCard}
       {heurCard}
       <section className="card">
-        <h3>Plano do deck</h3>
-        {archetype && <p className="small">Arquétipo provável: <b>{archetype.name}</b> <span className="muted">({archetype.got} cartas do núcleo, {Math.round(archetype.share * 100)}% do meta de {fmt.name})</span></p>}
+        <h3>{tx('Plano do deck')}</h3>
+        {archetype && <p className="small">{tx('Arquétipo provável:')} <b>{archetype.name}</b> <span className="muted">({tx('{n} cartas do núcleo, {p}% do meta de {f}', { n: archetype.got, p: Math.round(archetype.share * 100), f: fmt.name })})</span></p>}
         {plan.length ? plan.map(x => (
-          <div key={x.label} className="plan-row"><b>{x.label}</b><span className="muted small">{x.roles.length ? `${x.enablers} geram · ${x.payoffs} aproveitam` : `${x.n} criaturas`}</span></div>
-        )) : <p className="muted small">Ainda sem eixo claro. Os eixos aparecem quando há cartas que geram algo (fichas, marcadores, cemitério…) e outras que o aproveitam.</p>}
-        {plan[0] && <p className="muted small">As sugestões dão mais peso a cartas que alimentam ou aproveitam estes eixos, e dizem com que cartas do deck interagem.</p>}
+          <div key={x.label} className="plan-row"><b>{x.label}</b><span className="muted small">{x.roles.length ? tx('{a} geram · {b} aproveitam', { a: x.enablers, b: x.payoffs }) : tx('{n} criatura|{n} criaturas', { n: x.n })}</span></div>
+        )) : <p className="muted small">{tx('Ainda sem eixo claro. Os eixos aparecem quando há cartas que geram algo (fichas, marcadores, cemitério…) e outras que o aproveitam.')}</p>}
+        {plan[0] && <p className="muted small">{tx('As sugestões dão mais peso a cartas que alimentam ou aproveitam estes eixos, e dizem com que cartas do deck interagem.')}</p>}
       </section>
       <section className="card">
-        <h3>Cortes e trocas sugeridos</h3>
+        <h3>{tx('Cortes e trocas sugeridos')}</h3>
         {cuts.length ? (
           <ul className="cuts">{cuts.map(x => (
             <li key={x.c.i}>
               <div {...hoverPeek(x.c, pidOf(deck, x.c.n))}><button className="link plain" onClick={() => act.open(x.c)}><b>{x.c.n}</b></button> <Mana cost={x.c.mc} /></div>
-              <ul className="why">{x.why.map((w, k) => <li key={k} className={w.startsWith('Mas') ? 'tema' : 'falta'}>{w}</li>)}</ul>
+              <ul className="why">{x.why.map((w, k) => <li key={k} className={w.startsWith(tx('Mas')) ? 'tema' : 'falta'}>{w}</li>)}</ul>
               {x.swap && (
                 <div className="swap">
-                  <span>→ <button className="link plain" onClick={() => act.open(x.swap.c)}><b>{x.swap.c.n}</b></button>{x.swap.fn.length ? <span className="muted small"> (mesma função: {x.swap.fn.join(', ')})</span> : null}</span>
+                  <span>→ <button className="link plain" onClick={() => act.open(x.swap.c)}><b>{x.swap.c.n}</b></button>{x.swap.fn.length ? <span className="muted small"> ({tx('mesma função:')} {x.swap.fn.join(', ')})</span> : null}</span>
                   {x.swap.why && <span className="muted small">{x.swap.why}</span>}
-                  <button onClick={() => swap(x.c, x.swap.c)}>Trocar</button>
+                  <button onClick={() => swap(x.c, x.swap.c)}>{tx('Trocar')}</button>
                 </div>
               )}
             </li>
           ))}</ul>
-        ) : <p className="muted small">Junta pelo menos 8 cartas que não sejam terrenos para ver o que encaixa pior.</p>}
+        ) : <p className="muted small">{tx('Junta pelo menos 8 cartas que não sejam terrenos para ver o que encaixa pior.')}</p>}
       </section>
     </>
   )
@@ -897,7 +905,27 @@ function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
 
 // Registo do deck (Laboratório, torneios e Arena, sem contar o mesmo jogo duas vezes): contra quem ganhou e perdeu,
 // dano feito e levado por jogo e as cartas que mais dano fazem (GET /api/decks/<id>/record, ratings.deck_record)
-const SRC_LABEL = { lab: 'Laboratório', torneio: 'Torneios', arena: 'Arena' }
+const SRC_LABEL = { lab: tx('Laboratório'), torneio: tx('Torneios'), arena: 'Arena' }
+// as três estrelas do deck com os números e as vias do vermelho (média por jogo de cada via, e por qual ganha mais)
+const ROUTE_LABEL = { dmg: tx('dano'), psn: tx('veneno'), cmd: tx('comandante'), mill: tx('biblioteca'), alt: tx('vitória alternativa') }
+function RatingLayers({ r }) {
+  const by = Object.entries(r.by || {}).sort((a, b) => b[1] - a[1]), wins = by.reduce((t, [, n]) => t + n, 0)
+  const v = x => (x == null ? '—' : num(x, 1))
+  return (
+    <div className="rec-rt">
+      <Stars r={r} />
+      <div className="rec-dmg">
+        <span><b className="st-y">{v(r.stars)}</b><small>{tx('normal (jogos não casuais)')}</small></span>
+        <span><b className="st-b">{v(r.blue)}</b><small>{tx('todos os jogos')}{r.blue_games ? ` · ${r.blue_games}` : ''}</small></span>
+        <span><b className="st-r">{v(r.red)}</b><small>{tx('objetivo')}{r.goal != null ? ` · ${Math.round(r.goal * 100)}% · ${tx('{n} jogo|{n} jogos', { n: r.red_games })}` : ''}</small></span>
+      </div>
+      {r.routes && <ul className="rec-list rec-routes">{Object.entries(r.routes).filter(([, x]) => x > 0).sort((a, b) => b[1] - a[1]).map(([k, x]) => (
+        <li key={k}><span>{ROUTE_LABEL[k]}</span><b>{Math.round(x * 100)}%</b><i className="rec-bar" style={{ '--p': `${Math.min(100, x * 50)}%` }} /></li>
+      ))}</ul>}
+      {wins > 0 && <p className="muted small">{tx('Ganha por: {v}', { v: by.map(([k, n]) => `${ROUTE_LABEL[k]} ${Math.round((100 * n) / wins)}%`).join(' · ') })} · {tx('objetivo: média por jogo de quanto chega a ganhar (dano ÷ vida inicial, veneno ÷ 10, comandante ÷ 21, cartas tiradas da biblioteca ÷ biblioteca inicial; a melhor via conta, até 200%); 100% = 5★, 120% ou mais = 6★')}</p>}
+    </div>
+  )
+}
 function DeckRecord({ deck, data, act }) {
   const [r, setR] = useState(null)
   useEffect(() => {
@@ -912,23 +940,24 @@ function DeckRecord({ deck, data, act }) {
   const pct = o => Math.round((100 * (o.w + o.d / 2)) / Math.max(1, o.w + o.l + o.d))
   return (
     <section className="card">
-      <h3>Registo de jogos {rec?.games > 0 && <span className="muted small">{rec.games} jogos · {wdl(rec)} · {pct(rec)}% · {Object.entries(rec.by_source).map(([k, n]) => `${SRC_LABEL[k] || k} ${n}`).join(' · ')}</span>}</h3>
-      {!rec?.games ? <p className="muted small">{deck.id ? 'Ainda sem jogos: testa-o no Laboratório, põe-no num torneio ou liga a Arena automática nos Ratings.' : 'Guarda o deck para começar a juntar o registo.'}</p> : <>
+      <h3>{tx('Registo de jogos')} {rec?.games > 0 && <span className="muted small">{tx('{n} jogo|{n} jogos', { n: rec.games })} · {wdl(rec)} · {pct(rec)}% · {Object.entries(rec.by_source).map(([k, n]) => `${SRC_LABEL[k] || k} ${n}`).join(' · ')}</span>}</h3>
+      {rec?.rating && <RatingLayers r={rec.rating} />}
+      {!rec?.games ? <p className="muted small">{deck.id ? tx('Ainda sem jogos: testa-o no Laboratório, põe-no num torneio ou liga a Arena automática nos Ratings.') : tx('Guarda o deck para começar a juntar o registo.')}</p> : <>
         <div className="rec-dmg">
-          <span><b>{rec.dealt ?? '—'}</b><small>dano feito por jogo</small></span>
-          <span><b>{rec.taken ?? '—'}</b><small>dano levado por jogo</small></span>
-          <span className="muted small">dano a adversários (veneno incluído) em {rec.with_dmg} jogos com registo; o levado só nos jogos a dois</span>
+          <span><b>{rec.dealt ?? '—'}</b><small>{tx('dano feito por jogo')}</small></span>
+          <span><b>{rec.taken ?? '—'}</b><small>{tx('dano levado por jogo')}</small></span>
+          <span className="muted small">{tx('dano a adversários (veneno incluído) em {n} jogos com registo; o levado só nos jogos a dois', { n: rec.with_dmg })}</span>
         </div>
         <div className="rec-grid">
-          <div><h4>Adversários</h4><ul className="rec-list">{rec.opponents.slice(0, 20).map(o => (
-            <li key={o.name}><span title={o.name}>{o.name}</span>{wdl(o)}<i className="rec-bar" style={{ '--p': `${pct(o)}%` }} title={`${pct(o)}% de vitórias · ${o.src.map(x => SRC_LABEL[x] || x).join(', ')}`} /></li>
-          ))}</ul>{rec.opponents.length > 20 && <small className="muted">+{rec.opponents.length - 20} adversários</small>}</div>
-          <div><h4>Cartas que mais dano fazem</h4><ul className="rec-list">{rec.cards.map(c => (
-            <li key={c.card}><span>{name(c.card)}</span><b>{c.dmg}</b><small className="muted">{c.games} jogos{c.top_wins ? ` · a melhor em ${c.top_wins} ${c.top_wins === 1 ? 'vitória' : 'vitórias'}` : ''}</small></li>
-          ))}</ul>{!rec.cards.length && <small className="muted">Sem dano registado.</small>}</div>
-          <div><h4>O que mais te magoa</h4><ul className="rec-list">{rec.hurt.map(c => (
+          <div><h4>{tx('Adversários')}</h4><ul className="rec-list">{rec.opponents.slice(0, 20).map(o => (
+            <li key={o.name}><span title={o.name}>{o.name}</span>{wdl(o)}<i className="rec-bar" style={{ '--p': `${pct(o)}%` }} title={`${tx('{p}% de vitórias', { p: pct(o) })} · ${o.src.map(x => SRC_LABEL[x] || x).join(', ')}`} /></li>
+          ))}</ul>{rec.opponents.length > 20 && <small className="muted">{tx('+{n} adversários', { n: rec.opponents.length - 20 })}</small>}</div>
+          <div><h4>{tx('Cartas que mais dano fazem')}</h4><ul className="rec-list">{rec.cards.map(c => (
+            <li key={c.card}><span>{name(c.card)}</span><b>{c.dmg}</b><small className="muted">{tx('{n} jogo|{n} jogos', { n: c.games })}{c.top_wins ? ` · ${tx('a melhor em {n} vitória|a melhor em {n} vitórias', { n: c.top_wins })}` : ''}</small></li>
+          ))}</ul>{!rec.cards.length && <small className="muted">{tx('Sem dano registado.')}</small>}</div>
+          <div><h4>{tx('O que mais te magoa')}</h4><ul className="rec-list">{rec.hurt.map(c => (
             <li key={c.card}><span>{name(c.card)}</span><b>{c.dmg}</b></li>
-          ))}</ul>{!rec.hurt.length && <small className="muted">Sem dano registado.</small>}</div>
+          ))}</ul>{!rec.hurt.length && <small className="muted">{tx('Sem dano registado.')}</small>}</div>
         </div>
       </>}
     </section>
@@ -945,56 +974,56 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
   return (
     <div className="view analysis">
       <section className="card">
-        <h3>Modo de ajuda · {fmt.name}</h3>
+        <h3>{tx('Modo de ajuda')} · {fmt.name}</h3>
         <ul className="tips">{fmt.tips.map((t, k) => <li key={k}>{t}</li>)}</ul>
       </section>
 
       <PlanAndCuts {...{ data, deck, fmt, ctx, act, issues }} />
 
       <section className="card">
-        <h3>Validação</h3>
-        {issues.length ? <ul className="issues">{issues.map((i, k) => <li key={k} className={i.nivel}>{i.msg}</li>)}</ul> : <p className="ok-msg">Deck válido em {fmt.name}.</p>}
+        <h3>{tx('Validação')}</h3>
+        {issues.length ? <ul className="issues">{issues.map((i, k) => <li key={k} className={i.nivel}>{i.msg}</li>)}</ul> : <p className="ok-msg">{tx('Deck válido em {f}.', { f: fmt.name })}</p>}
       </section>
 
       <DeckRecord {...{ deck, data, act }} />
 
       <section className="card">
-        <h3>Terrenos</h3>
-        <Bar label="Terrenos" v={s.lands} max={Math.max(advised, s.lands) * 1.2} target={advised} />
-        <p className="muted small">Recomendado: ~{advised} para custo médio {s.avgMv.toFixed(2)} com {s.cheapRampDraw} ramp/compra baratos (fórmula de Frank Karsten).</p>
-        <h4>Cores: símbolos nos custos vs. fontes nos terrenos</h4>
+        <h3>{tx('Terrenos')}</h3>
+        <Bar label={tx('Terrenos')} v={s.lands} max={Math.max(advised, s.lands) * 1.2} target={advised} />
+        <p className="muted small">{tx('Recomendado: ~{a} para custo médio {m} com {r} ramp/compra baratos (fórmula de Frank Karsten).', { a: advised, m: num(s.avgMv, 2), r: s.cheapRampDraw })}</p>
+        <h4>{tx('Cores: símbolos nos custos vs. fontes nos terrenos')}</h4>
         {Object.entries(s.pips).filter(([k, v]) => v || s.sources[k]).map(([k, v]) => (
-          <div key={k} className="pipline"><img src={`https://svgs.scryfall.io/card-symbols/${k}.svg`} alt={k} /><span>{pipTotal ? Math.round((v / pipTotal) * 100) : 0}% dos símbolos</span><span>{s.sources[k]} fontes</span></div>
+          <div key={k} className="pipline"><img src={`https://svgs.scryfall.io/card-symbols/${k}.svg`} alt={k} /><span>{tx('{p}% dos símbolos', { p: pipTotal ? Math.round((v / pipTotal) * 100) : 0 })}</span><span>{tx('{n} fonte|{n} fontes', { n: s.sources[k] })}</span></div>
         ))}
       </section>
 
       <section className="card">
-        <h3>Curva de mana <span className="muted">média {s.avgMv.toFixed(2)}</span></h3>
+        <h3>{tx('Curva de mana')} <span className="muted">{tx('média {m}', { m: num(s.avgMv, 2) })}</span></h3>
         <div className="curve">{s.curve.map((v, k) => <div key={k}><i style={{ height: `${(v / maxCurve) * 100}%` }}><b>{v || ''}</b></i><span>{k === 7 ? '7+' : k}</span></div>)}</div>
-        <h4>Tipos</h4>
+        <h4>{tx('Tipos')}</h4>
         <div className="types">{Object.entries(s.types).map(([t, v]) => <span key={t}>{TYPE_LABEL[t] || t} <b>{v}</b></span>)}</div>
       </section>
 
       {targets.length > 0 && (
         <section className="card">
-          <h3>Funções do deck</h3>
-          <p className="muted small">Contagem pelas etiquetas automáticas; carrega numa linha para ver sugestões dessa função.</p>
+          <h3>{tx('Funções do deck')}</h3>
+          <p className="muted small">{tx('Contagem pelas etiquetas automáticas; carrega numa linha para ver sugestões dessa função.')}</p>
           {targets.map(([t, n]) => <Bar key={t} label={TAG_LABEL[t]} v={s.tags[t] || 0} max={n * 1.6} target={n} onClick={() => act.suggestFor(t)} />)}
           <div className="types">{Object.entries(s.tags).filter(([t]) => !(t in fmt.targets) && t !== 'land').sort((a, b) => b[1] - a[1]).slice(0, 10).map(([t, v]) => <span key={t}>{TAG_LABEL[t]} <b>{v}</b></span>)}</div>
         </section>
       )}
 
       <section className="card">
-        <h3>Preço</h3>
-        <p className="big-num">{s.price.toFixed(2)} €</p>
-        <p className="muted small">Preços da Cardmarket via Scryfall (versão mais barata não garantida).{s.missingPrice ? ` ${s.missingPrice} cartas sem preço.` : ''}</p>
+        <h3>{tx('Preço')}</h3>
+        <p className="big-num">{num(s.price, 2)} €</p>
+        <p className="muted small">{tx('Preços da Cardmarket via Scryfall (versão mais barata não garantida).')}{s.missingPrice ? ` ${tx('{n} carta sem preço.|{n} cartas sem preço.', { n: s.missingPrice })}` : ''}</p>
       </section>
 
       <section className="card">
-        <h3>Mão inicial de teste</h3>
-        <div className="row-btns"><button className="primary" onClick={() => setHand(sampleHand(deck, 7))} disabled={!Object.keys(deck.main).length}>Tirar 7</button>{hand && <button onClick={() => setHand(sampleHand(deck, Math.max(1, hand.length - 1)))}>Mulligan ({Math.max(1, hand.length - 1)})</button>}</div>
+        <h3>{tx('Mão inicial de teste')}</h3>
+        <div className="row-btns"><button className="primary" onClick={() => setHand(sampleHand(deck, 7))} disabled={!Object.keys(deck.main).length}>{tx('Tirar 7')}</button>{hand && <button onClick={() => setHand(sampleHand(deck, Math.max(1, hand.length - 1)))}>Mulligan ({Math.max(1, hand.length - 1)})</button>}</div>
         {hand && <div className="hand">{hand.map((n, k) => { const c = data.byName.get(n); return c && <img key={k} src={img(c, 'normal', false, pidOf(deck, n))} alt={n} onClick={() => act.open(c)} /> })}</div>}
-        {hand && <p className="muted small">{hand.filter(n => data.byName.get(n)?.mt === 'Land').length} terrenos nesta mão.</p>}
+        {hand && <p className="muted small">{tx('{n} terreno nesta mão.|{n} terrenos nesta mão.', { n: hand.filter(n => data.byName.get(n)?.mt === 'Land').length })}</p>}
       </section>
     </div>
   )
@@ -1009,21 +1038,21 @@ function Prints({ c, deck, act, onPreview }) {
   const [style, setStyle] = useState('')
   useEffect(() => { fetchPrints(c.n).then(setPrints).catch(() => setErr(true)) }, [c.n])
   const chosen = deck.prints?.[c.n]
-  if (err) return <p className="muted small">Não consegui falar com a Scryfall para ver as edições.</p>
-  if (!prints) return <p className="muted small">A procurar edições e estilos…</p>
+  if (err) return <p className="muted small">{tx('Não consegui falar com a Scryfall para ver as edições.')}</p>
+  if (!prints) return <p className="muted small">{tx('A procurar edições e estilos…')}</p>
   const styles = [...new Set(prints.flatMap(p => p.style))].filter(x => x.length > 2)
   const shown = style ? prints.filter(p => p.style.includes(style)) : prints
   const pick = (p, foil = false) => { act.setPrint(c, { id: p.id, set: p.set, cn: p.cn, eur: p.eur, eurFoil: p.eurFoil, style: p.style, foil }); onPreview(p.id) }
   return (
     <>
       <div className="row-btns">
-        <select value={style} onChange={e => setStyle(e.target.value)} aria-label="Estilo">
-          <option value="">Todas ({prints.length})</option>
+        <select value={style} onChange={e => setStyle(e.target.value)} aria-label={tx('Estilo')}>
+          <option value="">{tx('Todas ({n})', { n: prints.length })}</option>
           {styles.map(x => <option key={x} value={x}>{x} ({prints.filter(p => p.style.includes(x)).length})</option>)}
         </select>
-        {(chosen || deck.art?.[c.n]) && <button onClick={() => { act.setPrint(c, null); onPreview(null) }}>Voltar à predefinida</button>}
+        {(chosen || deck.art?.[c.n]) && <button onClick={() => { act.setPrint(c, null); onPreview(null) }}>{tx('Voltar à predefinida')}</button>}
       </div>
-      {deck.art?.[c.n] && <p className="small">Agora: <b>arte própria do site de origem</b> (ex.: alterada no TappedOut). Escolher uma edição substitui-a; «⟳ Atualizar do site» volta a trazê-la.</p>}
+      {deck.art?.[c.n] && <p className="small">{tx('Agora: arte própria do site de origem (ex.: alterada no TappedOut). Escolher uma edição substitui-a; «⟳ Atualizar do site» volta a trazê-la.')}</p>}
       <div className="prints">
         {shown.map(p => (
           <div key={p.id} className={`print ${chosen?.id === p.id ? 'on' : ''}`}>
@@ -1031,7 +1060,7 @@ function Prints({ c, deck, act, onPreview }) {
               <img src={img(c, 'small', false, p.id)} alt={`${p.setName}`} loading="lazy" />
             </button>
             <small><b>{p.set}</b> {p.y}{p.style.length ? ` · ${p.style.join(', ')}` : ''}</small>
-            <small className="muted">{p.eur != null ? `${p.eur.toFixed(2)} €` : '—'}{p.eurFoil != null ? <> · <button className={`link ${chosen?.id === p.id && chosen.foil ? 'on' : ''}`} onClick={() => pick(p, true)}>foil {p.eurFoil.toFixed(2)} €</button></> : null}</small>
+            <small className="muted">{p.eur != null ? `${num(p.eur, 2)} €` : '—'}{p.eurFoil != null ? <> · <button className={`link ${chosen?.id === p.id && chosen.foil ? 'on' : ''}`} onClick={() => pick(p, true)}>foil {num(p.eurFoil, 2)} €</button></> : null}</small>
           </div>
         ))}
       </div>
@@ -1051,11 +1080,11 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal cardmodal" onClick={e => e.stopPropagation()}>
-        <button className="close" onClick={onClose} aria-label="Fechar">×</button>
+        <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
         <div className="cm-img">
           <img src={img(c, 'large', back, pid)} alt={c.n} />
-          {deck.art?.[c.n] ? <small className="muted">Arte própria do site de origem</small> : deck.prints?.[c.n] && <small className="muted">Estilo escolhido: {deck.prints[c.n].set} #{deck.prints[c.n].cn}{deck.prints[c.n].foil ? ' (foil)' : ''}</small>}
-          {c.df ? <button onClick={() => setBack(!back)}>↻ Virar</button> : null}
+          {deck.art?.[c.n] ? <small className="muted">{tx('Arte própria do site de origem')}</small> : deck.prints?.[c.n] && <small className="muted">{tx('Estilo escolhido:')} {deck.prints[c.n].set} #{deck.prints[c.n].cn}{deck.prints[c.n].foil ? ' (foil)' : ''}</small>}
+          {c.df ? <button onClick={() => setBack(!back)}>↻ {tx('Virar carta')}</button> : null}
         </div>
         <div className="cm-info">
           <h2>{c.n} <Mana cost={c.mc} /></h2>
@@ -1069,21 +1098,21 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
           <div className="row-btns">
             <button className="primary" onClick={() => act.add(c)}>+ Deck {inDeck(deck, c.n) ? `(${inDeck(deck, c.n)})` : ''}</button>
             {fmt.side > 0 && <button onClick={() => act.add(c, 'side')}>+ Sideboard</button>}
-            {fmt.cmd && canBeCommander(c, fmt) && <button onClick={() => act.setCommander(c)}>♛ {deck.commanders.includes(c.n) ? 'Retirar comandante' : 'Comandante'}</button>}
-            <button onClick={() => act.toggleSeed(c)}>{deck.seeds.includes(c.n) ? '★ É semente' : '☆ Semente'}</button>
-            <button onClick={() => act.showOnMap(c)}>Ver no universo</button>
+            {fmt.cmd && canBeCommander(c, fmt) && <button onClick={() => act.setCommander(c)}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : tx('Comandante')}</button>}
+            <button onClick={() => act.toggleSeed(c)}>{deck.seeds.includes(c.n) ? `★ ${tx('É semente')}` : `☆ ${tx('Semente')}`}</button>
+            <button onClick={() => act.showOnMap(c)}>{tx('Ver no universo')}</button>
           </div>
           {combos.length > 0 && (
             <>
-              <h4>Combos com esta carta <span className="muted">{data.combosByCard[c.i].length}</span></h4>
+              <h4>{tx('Combos com esta carta')} <span className="muted">{data.combosByCard[c.i].length}</span></h4>
               <ul className="cm-combos">{combos.map(cb => (
                 <li key={cb[0]}><a href={`https://commanderspellbook.com/combo/${cb[0]}/`} target="_blank" rel="noreferrer">{cb[1].filter(i => i !== c.i).map(i => data.cards[i].n).join(' + ')}</a> <span className="muted">→ {cb[2].slice(0, 2).join(', ')}</span></li>
               ))}</ul>
             </>
           )}
-          <h4>Estilos e edições</h4>
+          <h4>{tx('Estilos e edições')}</h4>
           <Prints c={c} deck={deck} act={act} onPreview={onPreview} />
-          <h4>Semelhantes</h4>
+          <h4>{tx('Semelhantes')}</h4>
           <div className="sims">{sims.map(({ c: s }) => <button key={s.i} onClick={() => act.open(s)} title={s.n}><img src={img(s, 'small')} alt={s.n} loading="lazy" /></button>)}</div>
         </div>
       </div>
@@ -1113,20 +1142,20 @@ export function IASettings({ cfg, setCfg, onDone }) {
   }
   return (
     <div className="ia-set">
-      <label className="fmt"><span>Fornecedor</span>
+      <label className="fmt"><span>{tx('Fornecedor')}</span>
         <select value={prov} onChange={e => { setProv(e.target.value); setModel('') }}>
           {cfg.providers.map(x => <option key={x.id} value={x.id}>{x.label}</option>)}
         </select>
       </label>
-      <label className="fmt"><span>Modelo</span><input value={model} onChange={e => setModel(e.target.value)} placeholder={p?.model} /></label>
+      <label className="fmt"><span>{tx('Modelo')}</span><input value={model} onChange={e => setModel(e.target.value)} placeholder={p?.model} /></label>
       {!p?.nokey && (
-        <label className="fmt"><span>Chave {cfg.hasKey && cfg.provider === prov ? '(guardada; deixa em branco para manter)' : ''}</span>
-          <input type="password" autoComplete="off" value={key} onChange={e => setKey(e.target.value)} placeholder="cola aqui a chave da API" />
+        <label className="fmt"><span>{tx('Chave')} {cfg.hasKey && cfg.provider === prov ? tx('(guardada; deixa em branco para manter)') : ''}</span>
+          <input type="password" autoComplete="off" value={key} onChange={e => setKey(e.target.value)} placeholder={tx('cola aqui a chave da API')} />
         </label>
       )}
-      {p?.keyUrl && <p className="small muted">Chave em <a href={p.keyUrl} target="_blank" rel="noreferrer">{new URL(p.keyUrl).host}</a>. Fica só no servidor do Grimório, nunca no browser.</p>}
+      {p?.keyUrl && <p className="small muted">{tx('Chave em')} <a href={p.keyUrl} target="_blank" rel="noreferrer">{new URL(p.keyUrl).host}</a>. {tx('Fica só no servidor do Grimório, nunca no browser.')}</p>}
       {err && <p className="small bad-t">{err}</p>}
-      <div className="row-btns"><button className="primary" onClick={() => save(false)}>Guardar</button>{cfg.provider !== 'off' && <button onClick={() => save(true)}>Desligar a IA</button>}</div>
+      <div className="row-btns"><button className="primary" onClick={() => save(false)}>{tx('Guardar')}</button>{cfg.provider !== 'off' && <button onClick={() => save(true)}>{tx('Desligar a IA')}</button>}</div>
     </div>
   )
 }
@@ -1141,7 +1170,7 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
   const [res, setRes] = useState(null)
   const [done, setDone] = useState(() => new Set())
   const { recs, plan, archetype, needs, have } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 40)
-  useEffect(() => { fetch('/api/ia/config').then(r => r.json()).then(c => { setCfg(c); if (c.provider === 'off') setShowSet(true) }).catch(() => setErr('Sem ligação ao servidor.')) }, [])
+  useEffect(() => { fetch('/api/ia/config').then(r => r.json()).then(c => { setCfg(c); if (c.provider === 'off') setShowSet(true) }).catch(() => setErr(tx('Sem ligação ao servidor.'))) }, [])
   const need = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
   const card = n => n && (data.byName.get(n) || data.byLower.get(String(n).toLowerCase()) || data.byLower.get(String(n).split(' // ')[0].toLowerCase()))
   const inDeckN = n => deck.main[n] || 0
@@ -1165,8 +1194,8 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
     setBusy(false)
   }
   const mark = k => setDone(s => new Set(s).add(k))
-  const vAdd = (res?.adicionar || []).map(x => ({ ...x, c: card(x.carta) })).map(x => ({ ...x, ok: x.c && passes(x.c, null, ctx) && !inDeckN(x.c.n), why2: !x.c ? 'não existe' : !passes(x.c, null, ctx) ? 'ilegal ou fora das cores' : inDeckN(x.c.n) ? 'já está no deck' : '' }))
-  const vCut = (res?.tirar || []).map(x => ({ ...x, c: card(x.carta) })).map(x => ({ ...x, ok: x.c && inDeckN(x.c.n), why2: x.c && !inDeckN(x.c.n) ? 'não está no deck' : !x.c ? 'não existe' : '' }))
+  const vAdd = (res?.adicionar || []).map(x => ({ ...x, c: card(x.carta) })).map(x => ({ ...x, ok: x.c && passes(x.c, null, ctx) && !inDeckN(x.c.n), why2: !x.c ? tx('não existe') : !passes(x.c, null, ctx) ? tx('ilegal ou fora das cores') : inDeckN(x.c.n) ? tx('já está no deck') : '' }))
+  const vCut = (res?.tirar || []).map(x => ({ ...x, c: card(x.carta) })).map(x => ({ ...x, ok: x.c && inDeckN(x.c.n), why2: x.c && !inDeckN(x.c.n) ? tx('não está no deck') : !x.c ? tx('não existe') : '' }))
   const vSwap = (res?.trocas || []).map(x => ({ ...x, a: card(x.sai), b: card(x.entra) })).map(x => ({ ...x, ok: x.a && x.b && inDeckN(x.a.n) && passes(x.b, null, ctx) && !inDeckN(x.b.n) }))
   const applyAll = () => {
     vAdd.forEach((x, k) => { if (x.ok && !done.has(`a${k}`)) { act.add(x.c); mark(`a${k}`) } })
@@ -1176,23 +1205,23 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
   const saveGroups = () => {
     const groups = res.grupos.map(g => ({ nome: g.nome, cartas: g.cartas.map(card).filter(Boolean).map(c => c.n) })).filter(g => g.cartas.length)
     setDeck(d => ({ ...d, groups }))
-    act.say('Secções guardadas. No painel do deck, escolhe «Ver por: secções».')
+    act.say(tx('Secções guardadas. No painel do deck, escolhe «Ver por: secções».'))
   }
   const Name = ({ c, raw }) => (c ? <button className="link plain" onClick={() => act.open(c)}><b>{c.n}</b></button> : <s>{raw}</s>)
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal auto ia" onClick={e => e.stopPropagation()}>
-        <button className="close" onClick={onClose} aria-label="Fechar">×</button>
-        <h3>✦ Assistente IA <span className="muted small">extra opcional{cfg && cfg.provider !== 'off' ? ` · ${cfg.providers.find(p => p.id === cfg.provider)?.label}` : ''}</span> {cfg && <button className="link small" onClick={() => setShowSet(!showSet)}>definições</button>}</h3>
+        <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
+        <h3>✦ {tx('Assistente IA')} <span className="muted small">{tx('extra opcional')}{cfg && cfg.provider !== 'off' ? ` · ${cfg.providers.find(p => p.id === cfg.provider)?.label}` : ''}</span> {cfg && <button className="link small" onClick={() => setShowSet(!showSet)}>{tx('definições')}</button>}</h3>
         {cfg && showSet && <IASettings cfg={cfg} setCfg={setCfg} onDone={() => setShowSet(false)} />}
         {cfg && !showSet && cfg.provider !== 'off' && (
           <>
-            <div className="seg">{[['sugerir', 'Sugerir melhorias', '✦'], ['reorganizar', 'Reorganizar o deck', '▦'], ['livre', 'Pergunta livre', '?']].map(([k, l, ic]) => (
+            <div className="seg">{[['sugerir', tx('Sugerir melhorias'), '✦'], ['reorganizar', tx('Reorganizar o deck'), '▦'], ['livre', tx('Pergunta livre'), '?']].map(([k, l, ic]) => (
               <button key={k} className={mode === k ? 'on' : ''} onClick={() => setMode(k)}><i>{ic}</i><span>{l}</span></button>
             ))}</div>
-            <textarea className="ia-q" value={q} onChange={e => setQ(e.target.value)} placeholder={mode === 'livre' ? 'Ex.: como torno isto mais rápido sem gastar mais de 50 €?' : 'Opcional: orientação extra (ex.: «menos combos, mais interação», «orçamento baixo»)'} />
-            <div className="row-btns"><button className="primary" onClick={ask} disabled={busy || (mode === 'livre' && !q.trim())}>{busy ? 'A pensar…' : 'Pedir à IA'}</button>
-              <span className="muted small">A IA recebe o deck e o que o Grimório já sabe (plano, faltas, mana, combos, meta). Cartas propostas são verificadas antes de aparecerem.</span></div>
+            <textarea className="ia-q" value={q} onChange={e => setQ(e.target.value)} placeholder={mode === 'livre' ? tx('Ex.: como torno isto mais rápido sem gastar mais de 50 €?') : tx('Opcional: orientação extra (ex.: «menos combos, mais interação», «orçamento baixo»)')} />
+            <div className="row-btns"><button className="primary" onClick={ask} disabled={busy || (mode === 'livre' && !q.trim())}>{busy ? tx('A pensar…') : tx('Pedir à IA')}</button>
+              <span className="muted small">{tx('A IA recebe o deck e o que o Grimório já sabe (plano, faltas, mana, combos, meta). Cartas propostas são verificadas antes de aparecerem.')}</span></div>
           </>
         )}
         {busy && <div className="auto-wait"><div className="spinner" /></div>}
@@ -1200,20 +1229,20 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
         {res && (
           <div className="auto-list ia-res">
             {res.resumo && <p className="ia-sum">{res.resumo}</p>}
-            {vSwap.length > 0 && <section><h4>Trocas</h4><ul>{vSwap.map((x, k) => (
+            {vSwap.length > 0 && <section><h4>{tx('Trocas')}</h4><ul>{vSwap.map((x, k) => (
               <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div><Name c={x.a} raw={x.sai} /> → <Name c={x.b} raw={x.entra} /><small className="muted">{x.porque}</small></div>
-                {x.ok && <button disabled={done.has(`s${k}`)} onClick={() => { act.add(x.a, 'main', -inDeckN(x.a.n)); act.add(x.b); mark(`s${k}`) }}>{done.has(`s${k}`) ? '✓' : 'Trocar'}</button>}</li>
+                {x.ok && <button disabled={done.has(`s${k}`)} onClick={() => { act.add(x.a, 'main', -inDeckN(x.a.n)); act.add(x.b); mark(`s${k}`) }}>{done.has(`s${k}`) ? '✓' : tx('Trocar')}</button>}</li>
             ))}</ul></section>}
-            {vAdd.length > 0 && <section><h4>Adicionar</h4><ul>{vAdd.map((x, k) => (
-              <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div><Name c={x.c} raw={x.carta} /> {x.c && <Mana cost={x.c.mc} />}<small className="muted">{x.porque}{x.why2 ? ` · ignorada: ${x.why2}` : ''}</small></div>
+            {vAdd.length > 0 && <section><h4>{tx('Adicionar')}</h4><ul>{vAdd.map((x, k) => (
+              <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div><Name c={x.c} raw={x.carta} /> {x.c && <Mana cost={x.c.mc} />}<small className="muted">{x.porque}{x.why2 ? ` · ${tx('ignorada: {r}', { r: x.why2 })}` : ''}</small></div>
                 {x.ok && <button disabled={done.has(`a${k}`)} onClick={() => { act.add(x.c); mark(`a${k}`) }}>{done.has(`a${k}`) ? '✓' : '+ Deck'}</button>}</li>
             ))}</ul></section>}
-            {vCut.length > 0 && <section><h4>Tirar</h4><ul>{vCut.map((x, k) => (
-              <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div><Name c={x.c} raw={x.carta} /><small className="muted">{x.porque}{x.why2 ? ` · ignorada: ${x.why2}` : ''}</small></div>
-                {x.ok && <button disabled={done.has(`c${k}`)} onClick={() => { act.add(x.c, 'main', -inDeckN(x.c.n)); mark(`c${k}`) }}>{done.has(`c${k}`) ? '✓' : 'Tirar'}</button>}</li>
+            {vCut.length > 0 && <section><h4>{tx('Tirar')}</h4><ul>{vCut.map((x, k) => (
+              <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div><Name c={x.c} raw={x.carta} /><small className="muted">{x.porque}{x.why2 ? ` · ${tx('ignorada: {r}', { r: x.why2 })}` : ''}</small></div>
+                {x.ok && <button disabled={done.has(`c${k}`)} onClick={() => { act.add(x.c, 'main', -inDeckN(x.c.n)); mark(`c${k}`) }}>{done.has(`c${k}`) ? '✓' : tx('Tirar')}</button>}</li>
             ))}</ul></section>}
-            {res.grupos.length > 0 && <section><h4>Secções propostas</h4>{res.grupos.map(g => <p key={g.nome} className="small"><b>{g.nome}</b> <span className="muted">({g.cartas.length})</span> {g.cartas.join(', ')}</p>)}<button onClick={saveGroups}>Guardar secções no deck</button></section>}
-            <div className="row-btns">{(vAdd.some(x => x.ok) || vCut.some(x => x.ok) || vSwap.some(x => x.ok)) && <button className="primary" onClick={applyAll}>Aplicar tudo o que é válido</button>}<span className="muted small">{res.modelo}</span></div>
+            {res.grupos.length > 0 && <section><h4>{tx('Secções propostas')}</h4>{res.grupos.map(g => <p key={g.nome} className="small"><b>{g.nome}</b> <span className="muted">({g.cartas.length})</span> {g.cartas.join(', ')}</p>)}<button onClick={saveGroups}>{tx('Guardar secções no deck')}</button></section>}
+            <div className="row-btns">{(vAdd.some(x => x.ok) || vCut.some(x => x.ok) || vSwap.some(x => x.ok)) && <button className="primary" onClick={applyAll}>{tx('Aplicar tudo o que é válido')}</button>}<span className="muted small">{res.modelo}</span></div>
           </div>
         )}
       </div>
@@ -1228,28 +1257,28 @@ export function PriorityCard({ data, deck, fmt, ctx, act, issues, cuts, needs })
   const near = useMemo(() => deckCombos(data, have, ctx).near.filter(x => x.cb[1].length - x.missing.length >= 2 && (x.cb[5] || 0) >= 100).slice(0, 2), [data, have, ctx]) // já com 2+ peças e populares
   const items = []
   for (const i of issues.filter(x => x.nivel === 'erro').slice(0, 3)) items.push({ k: 'erro', txt: i.msg })
-  if (need.deficit > 2) items.push({ k: 'mana', txt: `Faltam ~${need.deficit} terrenos para esta fase do deck (alvo ~${need.target} em ${need.total}).`, go: () => act.suggestFor('') })
-  if (need.deficit < -3) items.push({ k: 'mana', txt: `Terrenos a mais: ${need.lands} para um alvo de ~${need.expectedNow} nesta fase.` })
-  for (const [k, x] of Object.entries(need.cols)) if (x.have < x.need) items.push({ k: 'mana', txt: `Poucas fontes de ${k}: ${x.have} para ~${x.need} (o custo mais exigente tem ${x.maxPips} símbolo${x.maxPips > 1 ? 's' : ''}).` })
+  if (need.deficit > 2) items.push({ k: 'mana', txt: tx('Faltam ~{n} terrenos para esta fase do deck (alvo ~{a} em {b}).', { n: need.deficit, a: need.target, b: need.total }), go: () => act.suggestFor('') })
+  if (need.deficit < -3) items.push({ k: 'mana', txt: tx('Terrenos a mais: {n} para um alvo de ~{a} nesta fase.', { n: need.lands, a: need.expectedNow }) })
+  for (const [k, x] of Object.entries(need.cols)) if (x.have < x.need) items.push({ k: 'mana', txt: tx('Poucas fontes de {k}: {h} para ~{w} (o custo mais exigente tem {n} símbolo).|Poucas fontes de {k}: {h} para ~{w} (o custo mais exigente tem {n} símbolos).', { k, h: x.have, w: x.need, n: x.maxPips }) })
   for (const [t, [h, n]] of Object.entries(needs).filter(([, [h, n]]) => h < n).sort((a, b) => (b[1][1] - b[1][0]) - (a[1][1] - a[1][0])).slice(0, 3))
-    items.push({ k: 'falta', txt: `${TAG_LABEL[t]}: ${h} de ${n} recomendadas.`, go: () => act.suggestFor(t), goL: 'ver sugestões' })
-  for (const x of cuts.slice(0, 3)) items.push({ k: 'corte', txt: `${x.c.n}: ${x.why[0] || 'encaixa pouco'}${x.swap ? ` → trocar por ${x.swap.c.n}` : ''}`, go: x.swap ? () => { act.add(x.c, 'main', -(deck.main[x.c.n] || 1)); act.add(x.swap.c) } : null, goL: 'trocar' })
+    items.push({ k: 'falta', txt: tx('{t}: {h} de {w} recomendadas.', { t: TAG_LABEL[t], h, w: n }), go: () => act.suggestFor(t), goL: tx('ver sugestões') })
+  for (const x of cuts.slice(0, 3)) items.push({ k: 'corte', txt: `${x.c.n}: ${x.why[0] || tx('encaixa pouco')}${x.swap ? ` → ${tx('trocar por {c}', { c: x.swap.c.n })}` : ''}`, go: x.swap ? () => { act.add(x.c, 'main', -(deck.main[x.c.n] || 1)); act.add(x.swap.c) } : null, goL: tx('trocar') })
   if (fmt.side > 0) for (const [n, q] of Object.entries(deck.main)) {
     const c = data.byName.get(n)
-    if (c?.tg.includes('hate')) items.push({ k: 'corte', txt: `${n} é sobretudo uma resposta de sideboard (contra estratégias específicas).`, go: () => { act.add(c, 'main', -q); act.add(c, 'side', q) }, goL: 'passar para o sideboard' })
+    if (c?.tg.includes('hate')) items.push({ k: 'corte', txt: tx('{c} é sobretudo uma resposta de sideboard (contra estratégias específicas).', { c: n }), go: () => { act.add(c, 'main', -q); act.add(c, 'side', q) }, goL: tx('passar para o sideboard') })
   }
-  for (const [t, [h, n]] of Object.entries(needs).filter(([t]) => t === 'wincon' || t === 'creature')) if (h < n && !items.some(x => x.txt.startsWith(TAG_LABEL[t]))) items.push({ k: 'falta', txt: `${TAG_LABEL[t]}: ${h} de ${n}.`, go: () => act.suggestFor(t), goL: 'ver sugestões' })
-  for (const x of near) items.push({ k: 'combo', txt: `A uma carta de um combo: junta ${data.cards[x.missing[0]].n} (${x.cb[2][0]}).`, go: () => act.add(data.cards[x.missing[0]]), goL: '+ deck' })
+  for (const [t, [h, n]] of Object.entries(needs).filter(([t]) => t === 'wincon' || t === 'creature')) if (h < n && !items.some(x => x.txt.startsWith(TAG_LABEL[t]))) items.push({ k: 'falta', txt: tx('{t}: {h} de {w}.', { t: TAG_LABEL[t], h, w: n }), go: () => act.suggestFor(t), goL: tx('ver sugestões') })
+  for (const x of near) items.push({ k: 'combo', txt: tx('A uma carta de um combo: junta {c} ({r}).', { c: data.cards[x.missing[0]].n, r: x.cb[2][0] }), go: () => act.add(data.cards[x.missing[0]]), goL: `+ ${tx('deck')}` })
   if (!items.length) return null
   return (
     <section className="card prio">
-      <h3>Melhorias prioritárias</h3>
-      <ol>{items.slice(0, 10).map((x, k) => <li key={k} className={x.k}><span>{x.txt}</span>{x.go && <button className="link small" onClick={x.go}>{x.goL || 'resolver'}</button>}</li>)}</ol>
+      <h3>{tx('Melhorias prioritárias')}</h3>
+      <ol>{items.slice(0, 10).map((x, k) => <li key={k} className={x.k}><span>{x.txt}</span>{x.go && <button className="link small" onClick={x.go}>{x.goL || tx('resolver')}</button>}</li>)}</ol>
     </section>
   )
 }
 
-const ZONE_T = { main: 'o deck', side: 'o sideboard', maybe: 'o maybeboard' }, ZONE_S = { main: 'D', side: 'SB', maybe: 'MB' }
+const ZONE_T = { main: tx('Mover para o deck'), side: tx('Mover para o sideboard'), maybe: tx('Mover para o maybeboard') }, ZONE_S = { main: 'D', side: 'SB', maybe: 'MB' }
 // Deck em grelha: imagens com quantidade, + / − / × (retirar tudo), por tipo ou pelas secções da IA.
 export function DeckGrid({ data, deck, fmt, act }) {
   const [bySec, setBySec] = useState(false)
@@ -1260,36 +1289,36 @@ export function DeckGrid({ data, deck, fmt, act }) {
   for (const [n, q] of Object.entries(deck.main)) {
     const c = data.byName.get(n)
     if (!c) continue
-    const g = bySec ? secOf.get(n) || 'Outras' : TYPE_LABEL[c.mt] || c.mt
+    const g = bySec ? secOf.get(n) || tx('Outras') : TYPE_LABEL[c.mt] || c.mt
     ;(groups[g] ||= []).push([c, q])
   }
-  const order = bySec ? [...(deck.groups || []).map(g => g.nome), 'Outras'] : [...TYPES.map(t => TYPE_LABEL[t])]
+  const order = bySec ? [...(deck.groups || []).map(g => g.nome), tx('Outras')] : [...TYPES.map(t => TYPE_LABEL[t])]
   const Tile = ({ c, q, zone }) => (
     <div className="dg-tile">
       <button className="dg-img" onClick={() => act.open(c)} title={c.n}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
       {q > 1 && <span className="dg-q">×{q}</span>}
       <div className="dg-bar">
-        <button onClick={() => act.add(c, zone, -1)} aria-label="Menos uma">−</button>
+        <button onClick={() => act.add(c, zone, -1)} aria-label={tx('Menos uma')}>−</button>
         <b>{q}</b>
-        <button onClick={() => act.add(c, zone, 1)} aria-label="Mais uma">+</button>
-        <button className="act art" onClick={() => act.pickArt(c)} title="Escolher arte">🎨</button>
-        {['main', ...(fmt.side ? ['side'] : []), 'maybe'].filter(z => z !== zone).map(z => <button key={z} className="dg-mv" onClick={() => act.move(c, zone, z)} title={`Mover para ${ZONE_T[z]}`}>{ZONE_S[z]}</button>)}
-        <button className="dg-x" onClick={() => act.add(c, zone, -q)} aria-label="Retirar do deck" title="Retirar do deck">×</button>
+        <button onClick={() => act.add(c, zone, 1)} aria-label={tx('Mais uma')}>+</button>
+        <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte')}>🎨</button>
+        {['main', ...(fmt.side ? ['side'] : []), 'maybe'].filter(z => z !== zone).map(z => <button key={z} className="dg-mv" onClick={() => act.move(c, zone, z)} title={ZONE_T[z]}>{ZONE_S[z]}</button>)}
+        <button className="dg-x" onClick={() => act.add(c, zone, -q)} aria-label={tx('Retirar do deck')} title={tx('Retirar do deck')}>×</button>
       </div>
     </div>
   )
   const cmd = deck.commanders.map(n => data.byName.get(n)).filter(Boolean)
   const sum = z => Object.values(z).reduce((s, q) => s + q, 0)
-  if (!sum(deck.main) && !cmd.length && !sum(deck.maybe || {})) return <Empty>O deck está vazio. Procura cartas, usa as sugestões ou o «Completar deck».</Empty>
+  if (!sum(deck.main) && !cmd.length && !sum(deck.maybe || {})) return <Empty>{tx('O deck está vazio. Procura cartas, usa as sugestões ou o «Completar deck».')}</Empty>
   return (
     <div className="dgrid">
       {deck.groups?.length > 0 && (
-        <div className="seg viewby"><button className={!bySec ? 'on' : ''} onClick={() => setBySec(false)}><span>Por tipo</span></button><button className={bySec ? 'on' : ''} onClick={() => setBySec(true)}><span>Por secções (IA)</span></button></div>
+        <div className="seg viewby"><button className={!bySec ? 'on' : ''} onClick={() => setBySec(false)}><span>{tx('Por tipo')}</span></button><button className={bySec ? 'on' : ''} onClick={() => setBySec(true)}><span>{tx('Por secções (IA)')}</span></button></div>
       )}
       {cmd.length > 0 && (
-        <section><h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : 'Comandante'}</h4><div className="dg-row">{cmd.map(c => (
+        <section><h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</h4><div className="dg-row">{cmd.map(c => (
           <div key={c.i} className="dg-tile"><button className="dg-img" onClick={() => act.open(c)}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
-            <div className="dg-bar"><button className="dg-x" onClick={() => act.setCommander(c)} title="Retirar comandante">×</button></div></div>
+            <div className="dg-bar"><button className="dg-x" onClick={() => act.setCommander(c)} title={tx('Retirar comandante')}>×</button></div></div>
         ))}</div></section>
       )}
       {order.filter(g => groups[g]).map(g => (
@@ -1304,7 +1333,7 @@ export function DeckGrid({ data, deck, fmt, act }) {
         </div></section>
       )}
       {sum(deck.maybe || {}) > 0 && (
-        <section className="maybe"><h4>Maybeboard <span className="muted">{sum(deck.maybe)} · fora do deck, das estatísticas e dos testes</span></h4><div className="dg-row">
+        <section className="maybe"><h4>Maybeboard <span className="muted">{sum(deck.maybe)} · {tx('fora do deck, das estatísticas e dos testes')}</span></h4><div className="dg-row">
           {Object.keys(deck.maybe).map(n => data.byName.get(n)).filter(Boolean).map(c => <Tile key={c.i} c={c} q={deck.maybe[c.n]} zone="maybe" />)}
         </div></section>
       )}
@@ -1321,11 +1350,11 @@ export function ArtPicker({ c, deck, act, onClose }) {
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal artpick" onClick={e => e.stopPropagation()}>
-        <button className="close" onClick={onClose} aria-label="Fechar">×</button>
+        <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
         <div className="ap-img"><img src={img(c, 'large', false, pid)} alt={c.n} /></div>
         <div className="ap-list">
-          <h3>Arte de {c.n}</h3>
-          <p className="muted small">Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).</p>
+          <h3>{tx('Arte de {c}', { c: c.n })}</h3>
+          <p className="muted small">{tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
           <Prints c={c} deck={deck} act={act} onPreview={onPreview} />
         </div>
       </div>

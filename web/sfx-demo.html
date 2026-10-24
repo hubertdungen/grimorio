@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Grimório · sons</title>
+<style>
+  :root { --bg: #0b0a14; --fg: #e8e4f4; --mut: #9a94b4; --card: #17152a; --acc: #c9a24a; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; } p { color: var(--mut); margin: 0 0 12px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  button { background: var(--card); color: var(--fg); border: 1px solid #2c2846; border-radius: 8px; padding: 10px; cursor: pointer; text-align: left; font: inherit; }
+  button:hover { border-color: var(--acc); } button small { display: block; color: var(--mut); font-size: 12px; }
+  h2 { font-size: 15px; color: var(--acc); margin: 18px 0 8px; }
+</style>
+</head>
+<body>
+<h1>Sons do Grimório</h1>
+<p>Toca em cada botão para ouvir. Com <code>cd web && npx vite</code>, abre <code>http://localhost:5173/sfx-demo.html</code>.</p>
+<div class="bar">
+  <label><input type="checkbox" id="on" /> Som ligado</label>
+  <label>Volume <input type="range" id="vol" min="0" max="1" step="0.05" /> <b id="vv"></b></label>
+  <label>Lado <select id="side"><option>a</option><option>b</option><option>c</option><option>d</option></select></label>
+  <label>Quantidade <input type="number" id="amt" value="3" min="-5" max="12" style="width:4em" /></label>
+</div>
+<div id="out"></div>
+<script type="module">
+  import { kinds, play, setEnabled, setVolume, getSettings } from '/src/sfx.js'
+  const $ = id => document.getElementById(id)
+  const st = getSettings()
+  $('on').checked = st.on; $('vol').value = st.vol; $('vv').textContent = st.vol
+  $('on').onchange = e => setEnabled(e.target.checked)
+  $('vol').oninput = e => { setVolume(e.target.value); $('vv').textContent = e.target.value }
+  $('vol').onchange = () => play('click')
+  const btn = (label, kind, extra = {}) => {
+    const b = document.createElement('button')
+    b.innerHTML = `${label}<small>${kind}</small>`
+    b.onclick = () => play(kind, { side: $('side').value, amount: +$('amt').value, ...extra })
+    return b
+  }
+  const group = (title, items) => {
+    const h = document.createElement('h2'); h.textContent = title
+    const g = document.createElement('div'); g.className = 'grid'
+    items.forEach(x => g.append(x)); $('out').append(h, g)
+  }
+  const COL = { W: 'Branco', U: 'Azul', B: 'Preto', R: 'Vermelho', G: 'Verde', WU: 'Multicor', '': 'Incolor' }
+  const TY = { Creature: 'criatura', Instant: 'instantâneo', Artifact: 'artefacto', Enchantment: 'encantamento', Planeswalker: 'planeswalker' }
+  group('Lançar (cor × tipo)', Object.entries(COL).flatMap(([c, n]) => Object.entries(TY).map(([t, tn]) => btn(`${n} · ${tn}`, 'cast', { colour: c, type: t }))))
+  group('Todos os sons', kinds.map(k => btn(k, k)))
+</script>
+</body>
+</html>

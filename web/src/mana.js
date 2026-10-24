@@ -2,6 +2,7 @@
 import { passes, PAIRS, RB, ROLE_LABEL } from './data.js'
 import { stats } from './deck.js'
 import { landAdvice } from './formats.js'
+import { tx, num } from './i18n.js'
 
 const COLS = 'WUBRG'
 const BASIC_OF = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' }
@@ -21,12 +22,13 @@ export function landInfo(c) {
   const tappedAlways = /enters (the battlefield )?tapped\.?/.test(o) && !/unless|you may pay \d+ life|if you control|if it's not your first/.test(o)
   const tappedCond = /enters (the battlefield )?tapped/.test(o) && !tappedAlways
   const util = []
-  if (/becomes? an? [^.]*creature/.test(o)) util.push('vira criatura (manland)')
-  if (/draw (a|two) cards?/.test(o)) util.push('compra cartas')
-  if (/(destroy|exile) target/.test(o)) util.push('remove ameaças')
-  if (/scry|surveil/.test(o)) util.push('filtra o topo')
-  if (/hexproof|indestructible|shroud/.test(o)) util.push('protege')
-  if (/add \{c\}\{c\}|twice that much|additional/.test(o) && !any) util.push('mana a mais')
+  if (/becomes? an? [^.]*creature/.test(o)) util.push(tx('vira criatura (manland)'))
+  if (/draw (a|two) cards?/.test(o)) util.push(tx('compra cartas'))
+  if (/(destroy|exile) target/.test(o)) util.push(tx('remove ameaças'))
+  if (/scry|surveil/.test(o)) util.push(tx('filtra o topo'))
+  if (/hexproof|indestructible|shroud/.test(o)) util.push(tx('protege'))
+  if (/add \{c\}\{c\}|twice that much|additional/.test(o) && !any) util.push(tx('mana a mais'))
+  // tapped: identificador interno ('sim' | 'às vezes' | 'não'), não se mostra
   return { any, colors, fetch, tapped: tappedAlways ? 'sim' : tappedCond ? 'às vezes' : 'não', util }
 }
 
@@ -103,28 +105,28 @@ export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, n
       if (x.have < x.need) short.push(`${k} ${x.have}/${x.need}`)
     }
     P.cores = Math.min(0.4, 0.22 * fix) + (gives.length >= 2 ? 0.04 : 0)
-    if (short.length) why.push({ k: 'falta', txt: `Dá ${gives.join('/')}, cores com fontes a menos (${short.join(', ')})` })
-    else if (gives.length >= 2) why.push({ k: 'tema', txt: `Dá ${gives.join('/')}` })
-    if (deckCols.length >= 3 && !gives.length && !L.any) { P.cores -= 0.1; why.push({ k: 'perto', txt: 'Só dá mana incolor num deck de várias cores' }) }
+    if (short.length) why.push({ k: 'falta', txt: tx('Dá {c}, cores com fontes a menos ({s})', { c: gives.join('/'), s: short.join(', ') }) })
+    else if (gives.length >= 2) why.push({ k: 'tema', txt: tx('Dá {c}', { c: gives.join('/') }) })
+    if (deckCols.length >= 3 && !gives.length && !L.any) { P.cores -= 0.1; why.push({ k: 'perto', txt: tx('Só dá mana incolor num deck de várias cores') }) }
     // 2) ritmo: virado ou destapado
     P.ritmo = L.tapped === 'sim' ? (N.fast ? -0.15 : -0.06) : L.tapped === 'às vezes' ? -0.01 : 0.03
-    if (L.tapped === 'não' && gives.length >= 2) why.push({ k: 'tema', txt: 'Entra destapada' })
-    if (L.tapped === 'sim' && N.fast) why.push({ k: 'perto', txt: 'Entra virada num deck rápido' })
+    if (L.tapped === 'não' && gives.length >= 2) why.push({ k: 'tema', txt: tx('Entra destapada') })
+    if (L.tapped === 'sim' && N.fast) why.push({ k: 'perto', txt: tx('Entra virada num deck rápido') })
     // 3) mecânica com o deck
     let mech = 0
     for (const [a, b] of PAIRS) {
-      if (c.ro & RB[a] && byRole[b].length) { mech += 0.06; why.push({ k: 'inter', txt: `Alimenta ${byRole[b].slice(0, 2).map(i => cards[i].n).join(', ')}${byRole[b].length > 2 ? ` (+${byRole[b].length - 2})` : ''}, que ${ROLE_LABEL[b]}` }) }
-      else if (c.ro & RB[b] && byRole[a].length >= 2) { mech += 0.05; why.push({ k: 'inter', txt: `Aproveita ${byRole[a].slice(0, 2).map(i => cards[i].n).join(', ')}, que ${ROLE_LABEL[a]}` }) }
+      if (c.ro & RB[a] && byRole[b].length) { mech += 0.06; why.push({ k: 'inter', txt: tx('Alimenta {names}, que {role}', { names: byRole[b].slice(0, 2).map(i => cards[i].n).join(', ') + (byRole[b].length > 2 ? ` (+${byRole[b].length - 2})` : ''), role: ROLE_LABEL[b] }) }) }
+      else if (c.ro & RB[b] && byRole[a].length >= 2) { mech += 0.05; why.push({ k: 'inter', txt: tx('Aproveita {names}, que {role}', { names: byRole[a].slice(0, 2).map(i => cards[i].n).join(', '), role: ROLE_LABEL[a] }) }) }
     }
-    if (L.fetch && (landfall || gy)) { mech += 0.08; why.push({ k: 'inter', txt: `Fetch: ativa ${landfall ? `o landfall de ${byRole.landfall.slice(0, 2).map(i => cards[i].n).join(', ')}` : 'o cemitério'}` }) }
-    if (L.util.length) { mech += 0.02 * L.util.length; why.push({ k: 'tema', txt: `Utilidade: ${L.util.join(', ')}` }) }
+    if (L.fetch && (landfall || gy)) { mech += 0.08; why.push({ k: 'inter', txt: landfall ? tx('Fetch: ativa o landfall de {c}', { c: byRole.landfall.slice(0, 2).map(i => cards[i].n).join(', ') }) : tx('Fetch: ativa o cemitério') }) }
+    if (L.util.length) { mech += 0.02 * L.util.length; why.push({ k: 'tema', txt: tx('Utilidade: {u}', { u: L.util.join(', ') }) }) }
     P.mecanica = Math.min(0.2, mech)
     // 4) dados reais
     P.dados = 0
     const e = co?.get(c.i)?.find(x => x.kind === 'commanders')
-    if (e) { P.dados += 0.3 * e.incl + 0.2 * Math.max(0, e.syn); why.push({ k: 'edh', txt: `Em ${Math.round(e.incl * 100)}% dos decks de ${e.from}` }) }
+    if (e) { P.dados += 0.3 * e.incl + 0.2 * Math.max(0, e.syn); why.push({ k: 'edh', txt: tx('Em {p}% dos decks de {c}', { p: Math.round(e.incl * 100), c: e.from }) }) }
     const m = meta?.byCard.get(c.i)
-    if (m) { P.dados += 0.3 * Math.min(1, m.incl * 2.5); why.push({ k: 'meta', txt: `Em ${Math.round(m.incl * 100)}% dos decks de ${meta.fmtName} (≈${m.copies.toFixed(1).replace('.', ',')} cópias)` }) }
+    if (m) { P.dados += 0.3 * Math.min(1, m.incl * 2.5); why.push({ k: 'meta', txt: tx('Em {p}% dos decks de {f} (≈{q} cópias)', { p: Math.round(m.incl * 100), f: meta.fmtName, q: num(m.copies, 1) }) }) }
     P.popular = c.er ? 0.05 * Math.max(0, 1 - Math.log(c.er) / LOGR) : 0
     const score = Object.values(P).reduce((a, b) => a + b, 0)
     if (score <= 0.02 && !why.length) continue

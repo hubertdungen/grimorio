@@ -1,87 +1,99 @@
 // Tabuleiro (repetição e ao vivo), ao estilo de uma mesa digital: aplica os eventos do Forge ao modelo de estado
 // (game.js) e anima só o que mudou em cada passo (a carta que entrou/virou/atacou/morreu, a vida que mudou).
 // Controlos: pausa, velocidade, passo, salto de turno, linha do tempo com marcas por tipo de evento.
-import { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, Fragment, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
+import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
+import { playEvent, play } from './sfx.js'
 import { PHASES, replayStates, lookup, isCreature, isLand, powTough, typeOf } from './game.js'
 
-const PH_LABEL = { untap: 'Desvirar', upkeep: 'Manutenção', draw: 'Compra', main1: 'Principal 1', combat: 'Combate', main2: 'Principal 2', end: 'Final' }
-const PH_SHORT = { untap: 'Desvirar', upkeep: 'Manut.', draw: 'Compra', main1: 'Princ. 1', combat: 'Combate', main2: 'Princ. 2', end: 'Final' }
+const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
+const PH_SHORT = { untap: tx('Desvirar'), upkeep: tx('Manut.'), draw: tx('fase§Compra'), main1: tx('Princ. 1'), combat: tx('Combate'), main2: tx('Princ. 2'), end: tx('fase§Final') }
 const KW = {
-  Flying: ['➶', 'Voar'], 'First strike': ['¹', 'Iniciativa (first strike)'], 'Double strike': ['²', 'Golpe duplo'],
-  Deathtouch: ['☠', 'Toque mortífero'], Lifelink: ['♥', 'Vínculo com a vida'], Trample: ['⇶', 'Atropelar'],
-  Vigilance: ['◉', 'Vigilância'], Haste: ['ϟ', 'Ímpeto'], Hexproof: ['◈', 'Resistência a magia'],
-  Indestructible: ['✚', 'Indestrutível'], Menace: ['‼', 'Ameaçar'], Reach: ['↥', 'Alcance'], Infect: ['☣', 'Infetar'],
+  Flying: ['➶', tx('Voar')], 'First strike': ['¹', tx('Iniciativa (first strike)')], 'Double strike': ['²', tx('Golpe duplo')],
+  Deathtouch: ['☠', tx('Toque mortífero')], Lifelink: ['♥', tx('Vínculo com a vida')], Trample: ['⇶', tx('Atropelar')],
+  Vigilance: ['◉', tx('Vigilância')], Haste: ['ϟ', tx('Ímpeto')], Hexproof: ['◈', tx('Resistência a magia')],
+  Indestructible: ['✚', tx('Indestrutível')], Menace: ['‼', tx('Ameaçar')], Reach: ['↥', tx('Alcance')], Infect: ['☣', tx('Infetar')],
 }
-const CT = { '+1/+1': '+1/+1', '-1/-1': '−1/−1', loyalty: 'lealdade', lore: 'capítulo', charge: 'carga', stun: 'atordoamento', shield: 'escudo', oil: 'óleo', time: 'tempo', defense: 'defesa', poison: 'veneno' }
-const CT_SHORT = { lore: 'cap.', charge: 'carga', stun: 'atord.', shield: 'escudo', time: 'tempo', defense: 'defesa', oil: 'óleo' }
+const CT = { '+1/+1': '+1/+1', '-1/-1': '−1/−1', loyalty: tx('lealdade'), lore: tx('capítulo'), charge: tx('carga'), stun: tx('atordoamento'), shield: tx('escudo'), oil: tx('óleo'), time: tx('tempo'), defense: tx('defesa'), poison: tx('veneno') }
+const CT_SHORT = { lore: tx('cap.'), charge: tx('carga'), stun: tx('atord.'), shield: tx('escudo'), time: tx('tempo'), defense: tx('defesa'), oil: tx('óleo') }
 const PACE = { turn: 2, phase: 0.45, tap: 0.3, untap: 0.3, land: 0.9, cast: 1.2, resolve: 0.8, counter: 1, countered: 0.8, trigger: 0.7, activate: 0.8, attack: 0.9, block: 0.9, damage: 0.8, poison: 0.8, life: 0.6, token: 1, counters: 0.8, pump: 0.7, attach: 0.9, transform: 1.3, destroy: 1, exile: 1, bounce: 1, discard: 0.8, mulligan: 0.8, draw: 0.5, mill: 0.6, search: 0.6, player: 1, goad: 0.8, outcome: 2, other: 0.3 }
 // cor da marca na linha do tempo
 const MARK = { cast: 'm-cast', land: 'm-land', attack: 'm-atk', block: 'm-atk', damage: 'm-dmg', poison: 'm-dmg', destroy: 'm-die', exile: 'm-die', token: 'm-new', counters: 'm-new', transform: 'm-new', outcome: 'm-end' }
 const QUIET = new Set(['other', 'phase'])
-const ZN = { hand: 'mão', library: 'biblioteca', graveyard: 'cemitério', exile: 'exílio', battlefield: 'campo', stack: 'pilha', command: 'zona de comando', none: 'fora do jogo' }
-const EST = 'Estimativa: este jogo foi gravado antes de o Forge dar as zonas exatas, por isso a posição desta carta foi deduzida do registo.' 
-const plural = (n, s, p) => `${n} ${n === 1 ? s : p}`
+const ZN = { hand: tx('mão'), library: tx('biblioteca'), graveyard: tx('cemitério'), exile: tx('exílio'), battlefield: tx('campo'), stack: tx('pilha'), command: tx('zona de comando'), none: tx('fora do jogo') }
+const EST = tx('Estimativa: este jogo foi gravado antes de o Forge dar as zonas exatas, por isso a posição desta carta foi deduzida do registo.')
 const short = n => String(n || '').split(' // ')[0]
+// texto já traduzido com pedaços JSX: jsx(texto, { g: <b>2</b> }) põe os elementos no sítio dos {marcadores}
+const jsx = (s, v) => s.split(/\{(\w+)\}/).map((p, j) => (j % 2 ? <Fragment key={j}>{v[p]}</Fragment> : p))
+// lugar: «2nd» em inglês (a média, com casas decimais, fica só o número); nas outras línguas o padrão do dicionário («2.º»)
+const ord = x => (LANG !== 'en' ? tx('{n}.º', { n: x }) : Number.isInteger(x) ? `${x}${['th', 'st', 'nd', 'rd'][x] || 'th'}` : String(x))
+// scry/surveil: quantas cartas para cada sítio (top / graveyard / bottom…)
+const toWhere = (n, w) => (w === 'top' ? tx('{n} para o topo', { n }) : w === 'graveyard' ? tx('{n} para o cemitério', { n }) : tx('{n} para o fundo', { n }))
 
-// Frase em português para cada evento (o texto original do Forge fica no título)
+// Frase legível para cada evento, na língua ativa (o texto original do Forge fica no título)
 function describe(ev, who) {
   if (!ev) return ''
-  const P = who[ev.p] || 'Alguém', c = short(ev.card), T = who[ev.target] || short(ev.target)
+  const P = who[ev.p] || tx('Alguém'), c = short(ev.card), T = who[ev.target] || short(ev.target)
   switch (ev.k) {
-    case 'turn': return `Turno ${ev.t} — ${P}`
-    case 'phase': return `Fase: ${PH_LABEL[ev.ph] || ev.ph}`
-    case 'mulligan': return ev.card === 'kept' ? `${P} fica com ${plural(ev.n, 'carta', 'cartas')}` : `${P} faz mulligan para ${ev.n}`
-    case 'land': return `${P} joga o terreno ${c}${ev.tapped ? ' (entra virado)' : ''}`
-    case 'tap': return `${c} vira${ev.txt?.includes('Add') ? ' para dar mana' : ''}`
-    case 'untap': return `${c} desvira`
+    case 'turn': return tx('Turno {t} — {P}', { t: ev.t, P })
+    case 'phase': return tx('Fase: {ph}', { ph: PH_LABEL[ev.ph] || ev.ph })
+    case 'mulligan': return ev.card === 'kept' ? tx('{P} fica com {n} carta|{P} fica com {n} cartas', { P, n: ev.n }) : tx('{P} faz mulligan para {n}', { P, n: ev.n })
+    case 'land': return `${tx('{P} joga o terreno {c}', { P, c })}${ev.tapped ? ` ${tx('(entra virado)')}` : ''}`
+    case 'tap': return ev.txt?.includes('Add') ? tx('{c} vira para dar mana', { c }) : tx('{c} vira', { c })
+    case 'untap': return tx('{c} desvira', { c })
     case 'cast': {  // custo alternativo (Force of Negation, Solitude…): a carta exilada/descartada da mão vem no zn
       const paid = (ev.zn || []).filter(z => z.from === 'hand' && z.card !== ev.card && (z.to === 'exile' || z.to === 'graveyard')).map(z => short(z.card))
-      return `${P} lança ${c}${T ? ` → ${T.length > 40 ? 'um feitiço na pilha' : T}` : ''}${paid.length ? ` (paga ${ev.zn.find(z => z.from === 'hand' && z.card !== ev.card).to === 'exile' ? 'exilando' : 'descartando'} ${paid.join(', ')})` : ''}`
+      const x = paid.join(', ')
+      const how = paid.length ? ` (${ev.zn.find(z => z.from === 'hand' && z.card !== ev.card).to === 'exile' ? tx('paga exilando {x}', { x }) : tx('paga descartando {x}', { x })})` : ''
+      return `${tx('{P} lança {c}', { P, c })}${T ? ` → ${T.length > 40 ? tx('um feitiço na pilha') : T}` : ''}${how}`
     }  // jogos antigos: alvo descrito pelo texto
-    case 'trigger': return `Habilidade desencadeada${c ? `: ${c}` : ''}`
-    case 'activate': return `${P} ativa ${c}${T ? ` → ${T}` : ''}`
-    case 'resolve': return c ? `${c} resolve${ev.pt ? ` (${ev.pt})` : ''}` : 'A habilidade resolve'
-    case 'counter': return `${c} anula um feitiço`
-    case 'countered': return `Feitiço anulado (vai para o ${ev.to === 'exile' ? 'exílio' : 'cemitério'})`
-    case 'attack': return `${c} ataca ${T || ''}`
-    case 'block': return `${c} bloqueia ${T}`
-    case 'damage': return `${c || 'Dano'}: ${ev.n} de dano a ${T}${ev.psn ? ' (veneno)' : ''}${ev.dt ? ' (toque mortífero)' : ''}`
-    case 'poison': return `${T} recebe ${plural(ev.n, 'marcador', 'marcadores')} de veneno`
-    case 'life': return `${P}: vida ${ev.n}`
-    case 'destroy': return ev.target === 'battlefield>graveyard' ? `${c} vai para o cemitério` : `${c} sai do campo`
-    case 'exile': return `${c} é exilada`
-    case 'bounce': return `${c} volta para a mão`
-    case 'discard': return `${P} descarta ${c}`
-    case 'token': return `${P} cria ${ev.n == null ? 'fichas' : ev.n === 1 ? 'uma ficha' : `${ev.n} fichas`} ${short(ev.card).replace(/ Token$/, '')}${ev.pt ? ` ${ev.pt}` : ''}`
-    case 'counters': return `${c}: ${ev.n > 0 ? '+' : '−'}${plural(Math.abs(ev.n), 'marcador', 'marcadores')} ${CT[ev.ct] || ev.ct}`
-    case 'pump': return ev.all ? `As criaturas de ${P} recebem ${ev.pt} até ao fim do turno` : `${c} recebe ${ev.pt} até ao fim do turno`
-    case 'attach': return `${c} fica anexada a ${T}`
-    case 'transform': return `${c} transforma-se em ${ev.to}`
-    case 'goad': return `${c} fica incitada`
-    case 'draw': return ev.card && ev.p === 'a' ? `${P} compra ${c}` : `${P} compra ${plural(ev.n || 1, 'carta', 'cartas')}`
-    case 'mill': return ev.card ? `${P}: ${c} da biblioteca para o cemitério` : `${P}: ${plural(ev.n || 1, 'carta', 'cartas')} da biblioteca para o cemitério`
-    case 'search': return `${P} procura na biblioteca (${ev.to === 'battlefield' ? 'para o campo' : ev.to === 'hand' ? 'para a mão' : 'para o cemitério'})`
-    case 'player': return ev.to === 'monarch' ? `${P} torna-se o monarca` : ev.to === 'initiative' ? `${P} toma a iniciativa` : ev.to === 'emblem' ? `${P} recebe um emblema` : `${P} recebe ${ev.n || 1} de energia`
-    case 'outcome': return / has won/.test(ev.txt || '') ? `${P} ganha o jogo` : `${P} perde o jogo`
+    case 'trigger': return c ? tx('Habilidade desencadeada: {c}', { c }) : tx('Habilidade desencadeada')
+    case 'activate': return `${tx('{P} ativa {c}', { P, c })}${T ? ` → ${T}` : ''}`
+    case 'resolve': return c ? `${tx('{c} resolve', { c })}${ev.pt ? ` (${ev.pt})` : ''}` : tx('A habilidade resolve')
+    case 'counter': return tx('{c} anula um feitiço', { c })
+    case 'countered': return ev.to === 'exile' ? tx('Feitiço anulado (vai para o exílio)') : tx('Feitiço anulado (vai para o cemitério)')
+    case 'attack': return tx('{c} ataca {T}', { c, T: T || '' })
+    case 'block': return tx('{c} bloqueia {T}', { c, T })
+    case 'damage': return `${tx('{c}: {n} de dano a {T}', { c: c || tx('Dano'), n: ev.n, T })}${ev.psn ? ` ${tx('(veneno)')}` : ''}${ev.dt ? ` ${tx('(toque mortífero)')}` : ''}`
+    case 'poison': return tx('{T} recebe {n} marcador de veneno|{T} recebe {n} marcadores de veneno', { T, n: ev.n })
+    case 'life': return tx('{P}: vida {n}', { P, n: ev.n })
+    case 'destroy': return ev.target === 'battlefield>graveyard' ? tx('{c} vai para o cemitério', { c }) : tx('{c} sai do campo', { c })
+    case 'exile': return tx('{c} é exilada', { c })
+    case 'bounce': return tx('{c} volta para a mão', { c })
+    case 'discard': return tx('{P} descarta {c}', { P, c })
+    case 'token': {
+      const name = `${short(ev.card).replace(/ Token$/, '')}${ev.pt ? ` ${ev.pt}` : ''}`
+      return ev.n == null ? tx('{P} cria fichas {name}', { P, name }) : tx('{P} cria uma ficha {name}|{P} cria {n} fichas {name}', { P, n: ev.n, name })
+    }
+    case 'counters': return tx('{c}: {s}{n} marcador {ct}|{c}: {s}{n} marcadores {ct}', { c, s: ev.n > 0 ? '+' : '−', n: Math.abs(ev.n), ct: CT[ev.ct] || ev.ct })
+    case 'pump': return ev.all ? tx('As criaturas de {P} recebem {pt} até ao fim do turno', { P, pt: ev.pt }) : tx('{c} recebe {pt} até ao fim do turno', { c, pt: ev.pt })
+    case 'attach': return tx('{c} fica anexada a {T}', { c, T })
+    case 'transform': return tx('{c} transforma-se em {to}', { c, to: ev.to })
+    case 'goad': return tx('{c} fica incitada', { c })
+    case 'draw': return ev.card && ev.p === 'a' ? tx('{P} compra {c}', { P, c }) : tx('{P} compra {n} carta|{P} compra {n} cartas', { P, n: ev.n || 1 })
+    case 'mill': return ev.card ? tx('{P}: {c} da biblioteca para o cemitério', { P, c }) : tx('{P}: {n} carta da biblioteca para o cemitério|{P}: {n} cartas da biblioteca para o cemitério', { P, n: ev.n || 1 })
+    case 'search': return ev.to === 'battlefield' ? tx('{P} procura na biblioteca (para o campo)', { P }) : ev.to === 'hand' ? tx('{P} procura na biblioteca (para a mão)', { P }) : tx('{P} procura na biblioteca (para o cemitério)', { P })
+    case 'player': return ev.to === 'monarch' ? tx('{P} torna-se o monarca', { P }) : ev.to === 'initiative' ? tx('{P} toma a iniciativa', { P }) : ev.to === 'emblem' ? tx('{P} recebe um emblema', { P }) : tx('{P} recebe {n} de energia', { P, n: ev.n || 1 })
+    case 'outcome': return / has won/.test(ev.txt || '') ? tx('{P} ganha o jogo', { P }) : tx('{P} perde o jogo', { P })
     default: {
       if (ev.x && ev.target) {  // mudança de zona exata sem frase própria (zone/other)
         const [fr, to] = ev.target.split('>')
         const hidden = ev.p !== 'a' && [fr, to].every(z => z === 'hand' || z === 'library')  // a mão dos adversários não se mostra
-        return `${hidden ? 'Uma carta' : c}: ${ZN[fr] || fr} → ${ZN[to] || to}`
+        return `${hidden ? tx('Uma carta') : c}: ${ZN[fr] || fr} → ${ZN[to] || to}`
       }
       // linhas informativas do Forge (em inglês): traduz as mais comuns
       const t = ev.txt || ''
       let m = t.match(/^.+? (scried|surveiled) (\d+) card\(s\) to the (top|bottom) of the library(?: and (\d+) card\(s\) to the (bottom of the library|graveyard))?/)
-      if (m) return `${P}: ${m[1] === 'scried' ? 'vidência' : 'vigiar'} — ${m[2]} para ${m[3] === 'top' ? 'o topo' : 'o fundo'}${m[4] ? `, ${m[4]} para ${m[5] === 'graveyard' ? 'o cemitério' : 'o fundo'}` : ''}`
+      if (m) return `${P}: ${m[1] === 'scried' ? tx('vidência') : tx('vigiar')} — ${toWhere(m[2], m[3])}${m[4] ? `, ${toWhere(m[4], m[5])}` : ''}`
       m = t.match(/^.+? (scried|surveiled) (\d+) card\(s\) to the (bottom of the library|graveyard)/)
-      if (m) return `${P}: ${m[1] === 'scried' ? 'vidência' : 'vigiar'} — ${m[2]} para ${m[3] === 'graveyard' ? 'o cemitério' : 'o fundo'}`
+      if (m) return `${P}: ${m[1] === 'scried' ? tx('vidência') : tx('vigiar')} — ${toWhere(m[2], m[3])}`
       m = t.match(/^(.+?) enters tapped\.$/)
-      if (m) return `${short(m[1])} entra virado`
+      if (m) return tx('{c} entra virado', { c: short(m[1]) })
       m = t.match(/^As (.+?) enters, you may pay (\d+) life\. If you don't, it enters tapped\.$/)
-      if (m) return `${short(m[1])}: pagar ${m[2]} de vida ou entrar virado`
-      return t
+      if (m) return tx('{c}: pagar {n} de vida ou entrar virado', { c: short(m[1]), n: m[2] })
+      return tx(t)  // as notas do servidor (Forte desligado…) vêm em pt e traduzem-se; o resto é do Forge, em inglês
     }
   }
 }
@@ -109,7 +121,7 @@ function Face({ p, c, back, size = 'small' }) {
   if (c) return <img src={im(c, size, back && !!c.df)} alt={short(p.face || p.name)} loading="lazy" draggable="false" />
   return (
     <div className="pc-token">
-      <small>{p.token ? 'FICHA' : ''}</small>
+      <small>{p.token ? tx('FICHA') : ''}</small>
       <b>{short(p.name).replace(/ Token$/, '')}</b>
       {p.pt && <i>{p.pt}</i>}
     </div>
@@ -124,7 +136,7 @@ const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // 
   const kws = kwsOf(c, p)
   const ctr = Object.entries(p.counters || {}).filter(([k]) => k !== 'loyalty')
   const cls = ['pc', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', enter && 'in'].filter(Boolean).join(' ')
-  const title = [short(p.face || p.name), p.sick && 'enjoo de invocação', p.tapped && 'virada'].filter(Boolean).join(' · ')
+  const title = [short(p.face || p.name), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
   return (
     <div className={cls} data-z={`k:${p.key}`} title={title}>
       {att?.length > 0 && <div className="pc-att">{att.map(a => <div key={a.key} className="pc-attc" data-z={`k:${a.key}`}><Face p={a} c={lookup(data, a.name)} /></div>)}</div>}
@@ -135,16 +147,16 @@ const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // 
         </div>
       </div>
       <div className="pc-ov">
-        {p.damage > 0 && <b className="pc-dmg" title="Dano marcado até ao fim do turno">{p.damage}</b>}
+        {p.damage > 0 && <b className="pc-dmg" title={tx('Dano marcado até ao fim do turno')}>{p.damage}</b>}
         {pt && <b className={`pc-pt ${pt.boosted ? 'up' : ''} ${pt.hurt ? 'down' : ''}`}>{pt.p}/{pt.t}</b>}
-        {p.counters?.loyalty != null && <b key={`l${p.counters.loyalty}`} className="pc-loy" title="Lealdade">{p.counters.loyalty}</b>}
-        {ctr.length > 0 && <span className="pc-ctr">{ctr.map(([k, v]) => <b key={`${k}${v}`} title={`${v} ${v === 1 ? 'marcador' : 'marcadores'} ${CT[k] || k}`}>{k === '+1/+1' ? `+${v}` : k === '-1/-1' ? `−${v}` : `${CT_SHORT[k] || (CT[k] || k).slice(0, 5)} ${v}`}</b>)}</span>}
+        {p.counters?.loyalty != null && <b key={`l${p.counters.loyalty}`} className="pc-loy" title={tx('Lealdade')}>{p.counters.loyalty}</b>}
+        {ctr.length > 0 && <span className="pc-ctr">{ctr.map(([k, v]) => <b key={`${k}${v}`} title={tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[k] || k })}>{k === '+1/+1' ? `+${v}` : k === '-1/-1' ? `−${v}` : `${CT_SHORT[k] || (CT[k] || k).slice(0, 5)} ${v}`}</b>)}</span>}
         {kws.length > 0 && <span className="pc-kw">{kws.map(k => <i key={k} title={KW[k][1]}>{KW[k][0]}</i>)}</span>}
-        {p.sick && <i className="pc-zz" title="Enjoo de invocação: entrou neste turno">z<sup>z</sup></i>}
-        {p.goaded && <i className="pc-goad" title="Incitada">⚑</i>}
+        {p.sick && <i className="pc-zz" title={tx('Enjoo de invocação: entrou neste turno')}>z<sup>z</sup></i>}
+        {p.goaded && <i className="pc-goad" title={tx('Incitada')}>⚑</i>}
         {n > 1 && <b className="pc-n">×{n}</b>}
-        {tgt && <i className={`pc-tgt t-${tgt[0]}`} title={`Ataca ${tgt[1]}`}>⚔ {tgt[1]}</i>}
-        {(p.est || p.hidden) && <i className="pc-est" title={p.hidden ? 'Estimativa: terreno procurado na biblioteca; o registo deste jogo (antigo) não diz qual.' : EST}>≈</i>}
+        {tgt && <i className={`pc-tgt t-${tgt[0]}`} title={tx('Ataca {x}', { x: tgt[1] })}>⚔ {tgt[1]}</i>}
+        {(p.est || p.hidden) && <i className="pc-est" title={p.hidden ? tx('Estimativa: terreno procurado na biblioteca; o registo deste jogo (antigo) não diz qual.') : EST}>≈</i>}
       </div>
       {pop && !quiet && <i key={pop.i} className={`pc-pop ${pop.kind}`}>{pop.kind === 'flip' ? '⟲' : pop.kind === 'pump' ? pop.pt : `${pop.n > 0 ? '+' : '−'}${Math.abs(pop.n)}`}</i>}
     </div>
@@ -197,8 +209,8 @@ function Orb({ life, d, step, hit, fast, start }) {
   }, [life, fast])
   const low = life <= Math.max(5, Math.round(start / 4))
   return (
-    <div className={`orb ${low ? 'low' : ''}`} title={`${life} de vida`}>
-      <b ref={ref}>{life}</b><small>vida</small>
+    <div className={`orb ${low ? 'low' : ''}`} title={tx('{n} de vida', { n: life })}>
+      <b ref={ref}>{life}</b><small>{tx('vida')}</small>
       {d && !fast ? <i key={step} className={`orb-flash ${d < 0 ? 'loss' : 'gain'}`} /> : null}
       {d && !fast ? <i key={`f${step}`} className={`float ${d < 0 ? 'loss' : 'gain'}`}>{d > 0 ? '+' : '−'}{Math.abs(d)}</i> : null}
       {hit && !fast ? <i key={`h${step}`} className="orb-hit" /> : null}
@@ -211,7 +223,7 @@ function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet }) {  
   const c = top && lookup(data, top), im = useImg()
   const n = count ?? cards?.length ?? 0
   return (
-    <button className={`pile ${n ? '' : 'empty'}`} onClick={onOpen} title={`${label}: ${n}${est ? ' (estimativa: o Forge não regista as compras)' : ''}`} disabled={!onOpen}>
+    <button className={`pile ${n ? '' : 'empty'}`} onClick={onOpen} title={`${label}: ${n}${est ? ` ${tx('(estimativa: o Forge não regista as compras)')}` : ''}`} disabled={!onOpen}>
       <span className="pile-c">{back || !c ? <span className={n ? 'pc-back' : 'pile-0'} /> : <In as="img" key={`${n}`} quiet={quiet} src={im(c, 'small')} alt={top} />}</span>
       <small>{icon} {n == null ? '?' : `${est ? '≈' : ''}${n}`}</small>
     </button>
@@ -227,14 +239,14 @@ function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand })
         <b title={name}>{name}</b>
         <span className="chips">
           {fmt && <span className="fmt-tag">{fmt}</span>}
-          {s.active === k && !z.out && <span className="turnpill">a jogar</span>}
-          {z.poison > 0 && <span className="chip psn" title="Marcadores de veneno (10 = derrota)">☠ {z.poison}</span>}
-          {z.energy > 0 && <span className="chip" title="Energia">ϟ {z.energy}</span>}
-          {z.monarch && <span className="chip gold" title="Monarca: compra uma carta extra no fim do turno">♛ monarca</span>}
-          {z.initiative && <span className="chip gold" title="Iniciativa (Masmorra Subterrânea)">⚑ iniciativa</span>}
-          {z.emblems.length > 0 && <span className="chip" title={z.emblems.map(short).join(', ')}>✦ {z.emblems.length} emblema{z.emblems.length > 1 ? 's' : ''}</span>}
-          {cmdDmg.map(([n, v]) => <span key={n} className={`chip ${v >= 15 ? 'psn' : ''}`} title={`Dano de comandante de ${short(n)} (21 = derrota)`}>⚔ {v}/21</span>)}
-          {z.out ? <span className="chip psn">eliminado no turno {z.out}</span> : s.over?.loser === k ? <span className="chip psn">derrota</span> : null}
+          {s.active === k && !z.out && <span className="turnpill">{tx('a jogar')}</span>}
+          {z.poison > 0 && <span className="chip psn" title={tx('Marcadores de veneno (10 = derrota)')}>☠ {z.poison}</span>}
+          {z.energy > 0 && <span className="chip" title={tx('Energia')}>ϟ {z.energy}</span>}
+          {z.monarch && <span className="chip gold" title={tx('Monarca: compra uma carta extra no fim do turno')}>♛ {tx('monarca')}</span>}
+          {z.initiative && <span className="chip gold" title={tx('Iniciativa (Masmorra Subterrânea)')}>⚑ {tx('iniciativa')}</span>}
+          {z.emblems.length > 0 && <span className="chip" title={z.emblems.map(short).join(', ')}>✦ {tx('{n} emblema|{n} emblemas', { n: z.emblems.length })}</span>}
+          {cmdDmg.map(([n, v]) => <span key={n} className={`chip ${v >= 15 ? 'psn' : ''}`} title={tx('Dano de comandante de {c} (21 = derrota)', { c: short(n) })}>⚔ {v}/21</span>)}
+          {z.out ? <span className="chip psn">{tx('eliminado no turno {n}', { n: z.out })}</span> : s.over?.loser === k ? <span className="chip psn">{tx('derrota')}</span> : null}
         </span>
       </div>
       {hand}
@@ -242,16 +254,16 @@ function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand })
         {z.command.map(c => {
           const cc = lookup(data, c.name)
           return (
-            <div key={c.name} className={`cmdz ${c.out ? 'out' : ''}`} title={`Zona de comando: ${short(c.name)}${c.casts ? ` · lançado ${c.casts}× · imposto +${2 * c.casts}` : ''}${c.out ? ' (está em jogo ou na pilha)' : ''}`} data-z={`n:${c.name}`}>
+            <div key={c.name} className={`cmdz ${c.out ? 'out' : ''}`} title={`${tx('Zona de comando: {c}', { c: short(c.name) })}${c.casts ? ` · ${tx('lançado {n}× · imposto +{x}', { n: c.casts, x: 2 * c.casts })}` : ''}${c.out ? ` ${tx('(está em jogo ou na pilha)')}` : ''}`} data-z={`n:${c.name}`}>
               {cc ? <img src={im(cc, 'art_crop')} alt={c.name} /> : <span>{short(c.name)}</span>}
               <small>{c.casts ? `+${2 * c.casts}` : 'cmd'}</small>
             </div>
           )
         })}
-        <Pile label="Biblioteca" icon="▤" count={z.library} back est={!s.exact} data={data} />
-        {(k !== 'a' || top) && !s.exact && <div className="bhand" title={`${plural(z.hand, 'carta', 'cartas')} na mão${s.exact ? '' : ' (estimativa)'}`}>{Array.from({ length: Math.min(8, z.hand) }).map((_, j) => <span key={j} className="back" />)}<small>✋ {s.exact ? '' : '≈'}{z.hand}</small></div>}
-        <Pile label="Cemitério" icon="⚰" cards={z.graveyard} data={data} quiet={fast} onOpen={() => openZone(k, 'graveyard')} />
-        <Pile label="Exílio" icon="⌀" cards={z.exile} data={data} quiet={fast} onOpen={() => openZone(k, 'exile')} />
+        <Pile label={tx('Biblioteca')} icon="▤" count={z.library} back est={!s.exact} data={data} />
+        {(k !== 'a' || top) && !s.exact && <div className="bhand" title={`${tx('{n} carta na mão|{n} cartas na mão', { n: z.hand })}${s.exact ? '' : ` ${tx('(estimativa)')}`}`}>{Array.from({ length: Math.min(8, z.hand) }).map((_, j) => <span key={j} className="back" />)}<small>✋ {s.exact ? '' : '≈'}{z.hand}</small></div>}
+        <Pile label={tx('Cemitério')} icon="⚰" cards={z.graveyard} data={data} quiet={fast} onOpen={() => openZone(k, 'graveyard')} />
+        <Pile label={tx('Exílio')} icon="⌀" cards={z.exile} data={data} quiet={fast} onOpen={() => openZone(k, 'exile')} />
       </div>
     </div>
   )
@@ -263,7 +275,7 @@ function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, com
   const live = z.perms.filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))
   const creatures = [], lands = [], others = []
   for (const p of live) (isCreature(data, p) ? creatures : isLand(data, p) ? lands : others).push(p)
-  const front = <Row perms={creatures} data={data} fx={fx} att={att} cls="front" groupable={p => p.token} empty="sem criaturas" quiet={fast} who={who} />
+  const front = <Row perms={creatures} data={data} fx={fx} att={att} cls="front" groupable={p => p.token} empty={tx('sem criaturas')} quiet={fast} who={who} />
   const back = (
     <div className="brow rear">
       <Row perms={lands} data={data} fx={fx} att={att} cls="lands" groupable={() => true} quiet={fast} />
@@ -297,8 +309,8 @@ function Hand({ z, data, quiet, exact, opp, hidden, label }) {  // opp: mão do 
         {Array.from({ length: Math.min(unknown, 10) }).map((_, j) => <In key={`u${j}`} quiet={quiet} className="hc unk" style={{ '--r': `${(z.known.length + j - (n - 1) / 2) * Math.min(5, 40 / Math.max(1, n))}deg` }}><span className="pc-back" /></In>)}
       </div>
       {exact
-        ? <small className="muted">{label || (opp ? 'Mão do adversário' : 'Mão')} · {plural(z.hand, 'carta', 'cartas')}</small>
-        : <small className="muted">Mão ≈{z.hand}{z.known.length ? ` · ${z.known.length} conhecida${z.known.length > 1 ? 's' : ''}` : ''} <i className="est-i" title="Estimativa: este jogo foi gravado antes de o Forge dar as compras; as cartas à vista são as que o jogador joga ou descarta neste turno.">≈</i></small>}
+        ? <small className="muted">{label || (opp ? tx('Mão do adversário') : tx('Mão'))} · {tx('{n} carta|{n} cartas', { n: z.hand })}</small>
+        : <small className="muted">{tx('Mão ≈{n}', { n: z.hand })}{z.known.length ? ` · ${tx('{n} conhecida|{n} conhecidas', { n: z.known.length })}` : ''} <i className="est-i" title={tx('Estimativa: este jogo foi gravado antes de o Forge dar as compras; as cartas à vista são as que o jogador joga ou descarta neste turno.')}>≈</i></small>}
     </div>
   )
 }
@@ -318,15 +330,15 @@ function zoomInfo(z, s, data) {
         const pt = isCreature(data, p) ? powTough(data, p) : null
         const lines = [
           typeOf(data, p),
-          pt && `${pt.p}/${pt.t}${p.damage ? ` · ${p.damage} de dano` : ''}`,
-          ...Object.entries(p.counters || {}).map(([t, v]) => `${v} ${v === 1 ? 'marcador' : 'marcadores'} ${CT[t] || t}`),
-          p.pump && `${p.pump[0] >= 0 ? '+' : ''}${p.pump[0]}/${p.pump[1] >= 0 ? '+' : ''}${p.pump[1]} até ao fim do turno`,
-          att.length && `Anexadas: ${att.map(x => short(x.name)).join(', ')}`,
-          host && `Anexada a ${short(host.name)}`,
+          pt && `${pt.p}/${pt.t}${p.damage ? ` · ${tx('{n} de dano', { n: p.damage })}` : ''}`,
+          ...Object.entries(p.counters || {}).map(([t, v]) => tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[t] || t })),
+          p.pump && tx('{pt} até ao fim do turno', { pt: `${p.pump[0] >= 0 ? '+' : ''}${p.pump[0]}/${p.pump[1] >= 0 ? '+' : ''}${p.pump[1]}` }),
+          att.length && tx('Anexadas: {x}', { x: att.map(x => short(x.name)).join(', ') }),
+          host && tx('Anexada a {x}', { x: short(host.name) }),
           kwsOf(c, p).map(k => KW[k][1]).join(' · '),
-          [p.tapped && 'virada', p.sick && 'enjoo de invocação', p.attacking && 'a atacar', p.blocking && 'a bloquear', p.token && 'ficha', p.goaded && 'incitada'].filter(Boolean).join(' · '),
+          [p.tapped && tx('virada'), p.sick && tx('enjoo de invocação'), p.attacking && tx('a atacar'), p.blocking && tx('a bloquear'), p.token && tx('ficha'), p.goaded && tx('incitada')].filter(Boolean).join(' · '),
         ].filter(Boolean)
-        return { c: c || (p.token ? tokenCard(p.name, p.pt, p.src) : null), side: k, back: p.flipped && !!c?.df, name: short(p.face || p.name) || 'Terreno', lines, p }
+        return { c: c || (p.token ? tokenCard(p.name, p.pt, p.src) : null), side: k, back: p.flipped && !!c?.df, name: short(p.face || p.name) || tx('Terreno'), lines, p }
       }
     }
     return null
@@ -354,7 +366,7 @@ const Timeline = memo(function Timeline({ evs, i, onSeek }) {
   const turns = useMemo(() => evs.map((e, j) => (e.k === 'turn' ? { j, t: e.t, p: e.p } : null)).filter(Boolean), [evs])
   const seek = e => { const r = e.currentTarget.getBoundingClientRect(); onSeek(Math.round(((e.clientX - r.left) / r.width) * n)) }
   return (
-    <svg className="tline" viewBox={`0 0 ${n} 20`} preserveAspectRatio="none" onClick={seek} role="img" aria-label="Linha do tempo do jogo">
+    <svg className="tline" viewBox={`0 0 ${n} 20`} preserveAspectRatio="none" onClick={seek} role="img" aria-label={tx('Linha do tempo do jogo')}>
       {turns.map(x => <rect key={`t${x.j}`} x={x.j} y="0" width={n / 400 + 0.3} height="20" className={`tt ${x.p}`} />)}
       {marks.map(x => <rect key={x.j} x={x.j} y="6" width={Math.max(0.6, n / 300)} height="10" className={x.c} />)}
       <rect x={Math.min(i, n) - n / 300} y="0" width={n / 150} height="20" className="tnow" />
@@ -372,7 +384,7 @@ function Countdown({ secs, onDone }) {
     const t = setTimeout(() => setLeft(left - 1), 1000)
     return () => clearTimeout(t)
   }, [left])
-  return <span className="muted small">próximo jogo em {left} s</span>
+  return <span className="muted small">{tx('próximo jogo em {n} s', { n: left })}</span>
 }
 
 // next: { has, go, secs, auto } — fila de jogos do Laboratório (sem next: só o resultado)
@@ -389,9 +401,9 @@ function Score({ sc, ended, winner, a, b, fa, fb }) {
       <span className={`sc-box ${ended ? 'bump' : ''}`} key={`${wa}-${wb}`}><b className={lead === 'a' ? 'lead' : ''}>{wa}</b><i>–</i><b className={lead === 'b' ? 'lead' : ''}>{wb}</b></span>
       <span className={`sc-n b ${lead === 'b' ? 'lead' : ''}`} title={b}>{fb}{b}</span>
       <span className="sc-meta">
-        {sc.bo > 1 ? <>Jogo <b>{sc.g}</b> de {sc.bo} · melhor de {sc.bo} (ganha quem chegar a {need}){done && <> · <b className={wa > wb ? 'ok-t' : 'bad-t'}>série {wa > wb ? 'ganha' : 'perdida'}</b></>}</> : <>Jogo único</>}
-        {sc.series > 1 && <> · Série <b>{sc.serie}</b> de {sc.series}</>}
-        {sc.total > 1 && <> · Sessão: <b className="ok-t">{sw} V</b> – <b className="bad-t">{sl} D</b> ({sc.k}/{sc.total} jogos)</>}
+        {sc.bo > 1 ? <>{jsx(tx('Jogo {g} de {bo} · melhor de {bo} (ganha quem chegar a {need})'), { g: <b>{sc.g}</b>, bo: sc.bo, need })}{done && <> · <b className={wa > wb ? 'ok-t' : 'bad-t'}>{wa > wb ? tx('série ganha') : tx('série perdida')}</b></>}</> : tx('Jogo único')}
+        {sc.series > 1 && <> · {jsx(tx('Série {s} de {total}'), { s: <b>{sc.serie}</b>, total: sc.series })}</>}
+        {sc.total > 1 && <> · {jsx(tx('Sessão: {w} – {l} ({k}/{total} jogos)'), { w: <b className="ok-t">{tx('{n} V', { n: sw })}</b>, l: <b className="bad-t">{tx('{n} D', { n: sl })}</b>, k: sc.k, total: sc.total })}</>}
       </span>
     </div>
   )
@@ -405,15 +417,15 @@ function ScoreN({ sc, ended, game, who, fm }) {
   const pl = sc.places.concat(ended && game.places ? [game.places.indexOf('a') + 1] : []).filter(Boolean)
   return (
     <div className="score multi" role="status">
-      <span className="sc-ps">{S.map(k => <span key={k} className={`sc-p p-${k} ${ended && game.winner === k ? 'lead' : ''}`} title={who[k]}><b>{who[k]}</b>{fm(k)}<i key={w(k)} className={ended && game.winner === k ? 'bump' : ''}>{w(k)}</i>{place(k) ? <small>{place(k)}.º</small> : null}</span>)}</span>
-      <span className="sc-meta">{sc.label} · Jogo <b>{sc.k}</b> de {sc.total} · vitórias = 1.º lugar{pl.length > 0 && <> · o teu lugar médio: <b>{(pl.reduce((x, y) => x + y, 0) / pl.length).toFixed(1).replace('.', ',')}.º</b></>}</span>
+      <span className="sc-ps">{S.map(k => <span key={k} className={`sc-p p-${k} ${ended && game.winner === k ? 'lead' : ''}`} title={who[k]}><b>{who[k]}</b>{fm(k)}<i key={w(k)} className={ended && game.winner === k ? 'bump' : ''}>{w(k)}</i>{place(k) ? <small>{ord(place(k))}</small> : null}</span>)}</span>
+      <span className="sc-meta">{jsx(tx('{label} · Jogo {k} de {total} · vitórias = 1.º lugar'), { label: sc.label, k: <b>{sc.k}</b>, total: sc.total })}{pl.length > 0 && <> · {jsx(tx('o teu lugar médio: {x}'), { x: <b>{ord(num(pl.reduce((x, y) => x + y, 0) / pl.length, 1))}</b> })}</>}</span>
     </div>
   )
 }
 
-export const HANDS = [['ambas', 'Mãos: ambas visíveis'], ['minha', 'Mãos: só a minha'], ['nenhuma', 'Mãos: ambas escondidas']]
+export const HANDS = [['ambas', tx('Mãos: ambas visíveis')], ['minha', tx('Mãos: só a minha')], ['nenhuma', tx('Mãos: ambas escondidas')]]
 
-export default function Replay({ data, game, onBack, backLabel = '← Relatório', deckName, live = false, next, speed0, onSpeed, hands: hands0, onHands, onPlayFrom, score, arts: arts0, formats }) {  // arts: {a: {nome: link}, b: …} arte própria de cada deck (torneio: game.arts; Laboratório: game.decks); formats: {a: 'Pauper', b: …} (modo casual)
+export default function Replay({ data, game, onBack, backLabel = tx('← Relatório'), deckName, live = false, next, speed0, onSpeed, hands: hands0, onHands, onPlayFrom, score, arts: arts0, formats }) {  // arts: {a: {nome: link}, b: …} arte própria de cada deck (torneio: game.arts; Laboratório: game.decks); formats: {a: 'Pauper', b: …} (modo casual)
   const art = useMemo(() => ({ arts: arts0 || game.arts || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, d?.art]))), k: null }), [arts0, game]), arts = art.arts
   const [hands, setHandsS] = useState(hands0 || 'ambas')
   // No Coliseu o tabuleiro escala as cartas (--fit) para caber na altura do ecrã: ao abrir, ao redimensionar e em ecrã inteiro
@@ -480,6 +492,8 @@ export default function Replay({ data, game, onBack, backLabel = '← Relatório
   }, [playing, i, speed, evs])
   useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight }, [i])
   const s = states[i]
+  // som de cada jogada (não ao saltar na linha do tempo; a alta velocidade o sfx.js corta o miúdo)
+  useEffect(() => { if (!pos.jump && i > 0) playEvent(evs[i - 1], states[i], data, { speed }) }, [i])  // eslint-disable-line react-hooks/exhaustive-deps
   const ended = evs.length > 0 && i >= evs.length && !game.inProgress  // ao vivo: só acaba quando o Forge acaba
   const fast = speed >= 4
   const who = { a: deckName, b: game.opp, ...game.opps }  // opps: {b, c, d} com 3+ jogadores
@@ -505,14 +519,14 @@ export default function Replay({ data, game, onBack, backLabel = '← Relatório
   const onTap = e => {
     if (pType.current !== 'mouse') return  // no toque, o zoom é com toque longo (onPress)
     const el = e.target.closest('[data-z]')
-    if (el) { e.preventDefault(); setZoom({ z: el.dataset.z, pin: true }) }
+    if (el) { e.preventDefault(); setZoom({ z: el.dataset.z, pin: true }); play('zoom') }
   }
   const press = useRef(null)
   const onPress = e => {  // toque longo (~0,45 s) numa carta -> zoom; mexer o dedo cancela
     pType.current = e.pointerType
     clearTimeout(press.current?.t)
     const el = e.pointerType !== 'mouse' && e.target.closest('[data-z]')
-    if (el) press.current = { x: e.clientX, y: e.clientY, t: setTimeout(() => setZoom({ z: el.dataset.z, pin: true }), 450) }
+    if (el) press.current = { x: e.clientX, y: e.clientY, t: setTimeout(() => { setZoom({ z: el.dataset.z, pin: true }); play('zoom') }, 450) }
   }
   const unPress = e => { if (press.current && (e.type !== 'pointermove' || Math.hypot(e.clientX - press.current.x, e.clientY - press.current.y) > 10)) { clearTimeout(press.current.t); press.current = null } }
   const hoverStyle = zoom && !zoom.pin && zoom.r ? (() => {
@@ -532,7 +546,7 @@ export default function Replay({ data, game, onBack, backLabel = '← Relatório
   const hit = new Set(multi ? S.flatMap(k => s[k].perms.map(p => p.attacking)).filter(x => S.includes(x)) : [])
   const fm = k => (formats?.[k] ? <span className="fmt-tag">{formats[k]}</span> : null)
   const sp = { formats, s, data, fx, att, fast: fast || pos.jump, start, openZone }
-  const oppHand = k => game.exact && <Hand z={s[k]} data={data} quiet={fast || pos.jump} exact opp hidden={hands !== 'ambas'} label={mates.includes(k) ? 'Mão do parceiro' : null} />
+  const oppHand = k => game.exact && <Hand z={s[k]} data={data} quiet={fast || pos.jump} exact opp hidden={hands !== 'ambas'} label={mates.includes(k) ? tx('Mão do parceiro') : null} />
   return (
     <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''}`}
       onPointerOver={onOver} onPointerLeave={() => zoom && !zoom.pin && setZoom(null)}
@@ -541,23 +555,23 @@ export default function Replay({ data, game, onBack, backLabel = '← Relatório
         {onBack && <button onClick={onBack}>{backLabel}</button>}
         {score?.wins ? <ScoreN sc={score} ended={ended} game={game} who={who} fm={fm} /> : score ? <Score sc={score} ended={ended} winner={game.winner} a={mates.length ? [deckName, ...mates.map(k => who[k])].join(' + ') : deckName} b={mates.length ? tops.map(k => who[k]).join(' + ') : game.opp} fa={!mates.length && fm('a')} fb={!mates.length && fm('b')} />
           : formats ? <b>{S.map((k, j) => <span key={k}>{j ? (multi ? ' · ' : ' vs ') : ''}{who[k]} {fm(k)}</span>)}</b> : <b>{multi ? S.map(k => who[k]).join(' · ') : `${deckName} vs ${game.opp}`}</b>}
-        {live && <span className="livepill">● a jogar</span>}
-        {!score && ended && <span className="muted small">jogo {game.g} · {game.winner === 'a' ? 'vitória' : lost(game.winner) ? 'derrota' : 'empate'} no turno {game.turns}</span>}
+        {live && <span className="livepill">{tx('● a jogar')}</span>}
+        {!score && ended && <span className="muted small">{tx('jogo {g} · {r} no turno {t}', { g: game.g, r: game.winner === 'a' ? tx('vitória') : lost(game.winner) ? tx('derrota') : tx('empate'), t: game.turns })}</span>}
       </div>
       <div className="rp-ctrl">
-        <button onClick={() => go(0)} title="Início" aria-label="Início">⏮</button>
-        <button onClick={() => go(i - 1, false)} title="Passo atrás" aria-label="Passo atrás">◀</button>
-        <button className="primary" onClick={() => setPlaying(!playing)}>{playing ? '❚❚ Pausa' : '▶ Continuar'}</button>
-        <button onClick={() => go(i + 1, false)} title="Passo à frente" aria-label="Passo à frente">▶</button>
-        <button onClick={() => go(evs.length)} title={live ? 'Ir para o momento atual' : 'Fim'} aria-label="Fim">⏭</button>
-        <span className="rp-zoom"><button onClick={() => zoomRef.current?.(-0.1)} title="Mais pequeno">−</button><button onClick={() => zoomRef.current?.(0)} title="Ajustar ao ecrã (volta a detetar a altura)">⤢</button><button onClick={() => zoomRef.current?.(0.1)} title="Maior">+</button></span>
-        <label className="sl rp-speed"><span>Velocidade <b>{speed}×</b></span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
-        {onPlayFrom && !live && !multi && <button onClick={() => { setPlaying(false); onPlayFrom(s, game) }} title="Abre esta posição no Forge e jogas tu com o teu deck">🎮 Jogar daqui</button>}
-        <select value={hands} onChange={e => setHands(e.target.value)} aria-label="Mãos à vista">{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
-        <select value={s.turn || ''} onChange={e => go(evs.findIndex(x => x.t === +e.target.value))} aria-label="Ir para o turno">{turns.map(t => <option key={t} value={t}>Turno {t}</option>)}</select>
+        <button onClick={() => go(0)} title={tx('Início')} aria-label={tx('Início')}>⏮</button>
+        <button onClick={() => go(i - 1, false)} title={tx('Passo atrás')} aria-label={tx('Passo atrás')}>◀</button>
+        <button className="primary" onClick={() => setPlaying(!playing)}>{playing ? tx('❚❚ Pausa') : tx('▶ Continuar')}</button>
+        <button onClick={() => go(i + 1, false)} title={tx('Passo à frente')} aria-label={tx('Passo à frente')}>▶</button>
+        <button onClick={() => go(evs.length)} title={live ? tx('Ir para o momento atual') : tx('Fim')} aria-label={tx('Fim')}>⏭</button>
+        <span className="rp-zoom"><button onClick={() => zoomRef.current?.(-0.1)} title={tx('Mais pequeno')}>−</button><button onClick={() => zoomRef.current?.(0)} title={tx('Ajustar ao ecrã (volta a detetar a altura)')}>⤢</button><button onClick={() => zoomRef.current?.(0.1)} title={tx('Maior')}>+</button></span>
+        <label className="sl rp-speed"><span>{jsx(tx('Velocidade {x}'), { x: <b>{speed}×</b> })}</span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
+        {onPlayFrom && !live && !multi && <button onClick={() => { setPlaying(false); onPlayFrom(s, game) }} title={tx('Abre esta posição no Forge e jogas tu com o teu deck')}>{tx('🎮 Jogar daqui')}</button>}
+        <select value={hands} onChange={e => setHands(e.target.value)} aria-label={tx('Mãos à vista')}>{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+        <select value={s.turn || ''} onChange={e => go(evs.findIndex(x => x.t === +e.target.value))} aria-label={tx('Ir para o turno')}>{turns.map(t => <option key={t} value={t}>{tx('Turno {t}', { t })}</option>)}</select>
         <div className="rp-time">
           <Timeline evs={evs} i={i} onSeek={n => { setPlaying(false); go(n) }} />
-          <input type="range" className="rp-scrub" min="0" max={evs.length} value={i} onChange={e => { setPlaying(false); go(+e.target.value) }} aria-label="Posição no jogo" />
+          <input type="range" className="rp-scrub" min="0" max={evs.length} value={i} onChange={e => { setPlaying(false); go(+e.target.value) }} aria-label={tx('Posição no jogo')} />
         </div>
         <span className="muted small">{i}/{evs.length}</span>
       </div>
@@ -574,16 +588,16 @@ export default function Replay({ data, game, onBack, backLabel = '← Relatório
                 {PHASES.map((x, j) => <span key={x} className={j === ph ? 'on' : j < ph ? 'past' : ''} title={PH_LABEL[x]}>{PH_SHORT[x]}</span>)}
               </div>
             </div>
-            <div className="stack" title="Pilha">
+            <div className="stack" title={tx('Pilha')}>
               {s.stack.map((x, j) => {
                 const c = lookup(data, x.card)
-                return <In key={x.uid} quiet={fast || pos.jump} className={`stk ${x.p || ''} ${x.kind}`} style={{ '--j': j }} data-z={x.card ? `n:${x.card}` : undefined} title={`${x.kind === 'cast' ? 'Feitiço' : 'Habilidade'}: ${short(x.card) || '?'}${x.target ? ` → ${short(x.target)}` : ''}`}>
-                  {c ? <img src={img(c, x.kind === 'cast' ? 'small' : 'art_crop', false, artOf(arts, x.p, c))} alt={x.card} /> : <span>{short(x.card) || 'habilidade'}</span>}
+                return <In key={x.uid} quiet={fast || pos.jump} className={`stk ${x.p || ''} ${x.kind}`} style={{ '--j': j }} data-z={x.card ? `n:${x.card}` : undefined} title={`${x.kind === 'cast' ? tx('Feitiço') : tx('Habilidade')}: ${short(x.card) || '?'}${x.target ? ` → ${short(x.target)}` : ''}`}>
+                  {c ? <img src={img(c, x.kind === 'cast' ? 'small' : 'art_crop', false, artOf(arts, x.p, c))} alt={x.card} /> : <span>{short(x.card) || tx('habilidade')}</span>}
                 </In>
               })}
             </div>
             <div className={`ribbon ${actor ? `by-${actor}` : ''} k-${rev?.k || ''}`} aria-live="polite">
-              <span key={ri}>{actor && <i className="arrow">{actor === 'a' || mates.includes(actor) ? '▼' : '▲'}</i>}{rev ? describe(rev, who) : live ? 'À espera do Forge…' : 'O jogo vai começar…'}</span>
+              <span key={ri}>{actor && <i className="arrow">{actor === 'a' || mates.includes(actor) ? '▼' : '▲'}</i>}{rev ? describe(rev, who) : live ? tx('À espera do Forge…') : tx('O jogo vai começar…')}</span>
             </div>
           </div>
           {(() => {
@@ -592,14 +606,14 @@ export default function Replay({ data, game, onBack, backLabel = '← Relatório
           })()}
           {ended && (
             <div className={`endbanner ${game.winner === 'a' ? 'win' : lost(game.winner) ? 'loss' : 'draw'}`} role="status">
-              <b>{game.winner === 'a' ? `Vitória${mates.length ? ' da equipa' : ''} no turno ${game.turns}` : !lost(game.winner) ? 'Empate' : mates.length ? `Derrota da equipa no turno ${game.turns}` : multi ? `${game.places ? `${game.places.indexOf('a') + 1}.º lugar` : 'Derrota'}${s.a.out ? ` — eliminado no turno ${s.a.out}` : ''}` : `Derrota no turno ${game.turns}`}</b>
-              {multi && game.places && !mates.length && <span>{game.places.map((k, j) => `${j + 1}.º ${short(who[k])}`).join(' · ')}</span>}
-              <span>Vida final: {S.map(k => `${who[k]} ${s[k].life}`).join(' · ')}</span>
+              <b>{game.winner === 'a' ? (mates.length ? tx('Vitória da equipa no turno {t}', { t: game.turns }) : tx('Vitória no turno {t}', { t: game.turns })) : !lost(game.winner) ? tx('Empate') : mates.length ? tx('Derrota da equipa no turno {t}', { t: game.turns }) : multi ? `${game.places ? tx('{p} lugar', { p: ord(game.places.indexOf('a') + 1) }) : tx('Derrota')}${s.a.out ? ` — ${tx('eliminado no turno {n}', { n: s.a.out })}` : ''}` : tx('Derrota no turno {t}', { t: game.turns })}</b>
+              {multi && game.places && !mates.length && <span>{game.places.map((k, j) => `${ord(j + 1)} ${short(who[k])}`).join(' · ')}</span>}
+              <span>{tx('Vida final: {x}', { x: S.map(k => `${who[k]} ${s[k].life}`).join(' · ') })}</span>
               <span className="row-btns">
                 {next?.has && playing && next.auto && <Countdown key={`${game.g}-${next.secs}`} secs={next.secs} onDone={next.go} />}
-                <button onClick={() => go(0)}>⏮ ver de novo</button>
-                {next?.has && <button className="primary" onClick={next.go}>seguinte ▶</button>}
-                {!next?.has && live && <span className="muted small">o próximo jogo ainda está a ser jogado…</span>}
+                <button onClick={() => go(0)}>{tx('⏮ ver de novo')}</button>
+                {next?.has && <button className="primary" onClick={next.go}>{tx('seguinte ▶')}</button>}
+                {!next?.has && live && <span className="muted small">{tx('o próximo jogo ainda está a ser jogado…')}</span>}
               </span>
             </div>
           )}
@@ -616,9 +630,9 @@ export default function Replay({ data, game, onBack, backLabel = '← Relatório
       {zone && (
         <div className="zoomover zonelist" onClick={e => { if (e.target === e.currentTarget) setZone(null) }}>
           <div className="zl-box">
-            <div className="row-btns"><b>{zone.which === 'graveyard' ? 'Cemitério' : 'Exílio'} de {who[zone.k]} · {zoneCards.length}</b><button onClick={() => setZone(null)}>Fechar</button></div>
-            <div className="zl-grid">{zoneCards.map((n, j) => { const c = lookup(data, n); return <div key={j} className="zl-c" data-z={n ? `n:${n}` : undefined} title={n || 'Carta desconhecida (o Forge não diz qual)'}>{c ? <img src={img(c, 'small', false, artOf(arts, zone.k, c))} alt={n} /> : <span className="pc-back" />}</div> })}</div>
-            {zoneCards.includes(null) && <p className="muted small">As cartas de costas foram para lá sem o Forge dizer quais (vigiar, moer, procurar).</p>}
+            <div className="row-btns"><b>{zone.which === 'graveyard' ? tx('Cemitério de {p}', { p: who[zone.k] }) : tx('Exílio de {p}', { p: who[zone.k] })} · {zoneCards.length}</b><button onClick={() => setZone(null)}>{tx('Fechar')}</button></div>
+            <div className="zl-grid">{zoneCards.map((n, j) => { const c = lookup(data, n); return <div key={j} className="zl-c" data-z={n ? `n:${n}` : undefined} title={n || tx('Carta desconhecida (o Forge não diz qual)')}>{c ? <img src={img(c, 'small', false, artOf(arts, zone.k, c))} alt={n} /> : <span className="pc-back" />}</div> })}</div>
+            {zoneCards.includes(null) && <p className="muted small">{tx('As cartas de costas foram para lá sem o Forge dizer quais (vigiar, moer, procurar).')}</p>}
           </div>
         </div>
       )}

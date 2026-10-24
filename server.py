@@ -3,7 +3,7 @@
 Serve a app React compilada (web/dist), os dados gerados por build/build.sh
 (já comprimidos em .gz) e guarda os decks numa SQLite fora do exFAT.
 """
-import argparse, functools, json, os, re, sqlite3, time, zipfile, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, functools, http.cookies, json, os, re, sqlite3, time, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
@@ -36,6 +36,8 @@ def db():
     # sessões de testes do Laboratório guardadas no deck (séries, jogos com registo, relatório)
     con.execute("CREATE TABLE IF NOT EXISTS sim_runs (id TEXT PRIMARY KEY, deck_id TEXT, owner TEXT, ts REAL, label TEXT,"
                 " summary TEXT, body TEXT NOT NULL)")
+    # perfis das edições sem login (desktop): quem joga escolhe-se no browser e fica num cookie
+    con.execute("CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, name TEXT, color TEXT, created REAL)")
     for col in ("owner TEXT DEFAULT 'local'", "deleted REAL"):
         try:
             con.execute(f"ALTER TABLE decks ADD COLUMN {col}")
@@ -44,12 +46,75 @@ def db():
     return con
 
 
+GAME_EV = {"turn", "phase", "cast", "activate", "trigger", "resolve", "life", "damage", "mill", "draw", "block", "countered",
+           "destroy", "exile", "bounce", "outcome"}
+
+
+def light_game(g, me="a"):
+    """Jogo para as provas das trocas (gameEvidence em swap.js): o nosso lugar passa a 'a' (troca com o que lá estava)
+    e os eventos ficam só com o que se lê; os que mexem cartas (terreno, ficha, zona) ficam pelo `zn` (quem está em campo)."""
+    sw = lambda s: ("a" if s == me else me if s == "a" else s) if isinstance(s, str) else s  # noqa: E731
+    out = []
+    for e in g.get("events") or []:
+        k = e.get("k")
+        if k not in GAME_EV and k != "mulligan" and not e.get("zn"):
+            continue
+        o = {x: e[x] for x in ("t", "k", "card", "id", "n", "x", "ph", "combat") if x in e}
+        for x in ("p", "target"):
+            if x in e:
+                o[x] = sw(e[x])
+        if k in ("turn", "mulligan") and me in (e.get("hd") or {}):
+            o["hd"] = {"a": e["hd"][me]}
+        if e.get("zn"):
+            o["zn"] = [{"id": z.get("id"), "card": z.get("card"), "from": z.get("from"), "to": z.get("to"), "fp": sw(z.get("fp")), "tp": sw(z.get("tp"))}
+                       for z in e["zn"]]
+        if k == "outcome":
+            o["txt"] = e.get("txt") or ""  # «X has lost because …»: a via da vitória
+        out.append(o)
+    return {"winner": sw(g.get("winner")), "reason": g.get("reason"), "exact": bool(g.get("exact")),
+            "summary": {sw(s): v for s, v in (g.get("summary") or {}).items()}, "events": out,
+            **({"places": [sw(s) for s in g["places"]]} if g.get("places") else {})}
+
+
+def deck_games(con, did, owner, limit=40):
+    """Jogos do deck, os mais recentes primeiro: sessões do Laboratório guardadas e jogos de torneio em que esteve
+    sentado (players[].src='meus', ref=did), sempre com o deck no lado 'a'."""
+    out = []
+    for ts, body in con.execute("SELECT ts, body FROM sim_runs WHERE deck_id=? AND owner=? ORDER BY ts DESC LIMIT 20", (did, owner)):
+        for r in json.loads(body).get("runs") or []:
+            for g in r.get("games") or []:
+                if not g.get("crashed"):
+                    out.append({"source": "lab", "ts": ts, "startLife": g.get("startLife") or 20, **light_game(g)})
+        if len(out) >= limit:
+            break
+    seat = {}  # id do jogo -> (lado do deck, vida inicial)
+    for (st,) in con.execute("SELECT state FROM tournaments WHERE owner=? ORDER BY ts DESC", (owner,)):
+        st = json.loads(st)
+        mine = {i for i, p in enumerate(st.get("players") or []) if p.get("src") == "meus" and p.get("ref") == did}
+        if not mine:
+            continue
+        life = {"commander": 40, "predh": 40, "paupercommander": 30, "brawl": 25, "standardbrawl": 25}.get(st.get("format"), 20)  # baseLife (formats.js)
+        for m in st.get("matches") or []:
+            for x in m.get("g") or []:
+                k = next((k for k, i in enumerate(x.get("s") or []) if i in mine), None)
+                if k is not None and not x.get("x") and x.get("id") is not None:
+                    seat[x["id"]] = (sim.SIDES[k], life)
+    if seat:
+        ids = list(seat)
+        rows = con.execute(f"SELECT id, ts, game FROM tournament_games WHERE id IN ({','.join('?' * len(ids))}) ORDER BY ts DESC LIMIT ?",
+                           (*ids, limit)).fetchall()
+        for gid, ts, blob in rows:
+            me, life = seat[gid]
+            out.append({"source": "tournament", "ts": ts, "startLife": life, **light_game(json.loads(zlib.decompress(blob)), me)})
+    return sorted(out, key=lambda g: -g["ts"])[:limit]
+
+
 @functools.lru_cache(1)
 def ai_flags():
     """Nomes das cartas marcadas no Forge com AI:RemoveDeck:All (lido uma vez do cardsfolder.zip)."""
     out = []
     try:
-        with zipfile.ZipFile(os.path.join(ARGS.data_dir, "forge", "res", "cardsfolder", "cardsfolder.zip")) as z:
+        with zipfile.ZipFile(os.path.join(sim.forge_dir(ARGS.data_dir), "res", "cardsfolder", "cardsfolder.zip")) as z:
             for n in z.namelist():
                 t = z.read(n).decode("utf-8", "ignore")
                 if "AI:RemoveDeck:All" in t:
@@ -100,6 +165,10 @@ class H(BaseHTTPRequestHandler):
 
     def do_GET(self):
         p = self.path.split("?")[0]
+        if p == "/api/profiles":
+            return self.profiles_route("GET")
+        if self.no_profile():
+            return
         if p == "/play/ws":  # jogar contra o Forge: websocket do noVNC -> VNC do contentor (play.py)
             return play.ws_bridge(self)
         if p.startswith("/play/novnc/"):  # cliente noVNC (build/play/build.sh põe-no em <data>/novnc)
@@ -195,8 +264,19 @@ class H(BaseHTTPRequestHandler):
                             "cover": d.get("cover"), "coverImg": d.get("coverImg"), "fav": bool(d.get("fav")), "casual": bool(d.get("casual")), "commanders": d.get("commanders") or [], "seeds": (d.get("seeds") or [])[:3],
                             "main": d.get("main") or {}})
             return self.json(out)
-        if p == "/api/me":
-            return self.json({"user": self.owner()})
+        if p == "/api/me":  # nome para mostrar (o do perfil, nunca o id interno)
+            return self.json({"user": (self.profile() or {}).get("name") if self.mode() == "profiles" else self.owner()})
+        mg = re.match(r"^/api/decks/([a-z0-9-]{8,40})/games$", p)
+        if mg:  # jogos do deck (Laboratório + torneios, o deck sempre em 'a') para as provas das trocas (swap.js)
+            try:
+                self.own_deck(mg.group(1))
+            except ValueError:
+                return self.json({"erro": "deck não existe"}, 404)
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            n = q.get("limit", ["40"])[0]
+            n = min(200, int(n)) if n.isdigit() and int(n) > 0 else 40
+            with db() as con:
+                return self.json(deck_games(con, mg.group(1), self.owner(), n))
         mrec = re.match(r"^/api/decks/([a-z0-9-]{8,40})/record$", p)
         if mrec:  # Análise: contra quem ganhou e perdeu, dano feito/levado e as cartas que mais dano fazem (ratings.py)
             with db() as con:
@@ -306,6 +386,10 @@ class H(BaseHTTPRequestHandler):
             return self.json({"erro": str(e)}, 409)
 
     def do_POST(self):
+        if self.path.startswith("/api/profiles"):
+            return self.profiles_route("POST")
+        if self.no_profile():
+            return
         if self.path.startswith("/api/tournaments"):
             try:
                 d = self.body()
@@ -407,6 +491,10 @@ class H(BaseHTTPRequestHandler):
         return self.save(d, 201)
 
     def do_PUT(self):
+        if self.path.startswith("/api/profiles"):
+            return self.profiles_route("PUT")
+        if self.no_profile():
+            return
         did = self.path.split("?")[0].rsplit("/", 1)[1]
         if not self.path.startswith("/api/decks/") or not DECK_ID.match(did):
             return self.json({"erro": "rota desconhecida"}, 404)
@@ -434,10 +522,83 @@ class H(BaseHTTPRequestHandler):
         return self.json(d, code)
 
     def owner(self):
-        # atrás de um proxy com login (ex.: Caddy + Authelia) o utilizador vem em Remote-User; sem login é o utilizador por omissão
-        return (self.headers.get("Remote-User") or ARGS.owner).strip()[:64]
+        # 1) login do proxy (Caddy + Authelia) em Remote-User; 2) --owner/GRIMORIO_OWNER fixo; 3) perfil do cookie (None sem perfil)
+        if self.mode() != "profiles":
+            return (self.headers.get("Remote-User") or ARGS.owner).strip()[:64]
+        p = self.profile()
+        return p and p["id"]
+
+    def mode(self):
+        return "login" if (self.headers.get("Remote-User") or "").strip() else "fixed" if ARGS.owner else "profiles"
+
+    def profile(self):
+        c = http.cookies.SimpleCookie()
+        try:
+            c.load(self.headers.get("Cookie") or "")
+        except http.cookies.CookieError:
+            return None
+        pid = c["grimorio_profile"].value if "grimorio_profile" in c else ""
+        with db() as con:
+            r = con.execute("SELECT id, name, color FROM profiles WHERE id=?", (pid,)).fetchone() if pid else None
+        return r and {"id": r[0], "name": r[1], "color": r[2]}
+
+    # rotas que precisam de saber de quem são os dados: sem perfil escolhido respondem 401 com code "profile"
+    OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state")
+
+    def no_profile(self):
+        if self.path.startswith(self.OWNED) and self.mode() == "profiles" and not self.profile():
+            self.json({"erro": "Escolhe um perfil primeiro.", "code": "profile"}, 401)
+            return True
+        return False
+
+    def profiles_route(self, method):
+        """GET /api/profiles -> {mode, current, list}; POST {name, color} cria e escolhe; POST /<id>/select;
+        PUT /<id> {name, color}; DELETE /<id> (os decks vão para o lixo)."""
+        cookie = lambda pid, age=31536000: {"Set-Cookie": f"grimorio_profile={pid}; Path=/; Max-Age={age}; SameSite=Lax; HttpOnly"}  # noqa: E731
+        mode, path = self.mode(), self.path.split("?")[0]
+        if method == "GET" and path == "/api/profiles":
+            if mode != "profiles":
+                return self.json({"mode": mode, "current": {"id": None, "name": self.owner(), "color": None}, "list": []})
+            with db() as con:
+                rows = con.execute("SELECT id, name, color FROM profiles ORDER BY created").fetchall()
+            return self.json({"mode": mode, "current": self.profile(), "list": [{"id": i, "name": n, "color": c} for i, n, c in rows]})
+        if mode != "profiles":
+            return self.json({"erro": "Os perfis só existem sem login nem dono fixo."}, 400)
+        m = re.match(r"^/api/profiles(?:/([a-z0-9]{1,32})(/select)?)?$", path)
+        if not m or (method, bool(m.group(1)), bool(m.group(2))) not in {("POST", False, False), ("POST", True, True), ("PUT", True, False), ("DELETE", True, False)}:
+            return self.json({"erro": "rota desconhecida"}, 404)
+        pid = m.group(1)
+        try:
+            d = self.body() if method in ("POST", "PUT") and not m.group(2) else {}
+            name = str(d.get("name") or "").strip()
+            color = d.get("color") if re.match(r"^#[0-9a-fA-F]{6}$", str(d.get("color") or "")) else "#7c5cff"
+            if method in ("POST", "PUT") and not m.group(2) and not 1 <= len(name) <= 40:
+                raise ValueError("O nome tem de ter 1 a 40 caracteres.")
+        except (ValueError, TypeError, AttributeError) as e:
+            return self.json({"erro": str(e) if isinstance(e, ValueError) else "pedido inválido"}, 400)
+        with db() as con:
+            if method == "POST" and not pid:
+                # o primeiro perfil fica com os dados de antes ("local", o dono por omissão das versões anteriores)
+                pid = "local" if not con.execute("SELECT 1 FROM profiles").fetchone() else uuid.uuid4().hex[:12]
+                con.execute("INSERT INTO profiles VALUES (?,?,?,?)", (pid, name, color, time.time()))
+                return self.send(201, json.dumps({"id": pid, "name": name, "color": color}, ensure_ascii=False).encode(), headers=cookie(pid))
+            if not con.execute("SELECT 1 FROM profiles WHERE id=?", (pid,)).fetchone():
+                return self.json({"erro": "Esse perfil não existe."}, 404)
+            if method == "POST":
+                return self.send(200, b'{"ok": true}', headers=cookie(pid))
+            if method == "PUT":
+                con.execute("UPDATE profiles SET name=?, color=? WHERE id=?", (name, color, pid))
+                return self.json({"id": pid, "name": name, "color": color})
+            con.execute("UPDATE decks SET deleted=? WHERE owner=? AND deleted IS NULL", (time.time(), pid))
+            con.execute("DELETE FROM profiles WHERE id=?", (pid,))
+        cur = self.profile()
+        return self.send(200, b'{"ok": true}', headers=None if cur else cookie("", 0))
 
     def do_DELETE(self):
+        if self.path.startswith("/api/profiles"):
+            return self.profiles_route("DELETE")
+        if self.no_profile():
+            return
         if self.path.startswith("/api/tournaments/"):
             return self.json(*reversed(tournament.route("DELETE", self.path, self.owner())))
         mr = re.match(r"^/api/sim/runs/([a-f0-9-]{8,40})$", self.path)
@@ -453,12 +614,67 @@ class H(BaseHTTPRequestHandler):
         return self.json({"ok": True})
 
 
+def selfcheck():
+    """Perfis: `python3 -c "import server; server.selfcheck()"` (servidor numa pasta temporária, porta livre)."""
+    import tempfile, threading
+    global ARGS
+    tmp = tempfile.mkdtemp(prefix="grim-prof-")
+    ARGS = argparse.Namespace(data_dir=tmp, owner=None)
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+
+    def call(method, path, body=None, cookie="", user=""):
+        h = {"Content-Type": "application/json", **({"Cookie": cookie} if cookie else {}), **({"Remote-User": user} if user else {})}
+        req = urllib.request.Request(base + path, json.dumps(body).encode() if body is not None else None, h, method=method)
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, json.loads(r.read() or b"null"), r.headers.get("Set-Cookie") or ""
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read() or b"null"), ""
+    ck = lambda sc: sc.split(";")[0]  # noqa: E731
+    try:
+        st, j, _ = call("GET", "/api/profiles")
+        assert st == 200 and j == {"mode": "profiles", "current": None, "list": []}, j
+        assert call("GET", "/api/decks")[:2] == (401, {"erro": "Escolhe um perfil primeiro.", "code": "profile"})
+        assert call("POST", "/api/profiles", {"name": " "})[0] == 400 and call("POST", "/api/profiles", {"name": "x" * 41})[0] == 400
+        st, a, sa = call("POST", "/api/profiles", {"name": "Ana", "color": "#ff0000"})
+        assert st == 201 and a["id"] == "local" and "HttpOnly" in sa, (a, sa)  # o primeiro fica com os dados antigos
+        st, b, sb = call("POST", "/api/profiles", {"name": "Rui", "color": "nada"})
+        assert st == 201 and b["color"] == "#7c5cff" and b["id"] != "local"
+        A, B = ck(sa), ck(sb)
+        assert call("POST", "/api/decks", {"name": "Deck da Ana", "main": {"Forest": 1}}, A)[0] == 201
+        assert [d["name"] for d in call("GET", "/api/decks", cookie=A)[1]] == ["Deck da Ana"]
+        assert call("GET", "/api/decks", cookie=B)[1] == []  # decks separados por perfil
+        assert call("GET", "/api/me", cookie=B)[1] == {"user": "Rui"} and call("GET", "/api/me")[1] == {"user": None}
+        st, _, s2 = call("POST", f"/api/profiles/{a['id']}/select", cookie=B)
+        assert st == 200 and ck(s2) == A  # trocar de perfil
+        assert call("PUT", f"/api/profiles/{b['id']}", {"name": "Rui M.", "color": "#00ff00"}, B)[1]["name"] == "Rui M."
+        j = call("GET", "/api/profiles", cookie=B)[1]
+        assert j["current"]["name"] == "Rui M." and [p["name"] for p in j["list"]] == ["Ana", "Rui M."]
+        st, _, s3 = call("DELETE", "/api/profiles/local", cookie=A)
+        assert st == 200 and "Max-Age=0" in s3  # apagou o próprio perfil: o cookie sai
+        with db() as con:
+            assert con.execute("SELECT deleted IS NOT NULL FROM decks WHERE owner='local'").fetchone() == (1,)  # deck no lixo
+        assert call("GET", "/api/decks", cookie=A)[0] == 401 and call("DELETE", "/api/profiles/nada")[0] == 404
+        ARGS.owner = "hubert"  # dono fixo: sem perfis, tudo como antes
+        assert call("GET", "/api/profiles")[1] == {"mode": "fixed", "current": {"id": None, "name": "hubert", "color": None}, "list": []}
+        assert call("GET", "/api/decks")[0] == 200 and call("POST", "/api/profiles", {"name": "X"})[0] == 400
+        assert call("GET", "/api/me", user="eva")[1] == {"user": "eva"} and call("GET", "/api/profiles", user="eva")[1]["mode"] == "login"
+        print("selfcheck perfis ok")
+    finally:
+        srv.shutdown()
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--port", type=int, default=8107)
     ap.add_argument("--data-dir", default=os.path.expanduser("~/.local/share/grimorio"))
-    ap.add_argument("--owner", default=os.environ.get("GRIMORIO_OWNER", "local"), help="dono dos decks quando não há login")
+    ap.add_argument("--owner", default=os.environ.get("GRIMORIO_OWNER") or None,
+                    help="dono fixo dos decks quando não há login; sem ele, cada um escolhe um perfil no browser")
     ARGS = ap.parse_args()
     os.makedirs(ARGS.data_dir, exist_ok=True)
     play.init(ARGS.data_dir)

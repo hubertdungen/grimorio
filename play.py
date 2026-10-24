@@ -26,7 +26,13 @@ S = {}  # a sessão: {id, owner, started, active, title, warnings, run}
 LOCK = threading.Lock()
 
 
+OFF = "Jogar contra o Forge precisa do Docker (ecrã virtual + noVNC); nesta instalação sem Docker não está disponível. " \
+      "Os testes, torneios e a Arena no Coliseu funcionam na mesma."
+
+
 def _docker(*a):
+    if sim.RUNTIME != "docker":  # pacotes Windows/Linux sem Docker: sem jogo com ecrã (OFF)
+        return subprocess.CompletedProcess(a, 1, "", OFF)
     return subprocess.run(["docker", *a], capture_output=True, text=True)
 
 
@@ -147,7 +153,7 @@ def status():
     alive = bool(S) and _alive()
     if S and not alive:
         S.clear()
-    out = {"running": alive}
+    out = {"running": alive, **({} if sim.RUNTIME == "docker" else {"unavailable": OFF})}
     if alive:
         out.update({k: S[k] for k in ("id", "owner", "started", "title", "warnings")})
         out.update(idle=int(time.time() - S["active"]), idle_limit=IDLE)
@@ -161,13 +167,15 @@ def status():
 
 def start(data_dir, body, owner):
     """body: {a: o teu deck, b: o adversário, format, difficulty} (os ids já vêm resolvidos pelo server.py)."""
+    if sim.RUNTIME != "docker":
+        raise RuntimeError(OFF)
     fmt = str(body.get("format") or "modern").lower()
     gtype = sim.GAME_TYPE.get(fmt, "Constructed")
     a, b = check_deck(body.get("a"), "teu"), check_deck(body.get("b"), "adversário")
     for d, label in ((a, "teu"), (b, "adversário")):
         if gtype != "Constructed" and not d.get("commanders"):
             raise ValueError(f"Deck {label}: falta o comandante.")
-    names = sim.forge_names(os.path.join(data_dir, "forge"), os.path.join(data_dir, "forge-run"))
+    names = sim.forge_names(sim.forge_dir(data_dir), os.path.join(data_dir, "forge-run"))
     folder = "constructed" if gtype == "Constructed" else "commander"
     na, nb = _safe(a.get("name") or "O meu deck"), _safe(b.get("name") or "Adversário")
     if nb == na:
@@ -311,6 +319,8 @@ def state_lines(st, control, names, forge_dir, warnings):
 
 def from_state(data_dir, body, owner):
     """body: {state: {a, b, turn, active, phase}, control: 'a'|'b', format, difficulty} (ver web/src/forgeState.js)."""
+    if sim.RUNTIME != "docker":
+        raise RuntimeError(OFF)
     st, control = body.get("state"), body.get("control")
     if not isinstance(st, dict) or not isinstance(st.get("a"), dict) or not isinstance(st.get("b"), dict):
         raise ValueError("Falta o estado do jogo.")
@@ -318,9 +328,9 @@ def from_state(data_dir, body, owner):
         raise ValueError("Escolhe o lado que vais controlar (a ou b).")
     fmt = str(body.get("format") or "modern").lower()
     gtype = sim.GAME_TYPE.get(fmt, "Constructed")
-    names = sim.forge_names(os.path.join(data_dir, "forge"), os.path.join(data_dir, "forge-run"))
+    names = sim.forge_names(sim.forge_dir(data_dir), os.path.join(data_dir, "forge-run"))
     warnings = []
-    lines = state_lines(st, control, names, os.path.join(data_dir, "forge"), warnings)
+    lines = state_lines(st, control, names, sim.forge_dir(data_dir), warnings)
     warnings = list(dict.fromkeys(warnings))
     title = f"Posição do turno {_int(st.get('turn'), 1, 999, 1)}"
     args = ["-", "-", gtype, owner or "Jogador", "Forge", "/run/state.txt"]

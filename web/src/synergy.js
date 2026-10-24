@@ -2,6 +2,7 @@
 // quem «ativa» (enablers) e quem «beneficia» (payoffs), por padrões no texto, tipo e palavras-chave.
 // Puro: corre no browser e no node (selfcheck).
 import { RB, passes, colorsOf } from './data.js'
+import { tx } from './i18n.js'
 
 // Texto em minúsculas sem lembretes entre parênteses (o «(Equip only as a sorcery.)» confunde os padrões).
 const txt = c => (c._so ??= c.o.toLowerCase().replace(/\([^)]*\)/g, '').replace(/[^.]*doesn't remove[^.]*\./g, ''))
@@ -19,76 +20,76 @@ const sacYou = /(^|[.:,•—]\s*|additional cost[^.]*?)sacrifice (a|an|another|
  * lands: os terrenos contam (artefactos-terreno, fetches).
  */
 export const SYN = [
-  { k: 'equip', ic: '⚔', name: 'Equipamentos', core: 'both',
-    why: 'Equipamentos baratos transformam criaturas pequenas em ameaças; as que gostam de estar equipadas, reduzem o custo de equipar ou vão buscar equipamentos fazem cada um valer a dobrar.',
+  { k: 'equip', ic: '⚔', name: tx('Equipamentos'), core: 'both',
+    why: tx('Equipamentos baratos transformam criaturas pequenas em ameaças; as que gostam de estar equipadas, reduzem o custo de equipar ou vão buscar equipamentos fazem cada um valer a dobrar.'),
     en: (c, o) => isT(c, /Equipment/) || /search your library for an? (artifact or )?equipment|create[^.]*equipment|attach (target|an|any number of|up to \w+)[^.]*equipment/.test(o),
     pay: (c, o) => /\b(is|are|was) equipped|equipped creatures you control|whenever (an|a|one or more) equipment|equipment you control|equip abilities|equip costs?|for each equipment|equipment attached|whenever[^.]*becomes equipped|equipment (spells|cards) you cast/.test(o) || (!isT(c, /Equipment/) && /\bequip \{0\}/.test(o)) },
-  { k: 'art', ic: '⚙', name: 'Artefactos e tesouros', core: 'pay', lands: true,
-    why: 'Muitos artefactos (incluindo terrenos-artefacto, tesouros e pistas) ligam metalcraft, affinity e quem conta ou sacrifica artefactos.',
+  { k: 'art', ic: '⚙', name: tx('Artefactos e tesouros'), core: 'pay', lands: true,
+    why: tx('Muitos artefactos (incluindo terrenos-artefacto, tesouros e pistas) ligam metalcraft, affinity e quem conta ou sacrifica artefactos.'),
     en: c => (c.ro & RB.artifactMaker) || isT(c, /Artifact/),
     pay: (c, o) => (c.ro & RB.artifactPayoff) || /for each artifact|sacrifice (an|another|a) artifact|artifact spells? (you cast )?cost|whenever you sacrifice[^.]*artifact|treasures? you control/.test(o) },
-  { k: 'tokens', ic: '✦', name: 'Fichas e go-wide', core: 'pay',
-    why: 'Quem gera fichas enche a mesa; anthems, convoke e «por cada criatura» convertem a largura em dano ou recursos.',
+  { k: 'tokens', ic: '✦', name: tx('Fichas e go-wide'), core: 'pay',
+    why: tx('Quem gera fichas enche a mesa; anthems, convoke e «por cada criatura» convertem a largura em dano ou recursos.'),
     en: c => c.ro & RB.tokenMaker,
     pay: (c, o) => (c.ro & RB.tokenPayoff) || /creatures you control get \+|for each creature you control(?! with)|\bconvoke\b|\bpopulate\b|whenever one or more (other )?(creatures|tokens) you control (enter|attack)/.test(o) },
-  { k: 'sac', ic: '☠', name: 'Sacrifício e mortes', core: 'both',
-    why: 'Sacrifícios (custos e saídas) e criaturas que deixam algo ao morrer dão vantagem a cada morte; os gatilhos de morte e o morbid pagam por isso.',
+  { k: 'sac', ic: '☠', name: tx('Sacrifício e mortes'), core: 'both',
+    why: tx('Sacrifícios (custos e saídas) e criaturas que deixam algo ao morrer dão vantagem a cada morte; os gatilhos de morte e o morbid pagam por isso.'),
     en: (c, o) => (c.ro & RB.sacOutlet) || sacYou.test(o) || /when (this creature|it|this card|[^.]*?) dies|gains "when this creature dies/.test(o),
     pay: (c, o) => (c.ro & RB.deathPayoff) || /whenever (you|a player) sacrifices?|if a creature died this turn|\bmorbid\b|whenever another creature (you control )?dies/.test(o) },
-  { k: 'counters', ic: '⊕', name: 'Marcadores +1/+1', core: 'pay',
-    why: 'Quem põe marcadores cresce sozinho; proliferar, duplicar ou «com um marcador» multiplica esse crescimento.',
+  { k: 'counters', ic: '⊕', name: tx('Marcadores +1/+1'), core: 'pay',
+    why: tx('Quem põe marcadores cresce sozinho; proliferar, duplicar ou «com um marcador» multiplica esse crescimento.'),
     en: c => c.ro & RB.counterPlacer,
     pay: (c, o) => (c.ro & RB.counterPayoff) || /with (a|one or more) \+1\/\+1 counters?|for each \+1\/\+1 counter|whenever (one or more )?\+1\/\+1 counters? (is|are) put|move[^.]*\+1\/\+1 counters?|remove (a|an|x|one|two) \+1\/\+1 counters?/.test(o) },
-  { k: 'gy', ic: '⚱', name: 'Cemitério', core: 'pay',
-    why: 'Encher o próprio cemitério (mill, descarte, surveil) alimenta recursão, flashback, delve e quem conta cartas no cemitério.',
+  { k: 'gy', ic: '⚱', name: tx('Cemitério'), core: 'pay',
+    why: tx('Encher o próprio cemitério (mill, descarte, surveil) alimenta recursão, flashback, delve e quem conta cartas no cemitério.'),
     en: (c, o) => (c.ro & RB.selfFill) || /into your graveyard|\bentomb\b/.test(o),
     pay: (c, o) => (c.ro & RB.recursion) || c.tg.includes('reanimate') || /cards? in your graveyard|\bdelve\b|\bthreshold\b|\bdelirium\b|\bdescend|from your graveyard/.test(o) },
-  { k: 'reanimate', ic: '⚰', name: 'Reanimação', core: 'en',
-    why: 'Reanimar só vale com alvos grandes: criaturas caras e poderosas que nunca se pagariam a lançar.',
+  { k: 'reanimate', ic: '⚰', name: tx('Reanimação'), core: 'en',
+    why: tx('Reanimar só vale com alvos grandes: criaturas caras e poderosas que nunca se pagariam a lançar.'),
     en: c => c.tg.includes('reanimate'),
     pay: c => creature(c) && c.cmc >= 6 && ((parseInt(c.pt) || 0) >= 5 || /when(ever)? [^.]*enters/.test(txt(c))) },
-  { k: 'spells', ic: 'ϟ', name: 'Feitiços e prowess', core: 'pay',
-    why: 'Cada instantâneo ou feitiço dispara prowess, magecraft e «sempre que lanças»; cartas baratas encadeiam vários por turno.',
+  { k: 'spells', ic: 'ϟ', name: tx('Feitiços e prowess'), core: 'pay',
+    why: tx('Cada instantâneo ou feitiço dispara prowess, magecraft e «sempre que lanças»; cartas baratas encadeiam vários por turno.'),
     en: c => c.ro & RB.spells,
     pay: (c, o) => (c.ro & RB.spellPayoff) || kw(c, 'Prowess') || /whenever you cast[^.]*(instant|sorcery|noncreature)|instant and sorcery spells you cast cost|instants? and sorcer(y|ies) (cards )?in your graveyard/.test(o) },
-  { k: 'cast', ic: '✶', name: 'Sempre que lanças', core: 'pay',
-    why: 'Gatilhos «sempre que lanças» (criaturas, artefactos, históricos, qualquer feitiço) pagam por jogar muitas cartas baratas e redutores de custo.',
+  { k: 'cast', ic: '✶', name: tx('Sempre que lanças'), core: 'pay',
+    why: tx('Gatilhos «sempre que lanças» (criaturas, artefactos, históricos, qualquer feitiço) pagam por jogar muitas cartas baratas e redutores de custo.'),
     en: (c, o) => nonland(c) && (c.cmc <= 2 || /spells? you cast cost \{\d\} less|\bcascade\b/.test(o)),
     pay: (c, o) => /whenever you cast (a|an|your (first|second)|another)[^.]*spell/.test(o) && !/whenever you cast[^.]*(instant|sorcery|noncreature)/.test(o) },
-  { k: 'life', ic: '♥', name: 'Ganho de vida', core: 'pay',
-    why: 'Lifelink e ganhos pequenos e repetidos disparam quem paga por ganhar vida (fichas, marcadores, dano).',
+  { k: 'life', ic: '♥', name: tx('Ganho de vida'), core: 'pay',
+    why: tx('Lifelink e ganhos pequenos e repetidos disparam quem paga por ganhar vida (fichas, marcadores, dano).'),
     en: c => c.ro & RB.lifeGain,
     pay: (c, o) => (c.ro & RB.lifePayoff) || /gained (\d+ or more )?life this turn|for each 1 life you gained/.test(o) },
-  { k: 'land', ic: '⛰', name: 'Landfall', core: 'pay', lands: true,
-    why: 'Fetches, terrenos extra e ramp que põe terrenos em jogo disparam landfall duas vezes por turno.',
+  { k: 'land', ic: '⛰', name: tx('Landfall'), core: 'pay', lands: true,
+    why: tx('Fetches, terrenos extra e ramp que põe terrenos em jogo disparam landfall duas vezes por turno.'),
     en: (c, o) => (c.ro & RB.extraLands) || /search your library for[^.]*lands?[^.]*(onto|put (it|them|that card) onto) the battlefield|return a land you control to its owner's hand/.test(o) || (isT(c, /Land/) && /sacrifice[^.]*search your library/.test(o)),
     pay: c => c.ro & RB.landfall },
-  { k: 'blink', ic: '↺', name: 'Blink e entradas', core: 'en',
-    why: 'Exilar e devolver (blink) repete o efeito de entrada das criaturas: cada ETB passa a ser um recurso reutilizável.',
+  { k: 'blink', ic: '↺', name: tx('Blink e entradas'), core: 'en',
+    why: tx('Exilar e devolver (blink) repete o efeito de entrada das criaturas: cada ETB passa a ser um recurso reutilizável.'),
     en: (c, o) => (c.ro & RB.blink) || /exile (target|another|up to \w+)[^.]*, then return (it|that card|them)|return (target|another) (creature|permanent) you control to its owner's hand/.test(o),
     pay: c => creature(c) && (c.ro & RB.etb) },
-  { k: 'auras', ic: '✧', name: 'Auras e encantamentos', core: 'pay',
-    why: 'Auras e encantamentos alimentam quem gosta de estar encantado, constellation e as «enchantress» que compram por cada um.',
+  { k: 'auras', ic: '✧', name: tx('Auras e encantamentos'), core: 'pay',
+    why: tx('Auras e encantamentos alimentam quem gosta de estar encantado, constellation e as «enchantress» que compram por cada um.'),
     en: c => nonland(c) && isT(c, /Enchantment/),
     pay: (c, o) => /\bis enchanted|enchanted creatures you control|auras? you control|aura spells|auras? attached|for each aura|whenever you cast an? (aura|enchantment)|enchantments? you control|\bconstellation\b|whenever an? (aura|enchantment) (you control )?enters|search your library for an aura/.test(o) },
-  { k: 'discard', ic: '✋', name: 'Descarte e madness', core: 'pay',
-    why: 'Descartar de propósito (rummage, cycling, custos) dispara madness e quem paga por descartar.',
+  { k: 'discard', ic: '✋', name: tx('Descarte e madness'), core: 'pay',
+    why: tx('Descartar de propósito (rummage, cycling, custos) dispara madness e quem paga por descartar.'),
     en: (c, o) => kw(c, 'Cycling') || kw(c, 'Connive') || /(^|[.:,•—]\s*|then |, )discard (a|an|two|three|x|one or more|any number of|your hand)/m.test(o),
     pay: (c, o) => kw(c, 'Madness') || /\bmadness\b|whenever you (discard|cycle)|discarded this turn|cycle or discard/.test(o) },
-  { k: 'mill', ic: '⌛', name: 'Mill (adversário)', core: 'both',
-    why: 'Moer a biblioteca do adversário ganha por si e enche o cemitério dele, que alimenta quem conta cartas nos cemitérios.',
+  { k: 'mill', ic: '⌛', name: tx('Mill (adversário)'), core: 'both',
+    why: tx('Moer a biblioteca do adversário ganha por si e enche o cemitério dele, que alimenta quem conta cartas nos cemitérios.'),
     en: (c, o) => /(target (player|opponent)|each opponent|that player|target player or planeswalker) mills|reveals cards from the top of their library until[^.]*graveyard|(each|target) opponent exiles cards from the top/.test(o),
     pay: (c, o) => /cards? in (each|an|target|that) (opponent's|player's) graveyard|opponent has (\w+) or more cards in their graveyard|cards in its controller's graveyard|a graveyard has (\w+) or more cards|cards in all graveyards|has no cards in (their|his or her) library/.test(o) },
-  { k: 'defender', ic: '🛡', name: 'Defensores e muralhas', core: 'pay',
-    why: 'Muralhas com defender aguentam a mesa; quem conta defensores (mana, dano), usa a resistência como dano ou os deixa atacar transforma-as numa ofensiva.',
+  { k: 'defender', ic: '🛡', name: tx('Defensores e muralhas'), core: 'pay',
+    why: tx('Muralhas com defender aguentam a mesa; quem conta defensores (mana, dano), usa a resistência como dano ou os deixa atacar transforma-as numa ofensiva.'),
     en: c => kw(c, 'Defender') || isT(c, /\bWall\b/),
     pay: (c, o) => /creatures? you control with defender|(card|creature) with defender[^.]*(into|onto|to) your (hand|the battlefield)|defenders? you control|damage equal to (its|their|that creature's) toughness|as though (it|they) didn't have defender|sum of (the )?toughness|(greatest|highest|total) toughness|target wall|walls? you control/.test(o) },
-  { k: 'energy', ic: '⚡', name: 'Energia', core: 'both',
-    why: 'Quem dá energia ({E}) carrega a bateria; quem a gasta converte-a em dano, crescimento ou cartas.',
+  { k: 'energy', ic: '⚡', name: tx('Energia'), core: 'both',
+    why: tx('Quem dá energia ({E}) carrega a bateria; quem a gasta converte-a em dano, crescimento ou cartas.'),
     en: (c, o) => /you get (\{e\})+|get (an amount of|that much) \{e\}/.test(o),
     pay: (c, o) => /pay (\{e\})+|pay (any amount of|an amount of) \{e\}|for each \{e\}/.test(o) },
-  { k: 'combat', ic: '🗡', name: 'Evasão e dano de combate', core: 'pay',
-    why: 'Criaturas baratas com evasão garantem o dano ao jogador; ninjutsu e gatilhos «quando causa dano de combate» pagam a cada ataque que passa.',
+  { k: 'combat', ic: '🗡', name: tx('Evasão e dano de combate'), core: 'pay',
+    why: tx('Criaturas baratas com evasão garantem o dano ao jogador; ninjutsu e gatilhos «quando causa dano de combate» pagam a cada ataque que passa.'),
     en: c => evasive(c),
     pay: (c, o) => kw(c, 'Ninjutsu') || /\bninjutsu\b|whenever [^.]*deals combat damage to (a player|an opponent|one or more players)/.test(o) },
 ]
@@ -120,8 +121,8 @@ function tribes(entries, nl) {
 }
 const tribeCat = T => {
   const re = word(T)
-  return { k: `tribe:${T}`, ic: '👑', name: `Tribal: ${T}`, core: 'pay', tribe: T,
-    why: `Lords e cartas que falam de ${T} melhoram cada ${T} em jogo; quantos mais membros, mais forte cada lord.`,
+  return { k: `tribe:${T}`, ic: '👑', name: tx('Tribal: {t}', { t: T }), core: 'pay', tribe: T,
+    why: tx('Lords e cartas que falam de {t} melhoram cada {t} em jogo; quantos mais membros, mais forte cada lord.', { t: T }),
     en: c => (creature(c) && (subOf(c).includes(T) || kw(c, 'Changeling'))) || new RegExp(`create[^.]*\\b${T.toLowerCase()}\\b[^.]*token`).test(txt(c)),
     pay: c => { const o = txt(c).replace(/create[^.]*/g, '').replace(/this \w+/g, ''); return re.test(o) || /choose a creature type|creatures? (cards? )?of the chosen type|creature type of your choice|share a creature type/.test(o) } }
 }
@@ -154,10 +155,10 @@ export function deckSynergy(data, deck, ctx, { perCat = 6 } = {}) {
     const raw = (H + 0.25 * narrow) / target, strength = Math.min(1, raw)
     if (strength < 0.2 || en.length + pay.length < 2) continue
     const reasons = []
-    if (!P) reasons.push('Falta quem beneficie: as que ativam estão sozinhas.')
-    else if (!E) reasons.push('Falta quem ative: as que beneficiam não têm combustível.')
-    else if (P * 4 < E) reasons.push('Muito combustível para poucas que beneficiam.')
-    else if (E * 4 < P) reasons.push('Muitas que beneficiam para pouco combustível.')
+    if (!P) reasons.push(tx('Falta quem beneficie: as que ativam estão sozinhas.'))
+    else if (!E) reasons.push(tx('Falta quem ative: as que beneficiam não têm combustível.'))
+    else if (P * 4 < E) reasons.push(tx('Muito combustível para poucas que beneficiam.'))
+    else if (E * 4 < P) reasons.push(tx('Muitas que beneficiam para pouco combustível.'))
     const byQ = (a, b) => b.q - a.q || (a.c.er ?? 1e9) - (b.c.er ?? 1e9)
     cats.push({ s, test, en: en.sort(byQ), pay: pay.sort(byQ), E, P, raw, strength, reasons, sug: [] })
   }
@@ -209,13 +210,13 @@ export function pairsOf(entries, max = 10) {
     const o = txt(a), oo = o.replace(/create[^.]*/g, '').replace(/this \w+/g, '')
     for (const [b, k] of entries) {
       const nm = b.n.split(' // ')[0].toLowerCase()
-      if (b !== a && nonland(b) && nm.length >= 4 && o.includes(nm)) out.push({ a: [a], b: [b], q: k, why: `nomeia ${b.n.split(' // ')[0]}` })
+      if (b !== a && nonland(b) && nm.length >= 4 && o.includes(nm)) out.push({ a: [a], b: [b], q: k, why: tx('nomeia {c}', { c: b.n.split(' // ')[0] }) })
     }
     for (const [s] of subs) if (word(s).test(oo)) (bySub.get(s) || bySub.set(s, []).get(s)).push(a)
   }
   for (const [s, as] of bySub) {
     const others = subs.get(s).filter(([b]) => as.length > 1 || b !== as[0])
-    if (others.length) out.push({ a: as, b: others.map(([b]) => b), q: others.reduce((t, [, k]) => t + k, 0) * as.length, why: `fala${as.length > 1 ? 'm' : ''} de ${s}` })
+    if (others.length) out.push({ a: as, b: others.map(([b]) => b), q: others.reduce((t, [, k]) => t + k, 0) * as.length, why: tx('fala de {s}|falam de {s}', { n: as.length, s }) })
   }
   return out.sort((x, y) => y.q - x.q).slice(0, max)
 }

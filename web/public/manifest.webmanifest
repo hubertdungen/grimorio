@@ -1,8 +1,8 @@
 {
-  "name": "Grimório — decks de Magic",
+  "name": "Grimório — Magic deck builder",
   "short_name": "Grimório",
-  "description": "Construtor de decks de Magic com sugestões explicadas, combos, meta e universo 3D.",
-  "lang": "pt-PT",
+  "description": "Magic: The Gathering deck builder with explained suggestions, combos, meta and a 3D universe.",
+  "lang": "en",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

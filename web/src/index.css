@@ -3,9 +3,12 @@
   --text: #ece8f6; --muted: #9a93b5; --gold: #f2b84b; --gold2: #ffd98a; --cyan: #6ee7f9;
   --ok: #3dcf7a; --bad: #ff6b5b; --warn: #f2b84b; --r: 12px;
   color-scheme: dark;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: 15px; color: var(--text); background: var(--bg);
 }
+/* línguas: palavras longas do alemão partem com hífen; o chinês parte entre caracteres com as regras estritas */
+:root:lang(de) { overflow-wrap: break-word; } :is(p, li, .home-card span):lang(de) { hyphens: auto; }
+:root:lang(zh) { line-break: strict; word-break: normal; overflow-wrap: anywhere; }
 * { box-sizing: border-box; }
 body { margin: 0; background: radial-gradient(1200px 600px at 70% -10%, #241a44 0%, var(--bg) 60%) fixed, var(--bg); min-height: 100vh; }
 a { color: var(--gold2); }
@@ -1037,8 +1040,12 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 @media (max-width: 1200px) { .tl-grid { grid-template-columns: minmax(0, 1fr); } }
 
 /* ratings: estrelas, tabela por escalões e Arena automática (Ratings.jsx) */
-.stars { display: inline-flex; align-items: baseline; font-size: 13px; line-height: 1; letter-spacing: 1px; white-space: nowrap; color: var(--gold); }
-.stars i { font-style: normal; background: linear-gradient(90deg, var(--gold) var(--f), transparent var(--f)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.stars { display: inline-flex; align-items: center; gap: 1px; font-size: 13px; line-height: 1; white-space: nowrap; color: var(--gold); -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+.stars svg { width: 1.08em; height: 1.08em; flex: none; overflow: visible; }
+.stars .st-ol { fill: none; stroke: #ff4d5e; stroke-width: 3.2; stroke-linejoin: round; }  /* vermelho: contorno por baixo das outras */
+.st-tip { position: fixed; z-index: 1000; padding: 8px 10px; border-radius: 8px; background: #1d1830f2; border: 1px solid var(--line); box-shadow: 0 6px 24px #0008; font-size: 12px; line-height: 1.4; color: var(--text); pointer-events: none; }
+.st-tip p { margin: 3px 0; } .st-tip b { font-variant-numeric: tabular-nums; }
+.st-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 .stars b { margin-left: 4px; font-size: 11px; letter-spacing: 0; color: var(--gold2); font-variant-numeric: tabular-nums; }
 .stars.prov { opacity: .6; } .stars.prov b { font-weight: 400; font-style: italic; text-decoration: underline dashed; text-underline-offset: 2px; }
 .stars.none { color: #ffffff38; }
@@ -1213,7 +1220,6 @@ section.maybe h4 { border-top: 1px dashed var(--line); padding-top: 8px; }
 .auto-side { margin-top: 10px; }
 @media (max-width: 900px) { .wz-cmd { grid-template-columns: 1fr; } .wz-cmd > .wz-pick { width: 120px; } }
 @media (pointer: coarse) { .row .mv { width: 34px; min-height: 34px; border-color: var(--line); } }
-.stars .zero { font-style: normal; color: #ffffff40; }  /* rating 0,0: estrela vazia, para não ficar só o número */
 /* Ratings: ver a Arena ao vivo */
 .la-btn { float: right; font-size: 13px; } .la-btn:hover { border-color: var(--gold); }
 .live-arena .la-box { width: min(1500px, 100%); max-height: calc(100vh - 24px); padding: 10px 12px; }
@@ -1233,7 +1239,51 @@ button.brand { padding: 0; border: 0; background: none; text-align: left; } butt
 .home-card b { font-size: 18px; } .home-card span { color: var(--muted); font-size: 13px; line-height: 1.35; }
 .home-card small { position: absolute; top: 10px; right: 12px; color: var(--gold2); font-size: 11px; }
 .home-foot { margin: 0; text-align: center; }
+
+/* Definições, perfis e língua */
+.warn-t { color: var(--warn); }
+label.check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.settings { max-width: 760px; margin: 0 auto; padding: 18px 16px 40px; display: grid; gap: 14px; }
+.settings h3 { margin: 0 0 10px; }
+.set-head { display: flex; align-items: center; gap: 12px; } .set-head h2 { margin: 0; } .set-head button { margin-left: auto; }
+.set-sound { display: grid; gap: 12px; max-width: 420px; }
+.seg-pick, .lang-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg-pick button { min-width: 64px; display: grid; justify-items: center; gap: 2px; padding: 8px 14px; font-size: 18px; font-weight: 600; }
+.seg-pick button small { font-size: 10px; font-weight: 500; color: var(--ok); }
+.seg-pick button.on, .lang-pick button.on { background: linear-gradient(180deg, var(--gold2), var(--gold)); color: #1b1405; border-color: transparent; }
+.seg-pick button.on small { color: #1b4d2c; }
+.lang-pick button { border-radius: 999px; padding: 6px 14px; }
+.gear { font-size: 20px; text-decoration: none; color: var(--muted); padding: 4px 6px; border-radius: 8px; } .gear:hover { color: var(--gold2); background: #ffffff0c; }
+.avatar { display: inline-grid; place-items: center; flex: none; border-radius: 50%; background: var(--c); color: #0b0a14; font-weight: 700; box-shadow: 0 0 0 2px #ffffff22; }
+.avatar.plus { background: var(--panel2); color: var(--muted); font-size: 40px; box-shadow: inset 0 0 0 2px var(--line); }
+.who .who-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; width: min(900px, 100%); }
+.who-tile { display: grid; justify-items: center; gap: 10px; padding: 16px; width: 140px; border: 1px solid transparent; background: none; border-radius: 16px; }
+.who-tile:hover { border-color: #c794ff; background: #ffffff08; } .who-tile b { font-size: 16px; overflow-wrap: anywhere; }
+.who-new { width: min(440px, 100%); } .who-new h3 { margin: 0 0 10px; }
+.prof-form { display: grid; gap: 12px; } .prof-form-top { display: flex; gap: 10px; align-items: center; } .prof-form-top input { flex: 1; min-width: 0; }
+.prof-form .row-btns { justify-content: flex-end; }
+.prof-colors { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.prof-colors button { width: 28px; height: 28px; padding: 0; border-radius: 50%; background: var(--c); border: 2px solid transparent; }
+.prof-colors button.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--c); }
+.prof-colors input[type=color] { width: 34px; height: 30px; padding: 0 2px; border-radius: 8px; }
+.prof-manage { display: grid; gap: 10px; } .prof-cur { display: flex; align-items: center; gap: 10px; font-size: 16px; }
+.prof-chip { position: relative; }
+.prof-btn { display: inline-flex; align-items: center; gap: 8px; padding: 3px 12px 3px 3px; border-radius: 999px; max-width: 180px; }
+.prof-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prof-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; width: min(340px, calc(100vw - 32px)); box-shadow: 0 20px 50px #000a; }
 .rp-zoom { display: inline-flex; gap: 2px; } .rp-zoom button { min-width: 34px; padding: 4px 8px; } @media (max-width: 900px) { .rp-zoom { display: none; } }
+.who .lang-pick { justify-content: center; }
+/* registo do deck: as três estrelas (amarelo normal, azul todos os jogos, vermelho objetivo) e as vias do vermelho */
+.rec-rt { display: grid; gap: 6px; margin-bottom: 12px; } .rec-rt > .stars { font-size: 20px; }
+.rec-dmg b.st-y { color: var(--gold); } .rec-dmg b.st-b { color: #4ea8ff; } .rec-dmg b.st-r { color: #ff4d5e; }
+.rec-routes { max-width: 420px; } .rec-routes .rec-bar { background: linear-gradient(90deg, #ff4d5e var(--p), #ffffff12 var(--p)); }
+/* desfazer / refazer (App.jsx) */
+.undo-btns { display: flex; gap: 6px; margin: 0 0 8px; }
+.undo-btns button { padding: 4px 10px; font-size: 13px; }
+.undo-btns button:disabled { opacity: .4; cursor: default; }
+.deck-tab .undo-btns { margin: 6px 0; }
+.toast-undo { margin-left: 12px; font-weight: 600; }
+@media (pointer: coarse) { .undo-btns button, .toast-undo { min-height: 40px; min-width: 40px; } }
 /* torneio: o conteúdo de cada caixa de participante fica dentro da caixa */
 .tp-body { grid-template-columns: minmax(0, 1fr); min-width: 0; }
 .tp-body > * { min-width: 0; max-width: 100%; }

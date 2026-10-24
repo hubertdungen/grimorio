@@ -1,6 +1,7 @@
 // Sideboard entre jogos de uma série: responde ao que o adversário jogou de facto (jogos exatos, pesado pela
 // frequência) e ao que nos tirou vida; sai primeiro o que ficou preso na mão. O histórico penaliza trocas que já perderam.
 import { HATE, CAT_LABEL, profile, stuckIn } from './tests.js'
+import { tx } from './i18n.js'
 
 const tally = pairs => { const m = {}; for (const [n, x] of pairs) m[n] = (m[n] || 0) + x; return m }
 
@@ -19,11 +20,11 @@ export function planSideboard(data, deck, opp, lastGames, history, max = 5) {
     let best = null
     for (const [k, re, label] of HATE) if (re.test(c.o) && (!best || share(k) >= best.v)) best = { v: share(k), label, k }
     if (!best || best.v < 0.12) continue
-    const k = best.k, src = seen && pc[k] ? `lançou ${pc[k]} ${CAT_LABEL[k]}` : `o adversário tem ${Math.round(sh(pl, k) * 100)}% de ${CAT_LABEL[k]}`
-    cand.push({ n, q, v: best.v, why: `${best.label} (${src}${ph[k] ? `; tiraram-te ${ph[k]} de vida` : ''})` })
+    const k = best.k, src = seen && pc[k] ? tx('lançou {n} {c}', { n: pc[k], c: CAT_LABEL[k] }) : tx('o adversário tem {p}% de {c}', { p: Math.round(sh(pl, k) * 100), c: CAT_LABEL[k] })
+    cand.push({ n, q, v: best.v, why: `${best.label} (${src}${ph[k] ? tx('; tiraram-te {n} de vida', { n: ph[k] }) : ''})` })
   }
   const lost = new Set((history || []).filter(h => h.winner === 'b').flatMap(h => JSON.parse(h.a_side_in || '[]')))
-  for (const x of cand) if (lost.has(x.n)) { x.v *= 0.6; x.why += ' · já perdeu com esta troca, vale menos' }
+  for (const x of cand) if (lost.has(x.n)) { x.v *= 0.6; x.why += tx(' · já perdeu com esta troca, vale menos') }
   cand.sort((a, b) => b.v - a.v)
   // jogada = lançada ou usada de outra forma (uma criatura reanimada nunca é «lançada»)
   const cast = new Set(lastGames.flatMap(g => [...(g.events || []).filter(e => e.p === 'a' && e.k === 'cast').map(e => e.card),
@@ -46,7 +47,7 @@ export function planSideboard(data, deck, opp, lastGames, history, max = 5) {
     const o = outs.shift(); if (!o) break
     const k = Math.min(x.q, o.q, 2)
     swaps.push({ in: x.n, out: o.n, q: k, why: x.why,
-      outWhy: stuck[o.n] ? `ficou presa na mão${stuck[o.n] > 1 ? ` em ${stuck[o.n]} jogos` : ''}` : idle(o.n) ? 'não chegou a ser jogada' : o.c.cmc >= 5 ? 'cara para este confronto' : 'pouco útil contra este deck' })
+      outWhy: stuck[o.n] ? (stuck[o.n] > 1 ? tx('ficou presa na mão em {n} jogos', { n: stuck[o.n] }) : tx('ficou presa na mão')) : idle(o.n) ? tx('não chegou a ser jogada') : o.c.cmc >= 5 ? tx('cara para este confronto') : tx('pouco útil contra este deck') })
   }
   return swaps
 }

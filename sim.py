@@ -1,4 +1,4 @@
-"""Grimório — laboratório de testes: jogos reais com o motor do Forge (Java, em Docker).
+"""Grimório — laboratório de testes: jogos reais com o motor do Forge (Java, em Docker ou local: RUNTIME).
 
 Um trabalho = uma invocação do Forge (`sim -n jogos`), um de cada vez numa thread
 (a máquina tem pouca RAM: contentor com -m 3g e -Xmx2g). O registo do Forge é
@@ -59,6 +59,20 @@ def base_life(fmt, n):
 # prefixo dos contentores: o arranque do trabalhador mata as sobras com este prefixo; um servidor de testes usa outro
 # (GRIMORIO_SIM_PREFIX) para não matar os jogos do servidor a sério
 PREFIX = os.environ.get("GRIMORIO_SIM_PREFIX", "grimorio-sim-")
+
+# Onde corre o Forge: «docker» (servidor Linux: contentor eclipse-temurin com -m 3g, os forge-ext/ai e cardsfolder
+# montados por cima do res do Forge) ou «local» (Java 17 do sistema ou o JRE dos pacotes, GRIMORIO_JAVA; sem Docker).
+# Em «local» o Forge tem de trazer os forge-ext/ai e cardsfolder já copiados para o res (os pacotes fazem-no:
+# packaging/build.py). Por omissão: docker se houver docker e não for Windows, senão local.
+RUNTIME = os.environ.get("GRIMORIO_RUNTIME", "").lower() or \
+    ("docker" if os.name != "nt" and shutil.which("docker") and not os.environ.get("GRIMORIO_JAVA") else "local")
+JAVA = os.environ.get("GRIMORIO_JAVA") or shutil.which("java") or "java"
+PROCS = {}  # jid -> Popen do java (runtime local), para cancelar
+
+
+def forge_dir(data_dir):
+    """Pasta do Forge: GRIMORIO_FORGE_DIR (os pacotes trazem-no ao lado da app) ou <data>/forge."""
+    return os.environ.get("GRIMORIO_FORGE_DIR") or os.path.join(data_dir, "forge")
 
 # ---------- nomes de cartas: Scryfall -> Forge ----------
 
@@ -843,7 +857,7 @@ def submit(data_dir, body):
     if forte_off:
         search = ["none"] * n
     if (n > 2 or casual or any(x != "none" for x in search)) and \
-            not os.path.isfile(os.path.join(data_dir, "forge-ext", "GrimorioSim.class")):
+            not os.path.isfile(os.path.join(os.path.dirname(forge_dir(data_dir)), "forge-ext", "GrimorioSim.class")):
         raise ValueError("A dificuldade Forte, os jogos a 3–4 e o modo casual precisam do lançador do Grimório (build/forge/build.sh).")
     if any(x != "none" for x in search):
         clock = min(cap, clock * SEARCH_CLOCK)
@@ -861,8 +875,8 @@ def submit(data_dir, body):
         if gtype != "Constructed" and not casual and not d.get("commanders"):
             raise ValueError(f"Deck {side.upper()}: falta o comandante.")
         decks[side] = d
-    forge_dir = os.path.join(data_dir, "forge")
-    names = forge_names(forge_dir, os.path.join(data_dir, "forge-run"))
+    fdir = forge_dir(data_dir)
+    names = forge_names(fdir, os.path.join(data_dir, "forge-run"))
     jid = uuid.uuid4().hex[:12]
     jdir = os.path.join(data_dir, "forge-run", "jobs", jid)
     os.makedirs(os.path.join(jdir, "decks"))
@@ -881,7 +895,7 @@ def submit(data_dir, body):
            "mode": mode, **({"casual": True} if casual else {}),
            "_args": {"dir": jdir, "games": games, "clock": clock, "profiles": prof, "gtype": gtype,
                      "search": search, "teams": teams, "mode": mode, **({"forte_off": True} if forte_off else {}),
-                     "forge": forge_dir, "cards": cards,
+                     "forge": fdir, "cards": cards,
                      **({"cmd_seats": [int(bool(decks[s].get("commanders"))) for s in sides],
                          "life": [base_life(fmt, n)] * n} if casual else {}),
                      "setup": {s: {"commanders": list(decks[s].get("commanders") or []),
@@ -924,10 +938,16 @@ def cancel(jid):
             j.update(status="error", error="Cancelado.")
             shutil.rmtree(j["_args"]["dir"], ignore_errors=True)
             return
-    subprocess.run(["docker", "kill", PREFIX + jid], capture_output=True)
+        p = PROCS.get(jid)
+    if RUNTIME == "docker":
+        subprocess.run(["docker", "kill", PREFIX + jid], capture_output=True)
+    elif p:
+        p.kill()
 
 
 def docker_kill_all():
+    if RUNTIME != "docker":
+        return
     ids = subprocess.run(["docker", "ps", "-q", "--filter", f"name={PREFIX}"],
                          capture_output=True, text=True).stdout.split()
     if ids:
@@ -974,6 +994,14 @@ RUNNING, PAR, MEM_MIN = set(), {"n": 1}, 1500  # MB livres para arrancar um jogo
 
 
 def mem_free():
+    if os.name == "nt":  # sem /proc: GlobalMemoryStatusEx
+        import ctypes
+
+        class MS(ctypes.Structure):
+            _fields_ = [("len", ctypes.c_ulong), ("load", ctypes.c_ulong)] + [(k, ctypes.c_ulonglong) for k in
+                        ("total", "avail", "ptotal", "pavail", "vtotal", "vavail", "xavail")]
+        m = MS(len=ctypes.sizeof(MS))
+        return m.avail // 1048576 if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)) else 0
     try:
         with open("/proc/meminfo") as f:
             return int(next(l for l in f if l.startswith("MemAvailable")).split()[1]) // 1024
@@ -1059,6 +1087,12 @@ def run_forge(jid, a):
     # o nosso lançador (build/forge/GrimorioSim.java) quando está compilado: mesmo jogo + eventos exatos e registo ao vivo
     ext = os.path.join(os.path.dirname(a["forge"]), "forge-ext")
     use_ext = os.path.isfile(os.path.join(ext, "GrimorioSim.class"))
+    jvm = ["-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
+    if RUNTIME == "local":  # o mesmo jogo sem contentor: cwd = Forge (lê res/ relativo), home própria por trabalho
+        return _play(jid, a, [JAVA, *jvm, f"-Duser.home={os.path.join(a['dir'], 'home')}",
+                                   *(["-cp", os.pathsep.join([os.path.join(a["forge"], FORGE_JAR), ext]), "GrimorioSim"]
+                                     if use_ext else ["-jar", os.path.join(a["forge"], FORGE_JAR)])],
+                          os.path.join(a["dir"], "decks"), use_ext)
     cmd = ["docker", "run", "--rm", "--name", name, "-m", "3g", "--cpus", "2",
            "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home",
            "-v", f"{a['forge']}:/forge:ro", "-v", f"{a['dir']}:/run", "-w", "/forge"]
@@ -1066,11 +1100,16 @@ def run_forge(jid, a):
         cmd += ["-v", f"{os.path.join(ext, 'ai')}:/forge/res/ai:ro"]  # os nossos perfis (chances 10%–90%)
     if use_ext and os.path.isdir(os.path.join(ext, "cardsfolder")):  # zip do Forge + as nossas cartas (build/forge/cards)
         cmd += ["-v", f"{os.path.join(ext, 'cardsfolder')}:/forge/res/cardsfolder:ro"]
-    cmd += ["-v", f"{ext}:/ext:ro", IMAGE, "java", "-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8",
-            "-cp", f"{FORGE_JAR}:/ext", "GrimorioSim"] if use_ext else \
-        [IMAGE, "java", "-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8", "-jar", FORGE_JAR]
+    cmd += ["-v", f"{ext}:/ext:ro", IMAGE, "java", *jvm, "-cp", f"{FORGE_JAR}:/ext", "GrimorioSim"] if use_ext else \
+        [IMAGE, "java", *jvm, "-jar", FORGE_JAR]
+    return _play(jid, a, cmd, "/run/decks", use_ext, name)
+
+
+def _play(jid, a, cmd, decks, use_ext, container=None):
+    """Junta os argumentos do jogo a `cmd` (java local ou docker run), corre e lê o registo.
+    container: nome do contentor a matar no fim do tempo (docker); sem ele mata-se o processo java."""
     sides = SIDES[:len(a["profiles"])]
-    cmd += ["sim", "-D", "/run/decks", "-d", *[f"{x}.dck" for x in sides], "-n", str(a["games"]), "-c", str(a["clock"]),
+    cmd += ["sim", "-D", decks, "-d", *[f"{x}.dck" for x in sides], "-n", str(a["games"]), "-c", str(a["clock"]),
             "-a", *a["profiles"]]
     if a.get("teams"):
         cmd += ["-T", *map(str, a["teams"])]
@@ -1081,13 +1120,22 @@ def run_forge(jid, a):
     if use_ext and any(x != "none" for x in a.get("search", ())):
         cmd += ["-S", *a["search"]]
     timeout = a["clock"] * a["games"] + TIMEOUT_PAD
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
-                         errors="replace")
+    home = os.path.join(a["dir"], "home")  # Windows: o Forge guarda o perfil em %APPDATA%\Forge -> um por trabalho
+    env = None if container else {**os.environ, "APPDATA": home, "LOCALAPPDATA": home}
+    try:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                             errors="replace", cwd=None if container else a["forge"], env=env)
+    except OSError as e:  # sem java/docker, ou a pasta do Forge não existe
+        raise RuntimeError(f"Não consegui arrancar o Forge ({cmd[0]}): {e.strerror or e}. "
+                           + ("Instala o Docker ou usa GRIMORIO_RUNTIME=local." if container else
+                              "Instala o Java 17 ou indica-o em GRIMORIO_JAVA."))
+    PROCS[jid] = p
     killed = []
 
     def kill():
         killed.append(1)
-        subprocess.run(["docker", "kill", name], capture_output=True)
+        if container:
+            subprocess.run(["docker", "kill", container], capture_output=True)
         p.kill()
     watchdog = threading.Timer(timeout, kill)
     watchdog.start()
@@ -1102,6 +1150,7 @@ def run_forge(jid, a):
         p.wait()
     finally:
         watchdog.cancel()
+        PROCS.pop(jid, None)
     out = "\n".join(buf)
     if killed:
         raise RuntimeError(f"O Forge não terminou em {timeout} s e foi parado.")
@@ -1109,7 +1158,7 @@ def run_forge(jid, a):
         raise RuntimeError("O Forge não conseguiu ler um dos decks.")
     games = [multi_result({**parse_game(lines, res, a["cards"], cmd_of(a)), "setup": a.get("setup")}, a)
              for lines, res in split_games(out)]
-    with open(os.path.join(os.path.dirname(os.path.dirname(a["dir"])), "last.log"), "w") as f:
+    with open(os.path.join(os.path.dirname(os.path.dirname(a["dir"])), "last.log"), "w", encoding="utf-8") as f:
         f.write(out)  # saída crua do último trabalho, para depuração
     if not games:
         print(f"[sim {jid}] saída sem jogos:\n{out[-3000:]}", file=sys.stderr, flush=True)

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { img } from './data.js'
 import { parseList } from './deck.js'
 import { Mana, Empty } from './ui.jsx'
+import { tx, num } from './i18n.js'
 
 const ratingsCache = new Map()
 async function loadSet(code) {
@@ -73,17 +74,17 @@ export default function DraftView({ data, setDeck, act }) {
     let s = v.z
     if (v.real) {
       const pos = stats.sorted.findIndex(x => x <= r.gih)
-      why.push({ k: 'edh', txt: `${(r.gih * 100).toFixed(1).replace('.', ',')}% de vitórias quando jogada (top ${Math.max(1, Math.round(((pos + 1) / stats.n) * 100))}% do set)` })
-      if (r.alsa) why.push({ k: 'meta', txt: `Costuma ser vista até à escolha ${r.alsa.toFixed(1).replace('.', ',')}` })
-    } else why.push({ k: 'perto', txt: 'Sem dados do 17lands: avaliação heurística (raridade, remoção, evasão, curva)' })
+      why.push({ k: 'edh', txt: tx('{p}% de vitórias quando jogada (top {top}% do set)', { p: num(r.gih * 100, 1), top: Math.max(1, Math.round(((pos + 1) / stats.n) * 100)) }) })
+      if (r.alsa) why.push({ k: 'meta', txt: tx('Costuma ser vista até à escolha {x}', { x: num(r.alsa, 1) }) })
+    } else why.push({ k: 'perto', txt: tx('Sem dados do 17lands: avaliação heurística (raridade, remoção, evasão, curva)') })
     const cols = (c.co || '').split('').filter(Boolean)
     if (main.length && cols.length) {
       const fit = cols.every(k => main.includes(k))
       s += fit ? 0.4 * commit : -0.6 * commit
-      why.push({ k: fit ? 'inter' : 'falta', txt: fit ? `Nas tuas cores (${main.join('/')})` : `Fora das tuas cores (${main.join('/')})` })
-    } else if (!cols.length) { s += 0.1; why.push({ k: 'tema', txt: 'Incolor: entra em qualquer deck' }) }
-    if (c.tg.includes('removal') && removalN < 4) { s += 0.25; why.push({ k: 'falta', txt: `Remoção: tens ${removalN}` }) }
-    if (c.mt !== 'Land' && c.cmc <= 2 && curve[0] + curve[1] < picks.length * 0.3 && picks.length >= 8) { s += 0.15; why.push({ k: 'falta', txt: 'Curva: faltam cartas baratas' }) }
+      why.push({ k: fit ? 'inter' : 'falta', txt: tx(fit ? 'Nas tuas cores ({c})' : 'Fora das tuas cores ({c})', { c: main.join('/') }) })
+    } else if (!cols.length) { s += 0.1; why.push({ k: 'tema', txt: tx('Incolor: entra em qualquer deck') }) }
+    if (c.tg.includes('removal') && removalN < 4) { s += 0.25; why.push({ k: 'falta', txt: tx('Remoção: tens {n}', { n: removalN }) }) }
+    if (c.mt !== 'Land' && c.cmc <= 2 && curve[0] + curve[1] < picks.length * 0.3 && picks.length >= 8) { s += 0.15; why.push({ k: 'falta', txt: tx('Curva: faltam cartas baratas') }) }
     return { c, s, why }
   }).sort((a, b) => b.s - a.s), [pack, byName, stats, main, commit, removalN, curve, picks.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -110,8 +111,8 @@ export default function DraftView({ data, setDeck, act }) {
     const nA = Math.round(lands * pips[best.pair[0]] / tot) || Math.floor(lands / 2)
     main[BASIC[best.pair[0]]] = nA
     main[BASIC[best.pair[1]]] = lands - nA
-    setDeck(d => ({ ...d, format: 'limited', name: d.name === 'Deck sem nome' ? `Draft ${code} ${best.pair}` : d.name, commanders: [], main, side: {} }))
-    act.say(`Deck de 40 em ${best.pair}: ${best.ok.length} feitiços + ${lands} terrenos${best.ok.length < 23 ? ` (só ${best.ok.length} jogáveis nestas cores)` : ''}.`)
+    setDeck(d => ({ ...d, format: 'limited', name: ['Deck sem nome', tx('Deck sem nome')].includes(d.name) ? `Draft ${code} ${best.pair}` : d.name, commanders: [], main, side: {} }))
+    act.say(tx('Deck de 40 em {pair}: {k} feitiços + {lands} terrenos', { pair: best.pair, k: best.ok.length, lands }) + (best.ok.length < 23 ? tx(' (só {k} jogáveis nestas cores)', { k: best.ok.length }) : '') + '.')
   }
   const loadPool = () => {
     const p = parseList(pool, data)
@@ -125,13 +126,13 @@ export default function DraftView({ data, setDeck, act }) {
         <label className="fmt"><span>Set (17lands)</span>
           <select value={code} onChange={e => { setCode(e.target.value); setPack([]) }}>{sets.map(s => <option key={s} value={s}>{s}</option>)}</select>
         </label>
-        <p className="small muted">{rows == null ? 'A carregar o set…' : stats.n ? `${stats.n} cartas com taxa de vitória (média ${(stats.mean * 100).toFixed(1).replace('.', ',')}%), dados públicos do 17lands.` : 'Este set não tem números públicos no 17lands: uso uma avaliação heurística.'}</p>
+        <p className="small muted">{rows == null ? tx('A carregar o set…') : stats.n ? tx('{n} cartas com taxa de vitória (média {p}%), dados públicos do 17lands.', { n: stats.n, p: num(stats.mean * 100, 1) }) : tx('Este set não tem números públicos no 17lands: uso uma avaliação heurística.')}</p>
       </div>
 
       <div className="draft-grid">
         <section className="card">
-          <h3>Pack atual <span className="muted small">{pack.length} cartas</span></h3>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Procurar no set para juntar ao pack…" />
+          <h3>{tx('Pack atual')} <span className="muted small">{tx('{n} carta|{n} cartas', { n: pack.length })}</span></h3>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar no set para juntar ao pack…')} />
           <div className="draft-set">{setCards.map(r => (
             <button key={r.c.i} onClick={() => setPack(p => [...p, r.c])} title={r.c.n}><img src={img(r.c, 'small')} alt={r.c.n} loading="lazy" /></button>
           ))}</div>
@@ -139,24 +140,24 @@ export default function DraftView({ data, setDeck, act }) {
             <li key={`${c.i}-${k}`}>
               <img src={img(c, 'art_crop')} alt="" />
               <div><b>{c.n}</b> <Mana cost={c.mc} /><ul className="why">{why.map((w, j) => <li key={j} className={w.k}>{w.txt}</li>)}</ul></div>
-              <button className={k === 0 ? 'primary' : ''} onClick={() => pick(c)}>Escolher</button>
+              <button className={k === 0 ? 'primary' : ''} onClick={() => pick(c)}>{tx('Escolher')}</button>
             </li>
-          ))}</ol> : <Empty>Clica nas cartas do set que estão no teu pack; o Grimório ordena-as e diz porquê.</Empty>}
-          {pack.length > 0 && <button className="link small" onClick={() => setPack([])}>limpar pack</button>}
+          ))}</ol> : <Empty>{tx('Clica nas cartas do set que estão no teu pack; o Grimório ordena-as e diz porquê.')}</Empty>}
+          {pack.length > 0 && <button className="link small" onClick={() => setPack([])}>{tx('limpar pack')}</button>}
         </section>
 
         <section className="card">
-          <h3>Os teus picks <span className="muted small">{picks.length}</span></h3>
-          {main.length > 0 && <p className="small">Cores principais: <b>{main.join(' / ')}</b> <span className="muted">({Object.entries(colorScore).filter(([, v]) => v > 0).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', ')})</span></p>}
-          <p className="small muted">Curva (MV 1–6+): {curve.join(' · ')} · remoção: {removalN}</p>
+          <h3>{tx('Os teus picks')} <span className="muted small">{picks.length}</span></h3>
+          {main.length > 0 && <p className="small">{tx('Cores principais:')} <b>{main.join(' / ')}</b> <span className="muted">({Object.entries(colorScore).filter(([, v]) => v > 0).map(([k, v]) => `${k} ${num(v, 1)}`).join(', ')})</span></p>}
+          <p className="small muted">{tx('Curva (MV 1–6+): {c} · remoção: {n}', { c: curve.join(' · '), n: removalN })}</p>
           <div className="draft-picks">{picks.map((c, k) => <img key={k} src={img(c, 'small')} alt={c.n} title={c.n} onClick={() => act.open(c)} />)}</div>
           <div className="row-btns">
-            <button className="primary" onClick={build} disabled={picks.length < 20}>Montar deck de 40</button>
-            {picks.length > 0 && <button onClick={() => setPicks([])}>Recomeçar</button>}
+            <button className="primary" onClick={build} disabled={picks.length < 20}>{tx('Montar deck de 40')}</button>
+            {picks.length > 0 && <button onClick={() => setPicks([])}>{tx('Recomeçar')}</button>}
           </div>
-          <h4>Selado: colar o pool</h4>
+          <h4>{tx('Selado: colar o pool')}</h4>
           <textarea value={pool} onChange={e => setPool(e.target.value)} placeholder={'1 Card Name\n1 Other Card\n…'} />
-          <button onClick={loadPool} disabled={!pool.trim()}>Usar como pool</button>
+          <button onClick={loadPool} disabled={!pool.trim()}>{tx('Usar como pool')}</button>
         </section>
       </div>
     </div>

@@ -45,6 +45,9 @@ def schema(con):
     con.execute("CREATE TABLE IF NOT EXISTS ratings_kv (k TEXT PRIMARY KEY, v TEXT)")
     with contextlib.suppress(sqlite3.OperationalError):  # resumo do jogo (dano por carta) dos jogos da Arena
         con.execute("ALTER TABLE rating_games ADD COLUMN summary TEXT")
+    for col in ("a_prog REAL", "b_prog REAL", "prog TEXT"):  # progresso rumo à vitória de cada lado (estrelas vermelhas)
+        with contextlib.suppress(sqlite3.OperationalError):
+            con.execute(f"ALTER TABLE rating_games ADD COLUMN {col}")
     return con
 
 
@@ -82,20 +85,86 @@ def casual_deck(con, key):
 NOT_CASUAL = "key NOT IN (SELECT 'deck:' || id FROM decks WHERE json_extract(body, '$.casual'))"
 
 
-def record_round(con, fmt, a, b, games, source, round_id=None, final=True, casual=False):
+ROUTES = ("dmg", "psn", "cmd", "mill", "alt")  # vias para ganhar: dano/vida, veneno, dano de comandante, biblioteca, alternativa
+CAP = 2.0                  # progresso máximo por jogo (200%: o dobro do necessário)
+
+
+def progress(g, side, fmt=None):
+    """Progresso de `side` rumo à vitória num jogo (dict do sim: winner, reason, events, summary, setup, out?) ->
+    {p, dmg, psn, cmd, mill, alt, by}. Por adversário, cada via é a fração do objetivo (o «ou» das vitórias):
+    dmg = dano feito ÷ vida inicial (a dois também a vida perdida, vida inicial − final, que apanha drenos e o dano
+    a mais: 30 a quem tinha 20 = 1,5); psn = veneno ÷ 10; cmd = dano de combate do melhor comandante ÷ 21; mill =
+    cartas tiradas da biblioteca dele para o cemitério ou exílio (mill, exilar do topo; as que ele próprio põe lá
+    também contam, é o caminho para ficar sem cartas) ÷ biblioteca inicial (tamanho do deck − 7); alt = 1 se ele perdeu
+    por um efeito (vitória alternativa, combo). Quem o eliminou (a dois: quem ganhou) tem a via da razão da derrota ≥ 1.
+    Cada via vai até CAP; o do adversário = a melhor via. p = média sobre os adversários (a dois, o único); quem ganha
+    tem p ≥ 1. Sem events (resumos antigos) usa damage_by_card/poison_by_card/life do summary (aproximado)."""
+    sm, ev, setup = g.get("summary") or {}, g.get("events") or [], g.get("setup") or {}
+    sides = [s for s in sim.SIDES if s in sm or s in setup] or ["a", "b"]
+    n, opps = len(sides), [s for s in sides if s != side]
+    life0 = g.get("startLife") or sim.base_life(str(fmt or "").lower(), n)
+    cmdrs, out = set((setup.get(side) or {}).get("commanders") or ()), g.get("out") or {}
+    why = lambda o: str((out.get(o) or {}).get("why") or (g.get("reason") if n == 2 else "") or "").lower()  # noqa: E731
+    per = []
+    for o in opps:
+        dmg = psn = mill = 0
+        cmd = {}
+        for e in ev:
+            k, x = e.get("k"), e.get("n") or 0
+            if k in ("damage", "poison") and e.get("p") == side and e.get("target") == o:
+                if k == "poison" or e.get("psn"):
+                    psn += x
+                else:
+                    dmg += x
+                    if e.get("card") in cmdrs and e.get("combat"):
+                        cmd[e["card"]] = cmd.get(e["card"], 0) + x
+            elif e.get("p") == o and (k == "mill" or k == "exile" and str(e.get("target") or "").startswith("library>")):
+                mill += x or 1
+        if not ev and n == 2:
+            s = sm.get(side) or {}
+            dmg, psn = sum((s.get("damage_by_card") or {}).values()), sum((s.get("poison_by_card") or {}).values())
+        if n == 2 and sm.get("life"):
+            dmg = max(dmg, life0 - sm["life"][-1][sides.index(o)])
+        lib0 = max(1, ((setup.get(o) or {}).get("size") or (100 if life0 >= 30 else 60)) - 7)
+        r = {"dmg": dmg / life0, "psn": psn / 10, "cmd": max(cmd.values(), default=0) / 21, "mill": mill / lib0, "alt": 0.0}
+        if (out.get(o) or {}).get("by") == side or n == 2 and g.get("winner") == side:
+            w = why(o)
+            via = "psn" if "poison" in w else "mill" if "library" in w else "cmd" if "general" in w or "commander" in w \
+                else "dmg" if "life" in w or not w else "alt"
+            r[via] = max(r[via], 1.0)
+        per.append({k: min(CAP, v) for k, v in r.items()})
+    res = {k: round(sum(r[k] for r in per) / len(per), 3) for k in ROUTES}
+    p = sum(max(r.values()) for r in per) / len(per)
+    res["p"] = round(max(p, 1.0) if g.get("winner") == side else p, 3)
+    res["by"] = max(ROUTES, key=lambda k: res[k]) if res["p"] > 0 else None
+    return res
+
+
+def progs_of(g, fmt, sides=("a", "b")):
+    """(progresso do 1.º lado, do 2.º) de um jogo, ou None se o jogo não dá (os ratings não podem cair por isto)."""
+    try:
+        return tuple(progress(g, s, fmt) for s in sides)
+    except Exception as e:
+        print(f"[ratings] progresso: {e!r}", file=sys.stderr, flush=True)
+        return None
+
+
+def record_round(con, fmt, a, b, games, source, round_id=None, final=True, casual=False, progs=None):
     """a, b = {key, kind ('meu'|'meta'), name, owner}; games = ['a'|'b'|'draw', …] do ponto de vista de a (só os novos).
     Jogos e Elo atualizam-se jogo a jogo; com final=True a ronda fecha com todos os jogos já guardados com este round_id
     (os de chamadas anteriores com final=False incluídos). casual=True (ou um deck casual de um dos lados) -> vai para
-    o rating casual (format CASUAL) em vez do do formato. Devolve o round_id."""
+    o rating casual (format CASUAL) em vez do do formato. progs = [(progress de a, progress de b) | None, …] alinhado com
+    games (ficam em a_prog/b_prog e as vias em prog). Devolve o round_id."""
     rid = str(round_id or uuid.uuid4().hex)[:120]
     if a["key"] == b["key"]:
         return rid
     if casual or casual_deck(con, a["key"]) or casual_deck(con, b["key"]):
         fmt = CASUAL
     ra, rb = _get(con, fmt, a), _get(con, fmt, b)
-    for w in games:
+    for i, w in enumerate(games):
         if w not in ("a", "b", "draw"):
             continue
+        pg = (progs or [])[i] if i < len(progs or []) else None
         s = 1.0 if w == "a" else 0.0 if w == "b" else 0.5
         x = expected(ra[0], rb[0])
         ra[0], rb[0] = ra[0] + (K_PROV if ra[1] < PROV else K) * (s - x), rb[0] + (K_PROV if rb[1] < PROV else K) * (x - s)
@@ -104,8 +173,9 @@ def record_round(con, fmt, a, b, games, source, round_id=None, final=True, casua
         for d, r, win, loss in ((a, ra, w == "a", w == "b"), (b, rb, w == "b", w == "a")):
             con.execute("UPDATE ratings SET elo=?, games=games+1, wins=wins+?, losses=losses+?, draws=draws+?, updated=?"
                         " WHERE key=? AND format=?", (r[0], win, loss, w == "draw", time.time(), d["key"], fmt))
-        con.execute("INSERT INTO rating_games (ts, format, a_key, b_key, winner, source, round_id, a_elo, b_elo)"
-                    " VALUES (?,?,?,?,?,?,?,?,?)", (time.time(), fmt, a["key"], b["key"], w, source, rid, ra[0], rb[0]))
+        con.execute("INSERT INTO rating_games (ts, format, a_key, b_key, winner, source, round_id, a_elo, b_elo, a_prog, b_prog, prog)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (time.time(), fmt, a["key"], b["key"], w, source, rid, ra[0], rb[0],
+                                                          *((pg[0]["p"], pg[1]["p"], json.dumps({"a": pg[0], "b": pg[1]})) if pg else (None,) * 3)))
     if final:
         wa = wb = 0
         for ak, w in con.execute("SELECT a_key, winner FROM rating_games WHERE round_id=?", (rid,)):
@@ -148,7 +218,12 @@ def from_lab(con, d, owner):
     ws = [w if ak == a["key"] or w == "draw" else "ab"[w == "a"] for ak, w in
           con.execute("SELECT a_key, winner FROM rating_games WHERE round_id=?", (rid,))] + [d["winner"]]
     bo = max(1, min(9, int(d.get("bo") or 1)))
-    record_round(con, fmt, a, b, [d["winner"]], "lab", rid,
+    # progresso: o jogo inteiro do trabalho do sim (ainda em memória, 1 h) ou, sem ele, o resumo que o Lab manda
+    j = sim.status(str(d.get("job") or "")) if d.get("job") else None
+    g = next((x for x in (j or {}).get("games") or () if x.get("winner") == d["winner"]), None) or {"winner": d["winner"], "summary": d["summary"] if isinstance(d.get("summary"), dict) else {}}
+    if isinstance(d.get("start_life"), int) and d["start_life"] > 0:
+        g = {**g, "startLife": d["start_life"]}
+    record_round(con, fmt, a, b, [d["winner"]], "lab", rid, progs=[progs_of(g, fmt)],
                  final=max(ws.count("a"), ws.count("b")) > bo // 2 or len(ws) >= bo, casual=bool(d.get("casual")))
 
 
@@ -177,9 +252,10 @@ def table(con, fmt, owner):
     where = f"format!='{CASUAL}' AND {NOT_CASUAL}" if fmt == "all" else "format=?" if fmt == CASUAL else f"format=? AND {NOT_CASUAL}"
     rows = [dict(zip(COLS, r)) for r in con.execute(f"SELECT {', '.join(COLS)} FROM ratings WHERE {where} AND games>0 AND {VISIBLE}",
                                                     ((fmt,) if fmt != "all" else ()) + (owner, owner))]
-    dists, seen = {}, {}
+    dists, seen, ly = {}, {}, layers(con)
     for r in rows:
         r["stars"] = stars(r["elo"], dists.setdefault(r["format"], dist(con, r["format"])))
+        r.update(ly.get(r["key"], {}))
     rows.sort(key=lambda r: (-r["stars"], -r["elo"]))
     for i, r in enumerate(rows):
         r["elo"] = round(r["elo"], 1)
@@ -191,15 +267,63 @@ def table(con, fmt, owner):
     return rows
 
 
+def goal_stars(p):
+    """Progresso médio rumo à vitória -> estrelas vermelhas: linear, 100% = 5★, 120% ou mais = 6★ (0% = 0★)."""
+    return round(min(TOP, 5 * max(0.0, p)), 1)
+
+
+def layers(con):
+    """{chave: {blue, blue_elo, blue_games, red, red_games, goal, routes}}: as camadas por cima do rating normal.
+    Azul = Elo com TODOS os jogos (normais e casuais de todos os formatos num só Elo, as mesmas regras de K), refeito a
+    partir de rating_games; as estrelas são o percentil entre os decks estabelecidos com o mesmo formato «de casa» (o
+    formato normal com mais jogos; os só casuais ficam no grupo casual), por isso sem jogos casuais azul = amarelo.
+    Vermelho = média do progresso rumo à vitória (a_prog/b_prog, todos os jogos, casuais incluídos: é desempenho)
+    -> goal_stars; routes = média de cada via e `by` = em quantos jogos ganhos cada via foi a que decidiu."""
+    # ponytail: refaz o Elo todo a cada pedido (~1 ms por mil jogos); guardar numa tabela se passar das centenas de milhares
+    elo, out = {}, {}
+    for ak, bk, w, pa, pb, pj in con.execute("SELECT a_key, b_key, winner, a_prog, b_prog, prog FROM rating_games ORDER BY id"):
+        ra, rb = elo.setdefault(ak, [START, 0]), elo.setdefault(bk, [START, 0])
+        s = 1.0 if w == "a" else 0.0 if w == "b" else 0.5
+        x = expected(ra[0], rb[0])
+        ra[0], rb[0] = ra[0] + (K_PROV if ra[1] < PROV else K) * (s - x), rb[0] + (K_PROV if rb[1] < PROV else K) * (x - s)
+        ra[1], rb[1] = ra[1] + 1, rb[1] + 1
+        rt = json.loads(pj) if pj else {}
+        for k, p, me, won in ((ak, pa, "a", w == "a"), (bk, pb, "b", w == "b")):
+            if p is None:
+                continue
+            o = out.setdefault(k, {"n": 0, "sum": 0.0, "routes": dict.fromkeys(ROUTES, 0.0), "by": {}})
+            o["n"], o["sum"] = o["n"] + 1, o["sum"] + p
+            r = rt.get(me) or {}
+            for q in ROUTES:
+                o["routes"][q] += r.get(q) or 0
+            if won and r.get("by"):
+                o["by"][r["by"]] = o["by"].get(r["by"], 0) + 1
+    home = {}
+    for k, f, _ in con.execute(f"SELECT key, format, games FROM ratings WHERE format!='{CASUAL}' ORDER BY games"):
+        home[k] = f
+    pools = {}
+    for k, (e, n) in elo.items():
+        if n >= PROV:
+            pools.setdefault(home.get(k, CASUAL), []).append(e)
+    res = {}
+    for k, (e, n) in elo.items():
+        o = out.get(k)
+        res[k] = {"blue": stars(e, pools.get(home.get(k, CASUAL), [])), "blue_elo": round(e), "blue_games": n,
+                  **({"red": goal_stars(o["sum"] / o["n"]), "red_games": o["n"], "goal": round(o["sum"] / o["n"], 3),
+                      "routes": {q: round(v / o["n"], 3) for q, v in o["routes"].items()}, "by": o["by"]} if o else {})}
+    return res
+
+
 def all_stars(con, owner):
-    """{chave: {stars, prov, elo, games, format}} de tudo o que tenho visível (caixas da Biblioteca, listas do Lab);
-    o rating casual vem em «chave|casual» e os decks casuais só têm esse."""
-    out, dists = {}, {}
+    """{chave: {stars, prov, elo, games, format, blue, red, goal, routes…}} de tudo o que tenho visível (caixas da
+    Biblioteca, listas do Lab); o rating casual vem em «chave|casual» e os decks casuais só têm esse. blue/red/… são
+    os de layers() (iguais nas duas entradas da mesma chave)."""
+    out, dists, ly = {}, {}, layers(con)
     for key, fmt, elo, games in con.execute(f"SELECT key, format, elo, games FROM ratings WHERE games>0 AND {VISIBLE}"
                                             f" AND (format='{CASUAL}' OR {NOT_CASUAL})", (owner, owner)):
         ds = dists.setdefault(fmt, dist(con, fmt))
         out[key if key not in out and fmt != CASUAL else f"{key}|{fmt}"] = {"stars": stars(elo, ds), "prov": games < PROV, "elo": round(elo),
-                                                          "games": games, "format": fmt}
+                                                          "games": games, "format": fmt, **ly.get(key, {})}
     return out
 
 
@@ -329,7 +453,8 @@ def deck_record(con, did, owner):
             "d": sum(g[2] == "d" for g in games), "by_source": src, "dealt": avg(dealt), "taken": avg(taken),
             "with_dmg": len(dealt), "opponents": sorted(opp.values(), key=lambda o: -(o["w"] + o["l"] + o["d"])),
             "cards": sorted(cards.values(), key=lambda x: -x["dmg"])[:12],
-            "hurt": [{"card": c, "dmg": n} for c, n in sorted(hurt.items(), key=lambda x: -x[1])[:8]]}
+            "hurt": [{"card": c, "dmg": n} for c, n in sorted(hurt.items(), key=lambda x: -x[1])[:8]],
+            "rating": (lambda st: st.get(key) or st.get(f"{key}|{CASUAL}"))(all_stars(con, owner))}  # as três camadas de estrelas e as vias do vermelho
 
 
 # ---------- Arena automática ----------
@@ -456,9 +581,10 @@ def arena_step(con):
             return
         if j and j["status"] == "done":
             flip = cur.pop("flip", False)
-            ws = [{"a": "b", "b": "a"}.get(g["winner"], g["winner"]) if flip else g["winner"]
-                  for g in j["games"] if not g.get("crashed") and g.get("winner") in ("a", "b", "draw")]
-            record_round(con, cur["format"], cur["a"], cur["b"], ws, "arena", cur["round_id"], final=False)
+            ok = [g for g in j["games"] if not g.get("crashed") and g.get("winner") in ("a", "b", "draw")]
+            ws = [{"a": "b", "b": "a"}.get(g["winner"], g["winner"]) if flip else g["winner"] for g in ok]
+            pr = [progs_of(g, cur.get("base") or cur["format"], ("b", "a") if flip else ("a", "b")) for g in ok]
+            record_round(con, cur["format"], cur["a"], cur["b"], ws, "arena", cur["round_id"], final=False, progs=pr)
             g = next((g for g in j["games"] if not g.get("crashed")), None)
             if ws and g and g.get("summary"):  # dano por carta para a análise do deck (Análise › registo)
                 sides = ("b", "a") if flip else ("a", "b")
@@ -605,12 +731,69 @@ def route(method, path, owner, body=None):
     return 404, {"erro": "rota desconhecida"}
 
 
+def backfill(con):
+    """Uma vez (ratings_kv prog_backfill): progresso dos jogos antigos sem a_prog. Torneios: o jogo inteiro de
+    tournament_games (exato); Laboratório: o resumo em sim_games (mesmo match_id, pela ordem); Arena: o resumo de
+    rating_games.summary (dano e veneno por carta). Os do resumo são aproximados (sem mill nem comandante)."""
+    if kv(con, "prog_backfill"):
+        return 0
+    rows = con.execute("SELECT id, format, a_key, winner, source, round_id, summary FROM rating_games WHERE a_prog IS NULL"
+                       " ORDER BY id").fetchall()
+    done, by_round, cache = 0, {}, {}
+    for r in rows:
+        by_round.setdefault(r[5], []).append(r)
+    for rid, rs in by_round.items():
+        src, fmt, games = rs[0][4], rs[0][1], []
+        try:
+            if src == "torneio":
+                tid, mid = rid.split(":", 1)
+                if tid not in cache:
+                    st = con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()
+                    cache[tid] = json.loads(st[0]) if st else None
+                st = cache[tid]
+                m = next((m for m in (st or {}).get("matches") or () if m["id"] == mid), None)
+                if not m:
+                    continue
+                a, b = m["p"]
+                fmt = st.get("base") or st.get("format") or fmt
+                for x in [x for x in m["g"] if not x.get("x")]:
+                    blob = con.execute("SELECT game FROM tournament_games WHERE id=? AND tid=?", (x["id"], tid)).fetchone()
+                    games.append((json.loads(zlib.decompress(blob[0])), (sim.SIDES[x["s"].index(a)], sim.SIDES[x["s"].index(b)]))
+                                 if blob else None)
+            elif src == "lab":
+                _, did, mid = rid.split(":", 2)
+                for w, sm in con.execute("SELECT winner, summary FROM sim_games WHERE deck_id=? AND match_id=? ORDER BY game_no, id", (did, mid)):
+                    games.append(({"winner": w, "summary": json.loads(sm or "{}")}, ("a", "b")))
+                if rs[0][2] != "deck:" + did:  # o deck do Lab é sempre o lado a do jogo
+                    games = [(g, ("b", "a")) for g, _ in games]
+            elif src == "arena":
+                for r in rs:
+                    sm = json.loads(r[6]) if r[6] else None
+                    games.append(({"winner": r[3], "summary": {k: sm[k] for k in "ab"}}, ("a", "b")) if sm else None)
+        except (ValueError, KeyError, TypeError, sqlite3.OperationalError, zlib.error):
+            continue
+        for r, x in zip(rs, games):
+            pg = x and progs_of(x[0], fmt, x[1])
+            if pg:
+                con.execute("UPDATE rating_games SET a_prog=?, b_prog=?, prog=? WHERE id=?",
+                            (pg[0]["p"], pg[1]["p"], json.dumps({"a": pg[0], "b": pg[1]}), r[0]))
+                done += 1
+    kv(con, "prog_backfill", done or -1)
+    return done
+
+
 def init(data_dir, busy=None):
     """Arranque do servidor: tabelas e a thread da Arena (retoma sozinha se estava ligada, incluindo a ronda a meio)."""
     global DATA, DB, BUSY
     DATA, DB = data_dir, os.path.join(data_dir, "grimorio.db")
     BUSY = busy or BUSY
-    db().close()
+    with contextlib.closing(db()) as con, con:
+        try:
+            n = backfill(con)
+            if n:
+                print(f"[ratings] progresso calculado em {n} jogos antigos", file=sys.stderr, flush=True)
+        except Exception as e:  # um extra: o servidor arranca na mesma
+            print(f"[ratings] backfill: {e!r}", file=sys.stderr, flush=True)
     ST["seen"] = time.time()  # dá tempo a quem estava a usar o simulador antes de reiniciar
     threading.Thread(target=arena_loop, daemon=True).start()
 
@@ -712,6 +895,57 @@ def selfcheck():
     assert (r["games"], aff["w"], aff["l"], r["by_source"]) == (3, 2, 1, {"lab": 2, "arena": 1}), r
     assert r["dealt"] == round((20 + 3 + 20) / 3, 1) and r["taken"] == round((3 + 20 + 2) / 3, 1)
     assert r["cards"][0] == {"card": "Bolt", "dmg": 29, "games": 3, "top_wins": 1} and deck_record(con, "d1", "outro") is None
+    # progresso rumo à vitória: o «ou» das vias, com dano a mais (overkill) e o teto
+    dmg = lambda p, t, n, **k: {"k": "damage", "p": p, "target": t, "n": n, **k}  # noqa: E731
+    g = {"winner": "a", "reason": "Ai(2)-B has lost because life total reached 0", "events": [dmg("a", "b", 26), dmg("b", "a", 5)],
+         "summary": {"a": {}, "b": {}, "life": [[15, -10]]}}
+    pa, pb = progress(g, "a", "modern"), progress(g, "b", "modern")
+    assert pa["dmg"] == 1.5 and pa["p"] == 1.5 and pa["by"] == "dmg" and pb["p"] == 0.25 and pb["by"] == "dmg", (pa, pb)
+    g["summary"]["life"] = [[15, -60]]
+    assert progress(g, "a")["p"] == CAP
+    g = {"winner": "a", "reason": "B has lost trying to draw cards from empty library", "setup": {"a": {"size": 60}, "b": {"size": 60}},
+         "events": [{"k": "mill", "p": "b", "n": 40}, {"k": "exile", "p": "b", "target": "library>exile", "id": 9}, dmg("a", "b", 4)],
+         "summary": {"a": {}, "b": {}}}
+    pa = progress(g, "a")
+    assert pa["mill"] == 1 and pa["by"] == "mill" and pa["p"] == 1 and abs(progress({**g, "winner": "b"}, "a")["mill"] - 41 / 53) < 1e-3
+    g = {"winner": "b", "reason": "A has lost because of obtaining 10 poison counters", "summary": {"a": {}, "b": {}},
+         "events": [{"k": "poison", "p": "b", "target": "a", "n": 7}, dmg("b", "a", 3, psn=1), dmg("a", "b", 10)]}
+    assert progress(g, "b")["psn"] == 1 and progress(g, "b")["p"] == 1 and progress(g, "a")["p"] == 0.5
+    assert progress({**g, "winner": "draw"}, "b")["p"] == 1.0  # 10 de veneno no total, mesmo sem a razão
+    g = {"winner": "a", "reason": "B has lost due to accumulation of 21 damage from generals", "setup": {"a": {"commanders": ["Uril"]}, "b": {}},
+         "events": [dmg("a", "b", 14, card="Uril", combat=1), dmg("a", "b", 5, card="Bolt")], "summary": {"a": {}, "b": {}}}
+    pa = progress(g, "a", "commander")
+    assert pa["cmd"] == 1 and abs(pa["dmg"] - 19 / 40) < 1e-3 and pa["by"] == "cmd"
+    g = {"winner": "a", "reason": "B has lost due to effect of spell 'Thassa's Oracle'", "summary": {"a": {}, "b": {}}, "events": [dmg("a", "b", 2)]}
+    assert progress(g, "a")["alt"] == 1 and progress(g, "a")["by"] == "alt"
+    # sem events (resumo antigo): dano por carta
+    assert progress({"winner": "b", "summary": {"a": {"damage_by_card": {"Bolt": 6, "Guide": 4}}, "b": {}}}, "a")["p"] == 0.5
+    # 4 jogadores: média por adversário; quem eliminou um tem ≥ 1 nesse; o vencedor ≥ 1
+    g = {"winner": "a", "summary": {s: {} for s in "abcd"}, "out": {"b": {"by": "a", "why": "has lost because life total reached 0"},
+         "c": {"by": "d", "why": "has lost because life total reached 0"}},
+         "events": [dmg("a", "b", 20), dmg("a", "c", 10), dmg("a", "d", 0), dmg("d", "c", 10)]}
+    assert abs(progress(g, "a")["p"] - 1.0) < 1e-9 and progress(g, "a")["dmg"] == 0.5
+    assert progress(g, "d")["p"] == round((1 + 0) / 3, 3), progress(g, "d")
+    # camadas: azul = Elo de todos os jogos (sem casuais igual ao amarelo); vermelho = média do progresso em estrelas
+    c2 = schema(sqlite3.connect(":memory:"))
+    c2.execute("CREATE TABLE decks (id TEXT PRIMARY KEY, name TEXT, format TEXT, body TEXT, updated REAL, owner TEXT, deleted REAL)")
+    win = {"winner": "a", "reason": "life", "events": [dmg("a", "b", 24)], "summary": {"a": {}, "b": {}}}
+    for _ in range(3):
+        record_round(c2, "pauper", D("meta:p"), D("meta:q"), ["a"], "arena", progs=[progs_of(win, "pauper")])
+    ly = layers(c2)
+    assert ly["meta:p"]["blue_elo"] == round(c2.execute("SELECT elo FROM ratings WHERE key='meta:p'").fetchone()[0])
+    assert ly["meta:p"]["blue"] == stars(c2.execute("SELECT elo FROM ratings WHERE key='meta:p'").fetchone()[0], [])
+    assert ly["meta:p"]["red"] == 6.0 and ly["meta:p"]["goal"] == 1.2 and ly["meta:q"]["red"] == 0 and ly["meta:p"]["by"] == {"dmg": 3}
+    record_round(c2, "pauper", D("meta:p"), D("meta:q"), ["b"] * 3, "arena", casual=True)  # casual: só o azul se mexe
+    ly2 = layers(c2)
+    assert ly2["meta:p"]["blue_elo"] < ly["meta:p"]["blue_elo"] and ly2["meta:p"]["red_games"] == 3 and ly2["meta:p"]["blue_games"] == 6
+    assert goal_stars(0.5) == 2.5 and goal_stars(1) == 5 and goal_stars(1.1) == 5.5 and goal_stars(1.3) == 6 and goal_stars(0) == 0
+    st = all_stars(c2, "")
+    assert st["meta:p"]["red"] == 6 and st["meta:p|casual"]["blue"] == st["meta:p"]["blue"]
+    # recuperar o progresso dos jogos antigos: Arena pelo resumo guardado
+    c2.execute("UPDATE rating_games SET a_prog=NULL, b_prog=NULL, prog=NULL")
+    c2.execute("""UPDATE rating_games SET summary='{"a": {"damage_by_card": {"X": 10}}, "b": {}}' WHERE format='pauper'""")
+    assert backfill(c2) == 3 and backfill(c2) == 0 and layers(c2)["meta:p"]["goal"] == 1.0
     print("selfcheck ok")
 
 

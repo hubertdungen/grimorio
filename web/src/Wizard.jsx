@@ -6,6 +6,7 @@ import { FORMATS, FORMAT, canBeCommander } from './formats.js'
 import { emptyDeck } from './deck.js'
 import { PrefsPanel, IASettings } from './Views.jsx'
 import { Mana } from './ui.jsx'
+import { tx } from './i18n.js'
 
 const subset = (a, b) => [...a].every(k => b.includes(k))
 const KEY = 'grimorio.wizard'
@@ -21,7 +22,7 @@ function pairOk(a, b) {
     [/\bPartner\b/, /Friends forever/].some(re => re.test(a.o) && re.test(b.o))
 }
 
-const START = [['cartas', 'Escolher 3–10 cartas', '▦'], ['manual', 'Construir à mão', '✎'], ['importar', 'Importar e melhorar', '⇩'], ['ia', 'Descrever a ideia (IA)', '✦']]
+const START = [['cartas', tx('Escolher 3–10 cartas'), '▦'], ['manual', tx('Construir à mão'), '✎'], ['importar', tx('Importar e melhorar'), '⇩'], ['ia', tx('Descrever a ideia (IA)'), '✦']]
 
 export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImport }) {
   const [S0] = useState(load), cards = ns => (ns || []).map(n => data.byName.get(n)).filter(Boolean)
@@ -31,7 +32,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const [aiErr, setAiErr] = useState('')
   const [aiSum, setAiSum] = useState(null)
   const [cfg, setCfg] = useState(null)
-  useEffect(() => { if (start === 'ia' && !cfg) fetch('/api/ia/config').then(r => r.json()).then(setCfg).catch(() => setAiErr('Sem ligação ao servidor.')) }, [start, cfg])
+  useEffect(() => { if (start === 'ia' && !cfg) fetch('/api/ia/config').then(r => r.json()).then(setCfg).catch(() => setAiErr(tx('Sem ligação ao servidor.'))) }, [start, cfg])
   const [format, setFormat] = useState(FORMAT[S0.format] ? S0.format : fmtInit || 'commander')
   const [name, setName] = useState(S0.name || '')
   const [picks, setPicks] = useState(() => cards(S0.picks))
@@ -75,13 +76,13 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
       const ok = [], bad = []
       for (const x of j.adicionar || []) {
         const c = find(x.carta)
-        if (!c) { bad.push(`${x.carta} (não existe)`); continue }
-        if (bit >= 0 && !(c.lg & (1 << bit))) { bad.push(`${c.n} (ilegal)`); continue }
+        if (!c) { bad.push(tx('{name} (não existe)', { name: x.carta })); continue }
+        if (bit >= 0 && !(c.lg & (1 << bit))) { bad.push(tx('{name} (ilegal)', { name: c.n })); continue }
         if (fmt.cmd && !commander && /^comandante/i.test(x.porque || '') && canBeCommander(c, fmt)) { commander = c; continue }
         ok.push(c)
       }
       const legal = commander ? ok.filter(c => passes(c, null, { bit, identity: commander.ci })) : ok
-      for (const c of ok) if (!legal.includes(c)) bad.push(`${c.n} (fora das cores)`)
+      for (const c of ok) if (!legal.includes(c)) bad.push(tx('{name} (fora das cores)', { name: c.n }))
       if (commander) setCmds([commander])
       setPicks(legal.slice(0, 30))
       setAiSum({ txt: j.resumo, bad, modelo: j.modelo })
@@ -109,7 +110,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const ready = fmt.cmd ? cmds.length > 0 : picks.length >= 3
   const create = auto => {
     const d = emptyDeck(format)
-    d.name = name.trim() || (cmd ? `${cmds.map(c => c.n.split(',')[0]).join(' & ')} — novo` : `${fmt.name} — novo`)
+    d.name = name.trim() || tx('{name} — novo', { name: cmd ? cmds.map(c => c.n.split(',')[0]).join(' & ') : fmt.name })
     d.commanders = cmds.map(c => c.n)
     save(null)
     for (const c of picks) {
@@ -125,84 +126,84 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   return (
     <div className="modal-bg" onClick={onCancel}>
       <div className="modal auto wizard" onClick={e => e.stopPropagation()}>
-        <button className="close" onClick={onCancel} aria-label="Fechar">×</button>
-        <h3>Novo deck</h3>
-        {(restored || dirty) && <p className="wz-restored small">{restored ? <span className="muted">↺ Retomei as escolhas que tinhas deixado.</span> : <span className="muted">As escolhas ficam guardadas se fechares.</span>} <button className="link" onClick={clear}>Limpar tudo</button></p>}
+        <button className="close" onClick={onCancel} aria-label={tx('Fechar')}>×</button>
+        <h3>{tx('Novo deck')}</h3>
+        {(restored || dirty) && <p className="wz-restored small">{restored ? <span className="muted">↺ {tx('Retomei as escolhas que tinhas deixado.')}</span> : <span className="muted">{tx('As escolhas ficam guardadas se fechares.')}</span>} <button className="link" onClick={clear}>{tx('Limpar tudo')}</button></p>}
         <div className="wz-row">
-          <label className="fmt"><span>Formato</span>
+          <label className="fmt"><span>{tx('Formato')}</span>
             <select value={format} onChange={e => { setFormat(e.target.value); setCmds([]) }}>
-              {['Multijogador', 'Construído', 'Arena', 'Outros'].map(g => <optgroup key={g} label={g}>{FORMATS.filter(f => f.group === g).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</optgroup>)}
+              {['Multijogador', 'Construído', 'Arena', 'Outros'].map(g => <optgroup key={g} label={tx(g)}>{FORMATS.filter(f => f.group === g).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</optgroup>)}
             </select>
           </label>
-          <label className="fmt"><span>Nome (opcional)</span><input value={name} onChange={e => setName(e.target.value)} placeholder="o Grimório dá um nome se ficar vazio" /></label>
+          <label className="fmt"><span>{tx('Nome (opcional)')}</span><input value={name} onChange={e => setName(e.target.value)} placeholder={tx('o Grimório dá um nome se ficar vazio')} /></label>
         </div>
 
-        <h4>Como queres começar?</h4>
+        <h4>{tx('Como queres começar?')}</h4>
         <div className="seg">{START.map(([k, l, ic]) => <button key={k} className={start === k ? 'on' : ''} onClick={() => setStart(k)}><i>{ic}</i><span>{l}</span></button>)}</div>
 
         {start === 'importar' && (
           <div className="wz-imp">
-            <p>Traz um deck que já tens (link do Moxfield, Archidekt, TappedOut, MTGGoldfish, Deckstats, MTGTop8, Scryfall, ou a lista colada). Depois de importar abre-se o diagnóstico «Melhorias prioritárias», com cortes, trocas, base de mana e o assistente IA para o melhorar.</p>
-            <button className="primary" onClick={() => { save(null); onImport(format) }}>⇩ Importar deck</button>
+            <p>{tx('Traz um deck que já tens (link do Moxfield, Archidekt, TappedOut, MTGGoldfish, Deckstats, MTGTop8, Scryfall, ou a lista colada). Depois de importar abre-se o diagnóstico «Melhorias prioritárias», com cortes, trocas, base de mana e o assistente IA para o melhorar.')}</p>
+            <button className="primary" onClick={() => { save(null); onImport(format) }}>⇩ {tx('Importar deck')}</button>
           </div>
         )}
 
         {start === 'manual' && (
           <div className="wz-imp">
-            <p>Começas com o deck vazio e vais metendo as cartas tu. Ao lado da pesquisa, o painel «Sugestões para este deck» acompanha-te em tempo real: a cada carta que entra, recalcula o que combina, o que falta ao formato e a base de mana, sempre com o porquê.{fmt.cmd ? ' Começa pelo comandante (♛ numa carta lendária).' : ''}</p>
+            <p>{tx('Começas com o deck vazio e vais metendo as cartas tu. Ao lado da pesquisa, o painel «Sugestões para este deck» acompanha-te em tempo real: a cada carta que entra, recalcula o que combina, o que falta ao formato e a base de mana, sempre com o porquê.')}{fmt.cmd ? ` ${tx('Começa pelo comandante (♛ numa carta lendária).')}` : ''}</p>
             <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />
-            <button className="primary" onClick={() => { save(null); const d = emptyDeck(format); d.name = name.trim() || `${fmt.name} — novo`; d.prefs = prefs; onCreate(d, false, 'pesquisa') }}>✎ Começar a construir</button>
+            <button className="primary" onClick={() => { save(null); const d = emptyDeck(format); d.name = name.trim() || tx('{name} — novo', { name: fmt.name }); d.prefs = prefs; onCreate(d, false, 'pesquisa') }}>✎ {tx('Começar a construir')}</button>
           </div>
         )}
 
         {start === 'ia' && (
           <div className="wz-ia">
-            {cfg && cfg.provider === 'off' && <><p className="small">A IA é um extra opcional e está desligada. Escolhe um fornecedor (o Gemini tem plano gratuito):</p><IASettings cfg={cfg} setCfg={setCfg} onDone={() => {}} /></>}
+            {cfg && cfg.provider === 'off' && <><p className="small">{tx('A IA é um extra opcional e está desligada. Escolhe um fornecedor (o Gemini tem plano gratuito):')}</p><IASettings cfg={cfg} setCfg={setCfg} onDone={() => {}} /></>}
             {(!cfg || cfg.provider !== 'off') && (
               <>
-                <textarea value={idea} onChange={e => setIdea(e.target.value)} placeholder={fmt.cmd ? 'Ex.: elfos verde-preto, barato, que ganhe a encher a mesa de fichas e sacrifica-las' : 'Ex.: aggro vermelho com muitos feitiços baratos e prowess'} />
-                <div className="row-btns"><button className="primary" onClick={generate} disabled={busy || idea.trim().length < 8}>{busy ? 'A IA está a pensar…' : '✦ Gerar a base do deck'}</button>
-                  <span className="muted small">A IA propõe {fmt.cmd ? 'o comandante e ' : ''}15 a 30 cartas-chave; o Grimório verifica cada uma e completa o resto.</span></div>
+                <textarea value={idea} onChange={e => setIdea(e.target.value)} placeholder={fmt.cmd ? tx('Ex.: elfos verde-preto, barato, que ganhe a encher a mesa de fichas e sacrifica-las') : tx('Ex.: aggro vermelho com muitos feitiços baratos e prowess')} />
+                <div className="row-btns"><button className="primary" onClick={generate} disabled={busy || idea.trim().length < 8}>{busy ? tx('A IA está a pensar…') : tx('✦ Gerar a base do deck')}</button>
+                  <span className="muted small">{fmt.cmd ? tx('A IA propõe o comandante e 15 a 30 cartas-chave; o Grimório verifica cada uma e completa o resto.') : tx('A IA propõe 15 a 30 cartas-chave; o Grimório verifica cada uma e completa o resto.')}</span></div>
               </>
             )}
             {aiErr && <p className="small bad-t">{aiErr}</p>}
-            {aiSum && <div className="ia-sum">{aiSum.txt}{aiSum.bad.length > 0 && <p className="small muted">Ignoradas: {aiSum.bad.join(', ')}.</p>}<p className="small muted">{aiSum.modelo}</p></div>}
+            {aiSum && <div className="ia-sum">{aiSum.txt}{aiSum.bad.length > 0 && <p className="small muted">{tx('Ignoradas: {list}.', { list: aiSum.bad.join(', ') })}</p>}<p className="small muted">{aiSum.modelo}</p></div>}
           </div>
         )}
 
         {(start === 'cartas' || start === 'ia') && <>
         {fmt.cmd && <>
-          <h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : 'Comandante'} <span className="muted">{cmds.length ? (partnerOf ? 'aceita um par: escolhe o segundo se quiseres' : '') : 'escolhe-o aqui, ou ♛ numa das cartas de partida'}</span></h4>
+          <h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')} <span className="muted">{cmds.length ? (partnerOf ? tx('aceita um par: escolhe o segundo se quiseres') : '') : tx('escolhe-o aqui, ou ♛ numa das cartas de partida')}</span></h4>
           <div className="wz-cmd">
-            {cmds.map(c => <div key={c.i} className="wz-pick cmd"><img src={img(c, 'normal')} alt={c.n} /><span className="wz-badge">♛ {cmds.length > 1 ? 'par' : 'comandante'}</span><button onClick={() => setCmds(x => x.filter(y => y.i !== c.i))} aria-label="Retirar">×</button></div>)}
+            {cmds.map(c => <div key={c.i} className="wz-pick cmd"><img src={img(c, 'normal')} alt={c.n} /><span className="wz-badge">♛ {cmds.length > 1 ? tx('par') : tx('comandante')}</span><button onClick={() => setCmds(x => x.filter(y => y.i !== c.i))} aria-label={tx('Retirar')}>×</button></div>)}
             {cmds.length < (partnerOf ? 2 : 1) && <div className="wz-cmdq">
-              <input className="big" value={cq} onChange={e => setCq(e.target.value)} placeholder={partnerOf ? `Procurar o par de ${partnerOf.n.split(',')[0]}…` : `Procurar ${fmt.cmd === 'oathbreaker' ? 'planeswalker' : 'comandante'} legal em ${fmt.name}…`} />
+              <input className="big" value={cq} onChange={e => setCq(e.target.value)} placeholder={partnerOf ? tx('Procurar o par de {name}…', { name: partnerOf.n.split(',')[0] }) : tx(fmt.cmd === 'oathbreaker' ? 'Procurar planeswalker legal em {fmt}…' : 'Procurar comandante legal em {fmt}…', { fmt: fmt.name })} />
               <div className="wz-res cmds">{cmdRes.map(c => <button key={c.i} onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(y => y.i !== c.i)); setCq('') }} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" /></button>)}
-                {!cmdRes.length && <span className="muted small">{dcq ? 'Nenhum com esse nome.' : partnerOf ? 'Sem pares legais neste formato.' : ''}</span>}</div>
+                {!cmdRes.length && <span className="muted small">{dcq ? tx('Nenhum com esse nome.') : partnerOf ? tx('Sem pares legais neste formato.') : ''}</span>}</div>
             </div>}
           </div>
         </>}
-        <h4>{start === 'ia' ? 'Base gerada' : 'Cartas de partida'} <span className="muted">{picks.length}/{maxPicks}{start === 'cartas' ? (fmt.cmd ? ' · opcional: 0 a 10 de que gostes (só o comandante também dá)' : ' · escolhe 3 a 10 de que gostas') : ' · ajusta à vontade'}</span></h4>
+        <h4>{start === 'ia' ? tx('Base gerada') : tx('Cartas de partida')} <span className="muted">{picks.length}/{maxPicks} · {start === 'cartas' ? (fmt.cmd ? tx('opcional: 0 a 10 de que gostes (só o comandante também dá)') : tx('escolhe 3 a 10 de que gostas')) : tx('ajusta à vontade')}</span></h4>
         <div className="wz-picks">
           {picks.map(c => (
             <div key={c.i} className="wz-pick">
               <img src={img(c, 'normal')} alt={c.n} />
-              {fmt.cmd && (!cmds.length || (partnerOf && pairOk(partnerOf, c))) && canBeCommander(c, fmt) && <button className="wz-mk" onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(x => x.i !== c.i)) }}>♛ comandante</button>}
-              <button onClick={() => toggle(c)} aria-label="Retirar">×</button>
+              {fmt.cmd && (!cmds.length || (partnerOf && pairOk(partnerOf, c))) && canBeCommander(c, fmt) && <button className="wz-mk" onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(x => x.i !== c.i)) }}>♛ {tx('comandante')}</button>}
+              <button onClick={() => toggle(c)} aria-label={tx('Retirar')}>×</button>
             </div>
           ))}
-          {start === 'cartas' && !fmt.cmd && Array.from({ length: Math.max(0, 3 - picks.length) }).map((_, k) => <div key={`v${k}`} className="wz-pick empty">escolhe uma carta</div>)}
-          {start === 'cartas' && fmt.cmd && !picks.length && <div className="wz-pick empty">opcional</div>}
+          {start === 'cartas' && !fmt.cmd && Array.from({ length: Math.max(0, 3 - picks.length) }).map((_, k) => <div key={`v${k}`} className="wz-pick empty">{tx('escolhe uma carta')}</div>)}
+          {start === 'cartas' && fmt.cmd && !picks.length && <div className="wz-pick empty">{tx('opcional')}</div>}
         </div>
 
         {cmdSugs.length > 0 && (
           <>
-            <h4>Comandantes que encaixam <span className="muted">cobrem as cores das tuas cartas</span></h4>
+            <h4>{tx('Comandantes que encaixam')} <span className="muted">{tx('cobrem as cores das tuas cartas')}</span></h4>
             <div className="wz-res cmds">{cmdSugs.map(c => <button key={c.i} onClick={() => setCmd(c)} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" /></button>)}</div>
           </>
         )}
 
-        <input className="big" value={q} onChange={e => setQ(e.target.value)} placeholder={`Procurar cartas ${ctx.bit >= 0 ? `legais em ${fmt.name}` : ''}${ctx.identity != null ? ` na identidade ${ctx.identity || 'incolor'}` : ''}…`} />
+        <input className="big" value={q} onChange={e => setQ(e.target.value)} placeholder={tx(ctx.bit >= 0 ? 'Procurar cartas legais em {fmt}' : 'Procurar cartas', { fmt: fmt.name }) + (ctx.identity != null ? tx(' na identidade {id}', { id: ctx.identity || tx('incolor') }) : '') + '…'} />
         <div className="wz-res">{res.map(c => (
           <button key={c.i} className={has(c) ? 'on' : ''} onClick={() => toggle(c)} title={c.n} disabled={!has(c) && picks.length >= maxPicks}>
             <img src={img(c, 'normal')} alt={c.n} loading="lazy" />{has(c) && <span>✓</span>}
@@ -213,9 +214,9 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         </>}
 
         {(start === 'cartas' || start === 'ia') && <div className="row-btns wz-foot">
-          <button className="primary" onClick={() => create(true)} disabled={!ready}>{fmt.cmd && !picks.length && cmd ? '✦ Construir o deck à volta do comandante' : '✦ Criar e completar o deck'}</button>
-          <button onClick={() => create(false)} disabled={!picks.length && !cmd}>Criar só com estas</button>
-          <span className="muted small">{!ready ? (fmt.cmd ? 'Escolhe o comandante (pesquisa acima, ♛ numa carta ou uma sugestão).' : `Faltam ${3 - picks.length} carta${3 - picks.length > 1 ? 's' : ''}.`) : cmd ? <>{cmds.length > 1 ? 'Comandantes' : 'Comandante'}: <b>{cmds.map(c => c.n).join(' + ')}</b> <Mana cost={cmds.map(c => c.mc).join('')} /></> : fmt.side > 0 ? 'No fim também é proposto um sideboard de 15.' : ''}</span>
+          <button className="primary" onClick={() => create(true)} disabled={!ready}>{fmt.cmd && !picks.length && cmd ? tx('✦ Construir o deck à volta do comandante') : tx('✦ Criar e completar o deck')}</button>
+          <button onClick={() => create(false)} disabled={!picks.length && !cmd}>{tx('Criar só com estas')}</button>
+          <span className="muted small">{!ready ? (fmt.cmd ? tx('Escolhe o comandante (pesquisa acima, ♛ numa carta ou uma sugestão).') : tx('Falta {n} carta.|Faltam {n} cartas.', { n: 3 - picks.length })) : cmd ? <>{cmds.length > 1 ? tx('Comandantes') : tx('Comandante')}: <b>{cmds.map(c => c.n).join(' + ')}</b> <Mana cost={cmds.map(c => c.mc).join('')} /></> : fmt.side > 0 ? tx('No fim também é proposto um sideboard de 15.') : ''}</span>
         </div>}
       </div>
     </div>

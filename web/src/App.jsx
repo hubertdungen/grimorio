@@ -12,13 +12,40 @@ import LabView from './Lab.jsx'
 import PlayView from './Play.jsx'
 import TournamentView from './Tournament.jsx'
 import RatingsView from './Ratings.jsx'
-import { loadTests } from './tests.js'
+import { loadGames } from './tests.js'
+import { gameEvidence, applySwap } from './swap.js'
 import Library from './Library.jsx'
 import './index.css'
+import { tx, LOCALE } from './i18n.js'
+import Settings from './Settings.jsx'
+import { WhoPlays, ProfileChip } from './Profiles.jsx'
 
-const TABS = [['pesquisa', 'Pesquisa'], ['sugestoes', 'Sugestões'], ['universo', 'Universo'], ['combos', 'Combos'], ['analise', 'Análise'], ['teste', 'Teste'], ['draft', 'Draft']]
-const SECTIONS = [['construir', '✎', 'Construir'], ['biblioteca', '▤', 'Biblioteca'], ['coliseu', '⚔', 'Coliseu']]
-const ZONE_L = { main: 'deck', side: 'sideboard', maybe: 'maybeboard' }
+const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
+const SECTIONS = [['construir', '✎', tx('Construir')], ['biblioteca', '▤', tx('Biblioteca')], ['coliseu', '⚔', tx('Coliseu')]]
+const ZONE_L = { main: tx('deck'), side: tx('sideboard'), maybe: tx('maybeboard') }
+// Desfazer: só o conteúdo do deck (nome, notas, formato, preferências e sementes ficam de fora)
+const CONTENT = ['main', 'side', 'maybe', 'commanders', 'signature', 'prints', 'cover', 'coverImg']
+const snapOf = d => Object.fromEntries(CONTENT.map(k => [k, d[k]]))
+const norm = v => JSON.stringify(v && typeof v === 'object' && !Object.keys(v).length ? null : v ?? null)
+// o que mudou: as cartas com outra quantidade («main:Bolt») e os outros campos; '' = nada
+function changed(a, b) {
+  const out = []
+  for (const k of CONTENT) {
+    if (a[k] === b[k]) continue
+    if (k === 'main' || k === 'side' || k === 'maybe') {
+      const x = a[k] || {}, y = b[k] || {}
+      for (const n of new Set([...Object.keys(x), ...Object.keys(y)])) if (x[n] !== y[n]) out.push(`${k}:${n}`)
+    } else if (norm(a[k]) !== norm(b[k])) out.push(k)
+  }
+  return out.join('|')
+}
+const UndoBtns = ({ act, hist }) => (
+  <span className="undo-btns">
+    <button onClick={act.undo} disabled={!hist[0]} title={tx('Desfazer (Ctrl+Z)')}>↶ {tx('Desfazer')}</button>
+    <button onClick={act.redo} disabled={!hist[1]} title={tx('Refazer (Ctrl+Shift+Z)')}>↷ {tx('Refazer')}</button>
+  </span>
+)
+const GROUP_L = { Outras: tx('Outras'), Desconhecidas: tx('Desconhecidas') }
 const store = { get: k => { try { return localStorage.getItem(k) } catch { return null } }, set: (k, v) => { try { localStorage.setItem(k, v) } catch { /* sem storage */ } } }
 
 async function api(path, opts) {
@@ -72,9 +99,68 @@ export default function App() {
   const [deckView, setDeckViewRaw] = useState(() => store.get('grimorio.deckView') || 'grelha')
   const setDeckView = v => { setDeckViewRaw(v); store.set('grimorio.deckView', v) }
   const dirty = useRef(false)
+  // perfis (edições sem login) e Definições (#definicoes: o ⚙ do cabeçalho, a página inicial e o Laboratório abrem-nas)
+  const [prof, setProf] = useState(null)
+  const [who, setWho] = useState('')  // '' | 'switch' | 'new': «Quem vai jogar?» por cima da app
+  useEffect(() => {
+    fetch('/api/profiles').then(r => r.json()).then(setProf).catch(() => {})
+    const lost = () => setProf(p => (p?.mode === 'profiles' ? { ...p, current: null } : p))  // um pedido respondeu 401 «profile»
+    window.addEventListener('grimorio:profile', lost)
+    return () => window.removeEventListener('grimorio:profile', lost)
+  }, [])
+  const [settings, setSettings] = useState(() => window.location.hash === '#definicoes')
+  useEffect(() => {
+    const h = () => setSettings(window.location.hash === '#definicoes')
+    window.addEventListener('hashchange', h)
+    return () => window.removeEventListener('hashchange', h)
+  }, [])
+  const closeSettings = () => { history.replaceState(null, '', window.location.pathname); setSettings(false) }
 
-  const say = useCallback(msg => { setToast(msg); clearTimeout(say.t); say.t = setTimeout(() => setToast(null), 2600) }, [])
+  // undo = o aviso leva «Desfazer» (mudanças ao deck)
+  const say = useCallback((msg, undo = false) => { setToast({ msg, undo }); clearTimeout(say.t); say.t = setTimeout(() => setToast(null), undo ? 4500 : 2600) }, [])
   const setDeck = useCallback(fn => { dirty.current = true; setDeckRaw(fn) }, [])
+
+  // Histórico do deck: cada mudança de conteúdo guarda o estado anterior (até 50); cliques seguidos na mesma carta
+  // (< 600 ms) contam como um passo; abrir outro deck limpa (um deck novo com cartas, do assistente, desfaz para vazio).
+  const hist = useRef({ past: [], future: [], prev: null, key: '', t: 0, nav: false })
+  const [histN, setHistN] = useState([0, 0])
+  useEffect(() => {
+    const h = hist.current, prev = h.prev
+    h.prev = deck
+    if (h.nav || !prev) { h.nav = false; return }
+    const key = changed(prev, deck)
+    if (prev.id !== deck.id && (prev.id || key)) {
+      h.past = !deck.id && changed(emptyDeck(), deck) ? [snapOf(emptyDeck())] : []
+      h.future = []; h.key = ''
+    } else {
+      if (!key) return
+      const now = Date.now()
+      if (key !== h.key || now - h.t > 600) h.past = [...h.past, snapOf(prev)].slice(-50)
+      h.key = key; h.t = now; h.future = []
+    }
+    setHistN([h.past.length, h.future.length])
+  }, [deck])
+  const travel = useCallback(back => {
+    const h = hist.current, from = back ? h.past : h.future, to = back ? h.future : h.past
+    if (!from.length || !h.prev) return
+    const snap = from.pop()
+    to.push(snapOf(h.prev))
+    h.nav = true; h.key = ''; dirty.current = true
+    setDeckRaw(d => ({ ...d, ...snap }))
+    setHistN([h.past.length, h.future.length])
+    say(back ? tx('Desfeito') : tx('Refeito'))
+  }, [say])
+  const undo = useCallback(() => travel(true), [travel])
+  const redo = useCallback(() => travel(false), [travel])
+  useEffect(() => { // Ctrl/Cmd+Z e Ctrl/Cmd+Shift+Z na construção, fora das caixas de texto
+    if (section !== 'construir') return
+    const k = e => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== 'z' || e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return
+      e.preventDefault(); travel(!e.shiftKey)
+    }
+    addEventListener('keydown', k)
+    return () => removeEventListener('keydown', k)
+  }, [section, travel])
 
   useEffect(() => { loadData().then(setData).catch(e => setErr(e.message)) }, [])
   useEffect(() => {
@@ -89,7 +175,7 @@ export default function App() {
   // Gravação automática (cria o deck no servidor à primeira alteração).
   useEffect(() => {
     if (!dirty.current) return
-    setSaveState('a guardar…')
+    setSaveState(tx('a guardar…'))
     const t = setTimeout(async () => {
       try {
         const body = JSON.stringify({ ...deck, count: count(deck.main) + deck.commanders.length })
@@ -97,19 +183,19 @@ export default function App() {
         dirty.current = false
         if (!deck.id) setDeckRaw(d => ({ ...d, id: saved.id }))
         store.set('grimorio.deck', saved.id)
-        setSaveState('guardado')
+        setSaveState(tx('guardado'))
         api('/api/decks').then(setDecks).catch(() => {})
-      } catch (e) { setSaveState(`erro ao guardar: ${e.message}`) }
+      } catch (e) { setSaveState(tx('erro ao guardar: {e}', { e: e.message })) }
     }, 700)
     return () => clearTimeout(t)
   }, [deck])
 
-  // Testes guardados do deck (Laboratório): entram nas sugestões e nos cortes; o Lab pede para recarregar ao guardar.
+  // Jogos do deck (Laboratório e torneios): entram nas sugestões e nos cortes; o Lab pede para recarregar ao guardar.
   const [tests, setTests] = useState(null)
   const [testsN, setTestsN] = useState(0)
   useEffect(() => {
     let off = false
-    if (data && deck.id) loadTests(data, deck.id).then(t => { if (!off) setTests({ id: deck.id, t }) }).catch(() => {})
+    if (data && deck.id) loadGames(deck.id).then(g => { if (!off) setTests({ id: deck.id, t: gameEvidence(data, g) }) }).catch(() => {})
     return () => { off = true }
   }, [data, deck.id, testsN])
   const deckTests = tests?.id === deck.id ? tests.t : null
@@ -126,13 +212,13 @@ export default function App() {
     const lim = maxCopies(c, fmt, fmtBit(data, fmt))
     setDeck(d => {
       const have = (d.main[c.n] || 0) + (d.side[c.n] || 0) + (d.commanders.includes(c.n) ? 1 : 0)
-      if (q > 0 && zone !== 'maybe' && have + q > lim) { say(`${c.n}: limite de ${lim} em ${fmt.name}.`); return d }
+      if (q > 0 && zone !== 'maybe' && have + q > lim) { say(tx('{card}: limite de {lim} em {fmt}.', { card: c.n, lim, fmt: fmt.name })); return d }
       const z = { ...(d[zone] || {}) }
       z[c.n] = (z[c.n] || 0) + q
       if (z[c.n] <= 0) delete z[c.n]
       return { ...d, [zone]: z }
     })
-    if (q > 0) say(`${c.n} → ${ZONE_L[zone]}`)
+    say(q > 0 ? `${c.n} → ${ZONE_L[zone]}` : `${c.n} −${-q} (${ZONE_L[zone]})`, true)
   }, [data, fmt, setDeck, say])
   // mover todas as cópias entre deck, sideboard e maybeboard (a legalidade só olha para o deck e o sideboard)
   const move = useCallback((c, from, to) => setDeck(d => {
@@ -143,7 +229,7 @@ export default function App() {
   }), [setDeck])
 
   const setCommander = useCallback(c => {
-    if (!canBeCommander(c, fmt)) say(`Atenção: ${c.n} não costuma poder ser comandante em ${fmt.name}.`)
+    if (!canBeCommander(c, fmt)) say(tx('Atenção: {card} não costuma poder ser comandante em {fmt}.', { card: c.n, fmt: fmt.name }))
     setDeck(d => {
       if (d.commanders.includes(c.n)) return { ...d, commanders: d.commanders.filter(n => n !== c.n) }
       const main = { ...d.main }; delete main[c.n]
@@ -164,7 +250,9 @@ export default function App() {
 
   const act = useMemo(() => ({ add, move, setCommander, toggleSeed, setSignature, setPrint, setPrefs, open: setOpen, say, pickArt: setArtCard,
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
-    suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1) }), [add, move, setCommander, toggleSeed, setSignature, setPrint, setPrefs, say])
+    suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
+    swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
+  [add, move, setCommander, toggleSeed, setSignature, setPrint, setPrefs, say, setDeck, undo, redo])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const openDeck = async id => {
@@ -174,17 +262,19 @@ export default function App() {
     setDeckRaw({ ...emptyDeck(), ...d }); store.set('grimorio.deck', id); setSaveState('')
   }
   const delDeck = async () => {
-    if (!deck.id || !confirm(`Eliminar «${deck.name}»? Fica 30 dias no lixo da Biblioteca.`)) return
+    if (!deck.id || !confirm(tx('Eliminar «{name}»? Fica 30 dias no lixo da Biblioteca.', { name: deck.name }))) return
     await api(`/api/decks/${deck.id}`, { method: 'DELETE' })
     setDecks(ds => ds.filter(x => x.id !== deck.id))
     newDeck()
   }
 
-  if (err) return <div className="boot"><Logo size={64} /><p>Não consegui carregar os dados: {err}</p><p className="muted">Os dados são gerados por <code>build/build.sh</code>.</p></div>
-  if (!data) return <div className="boot"><Logo size={64} /><div className="spinner" /><p>A abrir o grimório… <span className="muted">(34 mil cartas, ~10 MB)</span></p></div>
+  if (prof?.mode === 'profiles' && (!prof.current || who)) return <WhoPlays list={prof.list} startNew={who === 'new'} onClose={prof.current ? () => setWho('') : null} />
+  if (settings) return <Settings prof={prof} onClose={closeSettings} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />
+  if (err) return <div className="boot"><Logo size={64} /><p>{tx('Não consegui carregar os dados: {err}', { err })}</p><p className="muted">{tx('Os dados são gerados por')} <code>build/build.sh</code>.</p></div>
+  if (!data) return <div className="boot"><Logo size={64} /><div className="spinner" /><p>{tx('A abrir o grimório…')} <span className="muted">{tx('(34 mil cartas, ~10 MB)')}</span></p></div>
 
   // deck casual: as regras do formato não o impedem de nada; os erros passam a informação
-  const issues = validate(deck, fmt, data).map(i => (deck.casual && i.nivel === 'erro' ? { ...i, nivel: 'info', msg: `${i.msg} (deck casual: permitido)` } : i))
+  const issues = validate(deck, fmt, data).map(i => (deck.casual && i.nivel === 'erro' ? { ...i, nivel: 'info', msg: tx('{msg} (deck casual: permitido)', { msg: i.msg }) } : i))
   const errors = issues.filter(i => i.nivel === 'erro').length
   const total = count(deck.main) + deck.commanders.length + (deck.signature ? 1 : 0)
 
@@ -193,17 +283,19 @@ export default function App() {
   return (
     <div className={`app tab-${tab} sec-${section}`}>
       <header className="top">
-        <button className="brand" onClick={() => setHome(true)} title="Página inicial"><Logo /><div><b>Grimório</b><small>construtor de decks de Magic</small></div></button>
-        <nav className="sections" aria-label="Áreas">{SECTIONS.map(([k, ic, l]) => (
+        <button className="brand" onClick={() => setHome(true)} title={tx('Página inicial')}><Logo /><div><b>Grimório</b><small>{tx('construtor de decks de Magic')}</small></div></button>
+        <nav className="sections" aria-label={tx('Áreas')}>{SECTIONS.map(([k, ic, l]) => (
           <button key={k} className={section === k ? 'on' : ''} onClick={() => setSection(k)}><i>{ic}</i><span>{l}</span></button>
         ))}</nav>
         {section !== 'biblioteca' && <div className="deck-pick">
           <DeckPicker decks={decks} deck={deck} data={data} onOpen={openDeck} />
-          <button className="new-btn" onClick={() => setShowWizard(true)}>✦ Novo deck</button>
+          <button className="new-btn" onClick={() => setShowWizard(true)}>✦ {tx('Novo deck')}</button>
           <span className="save">{saveState}</span>
         </div>}
+        <ProfileChip prof={prof} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />
+        <a className="gear" href="#definicoes" title={tx('Definições')} aria-label={tx('Definições')}>⚙</a>
         {section === 'construir' && <nav className="tabs">
-          <button className={`tab-deck ${tab === 'deck' ? 'on' : ''}`} onClick={() => setTab('deck')}>Deck <b>{total}</b></button>
+          <button className={`tab-deck ${tab === 'deck' ? 'on' : ''}`} onClick={() => setTab('deck')}>{tx('Deck')} <b>{total}</b></button>
           {TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
         </nav>}
       </header>
@@ -211,12 +303,12 @@ export default function App() {
       {section === 'biblioteca' && <div className="area"><Library data={data} openDeck={id => openDeck(id).then(() => goTab('deck'))} goTab={goTab} say={say} importLinks={importLinks} /></div>}
       {section === 'coliseu' && (
         <div className="area coliseu" ref={coliseuRef}>
-          <p className="rodar-hint">↻ Roda o tablet para paisagem para veres melhor o tabuleiro.</p>
+          <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>
           <div className="col-bar">
-            <b>⚔ Coliseu</b><span className="muted small">{deck.name} · {fmt.name}</span>
-            <span className="seg">{[['bots', '🤖 Bots a testar'], ['jogar', '🎮 Jogar contra o Forge'], ['torneio', '🏆 Torneio'], ['ratings', '📊 Ratings']].map(([k, l]) => <button key={k} className={colMode === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
-            <button className="fs-btn" onClick={fullscreen} title="Ecrã inteiro (sair: este botão ou Esc)">⛶<span> Ecrã inteiro</span></button>
-            <button className="link small" onClick={() => goTab('deck')}>voltar ao deck</button>
+            <b>⚔ {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
+            <span className="seg">{[['bots', `🤖 ${tx('Bots a testar')}`], ['jogar', `🎮 ${tx('Jogar contra o Forge')}`], ['torneio', `🏆 ${tx('Torneio')}`], ['ratings', `📊 ${tx('Ratings')}`]].map(([k, l]) => <button key={k} className={colMode === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
+            <button className="fs-btn" onClick={fullscreen} title={tx('Ecrã inteiro (sair: este botão ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
+            <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>
           <div hidden={colMode !== 'bots'}><LabView {...{ data, deck, fmt, act, ctx, playFrom }} /></div>
           {colMode === 'jogar' && <div className="view"><PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} /></div>}
@@ -227,28 +319,29 @@ export default function App() {
 
       {section === 'construir' && <div className="body">
         <aside className="deck-panel">
-          <DeckPanel {...{ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh }} />
+          <DeckPanel {...{ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} />
         </aside>
         <main className="work">
           {tab === 'pesquisa' && <SearchView {...{ data, deck, fmt, ctx, act }} />}
           {tab === 'sugestoes' && <SuggestView {...{ data, deck, fmt, ctx, act, setDeck, sugTag, setSugTag }} />}
           {tab === 'universo' && <MapView {...{ data, deck, fmt, ctx, act, focus, setFocus }} />}
           {tab === 'combos' && <CombosView {...{ data, deck, ctx, act }} />}
-          {tab === 'teste' && <><div className="to-coliseu"><span className="muted small">Para ver os jogos em grande:</span> <button onClick={() => setSection('coliseu')}>⛶ Abrir no Coliseu</button></div><LabView {...{ data, deck, fmt, act, ctx, playFrom }} /></>}
+          {tab === 'teste' && <><div className="to-coliseu"><span className="muted small">{tx('Para ver os jogos em grande:')}</span> <button onClick={() => setSection('coliseu')}>⛶ {tx('Abrir no Coliseu')}</button></div><LabView {...{ data, deck, fmt, act, ctx, playFrom }} /></>}
           {tab === 'draft' && <DraftView {...{ data, setDeck, act }} />}
           {tab === 'analise' && <AnalysisView {...{ data, deck, fmt, ctx, act, issues }} />}
           {tab === 'deck' && (
             <div className="view deck-tab">
-              <div className="seg viewby"><button className={deckView === 'grelha' ? 'on' : ''} onClick={() => setDeckView('grelha')}><i>▦</i><span>Grelha</span></button><button className={deckView === 'lista' ? 'on' : ''} onClick={() => setDeckView('lista')}><i>☰</i><span>Lista</span></button></div>
-              {deckView === 'grelha' ? <DeckGrid {...{ data, deck, fmt, act }} /> : <div className="deck-mobile"><DeckPanel {...{ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh }} /></div>}
+              <div className="seg viewby"><button className={deckView === 'grelha' ? 'on' : ''} onClick={() => setDeckView('grelha')}><i>▦</i><span>{tx('Grelha')}</span></button><button className={deckView === 'lista' ? 'on' : ''} onClick={() => setDeckView('lista')}><i>☰</i><span>{tx('Lista')}</span></button></div>
+              {deckView === 'grelha' && <UndoBtns act={act} hist={histN} />}
+              {deckView === 'grelha' ? <DeckGrid {...{ data, deck, fmt, act }} /> : <div className="deck-mobile"><DeckPanel {...{ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} /></div>}
             </div>
           )}
         </main>
       </div>}
 
       <footer className="foot">
-        Dados: <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a> e <a href="https://commanderspellbook.com" target="_blank" rel="noreferrer">Commander Spellbook</a> · atualizados {data.meta.built.slice(0, 10)} · {data.meta.cards.toLocaleString('pt-PT')} cartas, {data.meta.combos.toLocaleString('pt-PT')} combos.
-        Conteúdo de fã não oficial, permitido pela Fan Content Policy. Não aprovado nem apoiado pela Wizards. Partes dos materiais usados são propriedade da Wizards of the Coast. ©Wizards of the Coast LLC.
+        {tx('Dados:')} <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a> {tx('e')} <a href="https://commanderspellbook.com" target="_blank" rel="noreferrer">Commander Spellbook</a> · {tx('atualizados {date} · {cards} cartas, {combos} combos.', { date: data.meta.built.slice(0, 10), cards: data.meta.cards.toLocaleString(LOCALE), combos: data.meta.combos.toLocaleString(LOCALE) })}
+        {tx('Conteúdo de fã não oficial, permitido pela Fan Content Policy. Não aprovado nem apoiado pela Wizards. Partes dos materiais usados são propriedade da Wizards of the Coast. ©Wizards of the Coast LLC.')}
       </footer>
 
       {open && <CardModal key={open.i} c={open} {...{ data, deck, fmt, ctx, act }} onClose={() => setOpen(null)} />}
@@ -264,12 +357,12 @@ export default function App() {
       {showAuto && <AutoBuildDialog {...{ data, deck, fmt, ctx, setDeck, say, act, onClose: () => setShowAuto(false) }} />}
       {showRefresh && <RefreshDialog {...{ data, deck, setDeck, say, onClose: () => setShowRefresh(false) }} />}
       {showImport && <ImportDialog {...{ data, deck, setDeck, say, onClose: () => setShowImport(false), onImported: () => setTab('analise') }} />}
-      {toast && <div className="toast">{toast}</div>}
+      {toast && <div className="toast">{toast.msg}{toast.undo && histN[0] > 0 && <button className="link toast-undo" onClick={undo}>↶ {tx('Desfazer')}</button>}</div>}
     </div>
   )
 }
 
-function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh }) {
+function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist }) {
   const [viewBy, setViewBy] = useState(deck.groups?.length ? 'grupos' : 'tipo')
   const bySec = viewBy === 'grupos' && deck.groups?.length
   const secOf = new Map()
@@ -277,14 +370,14 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
   const groups = {}
   for (const [n, q] of Object.entries(deck.main)) {
     const c = data.byName.get(n)
-    const t = bySec ? secOf.get(n) || 'Outras' : c ? c.mt : 'Desconhecidas'
+    const t = bySec ? secOf.get(n) || 'Outras' : c ? c.mt : 'Desconhecidas'  // chaves internas; o rótulo vem de GROUP_L
     ;(groups[t] ||= []).push([n, q, c])
   }
   const order = bySec ? [...deck.groups.map(g => g.nome), 'Outras'].filter((t, k, a) => groups[t] && a.indexOf(t) === k) : [...TYPES, 'Desconhecidas'].filter(t => groups[t])
   const [min, max] = fmt.size
   const copy = async () => {
-    try { await navigator.clipboard.writeText(exportList(deck)); act.say('Lista copiada.') }
-    catch { act.say('O browser não deixou copiar; usa «Descarregar».') }
+    try { await navigator.clipboard.writeText(exportList(deck)); act.say(tx('Lista copiada.')) }
+    catch { act.say(tx('O browser não deixou copiar; usa «Descarregar».')) }
   }
   const download = () => {
     const a = document.createElement('a')
@@ -296,78 +389,79 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
   const Row = ({ n, q, c, zone }) => (
     <li className="row">
       <span className="qty">
-        <button onClick={() => c && act.add(c, zone, -1)} aria-label="Menos">−</button>
+        <button onClick={() => c && act.add(c, zone, -1)} aria-label={tx('Menos')}>−</button>
         <b>{q}</b>
-        <button onClick={() => c && act.add(c, zone, 1)} aria-label="Mais">+</button>
+        <button onClick={() => c && act.add(c, zone, 1)} aria-label={tx('Mais')}>+</button>
       </span>
       <button className="row-name" onClick={() => c && act.open(c)} onMouseEnter={e => c && showPeek(e, c, pidOf(deck, n))} onMouseLeave={hidePeek}>{n}</button>
       {c && <Mana cost={c.mc} />}
-      {c && <select className="mv" value="" onChange={e => act.move(c, zone, e.target.value)} aria-label={`Mover ${n}`} title="Mover para…">
+      {c && <select className="mv" value="" onChange={e => act.move(c, zone, e.target.value)} aria-label={tx('Mover {card}', { card: n })} title={tx('Mover para…')}>
         <option value="">⇄</option>{zones.filter(z => z !== zone).map(z => <option key={z} value={z}>→ {ZONE_L[z]}</option>)}</select>}
     </li>
   )
   return (
     <div className="deck">
-      <input className="deck-name" value={deck.name} onChange={e => setDeck(d => ({ ...d, name: e.target.value }))} aria-label="Nome do deck" />
+      <input className="deck-name" value={deck.name} onChange={e => setDeck(d => ({ ...d, name: e.target.value }))} aria-label={tx('Nome do deck')} />
       <label className="fmt">
-        <span>Formato</span>
+        <span>{tx('Formato')}</span>
         <select value={deck.format} onChange={e => setDeck(d => ({ ...d, format: e.target.value }))}>
           {['Multijogador', 'Construído', 'Arena', 'Outros'].map(g => (
-            <optgroup key={g} label={g}>{FORMATS.filter(f => f.group === g).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</optgroup>
+            <optgroup key={g} label={tx(g)}>{FORMATS.filter(f => f.group === g).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</optgroup>
           ))}
         </select>
       </label>
-      <label className="chk" title="Pode ter cartas proibidas, banidas ou de fora do formato. Só joga em modo casual (Laboratório, torneios e Arena casuais) e só tem rating casual."><input type="checkbox" checked={!!deck.casual} onChange={e => setDeck(d => ({ ...d, casual: e.target.checked || undefined }))} /> Deck casual (pode violar as regras do formato)</label>
+      <label className="chk" title={tx('Pode ter cartas proibidas, banidas ou de fora do formato. Só joga em modo casual (Laboratório, torneios e Arena casuais) e só tem rating casual.')}><input type="checkbox" checked={!!deck.casual} onChange={e => setDeck(d => ({ ...d, casual: e.target.checked || undefined }))} /> {tx('Deck casual (pode violar as regras do formato)')}</label>
       {fmt.cmd === 'commander' && (
         <label className="fmt">
-          <span>Bracket alvo</span>
+          <span>{tx('Bracket alvo')}</span>
           <select value={deck.bracket || ''} onChange={e => setDeck(d => ({ ...d, bracket: e.target.value ? +e.target.value : null }))}>
-            <option value="">— sem alvo —</option>
-            <option value="1">1 · Exibição</option><option value="2">2 · Base (pré-construídos)</option>
-            <option value="3">3 · Melhorado (até 3 Game Changers)</option><option value="4">4 · Otimizado</option><option value="5">5 · cEDH</option>
+            <option value="">{tx('— sem alvo —')}</option>
+            <option value="1">1 · {tx('Exibição')}</option><option value="2">2 · {tx('Base (pré-construídos)')}</option>
+            <option value="3">3 · {tx('Melhorado (até 3 Game Changers)')}</option><option value="4">4 · {tx('Otimizado')}</option><option value="5">5 · cEDH</option>
           </select>
         </label>
       )}
       <div className={`count ${errors ? 'bad' : 'ok'}`}>
         <b>{total}</b><span>/ {max ? max : `${min}+`}</span>
-        <span className="pill">{errors ? `${errors} problema${errors > 1 ? 's' : ''}` : 'válido'}</span>
+        <span className="pill">{errors ? tx('{n} problema|{n} problemas', { n: errors }) : tx('válido')}</span>
       </div>
+      <UndoBtns act={act} hist={hist} />
       {(!fmt.size[1] || total < fmt.size[1]) && (
-        <button className="auto-btn" onClick={() => setShowAuto(true)}>✦ Completar deck automaticamente</button>
+        <button className="auto-btn" onClick={() => setShowAuto(true)}>✦ {tx('Completar deck automaticamente')}</button>
       )}
-      <button className="ai-btn" onClick={() => setShowAI(true)}>✦ Assistente IA <span className="muted small">(extra)</span></button>
+      <button className="ai-btn" onClick={() => setShowAI(true)}>✦ {tx('Assistente IA')} <span className="muted small">({tx('extra')})</span></button>
       {deck.groups?.length > 0 && (
-        <div className="seg viewby"><button className={viewBy === 'tipo' ? 'on' : ''} onClick={() => setViewBy('tipo')}><span>Por tipo</span></button><button className={viewBy === 'grupos' ? 'on' : ''} onClick={() => setViewBy('grupos')}><span>Por secções (IA)</span></button></div>
+        <div className="seg viewby"><button className={viewBy === 'tipo' ? 'on' : ''} onClick={() => setViewBy('tipo')}><span>{tx('Por tipo')}</span></button><button className={viewBy === 'grupos' ? 'on' : ''} onClick={() => setViewBy('grupos')}><span>{tx('Por secções (IA)')}</span></button></div>
       )}
       {issues.length > 0 && (
-        <ul className="issues">{issues.slice(0, 6).map((i, k) => <li key={k} className={i.nivel}>{i.msg}</li>)}{issues.length > 6 && <li className="muted">+{issues.length - 6} — ver Análise</li>}</ul>
+        <ul className="issues">{issues.slice(0, 6).map((i, k) => <li key={k} className={i.nivel}>{i.msg}</li>)}{issues.length > 6 && <li className="muted">{tx('+{n} — ver Análise', { n: issues.length - 6 })}</li>}</ul>
       )}
 
       {fmt.cmd && (
         <section>
-          <h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : 'Comandante'}</h4>
+          <h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</h4>
           {deck.commanders.length ? deck.commanders.map(n => {
             const c = data.byName.get(n)
             return c && (
               <div key={n} className="cmd" onClick={() => act.open(c)}>
                 <img src={img(c, 'art_crop', false, pidOf(deck, n))} alt="" /><div><b>{n}</b><Mana cost={c.mc} /></div>
-                <button onClick={e => { e.stopPropagation(); act.setCommander(c) }} aria-label="Retirar">×</button>
+                <button onClick={e => { e.stopPropagation(); act.setCommander(c) }} aria-label={tx('Retirar')}>×</button>
               </div>
             )
-          }) : <p className="muted small">Na pesquisa, usa ♛ numa carta lendária.</p>}
+          }) : <p className="muted small">{tx('Na pesquisa, usa ♛ numa carta lendária.')}</p>}
           {fmt.cmd === 'oathbreaker' && (
-            <p className="small">Assinatura: {deck.signature ? <button className="link" onClick={() => act.open(data.byName.get(deck.signature))}>{deck.signature}</button> : <span className="muted">usa ✦ num instantâneo ou feitiço</span>}</p>
+            <p className="small">{tx('Assinatura:')} {deck.signature ? <button className="link" onClick={() => act.open(data.byName.get(deck.signature))}>{deck.signature}</button> : <span className="muted">{tx('usa ✦ num instantâneo ou feitiço')}</span>}</p>
           )}
         </section>
       )}
 
       {order.map(t => (
         <section key={t}>
-          <h4>{TYPE_LABEL[t] || t} <span className="muted">{groups[t].reduce((s, [, q]) => s + q, 0)}</span></h4>
+          <h4>{GROUP_L[t] || TYPE_LABEL[t] || t} <span className="muted">{groups[t].reduce((s, [, q]) => s + q, 0)}</span></h4>
           <ul>{groups[t].sort((a, b) => (a[2]?.cmc ?? 0) - (b[2]?.cmc ?? 0) || a[0].localeCompare(b[0])).map(([n, q, c]) => <Row key={n} {...{ n, q, c, zone: 'main' }} />)}</ul>
         </section>
       ))}
-      {!order.length && <p className="muted small hint">Deck vazio. Usa o <b>✦ Novo deck</b> (escolhe 3 a 10 cartas e o Grimório completa o resto), procura cartas, ou escolhe sementes em <b>Sugestões</b>.</p>}
+      {!order.length && <p className="muted small hint">{tx('Deck vazio. Usa o')} <b>✦ {tx('Novo deck')}</b> {tx('(escolhe 3 a 10 cartas e o Grimório completa o resto), procura cartas, ou escolhe sementes em')} <b>{tx('Sugestões')}</b>.</p>}
 
       {count(deck.side) > 0 && (
         <section>
@@ -377,19 +471,19 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
       )}
       {count(deck.maybe || {}) > 0 && (
         <section className="maybe">
-          <h4>Maybeboard <span className="muted">{count(deck.maybe)} · fora do deck</span></h4>
+          <h4>Maybeboard <span className="muted">{count(deck.maybe)} · {tx('fora do deck')}</span></h4>
           <ul>{Object.entries(deck.maybe).map(([n, q]) => <Row key={n} n={n} q={q} c={data.byName.get(n)} zone="maybe" />)}</ul>
         </section>
       )}
 
       <div className="deck-actions">
-        <button onClick={() => setShowImport(true)}>Importar</button>
-        {deck.id && <button onClick={() => setShowRefresh(true)} title={sourceOf(deck) ? `Voltar a ler ${sourceOf(deck)}` : 'Ler artes, capa e lista do site de onde veio o deck'}>⟳ Atualizar do site</button>}
-        <button onClick={copy}>Copiar lista</button>
-        <button onClick={download}>Descarregar</button>
-        {deck.id && <button className="danger" onClick={delDeck}>Eliminar</button>}
+        <button onClick={() => setShowImport(true)}>{tx('Importar')}</button>
+        {deck.id && <button onClick={() => setShowRefresh(true)} title={sourceOf(deck) ? tx('Voltar a ler {url}', { url: sourceOf(deck) }) : tx('Ler artes, capa e lista do site de onde veio o deck')}>⟳ {tx('Atualizar do site')}</button>}
+        <button onClick={copy}>{tx('Copiar lista')}</button>
+        <button onClick={download}>{tx('Descarregar')}</button>
+        {deck.id && <button className="danger" onClick={delDeck}>{tx('Eliminar')}</button>}
       </div>
-      <textarea className="notes" placeholder="Notas do deck…" value={deck.notes} onChange={e => setDeck(d => ({ ...d, notes: e.target.value }))} />
+      <textarea className="notes" placeholder={tx('Notas do deck…')} value={deck.notes} onChange={e => setDeck(d => ({ ...d, notes: e.target.value }))} />
     </div>
   )
 }
@@ -425,28 +519,28 @@ function RefreshDialog({ data, deck, setDeck, say, onClose }) {
     const { j, p, art, prints } = got
     setDeck(d => ({ ...d, art, prints: { ...(d.prints || {}), ...prints }, source: url.trim(), ...(j.cover ? { coverImg: j.cover } : {}),
       ...(list ? { commanders: p.commanders.length ? p.commanders : d.commanders, main: p.main, side: p.side, maybe: p.maybe, groups: [] } : {}) }))
-    say(`Atualizado do site: ${Object.keys(art).length} artes próprias, ${Object.keys(prints).length} edições${j.cover ? ', capa' : ''}${list ? ' e a lista' : ''}.`)
+    say(tx('Atualizado do site: {arts} artes próprias, {prints} edições', { arts: Object.keys(art).length, prints: Object.keys(prints).length }) + (j.cover ? tx(', capa') : '') + (list ? tx(' e a lista') : '') + '.')
     onClose()
   }
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal import refresh" onClick={e => e.stopPropagation()}>
-        <h3>⟳ Atualizar do site</h3>
+        <h3>⟳ {tx('Atualizar do site')}</h3>
         <div className="url-row">
-          <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && url.trim() && read()} placeholder="Link do deck no TappedOut, Moxfield, Archidekt…" />
-          <button onClick={read} disabled={!url.trim() || busy}>{busy ? 'A ler…' : 'Ler'}</button>
+          <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && url.trim() && read()} placeholder={tx('Link do deck no TappedOut, Moxfield, Archidekt…')} />
+          <button onClick={read} disabled={!url.trim() || busy}>{busy ? tx('A ler…') : tx('Ler')}</button>
         </div>
-        {!sourceOf(deck) && <p className="muted small">Este deck não guardou de onde veio: cola o link uma vez e fica guardado.</p>}
+        {!sourceOf(deck) && <p className="muted small">{tx('Este deck não guardou de onde veio: cola o link uma vez e fica guardado.')}</p>}
         {err && <p className="small bad-t">{err}</p>}
         {got && <>
           <ul className="small rf-sum">
-            <li><b>{Object.keys(got.art).length}</b> artes próprias do site{Object.keys(got.art).length ? ' (as imagens que o dono escolheu, incluindo alteradas)' : ''}</li>
-            <li><b>{Object.keys(got.prints).length}</b> edições indicadas na lista</li>
-            <li>Capa: {got.j.cover ? 'sim, a do site' : 'o site não tem; fica a atual'}</li>
+            <li><b>{Object.keys(got.art).length}</b> {tx('artes próprias do site')}{Object.keys(got.art).length ? ` ${tx('(as imagens que o dono escolheu, incluindo alteradas)')}` : ''}</li>
+            <li><b>{Object.keys(got.prints).length}</b> {tx('edições indicadas na lista')}</li>
+            <li>{tx('Capa:')} {got.j.cover ? tx('sim, a do site') : tx('o site não tem; fica a atual')}</li>
           </ul>
           {Object.keys(got.art).length > 0 && <div className="rf-arts">{Object.entries(got.art).slice(0, 12).map(([n, u]) => <img key={n} src={u} alt={n} title={n} loading="lazy" />)}</div>}
-          <label className="chk"><input type="checkbox" checked={list} onChange={e => setList(e.target.checked)} /> Substituir também a lista pela do site {diff && <span className="muted">({diff.plus || diff.minus ? `+${diff.plus} −${diff.minus} no deck` : 'deck igual'}{diff.side ? `, sideboard ${diff.side > 0 ? '+' : ''}${diff.side}` : ''}{diff.maybe ? `, ${diff.maybe} no maybeboard` : ''})</span>}</label>
-          <div className="row-btns"><button className="primary" onClick={apply}>Atualizar</button><button onClick={onClose}>Cancelar</button></div>
+          <label className="chk"><input type="checkbox" checked={list} onChange={e => setList(e.target.checked)} /> {tx('Substituir também a lista pela do site')} {diff && <span className="muted">({diff.plus || diff.minus ? tx('+{plus} −{minus} no deck', diff) : tx('deck igual')}{diff.side ? `, sideboard ${diff.side > 0 ? '+' : ''}${diff.side}` : ''}{diff.maybe ? tx(', {maybe} no maybeboard', diff) : ''})</span>}</label>
+          <div className="row-btns"><button className="primary" onClick={apply}>{tx('Atualizar')}</button><button onClick={onClose}>{tx('Cancelar')}</button></div>
         </>}
       </div>
     </div>
@@ -510,26 +604,28 @@ function ImportDialog({ data, deck, setDeck, say, onClose, onImported }) {
       const z = k => { const o = { ...(d[k] || {}) }; for (const [n, q] of Object.entries(p[k])) o[n] = (o[n] || 0) + q; return o }
       return { ...d, main: z('main'), side: z('side'), maybe: z('maybe'), prints: { ...(d.prints || {}), ...prints }, art: { ...(d.art || {}), ...art }, commanders: [...new Set([...d.commanders, ...p.commanders])] }
     })
-    say(`Importadas ${count(p.main) + count(p.side) + p.commanders.length} cartas${count(p.maybe) ? ` (+${count(p.maybe)} no maybeboard)` : ''}${Object.keys(art).length ? ` · ${Object.keys(art).length} artes do site` : ''}${fx ? ` · formato ${fx.detected ? 'detetado' : 'do site'}: ${FORMAT[fx.format].name}` : ''}${p.unknown.length ? `; ${p.unknown.length} desconhecidas: ${p.unknown.slice(0, 4).join(', ')}` : ''}.`)
+    say(tx('Importadas {n} cartas', { n: count(p.main) + count(p.side) + p.commanders.length }) + (count(p.maybe) ? tx(' (+{n} no maybeboard)', { n: count(p.maybe) }) : '') + (Object.keys(art).length ? tx(' · {n} artes do site', { n: Object.keys(art).length }) : '')
+      + (fx ? (fx.detected ? tx(' · formato detetado: {fmt}', { fmt: FORMAT[fx.format].name }) : tx(' · formato do site: {fmt}', { fmt: FORMAT[fx.format].name })) : '')
+      + (p.unknown.length ? tx('; {n} desconhecidas: {list}', { n: p.unknown.length, list: p.unknown.slice(0, 4).join(', ') }) : '') + '.', true)
     onClose()
     onImported?.()
   }
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal import" onClick={e => e.stopPropagation()}>
-        <h3>Importar deck</h3>
+        <h3>{tx('Importar deck')}</h3>
         <div className="url-row">
-          <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && url.trim() && fromUrl()} placeholder="Link do deck: Moxfield, Archidekt, TappedOut, MTGGoldfish, Deckstats, MTGTop8, Scryfall…" />
-          <button onClick={fromUrl} disabled={!url.trim() || fetching}>{fetching ? 'A buscar…' : 'Ir buscar'}</button>
+          <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && url.trim() && fromUrl()} placeholder={tx('Link do deck: Moxfield, Archidekt, TappedOut, MTGGoldfish, Deckstats, MTGTop8, Scryfall…')} />
+          <button onClick={fromUrl} disabled={!url.trim() || fetching}>{fetching ? tx('A buscar…') : tx('Ir buscar')}</button>
         </div>
         {urlErr && <p className="small bad-t">{urlErr}</p>}
-        {info && <p className="small ok-t">«{info.name}» de {info.source}{info.format ? ` · ${FORMAT[info.format]?.name || info.format}` : ''}: revê a lista e importa. Depois disso abre-se o diagnóstico com as melhorias.</p>}
-        <p className="muted small">Cola uma lista do Arena, Moxfield, Archidekt ou MTGO («4 Lightning Bolt», «1x Sol Ring (CMR) 263 *F*», secções Commander/Deck/Sideboard). A edição indicada fica como estilo da carta.</p>
+        {info && <p className="small ok-t">{tx('«{name}» de {src}', { name: info.name, src: info.source })}{info.format ? ` · ${FORMAT[info.format]?.name || info.format}` : ''}: {tx('revê a lista e importa. Depois disso abre-se o diagnóstico com as melhorias.')}</p>}
+        <p className="muted small">{tx('Cola uma lista do Arena, Moxfield, Archidekt ou MTGO («4 Lightning Bolt», «1x Sol Ring (CMR) 263 *F*», secções Commander/Deck/Sideboard). A edição indicada fica como estilo da carta.')}</p>
         <textarea autoFocus value={text} onChange={e => setText(e.target.value)} placeholder={'Commander\n1 Atraxa, Praetors\' Voice\n\nDeck\n1 Sol Ring\n...'} />
         <div className="row-btns">
-          <select value={mode} onChange={e => setMode(e.target.value)}><option value="replace">Substituir o deck {deck.name}</option><option value="merge">Juntar ao deck</option></select>
-          <button className="primary" onClick={go} disabled={!text.trim() || busy}>{busy ? 'A obter edições…' : 'Importar'}</button>
-          <button onClick={onClose}>Cancelar</button>
+          <select value={mode} onChange={e => setMode(e.target.value)}><option value="replace">{tx('Substituir o deck {name}', { name: deck.name })}</option><option value="merge">{tx('Juntar ao deck')}</option></select>
+          <button className="primary" onClick={go} disabled={!text.trim() || busy}>{busy ? tx('A obter edições…') : tx('Importar')}</button>
+          <button onClick={onClose}>{tx('Cancelar')}</button>
         </div>
       </div>
     </div>

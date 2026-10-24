@@ -1,0 +1,17 @@
+/* «+» com troca (AddSwap.jsx) */
+.aos { position: relative; display: inline-flex; }
+.aos-x { position: absolute; z-index: 6; top: 0; right: 100%;  /* colado ao «+»: um intervalo faria perder o hover */ display: flex; align-items: center; gap: 4px; max-width: 15em;
+  white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--cyan); background: var(--panel2); border-color: var(--cyan); box-shadow: 0 6px 18px #000a; }
+.aos-x span { overflow: hidden; text-overflow: ellipsis; }
+.aos.up .aos-x { top: auto; bottom: 100%; right: auto; left: 0; }
+.aos-menu { position: fixed; z-index: 70; width: min(330px, calc(100vw - 16px)); display: grid; gap: 2px; padding: 6px; border-radius: 12px;
+  border: 1px solid var(--line); background: #13111ff2; backdrop-filter: blur(10px); box-shadow: 0 18px 50px #000c; }
+.aos-menu button { min-height: 40px; display: grid; gap: 2px; text-align: left; padding: 7px 10px; background: none; border: 1px solid transparent; }
+.aos-menu button:hover:not([disabled]), .aos-menu button:focus-visible { background: var(--panel2); border-color: var(--line); }
+.aos-menu button[disabled] { cursor: default; color: var(--muted); }
+.aos-menu b { font-size: 14px; }
+.aos-menu small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.aos-menu .mana img { width: 13px; height: 13px; }
+.aos-kind { font-style: normal; color: var(--gold2); }
+.aos-kept { margin: 0; padding: 2px 10px 4px; font-size: 12px; color: var(--muted); }
+@media (pointer: coarse) { .tile-bar > .aos { flex: 1 1 0; } .aos > .act.add { flex: 1; } }  /* o «+» continua a dividir a largura da carta */

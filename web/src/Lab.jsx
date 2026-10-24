@@ -1,7 +1,7 @@
 // Laboratório: o teu deck joga contra adversários (Forge no servidor), com sideboard entre jogos,
 // aprendizagem pelo histórico, repetição animada e relatório.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { img, recommend, sideSuggest } from './data.js'
+import { img, recommend, sideSuggest, SIDE_CATS } from './data.js'
 import { parseList, stats } from './deck.js'
 import { landAdvice, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
 import { Empty, Stars } from './ui.jsx'
@@ -10,16 +10,17 @@ import { toForgeState } from './forgeState.js'
 import { DIFF_INFO } from './difficulty.js'
 import { planSideboard, applySwaps } from './sideboard.js'
 import { aiCaveats } from './tests.js'
+import { tx, num, LOCALE } from './i18n.js'
 
 // Até onde confiar nos testes: o que a IA do Forge joga mal neste deck
 function Caveats({ c }) {
   if (!c.flagged.length && !c.style.length && !c.unused.length) return null
   return (
     <div className="caveats small">
-      <b>⚠ Até onde confiar nos testes</b>
-      {c.flagged.length > 0 && <p>O próprio Forge avisa que a IA joga mal: <i>{c.flagged.join(', ')}</i>.</p>}
-      {c.style.length > 0 && <p>Deck de {c.style.join(' e ')}: a IA do Forge não planeia vários turnos à frente, por isso os resultados tendem a sair abaixo do que o deck vale nas mãos de uma pessoa.</p>}
-      {c.unused.length > 0 && <p>Ficaram na mão sem a IA as usar (jogos em que estiveram na mão): <i>{c.unused.join(', ')}</i>.</p>}
+      <b>{tx('⚠ Até onde confiar nos testes')}</b>
+      {c.flagged.length > 0 && <p>{tx('O próprio Forge avisa que a IA joga mal:')} <i>{c.flagged.join(', ')}</i>.</p>}
+      {c.style.length > 0 && <p>{tx('Deck de {s}: a IA do Forge não planeia vários turnos à frente, por isso os resultados tendem a sair abaixo do que o deck vale nas mãos de uma pessoa.', { s: c.style.join(tx(' e ')) })}</p>}
+      {c.unused.length > 0 && <p>{tx('Ficaram na mão sem a IA as usar (jogos em que estiveram na mão):')} <i>{c.unused.join(', ')}</i>.</p>}
     </div>
   )
 }
@@ -28,13 +29,15 @@ const SIDE_FORMATS_NO = new Set(['commander', 'duel', 'oathbreaker', 'brawl', 's
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 // modos de jogo (sim.py, MODES): jogadores; com 3–4 o teu deck é o lugar A e os outros B, C, D
 const MODE_N = { '1v1': 2, ffa3: 3, ffa4: 4, equipas: 4 }
-const modeLabel = (m, cmd) => ({ '1v1': '1 contra 1', ffa3: 'Todos contra todos (3)', ffa4: cmd ? 'Mesa de Commander (4, todos contra todos)' : 'Todos contra todos (4)', equipas: 'Equipas 2 contra 2 (à Two-Headed Giant)' })[m] || m
+const modeLabel = (m, cmd) => ({ '1v1': tx('1 contra 1'), ffa3: tx('Todos contra todos (3)'), ffa4: cmd ? tx('Mesa de Commander (4, todos contra todos)') : tx('Todos contra todos (4)'), equipas: tx('Equipas 2 contra 2 (à Two-Headed Giant)') })[m] || m
 const lost = w => !!w && w !== 'a' && w !== 'draw'  // com 3–4 jogadores ganha qualquer um dos outros
 const placeOf = g => (g.places ? g.places.indexOf('a') + 1 : 0)
+// rótulo da dificuldade: o nosso (traduzido) quando o conhecemos, senão o do servidor
+const dLabel = d => DIFF_INFO[d.id]?.label || d.label
 async function j(url, opts) {
   const r = await fetch(url, opts && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts) })
   const d = await r.json().catch(() => ({}))
-  if (!r.ok) throw new Error(d.erro || `HTTP ${r.status}`)
+  if (!r.ok) throw new Error(tx(d.erro || `HTTP ${r.status}`))
   return d
 }
 
@@ -48,22 +51,6 @@ const scoreOf = (list, k) => {
   const n = w => ys => ys.filter(y => (w === 'b' ? lost(y.winner) : y.winner === w)).length
   return { a: n('a')(same), b: n('b')(same), g: same.length + 1, bo: x.bo || 1, serie: x.serie, series: x.series,
     sw: n('a')(prev), sl: n('b')(prev), k: k + 1, total: list.length }
-}
-
-// Quantos jogos do Forge correm ao mesmo tempo (definição do servidor, vale para testes, torneios e Arena)
-function ParallelPick() {
-  const [st, setSt] = useState(null)
-  useEffect(() => { fetch('/api/sim/settings').then(r => r.json()).then(setSt).catch(() => {}) }, [])
-  if (!st) return null
-  const set = n => fetch('/api/sim/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parallel: n }) }).then(r => r.json()).then(setSt)
-  return (
-    <label className="fmt"><span>Jogos do Forge ao mesmo tempo</span>
-      <select value={st.parallel} onChange={e => set(+e.target.value)}>
-        <option value={1}>1 (mais leve)</option><option value={2}>2</option><option value={3}>3 (pesado: só com muita RAM livre)</option>
-      </select>
-      <small className="muted">Cada jogo usa ~0,7–1 GB de RAM e quase um núcleo. Um jogo extra só arranca com {(st.mem_min / 1000).toFixed(1).replace('.', ',')} GB livres (agora: {(st.mem_free / 1000).toFixed(1).replace('.', ',')} GB); senão espera pela vez.</small>
-    </label>
-  )
 }
 
 export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
@@ -110,7 +97,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
     setPlayed(rs.flatMap((r, ri) => r.games.map(g => ({ ...g, opp: r.opp, matchId: r.matchId, bo,
       serie: rs.slice(0, ri + 1).filter(x => x.opp === r.opp).length, series: rs.filter(x => x.opp === r.opp).length }))))
   }
-  const delSaved = async id => { if (!confirm('Apagar este teste guardado?')) return; await fetch(`/api/sim/runs/${id}`, { method: 'DELETE' }); loadSaved(); act.refreshTests?.() }
+  const delSaved = async id => { if (!confirm(tx('Apagar este teste guardado?'))) return; await fetch(`/api/sim/runs/${id}`, { method: 'DELETE' }); loadSaved(); act.refreshTests?.() }
   const [cur, setCur] = useState(0)
   const [showLive, setShowLive] = useState(true)
   // pausa entre jogos (preferência deste browser)
@@ -136,7 +123,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
 
   // 3–4 jogadores: a mesma mesa joga `matches` jogos (um trabalho do Forge por jogo)
   const runMulti = async () => {
-    const load = async id => (id === 'espelho' ? { ...deckA, name: `${deck.name} (espelho)` } : id.startsWith('meus:') ? j(`/api/decks/${id.slice(5)}`) : j(`/api/sim/opponents/${encodeURIComponent(id)}`))
+    const load = async id => (id === 'espelho' ? { ...deckA, name: tx('{d} (espelho)', { d: deck.name }) } : id.startsWith('meus:') ? j(`/api/decks/${id.slice(5)}`) : j(`/api/sim/opponents/${encodeURIComponent(id)}`))
     const ds = []
     for (const x of seats.slice(0, nSeats)) {
       const o = await load(x.id), nm = o.name || x.id
@@ -148,12 +135,12 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
     const matchId = `${Date.now()}-0`, games = []
     for (let g = 1; g <= matches; g++) {
       if (stop.current) return
-      setBusy(`${modeLabel(mode, fmt.cmd)} · jogo ${g}/${matches}`)
+      setBusy(`${modeLabel(mode, fmt.cmd)} · ${tx('jogo {g}/{m}', { g, m: matches })}`)
       const { job } = await j('/api/sim/run', { format: rules, casual, mode, games: 1, clock: cmdish ? 1500 : 900,
         seats: [{ deck: deckA, difficulty: diffA }, ...ds.map((d, i) => ({ deck: d, difficulty: seats[i].diff || diff }))] })
       let st
-      for (;;) { await sleep(900); st = await j(`/api/sim/jobs/${job}`); if (st.status === 'done' || st.status === 'error') break; setBusy(`${modeLabel(mode, fmt.cmd)} · jogo ${g}/${matches} · ${st.status === 'queued' ? `na fila (${st.position})` : 'a jogar…'}`) }
-      if (st.status === 'error') throw new Error(st.error || 'A simulação falhou.')
+      for (;;) { await sleep(900); st = await j(`/api/sim/jobs/${job}`); if (st.status === 'done' || st.status === 'error') break; setBusy(`${modeLabel(mode, fmt.cmd)} · ${tx('jogo {g}/{m}', { g, m: matches })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
+      if (st.status === 'error') throw new Error(st.error ? tx(st.error) : tx('A simulação falhou.'))
       const game = { ...st.games[0], g, unknown: st.unknown, startLife: life, opps }
       setPlayed(p => [...p, { ...game, opp: label, decks: { a: deckA, ...Object.fromEntries(sides.map((k, i) => [k, ds[i]])) }, matchId, serie: 1, series: 1, bo: 1 }])
       games.push(game)
@@ -167,11 +154,11 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
     setErr(''); stop.current = false
     const t0 = Date.now()
     const list = [...sel]
-    if (paste.trim()) { const p = parseList(paste, data); list.push({ id: 'colada', name: 'Lista colada', source: 'colada', deck: { name: 'Lista colada', commanders: p.commanders, main: p.main, side: p.side } }) }
+    if (paste.trim()) { const p = parseList(paste, data); list.push({ id: 'colada', name: tx('Lista colada'), source: 'colada', deck: { name: tx('Lista colada'), commanders: p.commanders, main: p.main, side: p.side } }) }
     try {
       if (multi) await runMulti()
       else for (const o of list) {
-        const opp = o.id === 'espelho' ? { ...deckA, name: `${deck.name} (espelho)` } : o.deck || (o.source === 'meus' ? await j(`/api/decks/${o.id}`) : await j(`/api/sim/opponents/${encodeURIComponent(o.id)}`))
+        const opp = o.id === 'espelho' ? { ...deckA, name: tx('{d} (espelho)', { d: deck.name }) } : o.deck || (o.source === 'meus' ? await j(`/api/decks/${o.id}`) : await j(`/api/sim/opponents/${encodeURIComponent(o.id)}`))
         const B = { name: opp.name || o.name, commanders: opp.commanders || [], main: opp.main, side: opp.side || {}, format: fmtOf(String(o.id), { format: opp.format || o.format }) }
         const history = learn ? await j(`/api/sim/history?deck_id=${deck.id || ''}`).then(h => (h.recent || []).filter(g => g.opp_name === B.name)).catch(() => []) : []
         for (let m = 0; m < matches; m++) {
@@ -182,16 +169,16 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
           let wa = 0, wb = 0, swaps = []
           for (let g = 1; g <= bo && wa < Math.ceil(bo / 2) && wb < Math.ceil(bo / 2); g++) {
             if (stop.current) return
-            setBusy(`${B.name} · série ${m + 1}/${matches} · jogo ${g}`)
+            setBusy(`${B.name} · ${tx('série {s}/{m} · jogo {g}', { s: m + 1, m: matches, g })}`)
             const { job } = await j('/api/sim/run', { format: rules, casual, a: cur, b: B, games: 1, difficulty: diff, difficulty_a: diffA, clock: cmdish ? 600 : 300 })
             let st
-            for (;;) { await sleep(700); st = await j(`/api/sim/jobs/${job}`); if (st.status === 'done' || st.status === 'error') break; setBusy(`${B.name} · série ${m + 1}/${matches} · jogo ${g} · ${st.status === 'queued' ? `na fila (${st.position})` : 'a jogar…'}`) }
-            if (st.status === 'error') throw new Error(st.error || 'A simulação falhou.')
+            for (;;) { await sleep(700); st = await j(`/api/sim/jobs/${job}`); if (st.status === 'done' || st.status === 'error') break; setBusy(`${B.name} · ${tx('série {s}/{m} · jogo {g}', { s: m + 1, m: matches, g })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
+            if (st.status === 'error') throw new Error(st.error ? tx(st.error) : tx('A simulação falhou.'))
             const game = { ...st.games[0], g, swaps, unknown: st.unknown, startLife: life }
             setPlayed(p => [...p, { ...game, opp: B.name, decks: { a: cur, b: B }, matchId, serie: m + 1, series: matches, bo }])
             games.push(game)
             game.winner === 'a' ? wa++ : game.winner === 'b' ? wb++ : null
-            j('/api/sim/record', { deck_id: deck.id, deck_name: deck.name, format: fmt.key, opp_name: B.name, opp_archetype: o.archetype || '', game_no: g, match_id: matchId, winner: game.winner, turns: game.turns, a_side_in: JSON.stringify(swaps.map(s => s.in)), a_side_out: JSON.stringify(swaps.map(s => s.out)), summary: game.summary, bo, casual, opp_key: o.source === 'meus' ? `deck:${o.id}` : ['espelho', 'colada'].includes(o.source) ? '' : `meta:${o.id}` }).catch(() => {})
+            j('/api/sim/record', { deck_id: deck.id, deck_name: deck.name, format: fmt.key, opp_name: B.name, opp_archetype: o.archetype || '', game_no: g, match_id: matchId, winner: game.winner, turns: game.turns, a_side_in: JSON.stringify(swaps.map(s => s.in)), a_side_out: JSON.stringify(swaps.map(s => s.out)), summary: game.summary, job, start_life: life, bo, casual, opp_key: o.source === 'meus' ? `deck:${o.id}` : ['espelho', 'colada'].includes(o.source) ? '' : `meta:${o.id}` }).catch(() => {})
             if (smartSide && bo > 1 && !SIDE_FORMATS_NO.has(fmt.key) && Object.keys(deck.side).length) {
               swaps = planSideboard(data, deckA, B, games, history)
               cur = applySwaps(deckA, swaps)
@@ -223,100 +210,100 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
       {played.length > 0 && showLive && (
         <section className="card livecard">
           <div className="row-btns">
-            <b>Jogo {cur + 1} de {played.length}{busy ? ' · o próximo já está a ser jogado' : ''}</b>
-            <button onClick={() => setCur(c => Math.max(0, c - 1))} disabled={cur === 0}>◀ anterior</button>
-            <button onClick={() => setCur(c => Math.min(played.length - 1, c + 1))} disabled={cur >= played.length - 1}>seguinte ▶</button>
-            <label className="small">Pausa entre jogos <select value={pause.secs} onChange={e => setPausePref({ ...pause, secs: +e.target.value })} disabled={!pause.auto}>{[2, 3, 4, 5, 6, 8, 10].map(n => <option key={n} value={n}>{n} s</option>)}</select></label>
-            <label className="chk small"><input type="checkbox" checked={!pause.auto} onChange={e => setPausePref({ ...pause, auto: !e.target.checked })} /> não avançar sozinho</label>
-            <button className="link small" onClick={() => setShowLive(false)}>esconder</button>
+            <b>{tx('Jogo {k} de {t}', { k: cur + 1, t: played.length })}{busy ? ` · ${tx('o próximo já está a ser jogado')}` : ''}</b>
+            <button onClick={() => setCur(c => Math.max(0, c - 1))} disabled={cur === 0}>{tx('◀ anterior')}</button>
+            <button onClick={() => setCur(c => Math.min(played.length - 1, c + 1))} disabled={cur >= played.length - 1}>{tx('seguinte ▶')}</button>
+            <label className="small">{tx('Pausa entre jogos')} <select value={pause.secs} onChange={e => setPausePref({ ...pause, secs: +e.target.value })} disabled={!pause.auto}>{[2, 3, 4, 5, 6, 8, 10].map(n => <option key={n} value={n}>{n} s</option>)}</select></label>
+            <label className="chk small"><input type="checkbox" checked={!pause.auto} onChange={e => setPausePref({ ...pause, auto: !e.target.checked })} /> {tx('não avançar sozinho')}</label>
+            <button className="link small" onClick={() => setShowLive(false)}>{tx('esconder')}</button>
           </div>
           <Replay key={cur} data={data} game={played[Math.min(cur, played.length - 1)]} formats={fmtsOf(played[Math.min(cur, played.length - 1)])} score={scoreOf(played, Math.min(cur, played.length - 1))} deckName={deck.name} live={!!busy} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })} onPlayFrom={playFrom && !played[Math.min(cur, played.length - 1)].opps && ((st, g) => playFrom(toForgeState(st, g.decks || { a: deck }, { control: 'a', format: fmt.key })))}
             next={{ has: cur < played.length - 1, go: () => setCur(c => Math.min(c + 1, played.length - 1)), secs: pause.secs, auto: pause.auto }} />
-          <p className="muted small">O Forge joga cada jogo inteiro em segundos e só no fim entrega o registo; o tabuleiro reproduz cada jogo assim que chega, enquanto o seguinte é jogado.</p>
+          <p className="muted small">{tx('O Forge joga cada jogo inteiro em segundos e só no fim entrega o registo; o tabuleiro reproduz cada jogo assim que chega, enquanto o seguinte é jogado.')}</p>
         </section>
       )}
       <section className="card">
-        <h3>Laboratório <span className="muted small">o teu deck joga contra outros com as regras do {casual ? `${FORMAT[base]?.name || base}, em modo casual` : fmt.name} (motor Forge)</span></h3>
-        {!Object.keys(deck.main).length && <Empty>Abre ou cria um deck primeiro.</Empty>}
+        <h3>{tx('Laboratório')} <span className="muted small">{casual ? tx('o teu deck joga contra outros com as regras do {f}, em modo casual (motor Forge)', { f: FORMAT[base]?.name || base }) : tx('o teu deck joga contra outros com as regras do {f} (motor Forge)', { f: fmt.name })}</span></h3>
+        {!Object.keys(deck.main).length && <Empty>{tx('Abre ou cria um deck primeiro.')}</Empty>}
         <div className="lab-grid">
           <div className="lab-step">
-            <h4 className="step-h"><i>1</i> {multi ? 'Lugares à mesa' : 'Adversários'} {!multi && sel.length > 0 && <span className="chip">{sel.length} escolhido{sel.length > 1 ? 's' : ''}</span>}</h4>
+            <h4 className="step-h"><i>1</i> {multi ? tx('Lugares à mesa') : tx('Adversários')} {!multi && sel.length > 0 && <span className="chip">{tx('{n} escolhido|{n} escolhidos', { n: sel.length })}</span>}</h4>
             {multi ? <>
-              <p className="muted small">O teu deck é o lugar A{mode === 'equipas' ? ' e joga em equipa com o lugar C, contra B e D' : ''}. Escolhe o deck e a dificuldade de cada lugar; a ordem dos lugares é a ordem dos turnos.</p>
+              <p className="muted small">{mode === 'equipas' ? tx('O teu deck é o lugar A e joga em equipa com o lugar C, contra B e D. Escolhe o deck e a dificuldade de cada lugar; a ordem dos lugares é a ordem dos turnos.') : tx('O teu deck é o lugar A. Escolhe o deck e a dificuldade de cada lugar; a ordem dos lugares é a ordem dos turnos.')}</p>
               {seats.slice(0, nSeats).map((x, k) => (
                 <div key={k} className={`seat p-${'bcd'[k]}`}>
-                  <b>{'BCD'[k]}{mode === 'equipas' ? (k === 1 ? ' · o teu parceiro' : ' · adversário') : ''}</b>
-                  <select value={x.id} onChange={e => setSeat(k, { id: e.target.value })} aria-label={`Deck do lugar ${'BCD'[k]}`}>
-                    <optgroup label="Os meus decks"><option value="espelho">⇄ Espelho: {deck.name}</option>{mine.map(o => <option key={o.id} value={`meus:${o.id}`}>{o.name}{casual ? ` · ${FORMAT[o.format]?.name || o.format}` : ''}</option>)}</optgroup>
-                    {opps.length > 0 && <optgroup label="Do meta">{opps.map(o => <option key={o.id} value={o.id}>{o.name}{o.share ? ` (${Math.round(o.share * 100)}%)` : ''}</option>)}</optgroup>}
+                  <b>{'BCD'[k]}{mode === 'equipas' ? ` · ${k === 1 ? tx('o teu parceiro') : tx('adversário')}` : ''}</b>
+                  <select value={x.id} onChange={e => setSeat(k, { id: e.target.value })} aria-label={tx('Deck do lugar {s}', { s: 'BCD'[k] })}>
+                    <optgroup label={tx('Os meus decks')}><option value="espelho">{tx('⇄ Espelho: {d}', { d: deck.name })}</option>{mine.map(o => <option key={o.id} value={`meus:${o.id}`}>{o.name}{casual ? ` · ${FORMAT[o.format]?.name || o.format}` : ''}</option>)}</optgroup>
+                    {opps.length > 0 && <optgroup label={tx('Do meta')}>{opps.map(o => <option key={o.id} value={o.id}>{o.name}{o.share ? ` (${Math.round(o.share * 100)}%)` : ''}</option>)}</optgroup>}
                   </select>
-                  <select value={x.diff} onChange={e => setSeat(k, { diff: e.target.value })} aria-label={`Dificuldade do lugar ${'BCD'[k]}`}>
-                    <option value="">Dificuldade do adversário ({diffs.find(d => d.id === diff)?.label || '—'})</option>{diffs.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+                  <select value={x.diff} onChange={e => setSeat(k, { diff: e.target.value })} aria-label={tx('Dificuldade do lugar {s}', { s: 'BCD'[k] })}>
+                    <option value="">{tx('Dificuldade do adversário ({d})', { d: diffs.find(d => d.id === diff) ? dLabel(diffs.find(d => d.id === diff)) : '—' })}</option>{diffs.map(d => <option key={d.id} value={d.id}>{dLabel(d)}</option>)}
                   </select>
                 </div>
               ))}
             </> : <>
-            <h4>Do meta {casual && <select className="tc-mf" value={metaFmt} onChange={e => setMetaFmt(e.target.value)} aria-label="Decks do meta de">{CASUAL_META.map(k => <option key={k} value={k}>de {FORMAT[k]?.name || k}</option>)}</select>} {opps.length ? <span className="muted">({opps.length})</span> : null}</h4>
+            <h4>{tx('Do meta')} {casual && <select className="tc-mf" value={metaFmt} onChange={e => setMetaFmt(e.target.value)} aria-label={tx('Decks do meta de')}>{CASUAL_META.map(k => <option key={k} value={k}>{tx('de {f}', { f: FORMAT[k]?.name || k })}</option>)}</select>} {opps.length ? <span className="muted">({opps.length})</span> : null}</h4>
             <div className="opp-list">{opps.map(o => (
               <label key={o.id} className={`opp ${sel.some(x => x.id === o.id) ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === o.id)} onChange={() => toggle(o)} /> {o.name} <Stars r={rt[`meta:${o.id}${casual ? '|casual' : ''}`]} /> {o.share ? <span className="muted">{Math.round(o.share * 100)}%</span> : null}</label>
-            ))}{!opps.length && <p className="muted small">Sem decks do meta para este formato.</p>}</div>
-            <h4>Os meus decks</h4>
+            ))}{!opps.length && <p className="muted small">{tx('Sem decks do meta para este formato.')}</p>}</div>
+            <h4>{tx('Os meus decks')}</h4>
             <div className="opp-list">
-              <label className={`opp mirror ${sel.some(x => x.id === 'espelho') ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === 'espelho')} onChange={() => toggle({ id: 'espelho', name: 'Espelho', source: 'espelho' })} /> ⇄ Espelho: o mesmo deck</label>
+              <label className={`opp mirror ${sel.some(x => x.id === 'espelho') ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === 'espelho')} onChange={() => toggle({ id: 'espelho', name: tx('Espelho'), source: 'espelho' })} /> {tx('⇄ Espelho: o mesmo deck')}</label>
               {mine.map(o => (
               <label key={o.id} className={`opp ${sel.some(x => x.id === o.id) ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === o.id)} onChange={() => toggle({ ...o, source: 'meus' })} /> {o.name}{casual && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} <Stars r={rt[`deck:${o.id}${casual ? '|casual' : ''}`]} /></label>
-            ))}{!mine.length && <p className="muted small">Nenhum outro deck teu neste formato.</p>}</div>
-            <h4>Ou cola uma lista</h4>
+            ))}{!mine.length && <p className="muted small">{tx('Nenhum outro deck teu neste formato.')}</p>}</div>
+            <h4>{tx('Ou cola uma lista')}</h4>
             <textarea value={paste} onChange={e => setPaste(e.target.value)} placeholder={'4 Lightning Bolt\n…'} />
             </>}
           </div>
           <div className="lab-opts lab-step">
-            <h4 className="step-h"><i>2</i> Regras do jogo</h4>
-            <label className="chk"><input type="checkbox" checked={casual} disabled={!!deck.casual} onChange={e => { setCasual(e.target.checked); setSel([]) }} /> Modo casual (formatos misturados){deck.casual ? ' — deck casual, só joga assim' : ''}</label>
-            {casual && <label className="fmt"><span>Regras base</span>
-              <select value={base} onChange={e => setBase(e.target.value)}>{Object.values(FORMAT).filter(f => f.key !== 'casual' && f.key !== 'limited').map(f => <option key={f.key} value={f.key}>{f.name} ({baseLife(f.key, MODE_N[mode])} de vida)</option>)}</select>
-              <small className="muted">{CASUAL_INFO} Estes jogos não contam para os ratings.</small>
+            <h4 className="step-h"><i>2</i> {tx('Regras do jogo')}</h4>
+            <label className="chk"><input type="checkbox" checked={casual} disabled={!!deck.casual} onChange={e => { setCasual(e.target.checked); setSel([]) }} /> {tx('Modo casual (formatos misturados)')}{deck.casual ? ` — ${tx('deck casual, só joga assim')}` : ''}</label>
+            {casual && <label className="fmt"><span>{tx('Regras base')}</span>
+              <select value={base} onChange={e => setBase(e.target.value)}>{Object.values(FORMAT).filter(f => f.key !== 'casual' && f.key !== 'limited').map(f => <option key={f.key} value={f.key}>{tx('{f} ({v} de vida)', { f: f.name, v: baseLife(f.key, MODE_N[mode]) })}</option>)}</select>
+              <small className="muted">{CASUAL_INFO} {tx('Estes jogos não contam para os ratings.')}</small>
             </label>}
-            <label className="fmt"><span>Modo</span>
+            <label className="fmt"><span>{tx('Modo')}</span>
               <select value={mode} onChange={e => setMode(e.target.value)}>{Object.keys(MODE_N).map(m => <option key={m} value={m}>{modeLabel(m, fmt.cmd)}</option>)}</select>
-              {mode === 'equipas' && <small className="muted">O Forge não tem Two-Headed Giant: aqui cada jogador tem a sua vida e o seu turno, mas as equipas atacam-se só entre si e ganham juntas (2 contra 2 em equipas).</small>}
-              {multi && mode !== 'equipas' && <small className="muted">Cada um por si; quem fica sem vida sai e o jogo continua até sobrar um. Ganhar = 1.º lugar.{fmt.cmd ? ' Com 40 de vida e dano de comandante por adversário.' : ''}</small>}
+              {mode === 'equipas' && <small className="muted">{tx('O Forge não tem Two-Headed Giant: aqui cada jogador tem a sua vida e o seu turno, mas as equipas atacam-se só entre si e ganham juntas (2 contra 2 em equipas).')}</small>}
+              {multi && mode !== 'equipas' && <small className="muted">{tx('Cada um por si; quem fica sem vida sai e o jogo continua até sobrar um. Ganhar = 1.º lugar.')}{fmt.cmd ? ` ${tx('Com 40 de vida e dano de comandante por adversário.')}` : ''}</small>}
             </label>
-            <label className="fmt"><span>Formato do jogo</span>
-              <select value={multi ? 1 : bo} onChange={e => setBo(+e.target.value)} disabled={multi}><option value={1}>Um jogo (Bo1)</option><option value={3}>{SIDE_FORMATS_NO.has(fmt.key) ? 'Melhor de 3 (Bo3, sem sideboard neste formato)' : 'Melhor de 3 (Bo3, com sideboard)'}</option></select>
+            <label className="fmt"><span>{tx('Formato do jogo')}</span>
+              <select value={multi ? 1 : bo} onChange={e => setBo(+e.target.value)} disabled={multi}><option value={1}>{tx('Um jogo (Bo1)')}</option><option value={3}>{SIDE_FORMATS_NO.has(fmt.key) ? tx('Melhor de 3 (Bo3, sem sideboard neste formato)') : tx('Melhor de 3 (Bo3, com sideboard)')}</option></select>
             </label>
-            <label className="sl"><span>{multi ? 'Jogos com esta mesa' : 'Séries por adversário'} <b>{matches}</b></span><input type="range" min="1" max="5" value={matches} onChange={e => setMatches(+e.target.value)} /></label>
-            <label className="fmt"><span>Dificuldade do bot com o teu deck</span>
-              <select value={diffA} onChange={e => setDiffA(e.target.value)}>{diffs.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}</select>
+            <label className="sl"><span>{multi ? tx('Jogos com esta mesa') : tx('Séries por adversário')} <b>{matches}</b></span><input type="range" min="1" max="5" value={matches} onChange={e => setMatches(+e.target.value)} /></label>
+            <label className="fmt"><span>{tx('Dificuldade do bot com o teu deck')}</span>
+              <select value={diffA} onChange={e => setDiffA(e.target.value)}>{diffs.map(d => <option key={d.id} value={d.id}>{dLabel(d)}</option>)}</select>
               {DIFF_INFO[diffA] && <small className="muted">{DIFF_INFO[diffA].resumo}</small>}
             </label>
-            <label className="fmt"><span>Dificuldade {multi ? 'dos adversários (por omissão)' : 'do adversário'}</span>
-              <select value={diff} onChange={e => setDiff(e.target.value)}>{diffs.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}</select>
+            <label className="fmt"><span>{multi ? tx('Dificuldade dos adversários (por omissão)') : tx('Dificuldade do adversário')}</span>
+              <select value={diff} onChange={e => setDiff(e.target.value)}>{diffs.map(d => <option key={d.id} value={d.id}>{dLabel(d)}</option>)}</select>
               {(DIFF_INFO[diff]?.resumo || diffs.find(d => d.id === diff)?.description) && <small className="muted">{DIFF_INFO[diff]?.resumo || diffs.find(d => d.id === diff).description}</small>}
             </label>
-            <details className="small diff-cmp"><summary>Comparar as dificuldades</summary>
+            <details className="small diff-cmp"><summary>{tx('Comparar as dificuldades')}</summary>
               {Object.entries(DIFF_INFO).map(([id, d]) => (
-                <div key={id} className={id === diff || id === diffA ? 'on' : ''}><b>{d.label}</b>{id === diffA && <span className="chip">o teu bot</span>}{id === diff && <span className="chip">adversário</span>}
+                <div key={id} className={id === diff || id === diffA ? 'on' : ''}><b>{d.label}</b>{id === diffA && <span className="chip">{tx('o teu bot')}</span>}{id === diff && <span className="chip">{tx('adversário')}</span>}
                   <p className="muted">{d.resumo}</p><ul>{d.pontos.map((t, j) => <li key={j}>{t}</li>)}</ul></div>
               ))}
             </details>
-            <label className="chk"><input type="checkbox" checked={smartSide} onChange={e => setSmartSide(e.target.checked)} disabled={bo === 1 || multi} /> Sideboard inteligente entre jogos</label>
-            <label className="chk"><input type="checkbox" checked={learn} onChange={e => setLearn(e.target.checked)} /> Aprender com os jogos anteriores</label>
+            <label className="chk"><input type="checkbox" checked={smartSide} onChange={e => setSmartSide(e.target.checked)} disabled={bo === 1 || multi} /> {tx('Sideboard inteligente entre jogos')}</label>
+            <label className="chk"><input type="checkbox" checked={learn} onChange={e => setLearn(e.target.checked)} /> {tx('Aprender com os jogos anteriores')}</label>
           </div>
           <div className="lab-opts lab-step">
-            <h4 className="step-h"><i>3</i> Ver os jogos</h4>
-            <label className="chk"><input type="checkbox" checked={showLive} onChange={e => setShowLive(e.target.checked)} /> Ver os jogos ao vivo</label>
-              <label className="sl"><span>Velocidade ao ver <b>{pause.speed ?? 3}×</b></span><input type="range" min="0.5" max="8" step="0.5" value={pause.speed ?? 3} onChange={e => setPausePref({ ...pause, speed: +e.target.value })} /></label>
-              <label className="small">Pausa entre jogos <select value={pause.secs} onChange={e => setPausePref({ ...pause, secs: +e.target.value })} disabled={!pause.auto}>{[2, 3, 4, 5, 6, 8, 10].map(n => <option key={n} value={n}>{n} s</option>)}</select></label>
-              <label className="chk small"><input type="checkbox" checked={!pause.auto} onChange={e => setPausePref({ ...pause, auto: !e.target.checked })} /> não avançar sozinho para o jogo seguinte</label>
-            <ParallelPick />
-            <label className="fmt"><span>Cartas na mão</span>
+            <h4 className="step-h"><i>3</i> {tx('Ver os jogos')}</h4>
+            <label className="chk"><input type="checkbox" checked={showLive} onChange={e => setShowLive(e.target.checked)} /> {tx('Ver os jogos ao vivo')}</label>
+              <label className="sl"><span>{tx('Velocidade ao ver')} <b>{pause.speed ?? 3}×</b></span><input type="range" min="0.5" max="8" step="0.5" value={pause.speed ?? 3} onChange={e => setPausePref({ ...pause, speed: +e.target.value })} /></label>
+              <label className="small">{tx('Pausa entre jogos')} <select value={pause.secs} onChange={e => setPausePref({ ...pause, secs: +e.target.value })} disabled={!pause.auto}>{[2, 3, 4, 5, 6, 8, 10].map(n => <option key={n} value={n}>{n} s</option>)}</select></label>
+              <label className="chk small"><input type="checkbox" checked={!pause.auto} onChange={e => setPausePref({ ...pause, auto: !e.target.checked })} /> {tx('não avançar sozinho para o jogo seguinte')}</label>
+            <a className="small" href="#definicoes">⚙ {tx('Jogos do Forge ao mesmo tempo: nas Definições')}</a>
+            <label className="fmt"><span>{tx('Cartas na mão')}</span>
               <select value={pause.hands || 'ambas'} onChange={e => setPausePref({ ...pause, hands: e.target.value })}>{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
             </label>
             <Caveats c={aiCaveats(data, deck, aiFlags)} />
             <div className="row-btns lab-go">
-              <button className="primary" onClick={run} disabled={!canRun || !!busy}>{busy ? 'A jogar…' : '▶ Correr testes'}</button>
-              {busy && <button onClick={() => { stop.current = true }}>Parar</button>}
+              <button className="primary" onClick={run} disabled={!canRun || !!busy}>{busy ? tx('A jogar…') : tx('▶ Correr testes')}</button>
+              {busy && <button onClick={() => { stop.current = true }}>{tx('Parar')}</button>}
             </div>
             {busy && <p className="small"><span className="spin-dot" /> {busy}</p>}
             {err && <p className="small bad-t">{err}</p>}
@@ -324,11 +311,11 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
         </div>
       </section>
       {saved.length > 0 && <section className="card saved-runs">
-        <h3>Testes anteriores deste deck <span className="muted small">{saved.length}</span></h3>
+        <h3>{tx('Testes anteriores deste deck')} <span className="muted small">{saved.length}</span></h3>
                 <ul className="lib-list">{saved.map(x => (
                   <li key={x.id}>
-                    <span><b>{x.label}</b><br /><small className="muted">{new Date(x.ts * 1000).toLocaleString('pt-PT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {x.summary.wins}/{x.summary.games} jogos ganhos · {x.summary.mode ? modeLabel(x.summary.mode, fmt.cmd) : `${x.summary.matchWins}/${x.summary.matches} séries · Bo${x.summary.bo}`}</small></span>
-                    <span className="row-btns"><button onClick={() => openSaved(x.id)}>Abrir</button><button className="link small" onClick={() => delSaved(x.id)}>apagar</button></span>
+                    <span><b>{x.label}</b><br /><small className="muted">{new Date(x.ts * 1000).toLocaleString(LOCALE, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {tx('{w}/{t} jogos ganhos', { w: x.summary.wins, t: x.summary.games })} · {x.summary.mode ? modeLabel(x.summary.mode, fmt.cmd) : `${tx('{w}/{t} séries', { w: x.summary.matchWins, t: x.summary.matches })} · Bo${x.summary.bo}`}</small></span>
+                    <span className="row-btns"><button onClick={() => openSaved(x.id)}>{tx('Abrir')}</button><button className="link small" onClick={() => delSaved(x.id)}>{tx('apagar')}</button></span>
                   </li>
                 ))}</ul>
       </section>}
@@ -340,7 +327,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
 function Report({ data, runs, games, deck, fmt, ctx, onWatch, act, aiFlags }) {
   const total = games.length, wins = games.filter(g => g.winner === 'a').length
   const mwins = runs.filter(r => r.wa > r.wb).length
-  const avg = arr => (arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1).replace('.', ',') : '—')
+  const avg = arr => (arr.length ? num(arr.reduce((a, b) => a + b, 0) / arr.length, 1) : '—')
   const card = useMemo(() => {
     const m = {}
     for (const g of games) {
@@ -355,45 +342,46 @@ function Report({ data, runs, games, deck, fmt, ctx, onWatch, act, aiFlags }) {
   if (total) {
     const wt = games.filter(g => g.winner === 'a').map(g => g.turns), lt = games.filter(g => lost(g.winner)).map(g => g.turns)
     const mg = games.filter(g => g.opps)  // jogos a 3–4
-    if (mg.length < total) notes.push(`Ganhou ${wins} de ${total} jogos (${Math.round((wins / total) * 100)}%) e ${mwins} de ${runs.length} séries.`)
+    if (mg.length < total) notes.push(tx('Ganhou {w} de {t} jogos ({p}%) e {mw} de {m} séries.', { w: wins, t: total, p: Math.round((wins / total) * 100), mw: mwins, m: runs.length }))
     else {
       const ffa = mg.filter(g => !g.teams && g.places)
-      notes.push(`${mg.some(g => g.teams) ? 'A tua equipa ganhou' : 'Ficou em 1.º lugar em'} ${wins} de ${total} jogos (${Math.round((wins / total) * 100)}%).`)
-      if (ffa.length) notes.push(`Lugar médio: ${avg(ffa.map(placeOf))}.º (${ffa.map(g => `${placeOf(g)}.º`).join(', ')}).`)
+      const v = { w: wins, t: total, p: Math.round((wins / total) * 100) }
+      notes.push(mg.some(g => g.teams) ? tx('A tua equipa ganhou {w} de {t} jogos ({p}%).', v) : tx('Ficou em 1.º lugar em {w} de {t} jogos ({p}%).', v))
+      if (ffa.length) notes.push(tx('Lugar médio: {a}.º ({l}).', { a: avg(ffa.map(placeOf)), l: ffa.map(g => tx('{p}.º', { p: placeOf(g) })).join(', ') }))
       const by = {}
-      for (const g of mg) { const o = g.out?.a; if (o) { const k = g.opps[o.by] || 'ninguém (perdeu por outra via)'; by[k] = (by[k] || 0) + 1 } }
+      for (const g of mg) { const o = g.out?.a; if (o) { const k = g.opps[o.by] || tx('ninguém (perdeu por outra via)'); by[k] = (by[k] || 0) + 1 } }
       const top = Object.entries(by).sort((x, y) => y[1] - x[1])[0]
       const ne = Object.values(by).reduce((x, y) => x + y, 0)
-      if (top) notes.push(`Foi eliminado em ${ne} ${ne === 1 ? 'jogo' : 'jogos'}, por volta do turno ${avg(mg.filter(g => g.out?.a).map(g => g.out.a.t))} (contado à mesa, cada jogador soma um turno); quem mais o eliminou: ${top[0]} (${top[1]}×).`)
+      if (top) notes.push(tx('Foi eliminado em {g}, por volta do turno {a} (contado à mesa, cada jogador soma um turno); quem mais o eliminou: {o} ({x}×).', { g: tx('{n} jogo|{n} jogos', { n: ne }), a: avg(mg.filter(g => g.out?.a).map(g => g.out.a.t)), o: top[0], x: top[1] }))
     }
-    if (wt.length) notes.push(`Quando ganha, ganha por volta do turno ${avg(wt)}${lt.length ? `; quando perde, perde no turno ${avg(lt)}` : ''}.`)
-    else if (lt.length) notes.push(`Perde por volta do turno ${avg(lt)}.`)
-    if (mull.some(x => x > 0)) notes.push(`Fez mulligan em ${mull.filter(x => x > 0).length} de ${total} jogos.`)
+    if (wt.length) notes.push(lt.length ? tx('Quando ganha, ganha por volta do turno {w}; quando perde, perde no turno {l}.', { w: avg(wt), l: avg(lt) }) : tx('Quando ganha, ganha por volta do turno {w}.', { w: avg(wt) }))
+    else if (lt.length) notes.push(tx('Perde por volta do turno {l}.', { l: avg(lt) }))
+    if (mull.some(x => x > 0)) notes.push(tx('Fez mulligan em {m} de {t} jogos.', { m: mull.filter(x => x > 0).length, t: total }))
     const byOpp = {}
     for (const r of runs) { const o = (byOpp[r.opp] ||= { w: 0, l: 0 }); for (const g of r.games) g.winner === 'a' ? o.w++ : lost(g.winner) ? o.l++ : null }
     const worst = Object.entries(byOpp).sort((a, b) => a[1].w / (a[1].w + a[1].l || 1) - b[1].w / (b[1].w + b[1].l || 1))[0]
-    if (worst && Object.keys(byOpp).length > 1) notes.push(`O pior confronto é contra ${worst[0]} (${worst[1].w}-${worst[1].l}).`)
+    if (worst && Object.keys(byOpp).length > 1) notes.push(tx('O pior confronto é contra {o} ({w}-{l}).', { o: worst[0], w: worst[1].w, l: worst[1].l }))
   }
   return (
     <section className="card lab-report">
-      <h3>Relatório</h3>
+      <h3>{tx('Relatório')}</h3>
       <ul className="tips">{notes.map((x, k) => <li key={k}>{x}</li>)}</ul>
       <Caveats c={aiCaveats(data, deck, aiFlags, games)} />
-      <h4>Séries</h4>
+      <h4>{tx('Séries')}</h4>
       <table className="lab-table"><tbody>{runs.map(r => (
-        <tr key={r.matchId}><td><b>{r.opp}</b></td><td className={r.wa > r.wb ? 'ok-t' : 'bad-t'} title={r.mode ? 'vitórias – derrotas' : undefined}>{r.wa}-{r.wb}</td>
+        <tr key={r.matchId}><td><b>{r.opp}</b></td><td className={r.wa > r.wb ? 'ok-t' : 'bad-t'} title={r.mode ? tx('vitórias – derrotas') : undefined}>{r.wa}-{r.wb}</td>
           <td>{r.games.map(g => (
-            <button key={g.g} className={`gchip ${g.winner === 'a' ? 'w' : lost(g.winner) ? 'l' : ''}`} onClick={() => onWatch({ ...g, opp: r.opp })} title="Ver a repetição">J{g.g} {g.opps && !g.teams && placeOf(g) ? `${placeOf(g)}.º` : g.winner === 'a' ? 'V' : lost(g.winner) ? 'D' : '='} · T{g.turns} ▶</button>
+            <button key={g.g} className={`gchip ${g.winner === 'a' ? 'w' : lost(g.winner) ? 'l' : ''}`} onClick={() => onWatch({ ...g, opp: r.opp })} title={tx('Ver a repetição')}>{g.opps && !g.teams && placeOf(g) ? tx('J{g} {p}.º', { g: g.g, p: placeOf(g) }) : g.winner === 'a' ? tx('J{g} V', { g: g.g }) : lost(g.winner) ? tx('J{g} D', { g: g.g }) : tx('J{g} =', { g: g.g })} · T{g.turns} ▶</button>
           ))}</td>
-          <td className="small muted">{r.games.filter(g => g.swaps?.length).map(g => `J${g.g}: ${g.swaps.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join(' · ')}</td></tr>
+          <td className="small muted">{r.games.filter(g => g.swaps?.length).map(g => `${tx('J{g}', { g: g.g })}: ${g.swaps.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join(' · ')}</td></tr>
       ))}</tbody></table>
       {runs.some(r => r.games.some(g => g.swaps?.length)) && (
-        <><h4>Porque mudou o sideboard</h4><ul className="why">{runs.flatMap(r => r.games.flatMap(g => (g.swaps || []).map((s, k) => <li key={`${r.matchId}-${g.g}-${k}`} className="inter">J{g.g} vs {r.opp}: entra {s.in} ({s.why}); sai {s.out} ({s.outWhy})</li>)))}</ul></>
+        <><h4>{tx('Porque mudou o sideboard')}</h4><ul className="why">{runs.flatMap(r => r.games.flatMap(g => (g.swaps || []).map((s, k) => <li key={`${r.matchId}-${g.g}-${k}`} className="inter">{tx('J{g} vs {o}: entra {i} ({w}); sai {x} ({xw})', { g: g.g, o: r.opp, i: s.in, w: s.why, x: s.out, xw: s.outWhy })}</li>)))}</ul></>
       )}
       <Improve {...{ data, games, deck, fmt, ctx, act }} />
       {mvp.length > 0 && (
-        <><h4>Cartas que mais pesaram</h4><div className="lab-mvp">{mvp.map(x => (
-          <button key={x.n} onClick={() => act.open(x.c)} title={x.n}><img src={img(x.c, 'small')} alt={x.n} /><small>{x.casts}× lançada · {x.dmg} dano · {x.wins} vitórias</small></button>
+        <><h4>{tx('Cartas que mais pesaram')}</h4><div className="lab-mvp">{mvp.map(x => (
+          <button key={x.n} onClick={() => act.open(x.c)} title={x.n}><img src={img(x.c, 'small')} alt={x.n} /><small>{tx('{c}× lançada · {d} dano · {w} vitórias', { c: x.casts, d: x.dmg, w: x.wins })}</small></button>
         ))}</div></>
       )}
     </section>
@@ -417,23 +405,23 @@ function Improve({ data, games, deck, fmt, ctx, act }) {
         const fn = c.tg.filter(t => ['removal', 'draw', 'ramp', 'counter', 'creature', 'wincon'].includes(t))
         const r = recs.find(x => !usedRec.has(x.c.i) && (fn.length ? fn.some(t => x.c.tg.includes(t)) : true))
         if (r) usedRec.add(r.c.i)
-        out.push({ k: 'corte', txt: `${c.n} não teve impacto em nenhum dos ${n} jogos (nem jogada nem a fazer efeito)${r ? ` → experimenta ${r.c.n} (${r.why[0]?.txt || 'encaixa melhor'})` : ''}.`, go: r ? () => { act.add(c, 'main', -(deck.main[c.n] || 1)); act.add(r.c) } : null, goL: 'trocar' })
+        out.push({ k: 'corte', txt: r ? tx('{c} não teve impacto em nenhum dos {t} jogos (nem jogada nem a fazer efeito) → experimenta {r} ({w}).', { c: c.n, t: n, r: r.c.n, w: r.why[0]?.txt || tx('encaixa melhor') }) : tx('{c} não teve impacto em nenhum dos {t} jogos (nem jogada nem a fazer efeito).', { c: c.n, t: n }), go: r ? () => { act.add(c, 'main', -(deck.main[c.n] || 1)); act.add(r.c) } : null, goL: tx('trocar') })
       }
     }
     // mana
     const missed = games.map(g => g.summary?.a?.missed_land_drops || 0)
     const screw = missed.filter(x => x >= 2).length
     const s = stats(deck, data), adv = landAdvice(fmt, s.avgMv || 3, s.cheapRampDraw)
-    if (screw / n >= 0.3) out.push({ k: 'mana', txt: `Falhou 2+ terrenos nos primeiros turnos em ${screw} de ${n} jogos: sobe para ${Math.max(s.lands + 1, adv)} terrenos ou baixa a curva (custo médio ${s.avgMv.toFixed(2).replace('.', ',')}).` })
+    if (screw / n >= 0.3) out.push({ k: 'mana', txt: tx('Falhou 2+ terrenos nos primeiros turnos em {s} de {t} jogos: sobe para {l} terrenos ou baixa a curva (custo médio {m}).', { s: screw, t: n, l: Math.max(s.lands + 1, adv), m: num(s.avgMv, 2) }) })
     const mull = games.filter(g => (g.summary?.a?.mulligans || 0) > 0).length
-    if (mull / n >= 0.35) out.push({ k: 'mana', txt: `Mulligan em ${mull} de ${n} jogos: mãos iniciais fracas — mais terrenos ou mais cartas de custo 1–2.` })
+    if (mull / n >= 0.35) out.push({ k: 'mana', txt: tx('Mulligan em {m} de {t} jogos: mãos iniciais fracas — mais terrenos ou mais cartas de custo 1–2.', { m: mull, t: n }) })
     // velocidade
     const losses = games.filter(g => lost(g.winner))
     if (losses.length) {
       const lt = losses.reduce((a, g) => a + g.turns, 0) / losses.length
       const ourFirst = games.map(g => g.summary?.a?.first_damage_turn).filter(Boolean)
       const avgFirst = ourFirst.length ? ourFirst.reduce((a, b) => a + b, 0) / ourFirst.length : null
-      if (lt <= (fmt.cmd ? 10 : 6)) out.push({ k: 'falta', txt: `As derrotas chegam cedo (turno ~${lt.toFixed(1).replace('.', ',')})${avgFirst ? ` e só começas a causar dano no turno ~${avgFirst.toFixed(1).replace('.', ',')}` : ''}: precisas de interação barata (remoção de custo 1–2) ou de bloqueadores cedo.`, go: () => act.suggestFor('removal'), goL: 'ver remoção' })
+      if (lt <= (fmt.cmd ? 10 : 6)) out.push({ k: 'falta', txt: avgFirst ? tx('As derrotas chegam cedo (turno ~{l}) e só começas a causar dano no turno ~{f}: precisas de interação barata (remoção de custo 1–2) ou de bloqueadores cedo.', { l: num(lt, 1), f: num(avgFirst, 1) }) : tx('As derrotas chegam cedo (turno ~{l}): precisas de interação barata (remoção de custo 1–2) ou de bloqueadores cedo.', { l: num(lt, 1) }), go: () => act.suggestFor('removal'), goL: tx('ver remoção') })
     }
     // ameaças do adversário
     const hurt = {}
@@ -442,17 +430,17 @@ function Improve({ data, games, deck, fmt, ctx, act }) {
     if (top.length) {
       const flyers = top.some(([x]) => data.byName.get(x)?.kw.includes('Flying'))
       const arts = top.some(([x]) => /Artifact/.test(data.byName.get(x)?.t || ''))
-      const side = fmt.side > 0 ? sideSuggest(data, deck, ctx, 2).filter(g => (flyers && /voadores/.test(g.label)) || (arts && /artefactos/.test(g.label)) || /aggro/.test(g.label)) : []
-      out.push({ k: 'falta', txt: `Mais dano sofrido de: ${top.map(([x, d]) => `${x} (${d})`).join(', ')}.${side.length ? ` Respostas possíveis: ${side.flatMap(g => g.cards.map(c => c.n)).slice(0, 4).join(', ')}.` : ' Reforça a remoção para estas ameaças.'}`, go: side.length ? () => side.flatMap(g => g.cards).slice(0, 2).forEach(c => act.add(c, fmt.side > 0 ? 'side' : 'main', fmt.side > 0 ? 2 : 1)) : null, goL: fmt.side > 0 ? 'juntar ao sideboard' : 'juntar' })
+      const side = fmt.side > 0 ? sideSuggest(data, deck, ctx, 2).filter(g => (flyers && g.label === SIDE_CATS[4][0]) || (arts && g.label === SIDE_CATS[1][0]) || g.label === SIDE_CATS[3][0]) : []
+      out.push({ k: 'falta', txt: `${tx('Mais dano sofrido de: {l}.', { l: top.map(([x, d]) => `${x} (${d})`).join(', ') })} ${side.length ? tx('Respostas possíveis: {r}.', { r: side.flatMap(g => g.cards.map(c => c.n)).slice(0, 4).join(', ') }) : tx('Reforça a remoção para estas ameaças.')}`, go: side.length ? () => side.flatMap(g => g.cards).slice(0, 2).forEach(c => act.add(c, fmt.side > 0 ? 'side' : 'main', fmt.side > 0 ? 2 : 1)) : null, goL: fmt.side > 0 ? tx('juntar ao sideboard') : tx('juntar') })
     }
     return out
   }, [games, deck, data, fmt, ctx, act])
   if (!tips.length) return null
   return (
     <div className="lab-improve">
-      <h4>Melhorias sugeridas pelos testes</h4>
+      <h4>{tx('Melhorias sugeridas pelos testes')}</h4>
       <ol>{tips.map((x, k) => <li key={k} className={x.k}><span>{x.txt}</span>{x.go && <button className="link small" onClick={x.go}>{x.goL}</button>}</li>)}</ol>
-      <p className="muted small">Volta a correr os testes depois de aplicar para confirmar se melhorou.</p>
+      <p className="muted small">{tx('Volta a correr os testes depois de aplicar para confirmar se melhorou.')}</p>
     </div>
   )
 }

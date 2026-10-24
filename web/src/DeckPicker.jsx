@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { FORMAT } from './formats.js'
 import { img } from './data.js'
 import { Mana } from './ui.jsx'
+import { tx } from './i18n.js'
 
 const VISIBLE = 4  // formatos com separador próprio; os outros vão para «⋯ mais»
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
@@ -51,21 +52,21 @@ export default function DeckPicker({ decks, deck, data, onOpen }) {
   const Tab = ({ k, children }) => <button className={tab === k && !q ? 'on' : ''} onClick={() => { setTab(k); setQ(''); setMore(false) }}>{children}</button>
   return (
     <div className="dpick" ref={box}>
-      <button className="dpick-cur" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label="Escolher deck">
+      <button className="dpick-cur" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label={tx('Escolher deck')}>
         {t ? <img src={t} alt="" /> : <span className="dpick-noimg">✦</span>}
-        <span><b>{cur?.name || deck.name || 'Deck novo'}</b><small>{FORMAT[deck.format]?.name || deck.format}{cur ? ` · ${cur.count} cartas` : ''}</small></span>
+        <span><b>{cur?.name || deck.name || tx('Deck novo')}</b><small>{FORMAT[deck.format]?.name || deck.format}{cur ? ` · ${tx('{n} carta|{n} cartas', { n: cur.count })}` : ''}</small></span>
         <i>▾</i>
       </button>
       {open && (
-        <div className="dpick-pop" role="dialog" aria-label="Os meus decks" onKeyDown={e => { if (e.key === 'Escape') setOpen(false); if (e.key === 'Enter' && list[0]) pick(list[0].id) }}>
-          <input ref={input} value={q} onChange={e => setQ(e.target.value)} placeholder={`Procurar entre ${decks.length} decks…`} />
+        <div className="dpick-pop" role="dialog" aria-label={tx('Os meus decks')} onKeyDown={e => { if (e.key === 'Escape') setOpen(false); if (e.key === 'Enter' && list[0]) pick(list[0].id) }}>
+          <input ref={input} value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar entre {n} decks…', { n: decks.length })} />
           <div className="dpick-tabs">
-            <Tab k="todos">Todos</Tab>
-            {decks.some(d => d.fav) && <Tab k="fav">★ Favoritos</Tab>}
-            <Tab k="recentes">Recentes</Tab>
+            <Tab k="todos">{tx('Todos')}</Tab>
+            {decks.some(d => d.fav) && <Tab k="fav">{tx('★ Favoritos')}</Tab>}
+            <Tab k="recentes">{tx('Recentes')}</Tab>
             {shown.map(([f, n]) => <Tab key={f} k={f}>{FORMAT[f]?.name || f} <i>{n}</i></Tab>)}
             {hidden.length > 0 && <span className="dpick-more">
-              <button className={hidden.some(([f]) => f === tab) && !q ? 'on' : ''} onClick={() => setMore(m => !m)}>{hidden.some(([f]) => f === tab) ? FORMAT[tab]?.name || tab : '⋯ mais'} ▾</button>
+              <button className={hidden.some(([f]) => f === tab) && !q ? 'on' : ''} onClick={() => setMore(m => !m)}>{hidden.some(([f]) => f === tab) ? FORMAT[tab]?.name || tab : tx('⋯ mais')} ▾</button>
               {more && <span className="dpick-menu">{hidden.map(([f, n]) => <Tab key={f} k={f}>{FORMAT[f]?.name || f} <i>{n}</i></Tab>)}</span>}
             </span>}
           </div>
@@ -73,13 +74,13 @@ export default function DeckPicker({ decks, deck, data, onOpen }) {
             {list.map(d => { const im = thumb(d, data), cs = colors(d, data); return (
               <li key={d.id}><button className={d.id === deck.id ? 'on' : ''} onClick={() => pick(d.id)}>
                 {im ? <img src={im} alt="" loading="lazy" /> : <span className="dpick-noimg">✦</span>}
-                <span className="dpick-name"><b>{d.fav ? '★ ' : ''}{d.name}</b><small>{FORMAT[d.format]?.name || d.format} · {d.count} cartas</small></span>
+                <span className="dpick-name"><b>{d.fav ? '★ ' : ''}{d.name}</b><small>{FORMAT[d.format]?.name || d.format} · {tx('{n} carta|{n} cartas', { n: d.count })}</small></span>
                 {cs.length > 0 && <Mana cost={cs.map(x => `{${x}}`).join('')} />}
               </button></li>
             ) })}
-            {!list.length && <li className="muted small dpick-empty">Nenhum deck aqui.</li>}
+            {!list.length && <li className="muted small dpick-empty">{tx('Nenhum deck aqui.')}</li>}
           </ul>
-          <button className="dpick-new" onClick={() => pick('')}>✦ Novo deck…</button>
+          <button className="dpick-new" onClick={() => pick('')}>✦ {tx('Novo deck…')}</button>
         </div>
       )}
     </div>

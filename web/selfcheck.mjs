@@ -347,3 +347,38 @@ import { deckSynergy } from './src/synergy.js'
   assert.equal(syn({ 'Lightning Bolt': 4 }).cats.length, 0)
   console.log('selfcheck sinergias ok')
 }
+
+// Línguas: cada texto literal em tx() tem tradução em lang/en.js, com os mesmos {marcadores}; o pt é a própria chave;
+// es, de e zh têm exatamente as chaves do en (o chinês pode dispensar o plural: não flexiona).
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { tx, LANGS } from './src/i18n.js'
+{
+  assert.equal(tx('{n} jogo|{n} jogos', { n: 1 }), '1 jogo')
+  assert.equal(tx('{n} jogo|{n} jogos', { n: 3 }), '3 jogos')
+  const marks = s => [...s.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort().join()
+  const bad = [], dir = new URL('./src/', import.meta.url)
+  const D = {}
+  for (const [l] of LANGS.filter(x => x[0] !== 'pt')) {
+    const f = new URL(`lang/${l}.js`, dir)
+    if (existsSync(f)) D[l] = (await import(f)).default
+    else bad.push(`falta lang/${l}.js`)
+  }
+  const EN = D.en || {}
+  for (const f of readdirSync(dir).filter(f => /\.jsx?$/.test(f) && f !== 'i18n.js')) {
+    for (const m of readFileSync(new URL(f, dir), 'utf8').matchAll(/\btx\(\s*(['"`])((?:\\.|(?!\1)[^\\])*)\1/g)) {
+      const k = m[2].replace(/\\(.)/g, (_, c) => ({ n: '\n', t: '\t' })[c] ?? c)
+      if (m[1] === '`' && k.includes('${')) bad.push(`${f}: tx() com \${} (usa {marcador}): ${k}`)
+      else if (!(k in EN)) bad.push(`${f}: sem tradução: ${JSON.stringify(k)}`)
+    }
+  }
+  for (const [l, T] of Object.entries(D)) {
+    for (const k of Object.keys(EN)) {
+      if (!(k in T)) { bad.push(`${l}: falta ${JSON.stringify(k)}`); continue }
+      if (marks(k) !== marks(T[k])) bad.push(`${l}: marcadores diferentes: ${JSON.stringify(k)} → ${JSON.stringify(T[k])}`)
+      if (k.includes('|') && !T[k].includes('|') && l !== 'zh' || !k.includes('|') && T[k].includes('|')) bad.push(`${l}: plural: ${JSON.stringify(k)}`)
+    }
+    for (const k of Object.keys(T)) if (!(k in EN)) bad.push(`${l}: chave a mais ${JSON.stringify(k)}`)
+  }
+  assert.deepEqual(bad, [])
+  console.log('selfcheck línguas ok')
+}

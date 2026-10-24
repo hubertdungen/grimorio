@@ -1,13 +1,24 @@
-import { StrictMode } from 'react'
+import { StrictMode, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.jsx'
+import { ready, tx } from './i18n.js'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// Erros do servidor: chegam em pt ({"erro": ...}); os textos fixos traduzem-se aqui para todos os pedidos da app.
+// code "profile" (401) = não há perfil escolhido: a app mostra «Quem vai jogar?».
+// ponytail: só textos exatos; os que levam valores no meio (f-strings do Python) ficam em pt
+const _fetch = window.fetch.bind(window)
+window.fetch = async (...a) => {
+  const r = await _fetch(...a)
+  if (r.ok || !(r.headers.get('content-type') || '').includes('json')) return r
+  const j = await r.clone().json().catch(() => null)
+  if (j?.code === 'profile') window.dispatchEvent(new Event('grimorio:profile'))
+  if (typeof j?.erro !== 'string') return r
+  return new Response(JSON.stringify({ ...j, erro: tx(j.erro) }), { status: r.status, statusText: r.statusText, headers: r.headers })
+}
+
+// a app só carrega depois do dicionário da língua: as tabelas fixas dos módulos já nascem traduzidas
+ready.catch(() => {}).then(() => import('./App.jsx'))
+  .then(m => createRoot(document.getElementById('root')).render(createElement(StrictMode, null, createElement(m.default))))
 
 // Sliders: a parte preenchida do trilho segue o valor (--p); o Firefox tem ::-moz-range-progress, o Chrome precisa disto
 const fill = el => { const lo = +el.min || 0, hi = +el.max || 100; el.style.setProperty('--p', `${((el.value - lo) / (hi - lo || 1)) * 100}%`) }

@@ -1,14 +1,15 @@
 // Carregamento dos dados e motor de pesquisa/sugestões. Tudo corre no browser:
 // os embeddings (int8, 128 dim) chegam para fazer as contas de semelhança em ~50 ms.
 import { testsBoost } from './tests.js'
+import { tx, num, LOCALE } from './i18n.js'
 
 export const TAG_LABEL = {
-  ramp: 'Ramp', draw: 'Compra', removal: 'Remoção', wipe: 'Wipe', counter: 'Contra-feitiço',
-  tutor: 'Tutor', recursion: 'Recursão', protection: 'Proteção', tokens: 'Fichas',
-  sacrifice: 'Sacrifício', counters: 'Marcadores +1/+1', lifegain: 'Ganho de vida',
-  graveyard: 'Cemitério', etb: 'Entradas (ETB)', spellslinger: 'Instantâneos e feitiços',
-  artifacts: 'Artefactos', enchantments: 'Encantamentos', discard: 'Descarte', evasion: 'Evasão', land: 'Terreno',
-  creature: 'Criaturas', wincon: 'Condição de vitória', hate: 'Resposta de sideboard', reanimate: 'Reanimação',
+  ramp: tx('Ramp'), draw: tx('Compra'), removal: tx('Remoção'), wipe: tx('Wipe'), counter: tx('Contra-feitiço'),
+  tutor: tx('Tutor'), recursion: tx('Recursão'), protection: tx('Proteção'), tokens: tx('Fichas'),
+  sacrifice: tx('Sacrifício'), counters: tx('Marcadores +1/+1'), lifegain: tx('Ganho de vida'),
+  graveyard: tx('Cemitério'), etb: tx('Entradas (ETB)'), spellslinger: tx('Instantâneos e feitiços'),
+  artifacts: tx('Artefactos'), enchantments: tx('Encantamentos'), discard: tx('Descarte'), evasion: tx('Evasão'), land: tx('Terreno'),
+  creature: tx('Criaturas'), wincon: tx('Condição de vitória'), hate: tx('Resposta de sideboard'), reanimate: tx('Reanimação'),
 }
 
 // Papéis mecânicos: quem alimenta quem. Calculados uma vez por carta ao carregar.
@@ -35,12 +36,12 @@ const ROLE_RE = {
 }
 const ROLES = Object.keys(ROLE_RE)
 export const ROLE_LABEL = {
-  tokenMaker: 'geram fichas', tokenPayoff: 'gostam de fichas', sacOutlet: 'sacrificam', deathPayoff: 'disparam quando algo morre',
-  counterPlacer: 'põem marcadores +1/+1', counterPayoff: 'multiplicam marcadores', etb: 'têm efeito ao entrar', blink: 'fazem blink',
-  selfFill: 'enchem o cemitério', recursion: 'recuperam do cemitério', lifeGain: 'ganham vida', lifePayoff: 'pagam por ganhar vida',
-  spells: 'são instantâneos ou feitiços', spellPayoff: 'pagam por lançar feitiços', artifactMaker: 'criam artefactos',
-  artifactPayoff: 'gostam de artefactos', extraLands: 'põem terrenos a mais', landfall: 'disparam com terrenos (landfall)',
-  draw: 'compram cartas', drawPayoff: 'pagam por comprar cartas',
+  tokenMaker: tx('geram fichas'), tokenPayoff: tx('gostam de fichas'), sacOutlet: tx('sacrificam'), deathPayoff: tx('disparam quando algo morre'),
+  counterPlacer: tx('põem marcadores +1/+1'), counterPayoff: tx('multiplicam marcadores'), etb: tx('têm efeito ao entrar'), blink: tx('fazem blink'),
+  selfFill: tx('enchem o cemitério'), recursion: tx('recuperam do cemitério'), lifeGain: tx('ganham vida'), lifePayoff: tx('pagam por ganhar vida'),
+  spells: tx('são instantâneos ou feitiços'), spellPayoff: tx('pagam por lançar feitiços'), artifactMaker: tx('criam artefactos'),
+  artifactPayoff: tx('gostam de artefactos'), extraLands: tx('põem terrenos a mais'), landfall: tx('disparam com terrenos (landfall)'),
+  draw: tx('compram cartas'), drawPayoff: tx('pagam por comprar cartas'),
 }
 // [quem alimenta, quem aproveita]
 export const PAIRS = [['tokenMaker', 'tokenPayoff'], ['tokenMaker', 'sacOutlet'], ['sacOutlet', 'deathPayoff'], ['counterPlacer', 'counterPayoff'],
@@ -61,22 +62,22 @@ export function rolesOf(c) {
 
 // Estilos que o utilizador pode escolher na personalização (viés opcional nas sugestões).
 export const STYLES = {
-  aggro: { label: 'Aggro', test: c => c.mt !== 'Land' && (c.cmc <= 2 || c.tg.includes('evasion')), neg: c => c.cmc >= 5 },
-  midrange: { label: 'Midrange', test: c => c.cmc >= 2 && c.cmc <= 4 && (c.mt === 'Creature' || c.tg.includes('removal')) },
-  controlo: { label: 'Controlo', test: c => ['counter', 'removal', 'wipe', 'draw'].some(t => c.tg.includes(t)) },
-  combo: { label: 'Combo', test: (c, d) => c.tg.includes('tutor') || d.combosByCard[c.i].length > 0 },
-  tribal: { label: 'Tribal', test: null },
-  fichas: { label: 'Fichas', test: c => c.ro & (RB.tokenMaker | RB.tokenPayoff) },
-  aristocratas: { label: 'Aristocratas', test: c => c.ro & (RB.sacOutlet | RB.deathPayoff) },
-  marcadores: { label: 'Marcadores +1/+1', test: c => c.ro & (RB.counterPlacer | RB.counterPayoff) },
-  feiticos: { label: 'Feitiços', test: c => c.ro & (RB.spells | RB.spellPayoff) },
-  artefactos: { label: 'Artefactos', test: c => c.ro & (RB.artifactMaker | RB.artifactPayoff) },
-  cemiterio: { label: 'Cemitério', test: c => c.ro & (RB.selfFill | RB.recursion) },
-  vida: { label: 'Ganho de vida', test: c => c.ro & (RB.lifeGain | RB.lifePayoff) },
-  landfall: { label: 'Landfall', test: c => c.ro & (RB.extraLands | RB.landfall) },
-  jank: { label: 'Fun/jank', test: c => !c.er || c.er > 5000 },
+  aggro: { label: tx('Aggro'), test: c => c.mt !== 'Land' && (c.cmc <= 2 || c.tg.includes('evasion')), neg: c => c.cmc >= 5 },
+  midrange: { label: tx('Midrange'), test: c => c.cmc >= 2 && c.cmc <= 4 && (c.mt === 'Creature' || c.tg.includes('removal')) },
+  controlo: { label: tx('Controlo'), test: c => ['counter', 'removal', 'wipe', 'draw'].some(t => c.tg.includes(t)) },
+  combo: { label: tx('Combo'), test: (c, d) => c.tg.includes('tutor') || d.combosByCard[c.i].length > 0 },
+  tribal: { label: tx('Tribal'), test: null },
+  fichas: { label: tx('Fichas'), test: c => c.ro & (RB.tokenMaker | RB.tokenPayoff) },
+  aristocratas: { label: tx('Aristocratas'), test: c => c.ro & (RB.sacOutlet | RB.deathPayoff) },
+  marcadores: { label: tx('Marcadores +1/+1'), test: c => c.ro & (RB.counterPlacer | RB.counterPayoff) },
+  feiticos: { label: tx('Instantâneos e feitiços'), test: c => c.ro & (RB.spells | RB.spellPayoff) },
+  artefactos: { label: tx('Artefactos'), test: c => c.ro & (RB.artifactMaker | RB.artifactPayoff) },
+  cemiterio: { label: tx('Cemitério'), test: c => c.ro & (RB.selfFill | RB.recursion) },
+  vida: { label: tx('Ganho de vida'), test: c => c.ro & (RB.lifeGain | RB.lifePayoff) },
+  landfall: { label: tx('Landfall'), test: c => c.ro & (RB.extraLands | RB.landfall) },
+  jank: { label: tx('Fun/jank'), test: c => !c.er || c.er > 5000 },
 }
-export const LEVELS = ['', 'Fun/jank', 'Base', 'Melhorado', 'Otimizado', 'Competitivo']
+export const LEVELS = ['', 'Fun/jank', tx('Base'), tx('Melhorado'), tx('Otimizado'), tx('Competitivo')]
 
 // Nome no formato dos URLs do EDHREC ("Kaya's Ghostform" -> "kayas-ghostform").
 export const edhSlug = n => n.split(' // ')[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -88,10 +89,10 @@ export function fetchEdh(kind, name) {
   return edhCache.get(key)
 }
 
-export const COLORS = { W: 'Branco', U: 'Azul', B: 'Preto', R: 'Vermelho', G: 'Verde' }
+export const COLORS = { W: tx('Branco'), U: tx('Azul'), B: tx('Preto'), R: tx('Vermelho'), G: tx('Verde') }
 
 export const TYPES = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Battle']
-export const TYPE_LABEL = { Creature: 'Criaturas', Instant: 'Instantâneos', Sorcery: 'Feitiços', Artifact: 'Artefactos', Enchantment: 'Encantamentos', Planeswalker: 'Planeswalkers', Land: 'Terrenos', Battle: 'Batalhas' }
+export const TYPE_LABEL = { Creature: tx('Criaturas'), Instant: tx('Instantâneos'), Sorcery: tx('Feitiços'), Artifact: tx('Artefactos'), Enchantment: tx('Encantamentos'), Planeswalker: tx('Planeswalkers'), Land: tx('Terrenos'), Battle: tx('Batalhas') }
 
 export function mainType(c) {
   const front = c.t.split('//')[0]
@@ -114,13 +115,13 @@ const printsCache = new Map()
 function styleOf(p) {
   const s = []
   const fx = p.frame_effects || []
-  if (p.border_color === 'borderless') s.push('Sem margem')
+  if (p.border_color === 'borderless') s.push(tx('Sem margem'))
   if (fx.includes('showcase')) s.push('Showcase')
-  if (fx.includes('extendedart')) s.push('Arte estendida')
-  if (p.full_art) s.push('Arte completa')
-  if (fx.includes('inverted')) s.push('Invertida')
-  if (p.frame === '1993' || p.frame === '1997') s.push('Moldura antiga')
-  if (p.textless) s.push('Sem texto')
+  if (fx.includes('extendedart')) s.push(tx('Arte estendida'))
+  if (p.full_art) s.push(tx('Arte completa'))
+  if (fx.includes('inverted')) s.push(tx('Invertida'))
+  if (p.frame === '1993' || p.frame === '1997') s.push(tx('Moldura antiga'))
+  if (p.textless) s.push(tx('Sem texto'))
   if (p.finishes?.includes('etched')) s.push('Etched')
   if (p.promo) s.push('Promo')
   if (p.set_type === 'masterpiece') s.push('Masterpiece')
@@ -481,7 +482,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     const tb = testsBoost(c, ctx?.tests)
     if (tb) P.testes = tb.v
     let curveNote = null
-    if (lowCheap && c.mt !== 'Land' && c.cmc <= 2) { P.falta += 0.03; curveNote = `Barata (MV ${c.cmc}): o deck só tem ${cheapN} cartas até 2` }
+    if (lowCheap && c.mt !== 'Land' && c.cmc <= 2) { P.falta += 0.03; curveNote = tx('Barata (MV {mv}): o deck só tem {n} cartas até 2', { mv: c.cmc, n: cheapN }) }
     if (heavy && c.cmc >= 5) P.falta -= 0.03
     let fix = null
     if (needColors.length && c.mt === 'Land') {
@@ -532,44 +533,44 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     if (r.completes && !noCombos) {
       const h = r.hits.filter(h => h.missing.length === 1).sort((a, b) => (combos[b.k][5] || 0) - (combos[a.k][5] || 0))[0]
       const cb = combos[h.k]
-      why.push({ k: 'combo', txt: `Combo com ${cb[1].filter(x => x !== r.i).map(name).join(' + ')} → ${cb[2][0] || 'combo'}${r.completes > 1 ? ` (+${r.completes - 1})` : ''} · ≈${pctP(pOf(cb))} até ao turno ${turn}`, combo: cb[0] })
+      why.push({ k: 'combo', txt: tx('Combo com {with} → {res}{more} · ≈{p} até ao turno {turn}', { with: cb[1].filter(x => x !== r.i).map(name).join(' + '), res: cb[2][0] || 'combo', more: r.completes > 1 ? ` (+${r.completes - 1})` : '', p: pctP(pOf(cb)), turn }), combo: cb[0] })
     } else if (r.partial && !noCombos) {
       const h = r.hits[0], cb = combos[h.k]
       const other = h.missing.find(x => x !== r.i)
-      why.push({ k: 'combo2', txt: `Quase-combo com ${cb[1].filter(x => haveSet.has(x)).map(name).join(' + ')}: falta também ${name(other)}`, combo: cb[0] })
+      why.push({ k: 'combo2', txt: tx('Quase-combo com {with}: falta também {c}', { with: cb[1].filter(x => haveSet.has(x)).map(name).join(' + '), c: name(other) }), combo: cb[0] })
     }
     if (r.tb) why.push({ k: 'testes', txt: r.tb.txt })
-    if (r.mArch) why.push({ k: 'meta', txt: `Peça de ${archetype.name}: em ${Math.round(r.mArch.incl * 100)}% das listas, ${r.mArch.copies.toFixed(1).replace('.', ',')} cópias` })
-    else if (r.mRow && r.mRow.incl >= 0.03) why.push({ k: 'meta', txt: `Em ${Math.round(r.mRow.incl * 100)}% dos decks de ${meta.fmtName} (MTGTop8, ${meta.decks} listas)` })
-    if (r.mPart.length) why.push({ k: 'meta', txt: `Jogada com ${r.mPart.slice(0, 2).map(p => p.from).join(' e ')} em torneios (${Math.round(r.mPart[0].cond * 100)}% das vezes)` })
-    if (r.tutorGain) why.push({ k: 'combo', txt: `Tutor: o teu combo passa de ≈${pctP(r.tutorGain[0])} para ≈${pctP(r.tutorGain[1])} até ao turno ${turn}` })
+    if (r.mArch) why.push({ k: 'meta', txt: tx('Peça de {a}: em {p}% das listas, {q} cópias', { a: archetype.name, p: Math.round(r.mArch.incl * 100), q: num(r.mArch.copies, 1) }) })
+    else if (r.mRow && r.mRow.incl >= 0.03) why.push({ k: 'meta', txt: tx('Em {p}% dos decks de {f} (MTGTop8, {n} listas)', { p: Math.round(r.mRow.incl * 100), f: meta.fmtName, n: meta.decks }) })
+    if (r.mPart.length) why.push({ k: 'meta', txt: tx('Jogada com {with} em torneios ({p}% das vezes)', { with: r.mPart.slice(0, 2).map(p => p.from).join(tx(' e ')), p: Math.round(r.mPart[0].cond * 100) }) })
+    if (r.tutorGain) why.push({ k: 'combo', txt: tx('Tutor: o teu combo passa de ≈{a} para ≈{b} até ao turno {turn}', { a: pctP(r.tutorGain[0]), b: pctP(r.tutorGain[1]), turn }) })
     if (r.edhCmd) {
       const e = r.edhCmd
-      why.push({ k: 'edh', txt: `Em ${Math.round(e.incl * 100)}% dos ${e.pot.toLocaleString('pt-PT')} decks de ${e.from}${e.syn ? ` (sinergia ${e.syn > 0 ? '+' : ''}${Math.round(e.syn * 100)}%)` : ''}` })
+      why.push({ k: 'edh', txt: tx('Em {p}% dos {n} decks de {c}', { p: Math.round(e.incl * 100), n: e.pot.toLocaleString(LOCALE), c: e.from }) + (e.syn ? tx(' (sinergia {s}%)', { s: `${e.syn > 0 ? '+' : ''}${Math.round(e.syn * 100)}` }) : '') })
     }
     if (r.edhCards.length) {
       const top = r.edhCards.slice(0, 2)
-      why.push({ k: 'edh', txt: `Jogada com ${top.map(e => e.from).join(' e ')} em decks reais (${top[0].lift.toFixed(1).replace('.', ',')}× mais do que o normal)` })
+      why.push({ k: 'edh', txt: tx('Jogada com {with} em decks reais ({x}× mais do que o normal)', { with: top.map(e => e.from).join(tx(' e ')), x: num(top[0].lift, 1) }) })
     }
     for (const x of r.inter.slice(0, 2)) {
       const names = x.who.slice(0, 2).map(name).join(', ') + (x.who.length > 2 ? ` (+${x.who.length - 2})` : '')
-      why.push({ k: 'inter', txt: x.side === 'usa' ? `Aproveita ${names}, que ${ROLE_LABEL[x.role]}` : `Alimenta ${names}, que ${ROLE_LABEL[x.role]}` })
+      why.push({ k: 'inter', txt: x.side === 'usa' ? tx('Aproveita {names}, que {role}', { names, role: ROLE_LABEL[x.role] }) : tx('Alimenta {names}, que {role}', { names, role: ROLE_LABEL[x.role] }) })
     }
-    if (r.need) why.push({ k: 'falta', txt: `O deck precisa de ${r.need[0] === 'wincon' ? 'condições de vitória' : TAG_LABEL[r.need[0]].toLowerCase()} (${r.need[1][0]}/${r.need[1][1]})` })
-    if (r.reanTarget) why.push({ k: 'inter', txt: `Alvo de reanimação (poder ${r.pw}) para ${reanimators.slice(0, 2).map(name).join(', ')}` })
-    if (c.tg.includes('wincon') && !r.need) why.push({ k: 'tema', txt: 'Condição de vitória' })
-    if (r.fix) why.push({ k: 'falta', txt: `Dá ${r.fix.join('/')}, as cores com menos fontes no deck` })
+    if (r.need) why.push({ k: 'falta', txt: tx('O deck precisa de {what} ({h}/{n})', { what: r.need[0] === 'wincon' ? tx('condições de vitória') : TAG_LABEL[r.need[0]].toLowerCase(), h: r.need[1][0], n: r.need[1][1] }) })
+    if (r.reanTarget) why.push({ k: 'inter', txt: tx('Alvo de reanimação (poder {p}) para {who}', { p: r.pw, who: reanimators.slice(0, 2).map(name).join(', ') }) })
+    if (c.tg.includes('wincon') && !r.need) why.push({ k: 'tema', txt: tx('Condição de vitória') })
+    if (r.fix) why.push({ k: 'falta', txt: tx('Dá {c}, as cores com menos fontes no deck', { c: r.fix.join('/') }) })
     if (r.curveNote) why.push({ k: 'falta', txt: r.curveNote })
-    if (commanders.length && r.cmd >= 0.5) why.push({ k: 'cmd', txt: `Sinergia com ${commanders.map(name).join(' e ')}` })
-    if (r.tribal) why.push({ k: 'tribo', txt: `Tribo ${tribe}: ${tribeN} no deck` })
-    if (r.kws.length) why.push({ k: 'kw', txt: `${r.kws.join(', ')}, como várias cartas do deck` })
+    if (commanders.length && r.cmd >= 0.5) why.push({ k: 'cmd', txt: tx('Sinergia com {c}', { c: commanders.map(name).join(tx(' e ')) }) })
+    if (r.tribal) why.push({ k: 'tribo', txt: tx('Tribo {t}: {n} no deck', { t: tribe, n: tribeN }) })
+    if (r.kws.length) why.push({ k: 'kw', txt: tx('{kw}, como várias cartas do deck', { kw: r.kws.join(', ') }) })
     const shared = c.tg.filter(t => themes.has(t)).map(t => TAG_LABEL[t])
-    if (shared.length && !r.inter.length) why.push({ k: 'tema', txt: `Reforça: ${shared.slice(0, 3).join(', ')}` })
-    if (r.stHit.length) why.push({ k: 'estilo', txt: `Estilo: ${r.stHit.join(', ')}` })
-    if (r.tasteName && r.tasteBest >= 0.3) why.push({ k: 'gosto', txt: `Ao teu gosto: perto das cartas de «${r.tasteName}»` })
-    if (r.P.original) why.push({ k: 'estilo', txt: 'Escolha original (pouco jogada)' })
-    if (r.near >= 0 && why.length < 3) why.push({ k: 'perto', txt: `Parecida com ${name(r.near)}` })
-    if (c.er && c.er <= 300 && why.length < 3) why.push({ k: 'tema', txt: `Staple: n.º ${c.er} do EDHREC` })
+    if (shared.length && !r.inter.length) why.push({ k: 'tema', txt: tx('Reforça: {t}', { t: shared.slice(0, 3).join(', ') }) })
+    if (r.stHit.length) why.push({ k: 'estilo', txt: tx('Estilo: {s}', { s: r.stHit.join(', ') }) })
+    if (r.tasteName && r.tasteBest >= 0.3) why.push({ k: 'gosto', txt: tx('Ao teu gosto: perto das cartas de «{d}»', { d: r.tasteName }) })
+    if (r.P.original) why.push({ k: 'estilo', txt: tx('Escolha original (pouco jogada)') })
+    if (r.near >= 0 && why.length < 3) why.push({ k: 'perto', txt: tx('Parecida com {c}', { c: name(r.near) }) })
+    if (c.er && c.er <= 300 && why.length < 3) why.push({ k: 'tema', txt: tx('Staple: n.º {n} do EDHREC', { n: c.er }) })
     // Detalhe completo para o «Porquê?».
     const detail = {
       combos: (r.hits || []).sort((a, b) => a.missing.length - b.missing.length || (combos[b.k][5] || 0) - (combos[a.k][5] || 0)).slice(0, 4).map(h => {
@@ -587,11 +588,11 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
 
 // Eixos do deck: pares alimenta/aproveita com pelo menos um "payoff" (é isso que mostra intenção).
 const AXES = [
-  ['Fichas', 'tokenMaker', 'tokenPayoff'], ['Aristocratas (sacrifício)', 'sacOutlet', 'deathPayoff'],
-  ['Marcadores +1/+1', 'counterPlacer', 'counterPayoff'], ['ETB e blink', 'etb', 'blink'],
-  ['Cemitério', 'selfFill', 'recursion'], ['Ganho de vida', 'lifeGain', 'lifePayoff'],
-  ['Instantâneos e feitiços', 'spells', 'spellPayoff'], ['Artefactos', 'artifactMaker', 'artifactPayoff'],
-  ['Terrenos (landfall)', 'extraLands', 'landfall'], ['Compra de cartas', 'draw', 'drawPayoff'],
+  [tx('Fichas'), 'tokenMaker', 'tokenPayoff'], [tx('Aristocratas (sacrifício)'), 'sacOutlet', 'deathPayoff'],
+  [tx('Marcadores +1/+1'), 'counterPlacer', 'counterPayoff'], [tx('ETB e blink'), 'etb', 'blink'],
+  [tx('Cemitério'), 'selfFill', 'recursion'], [tx('Ganho de vida'), 'lifeGain', 'lifePayoff'],
+  [tx('Instantâneos e feitiços'), 'spells', 'spellPayoff'], [tx('Artefactos'), 'artifactMaker', 'artifactPayoff'],
+  [tx('Terrenos (landfall)'), 'extraLands', 'landfall'], [tx('Compra de cartas'), 'draw', 'drawPayoff'],
 ]
 export function deckPlan(data, idxs) {
   const out = []
@@ -603,7 +604,7 @@ export function deckPlan(data, idxs) {
   const tribes = {}
   for (const i of idxs) for (const t of subtypes(data.cards[i])) tribes[t] = (tribes[t] || 0) + 1
   const [tribe, tn] = Object.entries(tribes).sort((x, y) => y[1] - x[1])[0] || []
-  if (tn >= 5) out.push({ label: `Tribo ${tribe}`, n: tn, score: tn * 1.5, enablers: tn, payoffs: 0, roles: [] })
+  if (tn >= 5) out.push({ label: tx('Tribo {t}', { t: tribe }), n: tn, score: tn * 1.5, enablers: tn, payoffs: 0, roles: [] })
   return out.sort((x, y) => y.score - x.score).slice(0, 4)
 }
 
@@ -642,8 +643,8 @@ export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, rec
     const c = cards[i]
     if (seedSet.has(c.n) || c.tg.includes('hate')) continue // as tuas sementes não se cortam; respostas de sideboard têm aviso próprio
     const why = []
-    let fit = 0
-    if (!passes(c, null, ctx)) { fit -= 2; why.push(ctx.identity != null ? 'Fora da identidade ou ilegal no formato' : 'Ilegal no formato') }
+    let fit = 0, buts = 0  // buts: motivos «Mas…», a favor de ficar
+    if (!passes(c, null, ctx)) { fit -= 2; why.push(ctx.identity != null ? tx('Fora da identidade ou ilegal no formato') : tx('Ilegal no formato')) }
     const sim = sims.get(i)
     fit += 0.5 * sim
     const partners = new Set()
@@ -660,8 +661,8 @@ export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, rec
     if (archIncl >= 0.75) continue // peça central do arquétipo: não se propõe cortar
     if (meta && archetype) { // só faz sentido comparar com o meta se o deck for um arquétipo do meta
       fit += 0.3 * Math.min(1, (mRow?.incl || 0) * 2.5) + 0.5 * archIncl
-      if (!archIncl && (!mRow || mRow.incl < 0.02)) why.push(`Quase não aparece em torneios de ${meta.fmtName} (${mRow ? Math.round(mRow.incl * 100) : 0}% das listas)`)
-      else if (archIncl) why.push(`Mas está em ${Math.round(archIncl * 100)}% das listas de ${archetype.name}`)
+      if (!archIncl && (!mRow || mRow.incl < 0.02)) why.push(tx('Quase não aparece em torneios de {f} ({p}% das listas)', { f: meta.fmtName, p: mRow ? Math.round(mRow.incl * 100) : 0 }))
+      else if (archIncl) { buts++; why.push(tx('Mas está em {p}% das listas de {a}', { p: Math.round(archIncl * 100), a: archetype.name })) }
     }
     const needed = c.tg.find(t => needs[t] && needs[t][0] <= needs[t][1])
     if (needed) fit += 0.1
@@ -670,23 +671,23 @@ export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, rec
     if (roleCard && c.er && c.er < 800) fit += 0.15 // peça de função muito jogada: vale por si
     const tribal = tribe && (subtypes(c).includes(tribe) || c.o.toLowerCase().includes(tribe.toLowerCase()))
     if (tribal) fit += 0.25
-    if (sim < q25 && !tribal) why.push('Texto entre os mais afastados do resto do deck')
-    if (!partners.size && !roleCard) why.push('Não interage com nenhuma carta do deck')
-    else if (partners.size === 1 && !roleCard) why.push(`Só interage com ${[...partners].map(name).join('')}`)
+    if (sim < q25 && !tribal) why.push(tx('Texto entre os mais afastados do resto do deck'))
+    if (!partners.size && !roleCard) why.push(tx('Não interage com nenhuma carta do deck'))
+    else if (partners.size === 1 && !roleCard) why.push(tx('Só interage com {c}', { c: [...partners].map(name).join('') }))
     if (commanders.length && co) {
-      if (!e) why.push(`Fora das ~400 cartas mais jogadas com ${commanders.map(name).join(' e ')} (EDHREC)`)
-      else if (e.incl < 0.05) why.push(`Só em ${Math.max(1, Math.round(e.incl * 100))}% dos decks de ${e.from}${e.syn < 0 ? ` (sinergia ${Math.round(e.syn * 100)}%)` : ''}`)
+      if (!e) why.push(tx('Fora das ~400 cartas mais jogadas com {c} (EDHREC)', { c: commanders.map(name).join(tx(' e ')) }))
+      else if (e.incl < 0.05) why.push(tx('Só em {p}% dos decks de {c}', { p: Math.max(1, Math.round(e.incl * 100)), c: e.from }) + (e.syn < 0 ? tx(' (sinergia {s}%)', { s: Math.round(e.syn * 100) }) : ''))
     }
-    if (!needed && !inCombo && c.cmc >= 6) why.push(`MV ${c.cmc} sem função de que o deck precise`)
+    if (!needed && !inCombo && c.cmc >= 6) why.push(tx('MV {mv} sem função de que o deck precise', { mv: c.cmc }))
     const dd = ctx?.tests?.dead[c.n], im = ctx?.tests?.impact[c.n]
-    if (dd && dd.dead >= 2 && dd.dead / dd.seen >= 0.5) { fit -= 0.2 * dd.dead / dd.seen; why.push(`Testes: ficou na mão sem ser jogada em ${dd.dead} de ${dd.seen} jogos`) }
-    if (im?.dmg >= 5) { fit += 0.1; why.push(`Mas nos testes causou ${im.dmg} de dano`) }
-    if (needed) why.push(`Mas conta como ${TAG_LABEL[needed].toLowerCase()}, de que o deck precisa`)
-    out.push({ c, fit, why })
+    if (dd && dd.dead >= 2 && dd.dead / dd.seen >= 0.5) { fit -= 0.2 * dd.dead / dd.seen; why.push(tx('Testes: ficou na mão sem ser jogada em {a} de {n} jogos', { a: dd.dead, n: dd.seen })) }
+    if (im?.dmg >= 5) { fit += 0.1; buts++; why.push(tx('Mas nos testes causou {n} de dano', { n: im.dmg })) }
+    if (needed) { buts++; why.push(tx('Mas conta como {t}, de que o deck precisa', { t: TAG_LABEL[needed].toLowerCase() })) }
+    out.push({ c, fit, why, buts })
   }
   out.sort((a, b) => a.fit - b.fit)
   const used = new Set()
-  const real = out.filter(x => x.why.some(w => !w.startsWith('Mas'))) // só se propõe cortar com um motivo
+  const real = out.filter(x => x.why.length > x.buts) // só se propõe cortar com um motivo
   return real.slice(0, limit).map(x => {
     const fn = x.c.tg.filter(t => ROLE_TAGS.includes(t))
     const swap = recs.find(r => !used.has(r.c.i) && r.c.mt !== 'Land' && (fn.length ? fn.some(t => r.c.tg.includes(t)) : !r.c.tg.some(t => ROLE_TAGS.includes(t))))
@@ -737,12 +738,12 @@ export function deckLinks(data, idxs, ctx, max = 160) {
 
 // --- Sideboard sem meta: respostas por tipo de ameaça ---
 export const SIDE_CATS = [
-  ['Contra cemitério', /exile (all|target|each)[^.]*graveyards?|exile target player's graveyard|cards in graveyards can't|graveyards? (can't|lose)/],
-  ['Contra artefactos e encantamentos', /destroy target (artifact|enchantment|artifact or enchantment)|destroy all (artifacts|enchantments)|exile target (artifact|enchantment)/],
-  ['Contra feitiços e combo', /counter target (instant|sorcery|noncreature|activated)|spells? (your opponents cast )?cost \{|can't cast|players can't (search|activate)/],
-  ['Contra aggro', /damage to each creature|destroy all creatures|each creature gets -|you gain (4|5|6|7) life/],
-  ['Contra voadores', /creature with flying|destroy target creature with flying|\breach\b/],
-  ['Contra controlo', /can't be countered|hexproof|uncounterable/],
+  [tx('Contra cemitério'), /exile (all|target|each)[^.]*graveyards?|exile target player's graveyard|cards in graveyards can't|graveyards? (can't|lose)/],
+  [tx('Contra artefactos e encantamentos'), /destroy target (artifact|enchantment|artifact or enchantment)|destroy all (artifacts|enchantments)|exile target (artifact|enchantment)/],
+  [tx('Contra feitiços e combo'), /counter target (instant|sorcery|noncreature|activated)|spells? (your opponents cast )?cost \{|can't cast|players can't (search|activate)/],
+  [tx('Contra aggro'), /damage to each creature|destroy all creatures|each creature gets -|you gain (4|5|6|7) life/],
+  [tx('Contra voadores'), /creature with flying|destroy target creature with flying|\breach\b/],
+  [tx('Contra controlo'), /can't be countered|hexproof|uncounterable/],
 ]
 export function sideSuggest(data, deck, ctx, perCat = 3) {
   const inDeck = n => deck.main[n] || deck.side[n]
@@ -797,7 +798,7 @@ export function detectArchetype(meta, haveIdx) {
   return best && best.fit >= 0.35 ? best : null // abaixo disto é coincidência, não o arquétipo
 }
 
-export const pctP = p => (p >= 0.995 ? '99%' : p >= 0.1 ? `${Math.round(p * 100)}%` : `${(p * 100).toFixed(1).replace('.', ',')}%`)
+export const pctP = p => (p >= 0.995 ? '99%' : p >= 0.1 ? `${Math.round(p * 100)}%` : `${num(p * 100, 1)}%`)
 
 // --- Probabilidade de montar um combo até ao turno T ---
 // Hipergeométricas: X = peças vistas (de k), Y = tutores vistos (de t); cada tutor vai buscar uma peça.

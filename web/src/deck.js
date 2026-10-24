@@ -1,7 +1,8 @@
 // Modelo do deck, estatísticas, importação e exportação de listas.
+import { tx } from './i18n.js'
 
 export const emptyDeck = (format = 'commander') => ({
-  id: null, name: 'Deck sem nome', format, commanders: [], signature: null,
+  id: null, name: tx('Deck sem nome'), format, commanders: [], signature: null,
   main: {}, side: {}, maybe: {}, seeds: [], notes: '', // maybe: maybeboard, fora da legalidade, estatísticas e testes
   groups: [], // secções propostas pela IA: [{nome, cartas: [nome]}]
   prints: {}, // nome -> impressão escolhida {id, set, cn, eur, eurFoil, foil, style}
@@ -9,7 +10,7 @@ export const emptyDeck = (format = 'commander') => ({
 })
 
 // link do site de onde o deck veio (campo source, ou as notas «Importado de X: link» / «Origem: link» dos decks antigos)
-export const sourceOf = deck => deck.source || (deck.notes || '').match(/(?:Importado de [^:\n]+|Origem): (https?:\/\/[^\s)]+)/)?.[1] || ''
+export const sourceOf = deck => deck.source || (deck.notes || '').match(/(?:Importado de [^:\n]+|Imported from [^:\n]+|Origem|Source): (https?:\/\/[^\s)]+)/)?.[1] || ''
 
 export const count = zone => Object.values(zone).reduce((s, q) => s + q, 0)
 

@@ -1,5 +1,6 @@
 // Provas dos testes do Laboratório (sessões guardadas no deck): o que ficou morto na mão, o que pesou
 // e o que o adversário jogou nos jogos que perdemos. Alimenta as sugestões, os cortes e o sideboard.
+import { tx } from './i18n.js'
 
 // Perfil de uma lista {main: {nome: peso}}: o peso pode ser cópias, vezes lançada ou dano.
 export function profile(data, list) {
@@ -15,15 +16,15 @@ export const catsOf = c => [c.mt === 'Creature' && 'creatures', /Artifact/.test(
   /Instant|Sorcery/.test(c.t) && 'spells', (c.tg.includes('graveyard') || c.tg.includes('recursion')) && 'graveyard',
   c.tg.includes('lifegain') && 'lifegain', c.kw.includes('Flying') && 'flyers'].filter(Boolean)
 export const HATE = [
-  ['artifacts', /destroy (target|all|each)[^.]*artifact|artifacts? (can't|cost)|exile target artifact/i, 'remove artefactos'],
-  ['enchantments', /destroy (target|all|each)[^.]*enchantment|exile target enchantment/i, 'remove encantamentos'],
-  ['graveyard', /exile (all|each)[^.]*graveyards?|target player's graveyard|card (from|in) (a|an opponent's) graveyard|search its owner's graveyard|graveyards? (can't|lose)|cards in graveyards can't/i, 'castiga o cemitério'],
-  ['spells', /counter target (spell|instant|sorcery|noncreature)|instant (and|or) sorcery spells? cost|nonland card from it|instant or sorcery card from it/i, 'trava instantâneos e feitiços'],
-  ['creatures', /counter target creature spell|destroy all creatures|damage to each creature|each creature gets -|destroy target creature|exile target creature/i, 'trava criaturas'],
-  ['flyers', /creature with flying|reach|destroy target creature with flying/i, 'trava voadores'],
-  ['lifegain', /can't gain life|life total can't|players can't gain/i, 'corta o ganho de vida'],
+  ['artifacts', /destroy (target|all|each)[^.]*artifact|artifacts? (can't|cost)|exile target artifact/i, tx('remove artefactos')],
+  ['enchantments', /destroy (target|all|each)[^.]*enchantment|exile target enchantment/i, tx('remove encantamentos')],
+  ['graveyard', /exile (all|each)[^.]*graveyards?|target player's graveyard|card (from|in) (a|an opponent's) graveyard|search its owner's graveyard|graveyards? (can't|lose)|cards in graveyards can't/i, tx('castiga o cemitério')],
+  ['spells', /counter target (spell|instant|sorcery|noncreature)|instant (and|or) sorcery spells? cost|nonland card from it|instant or sorcery card from it/i, tx('trava instantâneos e feitiços')],
+  ['creatures', /counter target creature spell|destroy all creatures|damage to each creature|each creature gets -|destroy target creature|exile target creature/i, tx('trava criaturas')],
+  ['flyers', /creature with flying|reach|destroy target creature with flying/i, tx('trava voadores')],
+  ['lifegain', /can't gain life|life total can't|players can't gain/i, tx('corta o ganho de vida')],
 ]
-export const CAT_LABEL = { creatures: 'criaturas', flyers: 'criaturas voadoras', artifacts: 'artefactos', enchantments: 'encantamentos', spells: 'instantâneos e feitiços', graveyard: 'cemitério', lifegain: 'ganho de vida' }
+export const CAT_LABEL = { creatures: tx('criaturas'), flyers: tx('criaturas voadoras'), artifacts: tx('artefactos'), enchantments: tx('encantamentos'), spells: tx('instantâneos e feitiços'), graveyard: tx('cemitério'), lifegain: tx('ganho de vida') }
 
 // Jogo exato: quantos inícios de turno nossos cada carta passou na mão (o «hd» só vem quando muda).
 export function heldTurns(g) {
@@ -81,18 +82,22 @@ export function testsBoost(c, T) {
     const v = 0.1 * (x.lost / x.games) * Math.min(1, x.lost / 3)
     if (!best || v >= best.v) { // empate: ganha a categoria mais específica (voadores depois de criaturas)
       const top = Object.entries(x.cards).sort((p, q) => q[1] - p[1])[0]?.[0]
-      best = { v, txt: `Testes: perdeste ${x.lost} de ${x.games} jogos contra ${CAT_LABEL[k]}${top ? ` (${top})` : ''}; isto responde` }
+      best = { v, txt: tx('Testes: perdeste {a} de {n} jogos contra {c}{top}; isto responde', { a: x.lost, n: x.games, c: CAT_LABEL[k], top: top ? ` (${top})` : '' }) }
     }
   }
   return best
 }
 
-// Carregar: as últimas sessões guardadas do deck (8, para não pesar), já com os jogos completos.
-export async function loadTests(data, deckId) {
+// Jogos do deck (Laboratório e torneios, o deck sempre no lado 'a'), os mais recentes primeiro.
+// Servidor antigo sem /games: as últimas 8 sessões guardadas do Laboratório.
+export async function loadGames(deckId, limit = 40) {
+  const r = await fetch(`/api/decks/${deckId}/games?limit=${limit}`)
+  if (r.status !== 404) { if (!r.ok) throw new Error(`games ${r.status}`); return r.json() }
   const list = await (await fetch(`/api/sim/runs?deck_id=${deckId}`)).json()
   const bodies = await Promise.all(list.slice(0, 8).map(x => fetch(`/api/sim/runs/${x.id}`).then(r => r.json()).catch(() => null)))
-  return testEvidence(data, bodies.filter(Boolean).flatMap(b => (b.runs || []).flatMap(r => r.games || [])))
+  return bodies.filter(Boolean).flatMap(b => (b.runs || []).flatMap(r => r.games || []))
 }
+export const loadTests = async (data, deckId) => testEvidence(data, await loadGames(deckId))
 
 // Avisos de confiança nos testes: cartas que o Forge diz que a IA joga mal, decks de combo/reanimação
 // (a IA não planeia vários turnos) e, com jogos exatos, cartas que ficaram presas na mão.
@@ -103,8 +108,8 @@ export function aiCaveats(data, deck, flags, games = []) {
   const cards = names.map(n => data.byName.get(n)).filter(Boolean), idx = new Set(cards.map(c => c.i))
   const reanim = cards.filter(c => c.tg.includes('reanimate')).length
   const combos = new Set(cards.flatMap(c => (data.combosByCard?.[c.i] || []).filter(k => data.combos[k][1].every(i => idx.has(i)))))
-  const style = [reanim >= 2 && 'reanimação', combos.size > 0 && `combo (${combos.size} no deck)`].filter(Boolean)
+  const style = [reanim >= 2 && tx('reanimação'), combos.size > 0 && tx('combo ({n} no deck)', { n: combos.size })].filter(Boolean)
   const ev = games.length ? testEvidence(data, games) : null
-  const unused = ev ? Object.entries(ev.dead).filter(([, x]) => x.dead >= 2 && x.dead / x.seen >= 0.5).sort((a, b) => b[1].dead - a[1].dead).map(([n, x]) => `${n} (${x.dead} de ${x.seen})`) : []
+  const unused = ev ? Object.entries(ev.dead).filter(([, x]) => x.dead >= 2 && x.dead / x.seen >= 0.5).sort((a, b) => b[1].dead - a[1].dead).map(([n, x]) => tx('{c} ({a} de {n})', { c: n, a: x.dead, n: x.seen })) : []
   return { flagged, style, unused }
 }
