@@ -17,14 +17,33 @@ if [[ -f "$OUT/GrimorioSim.class" && "$(cat "$OUT/stamp" 2>/dev/null)" == "$STAM
   echo "forge-ext em dia"; exit 0
 fi
 rm -rf "$OUT.new"; mkdir -p "$OUT.new"
-docker run --rm --user "$(id -u):$(id -g)" -v "$JAR:/forge.jar:ro" -v "$SRC:/src:ro" -v "$OUT.new:/out" \
-  eclipse-temurin:17-jdk javac -nowarn -encoding UTF-8 -cp /forge.jar -d /out /src/GrimorioSim.java
+# javac do sistema (JDK 17+, ou JAVAC=/caminho/javac) quando existe — CI e pacotes sem Docker; senão num contentor
+JAVAC="${JAVAC:-$(command -v javac || true)}"
+if [[ -n "$JAVAC" ]]; then
+  "$JAVAC" --release 17 -nowarn -encoding UTF-8 -cp "$JAR" -d "$OUT.new" "$SRC/GrimorioSim.java"
+else
+  docker run --rm --user "$(id -u):$(id -g)" -v "$JAR:/forge.jar:ro" -v "$SRC:/src:ro" -v "$OUT.new:/out" \
+    eclipse-temurin:17-jdk javac -nowarn -encoding UTF-8 -cp /forge.jar -d /out /src/GrimorioSim.java
+fi
 mkdir -p "$OUT.new/ai"
 for f in "$D"/forge/res/ai/*.ai; do
   sed -E '/^CHANCE_TO_COUNTER_/b; s/^([A-Z0-9_]*CHANCE[A-Z0-9_]*)=0(\r?)$/\1=10\2/; s/^([A-Z0-9_]*CHANCE[A-Z0-9_]*)=100(\r?)$/\1=90\2/' "$f" > "$OUT.new/ai/$(basename "$f")"
 done
 for f in "$SRC"/cards/*.txt; do
   n=$(basename "$f"); mkdir -p "$OUT.new/cardsfolder/${n:0:1}"; cp "$f" "$OUT.new/cardsfolder/${n:0:1}/"
+done
+# Cartas com «AI:RemoveDeck:All» que a IA do Forge nunca lança (AiController tira-as da lista de jogadas) mas cuja
+# habilidade é de um tipo que a IA genérica sabe usar (mana, compra, criatura simples, +1/+1 a todas): o guião do zip
+# sem essa linha. As outras (Prismatic Strands, Scapeshift, Freed from the Real, Emrakul, the Promised End…) ficam de
+# fora: sem lógica própria jogavam-se à toa.
+ZIP="$D/forge/res/cardsfolder/cardsfolder.zip"
+for n in faithless_looting tinder_wall orochi_leafcaller quirion_ranger marauding_raptor deftblade_elite ramosian_rally springleaf_drum \
+         springjack_pasture azorius_signet boros_signet dimir_signet golgari_signet gruul_signet izzet_signet \
+         orzhov_signet rakdos_signet selesnya_signet simic_signet; do
+  [[ -f "$SRC/cards/$n.txt" ]] && continue
+  mkdir -p "$OUT.new/cardsfolder/${n:0:1}"
+  python3 -c 'import sys, zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]).decode())' "$ZIP" "${n:0:1}/$n.txt" \
+    | grep -v '^AI:RemoveDeck:All' > "$OUT.new/cardsfolder/${n:0:1}/$n.txt"
 done
 if [[ -d "$OUT.new/cardsfolder" ]]; then  # mesmo disco: ligação; senão cópia (16 MB)
   ln "$D/forge/res/cardsfolder/cardsfolder.zip" "$OUT.new/cardsfolder/" 2>/dev/null || cp "$D/forge/res/cardsfolder/cardsfolder.zip" "$OUT.new/cardsfolder/"

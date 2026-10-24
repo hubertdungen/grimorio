@@ -41,7 +41,9 @@ import forge.ai.ComputerUtil;
 import forge.ai.ComputerUtilCard;
 import forge.ai.ComputerUtilCombat;
 import forge.ai.ComputerUtilCost;
+import forge.ai.ComputerUtilMana;
 import forge.ai.PlayerControllerAi;
+import forge.ai.SpellAbilityAi;
 import forge.game.ability.ApiType;
 import forge.game.combat.Combat;
 import forge.game.phase.PhaseHandler;
@@ -222,7 +224,95 @@ public class GrimorioSim {
         @Override
         public List<SpellAbility> chooseSpellAbilityToPlay() {
             SpellAbility sa = hint();
-            return sa != null ? List.of(sa) : super.chooseSpellAbilityToPlay();
+            if (sa != null) return List.of(sa);
+            List<SpellAbility> r = super.chooseSpellAbilityToPlay();
+            if (r != null && !r.isEmpty()) return r;
+            sa = cantrip();
+            return sa != null ? List.of(sa) : r;
+        }
+
+        // Compra/seleção barata (Consider, Opt, Preordain, Faithless Looting, Thought Scour, Ancient Stirrings…) com a
+        // mana que ia ficar parada. O Forge decide ao acaso (ScryAi/SurveilAi: 40% a instantâneo, 67% a feitiço, só no
+        // Main 1), o DrawAi deixa os instantâneos só para o fim do turno do adversário e com mais de uma carta na mão, e
+        // cartas «AI:RemoveDeck:All» (Faithless Looting, Gitaxian Probe) nunca entram na lista. Aqui, só quando a IA do
+        // Forge já passou (não substitui nenhuma jogada dela):
+        //   - instantâneos no fim do turno do adversário que antecede o nosso (a mana desvira a seguir);
+        //   - feitiços no Main 2 do nosso turno; no Main 1 (feitiços e instantâneos) só se ainda não houve terreno e não
+        //     há nenhum na mão (procura-o), e sem tirar mana às outras cartas que dá para lançar;
+        //   - no nosso turno guarda mana para a resposta instantânea mais cara que tem na mão (contrafeitiço, remoção,
+        //     truque) se a puder pagar agora; se a mana não chega para as duas, não lança.
+        // Só cartas cujo efeito é todo comprar/olhar/descartar/moer (sem alvos que não sejam jogadores) e só com custo de
+        // mana (Village Rites, Thrill of Possibility, Deadly Dispute ficam com a IA do Forge).
+        static final EnumSet<ApiType> SELECT = EnumSet.of(ApiType.Draw, ApiType.Scry, ApiType.Surveil, ApiType.Dig, ApiType.DigUntil);
+        static final EnumSet<ApiType> SAFE = EnumSet.of(ApiType.Draw, ApiType.Scry, ApiType.Surveil, ApiType.Dig, ApiType.DigUntil,
+                ApiType.Discard, ApiType.Mill, ApiType.ChangeZone, ApiType.LoseLife, ApiType.GainLife, ApiType.PumpAll, ApiType.RevealHand);
+
+        SpellAbility cantrip() {
+            Game g = player.getGame();
+            PhaseHandler ph = g.getPhaseHandler();
+            if (!g.getStack().isEmpty() || player.getCardsIn(ZoneType.Library).size() < 5) return null;
+            boolean mine = ph.isPlayerTurn(player);
+            boolean eot = !mine && ph.is(PhaseType.END_OF_TURN) && ph.getNextTurn() == player;
+            boolean main2 = mine && ph.is(PhaseType.MAIN2);
+            boolean dig = mine && ph.is(PhaseType.MAIN1) && player.getLandsPlayedThisTurn() == 0
+                    && player.getCardsIn(ZoneType.Hand).stream().noneMatch(Card::isLand);
+            if (!eot && !main2 && !dig) return null;
+            List<Card> hand = new ArrayList<>(player.getCardsIn(ZoneType.Hand));
+            hand.sort(Comparator.comparingInt(Card::getCMC));
+            for (Card c : hand) {
+                SpellAbility sa = c.getFirstSpellAbility();
+                if (sa == null || !selects(sa) || c.getCMC() > 4) continue;
+                boolean instant = !SpellAbilityAi.isSorcerySpeed(sa, player);
+                if (eot != instant && !dig) continue;  // instantâneos só no fim do turno do adversário (ou à procura de terreno)
+                if (sa.findSubAbilityByType(ApiType.Discard) != null && hand.size() < 2) continue;  // descartava o que comprou
+                if (sa.findSubAbilityByType(ApiType.LoseLife) != null && player.getLife() <= 6) continue;
+                if (!tried.add(ph.getTurn() + ":" + ph.getPhase() + ":" + c.getId() + ":cantrip")) continue;
+                sa.setActivatingPlayer(player);
+                if (!targetPlayers(sa) || !sa.canPlay() || !ComputerUtilCost.canPayCost(sa, player, false)) { sa.resetTargets(); continue; }
+                // a mana que fica tem de chegar para a carta mais cara que dá para pagar agora: no Main 2 as respostas
+                // instantâneas; no Main 1 tudo (a IA do Forge pode estar a guardar mana para lançar criaturas no Main 2)
+                int keep = 0;
+                if (!eot) for (Card o : hand) {
+                    SpellAbility os = o == c || o.isLand() ? null : o.getFirstSpellAbility();
+                    if (os == null || selects(os) || (!dig && SpellAbilityAi.isSorcerySpeed(os, player))) continue;
+                    os.setActivatingPlayer(player);
+                    // truque ou remoção sem alvo em jogo não é resposta (contrafeitiços têm alvo só na pilha: contam)
+                    if (os.usesTargeting() && os.getApi() != ApiType.Counter && os.getTargetRestrictions().getNumCandidates(os) == 0) continue;
+                    int need = o.getCMC() - o.getManaCost().getPhyrexianCount();  // mana phyrexiana paga-se com vida
+                    if (need > keep && ComputerUtilMana.canPayManaCost(os, player, 0, false)) keep = need;
+                }
+                if (keep > 0 && !ComputerUtilMana.canPayManaCost(sa, player, keep, false)) { sa.resetTargets(); continue; }
+                return sa;
+            }
+            return null;
+        }
+
+        static boolean selects(SpellAbility sa) {
+            if (sa.getApi() == null || !sa.isSpell() || sa.getPayCosts() == null || !sa.getPayCosts().isOnlyManaCost()) return false;
+            boolean sel = false;
+            for (SpellAbility s = sa; s != null; s = s.getSubAbility()) {
+                if (s.getApi() == null || !SAFE.contains(s.getApi())) return false;
+                if (s.usesTargeting() && !s.getTargetRestrictions().canTgtPlayer()) return false;
+                if (s.getApi() == ApiType.ChangeZone && !"Hand".equals(s.getParam("Origin"))) return false;  // Brainstorm
+                if (s.getApi() == ApiType.PumpAll && !String.valueOf(s.getParam("ValidCards")).contains("YouCtrl")) return false;
+                sel |= SELECT.contains(s.getApi());
+            }
+            return sel;
+        }
+
+        // alvos jogador: o próprio (Sign in Blood, Thought Scour); a revelação da mão vai para um adversário (Gitaxian Probe)
+        boolean targetPlayers(SpellAbility sa) {
+            sa.resetTargets();
+            for (SpellAbility s = sa; s != null; s = s.getSubAbility()) {
+                if (!s.usesTargeting()) continue;
+                s.resetTargets();
+                Player t = s.getApi() == ApiType.RevealHand || s.getTargetRestrictions().canOnlyTgtOpponent()
+                        ? player.getOpponents().stream().filter(s::canTarget).findFirst().orElse(null)
+                        : s.canTarget(player) ? player : null;
+                if (t == null) return false;
+                s.getTargets().add(t);
+            }
+            return true;
         }
 
         SpellAbility hint() {
