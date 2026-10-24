@@ -1641,3 +1641,19 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .artdir-list li.off label { opacity: .5; }
 .artdir-list img { width: 38px; height: 53px; object-fit: cover; border-radius: 4px; flex: none; background: #0004; }
 .artdir-list span { display: grid; min-width: 0; } .artdir-list b, .artdir-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* artes dos terrenos básicos (Definições e Biblioteca) */
+.modal.basics-pick { width: min(1000px, 100%); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.basics-pick h3 { margin: 0; padding-right: 30px; }
+.bp-tabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
+.bp-tabs button { display: grid; gap: 4px; padding: 5px; border-radius: 10px; text-align: center; }
+.bp-tabs button.on { border-color: var(--gold); background: #f2b84b14; box-shadow: inset 0 0 0 1px var(--gold); }
+.bp-cur { display: grid; place-items: center; aspect-ratio: 626 / 457; border-radius: 6px; overflow: hidden; background: #0004; }
+.bp-cur img { width: 100%; height: 100%; object-fit: cover; } .bp-cur i { font-style: normal; font-size: 11px; color: var(--muted); }
+.bp-tabs b { display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 12px; } .bp-mana { width: 14px; height: 14px; }
+.bp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; overflow-y: auto; min-height: 0; flex: 1; padding: 2px; max-height: 52vh; }
+.bp-grid button { display: grid; gap: 2px; padding: 2px; border: 2px solid transparent; border-radius: 7px; background: none; }
+.bp-grid button.on { border-color: var(--gold); box-shadow: 0 0 10px #f2b84b88; } .bp-grid button:hover { border-color: var(--line); }
+.bp-grid img { width: 100%; aspect-ratio: 488 / 680; border-radius: 5px; display: block; } .bp-grid small { font-size: 10.5px; }
+.bs-cur { display: flex; gap: 6px; flex-wrap: wrap; }
+.bs-cur span { width: 64px; aspect-ratio: 626 / 457; display: grid; place-items: center; border-radius: 6px; overflow: hidden; background: var(--panel2); border: 1px solid var(--line); }
+.bs-cur img { width: 100%; height: 100%; object-fit: cover; } .bs-cur i { font-style: normal; font-size: 10px; color: var(--muted); }

@@ -8,6 +8,7 @@ import ProfileImport from './ProfileImport.jsx'
 import DeckSearch from './DeckSearch.jsx'
 import DeckCompare, { similarity } from './DeckCompare.jsx'
 import { ask } from './confirm.jsx'
+import { BasicArtPicker, applyBasics } from './Basics.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 import { SyncHint } from './Settings.jsx'
 
@@ -183,7 +184,12 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
     setMine(m => m.map(x => (sel.includes(x.id) ? { ...x, ...patch } : x)))
     say(tx(msg, { n: ids.length }))
   }
-  const [bulkDel, setBulkDel] = useState(false)
+  const [bulkDel, setBulkDel] = useState(false), [bulkLand, setBulkLand] = useState(false)
+  const landsSel = async map => {  // arte dos básicos nos decks selecionados
+    setBulkLand(false)
+    const n = await applyBasics(sel, map)
+    say(tx('Básicos mudados em {n} deck|Básicos mudados em {n} decks', { n })); reload()
+  }
   const removeSel = async () => {
     for (const id of sel) await fetch(`/api/decks/${id}`, { method: 'DELETE' })
     say(tx('{n} deck foi para o lixo (30 dias).|{n} decks foram para o lixo (30 dias).', { n: sel.length })); setSel([]); setBulkDel(false); reload()
@@ -311,10 +317,12 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
             <button onClick={() => bulk({ casual: false }, '{n} deck deixou de ser casual|{n} decks deixaram de ser casual')}>{tx('Tirar casual')}</button>
             <button onClick={() => bulk({ fav: true }, '{n} deck nos favoritos|{n} decks nos favoritos')}>★ {tx('Favoritos')}</button>
             <button onClick={() => bulk({ fav: false }, '{n} deck tirado dos favoritos|{n} decks tirados dos favoritos')}>☆ {tx('Tirar favorito')}</button>
+            <button onClick={() => setBulkLand(true)}>⛰ {tx('Terrenos básicos')}</button>
             <button className="danger" onClick={() => setBulkDel(true)}><Ico n="trash" /> {tx('Apagar')}</button>
           </span>
           <button className="link small" onClick={() => setSel([])}>{tx('limpar')}</button>
         </div>}
+        {bulkLand && <BasicArtPicker title={tx('Arte dos terrenos básicos em {n} decks', { n: sel.length })} applyLabel={tx('Aplicar a {n} decks', { n: sel.length })} onClose={() => setBulkLand(false)} onApply={landsSel} />}
         {bulkDel && <div className="modal-bg" onClick={() => setBulkDel(false)}><div className="modal" onClick={e => e.stopPropagation()}>
           <h3>{tx('Apagar {n} decks?', { n: sel.length })}</h3>
           <p className="muted small">{sel.map(id => mine.find(d => d.id === id)?.name).filter(Boolean).join(' · ')}</p>

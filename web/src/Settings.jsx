@@ -7,6 +7,8 @@ import { LangPick, ProfileManage } from './Profiles.jsx'
 import { getStarLayers, setStarLayers, useColors, setColors, COLORS0 } from './ui.jsx'
 import { getSettings, setEnabled, setVolume, play } from './sfx.js'
 import { NextMode } from './Tournament.jsx'
+import { BasicSettings } from './Basics.jsx'
+import { getBasicDefaults, setBasicDefaults } from './data.js'
 
 const PER_GAME = 900, RESERVE = 1000  // MB: ~0,9 GB por jogo do Forge; 1 GB fica para o sistema e o browser
 // quantos jogos cabem na RAM livre agora; os que já correm contam como livres (a memória deles é deles)
@@ -134,6 +136,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
       <section className="card"><h3>{tx('Estrelas dos decks')}</h3><StarLayers /></section>
       <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>
+      <section className="card"><h3>{tx('Terrenos básicos')}</h3><BasicSettings getDefaults={getBasicDefaults} setDefaults={setBasicDefaults} ask={ask} /></section>
       <section className="card"><h3>{tx('Confirmações')}</h3><p className="muted small">{tx('Perguntar antes de:')}</p><ConfirmSettings /></section>
       <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>

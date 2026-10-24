@@ -13,6 +13,7 @@ export const CONFIRMS = [
   ['teste', tx('Apagar um teste guardado')],
   ['registo', tx('Limpar os registos da mesa (vida e dados)')],
   ['copia', tx('Substituir tudo por uma cópia de segurança')],
+  ['basicos', tx('Repor a arte dos terrenos básicos em todos os decks')],
 ]
 const OFF0 = { ultimaSingleton: false }  // em Commander cada «−» tira a última cópia: perguntar sempre seria chato
 const K = 'grimorio.confirmar', subs = new Set()

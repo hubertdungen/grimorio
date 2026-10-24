@@ -102,9 +102,16 @@ export function mainType(c) {
 
 // `pid`: id Scryfall de uma impressão escolhida (estilo alternativo); senão, a predefinida.
 // pid: id de uma impressão da Scryfall ou o link da arte própria do deck (https://…, ex.: alterada no TappedOut)
+// Arte por omissão dos terrenos básicos (Definições › Terrenos básicos): {Island: print, …}; vale onde o deck não
+// escolheu outra (img sem pid). Fica neste browser.
+export const BASICS = ['Plains', 'Island', 'Swamp', 'Mountain', 'Forest', 'Wastes']
+const BK = 'grimorio.basicos'
+let basicDef = (() => { try { return JSON.parse(localStorage.getItem(BK) || '{}') } catch { return {} } })()
+export const getBasicDefaults = () => basicDef
+export function setBasicDefaults(v) { basicDef = v || {}; try { localStorage.setItem(BK, JSON.stringify(basicDef)) } catch { /* sem armazenamento */ } }
 export const img = (c, size = 'normal', back = false, pid = null) => {
   if (pid?.startsWith('https:') || pid?.startsWith('arts/')) { if (!back) return pid; pid = null }  // imagem própria (site de origem ou carregada)
-  const id = pid || c.id
+  const id = pid || basicDef[c.n]?.id || c.id
   return `https://cards.scryfall.io/${size}/${back ? 'back' : 'front'}/${id[0]}/${id[1]}/${id}.jpg`
 }
 
