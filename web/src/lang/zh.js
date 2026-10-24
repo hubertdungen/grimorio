@@ -1801,4 +1801,6 @@ export default {
   "1.º: {d}": "冠军：{d}",
   "Não conta: a lista mudou {p} desde este torneio (máx. 10%)": "不计入：自此赛事后牌表已改动 {p}（上限 10%）",
   "Ordenar: troféus": "排序：奖杯",
+  "Abrir na Biblioteca": "在牌库中打开",
+  "Arrasta para mudar a ordem": "拖动以改变顺序",
 }

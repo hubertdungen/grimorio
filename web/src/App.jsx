@@ -97,6 +97,13 @@ export default function App() {
     return decodeURIComponent(h.slice(10))
   })
   useEffect(() => { if (importLinks) setSection('biblioteca') }, [importLinks]) // eslint-disable-line react-hooks/exhaustive-deps
+  // um deck clicado noutro sítio (pódio dos torneios, hall da fama) abre-se na Biblioteca, com o cartão em destaque
+  const [libFocus, setLibFocus] = useState(null)
+  useEffect(() => {
+    const h = e => { setHome(false); setSection('biblioteca'); setLibFocus({ id: e.detail, n: Date.now() }) }
+    window.addEventListener('grimorio:deck', h)
+    return () => window.removeEventListener('grimorio:deck', h)
+  }, [])
   const [deckView, setDeckViewRaw] = useState(() => store.get('grimorio.deckView') || 'grelha')
   const setDeckView = v => { setDeckViewRaw(v); store.set('grimorio.deckView', v) }
   const dirty = useRef(false)
@@ -318,7 +325,7 @@ export default function App() {
         </nav>}
       </header>
 
-      {section === 'biblioteca' && <div className="area"><Library data={data} openDeck={id => openDeck(id).then(() => goTab('deck'))} goTab={goTab} say={say} importLinks={importLinks} /></div>}
+      {section === 'biblioteca' && <div className="area"><Library data={data} openDeck={id => openDeck(id).then(() => goTab('deck'))} goTab={goTab} say={say} importLinks={importLinks} focus={libFocus} /></div>}
       {section === 'coliseu' && (
         <div className="area coliseu" ref={coliseuRef}>
           <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>

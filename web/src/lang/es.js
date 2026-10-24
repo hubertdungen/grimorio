@@ -1801,4 +1801,6 @@ export default {
   "1.º: {d}": "1.º: {d}",
   "Não conta: a lista mudou {p} desde este torneio (máx. 10%)": "No cuenta: la lista cambió un {p} desde este torneo (máx. 10%)",
   "Ordenar: troféus": "Ordenar: trofeos",
+  "Abrir na Biblioteca": "Abrir en la Biblioteca",
+  "Arrasta para mudar a ordem": "Arrastra para cambiar el orden",
 }

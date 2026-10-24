@@ -1,5 +1,5 @@
 // Biblioteca: os meus decks (abrir, duplicar, testar), o lixo (restaurar) e decks do meta para guardar como meus.
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT } from './formats.js'
 import { Empty, Mana, Stars } from './ui.jsx'
@@ -81,7 +81,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
   const [art, setArt] = useState(null)
   useEffect(() => { if (pick && !art) fetch(`/api/decks/${d.id}`).then(r => r.json()).then(x => setArt(x.art || {})).catch(() => setArt({})) }, [pick, art, d.id])
   return (
-    <div className={`dbox ${selected ? 'sel' : ''}`} style={{ '--edge': bg }}>
+    <div className={`dbox ${selected ? 'sel' : ''}`} style={{ '--edge': bg }} data-deck={d.id}>
       <label className="dbox-check" title={tx('Selecionar para comparar')}><input type="checkbox" checked={!!selected} onChange={() => onSelect(d.id)} /></label>
       <button className={`dbox-fav ${d.fav ? 'on' : ''}`} onClick={() => onFav(d)} title={d.fav ? tx('Tirar dos favoritos') : tx('Pôr nos favoritos')}>{d.fav ? '★' : '☆'}</button>
       <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
@@ -116,7 +116,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
 
 const when = t => new Date(t * 1000).toLocaleDateString(LOCALE, { day: '2-digit', month: 'short' })
 
-export default function Library({ data, openDeck, goTab, say, importLinks = '' }) {
+export default function Library({ data, openDeck, goTab, say, importLinks = '', focus = null }) {
   const [mine, setMine] = useState([])
   const [trash, setTrash] = useState([])
   const [me, setMe] = useState('')
@@ -190,6 +190,19 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '' }
   }, [mine, sort, rt, tro, data])
   const byFmt = {}
   for (const d of sorted) (byFmt[d.format] ||= []).push(d)
+  // deck pedido de fora (pódio): mostra todos os formatos, abre o grupo dele, desliza até ao cartão e acende-o
+  const focused = useRef(null)
+  useEffect(() => {
+    if (!focus || focused.current === focus.n || !mine.some(d => d.id === focus.id)) return
+    focused.current = focus.n
+    const f = mine.find(d => d.id === focus.id).format
+    setOnly(''); setClosed(c => { const n = { ...c }; delete n[f]; return n })
+    setTimeout(() => {
+      const el = [...document.querySelectorAll(`[data-deck="${focus.id}"]`)].pop()
+      if (!el) return
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 2400)
+    }, 250)
+  }, [focus, mine])
   // decks repetidos ou muito parecidos (≥80% da lista igual, mesmo com nomes e capas diferentes): grupos ligados
   const dupes = useMemo(() => {
     const ds = mine.filter(d => Object.keys(d.main || {}).length), up = ds.map((_, i) => i), sim = {}

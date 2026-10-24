@@ -133,6 +133,22 @@ function Create({ data, fmt0, onCreated }) {
   }
   const setP = (k, v) => setPlayers(p => p.map((x, i) => (i === k ? { ...x, ...v } : x)))
   const move = (k, d) => setPlayers(p => { const q = [...p], t = q[k]; q[k] = q[k + d]; q[k + d] = t; return q })
+  // arrastar pela imagem (rato ou dedo) muda a ordem; ordenar à mão passa a semente para «pela ordem»
+  const drag = useRef(null), [dragK, setDragK] = useState(null)
+  const dragStart = (e, k) => {
+    if (e.button > 0) return
+    e.currentTarget.setPointerCapture?.(e.pointerId); drag.current = k; setDragK(k)
+    if (seeding !== 'ordem') setSeeding('ordem')
+  }
+  const dragMove = e => {
+    if (drag.current == null) return
+    const to = +(document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-k]')?.dataset.k ?? NaN)
+    if (Number.isNaN(to) || to === drag.current) return
+    const from = drag.current
+    setPlayers(p => { const q = [...p], [x] = q.splice(from, 1); q.splice(to, 0, x); return q })
+    drag.current = to; setDragK(to)
+  }
+  const dragEnd = () => { drag.current = null; setDragK(null) }
   const randomDiffs = () => { const ids = diffs.map(d => d.id).filter(x => x !== 'random'); setPlayers(p => p.map(x => ({ ...x, difficulty: ids[Math.floor(Math.random() * ids.length)] }))) }
   const start = async () => {
     setBusy(true); setErr('')
@@ -190,8 +206,8 @@ function Create({ data, fmt0, onCreated }) {
         </div>
       </div>
       {n > 0 && <div className="tc-players">{players.map((p, k) => (
-        <div key={p.key} className={`tp-card ${p.me ? 'me' : ''}`} style={{ '--edge': edge(p.colors) }}>
-          <div className="tp-art">{data.byName.get(p.cover) ? <img src={img(data.byName.get(p.cover), 'art_crop')} alt="" loading="lazy" /> : <span>✦</span>}<i className="tp-seed" title="seed">{seeding === 'ordem' ? k + 1 : '?'}</i><span className="tp-src">{p.src === 'meus' ? tx('meu') : 'meta'}{casual && p.fmt ? ` · ${FORMAT[p.fmt]?.name || p.fmt}` : ''}</span></div>
+        <div key={p.key} data-k={k} className={`tp-card ${p.me ? 'me' : ''} ${dragK === k ? 'dragging' : ''}`} style={{ '--edge': edge(p.colors) }}>
+          <div className="tp-art" onPointerDown={e => dragStart(e, k)} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} title={tx('Arrasta para mudar a ordem')}>{data.byName.get(p.cover) ? <img src={img(data.byName.get(p.cover), 'art_crop')} alt="" loading="lazy" /> : <span>✦</span>}<i className="tp-seed" title="seed">{seeding === 'ordem' ? k + 1 : '?'}</i><span className="tp-src">{p.src === 'meus' ? tx('meu') : 'meta'}{casual && p.fmt ? ` · ${FORMAT[p.fmt]?.name || p.fmt}` : ''}</span></div>
           <div className="tp-body">
             <b title={p.name}>{p.name}</b>
             <span className="dbox-meta">{p.colors ? <Mana cost={[...p.colors].map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}{stars[rkey(p.src, p.ref)] ? <Stars r={stars[rkey(p.src, p.ref)]} /> : !casual && <span className="muted small">{tx('sem rating')}</span>}</span>
@@ -545,6 +561,9 @@ function Rounds({ t, data, P, live, num, onGame, me, casual, odds, bet }) {
 }
 
 // pódio: 2.º · 1.º · 3.º (sem jogo de 3.º lugar os dois das meias-finais partilham o bronze)
+// decks meus no pódio, no registo e no hall da fama abrem-se na Biblioteca (App.jsx ouve «grimorio:deck»)
+const showDeck = id => window.dispatchEvent(new CustomEvent('grimorio:deck', { detail: id }))
+
 function Podium({ data, t }) {
   const s1 = t.standings.find(x => x.i === t.champion)
   const step = n => (
@@ -553,7 +572,8 @@ function Podium({ data, t }) {
         const c = data.byName.get(x.cover)
         return (
           <div key={x.i} className={`pd-deck ${x.i === t.me ? 'me' : ''}`} style={{ '--edge': edge(x.colors || '') }} title={x.name}>
-            {c ? <img src={img(c, 'art_crop')} alt="" /> : <span className="pd-noart">✦</span>}
+            {x.src === 'meus' ? <button className="pd-open" onClick={() => showDeck(x.ref)} title={tx('Abrir na Biblioteca')}>{c ? <img src={img(c, 'art_crop')} alt="" /> : <span className="pd-noart">✦</span>}</button>
+              : c ? <img src={img(c, 'art_crop')} alt="" /> : <span className="pd-noart">✦</span>}
             <b>{n === 1 ? '👑 ' : ''}{x.name}</b>
             <span className="pd-sub">{x.i === t.me && <i className="me-tag">{tx('eu')}</i>}{t.casual && <Fmt f={x.format} />}{n === 1 && s1 ? <small className="muted">{tx('{v}V {d}D', { v: s1.v, d: s1.d })}{s1.e ? ` ${tx('{e}E', { e: s1.e })}` : ''}</small> : null}</span>
           </div>
@@ -585,7 +605,8 @@ function Registry({ data, list, open, reload }) {
             <span className={`tl-status ${x.status}`}>{STATUS[x.status] || x.status}</span>
             <span><b>{x.name}</b><br /><small className="muted">{TYPES[x.type]?.[0]} · {x.casual ? tx('casual, regras de {f}', { f: FORMAT[x.format]?.name || x.format }) : FORMAT[x.format]?.name || x.format} · {x.n} decks · {when(x.ts)}</small></span>
             {x.podium?.length ? <span className="mini-pod">{x.podium.map(p => (
-              <span key={p.i} className={`mp mp-${p.place} ${p.me ? 'me' : ''}`} title={`${tx('{p}.º', { p: p.place })} ${p.name}${p.me ? ` (${tx('o meu deck')})` : ''}`}><Thumb data={data} p={p} /><i>{MEDAL[p.place - 1]}</i><span>{p.name}</span></span>
+              <span key={p.i} className={`mp mp-${p.place} ${p.me ? 'me' : ''} ${p.src === 'meus' ? 'go' : ''}`} title={`${tx('{p}.º', { p: p.place })} ${p.name}${p.me ? ` (${tx('o meu deck')})` : ''}${p.src === 'meus' ? ` · ${tx('Abrir na Biblioteca')}` : ''}`}
+                {...(p.src === 'meus' ? { role: 'button', tabIndex: 0, onClick: () => showDeck(p.ref), onKeyDown: e => { if (e.key === 'Enter') showDeck(p.ref) } } : {})}><Thumb data={data} p={p} /><i>{MEDAL[p.place - 1]}</i><span>{p.name}</span></span>
             ))}</span> : <span className="muted small">{tx('sem pódio')}</span>}
             <span className="row-btns"><button onClick={() => open(x.id)}>{tx('Abrir')}</button><button className="link small" onClick={() => del(x)}>{tx('apagar')}</button></span>
           </li>
@@ -618,7 +639,7 @@ function Fame({ data, list }) {
       {!top.length ? <p className="muted small">{f ? tx('Ainda ninguém subiu ao pódio neste formato.') : tx('Ainda ninguém subiu ao pódio.')}</p> : (
         <table className="lab-table ts-table"><thead><tr><th>Deck</th><th title={tx('Torneios ganhos')}>🥇</th><th>🥈</th><th>🥉</th><th>{tx('Pódios')}</th></tr></thead>
           <tbody>{top.map(r => (
-            <tr key={`${r.src}:${r.ref}`} className={r.src === 'meus' ? 'me-row' : ''}><td><span className="ts-name"><Thumb data={data} p={r} /> {r.name}{r.src === 'meus' && <i className="me-tag">{tx('meu')}</i>}</span></td>
+            <tr key={`${r.src}:${r.ref}`} className={r.src === 'meus' ? 'me-row' : ''}><td><span className="ts-name">{r.src === 'meus' ? <button className="pd-open sm" onClick={() => showDeck(r.ref)} title={tx('Abrir na Biblioteca')}><Thumb data={data} p={r} /></button> : <Thumb data={data} p={r} />} {r.name}{r.src === 'meus' && <i className="me-tag">{tx('meu')}</i>}</span></td>
               <td><b>{r.m[0] || '—'}</b></td><td>{r.m[1] || '—'}</td><td>{r.m[2] || '—'}</td><td>{r.m[0] + r.m[1] + r.m[2]}</td></tr>
           ))}</tbody></table>
       )}

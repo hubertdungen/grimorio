@@ -1392,3 +1392,14 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .library h3 { flex-wrap: wrap; row-gap: 6px; }
 .lib-sort { margin-left: auto; width: auto; max-width: 100%; font-size: 12.5px; padding: 4px 8px; }
 .lib-sort + .seg { margin-left: 6px !important; }
+/* abrir na Biblioteca a partir do pódio / hall da fama */
+.pd-open { padding: 0; border: 0; background: none; cursor: pointer; display: block; width: 100%; border-radius: inherit; }
+.pd-open.sm { display: inline-flex; width: auto; }
+.pd-open:hover img, .pd-open:focus-visible img { filter: brightness(1.15); outline: 2px solid var(--gold2); outline-offset: -2px; }
+.mp.go { cursor: pointer; } .mp.go:hover span { text-decoration: underline; }
+.dbox.flash { animation: dflash 2.4s ease-out; }
+@keyframes dflash { 0%, 40% { box-shadow: 0 0 0 3px var(--gold2), 0 0 28px rgba(242, 184, 75, .55); } 100% { box-shadow: none; } }
+/* torneio: arrastar os decks pela imagem para mudar a ordem */
+.tc-players .tp-art { cursor: grab; touch-action: none; user-select: none; }
+.tc-players .tp-art img { pointer-events: none; -webkit-user-drag: none; }
+.tp-card.dragging { opacity: .75; transform: scale(1.03); box-shadow: 0 0 0 2px var(--gold2), 0 12px 28px #000c; cursor: grabbing; z-index: 2; position: relative; }

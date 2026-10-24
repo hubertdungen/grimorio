@@ -1809,4 +1809,6 @@ export default {
   "1.º: {d}": "1st: {d}",
   "Não conta: a lista mudou {p} desde este torneio (máx. 10%)": "Doesn't count: the list changed {p} since this tournament (max 10%)",
   "Ordenar: troféus": "Sort: trophies",
+  "Abrir na Biblioteca": "Open in the Library",
+  "Arrasta para mudar a ordem": "Drag to change the order",
 }

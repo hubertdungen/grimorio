@@ -1801,4 +1801,6 @@ export default {
   "1.º: {d}": "1.: {d}",
   "Não conta: a lista mudou {p} desde este torneio (máx. 10%)": "Zählt nicht: die Liste hat sich seit diesem Turnier um {p} geändert (max. 10 %)",
   "Ordenar: troféus": "Sortieren: Trophäen",
+  "Abrir na Biblioteca": "In der Bibliothek öffnen",
+  "Arrasta para mudar a ordem": "Ziehen, um die Reihenfolge zu ändern",
 }
