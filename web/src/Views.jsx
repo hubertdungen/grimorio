@@ -10,7 +10,7 @@ import { manaNeeds, recommendLands } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 import { prepareSwaps, cutPlan } from './swap.js'
 import AddOrSwap from './AddSwap.jsx'
-import { regionsOf, perfOf, archetypesOf, rankZone } from './universe.js'
+import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan } from './universe.js'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -84,6 +84,38 @@ function useTastes(data, deck) {
 }
 
 // Personalização opcional das sugestões (fica guardada no deck).
+// ± Ajustar quantidades: mais cópias do que ganha jogos, menos do que pesa (aos pares; universe.js adjustPlan)
+function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
+  const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.ajustar') === '1' } catch { return false } })
+  const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.ajustar', v ? '1' : '0') } catch { /* sem armazenamento */ } }
+  const ev = ctx.tests, games = ev?.exact || 0
+  const plan = useMemo(() => (open && games >= 3 ? adjustPlan(data, deck, ev, { needs, maxOf: c => maxCopies(c, fmt, ctx.bit) }) : []), [open, games, data, deck, ev, needs, fmt, ctx.bit])
+  if (fmt.copies === 1) return null  // singleton (Commander, Gladiator…): não há cópias a ajustar
+  const Row = ({ r, sign, k }) => (
+    <button className={`cutp-card ${sign > 0 ? 'in' : ''}`} onClick={() => act.open(r.c)}><img src={img(r.c, 'art_crop', false, pidOf(deck, r.c.n))} alt="" loading="lazy" />
+      <span><b>{sign > 0 ? '+' : '−'}{k}× {r.c.n}</b><small className="muted">{tx('tens {q}', { q: r.q })} · {r.why}</small></span></button>
+  )
+  return (
+    <div className={`prefs cutp ${open ? 'on' : ''}`}>
+      <button className="prefs-head" onClick={() => setOpen(!open)}>
+        <span>± {tx('Ajustar quantidades')}</span><small className="muted">{open ? (games < 3 ? tx('precisa de jogos') : tx('{n} ajuste|{n} ajustes', { n: plan.length })) : tx('mais cópias do que ganha, menos do que pesa')}</small><span className="chev">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="cutp-body">
+          {games < 3 ? <p className="muted small">{tx('Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).', { n: games })}</p>
+            : !plan.length ? <p className="muted small">{tx('As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.')}</p>
+              : <ul className="cutp-list">{plan.map(x => (
+                <li key={x.add.c.n + x.cut.c.n}>
+                  <div className="cutp-pair"><Row r={x.add} sign={1} k={x.k} /><span className="cutp-arrow">⇄</span><Row r={x.cut} sign={-1} k={x.k} /></div>
+                  <div className="row-btns"><button className="primary small" onClick={() => act.swap(x.add.c, { out: x.cut.c.n, q: x.k })}>✓ {tx('Aplicar: +{k} {a}, −{k} {b}', { k: x.k, a: x.add.c.n, b: x.cut.c.n })}</button></div>
+                </li>
+              ))}</ul>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ✂ Trocar no deck: cartas (do deck e do sideboard) que já apareceram em jogos e merecem sair, cada uma com a substituta
 // ideal (mesmo efeito, ou que cumpra uma sinergia/combo do deck) — o motor das trocas ao contrário (swap.js cutPlan)
 function CutPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
@@ -98,7 +130,7 @@ function CutPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
   return (
     <div className={`prefs cutp ${open ? 'on' : ''}`}>
       <button className="prefs-head" onClick={() => setOpen(!open)}>
-        <span>✂ {tx('Trocar no deck')}</span><small className="muted">{plan ? (enough ? tx('{n} carta a trocar|{n} cartas a trocar', { n: plan.cuts.length }) : tx('precisa de jogos')) : tx('cartas que merecem sair e a troca ideal')}</small><span className="chev">{open ? '▾' : '▸'}</span>
+        <span>✂ {tx('Trocar no deck')}</span><small className="muted">{plan ? (enough ? `${tx('{n} troca|{n} trocas', { n: plan.cuts.length })} · ${tx('{n} carta|{n} cartas', { n: plan.cuts.reduce((a, x) => a + x.q, 0) })}` : tx('precisa de jogos')) : tx('cartas que merecem sair e a troca ideal')}</small><span className="chev">{open ? '▾' : '▸'}</span>
       </button>
       {open && plan && (
         <div className="cutp-body">
@@ -107,12 +139,12 @@ function CutPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
               : <ul className="cutp-list">{plan.cuts.map(x => { const o = data.byName.get(x.out); return (
                 <li key={x.out}>
                   <div className="cutp-pair">
-                    <button className="cutp-card" onClick={() => o && act.open(o)}>{o && <img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" />}<span><b>{x.out}</b><small className="muted">{x.zone === 'side' ? `${tx('sideboard')} · ` : ''}{tx('vista em {n} jogos', { n: x.seen })}</small></span></button>
+                    <button className="cutp-card" onClick={() => o && act.open(o)}>{o && <img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" />}<span><b>{x.q > 1 ? `${x.q}× ` : ''}{x.out}</b><small className="muted">{x.zone === 'side' ? `${tx('sideboard')} · ` : ''}{tx('vista em {n} jogos', { n: x.seen })}</small></span></button>
                     <span className="cutp-arrow">→</span>
-                    <button className="cutp-card in" onClick={() => act.open(x.inc)}><img src={img(x.inc, 'art_crop')} alt="" loading="lazy" /><span><b>{x.inc.n}</b><Mana cost={x.inc.mc} /></span></button>
+                    <button className="cutp-card in" onClick={() => act.open(x.inc)}><img src={img(x.inc, 'art_crop')} alt="" loading="lazy" /><span><b>{x.q > 1 ? `${x.q}× ` : ''}{x.inc.n}</b><Mana cost={x.inc.mc} /></span></button>
                   </div>
                   <ul className="why">{x.why.map((w, k) => <li key={k} className="falta">{w}</li>)}</ul>
-                  <div className="row-btns"><button className="primary small" onClick={() => act.swap(x.inc, x)}>⇄ {tx('Trocar')}</button>{x.alts.length > 0 && <span className="muted small">{tx('ou:')} {x.alts.map((c, k) => <span key={c.n}>{k ? ', ' : ''}<button className="link plain" onClick={() => act.swap(c, x)} title={tx('Trocar por esta')}>{c.n}</button></span>)}</span>}</div>
+                  <div className="row-btns"><button className="primary small" onClick={() => act.swap(x.inc, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button>{x.alts.length > 0 && <span className="muted small">{tx('ou:')} {x.alts.map((c, k) => <span key={c.n}>{k ? ', ' : ''}<button className="link plain" onClick={() => act.swap(c, x)} title={tx('Trocar por esta')}>{c.n}</button></span>)}</span>}</div>
                 </li>
               ) })}</ul>}
         </div>
@@ -624,6 +656,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
       </div>
       <PrefsPanel {...{ deck, fmt, act }} />
       <CutPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug }} />
+      <AdjustPanel {...{ data, deck, fmt, ctx, act, needs }} />
       <Filters f={f} set={x => { setSugTag(''); setF(x) }} compact noTag />
       <ReasonFilter recs={allSug} kind={kind} setKind={setKind} tag={f.tag} setTag={t => { setSugTag(''); setF(x => ({ ...x, tag: t })) }} needs={needs} />
       {seeds.length > 0 && <p className="muted small">{tx('Classificadas por semelhança mecânica (modelo de texto local), combos do Commander Spellbook e popularidade.')} <button className="link" onClick={() => act.showOnMap(recs[0]?.c || data.cards[seeds[0]])}>{tx('Ver no universo →')}</button></p>}

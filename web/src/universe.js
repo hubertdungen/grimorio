@@ -54,6 +54,21 @@ export function perfOf(ev) {
   return out
 }
 
+// «± Ajustar quantidades»: com os jogos, mais cópias das cartas que ganham e menos das que pesam, aos pares para o deck
+// manter o tamanho. Só cartas que não são terreno vistas em 3+ jogos; nunca desce uma função abaixo da meta do formato
+// (needs = {função: [tem, meta]}); maxOf(carta) = máximo de cópias (singleton → 1, e aí não há nada a ajustar).
+export function adjustPlan(data, deck, ev, { needs = {}, maxOf = () => 4, n = 5 } = {}) {
+  const P = perfOf(ev), main = deck.main || {}
+  const row = name => { const c = data.byName.get(name), p = P.get(name); return c && c.mt !== 'Land' && p && ev.cards[name].seen >= 3 ? { c, s: p.s, why: p.why, q: main[name] } : null }
+  const all = Object.keys(main).map(row).filter(Boolean)
+  const up = all.filter(r => r.s >= 0.3 && r.q < maxOf(r.c)).sort((a, b) => b.s - a.s)
+  const down = all.filter(r => r.s <= -0.25 && r.q >= 2 && !r.c.tg.some(t => needs[t] && needs[t][0] - 1 < needs[t][1])).sort((a, b) => a.s - b.s)
+  return Array.from({ length: Math.min(up.length, down.length, n) }, (_, i) => {
+    const a = up[i], b = down[i]
+    return { add: a, cut: b, k: a.s >= 0.6 && b.s <= -0.5 && maxOf(a.c) - a.q >= 2 && b.q >= 3 ? 2 : 1 }
+  })
+}
+
 // Constelações do meta: cada arquétipo no centro (pesado pela inclusão) das cartas do núcleo; fit = parte do núcleo
 // que o deck já tem (como detectArchetype); missing = o que falta, do mais jogado para o menos.
 export function archetypesOf(data, meta, have) {
@@ -97,5 +112,9 @@ export function selfcheck() {
   const ev = { exact: 10, winsExact: 5, units: 20, cards: { Good: { seen: 6, seenW: 5, dead: 0, units: 10 }, Bad: { seen: 6, seenW: 1, dead: 4, units: 0 }, Rare: { seen: 1, seenW: 1, dead: 0, units: 0 } } }
   const p = perfOf(ev)
   ok(p.get('Good').s > 0.5 && p.get('Bad').s < -0.5 && !p.has('Rare'), 'perfOf')
+  const data = { byName: new Map([['Good', { mt: 'Creature', tg: [] }], ['Bad', { mt: 'Instant', tg: ['removal'] }]]) }
+  const deck = { main: { Good: 2, Bad: 3 } }
+  ok(adjustPlan(data, deck, ev)[0]?.add.c === data.byName.get('Good') && adjustPlan(data, deck, ev)[0].cut.q === 3, 'adjustPlan')
+  ok(!adjustPlan(data, deck, ev, { needs: { removal: [3, 3] } }).length, 'adjustPlan respeita as metas')
   return true
 }

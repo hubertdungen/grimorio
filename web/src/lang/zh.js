@@ -1877,4 +1877,12 @@ export default {
   "Vários links de uma vez (para o deck todo)": "一次粘贴多个链接（整副套牌）",
   "Um link por linha. Cada um vai para a carta cujo nome aparece no endereço (como nos links do TappedOut); ou escreve «Nome da carta | link».": "每行一个链接。每个链接会关联到地址中出现其名称的卡牌（如 TappedOut 链接）；或写成“卡牌名 | 链接”。",
   "Ligar às cartas": "关联到卡牌",
+  "{n} troca|{n} trocas": "{n} 次替换|{n} 次替换",
+  "Trocar {n}×": "替换 {n}×",
+  "Ajustar quantidades": "调整数量",
+  "{n} ajuste|{n} ajustes": "{n} 项调整|{n} 项调整",
+  "mais cópias do que ganha, menos do que pesa": "多放赢牌，少放拖后腿的牌",
+  "tens {q}": "现有 {q}",
+  "As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.": "数量已均衡：没有哪张牌明显比拖后腿的牌更能赢。",
+  "Aplicar: +{k} {a}, −{k} {b}": "应用：+{k} {a}，−{k} {b}",
 }

@@ -1877,4 +1877,12 @@ export default {
   "Vários links de uma vez (para o deck todo)": "Varios enlaces a la vez (para todo el mazo)",
   "Um link por linha. Cada um vai para a carta cujo nome aparece no endereço (como nos links do TappedOut); ou escreve «Nome da carta | link».": "Un enlace por línea. Cada uno va a la carta cuyo nombre aparece en la dirección (como en los enlaces de TappedOut); o escribe «Nombre de la carta | enlace».",
   "Ligar às cartas": "Vincular a las cartas",
+  "{n} troca|{n} trocas": "{n} cambio|{n} cambios",
+  "Trocar {n}×": "Cambiar {n}×",
+  "Ajustar quantidades": "Ajustar cantidades",
+  "{n} ajuste|{n} ajustes": "{n} ajuste|{n} ajustes",
+  "mais cópias do que ganha, menos do que pesa": "más copias de lo que gana, menos de lo que lastra",
+  "tens {q}": "tienes {q}",
+  "As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.": "Las cantidades están equilibradas: ninguna carta gana claramente más que otra que lastre.",
+  "Aplicar: +{k} {a}, −{k} {b}": "Aplicar: +{k} {a}, −{k} {b}",
 }

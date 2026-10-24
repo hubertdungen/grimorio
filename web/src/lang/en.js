@@ -1885,4 +1885,12 @@ export default {
   "Vários links de uma vez (para o deck todo)": "Several links at once (for the whole deck)",
   "Um link por linha. Cada um vai para a carta cujo nome aparece no endereço (como nos links do TappedOut); ou escreve «Nome da carta | link».": "One link per line. Each goes to the card whose name appears in the address (as in TappedOut links); or write “Card name | link”.",
   "Ligar às cartas": "Link to cards",
+  "{n} troca|{n} trocas": "{n} swap|{n} swaps",
+  "Trocar {n}×": "Swap {n}×",
+  "Ajustar quantidades": "Adjust copies",
+  "{n} ajuste|{n} ajustes": "{n} adjustment|{n} adjustments",
+  "mais cópias do que ganha, menos do que pesa": "more copies of what wins, fewer of what drags",
+  "tens {q}": "you have {q}",
+  "As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.": "The copies are balanced: no card clearly wins more than another that drags.",
+  "Aplicar: +{k} {a}, −{k} {b}": "Apply: +{k} {a}, −{k} {b}",
 }

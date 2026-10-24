@@ -1877,4 +1877,12 @@ export default {
   "Vários links de uma vez (para o deck todo)": "Mehrere Links auf einmal (für das ganze Deck)",
   "Um link por linha. Cada um vai para a carta cujo nome aparece no endereço (como nos links do TappedOut); ou escreve «Nome da carta | link».": "Ein Link pro Zeile. Jeder geht an die Karte, deren Name in der Adresse steht (wie bei TappedOut-Links); oder schreibe „Kartenname | Link“.",
   "Ligar às cartas": "Mit Karten verknüpfen",
+  "{n} troca|{n} trocas": "{n} Tausch|{n} Täusche",
+  "Trocar {n}×": "{n}× tauschen",
+  "Ajustar quantidades": "Anzahl anpassen",
+  "{n} ajuste|{n} ajustes": "{n} Anpassung|{n} Anpassungen",
+  "mais cópias do que ganha, menos do que pesa": "mehr Kopien von Gewinnern, weniger von Bremsern",
+  "tens {q}": "du hast {q}",
+  "As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.": "Die Anzahlen sind ausgewogen: keine Karte gewinnt klar mehr als eine bremsende.",
+  "Aplicar: +{k} {a}, −{k} {b}": "Anwenden: +{k} {a}, −{k} {b}",
 }
