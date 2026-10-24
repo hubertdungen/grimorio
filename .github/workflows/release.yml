@@ -129,4 +129,5 @@ jobs:
       - run: |
           gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Grimório ${GITHUB_REF_NAME#v}" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber assets/*
+          # only the release files (the common artifact also lands here as folders)
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber $(find assets -maxdepth 1 -type f)
