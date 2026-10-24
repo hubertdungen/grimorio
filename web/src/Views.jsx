@@ -10,6 +10,7 @@ import { manaNeeds, recommendLands } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 import { prepareSwaps } from './swap.js'
 import AddOrSwap from './AddSwap.jsx'
+import { regionsOf, perfOf, archetypesOf, rankZone } from './universe.js'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -614,18 +615,67 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
   const [panel, setPanel] = useState(true)
   const [hint, setHint] = useState(() => { try { return localStorage.getItem('grimorio.hint.universo') !== '0' } catch { return true } })
   const showHint = v => { setHint(v); try { localStorage.setItem('grimorio.hint.universo', v ? '1' : '0') } catch { /* sem armazenamento */ } }
-  const { recs: allRecs, seeds, seedsIdx, have, plan, needs, tastes, swaps } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
+  const { recs: allRecs, seeds, seedsIdx, have, plan, needs, tastes, swaps, meta } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
+  // camadas que se ligam e desligam (guardadas): regiões por função, desempenho nos jogos, constelações do meta
+  const [uni, setUniRaw] = useState(() => { try { return { reg: true, perf: true, meta: true, ...JSON.parse(localStorage.getItem('grimorio.universo') || '{}') } } catch { return { reg: true, perf: true, meta: true } } })
+  const setUni = (k, v) => setUniRaw(u => { const n = { ...u, [k]: v }; try { localStorage.setItem('grimorio.universo', JSON.stringify(n)) } catch { /* sem armazenamento */ } return n })
+  const [lasso, setLasso] = useState(false), [zone, setZone] = useState(null), [arch, setArch] = useState(null), [goto, setGoto] = useState(null)
   const recs = useMemo(() => applyFilter(allRecs, kind, tag).slice(0, 18), [allRecs, kind, tag])
+  const regions = useMemo(() => (uni.reg ? regionsOf(data) : []), [uni.reg, data])
+  const tagN = useMemo(() => { const m = {}; for (const i of have) for (const t of data.cards[i].tg) m[t] = (m[t] || 0) + 1; return m }, [have, data])
+  const archs = useMemo(() => {
+    if (!uni.meta) return []
+    const a = archetypesOf(data, meta, have)
+    return (have.length >= 4 ? a.sort((x, y) => y.fit - x.fit) : a.sort((x, y) => (y.share || 0) - (x.share || 0))).slice(0, 6)
+  }, [uni.meta, data, meta, have])
+  const selArch = archs.find(a => a.key === arch)
+  const overlays = useMemo(() => [
+    ...regions.map(r => {
+      const nd = needs[r.key], n = nd ? nd[0] : tagN[r.key] || 0, gap = nd && nd[0] < nd[1]
+      return { key: `r:${r.key}`, pos: r.pos, pri: tag === r.key ? 0 : gap ? 1 : n ? 3 : 4, cls: `reg ${gap ? 'gap' : n ? 'has' : ''} ${tag === r.key ? 'on' : ''}`, text: r.label, sub: nd ? `${nd[0]}/${nd[1]}` : n ? `${n}` : '',
+        title: gap ? tx('O teu deck tem {n} de {t} e devia ter {k}: clica para ver as melhores daqui', { n: nd[0], t: r.label, k: nd[1] }) : tx('{t}: clica para ver as melhores daqui', { t: r.label }) }
+    }),
+    ...archs.map((a, k) => ({ key: `a:${a.key}`, pos: a.pos, pri: arch === a.key ? 0 : k < 2 ? 2 : 3, cls: `arch ${arch === a.key ? 'on' : ''}`, text: a.name, sub: `${Math.round(a.fit * 100)}%`,
+      title: tx('Arquétipo do meta: o teu deck tem {p} do núcleo. Clica para ver o que falta', { p: `${Math.round(a.fit * 100)}%` }) })),
+  ], [regions, archs, needs, tagN, tag, arch])
+  const onOverlay = useCallback(k => {
+    if (k.startsWith('r:')) { const t = k.slice(2), r = regions.find(x => x.key === t); setTag(v => (v === t ? '' : t)); setKind(''); setPanel(true); if (r) setGoto({ i: r.i }) }
+    else { const a = archs.find(x => x.key === k.slice(2)); setArch(v => (v === a?.key ? null : a?.key)); if (a?.core[0]) setGoto({ i: a.core[0].i }) }
+  }, [regions, archs])
+  // desempenho nas partidas do Coliseu (ctx.tests = gameEvidence) e, para as fracas, a sugestão que as substitui
+  const perfN = useMemo(() => (uni.perf ? perfOf(ctx.tests) : new Map()), [uni.perf, ctx.tests])
+  const perf = useMemo(() => { const m = new Map(); for (const [n, v] of perfN) { const i = data.byName.get(n)?.i; if (i != null && have.includes(i)) m.set(i, v.s) } return m }, [perfN, data, have])
+  const swapL = useMemo(() => {
+    if (!perf.size) return []
+    const out = [], used = new Set()
+    for (const r of recs.slice(0, 12)) {
+      let list = []
+      try { list = swaps(r.c, { limit: 2 }) || [] } catch { /* sem trocas para esta */ }
+      for (const x of list) {
+        const wi = data.byName.get(x.out)?.i
+        if (wi != null && !used.has(wi) && (perf.get(wi) ?? 0) <= -0.25) { used.add(wi); out.push({ a: wi, b: r.c.i, kind: 'swap' }); break }
+      }
+    }
+    return out
+  }, [perf, recs, swaps, data])
+  const onLasso = useCallback(idxs => {
+    // só cartas legais e das cores do deck (a identidade do comandante ou, sem ela, as cores das cartas do deck)
+    const id = ctx.identity ?? (have.length >= 8 ? [...new Set(have.flatMap(i => [...(data.cards[i].mt === 'Land' ? '' : data.cards[i].ci)]))].join('') : null)
+    const ok = c => passes(c, null, ctx) && (id == null || [...c.ci].every(x => id.includes(x)))
+    setLasso(false); setPanel(true); setZone({ n: idxs.length, top: rankZone(data, idxs, have, allRecs, ok) })
+  }, [data, have, allRecs, ctx])
   const marks = useMemo(() => {
     const m = new Map()
     for (const t of tastes) for (const i of t.idx) m.set(i, 'mine')
     for (const i of have) m.set(i, 'deck')
     for (const r of recs) m.set(r.c.i, 'sugg')
     for (const i of seedsIdx) m.set(i, 'seed')
+    for (const x of selArch?.missing.slice(0, 20) || []) if (!m.has(x.i)) m.set(x.i, 'meta')
+    for (const i of zone?.top || []) m.set(i, 'zone')
     if (hov != null) m.set(hov, 'hover')
     if (sel) m.set(sel.i, 'focus')
     return m
-  }, [have, recs, seedsIdx, sel, hov, tastes])
+  }, [have, recs, seedsIdx, sel, hov, tastes, selArch, zone])
   const deckL = useMemo(() => deckLinks(data, have, ctx), [data, have, ctx])
   // Cada sugestão liga-se à carta do deck com que interage (ou à mais parecida).
   const suggL = useMemo(() => recs.map(r => {
@@ -637,8 +687,12 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
     }
     return a == null ? null : { a, b: r.c.i, kind: 'sugg' }
   }).filter(Boolean), [recs, seeds, data])
-  const links = useMemo(() => (showLines ? [...deckL, ...suggL] : []), [showLines, deckL, suggL])
-  const tips = useMemo(() => new Map(recs.map(r => [r.c.i, r.why.slice(0, 2).map(w => w.txt).join(' · ')])), [recs])
+  const links = useMemo(() => (showLines ? [...deckL, ...suggL, ...swapL] : swapL), [showLines, deckL, suggL, swapL])
+  const tips = useMemo(() => {
+    const t = new Map(recs.map(r => [r.c.i, r.why.slice(0, 2).map(w => w.txt).join(' · ')]))
+    for (const [n, v] of perfN) { const i = data.byName.get(n)?.i; if (i != null && have.includes(i)) t.set(i, v.why) }
+    return t
+  }, [recs, perfN, data, have])
   const dim = useMemo(() => {
     if (foco) return () => true // só fica aceso o que está marcado (deck, sugestões)
     return onlyLegal ? c => !passes(c, null, ctx) : null
@@ -650,7 +704,8 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
   const selRec = sel && allRecs.find(r => r.c.i === sel.i)
   return (
     <div className="view mapview">
-      <Map3D data={data} marks={marks} dim={dim} links={links} focus={focus} onPick={pick} onAdd={addI} frame={frame} follow={follow} tips={tips} />
+      <Map3D data={data} marks={marks} dim={dim} links={links} focus={focus} onPick={pick} onAdd={addI} frame={frame} follow={follow} tips={tips}
+        overlays={overlays} onOverlay={onOverlay} perf={perf} goto={goto} lasso={lasso} onLasso={onLasso} />
       <div className="map-ui">
         {hint ? (
           <div className="map-hint" role="note">
@@ -669,7 +724,15 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
           <label className="chk"><input type="checkbox" checked={foco} onChange={e => setFoco(e.target.checked)} /> {tx('só deck e sugestões')}</label>
           <label className="chk"><input type="checkbox" checked={showLines} onChange={e => setShowLines(e.target.checked)} /> {tx('ligações')}</label>
           {!foco && <label className="chk"><input type="checkbox" checked={onlyLegal} onChange={e => setOnlyLegal(e.target.checked)} /> {tx('apagar as que não servem')}</label>}
+          <label className="chk" title={tx('Zonas do mapa por função (remoção, compra, ramp…); a vermelho as que faltam ao teu deck')}><input type="checkbox" checked={uni.reg} onChange={e => setUni('reg', e.target.checked)} /> {tx('regiões')}</label>
+          <label className="chk" title={tx('Tamanho e cor das cartas do deck pelo que fizeram nos jogos do Coliseu; seta vermelha = troca sugerida')}><input type="checkbox" checked={uni.perf} onChange={e => setUni('perf', e.target.checked)} /> {tx('desempenho')}</label>
+          <label className="chk" title={meta?.archetypes?.length ? tx('Arquétipos dos torneios deste formato e quanto o teu deck se parece com cada um') : tx('Sem arquétipos do meta para este formato')}><input type="checkbox" checked={uni.meta} disabled={!meta?.archetypes?.length} onChange={e => setUni('meta', e.target.checked)} /> {tx('meta')}</label>
+          <button className={`small ${lasso ? 'on' : ''}`} onClick={() => setLasso(l => !l)} title={tx('Desenha à volta de uma zona do mapa e vê as melhores cartas de lá para o teu deck')}>◯ {tx('Laço')}</button>
         </div>
+        {lasso && <p className="small map-note">{tx('Desenha à volta de uma zona do mapa (arrasta com o rato ou o dedo).')}</p>}
+        {uni.perf && have.length > 0 && (perf.size
+          ? <p className="small muted">{tx('Desempenho: dourado e maior = ganhou jogos · vermelho e menor = pesou')}{swapL.length ? ` · ${tx('seta vermelha = troca sugerida')}` : ''}</p>
+          : <p className="small muted">{tx('Sem jogos deste deck no Coliseu: põe-no a jogar para ver o desempenho de cada carta.')}</p>)}
         {plan.length > 0 && <p className="small"><span className="muted">{tx('Plano:')}</span> {plan.map(x => <span key={x.label} className="plan-chip">{x.label} <b>{x.n}</b></span>)}</p>}
         <p className="muted small">{have.length ? `${tx('{n} cartas no deck', { n: have.length })} · ${deckL.filter(l => l.kind === 'combo').length ? `${tx('linhas douradas = combos')} · ` : ''}${tx('tracejado = quem alimenta quem')}` : tx('Clica numa carta para a ver; duplo clique junta-a ao deck.')}</p>
       </div>
@@ -689,6 +752,28 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
 
       <aside className={`map-recs ${panel ? '' : 'closed'} ${sel ? 'with-card' : ''}`}>
         <button className="live-head" onClick={() => setPanel(!panel)}><b>{tx('Sugestões')}</b><span className="muted small">{seeds.length ? `${recs.length}` : ''}</span><span className="chev">{panel ? '▾' : '▸'}</span></button>
+        {panel && zone && (
+          <div className="map-zone">
+            <div className="map-zone-h"><b>◯ {tx('Melhores desta zona')}</b><span className="muted small">{tx('{n} cartas na zona', { n: zone.n })}</span><button className="link plain" onClick={() => setZone(null)} aria-label={tx('Fechar')}>×</button></div>
+            {zone.top.length ? <ul className="live-list">{zone.top.map(i => { const c = data.cards[i], r = allRecs.find(x => x.c.i === i); return (
+              <li key={i} onMouseEnter={e => { setHov(i); showCardPeek(e, c) }} onMouseLeave={() => { setHov(null); hideCardPeek() }}>
+                <button className="live-img" onClick={() => pick(i)}><img src={img(c, 'art_crop')} alt="" loading="lazy" /></button>
+                <div className="live-txt"><div className="live-name"><button className="link plain" onClick={() => pick(i)}>{c.n}</button><Mana cost={c.mc} /></div>{r ? <Why why={r.why.slice(0, 2)} /> : <small className="muted">{tx('Texto parecido com o do teu deck')}</small>}</div>
+                <AddOrSwap c={c} act={act} swaps={swaps}><button className="act add" onClick={() => act.add(c)} title={tx('Juntar ao deck')}>+</button></AddOrSwap>
+              </li>) })}</ul> : <p className="muted small">{tx('Nada nesta zona serve ao teu deck (formato, cores ou já lá está).')}</p>}
+          </div>
+        )}
+        {panel && selArch && (
+          <div className="map-zone arch">
+            <div className="map-zone-h"><b>{selArch.name}</b><span className="muted small">{tx('tens {p} do núcleo', { p: `${Math.round(selArch.fit * 100)}%` })}</span><button className="link plain" onClick={() => setArch(null)} aria-label={tx('Fechar')}>×</button></div>
+            {selArch.missing.length ? <ul className="live-list">{selArch.missing.slice(0, 10).map(x => { const c = data.cards[x.i]; return (
+              <li key={x.i} onMouseEnter={e => { setHov(x.i); showCardPeek(e, c) }} onMouseLeave={() => { setHov(null); hideCardPeek() }}>
+                <button className="live-img" onClick={() => pick(x.i)}><img src={img(c, 'art_crop')} alt="" loading="lazy" /></button>
+                <div className="live-txt"><div className="live-name"><button className="link plain" onClick={() => pick(x.i)}>{c.n}</button><Mana cost={c.mc} /></div><small className="muted">{tx('Em {p} dos decks deste arquétipo', { p: `${Math.round(x.incl * 100)}%` })}</small></div>
+                <AddOrSwap c={c} act={act} swaps={swaps}><button className="act add" onClick={() => act.add(c)} title={tx('Juntar ao deck')}>+</button></AddOrSwap>
+              </li>) })}</ul> : <p className="muted small">{tx('Já tens o núcleo todo deste arquétipo.')}</p>}
+          </div>
+        )}
         {panel && <div className="live-prefs"><PrefsPanel {...{ deck, fmt, act }} compact /></div>}
         {panel && tastes.length > 0 && <p className="small muted map-taste">♥ {tx('{n} deck teu no mapa (violeta):|{n} decks teus no mapa (violeta):', { n: tastes.length })} {tastes.map(t => t.name).join(', ')}</p>}
         {panel && (seeds.length ? (

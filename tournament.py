@@ -869,6 +869,14 @@ def rate(con, tid, st, m, owner):
             print(f"[torneio {tid}] ratings: {e!r}", file=sys.stderr, flush=True)
 
 
+def next_match(st):
+    """A próxima partida a mandar para o Forge: pronta, sem trabalho, e sem nenhum deck que já esteja a jogar noutra mesa
+    (com vários jogos ao mesmo tempo, cada deck joga uma partida de cada vez: o sideboard e a aprendizagem usam o jogo
+    anterior). Os jogos da mesma partida são sempre seguidos: um trabalho = um jogo."""
+    busy = {i for x in st["matches"] if x.get("job") for i in x["p"]}
+    return next((m for m in st["matches"] if m["st"] == "ready" and not m.get("job") and not busy & set(m["p"])), None)
+
+
 def step():
     """Um passo: trata os jogos em curso (o que acabou regista-se e avança) e manda partidas prontas para a fila,
     até `cap` ao mesmo tempo (partidas da mesma ronda são independentes)."""
@@ -909,7 +917,7 @@ def step():
             if status != "running":
                 continue
             while inflight < cap:
-                m = next((m for m in st["matches"] if m["st"] == "ready" and not m.get("job")), None)
+                m = next_match(st)
                 if not m:
                     if not any(x.get("job") for x in st["matches"]):
                         resolve(st)  # não devia acontecer; fecha o torneio se já tem campeão
@@ -1170,6 +1178,8 @@ def selfcheck():
     bets_selfcheck(rng)
     assert similarity({"main": {"A": 4, "B": 4}}, {"main": {"A": 4, "B": 4}}) == 1
     assert similarity({"main": {"A": 4, "B": 4}, "commanders": ["C"]}, {"main": {"A": 4, "B": 3, "D": 1}, "commanders": ["C"]}) == 8 / 10
+    lg = {"matches": [{"id": "a", "st": "ready", "p": [0, 1], "job": "j1"}, {"id": "b", "st": "ready", "p": [1, 2]}, {"id": "c", "st": "ready", "p": [2, 3]}]}
+    assert next_match(lg)["id"] == "c"  # o deck 1 está a jogar: «b» espera, «c» (decks livres) avança
     print("selfcheck ok")
 
 

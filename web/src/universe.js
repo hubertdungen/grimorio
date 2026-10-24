@@ -1,0 +1,101 @@
+// Contas do Universo (mapa 3D): regiões por função, desempenho das cartas nos jogos, constelações do meta e o laço.
+// Só funções puras sobre `data` (cartas, posições, embeddings); o desenho fica em Map3D.jsx e a interface em Views.jsx.
+import { TAG_LABEL } from './data.js'
+import { tx } from './i18n.js'
+
+// funções com zona própria no mapa (sem «criatura», «condição de vitória», terrenos e respostas de sideboard)
+export const REGION_TAGS = ['ramp', 'draw', 'removal', 'wipe', 'counter', 'tutor', 'protection', 'recursion', 'reanimate', 'tokens',
+  'sacrifice', 'counters', 'lifegain', 'graveyard', 'etb', 'spellslinger', 'artifacts', 'enchantments', 'discard', 'evasion']
+
+const at = (data, i) => [data.pos[i * 3], data.pos[i * 3 + 1], data.pos[i * 3 + 2]]
+const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+
+// Regiões: para cada função, o sítio mais denso dessas cartas (amostra de até 500, raio = 12% do tamanho do mapa).
+// O centro é a média dos vizinhos desse ponto; `i` é a carta mais perto do centro (para onde a câmara voa).
+const REG = new WeakMap()
+export function regionsOf(data) {
+  if (REG.has(data)) return REG.get(data)
+  let ext = 0
+  for (let k = 0; k < data.pos.length; k++) ext = Math.max(ext, Math.abs(data.pos[k]))
+  const R2 = (ext * 0.12) ** 2
+  const out = []
+  for (const t of REGION_TAGS) {
+    const all = data.cards.filter(c => c.mt !== 'Land' && c.tg.includes(t)).map(c => c.i)
+    if (all.length < 8) continue
+    const step = Math.max(1, Math.floor(all.length / 500)), S = all.filter((_, k) => k % step === 0).map(i => ({ i, p: at(data, i) }))
+    let best = null, bestN = -1
+    for (const a of S) { let n = 0; for (const b of S) if (d2(a.p, b.p) < R2) n++; if (n > bestN) { bestN = n; best = a } }
+    const near = S.filter(b => d2(best.p, b.p) < R2)
+    const pos = [0, 1, 2].map(k => near.reduce((s, b) => s + b.p[k], 0) / near.length)
+    const i = near.reduce((m, b) => (d2(b.p, pos) < d2(m.p, pos) ? b : m), near[0]).i
+    out.push({ key: t, label: TAG_LABEL[t], pos, i, total: all.length })
+  }
+  REG.set(data, out)
+  return out
+}
+
+// Desempenho de cada carta nos jogos do Coliseu (swap.js gameEvidence): s de −1 (pesa) a +1 (ganha jogos).
+// Junta a diferença de % de vitórias com ela vista e sem ela (encolhida para 3 jogos médios de cada lado), a parte
+// que fez da via de vitória e as vezes que ficou presa na mão. Só cartas vistas em 2+ jogos exatos.
+export function perfOf(ev) {
+  const out = new Map()
+  if (!ev?.cards || !ev.exact) return out
+  const p0 = ev.winsExact / ev.exact
+  for (const [n, x] of Object.entries(ev.cards)) {
+    if (x.seen < 2) continue
+    const wr = (x.seenW + 3 * p0) / (x.seen + 3) - (ev.winsExact - x.seenW + 3 * p0) / Math.max(1, ev.exact - x.seen + 3)
+    const share = ev.units ? x.units / ev.units : 0
+    const dead = x.dead >= 2 && x.dead / x.seen >= 0.5
+    const s = Math.max(-1, Math.min(1, wr * 2.5 + share * 2 - (dead ? 0.5 : 0)))
+    const why = dead ? tx('Presa na mão em {d} de {n} jogos', { d: x.dead, n: x.seen })
+      : tx('Com ela vista: {w} vitórias em {n} jogos', { w: x.seenW, n: x.seen }) + (share >= 0.1 ? ` · ${tx('{p} da via de vitória', { p: `${Math.round(share * 100)}%` })}` : '')
+    out.set(n, { s, why })
+  }
+  return out
+}
+
+// Constelações do meta: cada arquétipo no centro (pesado pela inclusão) das cartas do núcleo; fit = parte do núcleo
+// que o deck já tem (como detectArchetype); missing = o que falta, do mais jogado para o menos.
+export function archetypesOf(data, meta, have) {
+  if (!meta?.archetypes?.length) return []
+  const H = new Set(have)
+  return meta.archetypes.map(a => {
+    const core = a.core.filter(x => x.i != null)
+    const w = core.reduce((s, x) => s + x.incl, 0) || 1
+    const pos = [0, 1, 2].map(k => core.reduce((s, x) => s + data.pos[x.i * 3 + k] * x.incl, 0) / w)
+    const fit = core.filter(x => H.has(x.i)).reduce((s, x) => s + x.incl, 0) / w
+    return { key: a.name, name: a.name, share: a.share, pos, fit, core, missing: core.filter(x => !H.has(x.i)).sort((p, q) => q.incl - p.incl) }
+  })
+}
+
+// Laço: ponto dentro do polígono (contagem de cruzamentos)
+export function inPoly(x, y, poly) {
+  let inside = false
+  for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) {
+    const [xa, ya] = poly[a], [xb, yb] = poly[b]
+    if ((ya > y) !== (yb > y) && x < ((xb - xa) * (y - ya)) / (yb - ya) + xa) inside = !inside
+  }
+  return inside
+}
+
+// As melhores cartas de uma zona para o deck: as sugestões que lá caem primeiro (pela ordem delas), depois as outras
+// pela semelhança de texto ao deck inteiro (soma dos embeddings das cartas que não são terreno).
+export function rankZone(data, idxs, have, recs, ok, n = 12) {
+  const H = new Set(have), byRec = new Map(recs.map((r, k) => [r.c.i, k]))
+  const sum = new Float32Array(data.D)
+  for (const i of have) if (data.cards[i].mt !== 'Land') for (let k = 0; k < data.D; k++) sum[k] += data.emb[i * data.D + k]
+  const sim = i => { let d = 0; for (let k = 0; k < data.D; k++) d += sum[k] * data.emb[i * data.D + k]; return d }
+  return idxs.filter(i => !H.has(i) && data.cards[i].mt !== 'Land' && ok(data.cards[i]))
+    .map(i => ({ i, r: byRec.has(i) ? byRec.get(i) : 1e9, s: sim(i) }))
+    .sort((a, b) => a.r - b.r || b.s - a.s).slice(0, n).map(x => x.i)
+}
+
+export function selfcheck() {
+  const ok = (c, m) => { if (!c) throw new Error(`universe selfcheck: ${m}`) }
+  const sq = [[0, 0], [10, 0], [10, 10], [0, 10]]
+  ok(inPoly(5, 5, sq) && !inPoly(15, 5, sq) && !inPoly(-1, -1, sq), 'inPoly')
+  const ev = { exact: 10, winsExact: 5, units: 20, cards: { Good: { seen: 6, seenW: 5, dead: 0, units: 10 }, Bad: { seen: 6, seenW: 1, dead: 4, units: 0 }, Rare: { seen: 1, seenW: 1, dead: 0, units: 0 } } }
+  const p = perfOf(ev)
+  ok(p.get('Good').s > 0.5 && p.get('Bad').s < -0.5 && !p.has('Rare'), 'perfOf')
+  return true
+}

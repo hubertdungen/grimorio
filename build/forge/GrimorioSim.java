@@ -35,6 +35,15 @@ import com.google.common.eventbus.Subscribe;
 
 import forge.GuiDesktop;
 import forge.ai.AIOption;
+import forge.ai.AiCostDecision;
+import forge.card.ColorSet;
+import forge.game.cost.Cost;
+import forge.game.cost.CostPart;
+import forge.game.cost.CostPayLife;
+import forge.game.cost.CostPayment;
+import forge.game.card.CardCollection;
+import forge.game.player.DelayedReveal;
+import forge.util.collect.FCollectionView;
 import forge.ai.AiProfileUtil;
 import forge.ai.LobbyPlayerAi;
 import forge.ai.ComputerUtil;
@@ -224,11 +233,227 @@ public class GrimorioSim {
         @Override
         public List<SpellAbility> chooseSpellAbilityToPlay() {
             SpellAbility sa = hint();
+            if (sa == null) sa = counter();
+            if (sa == null) sa = disrupt();
             if (sa != null) return List.of(sa);
             List<SpellAbility> r = super.chooseSpellAbilityToPlay();
-            if (r != null && !r.isEmpty()) return r;
+            if (r != null && !r.isEmpty()) {
+                // o CounterAi contraria ao acaso pelo custo (30% a custo 1, 75% a custo 2): com o último contrafeitiço na
+                // mão não o gasta no que não vale (fica para a ameaça seguinte)
+                SpellAbility f = r.get(0), t = f.getApi() == ApiType.Counter ? f.getTargets().getFirstTargetedSpell() : null;
+                if (t != null && t.getActivatingPlayer().isOpponentOf(player) && !worth(t) && counters() <= 1) return null;
+                return r;
+            }
             sa = cantrip();
+            if (sa == null) sa = reanimate();
             return sa != null ? List.of(sa) : r;
+        }
+
+        // Fetchlands (Polluted Delta, Flooded Strand…): para «Island ou Swamp» o Forge traz o tipo básico com menos cópias
+        // na biblioteca (ComputerUtilCard.getBestLandAI) sem olhar à mão — com 6 Islands, 2 Swamps e dois Counterspell na
+        // mão ia buscar o Swamp. Aqui traz-se o terreno da cor que falta à mão: por cor, os símbolos que a carta mais
+        // exigente da mão pede menos as fontes dessa cor já em jogo. Sem nada em falta, ou empate entre cores, decide o Forge.
+        static final String[] BASIC = {"Plains", "Island", "Swamp", "Mountain", "Forest"}, COLOR = {"W", "U", "B", "R", "G"};
+
+        @Override
+        public Card chooseSingleCardForZoneChange(ZoneType destination, List<ZoneType> origin, SpellAbility sa, CardCollection fetchList,
+                DelayedReveal delayedReveal, String selectPrompt, boolean isOptional, Player decider) {
+            Card c = decider == player && origin.contains(ZoneType.Library) && fetchList != null && fetchList.size() > 1
+                    && fetchList.stream().allMatch(Card::isLand) ? landForHand(fetchList) : null;
+            if (c == null) return super.chooseSingleCardForZoneChange(destination, origin, sa, fetchList, delayedReveal, selectPrompt, isOptional, decider);
+            if (delayedReveal != null) reveal(delayedReveal);
+            return c;
+        }
+
+        Card landForHand(List<Card> list) {
+            int[] need = new int[5], have = new int[5];
+            for (Card h : player.getCardsIn(ZoneType.Hand)) {
+                if (h.isLand()) continue;
+                int[] k = h.getManaCost().getColorShardCounts();  // WUBRGC
+                for (int i = 0; i < 5; i++) need[i] = Math.max(need[i], k[i]);
+            }
+            for (Card l : player.getCardsIn(ZoneType.Battlefield)) {
+                if (!l.isLand()) continue;
+                for (int i = 0; i < 5; i++)
+                    for (SpellAbility m : l.getManaAbilities()) if (m.canProduce(COLOR[i])) { have[i]++; break; }
+            }
+            Card best = null;
+            String bestKey = null;
+            int bs = 0;
+            boolean tie = false;
+            for (Card c : list) {
+                int sc = 0;
+                StringBuilder key = new StringBuilder();
+                for (int i = 0; i < 5; i++) if (c.getType().hasSubtype(BASIC[i])) { sc += Math.max(0, need[i] - have[i]); key.append(COLOR[i]); }
+                if (sc > bs) { bs = sc; best = c; bestKey = key.toString(); tie = false; }
+                else if (sc == bs && sc > 0 && !key.toString().equals(bestKey)) tie = true;
+            }
+            return tie ? null : best;
+        }
+
+        // Contrafeitiços: o CounterAi do Forge decide por sorte pelo custo do feitiço (CHANCE_TO_COUNTER_CMC_1/2 = 30/75%)
+        // e não olha ao que o feitiço faz. Aqui contraria-se sempre o que vale a carta — criatura ou planeswalker de custo
+        // 2+, qualquer feitiço de custo 3+, remoção/dano/descarte/roubo apontado a nós ou ao que é nosso, limpeza de mesa
+        // com criaturas nossas em jogo, truque de combate durante o combate, contrafeitiço contra o nosso — e o resto fica
+        // com o Forge (que com um só contrafeitiço na mão já não o gasta, ver chooseSpellAbilityToPlay). Só contrafeitiços
+        // de custo em mana sem «a não ser que pague» (Mana Leak e afins ficam com o Forge, que conta a mana do adversário).
+        SpellAbility counter() {
+            Game g = player.getGame();
+            SpellAbility top = g.getStack().isEmpty() ? null : g.getStack().peekAbility();
+            if (top == null || !top.isSpell() || !top.getActivatingPlayer().isOpponentOf(player) || !worth(top)) return null;
+            for (Card c : player.getCardsIn(ZoneType.Hand)) {
+                SpellAbility sa = c.getFirstSpellAbility();
+                if (sa == null || sa.getApi() != ApiType.Counter || !sa.usesTargeting() || sa.hasParam("UnlessCost")
+                        || sa.getPayCosts() == null || !sa.getPayCosts().isOnlyManaCost()) continue;
+                if (!tried.add("counter:" + top.getId() + ":" + c.getId())) continue;
+                sa.setActivatingPlayer(player);
+                sa.resetTargets();
+                if (!top.isCounterableBy(sa) || !sa.canTargetSpellAbility(top) || !sa.canPlay() || !ComputerUtilCost.canPayCost(sa, player, false)) continue;
+                sa.getTargets().add(top);
+                return sa;
+            }
+            return null;
+        }
+
+        int counters() {
+            int n = 0;
+            for (Card c : player.getCardsIn(ZoneType.Hand)) {
+                SpellAbility sa = c.getFirstSpellAbility();
+                if (sa != null && sa.getApi() == ApiType.Counter) n++;
+            }
+            return n;
+        }
+
+        static final EnumSet<ApiType> HARM = EnumSet.of(ApiType.Destroy, ApiType.DealDamage, ApiType.LoseLife, ApiType.Discard, ApiType.Sacrifice,
+                ApiType.ChangeZone, ApiType.GainControl, ApiType.Counter, ApiType.Tap, ApiType.Attach, ApiType.Pump, ApiType.Mill);
+        static final EnumSet<ApiType> WIPE = EnumSet.of(ApiType.DestroyAll, ApiType.DamageAll, ApiType.SacrificeAll, ApiType.ChangeZoneAll, ApiType.PumpAll);
+
+        boolean worth(SpellAbility top) {
+            Card src = top.getHostCard();
+            int cmc = src == null ? 0 : src.getCMC();
+            if (cmc >= 3 || (src != null && (src.isCreature() || src.isPlaneswalker()) && cmc >= 2)) return true;
+            boolean board = !player.getCreaturesInPlay().isEmpty();
+            for (SpellAbility s = top; s != null; s = s.getSubAbility()) {
+                ApiType a = s.getApi();
+                if (a == null) continue;
+                if (WIPE.contains(a) && board) return true;
+                if ((a == ApiType.Pump || a == ApiType.PumpAll) && player.getGame().getCombat() != null) return true;  // truque no combate
+                if (!HARM.contains(a)) continue;
+                for (Player p : s.getTargets().getTargetPlayers()) if (p == player && a != ApiType.Pump && a != ApiType.Attach) return true;
+                for (Card x : s.getTargets().getTargetCards()) if (x.getController() == player && a != ApiType.Pump) return true;
+                for (SpellAbility x : s.getTargets().getTargetSpells()) if (x.getActivatingPlayer() == player) return true;  // contrafeitiço contra o nosso
+            }
+            return false;
+        }
+
+        // Descarte com escolha (Thoughtseize, Inquisition of Kozilek, Duress…): o DiscardAi só o deixa no Main 2 e, até lá,
+        // a IA gasta a mana em criaturas; num registo de 24 jogos ficou na mão em 17 turnos com mana e cartas boas na
+        // mão do adversário. Como um jogador faria: no nosso turno, depois do terreno, é a primeira coisa a lançar, se o
+        // adversário tem uma carta que se pode escolher e a vida chega para o custo (fica com 6+).
+        SpellAbility disrupt() {
+            Game g = player.getGame();
+            PhaseHandler ph = g.getPhaseHandler();
+            if (!g.getStack().isEmpty() || !ph.isPlayerTurn(player) || !ph.getPhase().isMain()) return null;
+            List<Card> hand = new ArrayList<>(player.getCardsIn(ZoneType.Hand));
+            if (ph.is(PhaseType.MAIN1) && player.getLandsPlayedThisTurn() == 0 && hand.stream().anyMatch(Card::isLand)) return null;  // o terreno primeiro
+            for (Card c : hand) {
+                SpellAbility sa = c.getFirstSpellAbility();
+                if (sa == null || sa.getApi() != ApiType.Discard || !sa.isSpell() || !sa.usesTargeting() || sa.getPayCosts() == null
+                        || !sa.getPayCosts().isOnlyManaCost() || !String.valueOf(sa.getParam("Mode")).contains("YouChoose")) continue;
+                if (sa.findSubAbilityByType(ApiType.LoseLife) != null && player.getLife() < 8) continue;
+                if (!tried.add(ph.getTurn() + ":" + ph.getPhase() + ":" + c.getId() + ":disrupt")) continue;
+                sa.setActivatingPlayer(player);
+                sa.resetTargets();
+                String[] valid = sa.hasParam("DiscardValid") ? sa.getParam("DiscardValid").split(",") : null;
+                Player t = null;
+                int most = 0;
+                for (Player o : player.getOpponents()) {
+                    if (!sa.canTarget(o) || !o.canDiscardBy(sa, true)) continue;
+                    int n = 0;
+                    for (Card x : o.getCardsIn(ZoneType.Hand)) if (valid == null || x.isValid(valid, player, c, sa)) n++;
+                    if (n > most) { most = n; t = o; }
+                }
+                if (t == null || !sa.canPlay() || !ComputerUtilCost.canPayCost(sa, player, false)) continue;
+                int keep = reserve(hand, c, false);
+                if (keep > 0 && !ComputerUtilMana.canPayManaCost(sa, player, keep, false)) continue;
+                sa.getTargets().add(t);
+                return sa;
+            }
+            return null;
+        }
+
+        // Terrenos de choque (Blood Crypt, Godless Shrine…: «paga 2 de vida ou entra virado»). O TapAi só paga quando uma
+        // carta da mão com custo igual ao nº de terrenos passa no canPlaySa, mas esse já exige a mana paga sem o terreno
+        // que está a entrar (e o DiscardAi recusa tudo antes do Main 2): na prática entravam sempre virados (0 de 17
+        // num registo de torneio) e o Thoughtseize do 1.º turno ou o 2-drop do 2.º ficavam na mão. Aqui, no nosso turno,
+        // paga-se quando há na mão uma carta que só dá para lançar com a mana deste terreno e a vida chega (fica com 5+).
+        @Override
+        public boolean payCostToPreventEffect(Cost cost, SpellAbility sa, boolean alreadyPaid, FCollectionView<Player> allPayers) {
+            List<CostPart> parts = cost.getCostParts();
+            if (alreadyPaid || sa.getApi() != ApiType.Tap || !sa.hasParam("ETB") || parts.size() != 1 || !(parts.get(0) instanceof CostPayLife pl))
+                return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers);
+            Integer n = pl.convertAmount();
+            if (n == null || !shockPays(sa.getHostCard(), n, sa) || !ComputerUtilCost.canPayCost(cost, sa, player, true)) return false;
+            return new CostPayment(cost, sa).payComputerCosts(new AiCostDecision(player, sa, true));
+        }
+
+        boolean shockPays(Card land, int life, SpellAbility sa) {
+            PhaseHandler ph = player.getGame().getPhaseHandler();
+            if (!ph.isPlayerTurn(player) || !ph.getPhase().isMain() || player.getLife() - life < 5 || !player.canPayLife(life, true, sa)) return false;
+            int untapped = 0;
+            for (Card c : player.getCardsIn(ZoneType.Battlefield))
+                if (c != land && c.isLand() && c.isUntapped() && !c.getManaAbilities().isEmpty()) untapped++;
+            byte colors = ColorSet.fromNames(ComputerUtilCost.getAvailableManaColors(player, land)).getColor();
+            for (Card c : player.getCardsIn(ZoneType.Hand)) {
+                SpellAbility s = c.isLand() ? null : c.getFirstSpellAbility();
+                int cmc = c.getCMC() - c.getManaCost().getPhyrexianCount();
+                if (s == null || cmc < 1 || cmc > untapped + 1 || !c.getManaCost().canBePaidWithAvailable(colors)) continue;
+                s.setActivatingPlayer(player);
+                if (s.usesTargeting() && s.getApi() != ApiType.Counter && s.getTargetRestrictions().getNumCandidates(s) == 0) continue;  // sem alvo
+                if (!ComputerUtilMana.canPayManaCost(s, player, 0, false)) return true;  // só com este terreno
+            }
+            return false;
+        }
+
+        // Reanimar (Persist e afins: feitiço que traz uma criatura do nosso cemitério). O guião do Persist só deixa a IA
+        // do Forge escolher criaturas de custo 4+ (cards/persist.txt, para não a gastar à espera da Archon of Cruelty);
+        // num deck só de criaturas pequenas ficava para sempre na mão. Quando a IA passa no Main 2, reanima a melhor que
+        // lá está — a não ser que haja na mão uma criatura grande que ainda não dá para lançar (vai para o cemitério
+        // por um descarte e é essa que se quer trazer) ou uma carta que mete criaturas da biblioteca no cemitério
+        // (Unmarked Grave, Entomb…: a IA lança-a e o Persist vai depois para a grande).
+        SpellAbility reanimate() {
+            Game g = player.getGame();
+            PhaseHandler ph = g.getPhaseHandler();
+            if (!g.getStack().isEmpty() || !ph.isPlayerTurn(player) || !ph.is(PhaseType.MAIN2)) return null;
+            int lands = player.getLandsInPlay().size();
+            List<Card> hand = new ArrayList<>(player.getCardsIn(ZoneType.Hand));
+            if (hand.stream().anyMatch(h -> h.isCreature() && !h.getType().isLegendary() && h.getCMC() >= 4 && h.getCMC() > lands)) return null;
+            for (Card h : hand) {
+                SpellAbility e = h.getFirstSpellAbility();
+                if (e != null && e.getApi() == ApiType.ChangeZone && "Library".equals(e.getParam("Origin")) && "Graveyard".equals(e.getParam("Destination"))) return null;
+            }
+            for (Card c : hand) {
+                SpellAbility sa = c.getFirstSpellAbility();
+                if (sa == null || sa.getApi() != ApiType.ChangeZone || !sa.isSpell() || !sa.usesTargeting() || sa.getPayCosts() == null
+                        || !sa.getPayCosts().isOnlyManaCost() || sa.getTargetRestrictions().getMinTargets(c, sa) > 1
+                        || !"Graveyard".equals(sa.getParam("Origin")) || !"Battlefield".equals(sa.getParam("Destination"))) continue;
+                if (!tried.add(ph.getTurn() + ":" + c.getId() + ":reanimate")) continue;
+                sa.setActivatingPlayer(player);
+                sa.resetTargets();
+                Card best = null;
+                int bv = -1;
+                for (Card x : player.getCardsIn(ZoneType.Graveyard)) {
+                    if (!x.isCreature() || !sa.canTarget(x)) continue;
+                    int v = ComputerUtilCard.evaluateCreature(x);
+                    if (v > bv) { bv = v; best = x; }
+                }
+                if (best == null || !sa.canPlay() || !ComputerUtilCost.canPayCost(sa, player, false)) continue;
+                int keep = reserve(hand, c, false);
+                if (keep > 0 && !ComputerUtilMana.canPayManaCost(sa, player, keep, false)) continue;
+                sa.getTargets().add(best);
+                return sa;
+            }
+            return null;
         }
 
         // Compra/seleção barata (Consider, Opt, Preordain, Faithless Looting, Thought Scour, Ancient Stirrings…) com a
@@ -271,20 +496,27 @@ public class GrimorioSim {
                 if (!targetPlayers(sa) || !sa.canPlay() || !ComputerUtilCost.canPayCost(sa, player, false)) { sa.resetTargets(); continue; }
                 // a mana que fica tem de chegar para a carta mais cara que dá para pagar agora: no Main 2 as respostas
                 // instantâneas; no Main 1 tudo (a IA do Forge pode estar a guardar mana para lançar criaturas no Main 2)
-                int keep = 0;
-                if (!eot) for (Card o : hand) {
-                    SpellAbility os = o == c || o.isLand() ? null : o.getFirstSpellAbility();
-                    if (os == null || selects(os) || (!dig && SpellAbilityAi.isSorcerySpeed(os, player))) continue;
-                    os.setActivatingPlayer(player);
-                    // truque ou remoção sem alvo em jogo não é resposta (contrafeitiços têm alvo só na pilha: contam)
-                    if (os.usesTargeting() && os.getApi() != ApiType.Counter && os.getTargetRestrictions().getNumCandidates(os) == 0) continue;
-                    int need = o.getCMC() - o.getManaCost().getPhyrexianCount();  // mana phyrexiana paga-se com vida
-                    if (need > keep && ComputerUtilMana.canPayManaCost(os, player, 0, false)) keep = need;
-                }
+                int keep = eot ? 0 : reserve(hand, c, dig);
                 if (keep > 0 && !ComputerUtilMana.canPayManaCost(sa, player, keep, false)) { sa.resetTargets(); continue; }
                 return sa;
             }
             return null;
+        }
+
+        // mana a guardar: a da carta mais cara da mão (fora `c`) que dá para pagar agora — as respostas instantâneas, ou
+        // tudo com all=true (no Main 1 a IA do Forge pode estar a guardar mana para lançar criaturas no Main 2)
+        int reserve(List<Card> hand, Card c, boolean all) {
+            int keep = 0;
+            for (Card o : hand) {
+                SpellAbility os = o == c || o.isLand() ? null : o.getFirstSpellAbility();
+                if (os == null || selects(os) || (!all && SpellAbilityAi.isSorcerySpeed(os, player))) continue;
+                os.setActivatingPlayer(player);
+                // truque ou remoção sem alvo em jogo não é resposta (contrafeitiços têm alvo só na pilha: contam)
+                if (os.usesTargeting() && os.getApi() != ApiType.Counter && os.getTargetRestrictions().getNumCandidates(os) == 0) continue;
+                int need = o.getCMC() - o.getManaCost().getPhyrexianCount();  // mana phyrexiana paga-se com vida
+                if (need > keep && ComputerUtilMana.canPayManaCost(os, player, 0, false)) keep = need;
+            }
+            return keep;
         }
 
         static boolean selects(SpellAbility sa) {

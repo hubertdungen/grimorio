@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { tx } from './i18n.js'
+import { inPoly } from './universe.js'
 
 const CI = { W: [0.96, 0.92, 0.78], U: [0.31, 0.64, 1], B: [0.66, 0.55, 0.85], R: [1, 0.36, 0.29], G: [0.24, 0.81, 0.48] }
 const GOLD = [0.95, 0.72, 0.29], GREY = [0.6, 0.64, 0.7], LAND = [0.69, 0.55, 0.42]
-const LINE = { combo: [1, 0.78, 0.3], inter: [0.43, 0.9, 0.98], sugg: [0.75, 0.95, 1] }
+const LINE = { combo: [1, 0.78, 0.3], inter: [0.43, 0.9, 0.98], sugg: [0.75, 0.95, 1], swap: [1, 0.48, 0.42] }
 
 function baseColor(c) {
   if (c.mt === 'Land') return LAND
@@ -69,12 +70,17 @@ void main() {
  * marks: Map(i -> 'deck'|'seed'|'sugg'|'focus'|'hover'); dim(c) apaga; links: [{a, b, kind}];
  * onPick(i) clique; onAdd(i) duplo clique; focus: voar até i; frame: índices a enquadrar quando follow;
  * tips: Map(i -> texto extra no tooltip).
+ * overlays: [{key, pos: [x,y,z], cls, text, sub, title}] etiquetas soltas no espaço (regiões, arquétipos) -> onOverlay(key);
+ * perf: Map(i -> −1..1) desempenho nos jogos (tamanho e cor das cartas do deck); goto: {i} voa até lá sem selecionar;
+ * lasso: modo laço (arrastar desenha; ao largar onLasso(índices dentro, sem os apagados)).
  */
-export default function Map3D({ data, marks, dim, links, onPick, onAdd, focus, frame, follow, tips }) {
+export default function Map3D({ data, marks, dim, links, onPick, onAdd, focus, frame, follow, tips, overlays, onOverlay, perf, goto, lasso, onLasso }) {
   const host = useRef(null)
   const st = useRef({})
   const [hover, setHover] = useState(null)
   const [labels, setLabels] = useState([])
+  const [ovl, setOvl] = useState([])
+  const [path, setPath] = useState(null)
 
   useEffect(() => {
     const el = host.current
@@ -201,13 +207,38 @@ export default function Map3D({ data, marks, dim, links, onPick, onAdd, focus, f
             out.push({ i, x: (v.x + 1) / 2 * w, y: (1 - v.y) / 2 * h, kind: st.current.marks.get(i) })
         }
         setLabels(prev => (prev.length || out.length ? out : prev))
+        const oo = []
+        for (const o of st.current.overlays || []) {
+          v.set(o.pos[0], o.pos[1], o.pos[2]).project(camera)
+          if (v.z < 1 && Math.abs(v.x) < 1.02 && Math.abs(v.y) < 1.02) oo.push({ ...o, x: (v.x + 1) / 2 * w, y: (1 - v.y) / 2 * h })
+        }
+        // arrumação: pela prioridade (pri menor primeiro), salta as que tapariam uma já posta
+        oo.sort((a, b) => (a.pri ?? 5) - (b.pri ?? 5))
+        const put = []
+        for (const o of oo) {
+          const hw = (Math.max(o.text.length, (o.sub || '').length) * 6.6 + 18) / 2, hh = o.sub ? 15 : 10
+          if (!put.some(q => Math.abs(q.x - o.x) < q.hw + hw && Math.abs(q.y - o.y) < q.hh + hh)) put.push({ ...o, hw, hh })
+        }
+        oo.length = 0; oo.push(...put)
+        setOvl(prev => (prev.length || oo.length ? oo : prev))
       }
     }
     loop()
 
     Object.assign(st.current, {
-      geo, lineGeo, P,
+      geo, lineGeo, P, camera, controls,
       flyTo: i => flyTo(P(i), 45),
+      flyFar: i => flyTo(P(i), 75),
+      // laço: projeta todos os pontos e devolve os que caem dentro do polígono (coordenadas do ecrã do mapa)
+      within: poly => {
+        const w = el.clientWidth, h = el.clientHeight, out = []
+        for (let i = 0; i < N; i++) {
+          if (st.current.dimmed?.[i]) continue
+          v.set(data.pos[i * 3], data.pos[i * 3 + 1], data.pos[i * 3 + 2]).project(camera)
+          if (v.z < 1 && inPoly((v.x + 1) / 2 * w, (1 - v.y) / 2 * h, poly)) out.push(i)
+        }
+        return out
+      },
       frameOn: idxs => {
         if (!idxs.length) return
         const c = new THREE.Vector3()
@@ -243,7 +274,11 @@ export default function Map3D({ data, marks, dim, links, onPick, onAdd, focus, f
       if (m === 'seed') { s = 6; k = 1.3; rgb = [1, 0.85, 0.45]; p = 2; deckSet.add(i) }
       if (m === 'sugg') { s = 4.6; k = 1.2; rgb = [0.45, 0.95, 1]; p = 1 }
       if (m === 'hover') { s = 7; k = 1.5; rgb = [0.6, 1, 1]; p = 1 }
+      if (m === 'meta') { s = 3.8; k = 1.15; rgb = [1, 0.6, 0.92]; p = 1 }
+      if (m === 'zone') { s = 5.2; k = 1.3; rgb = [0.95, 1, 0.8]; p = 1 }
       if (m === 'focus') { s = 8; k = 1.5; rgb = [1, 1, 1] }
+      const q = (m === 'deck' || m === 'seed') && perf?.get(i)  // desempenho: as fortes crescem a dourado, as fracas encolhem a vermelho
+      if (q) { const t = Math.abs(q), to = q > 0 ? [1, 0.8, 0.3] : [1, 0.28, 0.28]; rgb = rgb.map((x, j) => x + (to[j] - x) * t); s *= Math.max(0.65, 1 + 0.55 * q) }
       col[i * 3] = rgb[0] * k; col[i * 3 + 1] = rgb[1] * k; col[i * 3 + 2] = rgb[2] * k
       size[i] = s
       pulse[i] = p
@@ -256,9 +291,9 @@ export default function Map3D({ data, marks, dim, links, onPick, onAdd, focus, f
     st.current.dimmed = dimmed
     st.current.marks = marks
     if (!marks.size) setLabels([])
-    const pri = { focus: 0, hover: 0, seed: 1, sugg: 2, deck: 3, mine: 9 }
-    st.current.labelIdx = [...marks.entries()].filter(([, m]) => m !== 'mine' && (m !== 'deck' || marks.size < 25)).sort((a, b) => pri[a[1]] - pri[b[1]]).map(([i]) => i).slice(0, 60)
-  }, [data, marks, dim])
+    const pri = { focus: 0, hover: 0, seed: 1, zone: 2, sugg: 2, meta: 4, deck: 3, mine: 9 }
+    st.current.labelIdx = [...marks.entries()].filter(([, m]) => m !== 'mine' && m !== 'meta' && (m !== 'deck' || marks.size < 25)).sort((a, b) => pri[a[1]] - pri[b[1]]).map(([i]) => i).slice(0, 60)
+  }, [data, marks, dim, perf])
 
   // Linhas com distância acumulada (para o tracejado correr) e cor por tipo.
   useEffect(() => {
@@ -281,6 +316,14 @@ export default function Map3D({ data, marks, dim, links, onPick, onAdd, focus, f
   }, [data, links])
 
   useEffect(() => { st.current.onPick = onPick; st.current.onAdd = onAdd }, [onPick, onAdd])
+  useEffect(() => { st.current.overlays = overlays || []; if (!overlays?.length) setOvl([]) }, [overlays])
+  useEffect(() => { if (goto) st.current.flyFar?.(goto.i) }, [goto])
+  useEffect(() => { if (st.current.controls) st.current.controls.enabled = !lasso; if (!lasso) setPath(null) }, [lasso])
+  // laço: arrastar desenha o contorno; ao largar, as cartas lá dentro vão para onLasso
+  const lxy = e => { const r = host.current.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top] }
+  const lDown = e => { e.currentTarget.setPointerCapture?.(e.pointerId); setPath([lxy(e)]) }
+  const lMove = e => setPath(p => { if (!p) return p; const q = lxy(e), l = p[p.length - 1]; return Math.hypot(q[0] - l[0], q[1] - l[1]) > 4 ? [...p, q] : p })
+  const lUp = () => { if (path?.length > 5) onLasso?.(st.current.within(path)); setPath(null) }
   useEffect(() => { st.current.follow = follow }, [follow])
   useEffect(() => { if (focus != null) st.current.flyTo?.(focus) }, [focus])
   const frameKey = (frame || []).length
@@ -294,6 +337,16 @@ export default function Map3D({ data, marks, dim, links, onPick, onAdd, focus, f
           {data.cards[l.i].n}
         </button>
       ))}
+      {ovl.map(o => (
+        <button key={o.key} className={`map-ovl ${o.cls || ''}`} style={{ left: o.x, top: o.y }} title={o.title} onClick={() => onOverlay?.(o.key)}>
+          <b>{o.text}</b>{o.sub && <small>{o.sub}</small>}
+        </button>
+      ))}
+      {lasso && (
+        <svg className="map-lasso" onPointerDown={lDown} onPointerMove={lMove} onPointerUp={lUp} onPointerCancel={() => setPath(null)}>
+          {path && <polygon points={path.map(p => p.join(',')).join(' ')} />}
+        </svg>
+      )}
       {hc && (
         <div className="map-tip" style={{ left: Math.min(hover.x + 14, (host.current?.clientWidth || 9999) - 260), top: hover.y + 10 }}>
           <b>{hc.n}</b><small>{hc.t}</small>

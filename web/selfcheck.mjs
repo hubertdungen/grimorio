@@ -382,3 +382,8 @@ import { tx, LANGS } from './src/i18n.js'
   assert.deepEqual(bad, [])
   console.log('selfcheck línguas ok')
 }
+
+// Universo: laço e desempenho das cartas (src/universe.js)
+import { selfcheck as universeCheck } from './src/universe.js'
+universeCheck()
+console.log('selfcheck universo ok')
