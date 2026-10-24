@@ -1511,3 +1511,10 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
   .dbox-l2 > .dbox-rt { flex-wrap: wrap; justify-content: flex-start; row-gap: 0; }
   .dbox-l2 .cas-st { flex-basis: 100%; }
 }
+/* cartão do deck no torneio: cores e estrelas em linhas fixas (antes as estrelas desciam conforme as cores) */
+.tp-l1, .tp-l2 { display: flex; align-items: center; gap: 6px; height: 18px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.tp-l1 .mana img { width: 16px; height: 16px; }
+.tp-body .row-btns { flex-wrap: nowrap; align-items: center; gap: 4px; }
+.tp-body .row-btns .link { margin-left: auto; }
+/* procura de decks públicos: a mesma linha fixa (cores + cartas) */
+.dbox-meta { min-width: 0; }
