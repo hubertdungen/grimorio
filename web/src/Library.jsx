@@ -84,7 +84,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
   useEffect(() => { if (pick && !art) fetch(`/api/decks/${d.id}`).then(r => r.json()).then(x => setArt(x.art || {})).catch(() => setArt({})) }, [pick, art, d.id])
   return (
     <div className={`dbox ${selected ? 'sel' : ''}`} style={{ '--edge': bg }} data-deck={d.id}>
-      <label className="dbox-check" title={tx('Selecionar para comparar')}><input type="checkbox" checked={!!selected} onChange={() => onSelect(d.id)} /></label>
+      <label className="dbox-check" title={tx('Selecionar (para comparar ou mudar vários de uma vez)')}><input type="checkbox" checked={!!selected} onChange={() => onSelect(d.id)} /></label>
       <button className={`dbox-fav ${d.fav ? 'on' : ''}`} onClick={() => onFav(d)} title={d.fav ? tx('Tirar dos favoritos') : tx('Pôr nos favoritos')}>{d.fav ? '★' : '☆'}</button>
       <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
         {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
@@ -130,7 +130,22 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const [view, setView] = useState(() => ls('grimorio.lib.view') || 'grelha')
   const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false), [del, setDel] = useState(null)
-  const toggleSel = id => setSel(s => (s.includes(id) ? s.filter(x => x !== id) : s.length >= 3 ? [...s.slice(1), id] : [...s, id]))
+  const toggleSel = id => setSel(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]))
+  // alterações em massa aos selecionados: o mesmo GET+PUT de um deck, campo posto a um valor (não alternado)
+  const bulk = async (patch, msg) => {
+    const ids = sel.filter(id => mine.some(d => d.id === id && Object.keys(patch).some(k => !!d[k] !== patch[k])))
+    for (const id of ids) {
+      const full = await (await fetch(`/api/decks/${id}`)).json()
+      await fetch(`/api/decks/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...full, ...patch }) })
+    }
+    setMine(m => m.map(x => (sel.includes(x.id) ? { ...x, ...patch } : x)))
+    say(tx(msg, { n: ids.length }))
+  }
+  const [bulkDel, setBulkDel] = useState(false)
+  const removeSel = async () => {
+    for (const id of sel) await fetch(`/api/decks/${id}`, { method: 'DELETE' })
+    say(tx('{n} deck foi para o lixo (30 dias).|{n} decks foram para o lixo (30 dias).', { n: sel.length })); setSel([]); setBulkDel(false); reload()
+  }
   const toggleCom = async d => {  // meu ↔ comunidade (deck de outra pessoa guardado na Biblioteca)
     const full = await (await fetch(`/api/decks/${d.id}`)).json()
     await fetch(`/api/decks/${d.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...full, community: !d.community }) })
@@ -239,9 +254,25 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
         <SyncHint />
         {!mine.length && <Empty>{tx('Ainda não tens decks guardados. Usa «✦ Novo deck» ou guarda um do meta abaixo.')}</Empty>}
         {sel.length > 0 && <div className="cmp-bar">
-          <b>{tx('{n} deck selecionado|{n} decks selecionados', { n: sel.length })}</b><span className="muted small">{tx('escolhe 2 ou 3 para comparar')}</span>
-          <button className="primary" disabled={sel.length < 2} onClick={() => setCmp(true)}>⇄ {tx('Comparar')}</button><button className="link small" onClick={() => setSel([])}>{tx('limpar')}</button>
+          <b>{tx('{n} deck selecionado|{n} decks selecionados', { n: sel.length })}</b>
+          <button className="primary" disabled={sel.length < 2 || sel.length > 3} title={tx('escolhe 2 ou 3 para comparar')} onClick={() => setCmp(true)}>⇄ {tx('Comparar')}</button>
+          <span className="cmp-mass">
+            <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}>🌐 {tx('Comunidade')}</button>
+            <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}>🧙 {tx('Meus')}</button>
+            <button onClick={() => bulk({ casual: true }, '{n} deck passou a casual|{n} decks passaram a casual')}>🎲 {tx('Casual')}</button>
+            <button onClick={() => bulk({ casual: false }, '{n} deck deixou de ser casual|{n} decks deixaram de ser casual')}>{tx('Tirar casual')}</button>
+            <button onClick={() => bulk({ fav: true }, '{n} deck nos favoritos|{n} decks nos favoritos')}>★ {tx('Favoritos')}</button>
+            <button onClick={() => bulk({ fav: false }, '{n} deck tirado dos favoritos|{n} decks tirados dos favoritos')}>☆ {tx('Tirar favorito')}</button>
+            <button className="danger" onClick={() => setBulkDel(true)}>🗑 {tx('Apagar')}</button>
+          </span>
+          <button className="link small" onClick={() => setSel([])}>{tx('limpar')}</button>
         </div>}
+        {bulkDel && <div className="modal-bg" onClick={() => setBulkDel(false)}><div className="modal" onClick={e => e.stopPropagation()}>
+          <h3>{tx('Apagar {n} decks?', { n: sel.length })}</h3>
+          <p className="muted small">{sel.map(id => mine.find(d => d.id === id)?.name).filter(Boolean).join(' · ')}</p>
+          <p className="small">{tx('Vão para o lixo e podes recuperá-los durante 30 dias.')}</p>
+          <div className="row"><button className="danger" onClick={removeSel}>🗑 {tx('Apagar')}</button><button onClick={() => setBulkDel(false)}>{tx('Cancelar')}</button></div>
+        </div></div>}
         {cmp && <DeckCompare data={data} decks={sel.map(id => mine.find(d => d.id === id)).filter(Boolean)} onClose={() => setCmp(false)}
           onOpen={id => { setCmp(false); openDeck(id).then(() => goTab('deck')) }} onFav={toggleFav} onDelete={setDel} />}
         {del && <ConfirmDelete deck={del} onYes={() => remove(del)} onNo={() => setDel(null)} />}

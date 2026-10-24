@@ -1466,3 +1466,5 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .fold.shut .fold-in { -webkit-mask-image: linear-gradient(#000 85%, transparent); mask-image: linear-gradient(#000 85%, transparent); }
 .fold-btn { display: block; margin: 6px auto 0; }
 .cardref { font: inherit; color: var(--gold2); text-decoration: underline dotted; text-underline-offset: 2px; padding: 0; }
+.cmp-mass { display: flex; flex-wrap: wrap; gap: 6px; }
+.cmp-mass button { padding: 4px 9px; font-size: 12.5px; }
