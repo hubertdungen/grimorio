@@ -663,12 +663,17 @@ def arena_status(con, owner):
         last.append({"format": f, "a": names.get((ak, f), ak), "b": names.get((bk, f), bk), "ts": ts,
                      "wa": ws.count("a"), "wb": ws.count("b"), "draws": ws.count("draw"), "open": rid == cur.get("round_id")})
     j = sim.status(ST["job"]) if ST["job"] else None
+    arts = {}  # artes próprias dos meus decks (importadas do site de origem) para o tabuleiro do «ver ao vivo»
+    for k in ("a", "b") if cur else ():
+        d = cur[k].get("kind") == "meu" and load_deck(con, cur[k])
+        if d and isinstance(d.get("art"), dict) and d["art"]:
+            arts[k] = d["art"]
     return {**{k: cfg[k] for k in ARENA}, "mine": cfg["owner"] in ("", owner), "state": ST["state"], "error": ST["error"],
             "played": kv(con, "arena_played") or 0, "today": today, "last": last,
             "avg_secs": round(sum(ST["secs"]) / len(ST["secs"])) if ST["secs"] else None,
             "cur": cur and {"format": cur["format"], "a": cur["a"]["name"], "b": cur["b"]["name"], "a_stars": cur["a"].get("stars"),
                             "b_stars": cur["b"].get("stars"), "wa": cur["games"].count("a"), "wb": cur["games"].count("b"),
-                            "bo": cur["bo"], "base": cur.get("base"), "job": j and {"id": ST["job"], "status": j["status"], "position": j.get("position"),
+                            "bo": cur["bo"], "base": cur.get("base"), "arts": arts, "job": j and {"id": ST["job"], "status": j["status"], "position": j.get("position"),
                                                            "secs": round(time.time() - ST["since"])}}}
 
 

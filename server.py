@@ -260,7 +260,7 @@ class H(BaseHTTPRequestHandler):
             out = []
             for r in rows:  # resumo para a caixa do deck: capa, comandantes e lista (as cores calculam-se no browser)
                 d = json.loads(r[4])
-                out.append({"id": r[0], "name": r[1], "format": r[2], "updated": r[3], "deleted": r[5], "count": d.get("count", 0),
+                out.append({"id": r[0], "name": r[1], "format": r[2], "updated": r[3], "deleted": r[5], "count": d.get("count", 0), "created": d.get("created") or r[3],
                             "cover": d.get("cover"), "coverImg": d.get("coverImg"), "fav": bool(d.get("fav")), "casual": bool(d.get("casual")), "commanders": d.get("commanders") or [], "seeds": (d.get("seeds") or [])[:3],
                             "main": d.get("main") or {}})
             return self.json(out)
@@ -516,6 +516,7 @@ class H(BaseHTTPRequestHandler):
             for k in ("cover", "coverImg", "art"):  # o editor pode guardar uma cópia antiga: a capa e as artes do site mantêm-se
                 if r and k not in d and json.loads(r[1]).get(k):
                     d[k] = json.loads(r[1])[k]
+            d["created"] = (r and json.loads(r[1]).get("created")) or d["updated"]  # data de criação: a da 1.ª gravação, nunca muda
             con.execute("INSERT OR REPLACE INTO decks (id, name, format, body, updated, owner, deleted) VALUES (?,?,?,?,?,?,NULL)",
                         (d["id"], str(d.get("name", ""))[:200], str(d.get("format", ""))[:40],
                          json.dumps(d, ensure_ascii=False), d["updated"], self.owner()))
@@ -668,6 +669,24 @@ def selfcheck():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def backfill_created(con):
+    """Decks de antes da data de criação: a mais antiga em que o deck aparece (gravação, testes, ratings, torneios)."""
+    rows = con.execute("SELECT id, body, updated FROM decks WHERE json_extract(body, '$.created') IS NULL").fetchall()
+    for did, body, upd in rows:
+        ts = [upd]
+        for q, a in (("SELECT min(ts) FROM sim_games WHERE deck_id=?", (did,)), ("SELECT min(ts) FROM sim_runs WHERE deck_id=?", (did,)),
+                     ("SELECT min(ts) FROM rating_games WHERE a_key=? OR b_key=?", (f"deck:{did}",) * 2),
+                     ("SELECT min(ts) FROM tournaments WHERE instr(state, ?) > 0", (did,))):
+            try:
+                ts.append(con.execute(q, a).fetchone()[0])
+            except sqlite3.Error:  # tabela ainda não existe (instalação nova)
+                pass
+        d = json.loads(body)
+        d["created"] = min(x for x in ts if x)
+        con.execute("UPDATE decks SET body=? WHERE id=?", (json.dumps(d, ensure_ascii=False), did))
+    return len(rows)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="0.0.0.0")
@@ -678,6 +697,8 @@ if __name__ == "__main__":
     ARGS = ap.parse_args()
     os.makedirs(ARGS.data_dir, exist_ok=True)
     play.init(ARGS.data_dir)
+    with db() as con:
+        backfill_created(con)
     tournament.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma os torneios a decorrer
     ratings.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma a Arena automática se estava ligada
     print(f"Grimório em http://{ARGS.host}:{ARGS.port}", flush=True)

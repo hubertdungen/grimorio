@@ -45,7 +45,7 @@ function Trophies({ list }) {
           {list.map(x => (
             <span key={x.tid} className={`tro-row ${x.valid ? '' : 'off'}`}>
               <span>🏆 {x.name}</span>
-              <small>{new Date(x.ts * 1000).toLocaleDateString(LOCALE)} · {tx('{n} decks', { n: x.n })} · {tx('{v}V {d}D', { v: x.rec[0], d: x.rec[1] })}{x.rec[2] ? ` ${x.rec[2]}E` : ''}{x.second.length ? ` · ${tx('2.º: {d}', { d: x.second.join(', ') })}` : ''}</small>
+              <small>{new Date(x.ts * 1000).toLocaleDateString(LOCALE)}{x.casual ? ` · ${tx('casual')}` : ''} · {tx('{n} decks', { n: x.n })} · {tx('{v}V {d}D', { v: x.rec[0], d: x.rec[1] })}{x.rec[2] ? ` ${x.rec[2]}E` : ''}{x.second.length ? ` · ${tx('2.º: {d}', { d: x.second.join(', ') })}` : ''}</small>
               {!x.valid && <small className="tro-why">{tx('Não conta: a lista mudou {p} desde esta vitória (máx. 10%)', { p: `${Math.round((1 - x.same) * 100)}%` })}</small>}
             </span>
           ))}
@@ -158,8 +158,23 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '' }
     const n = await post('/api/decks', { name: `${d.name} (${o.source})`, format: mf === 'duel' ? 'duel' : mf, commanders: d.commanders || [], main: d.main, side: d.side || {}, seeds: [], notes: d.url ? tx('Origem: {url}', { url: d.url }) : '', count: Object.values(d.main).reduce((a, b) => a + b, 0) + (d.commanders || []).length })
     setBusy(''); say(tx('Guardado nos teus decks: {name}', { name: n.name })); reload()
   }
+  // ordenação (guardada): dentro de cada grupo de formato
+  const [sort, setSortS] = useState(() => ls('grimorio.lib.sort') || 'alterado')
+  const setSort = v => { setSortS(v); ls('grimorio.lib.sort', v) }
+  const sorted = useMemo(() => {
+    const W = 'WUBRG', st = (d, k) => rt[`deck:${d.id}`]?.[k] ?? -1
+    const won = d => (tro[d.id] || []).filter(x => x.valid).length
+    const key = {
+      alterado: d => -(d.updated || 0), criado: d => -(d.created || d.updated || 0), nome: null,
+      cores: d => { const c = colorsOf(d, data); return c.length * 100 + (c.length ? W.indexOf(c[0]) * 10 + W.indexOf(c[c.length - 1]) : 0) },
+      amarelo: d => -st(d, 'stars'), azul: d => -st(d, 'blue'), vermelho: d => -st(d, 'red'),
+      casual: d => -(rt[`deck:${d.id}|casual`]?.stars ?? -1), trofeus: d => -won(d),
+    }[sort]
+    const byName = (a, b) => a.name.localeCompare(b.name, LOCALE, { sensitivity: 'base' })
+    return [...mine].sort((a, b) => (key ? key(a) - key(b) : 0) || byName(a, b))
+  }, [mine, sort, rt, tro, data])
   const byFmt = {}
-  for (const d of mine) (byFmt[d.format] ||= []).push(d)
+  for (const d of sorted) (byFmt[d.format] ||= []).push(d)
   // decks repetidos ou muito parecidos (≥80% da lista igual, mesmo com nomes e capas diferentes): grupos ligados
   const dupes = useMemo(() => {
     const ds = mine.filter(d => Object.keys(d.main || {}).length), up = ds.map((_, i) => i), sim = {}
@@ -173,13 +188,18 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '' }
     return Object.values(g).filter(x => x.length > 1).map(x => ({ decks: x, top: Math.max(...x.flatMap((a, i) => x.slice(i + 1).map(b => sim[`${a.id}|${b.id}`] || sim[`${b.id}|${a.id}`] || 0))) }))
       .sort((a, b) => b.top - a.top)
   }, [mine, data])
-  const favs = mine.filter(d => d.fav)
+  const favs = sorted.filter(d => d.fav)
   const fmts = [...(favs.length ? [['★', favs]] : []), ...Object.entries(byFmt).sort((a, b) => b[1].length - a[1].length)]
   const fname = f => (f === '★' ? tx('★ Favoritos') : FORMAT[f]?.name || f)
   return (
     <div className="view library">
       <section className="card">
         <h3>{tx('Os meus decks')} <span className="muted small">{mine.length}{me ? ` · ${me}` : ''}</span>
+          <select className="small lib-sort" value={sort} onChange={e => setSort(e.target.value)} aria-label={tx('Ordenar')}>
+            {[['alterado', tx('Ordenar: última alteração')], ['criado', tx('Ordenar: data de criação')], ['nome', tx('Ordenar: nome')], ['cores', tx('Ordenar: cores')],
+              ['amarelo', tx('Ordenar: rating (amarelo)')], ['azul', tx('Ordenar: todos os jogos (azul)')], ['vermelho', tx('Ordenar: objetivo (vermelho)')], ['casual', tx('Ordenar: rating casual')],
+              ['trofeus', tx('Ordenar: torneios ganhos')]].map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
           <span className="seg small">{[['grelha', tx('▦ Grelha')], ['lista', tx('☰ Lista')]].map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}</span></h3>
         {!mine.length && <Empty>{tx('Ainda não tens decks guardados. Usa «✦ Novo deck» ou guarda um do meta abaixo.')}</Empty>}
         {sel.length > 0 && <div className="cmp-bar">

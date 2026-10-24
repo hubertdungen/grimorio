@@ -1388,3 +1388,6 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .bname .chip.bet { border-color: rgba(242, 184, 75, .55); color: var(--gold2); background: rgba(242, 184, 75, .1); }
 .bname .chip.bet.won { border-color: rgba(126, 226, 168, .6); color: #7ee2a8; background: rgba(126, 226, 168, .1); }
 .bname .chip.bet.lost { opacity: .55; text-decoration: line-through; }
+.library h3 { flex-wrap: wrap; row-gap: 6px; }
+.lib-sort { margin-left: auto; width: auto; max-width: 100%; font-size: 12.5px; padding: 4px 8px; }
+.lib-sort + .seg { margin-left: 6px !important; }

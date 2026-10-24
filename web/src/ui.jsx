@@ -65,8 +65,9 @@ export function Empty({ children }) {
 
 // rating em estrelas (0,0–6,0) em três camadas, numa fila de ⌈maior valor⌉ estrelas (a última na proporção):
 // vermelho (objetivo) por baixo de tudo: contorno em todas as estrelas até ao seu valor e cheio só do maior entre
-// amarelo e azul até ao vermelho; amarelo (normal, jogos não casuais) e azul (todos os jogos): o MAIOR fica por baixo
-// e o menor por cima, por isso vê-se o menor até ao seu valor e o maior só no resto (iguais: só o amarelo). O número
+// amarelo e azul até ao vermelho; amarelo (normal, jogos não casuais) e azul (todos os jogos), com o amarelo sempre à
+// vista: amarelo maior = degradê azul→amarelo até ao azul e amarelo no resto; azul maior = amarelo até ao seu valor e
+// azul no resto (iguais: só o amarelo). O número
 // é só o amarelo. Sem rating, uma estrela cinzenta; provisório, mais claras. r = {stars, blue, red, routes, prov, elo,
 // games…} (de /api/ratings/stars ou das linhas de /api/ratings) ou v solto; bare = sem número. Rato por cima ou dedo
 // pousado ~0,5 s abre a explicação (Tip).
@@ -103,7 +104,10 @@ export function Stars({ r, v = r?.stars, prov = r?.prov, bare = false, label = '
   const b = r?.blue, rd = r?.red
   if (v == null && b == null && rd == null) return <span className="stars none" title={tx('sem rating ainda')} role="img" aria-label={tx('sem rating ainda')}>★</span>
   const y = v ?? 0, lo = Math.min(y, b ?? y), hi = Math.max(y, b ?? y), top = Math.max(hi, rd ?? 0)
-  const [cLo, cHi] = b != null && b < y ? [COL.b, COL.y] : [COL.y, COL.b]  // o menor por cima; iguais: amarelo
+  const [cLo, cHi] = b != null && b < y ? [COL.b, COL.y] : [COL.y, COL.b]
+  // o amarelo vê-se sempre: com o amarelo maior, a parte comum fica em degradê azul→amarelo e o resto amarelo; com o azul
+  // maior, primeiro o amarelo e depois o azul; iguais: só amarelo
+  const blend = b != null && b < y
   const slots = Math.max(1, Math.min(6, Math.ceil(top - 1e-9)))
   const f = (x, i) => Math.max(0, Math.min(1, x - i)) * 100
   const t = [`${label}${tx('Normal')} ${num(y, 1)}`, b != null && `${tx('Todos os jogos')} ${num(b, 1)}`, rd != null && `${tx('Objetivo')} ${num(rd, 1)}`].filter(Boolean).join(' · ')
@@ -120,7 +124,7 @@ export function Stars({ r, v = r?.stars, prov = r?.prov, bare = false, label = '
           <svg key={i} viewBox="0 0 24 24" aria-hidden="true">
             <defs>
               <linearGradient id={`${id}g`}>
-                <stop offset={`${a}%`} stopColor={cLo} /><stop offset={`${a}%`} stopColor={cHi} />
+                {blend ? <><stop offset="0%" stopColor={COL.b} /><stop offset={`${a}%`} stopColor={COL.y} /></> : <><stop offset={`${a}%`} stopColor={cLo} /><stop offset={`${a}%`} stopColor={cHi} /></>}
                 <stop offset={`${h}%`} stopColor={cHi} /><stop offset={`${h}%`} stopColor={COL.r} />
                 <stop offset={`${red}%`} stopColor={COL.r} /><stop offset={`${red}%`} stopColor={COL.none} />
               </linearGradient>
