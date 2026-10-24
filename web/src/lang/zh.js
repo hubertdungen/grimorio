@@ -1885,4 +1885,6 @@ export default {
   "tens {q}": "现有 {q}",
   "As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.": "数量已均衡：没有哪张牌明显比拖后腿的牌更能赢。",
   "Aplicar: +{k} {a}, −{k} {b}": "应用：+{k} {a}，−{k} {b}",
+  "estrelas de 0,0 a 6,0 pelo desempenho nos jogos casuais: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "按休闲对局表现给出 0.0–6.0 星：Elo 1500（平均）= 3.0★，每 100 分一颗星；6★ 表示非常强的套牌，而不只是榜首",
+  "estrelas de 0,0 a 6,0 pelo desempenho no formato: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "按该赛制表现给出 0.0–6.0 星：Elo 1500（平均）= 3.0★，每 100 分一颗星；6★ 表示非常强的套牌，而不只是榜首",
 }

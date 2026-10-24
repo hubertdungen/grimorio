@@ -1885,4 +1885,6 @@ export default {
   "tens {q}": "tienes {q}",
   "As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.": "Las cantidades están equilibradas: ninguna carta gana claramente más que otra que lastre.",
   "Aplicar: +{k} {a}, −{k} {b}": "Aplicar: +{k} {a}, −{k} {b}",
+  "estrelas de 0,0 a 6,0 pelo desempenho nos jogos casuais: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "estrellas de 0,0 a 6,0 por el rendimiento en partidas casuales: Elo 1500 (la media) = 3,0★ y cada 100 puntos una estrella; 6★ es un mazo muy fuerte, no solo el primero de la tabla",
+  "estrelas de 0,0 a 6,0 pelo desempenho no formato: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "estrellas de 0,0 a 6,0 por el rendimiento en el formato: Elo 1500 (la media) = 3,0★ y cada 100 puntos una estrella; 6★ es un mazo muy fuerte, no solo el primero de la tabla",
 }

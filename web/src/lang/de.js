@@ -1885,4 +1885,6 @@ export default {
   "tens {q}": "du hast {q}",
   "As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.": "Die Anzahlen sind ausgewogen: keine Karte gewinnt klar mehr als eine bremsende.",
   "Aplicar: +{k} {a}, −{k} {b}": "Anwenden: +{k} {a}, −{k} {b}",
+  "estrelas de 0,0 a 6,0 pelo desempenho nos jogos casuais: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "Sterne von 0,0 bis 6,0 nach Leistung in Casual-Spielen: Elo 1500 (Durchschnitt) = 3,0★ und je 100 Punkte ein Stern; 6★ ist ein sehr starkes Deck, nicht nur der Tabellenerste",
+  "estrelas de 0,0 a 6,0 pelo desempenho no formato: Elo 1500 (a média) = 3,0★ e cada 100 pontos uma estrela; 6★ é um deck muito forte, não só o primeiro da tabela": "Sterne von 0,0 bis 6,0 nach Leistung im Format: Elo 1500 (Durchschnitt) = 3,0★ und je 100 Punkte ein Stern; 6★ ist ein sehr starkes Deck, nicht nur der Tabellenerste",
 }

@@ -4,9 +4,9 @@ Elo jogo a jogo (não por ronda: Bo1 e Bo3 pesam o mesmo por jogo): começa em 1
 (provisório) e K=20 depois; esperado = 1/(1+10^((Rb-Ra)/400)); empate vale ½. Uma ronda é uma partida (Bo1 ou Bo3)
 e só conta para rondas ganhas/perdidas quando acaba (final=True); o resultado sai de todos os jogos com esse round_id.
 
-Estrelas (0,0–6,0, uma casa decimal): percentil do Elo entre os decks estabelecidos (≥ PROV jogos) desse formato,
-p = (abaixo + ½·iguais − ½)/(n − 1) entre 0 e 1 (o pior estabelecido 0,0, o melhor 6,0), estrelas = 6·p. Com menos de
-POOL decks estabelecidos usa uma escala fixa: 1500 = 3,0★ e cada 100 pontos uma estrela (≤1200 → 0★, ≥1800 → 6★).
+Estrelas (0,0–6,0, uma casa decimal): desempenho pelo Elo do formato, numa escala fixa — 1500 (a média) = 3,0★ e cada
+100 pontos uma estrela (≤1200 → 0★, ≥1800 → 6★). 6★ quer dizer um deck muito forte (ganha ~85% contra um deck médio), e
+não «o primeiro da tabela»: num formato sem nenhum dominante o melhor pode ficar abaixo de 6.
 Escalão = ⌊estrelas⌋ (o 6 só leva quem tem 6,0), com ranking dentro do escalão pelo Elo. Sem jogos conta 3,0★ provisório.
 
 Dois ratings por deck: o normal (format = o formato do deck; só jogos legais e não casuais) e o casual (format =
@@ -229,12 +229,9 @@ def from_lab(con, d, owner):
 
 # ---------- estrelas, tabela e escolhas ----------
 
-def stars(elo, dist):
-    """dist = Elos dos decks estabelecidos do formato -> 0,0–6,0 (ver o topo do ficheiro)."""
-    if len(dist) < POOL:
-        return round(max(0.0, min(TOP, TOP / 2 + (elo - START) / 100)), 1)
-    p = (sum(x < elo for x in dist) + sum(x == elo for x in dist) / 2 - 0.5) / (len(dist) - 1)
-    return round(TOP * max(0.0, min(1.0, p)), 1)
+def stars(elo, dist=None):
+    """Elo -> 0,0–6,0 pela escala fixa (ver o topo do ficheiro). `dist` já não conta: fica para não mexer nas chamadas."""
+    return round(max(0.0, min(TOP, TOP / 2 + (elo - START) / 100)), 1)
 
 
 def dist(con, fmt):
@@ -293,7 +290,7 @@ def rated(con, key):
 def layers(con):
     """{chave: {blue, blue_elo, blue_games, red, red_games, goal, routes}}: as camadas por cima do rating normal.
     Azul = Elo com TODOS os jogos (normais e casuais de todos os formatos num só Elo, as mesmas regras de K), refeito a
-    partir de rating_games; as estrelas são o percentil entre os decks estabelecidos com o mesmo formato «de casa» (o
+    partir de rating_games; as estrelas usam a mesma escala fixa do Elo (antes: o percentil no formato «de casa» (o
     formato normal com mais jogos; os só casuais ficam no grupo casual), por isso sem jogos casuais azul = amarelo.
     Vermelho = média do progresso rumo à vitória (a_prog/b_prog, todos os jogos, casuais incluídos: é desempenho)
     -> goal_stars; routes = média de cada via e `by` = em quantos jogos ganhos cada via foi a que decidiu."""
@@ -848,12 +845,11 @@ def selfcheck():
     from_lab(con, {"deck_id": "d1", "opp_key": "meta:pauper-1", "format": "pauper", "winner": "a"}, "outro")  # não é dele
     r = con.execute("SELECT games, wins, rounds, round_wins, owner FROM ratings WHERE key='deck:d1'").fetchone()
     assert r == (2, 2, 1, 1, "ana"), r
-    # estrelas: poucos decks -> faixas fixas; muitos -> percentis em 11 degraus
+    # estrelas: escala fixa pelo desempenho (1500 = 3★, +100 = +1★), seja qual for o tamanho do formato
     assert stars(1500, []) == 3 and stars(1800, []) == 6 and stars(1900, []) == 6 and stars(1200, []) == 0
     assert stars(1530, [1500] * 3) == 3.3
     ds = [1400 + 10 * i for i in range(22)]
-    assert stars(min(ds), ds) == 0 and stars(max(ds), ds) == 6 and stars(1505, ds) == 3
-    assert [stars(e, ds) for e in ds] == sorted(stars(e, ds) for e in ds)
+    assert stars(max(ds), ds) == 4.1 and stars(1662) == 4.6  # o melhor da tabela não leva 6★ só por ser o melhor
     # tabela: escalões e ranking dentro do escalão; o deck apagado some; provisórios marcados
     rng = random.Random(3)
     for i in range(12):
@@ -867,7 +863,7 @@ def selfcheck():
     assert len(t) == 12 and [r["rank"] for r in t] == list(range(1, 13)) and all(r["elo"] >= s["elo"] for r, s in zip(t, t[1:]))
     for tier in {r["tier"] for r in t}:
         assert [r["rank_in_tier"] for r in t if r["tier"] == tier] == list(range(1, 1 + sum(r["tier"] == tier for r in t)))
-    assert t[0]["stars"] >= 5 and t[-1]["stars"] <= 1 and not any(r["provisional"] for r in t)
+    assert t[0]["stars"] > t[-1]["stars"] and t[0]["stars"] == stars(t[0]["elo"]) and not any(r["provisional"] for r in t)
     assert table(con, "pauper", "ana")[0]["provisional"]
     # escolher por estrelas: sem rating = 3,0★; os meus e os do meta
     sim.opponents = lambda d, f, top=12: [{"id": f"modern-{i}", "name": f"Meta {i}"} for i in range(3)]
