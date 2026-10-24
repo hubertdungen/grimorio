@@ -132,13 +132,15 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
     <div className={`dbox ${selected ? 'sel' : ''}`} style={{ '--edge': bg }} data-deck={d.id}>
       <label className="dbox-check" title={tx('Selecionar (para comparar ou mudar vários de uma vez)')}><input type="checkbox" checked={!!selected} onChange={() => onSelect(d.id)} /></label>
       <button className={`dbox-fav ${d.fav ? 'on' : ''}`} onClick={() => onFav(d)} title={d.fav ? tx('Tirar dos favoritos') : tx('Pôr nos favoritos')}>{d.fav ? '★' : '☆'}</button>
+      <div className="dbox-top">
       <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
         {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
         <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}{d.community && <span title={tx('Deck da comunidade (de outra pessoa)')}> · <Ico n="globe" /> {tx('Comunidade')}</span>}</span>
-      </button>
+      </button>{tro?.length > 0 && <span className="dbox-tro"><Trophies list={tro} /></span>}</div>
       <div className="dbox-body">
         <b title={d.name}>{d.name}</b>
-        <span className="dbox-meta">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}><Ico n={d.community ? 'globe' : 'user'} /></button><Trophies list={tro} /><DeckRating d={d} rt={rt} rtc={rtc} /></span>
+        <span className="dbox-l1">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}>{d.community ? '🌐' : '🧙'}</button></span>
+        <span className="dbox-l2"><DeckRating d={d} rt={rt} rtc={rtc} /></span>
         <span className="row-btns">
           <button onClick={() => open('deck')}>{tx('Abrir')}</button>
           <button className="ib" onClick={() => open('teste')} title={tx('Testar no Forge')} aria-label={tx('Testar no Forge')}><Ico n="play" /></button>
@@ -298,8 +300,8 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <b>{tx('{n} deck selecionado|{n} decks selecionados', { n: sel.length })}</b>
           <button className="primary" disabled={sel.length < 2 || sel.length > 3} title={tx('escolhe 2 ou 3 para comparar')} onClick={() => setCmp(true)}>⇄ {tx('Comparar')}</button>
           <span className="cmp-mass">
-            <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}><Ico n="globe" /> {tx('Comunidade')}</button>
-            <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}><Ico n="user" /> {tx('Meus')}</button>
+            <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}>🌐 {tx('Comunidade')}</button>
+            <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}>🧙 {tx('Meus')}</button>
             <button onClick={() => bulk({ casual: true }, '{n} deck passou a casual|{n} decks passaram a casual')}><Ico n="dice" /> {tx('Casual')}</button>
             <button onClick={() => bulk({ casual: false }, '{n} deck deixou de ser casual|{n} decks deixaram de ser casual')}>{tx('Tirar casual')}</button>
             <button onClick={() => bulk({ fav: true }, '{n} deck nos favoritos|{n} decks nos favoritos')}>★ {tx('Favoritos')}</button>

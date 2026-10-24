@@ -1471,10 +1471,10 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 /* ícones SVG da Biblioteca e mini-botões numa linha só (o 🗑 caía sozinho para baixo no PC) */
 .ico { width: 1.15em; height: 1.15em; vertical-align: -.2em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .dbox .row-btns, .dbox-body .row-btns { flex-wrap: nowrap; gap: 4px; }
-.dbox .row-btns button.ib { flex: none; width: 32px; padding: 0; display: grid; place-items: center; }
+.dbox .row-btns button.ib { flex: 0 1 34px; min-width: 24px; padding: 0; display: grid; place-items: center; }  /* encolhem os ícones, nunca o «Abrir» */
 .dbox .row-btns button.ib .ico { width: 17px; height: 17px; }
 .dbox .row-btns button.ib:hover { color: var(--gold2); }
-.dbox .row-btns button:first-child { flex: 1; min-width: 0; }
+.dbox .row-btns button:first-child { flex: 1 0 auto; min-width: max-content; }
 .dbox-com .ico { width: 15px; height: 15px; }
 .cmp-mass button .ico, .dupe-d button .ico { width: 15px; height: 15px; }
 .dupe-d button.ib { display: inline-grid; place-items: center; }
@@ -1488,5 +1488,26 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .cover-grid button { padding: 0; border: 2px solid transparent; border-radius: 7px; overflow: hidden; background: none; aspect-ratio: 488/680; }
 .cover-grid button:hover { border-color: var(--line); } .cover-grid button.on { border-color: var(--gold); box-shadow: 0 0 10px #f2b84b88; }
 .cover-grid img { width: 100%; height: 100%; object-fit: cover; display: block; }
-@media (pointer: coarse) { .dbox .row-btns button.ib { width: 40px; } }
+@media (pointer: coarse) { .dbox .row-btns button.ib { flex-basis: 40px; } }
 .dbox-body { display: flex; flex-direction: column; } .dbox .row-btns { margin-top: auto; }  /* botões alinhados no fundo, com ou sem troféus */
+/* caixa do deck com esqueleto fixo: nome · cores+cartas+🧙 · estrelas (casual à direita) · botões; troféus sobre a arte */
+@media (min-width: 521px) { .dgrid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); } }
+.dbox-top { position: relative; }
+.dbox-tro { position: absolute; z-index: 2; right: 8px; bottom: 6px; display: inline-flex; padding: 1px 4px; border-radius: 999px; background: #000a; }
+.dbox-l1, .dbox-l2 { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
+.dbox-l1 .mana img { width: 16px; height: 16px; }
+.dbox-l1 > .muted { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.dbox-l1 > .dbox-com { margin-left: auto; flex: none; font-size: 14px; }
+.dbox-l2 { height: 20px; }
+.dbox-l2 > .dbox-rt { flex: 1; display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: 6px; max-width: none; }
+.dbox-l2 .cas-st { flex: none; }
+/* caixas estreitas (telemóvel, 2 colunas): «Abrir» numa linha e os ícones por baixo; «casual ★» por baixo das estrelas */
+.dbox { container-type: inline-size; }
+@container (max-width: 190px) {
+  .dbox .row-btns { flex-wrap: wrap; }
+  .dbox .row-btns button:first-child { flex-basis: 100%; }
+  .dbox .row-btns button.ib { flex: 1 1 0; min-width: 0; }
+  .dbox-l2 { height: auto; min-height: 34px; align-items: flex-start; }
+  .dbox-l2 > .dbox-rt { flex-wrap: wrap; justify-content: flex-start; row-gap: 0; }
+  .dbox-l2 .cas-st { flex-basis: 100%; }
+}
