@@ -5,7 +5,7 @@ import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras } from '.
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana } from './ui.jsx'
-import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker } from './Views.jsx'
+import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, showCardPeek, hideCardPeek } from './Views.jsx'
 import DraftView from './Draft.jsx'
 import NewDeckWizard from './Wizard.jsx'
 import LabView from './Lab.jsx'
@@ -432,7 +432,7 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
         <b>{q}</b>
         <button onClick={() => c && act.add(c, zone, 1)} aria-label={tx('Mais')}>+</button>
       </span>
-      <button className="row-name" onClick={() => c && act.open(c)} onMouseEnter={e => c && showPeek(e, c, pidOf(deck, n))} onMouseLeave={hidePeek}>{n}</button>
+      <button className="row-name" onClick={() => c && act.open(c)} onMouseEnter={e => c && showCardPeek(e, c, pidOf(deck, n))} onMouseLeave={hideCardPeek}>{n}</button>
       {c && <Mana cost={c.mc} />}
       {c && <select className="mv" value="" onChange={e => act.move(c, zone, e.target.value)} aria-label={tx('Mover {card}', { card: n })} title={tx('Mover para…')}>
         <option value="">⇄</option>{zones.filter(z => z !== zone).map(z => <option key={z} value={z}>→ {ZONE_L[z]}</option>)}</select>}
@@ -585,32 +585,6 @@ function RefreshDialog({ data, deck, setDeck, say, onClose }) {
     </div>
   )
 }
-
-// Pré-visualização da carta ao passar o rato na lista (só em ecrãs com rato).
-let peekEl
-function showPeek(e, c, pid) {
-  if (!matchMedia('(hover: hover)').matches) return
-  peekEl ||= Object.assign(document.body.appendChild(document.createElement('img')), { className: 'peek' })
-  const r = e.currentTarget.getBoundingClientRect()
-  peekEl.src = img(c, 'normal', false, pid)
-  peekEl.style.top = `${Math.min(window.innerHeight - 350, Math.max(8, r.top - 120))}px`
-  peekEl.style.left = `${r.right + 12}px`
-  peekEl.style.display = 'block'
-  watchPeek(peekEl, e.currentTarget)
-}
-// o pré-visualizador fecha-se se a linha por baixo desaparecer (ex.: «−» tirou a última cópia), a qualquer clique ou scroll
-let peekAnchor, peekTimer
-function watchPeek(el, a) {
-  peekAnchor = a
-  if (!window.__peekGuard) {
-    window.__peekGuard = true
-    for (const ev of ['pointerdown', 'scroll', 'keydown']) addEventListener(ev, () => document.querySelectorAll('img.peek').forEach(p => { p.style.display = 'none' }), true)
-  }
-  clearInterval(peekTimer)
-  peekTimer = setInterval(() => { if (!peekAnchor?.isConnected || !peekAnchor.matches(':hover')) { el.style.display = 'none'; clearInterval(peekTimer) } }, 250)
-}
-
-function hidePeek() { if (peekEl) peekEl.style.display = 'none' }
 
 function ImportDialog({ data, deck, setDeck, say, onClose, onImported }) {
   const [text, setText] = useState('')

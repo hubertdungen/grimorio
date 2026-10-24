@@ -617,29 +617,35 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
 
 let peek
 const hoverPeek = (c, pid) => ({ onMouseEnter: e => showCardPeek(e, c, pid), onMouseLeave: hideCardPeek })
-function showCardPeek(e, c, pid) {
+// ao lado da linha; num scroll (do rato ou do browser a reajustar a página) acompanha a linha enquanto o rato lá estiver
+const placePeek = (el, a) => {
+  const r = a.getBoundingClientRect()
+  el.style.top = `${Math.min(window.innerHeight - 350, Math.max(8, r.top - 120))}px`
+  el.style.left = `${Math.min(window.innerWidth - 250, r.right + 12)}px`
+}
+export function showCardPeek(e, c, pid) {
   if (!matchMedia('(hover: hover)').matches) return
   peek ||= Object.assign(document.body.appendChild(document.createElement('img')), { className: 'peek' })
-  const r = e.currentTarget.getBoundingClientRect()
   peek.src = img(c, 'normal', false, pid)
-  peek.style.top = `${Math.min(window.innerHeight - 350, Math.max(8, r.top - 120))}px`
-  peek.style.left = `${Math.min(window.innerWidth - 250, r.right + 12)}px`
+  placePeek(peek, e.currentTarget)
   peek.style.display = 'block'
   watchPeek(peek, e.currentTarget)
 }
-// o pré-visualizador fecha-se se a linha por baixo desaparecer (ex.: «−» tirou a última cópia), a qualquer clique ou scroll
+// fecha-se se a linha por baixo desaparecer (ex.: «−» tirou a última cópia), se o rato sair dela ou a qualquer clique/tecla
 let peekAnchor, peekTimer
+const anchored = () => peekAnchor?.isConnected && peekAnchor.matches(':hover')
 function watchPeek(el, a) {
   peekAnchor = a
   if (!window.__peekGuard) {
     window.__peekGuard = true
-    for (const ev of ['pointerdown', 'scroll', 'keydown']) addEventListener(ev, () => document.querySelectorAll('img.peek').forEach(p => { p.style.display = 'none' }), true)
+    for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => hideCardPeek(), true)
+    addEventListener('scroll', () => { if (peek?.style.display === 'block') { if (anchored()) placePeek(peek, peekAnchor); else hideCardPeek() } }, true)
   }
   clearInterval(peekTimer)
-  peekTimer = setInterval(() => { if (!peekAnchor?.isConnected || !peekAnchor.matches(':hover')) { el.style.display = 'none'; clearInterval(peekTimer) } }, 250)
+  peekTimer = setInterval(() => { if (!anchored()) { el.style.display = 'none'; clearInterval(peekTimer) } }, 250)
 }
 
-function hideCardPeek() { if (peek) peek.style.display = 'none' }
+export function hideCardPeek() { if (peek) peek.style.display = 'none' }
 
 const inDeck = (deck, n) => (deck.main[n] || 0) + (deck.side[n] || 0) + (deck.commanders.includes(n) ? 1 : 0) + (deck.signature === n ? 1 : 0)
 
