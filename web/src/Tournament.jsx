@@ -6,6 +6,7 @@ import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.j
 import { img, coverOf, colorsOf, HUE } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import Replay from './Board.jsx'
+import { Cup, PLACE, TIERS, tierOf } from './Library.jsx'
 import { swapSide, nextGame } from './game.js'
 import { DIFF_INFO } from './difficulty.js'
 import { tx, LOCALE } from './i18n.js'
@@ -724,12 +725,17 @@ function Fame({ data, list }) {
   const fmts = [...new Set(list.filter(x => x.podium && !x.casual).map(x => x.format))]
   const rows = {}
   for (const x of list) if (x.podium && (!f || (f === 'casual' ? x.casual : !x.casual && x.format === f))) for (const p of x.podium) {
-    const r = (rows[`${p.src}:${p.ref}`] ||= { ...p, m: [0, 0, 0] })
+    const r = (rows[`${p.src}:${p.ref}`] ||= { ...p, m: [0, 0, 0], med: [] })
     r.m[p.place - 1]++
+    r.med.push({ tier: tierOf(p.place, x.champions), casual: !!x.casual, tid: x.id, place: p.place })
   }
+  // troféus dos meus decks que já não contam (a lista mudou mais de 10% desde o torneio): ficam a cinzento na galeria
+  const [tro, setTro] = useState({})
+  useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const top = Object.values(rows).filter(r => who === 'todos' || (who === 'meus') === (r.src === 'meus'))
     .sort((a, b) => b.m[0] - a.m[0] || b.m[1] - a.m[1] || b.m[2] - a.m[2] || a.name.localeCompare(b.name))
   return (
+    <>
     <section className="card fame">
       <h3>{tx('🏛 Hall da fama')}</h3>
       <div className="row-btns">
@@ -744,5 +750,19 @@ function Fame({ data, list }) {
           ))}</tbody></table>
       )}
     </section>
+      {top.length > 0 && <section className="card fg-sec">
+        <h3>{tx('Galeria de troféus')} <span className="muted small">{tx('segue os filtros do hall da fama')}</span></h3>
+        <div className="fame-gal">{top.slice(0, 30).map(r => {
+          const off = m => r.src === 'meus' && (tro[r.ref] || []).some(t => t.tid === m.tid && t.place === m.place && !t.valid)
+          const g = {}
+          for (const m of r.med) { const k = `${m.tier}|${m.casual}|${off(m)}`; (g[k] ||= { ...m, off: off(m), n: 0 }).n++ }
+          const cups = Object.values(g).sort((a, b) => a.off - b.off || TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.casual - b.casual)
+          const body = <><Thumb data={data} p={r} /><b title={r.name}>{r.name}</b>
+            <span className="fg-cups">{cups.map(c => <span key={`${c.tier}${c.casual}${c.off}`} className="fg-cup" title={`${PLACE[c.tier]}${c.casual ? ` · ${tx('casual')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''}`}><Cup place={c.tier} casual={c.casual} off={c.off} />{c.n > 1 && <small>×{c.n}</small>}</span>)}</span></>
+          return r.src === 'meus' ? <button key={`${r.src}:${r.ref}`} className="fg-card me" onClick={() => showDeck(r.ref)} title={tx('Abrir na Biblioteca')}>{body}</button>
+            : <div key={`${r.src}:${r.ref}`} className="fg-card">{body}</div>
+        })}</div>
+      </section>}
+    </>
   )
 }

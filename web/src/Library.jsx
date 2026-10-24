@@ -21,12 +21,13 @@ function DeckRating({ d, rt, rtc }) {
 
 // Troféus: pódios em torneios — ouro, prata e bronze (até 3 sobrepostos e «+N»); casuais em degradê com azul (como as
 // estrelas). Passar o rato ou tocar mostra a lista. Só contam enquanto a lista não mudar mais de 10% (tournament.py trophies).
-const MEDAL = { plat: ['#ffffff', '#9cc7f0'], 1: ['#ffd98a', '#e9a93a'], 2: ['#f4f7fb', '#a9b4c2'], 3: ['#f0b27a', '#a8652f'] }
+// torneio dos campeões: 1.º platina, 2.º safira, 3.º rubi (pedras preciosas, com o brilho da platina)
+const MEDAL = { plat: ['#ffffff', '#9cc7f0'], safira: ['#bfe0ff', '#1f4fd1'], rubi: ['#ffc2cc', '#b3122f'], 1: ['#ffd98a', '#e9a93a'], 2: ['#f4f7fb', '#a9b4c2'], 3: ['#f0b27a', '#a8652f'] }
 const CUP = 'M6 3h12v2h3v3a4 4 0 0 1-4 4h-.3A6 6 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1A6 6 0 0 1 7.3 12H7a4 4 0 0 1-4-4V5h3V3zm-1 4v1a2 2 0 0 0 1.2 1.8A6 6 0 0 1 6 9V7H5zm13 0v2a6 6 0 0 1-.2.8A2 2 0 0 0 19 8V7h-1z'
-function Cup({ place, casual, off }) {
+export function Cup({ place, casual, off }) {
   const id = `cup${useId().replace(/[^\w-]/g, '')}`, [hi, lo] = MEDAL[place] || MEDAL[1]
   return (
-    <svg className={`cup ${off ? 'off' : ''} ${place === 'plat' ? 'plat' : ''}`} viewBox="0 0 24 24" aria-hidden="true">
+    <svg className={`cup ${off ? 'off' : ''} ${place === 'plat' ? 'plat' : ''} ${place === 'safira' || place === 'rubi' ? `gem ${place}` : ''}`} viewBox="0 0 24 24" aria-hidden="true">
       <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
         {casual ? <><stop offset="0" stopColor="#4ea8ff" /><stop offset=".55" stopColor={hi} /><stop offset="1" stopColor={lo} /></> : <><stop offset="0" stopColor={hi} /><stop offset="1" stopColor={lo} /></>}
       </linearGradient></defs>
@@ -34,8 +35,10 @@ function Cup({ place, casual, off }) {
     </svg>
   )
 }
-const PLACE = { plat: tx('Platina: campeão dos campeões'), 1: tx('1.º lugar'), 2: tx('2.º lugar'), 3: tx('3.º lugar') }
-const tier = x => (x.platinum ? 'plat' : x.place)
+export const PLACE = { plat: tx('Platina: campeão dos campeões'), safira: tx('Safira: 2.º no torneio dos campeões'), rubi: tx('Rubi: 3.º no torneio dos campeões'), 1: tx('1.º lugar'), 2: tx('2.º lugar'), 3: tx('3.º lugar') }
+export const TIERS = ['plat', 'safira', 'rubi', 1, 2, 3]
+export const tierOf = (place, champions) => (champions ? { 1: 'plat', 2: 'safira', 3: 'rubi' }[place] : place)
+const tier = x => (x.platinum ? 'plat' : tierOf(x.place, x.champions))
 function Trophies({ list }) {
   const [open, setOpen] = useState(null)  // posição no ecrã (o cartão do deck corta o que sai dele)
   useEffect(() => {  // fecha ao tocar fora ou ao rolar a página (está preso ao ecrã)
@@ -47,9 +50,9 @@ function Trophies({ list }) {
   }, [open])
   if (!list?.length) return null
   const show = e => { const r = e.currentTarget.getBoundingClientRect(); setOpen({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left - 8, innerWidth - 330)) }) }
-  const ok = list.filter(x => x.valid).sort((a, b) => !!b.platinum - !!a.platinum), shown = ok.length ? ok : list.slice(0, 1)  // a platina à frente
+  const ok = list.filter(x => x.valid).sort((a, b) => TIERS.indexOf(tier(a)) - TIERS.indexOf(tier(b))), shown = ok.length ? ok : list.slice(0, 1)  // a platina à frente
   const n = p => ok.filter(x => tier(x) === p).length
-  const sum = ['plat', 1, 2, 3].filter(n).map(p => `${n(p)}× ${PLACE[p]}`).join(' · ') || tx('Nenhum troféu válido')
+  const sum = TIERS.filter(n).map(p => `${n(p)}× ${PLACE[p]}`).join(' · ') || tx('Nenhum troféu válido')
   return (
     <span className={`tro ${ok.length ? '' : 'lost'}`} onMouseEnter={show} onMouseLeave={() => setOpen(null)}>
       <button className="tro-ic" onClick={e => { e.stopPropagation(); if (open) setOpen(null); else show({ currentTarget: e.currentTarget.parentNode }) }} aria-expanded={!!open} aria-label={sum}>
@@ -238,7 +241,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   const setSort = v => { setSortS(v); ls('grimorio.lib.sort', v) }
   const sorted = useMemo(() => {
     const W = 'WUBRG', st = (d, k) => rt[`deck:${d.id}`]?.[k] ?? -1
-    const won = d => (tro[d.id] || []).filter(x => x.valid).reduce((t, x) => t + (x.platinum ? 1000 : { 1: 100, 2: 10, 3: 1 }[x.place] || 0), 0)  // platina > ouro > prata > bronze
+    const won = d => (tro[d.id] || []).filter(x => x.valid).reduce((t, x) => t + ({ plat: 1000, safira: 300, rubi: 150, 1: 100, 2: 10, 3: 1 }[tier(x)] || 0), 0)  // platina > safira > rubi > ouro > prata > bronze
     const key = {
       alterado: d => -(d.updated || 0), criado: d => -(d.created || d.updated || 0), nome: null,
       cores: d => { const c = colorsOf(d, data); return c.length * 100 + (c.length ? W.indexOf(c[0]) * 10 + W.indexOf(c[c.length - 1]) : 0) },

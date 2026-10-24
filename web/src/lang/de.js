@@ -1966,4 +1966,9 @@ export default {
   "sem cor": "ohne Farbe",
   "A tua cor marca também o teu deck nos torneios (árvore, classificação, pódio).": "Deine Farbe markiert dein Deck auch in Turnieren (Baum, Tabelle, Podium).",
   "repor as cores": "Farben zurücksetzen",
+  "Safira: 2.º no torneio dos campeões": "Saphir: 2. im Turnier der Champions",
+  "Rubi: 3.º no torneio dos campeões": "Rubin: 3. im Turnier der Champions",
+  "Galeria de troféus": "Trophäengalerie",
+  "não conta: a lista mudou mais de 10%": "zählt nicht: die Liste hat sich um mehr als 10% geändert",
+  "segue os filtros do hall da fama": "folgt den Filtern der Ruhmeshalle",
 }

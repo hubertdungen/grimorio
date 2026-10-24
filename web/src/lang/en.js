@@ -1974,4 +1974,9 @@ export default {
   "sem cor": "no colour",
   "A tua cor marca também o teu deck nos torneios (árvore, classificação, pódio).": "Your colour also marks your deck in tournaments (bracket, standings, podium).",
   "repor as cores": "reset colours",
+  "Safira: 2.º no torneio dos campeões": "Sapphire: 2nd in the champions tournament",
+  "Rubi: 3.º no torneio dos campeões": "Ruby: 3rd in the champions tournament",
+  "Galeria de troféus": "Trophy gallery",
+  "não conta: a lista mudou mais de 10%": "doesn't count: the list changed more than 10%",
+  "segue os filtros do hall da fama": "follows the hall of fame filters",
 }

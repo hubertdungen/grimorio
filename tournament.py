@@ -611,7 +611,7 @@ def trophies(con, owner):
             row, same = rows.get(x["i"], {}), round(similarity(st["decks"][x["i"]], cur[x["ref"]]), 3)
             out.setdefault(x["ref"], []).append({
                 "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "casual": bool(st.get("casual")),
-                "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1,
+                "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")),
                 "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
                 "first": [y["name"] for y in pod if y["place"] == 1 and y["i"] != x["i"]],
                 "second": [y["name"] for y in pod if y["place"] == 2 and y["i"] != x["i"]], "same": same, "valid": same >= SAME})

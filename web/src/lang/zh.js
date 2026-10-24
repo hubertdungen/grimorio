@@ -1966,4 +1966,9 @@ export default {
   "sem cor": "无颜色",
   "A tua cor marca também o teu deck nos torneios (árvore, classificação, pódio).": "你的颜色也会在锦标赛中标记你的套牌（对阵图、排名、领奖台）。",
   "repor as cores": "恢复默认颜色",
+  "Safira: 2.º no torneio dos campeões": "蓝宝石：冠军赛第二名",
+  "Rubi: 3.º no torneio dos campeões": "红宝石：冠军赛第三名",
+  "Galeria de troféus": "奖杯陈列",
+  "não conta: a lista mudou mais de 10%": "不计入：牌表变化超过 10%",
+  "segue os filtros do hall da fama": "跟随名人堂的筛选",
 }
