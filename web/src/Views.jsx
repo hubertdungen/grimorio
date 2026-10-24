@@ -8,7 +8,7 @@ import { autoBuild } from './autobuild.js'
 import { deckSynergy } from './synergy.js'
 import { manaNeeds, recommendLands } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
-import { prepareSwaps } from './swap.js'
+import { prepareSwaps, cutPlan } from './swap.js'
 import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone } from './universe.js'
 
@@ -84,6 +84,43 @@ function useTastes(data, deck) {
 }
 
 // Personalização opcional das sugestões (fica guardada no deck).
+// ✂ Trocar no deck: cartas (do deck e do sideboard) que já apareceram em jogos e merecem sair, cada uma com a substituta
+// ideal (mesmo efeito, ou que cumpra uma sinergia/combo do deck) — o motor das trocas ao contrário (swap.js cutPlan)
+function CutPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
+  const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.trocar') === '1' } catch { return false } })
+  const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.trocar', v ? '1' : '0') } catch { /* sem armazenamento */ } }
+  const plan = useMemo(() => {
+    if (!open) return null
+    const side = fmt.side > 0 ? sideSuggest(data, deck, ctx).flatMap(x => x.cards).filter(c => c.tg.includes('hate')) : []
+    return cutPlan(swaps, [...recs.slice(0, 40).map(r => r.c), ...side], ctx.tests)
+  }, [open, data, deck, fmt, ctx, swaps, recs])
+  const enough = plan && plan.games >= 3
+  return (
+    <div className={`prefs cutp ${open ? 'on' : ''}`}>
+      <button className="prefs-head" onClick={() => setOpen(!open)}>
+        <span>✂ {tx('Trocar no deck')}</span><small className="muted">{plan ? (enough ? tx('{n} carta a trocar|{n} cartas a trocar', { n: plan.cuts.length }) : tx('precisa de jogos')) : tx('cartas que merecem sair e a troca ideal')}</small><span className="chev">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && plan && (
+        <div className="cutp-body">
+          {!enough ? <p className="muted small">{tx('Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).', { n: plan.games })}</p>
+            : !plan.cuts.length ? <p className="muted small">{tx('Nenhuma carta merece claramente sair: as que apareceram nos jogos estão a cumprir o seu papel.')}</p>
+              : <ul className="cutp-list">{plan.cuts.map(x => { const o = data.byName.get(x.out); return (
+                <li key={x.out}>
+                  <div className="cutp-pair">
+                    <button className="cutp-card" onClick={() => o && act.open(o)}>{o && <img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" />}<span><b>{x.out}</b><small className="muted">{x.zone === 'side' ? `${tx('sideboard')} · ` : ''}{tx('vista em {n} jogos', { n: x.seen })}</small></span></button>
+                    <span className="cutp-arrow">→</span>
+                    <button className="cutp-card in" onClick={() => act.open(x.inc)}><img src={img(x.inc, 'art_crop')} alt="" loading="lazy" /><span><b>{x.inc.n}</b><Mana cost={x.inc.mc} /></span></button>
+                  </div>
+                  <ul className="why">{x.why.map((w, k) => <li key={k} className="falta">{w}</li>)}</ul>
+                  <div className="row-btns"><button className="primary small" onClick={() => act.swap(x.inc, x)}>⇄ {tx('Trocar')}</button>{x.alts.length > 0 && <span className="muted small">{tx('ou:')} {x.alts.map((c, k) => <span key={c.n}>{k ? ', ' : ''}<button className="link plain" onClick={() => act.swap(c, x)} title={tx('Trocar por esta')}>{c.n}</button></span>)}</span>}</div>
+                </li>
+              ) })}</ul>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function PrefsPanel({ deck, fmt, act, compact = false }) {
   const pf = deck.prefs || {}
   const [open, setOpen] = useState(!compact && pf.on)
@@ -586,6 +623,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
         <SeedPicker {...{ data, ctx, act }} />
       </div>
       <PrefsPanel {...{ deck, fmt, act }} />
+      <CutPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug }} />
       <Filters f={f} set={x => { setSugTag(''); setF(x) }} compact noTag />
       <ReasonFilter recs={allSug} kind={kind} setKind={setKind} tag={f.tag} setTag={t => { setSugTag(''); setF(x => ({ ...x, tag: t })) }} needs={needs} />
       {seeds.length > 0 && <p className="muted small">{tx('Classificadas por semelhança mecânica (modelo de texto local), combos do Commander Spellbook e popularidade.')} <button className="link" onClick={() => act.showOnMap(recs[0]?.c || data.cards[seeds[0]])}>{tx('Ver no universo →')}</button></p>}

@@ -187,3 +187,12 @@ const mill = (src, n) => [{ k: 'trigger', p: 'a', card: src }, ...Array.from({ l
   assert.deepEqual(applySwap({ ...d, commanders: ['A'] }, 'B', 'A').commanders, ['B'])
 }
 console.log('\nswap check ok')
+
+// «Trocar no deck» (cutPlan): só cartas vistas em 3+ jogos; a mais forte troca fica com a substituta
+{
+  const { cutPlan } = await import('./src/swap.js')
+  const fake = S => ({ In1: [{ out: 'Bad', q: 1, score: 0.5, why: ['x'], kind: 'mesmo papel' }], In2: [{ out: 'Unseen', q: 1, score: 0.6, why: ['y'], kind: 'curva' }], In3: [{ out: 'Bad', q: 1, score: 0.7, why: ['z'], kind: 'mesmo papel' }] })[S.n] || []
+  const r = cutPlan(fake, [{ n: 'In1' }, { n: 'In2' }, { n: 'In3' }], { exact: 5, cards: { Bad: { seen: 4 }, Unseen: { seen: 0 } } })
+  if (!(r.cuts.length === 1 && r.cuts[0].out === 'Bad' && r.cuts[0].inc.n === 'In3' && r.cuts[0].alts[0].n === 'In1')) throw new Error('cutPlan: ' + JSON.stringify(r))
+  console.log('cutPlan ok')
+}

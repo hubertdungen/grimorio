@@ -1852,4 +1852,13 @@ export default {
   "Junta um deck do meta ao acaso": "随机加入一副环境套牌",
   "ao acaso": "随机",
   "Junta um deck teu ao acaso": "随机加入一副你的套牌",
+  "Trocar no deck": "套牌替换",
+  "{n} carta a trocar|{n} cartas a trocar": "{n} 张牌可替换|{n} 张牌可替换",
+  "precisa de jogos": "需要对局",
+  "cartas que merecem sair e a troca ideal": "该换下的牌及理想替换",
+  "Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).": "这副套牌的对局还不够（{n}/3）。只评判已在对局中出现过的牌：让它去竞技场对战（机器人、赛事或 Arena）。",
+  "Nenhuma carta merece claramente sair: as que apareceram nos jogos estão a cumprir o seu papel.": "没有明显该换下的牌：对局中出现过的牌都在发挥作用。",
+  "vista em {n} jogos": "在 {n} 局中出现",
+  "Trocar por esta": "换成这张",
+  "ou:": "或：",
 }

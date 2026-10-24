@@ -1424,3 +1424,16 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 
 /* capa com a arte própria do site (é a carta inteira): mostra a zona da ilustração */
 .dbox-art img.own-art { object-position: 50% 15%; }
+
+/* ✂ Trocar no deck (Sugestões) */
+.cutp-body { padding: 8px 10px 10px; }
+.cutp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cutp-list > li { display: grid; gap: 4px; padding: 8px; border-radius: 10px; background: #ffffff06; border: 1px solid var(--line); }
+.cutp-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.cutp-card { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px; text-align: left; background: none; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+.cutp-card:hover { border-color: var(--line); }
+.cutp-card > img { width: 64px; height: 47px; object-fit: cover; border-radius: 6px; flex: none; }
+.cutp-card .mana img { width: 15px; height: 15px; }
+.cutp-card span { display: grid; min-width: 0; } .cutp-card b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cutp-card:not(.in) > img { filter: saturate(.6); }
+.cutp-arrow { color: var(--gold2); font-size: 18px; }

@@ -1852,4 +1852,13 @@ export default {
   "Junta um deck do meta ao acaso": "Ein zufälliges Meta-Deck hinzufügen",
   "ao acaso": "zufällig",
   "Junta um deck teu ao acaso": "Eines deiner Decks zufällig hinzufügen",
+  "Trocar no deck": "Im Deck tauschen",
+  "{n} carta a trocar|{n} cartas a trocar": "{n} Karte zum Tauschen|{n} Karten zum Tauschen",
+  "precisa de jogos": "braucht Spiele",
+  "cartas que merecem sair e a troca ideal": "Karten, die raus sollten, und der ideale Tausch",
+  "Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).": "Dieses Deck hat noch nicht genug Spiele ({n} von 3). Bewertet werden nur Karten, die schon in Spielen aufgetaucht sind: lass es im Kolosseum spielen (Bots, Turniere oder Arena).",
+  "Nenhuma carta merece claramente sair: as que apareceram nos jogos estão a cumprir o seu papel.": "Keine Karte muss eindeutig raus: die, die in Spielen auftauchten, erfüllen ihre Rolle.",
+  "vista em {n} jogos": "in {n} Spielen gesehen",
+  "Trocar por esta": "Gegen diese tauschen",
+  "ou:": "oder:",
 }

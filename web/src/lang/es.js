@@ -1852,4 +1852,13 @@ export default {
   "Junta um deck do meta ao acaso": "Añade un mazo del meta al azar",
   "ao acaso": "al azar",
   "Junta um deck teu ao acaso": "Añade uno de tus mazos al azar",
+  "Trocar no deck": "Cambiar en el mazo",
+  "{n} carta a trocar|{n} cartas a trocar": "{n} carta para cambiar|{n} cartas para cambiar",
+  "precisa de jogos": "necesita partidas",
+  "cartas que merecem sair e a troca ideal": "cartas que merecen salir y el cambio ideal",
+  "Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).": "Este mazo aún no tiene suficientes partidas ({n} de 3). Solo se juzgan cartas que ya aparecieron en partidas: ponlo a jugar en el Coliseo (bots, torneos o Arena).",
+  "Nenhuma carta merece claramente sair: as que apareceram nos jogos estão a cumprir o seu papel.": "Ninguna carta merece claramente salir: las que aparecieron en las partidas cumplen su función.",
+  "vista em {n} jogos": "vista en {n} partidas",
+  "Trocar por esta": "Cambiar por esta",
+  "ou:": "o:",
 }

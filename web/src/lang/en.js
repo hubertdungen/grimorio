@@ -1860,4 +1860,13 @@ export default {
   "Junta um deck do meta ao acaso": "Add a random meta deck",
   "ao acaso": "random",
   "Junta um deck teu ao acaso": "Add one of your decks at random",
+  "Trocar no deck": "Swap in the deck",
+  "{n} carta a trocar|{n} cartas a trocar": "{n} card to swap|{n} cards to swap",
+  "precisa de jogos": "needs games",
+  "cartas que merecem sair e a troca ideal": "cards that should leave and the ideal swap",
+  "Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).": "This deck doesn't have enough games yet ({n} of 3). Only cards that have already shown up in games are judged: let it play in the Coliseum (bots, tournaments or Arena).",
+  "Nenhuma carta merece claramente sair: as que apareceram nos jogos estão a cumprir o seu papel.": "No card clearly needs to leave: the ones that showed up in games are doing their job.",
+  "vista em {n} jogos": "seen in {n} games",
+  "Trocar por esta": "Swap for this one",
+  "ou:": "or:",
 }

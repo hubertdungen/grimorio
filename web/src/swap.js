@@ -16,6 +16,10 @@ import { tx, LOCALE } from './i18n.js'
 // kind é um identificador; mostrar com KIND_LABEL
 export const KIND_LABEL = { 'mesmo papel': tx('mesmo papel'), 'mais caro': tx('mais caro'), 'fora do plano': tx('fora do plano'), 'linha fraca': tx('linha fraca'), curva: tx('curva') }
 export const NO_SWAP = tx('Não há troca óbvia: junta-a como carta extra ou corta outra coisa')
+const WEAK = tx('Sem troca evidente: é a linha mais fraca')
+// custo alternativo ou lançada de outro sítio (delve, convoke, afinidade, evocar, do cemitério…): o MV não diz o que custa
+const ALT = /\b(delve|convoke|improvise|affinity for|emerge|evoke|suspend|foretell|escape|unearth|dash|madness|spectacle|prowl|surge|blitz|disturb|flashback|bestow|ninjutsu)\b|costs? \{\d+\} less|costs? less to cast|without paying (its|their|that card's) mana cost/i
+export const altCost = c => ALT.test(c.o || '')
 // como o deck ganha: identificadores de gameEvidence().wincon.kind
 export const WIN_LABEL = { damage: tx('dano'), drain: tx('dreno de vida'), mill: tx('mill'), poison: tx('veneno'), alt: tx('combo / vitória alternativa') }
 
@@ -159,6 +163,33 @@ export function swapFor(data, deck, fmt, card, ctx, opts = {}) {
   return prepareSwaps(data, deck, fmt, ctx, opts)(card, opts)
 }
 
+/**
+ * «Trocar no deck»: o motor das trocas ao contrário — as cartas do deck (e do sideboard) que alguma sugestão substitui
+ * de forma clara (o limiar do motor: score ≥ 0,3 com motivos contra a carta) e, para cada uma, a melhor substituta.
+ * Só se julgam cartas vistas em `minSeen`+ jogos exatos (as que nunca tiveram hipótese de aparecer ficam de fora); as
+ * ilegais entram sempre. fn = prepareSwaps(…); cands = sugestões (cartas) do deck e do sideboard; ev = gameEvidence().
+ * Devolve {cuts: [{out, q, zone, score, why, kind, seen, inc, alts}], games}.
+ */
+export function cutPlan(fn, cands, ev, { minSeen = 3, n = 10 } = {}) {
+  const games = ev?.exact || 0, by = new Map()
+  const illegal = w => w.some(t => t === tx('Ilegal no formato') || t === tx('Fora da identidade ou ilegal no formato'))
+  for (const S of cands) {
+    let list = []
+    try { list = fn(S, { limit: 3 }) || [] } catch { continue }
+    if (list.none) continue
+    for (const x of list) {
+      if (x.why[0] === WEAK) continue  // não é «claramente pior»
+      const seen = ev?.cards?.[x.out]?.seen || 0
+      if (!illegal(x.why) && seen < minSeen) continue
+      const cur = by.get(x.out)
+      if (!cur) by.set(x.out, { ...x, seen, inc: S, alts: [] })
+      else if (x.score > cur.score) by.set(x.out, { ...x, seen, inc: S, alts: [cur.inc, ...cur.alts].slice(0, 3) })
+      else if (cur.alts.length < 3 && !cur.alts.includes(S)) cur.alts.push(S)
+    }
+  }
+  return { cuts: [...by.values()].sort((a, b) => b.score - a.score).slice(0, n), games }
+}
+
 /** Troca q cópias de outName por inName na zona onde outName está (deck, sideboard ou comandantes). */
 export function applySwap(deck, inName, outName, q = 1) {
   if (deck.commanders?.includes(outName)) return { ...deck, commanders: deck.commanders.map(n => (n === outName ? inName : n)) }
@@ -283,7 +314,7 @@ function build(data, deck, fmt, ctx, opts) {
   const nDeck = Math.max(40, s.lands + s.spells)
   // ponytail: terrenos e cores tratados como independentes e sem contar o ramp; serve para comparar duas cartas
   const castProb = c => {
-    if (!c.cmc || s.lands < 8) return 1
+    if (!c.cmc || s.lands < 8 || altCost(c)) return 1
     const t = Math.ceil(c.cmc), n = Math.min(nDeck, 6 + t)
     let p = atLeast(nDeck, s.lands, n, t)
     for (const k of deckCols) { const m = pipsOf(c, k); if (m) p *= atLeast(nDeck, N.cols[k].have, n, m) }
@@ -422,7 +453,7 @@ function build(data, deck, fmt, ctx, opts) {
       if (x && x.seen >= 3 && wrDelta(x) <= -0.15) push(0.2, 'linha fraca', tx('Com ela na mão ganhaste {a} de {n} jogos; sem ela, {p}', { a: x.seenW, n: x.seen, p: pct((ev.winsExact - x.seenW) / Math.max(1, ev.exact - x.seen)) }))
       if (x && x.lateN >= 2 && x.lateSum / x.lateN >= 2) push(0.1, 'curva', tx('Nos testes saiu em média {d} turnos depois do custo', { d: num(x.lateSum / x.lateN, 1) }))
       // eficiência de mana: mesmo efeito mais caro, cores exigentes, lançar a tempo
-      if (role && X.cmc > S.cmc && !(reanTarget(X) && reanTarget(S))) push(Math.min(0.45, 0.15 * (X.cmc - S.cmc)), 'mais caro', null)
+      if (role && X.cmc > S.cmc && !(reanTarget(X) && reanTarget(S)) && !altCost(X)) push(Math.min(0.45, 0.15 * (X.cmc - S.cmc)), 'mais caro', null)
       const pX = castProb(X)
       const hard = deckCols.find(k => pipsOf(X, k) >= 2 && pipsOf(X, k) > pipsOf(S, k) && N.cols[k].have < 0.9 * needFor(k, pipsOf(X, k)))
       if (hard) push(0.12, 'linha fraca', tx('Pede {p} com só {h} fontes de {k}', { p: `{${hard}}`.repeat(pipsOf(X, hard)), h: N.cols[hard].have, k: hard }))
@@ -437,10 +468,10 @@ function build(data, deck, fmt, ctx, opts) {
         const simX = simOf.get(X.i) ?? 0
         if (simX < q25 && simS > simX + 0.05) push(0.15, 'linha fraca', tx('Texto entre os mais afastados do resto do deck'))
         if (crowd(slotS) && Math.min(7, Math.floor(X.cmc)) === slotS) push(0.15, 'curva', tx('Curva: já tens {n} cartas de {mv} de mana', { n: s.curve[slotS], mv: slotS }))
-        else if (s.avgMv > 3.8 && X.cmc >= 5 && X.cmc > S.cmc) push(0.1, 'curva', tx('Deck pesado (MV médio {m}); esta custa {mv}', { m: num(s.avgMv, 1), mv: X.cmc }))
+        else if (s.avgMv > 3.8 && X.cmc >= 5 && X.cmc > S.cmc && !reanTarget(X) && !altCost(X)) push(0.1, 'curva', tx('Deck pesado (MV médio {m}); esta custa {mv}', { m: num(s.avgMv, 1), mv: X.cmc }))
         const k = strain(X)
         if (k && !strain(S) && !hard) push(0.12, 'linha fraca', tx('Pede {k}, a cor de splash do deck', { k }))
-        if (opts.co) {
+        if (opts.co && cmds.length) {  // só com comandante: fora disso o EDHREC não diz nada sobre a carta
           const e = cmdE(X), eS = cmdE(S)
           if (!e) push(0.08, 'fora do plano', tx('Fora das cartas mais jogadas com o comandante (EDHREC)'))
           else if (edhVal(S) - edhVal(X) >= 0.15) push(0.15, 'fora do plano', tx('Com {c}: em {a}% dos decks; a sugestão em {b}% (EDHREC)', { c: e.from, a: Math.round(e.incl * 100), b: Math.round((eS?.incl || 0) * 100) }))
@@ -484,6 +515,6 @@ function build(data, deck, fmt, ctx, opts) {
     const weak = res.find(r => r.score >= 0.15)
     if (!weak) return none(NO_SWAP, kept.slice(0, 3))
     const w = strip(weak)
-    return Object.assign([{ ...w, kind: 'linha fraca', why: [tx('Sem troca evidente: é a linha mais fraca'), ...w.why].slice(0, 3) }], { kept: kept.slice(0, 3) })
+    return Object.assign([{ ...w, kind: 'linha fraca', why: [WEAK, ...w.why].slice(0, 3) }], { kept: kept.slice(0, 3) })
   }
 }
