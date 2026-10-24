@@ -1301,3 +1301,43 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .tp-body .dbox-meta { flex-wrap: wrap; row-gap: 2px; }
 .tp-body select { width: 100%; text-overflow: ellipsis; }
 .tp-body .row-btns { flex-wrap: wrap; }
+
+/* apostas nos torneios (moedas virtuais) */
+.bets { display: grid; gap: 8px; }
+.bets-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.bets-h h4 { margin: 0; }
+.bets-coins { color: var(--gold2); font-size: 18px; }
+.bets-champ { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; max-height: 260px; overflow-y: auto; }
+.bet-opt { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 10px; text-align: left; }
+.bet-opt span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bet-opt .tp-thumb { flex: 0 0 34px; width: 34px; height: 24px; }
+.bet-opt b { color: var(--gold2); font-variant-numeric: tabular-nums; }
+.bet-opt.on { border-color: var(--gold2); background: rgba(242, 184, 75, .12); }
+.bet-stake { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bet-stake input { width: 90px; }
+.bets-toast { margin: 0; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(126, 226, 168, .5); background: rgba(126, 226, 168, .08); color: #7ee2a8; font-weight: 600; }
+.bets-mine { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
+.bets-mine li { display: grid; grid-template-columns: minmax(0, 1fr) auto 70px; gap: 10px; padding: 4px 8px; border-radius: 8px; background: #ffffff06; }
+.bets-mine li > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bets-mine li b { text-align: right; }
+.bets-mine .bet-won b { color: #7ee2a8; } .bets-mine .bet-lost b { color: #ff8a9e; } .bets-mine .bet-refund b { color: var(--muted); }
+.bet-d { margin-top: 4px; }
+.bet-chip { display: inline-flex; align-items: center; min-height: 30px; padding: 2px 10px; border-radius: 99px; border: 1px solid rgba(242, 184, 75, .45); color: var(--gold2); font-size: 12px; cursor: pointer; list-style: none; }
+.bet-chip::-webkit-details-marker { display: none; }
+.bet-d[open] .bet-chip { background: rgba(242, 184, 75, .12); }
+.bet-pop { display: grid; gap: 5px; margin-top: 6px; }
+
+/* Coliseu no PC: o tabuleiro tem sempre a mesma altura (o ajuste --fit mede-o uma vez e não mexe mais).
+   Cada fila reserva a carta + as etiquetas (marcadores por cima, F/R por baixo) e não muda de linha:
+   com muitas cartas os grupos encolhem e sobrepõem-se um pouco. */
+@media (min-width: 901px) {
+  .coliseu .brow.front { height: calc(var(--cw) * 1.4 + 30px); min-height: 0; flex-wrap: nowrap; }
+  .coliseu .brow.rear { min-height: calc(var(--lw) * 1.4 + 10px); flex-wrap: nowrap; }
+  .coliseu .brow.lands, .coliseu .brow.others { flex-wrap: nowrap; min-width: 0; }
+  .coliseu .brow > .grp { flex: 0 1 auto; min-width: 0; }
+  .coliseu .ribbon > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .coliseu .bmid { height: 66px; min-height: 0; }  /* cabe a pilha (cartas lançadas) sem a faixa crescer */
+  /* a zona de cada jogador guarda o lugar da mão mesmo vazia */
+  .coliseu .bside.top .bhud { min-height: calc(var(--ohw) * 1.4 + 34px); }
+  .coliseu .bside.bottom .bhud { min-height: calc(var(--hw) * 1.4 + 18px); }
+}

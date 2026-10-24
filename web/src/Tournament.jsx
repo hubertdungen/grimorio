@@ -269,6 +269,7 @@ function Live({ data, tid, onGone }) {
     if (lastSeen.current !== null && top > lastSeen.current && follow && !watch) openGame(fl[fl.length - 1])
     lastSeen.current = top
   }, [fl]) // eslint-disable-line react-hooks/exhaustive-deps
+  const bets = useBets(tid, t)
   if (!t) return <section className="card">{err ? <p className="bad-t">{err}</p> : <p><span className="spin-dot" /> {tx('A abrir o torneio…')}</p>}</section>
   const act = async a => { try { await post(`/api/tournaments/${tid}/${a}`); setT(await j(`/api/tournaments/${tid}`)) } catch (e) { setErr(e.message) } }
   const del = async () => { if (!confirm(tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: t.name }))) return; await j(`/api/tournaments/${tid}`, { method: 'DELETE' }); onGone() }
@@ -282,7 +283,7 @@ function Live({ data, tid, onGone }) {
   const nameOf = i => (i == null ? '—' : P[i]?.name)
   const k = Math.max(...t.matches.filter(m => m.b === 'W').map(m => m.r), 1)
   const num = Object.fromEntries(t.matches.map((m, i) => [m.id, i + 1]))
-  const tools = { data, P, live: t.live, num, onGame: openGame, me: t.me, casual: t.casual }
+  const tools = { data, P, live: t.live, num, onGame: openGame, me: t.me, casual: t.casual, odds: bets.b?.match, bet: bets.b && { coins: bets.b.coins, place: bets.place, mine: new Set(bets.b.bets.filter(x => x.status === 'open').map(x => x.mid)) } }
   const bracket = t.type === 'elim' || t.type === 'dupla'
   // «o meu deck»: onde está, se caiu e o lugar final (tournament.py me_state)
   const ms = t.me_state, mm = ms?.match && t.matches.find(m => m.id === ms.match)
@@ -320,9 +321,86 @@ function Live({ data, tid, onGone }) {
         {err && <p className="small bad-t">{err}</p>}
       </section>
       {ms?.phase === 'out' && going && <section className="me-out" role="status"><b>{tx('💀 Foste eliminado {w}', { w: where(mm, k) })}</b><span>{mm?.g.length ? tx('{o} ganhou-te a partida por {s}.', { o: nameOf(ms.by), s: `${mm.w[mm.p.indexOf(ms.by)]}–${mm.w[mm.p.indexOf(t.me)]}` }) : tx('{o} ganhou-te a partida.', { o: nameOf(ms.by) })} {tx('O torneio continua sem ti — vê quem fica com o título.')}</span></section>}
+      <BetsPanel {...bets} P={P} data={data} num={num} going={going} />
       {t.podium?.length > 0 && <Podium data={data} t={t} />}
       {bracket ? <Bracket t={t} k={k} {...tools} /> : <div className="tl-grid"><Standings t={t} {...tools} /><Rounds t={t} {...tools} /></div>}
     </div>
+  )
+}
+
+// ---------- apostas (tournament.py): moedas virtuais, odds pelo Elo, liquidação automática ----------
+function useBets(tid, t) {
+  const [b, setB] = useState(null), [won, setWon] = useState(null), prev = useRef(null)
+  const sig = t ? `${t.status}|${t.matches.map(m => `${m.st}${m.job ? 'j' : ''}${m.g.length}`).join()}` : ''
+  const take = x => {
+    const was = prev.current && new Map(prev.current.map(y => [y.id, y.status]))
+    const nw = was && x.bets.find(y => y.status === 'won' && was.get(y.id) === 'open')
+    if (nw) { setWon(nw); play(nw.kind === 'champ' ? 'champion' : 'match') }
+    prev.current = x.bets
+    setB(x)
+  }
+  useEffect(() => { if (sig) j(`/api/tournaments/${tid}/bets`).then(take).catch(() => {}) }, [tid, sig])
+  const place = body => post(`/api/tournaments/${tid}/bets`, body).then(take)
+  return { b, won, place }
+}
+
+const betWhat = (x, P, num) => (x.kind === 'champ' ? tx('campeão: {d}', { d: P[x.pick]?.name }) : tx('#{m}: {d}', { m: num[x.mid], d: P[x.pick]?.name }))
+
+function Stake({ coins, odds, onBet }) {
+  const [s, setS] = useState(Math.max(1, Math.min(50, coins))), [busy, setBusy] = useState(false), [err, setErr] = useState('')
+  const go = async () => { setBusy(true); setErr(''); try { await onBet(s) } catch (e) { setErr(e.message) } setBusy(false) }
+  return (
+    <div className="bet-stake">
+      <input type="number" inputMode="numeric" min="1" max={coins} value={s} aria-label={tx('Moedas a apostar')} onChange={e => setS(Math.max(1, Math.min(coins, Math.round(+e.target.value || 1))))} />
+      {[10, 50, 100].filter(x => x < coins).map(x => <button key={x} className="small" onClick={() => setS(x)}>{x}</button>)}
+      <button className="small" onClick={() => setS(coins)}>{tx('tudo')}</button>
+      <button className="primary" disabled={busy || coins < 1} onClick={go}>{tx('Apostar {s} → recebes {w}', { s, w: Math.round(s * odds) })}</button>
+      {err && <span className="bad-t small">{err}</span>}
+    </div>
+  )
+}
+
+// odds de uma partida/mesa ainda por começar: abre por baixo (toque ou clique), escolhe-se o deck e a quantia
+function BetPop({ m, odds, P, bet }) {
+  const [pick, setPick] = useState(null), ref = useRef(null)
+  return (
+    <details className="bet-d" ref={ref}>
+      <summary className="bet-chip" title={tx('Apostar nesta partida')}>🪙 {odds.length > 2 ? tx('apostar') : odds.map(x => x.toFixed(2)).join(' / ')}{bet.mine.has(m.id) ? ' · ✓' : ''}</summary>
+      <div className="bet-pop">
+        {m.p.map((i, k) => <button key={i} className={`bet-opt ${pick === i ? 'on' : ''}`} onClick={() => setPick(i)}><span>{P[i]?.name}</span><b>{odds[k].toFixed(2)}</b></button>)}
+        {pick != null && <Stake coins={bet.coins} odds={odds[m.p.indexOf(pick)]} onBet={async s => { await bet.place({ kind: 'match', mid: m.id, pick, stake: s }); setPick(null); ref.current?.removeAttribute('open') }} />}
+      </div>
+    </details>
+  )
+}
+
+function BetsPanel({ b, won, place, P, data, num, going }) {
+  const [pick, setPick] = useState(null)
+  if (!b || (!going && !b.bets.length)) return null
+  const order = b.champ ? P.map((_, i) => i).filter(i => b.champ[i] != null).sort((x, y) => b.champ[x] - b.champ[y]) : []  // sem odd = já não pode ganhar
+  const RES = { open: tx('em jogo'), lost: tx('perdida'), refund: tx('devolvida') }
+  return (
+    <section className="card bets">
+      <div className="bets-h">
+        <h4>🪙 {tx('Apostas')}</h4>
+        <b className="bets-coins">{tx('{n} moedas', { n: b.coins })}</b>
+        {b.subsidy && <span className="muted small">{tx('subsídio de hoje recebido')}</span>}
+        <span className="muted small">{tx('Moedas a fingir: não se compram nem valem dinheiro. As odds vêm do Elo de cada deck.')}</span>
+      </div>
+      {won && <p className="bets-toast" role="status">🎉 {tx('Ganhaste {n} moedas com {w}!', { n: won.payout, w: betWhat(won, P, num) })}</p>}
+      {b.champ ? (
+        <>
+          <p className="small muted">{tx('Quem ganha o torneio? (fecha quando começar a 2.ª ronda)')}</p>
+          <div className="bets-champ">{order.map(i => <button key={i} className={`bet-opt ${pick === i ? 'on' : ''}`} onClick={() => setPick(pick === i ? null : i)}><Thumb data={data} p={P[i]} /><span>{P[i].name}</span><b>{b.champ[i].toFixed(2)}</b></button>)}</div>
+          {pick != null && <Stake key={pick} coins={b.coins} odds={b.champ[pick]} onBet={async s => { await place({ kind: 'champ', pick, stake: s }); setPick(null) }} />}
+        </>
+      ) : going && <p className="small muted">{tx('As apostas no campeão já fecharam; ainda dá para apostar nas partidas por começar (🪙 em cada partida).')}</p>}
+      {b.bets.length > 0 && (
+        <ul className="bets-mine">{b.bets.map(x => (
+          <li key={x.id} className={`bet-${x.status}`}><span>{betWhat(x, P, num)}</span><span className="muted">{x.stake} × {x.odds.toFixed(2)}</span><b>{x.status === 'won' ? `+${x.payout}` : RES[x.status]}</b></li>
+        ))}</ul>
+      )}
+    </section>
   )
 }
 
@@ -345,7 +423,7 @@ function SideWhy({ m, P }) {
   )
 }
 
-function Match({ m, data, P, live, num, onGame, label, me, casual }) {
+function Match({ m, data, P, live, num, onGame, label, me, casual, odds, bet }) {
   const now = live?.match === m.id
   const slot = k => {
     const i = m.p[k], s = m.src?.[k]
@@ -363,6 +441,7 @@ function Match({ m, data, P, live, num, onGame, label, me, casual }) {
     <div className={`tm ${m.st} ${now ? 'now' : ''} ${m.bye ? 'isbye' : ''} ${me != null && m.p.includes(me) ? 'mine' : ''}`} data-mid={m.id}>
       <div className="tm-h"><span>#{num[m.id]}{label ? ` · ${label}` : ''}</span>{now && <span className="livepill">{tx('● a jogar')}</span>}{m.tb ? <span className="muted" title={tx('Empatados depois dos jogos extra: passa o melhor seed')}>{tx('desempate pelo seed')}</span> : null}{m.note && <span className="muted" title={tx(m.note)}>⚠</span>}</div>
       {[0, 1].map(slot)}
+      {odds?.[m.id] && bet && <BetPop m={m} odds={odds[m.id]} P={P} bet={bet} />}
       {m.g.length > 0 && <div className="tm-g"><GameChips m={m} onGame={onGame} P={P} /></div>}
       <SideWhy m={m} P={P} />
     </div>
@@ -434,7 +513,7 @@ function Standings({ t, data, P, me, casual }) {
   )
 }
 
-function Rounds({ t, data, P, live, num, onGame, me, casual }) {
+function Rounds({ t, data, P, live, num, onGame, me, casual, odds, bet }) {
   const rs = [...new Set(t.matches.map(m => m.r))].sort((a, b) => b - a)  // a ronda mais recente primeiro
   return (
     <section className="card">
@@ -445,9 +524,10 @@ function Rounds({ t, data, P, live, num, onGame, me, casual }) {
             <div key={m.id} className={`tm pod ${m.st} ${live?.match === m.id ? 'now' : ''} ${m.p.includes(me) ? 'mine' : ''}`} data-mid={m.id}>
               <div className="tm-h"><span>{tx('Mesa {m}', { m: m.id.split('-')[1] })}</span>{live?.match === m.id && <span className="livepill">{tx('● a jogar')}</span>}</div>
               {(m.pl || m.p).map((i, k) => <div key={i} className={`ts ${m.pl ? (k === 0 ? 'win' : '') : ''} ${i === me ? 'me' : ''}`}><Thumb data={data} p={P[i]} /><i className="ts-seed">{m.pl ? tx('{p}.º', { p: k + 1 }) : i + 1}</i><span className="ts-n">{P[i]?.name}</span>{i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[i]?.format} />}{m.st === 'done' && <b className="ts-sc">{m.pl ? `+${k === 0 ? 3 : m.pl.length - 1 - k}` : '+1'}</b>}</div>)}
+              {odds?.[m.id] && bet && <BetPop m={m} odds={odds[m.id]} P={P} bet={bet} />}
               {m.g.length > 0 && <div className="tm-g"><GameChips m={m} onGame={onGame} P={P} /></div>}
             </div>
-          ) : <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} />)}</div>
+          ) : <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} odds={odds} bet={bet} />)}</div>
         </div>
       ))}
     </section>

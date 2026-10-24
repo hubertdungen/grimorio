@@ -451,21 +451,30 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
     const adj = () => { try { return Math.max(0.6, Math.min(1.6, +localStorage.getItem('grimorio.zoom') || 1)) } catch { return 1 } }
     zoomRef.current = d => {  // d = ±0,1 afina à mão; 0 volta a detetar a altura e repõe o ajuste automático
       try { localStorage.setItem('grimorio.zoom', d ? Math.max(0.6, Math.min(1.6, adj() + d)).toFixed(2) : '1') } catch { /* sem armazenamento */ }
+      // ⤢: a altura conta-se com a página (ou a janela / o ecrã inteiro) no topo — volta lá antes de medir
+      if (!d) { const md = el.closest('.modal'), fe = document.fullscreenElement || document.webkitFullscreenElement; (md || (fe?.contains(el) ? fe : null))?.scrollTo?.(0, 0); if (!md && !fe) window.scrollTo(0, 0) }
       fit()
     }
     fit()
-    fitRef.current = () => {  // segurança: se uma jogada fizer crescer o tabuleiro (terrenos a mudar de linha), só encolhe
+    fitRef.current = () => {  // segurança: as filas têm altura fixa, mas se algo ainda fugir mais de 2% volta a medir (nos dois sentidos)
       if (innerWidth < 901) return
-      const a = avail(), h = el.offsetHeight
-      if (h > a * Math.max(1, adj()) + 4) el.style.setProperty('--fit', Math.max(0.4, (+el.style.getPropertyValue('--fit') || 1) * a / h))
+      const a = avail() * adj(), h = el.offsetHeight
+      if (h - a > a * 0.02 + 3 || a - h > a * 0.05) fit()  // margem: pequenas variações não mexem nas cartas
     }
-    // no tablet o tamanho final chega atrasado (ecrã inteiro, rodar, barra do browser): volta a medir pouco depois
+    // as imagens das cartas chegam depois da 1.ª medição e mudam a altura: o tabuleiro volta a medir quando o próprio tamanho muda
+    let raf = 0
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => fitRef.current?.()) })
+    ro.observe(el)
+    // o tamanho final chega atrasado (imagens e mão a desenhar; no tablet: ecrã inteiro, rodar, barra do browser):
+    // volta a medir pouco depois, também ao abrir
     let tm = []
     const later = () => { fit(); tm.forEach(clearTimeout); tm = [150, 450, 1000].map(t => setTimeout(fit, t)) }
+    later()
     const evs = ['fullscreenchange', 'webkitfullscreenchange']
     addEventListener('resize', later); addEventListener('orientationchange', later); window.visualViewport?.addEventListener('resize', later)
     evs.forEach(e => document.addEventListener(e, later))
     return () => {
+      ro.disconnect(); cancelAnimationFrame(raf)
       tm.forEach(clearTimeout); removeEventListener('resize', later); removeEventListener('orientationchange', later)
       window.visualViewport?.removeEventListener('resize', later); evs.forEach(e => document.removeEventListener(e, later))
     }

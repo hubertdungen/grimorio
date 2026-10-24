@@ -473,6 +473,10 @@ def db():
                 " format TEXT, status TEXT, champion TEXT, n INTEGER, state TEXT NOT NULL)")
     con.execute("CREATE TABLE IF NOT EXISTS tournament_games (id INTEGER PRIMARY KEY, tid TEXT, ts REAL, game BLOB)")
     con.execute("CREATE INDEX IF NOT EXISTS tournament_games_tid ON tournament_games (tid)")
+    con.execute("CREATE TABLE IF NOT EXISTS wallets (owner TEXT PRIMARY KEY, coins INTEGER, subsidy TEXT)")
+    con.execute("CREATE TABLE IF NOT EXISTS bets (id INTEGER PRIMARY KEY, owner TEXT, tid TEXT, kind TEXT, mid TEXT, pick INTEGER,"
+                " stake INTEGER, odds REAL, ts REAL, status TEXT, payout INTEGER)")
+    con.execute("CREATE INDEX IF NOT EXISTS bets_tid ON bets (tid, status)")
     return con
 
 
@@ -482,6 +486,7 @@ def save(con, tid, st, status=None):
         status, st["podium"] = "done", podium(st)
     con.execute("UPDATE tournaments SET state=?, champion=?" + (", status=?" if status else "") + " WHERE id=?",
                 (json.dumps(st, ensure_ascii=False), champ, *([status] if status else []), tid))
+    settle(con, tid, st)
 
 
 def create(owner, d):
@@ -599,7 +604,18 @@ def route(method, path, owner, body=None):
             g, ds = json.loads(zlib.decompress(r[0])), json.loads(row[8]).get("decks") or []
             g["arts"] = {"abcd"[k]: ds[i]["art"] for k, i in enumerate(g.get("seats") or []) if k < 4 and isinstance(i, int) and i < len(ds) and ds[i].get("art")}
             return 200, g
+        if method == "GET" and len(parts) == 2 and parts[1] == "bets":
+            return 200, bets_view(con, owner, tid, row[5], json.loads(row[8]))
+        if method == "POST" and len(parts) == 2 and parts[1] == "bets":
+            with LOCK:  # o step() também segura o LOCK: a janela não fecha a meio da aposta
+                status, state = con.execute("SELECT status, state FROM tournaments WHERE id=?", (tid,)).fetchone()
+                try:
+                    place(con, owner, tid, status, json.loads(state), body or {})
+                except ValueError as e:
+                    return 400, {"erro": str(e)}
+            return 201, bets_view(con, owner, tid, status, json.loads(state))
         if method == "DELETE" and len(parts) == 1:  # só este torneio, pelo id
+            settle(con, tid, json.loads(row[8]), cancelled=True)
             stop(con, tid, row[8])
             con.execute("DELETE FROM tournament_games WHERE tid=?", (tid,))
             con.execute("DELETE FROM tournaments WHERE id=? AND owner=?", (tid, owner))
@@ -613,6 +629,8 @@ def route(method, path, owner, body=None):
                     stop(con, tid, con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
                 new = {"pause": "paused", "resume": "running", "cancel": "cancelled"}[parts[1]]
                 con.execute("UPDATE tournaments SET status=? WHERE id=?", (new, tid))
+                if new == "cancelled":
+                    settle(con, tid, json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0]), cancelled=True)
             return 200, {"status": new}
     return 404, {"erro": "rota desconhecida"}
 
@@ -627,6 +645,153 @@ def stop(con, tid, state):
                 m.pop("seats", None)
                 m.pop("sb", None)
         con.execute("UPDATE tournaments SET state=? WHERE id=?", (json.dumps(st, ensure_ascii=False), tid))
+
+
+# ---------- apostas: moedas virtuais (🪙), nada se compra nem vale dinheiro ----------
+# Carteira por dono (1000 ao começar; abaixo de 50 recebe um subsídio até 100, uma vez por dia, ao abrir o torneio).
+# Apostas no campeão (até começar a 2.ª ronda) e no vencedor de uma partida/mesa (até o Forge a começar).
+# Probabilidades pelo Elo (força 10^(elo/400); a dois é ratings.expected()); o campeão por Monte Carlo do resto do torneio.
+# Odd = 0,95 / p entre 1,05 e 50, fixa no momento da aposta. Liquida-se em save(); cancelar/apagar devolve tudo.
+
+START_COINS, SUBSIDY, BROKE, MC_RUNS = 1000, 100, 50, 400
+_ODDS = {}  # (tid, assinatura do estado) -> odds; ponytail: cache em memória, limpa-se toda aos 64
+
+
+def wallet(con, owner, top=False):
+    con.execute("INSERT OR IGNORE INTO wallets VALUES (?,?,NULL)", (owner, START_COINS))
+    coins, last = con.execute("SELECT coins, subsidy FROM wallets WHERE owner=?", (owner,)).fetchone()
+    today = time.strftime("%Y-%m-%d")
+    if top and coins < BROKE and last != today:
+        coins, last = SUBSIDY, today
+        con.execute("UPDATE wallets SET coins=?, subsidy=? WHERE owner=?", (coins, today, owner))
+    return {"coins": coins, "subsidy": last == today}
+
+
+def elos(con, st):
+    """Elo atual de cada participante no formato do torneio (o casual primeiro se o torneio conta para o casual)."""
+    fmts = [st["format"]] if counts_yellow(st) else ["casual", st["format"]]
+    out = []
+    for p in st["players"]:
+        key, r = ("deck:" if p["src"] == "meus" else "meta:") + str(p["ref"]), None
+        for f in fmts:
+            try:
+                r = r or con.execute("SELECT elo FROM ratings WHERE key=? AND format=?", (key, f)).fetchone()
+            except sqlite3.OperationalError:  # sem tabela de ratings: todos a 1500
+                break
+        out.append(r[0] if r else 1500.0)
+    return out
+
+
+def win_probs(m, elo):
+    s = [10 ** (elo[i] / 400) for i in m["p"]]
+    return [x / sum(s) for x in s]
+
+
+def to_odds(p):
+    return round(min(50.0, max(1.05, 0.95 / p)) if p > 0 else 50.0, 2)
+
+
+def champ_probs(st, elo, runs=MC_RUNS, rng=random):
+    """Joga o resto do torneio `runs` vezes com as probabilidades do Elo -> probabilidade de cada um ser campeão."""
+    cnt, base = [0] * st["n"], json.dumps(st["matches"])
+    for _ in range(runs):
+        s = {**st, "matches": json.loads(base), "champion": None}
+        while s["champion"] is None:
+            todo = [m for m in s["matches"] if m["st"] == "ready"]
+            if not todo:
+                break
+            for m in todo:
+                k = rng.choices(range(len(m["p"])), win_probs(m, elo))[0]
+                w = m["p"][k]
+                if m["b"] == "P":
+                    m.update(st="done", win=w, pl=[w] + rng.sample([x for x in m["p"] if x != w], len(m["p"]) - 1))
+                else:
+                    m.update(st="done", win=w, lose=m["p"][1 - k], w=[1, 0] if k == 0 else [0, 1])
+            resolve(s)
+        if s["champion"] is not None:
+            cnt[s["champion"]] += 1
+    return [c / runs for c in cnt]
+
+
+def champ_open(st, status):
+    return status in ("running", "paused") and st.get("champion") is None and \
+        not any(m["r"] >= 2 and (m.get("job") or m["g"]) for m in st["matches"])
+
+
+def match_open(m, status):
+    return status in ("running", "paused") and m["st"] == "ready" and not m.get("job") and not m["g"]
+
+
+def odds_of(con, tid, st, status):
+    sig = (tid, status, tuple((m["st"], bool(m.get("job")), len(m["g"])) for m in st["matches"]))
+    if sig not in _ODDS:
+        elo = elos(con, st)
+        if len(_ODDS) > 64:
+            _ODDS.clear()
+        _ODDS[sig] = {"champ": [to_odds(p) if p > 0 else None for p in champ_probs(st, elo)] if champ_open(st, status) else None,  # None = já não pode ganhar
+                      "match": {m["id"]: [to_odds(p) for p in win_probs(m, elo)] for m in st["matches"] if match_open(m, status)}}
+    return _ODDS[sig]
+
+
+def place(con, owner, tid, status, st, d):
+    kind, pick = d.get("kind"), d.get("pick")
+    try:
+        stake = int(d.get("stake"))
+    except (TypeError, ValueError):
+        raise ValueError("Aposta inválida.") from None
+    if not 1 <= stake <= wallet(con, owner)["coins"]:
+        raise ValueError("Não tens moedas que cheguem para essa aposta.")
+    o, mid = odds_of(con, tid, st, status), None
+    if not isinstance(pick, int) or isinstance(pick, bool):
+        raise ValueError("Aposta inválida.")
+    if kind == "champ":
+        if not o["champ"]:
+            raise ValueError("As apostas no campeão já fecharam.")
+        if not 0 <= pick < st["n"]:
+            raise ValueError("Aposta inválida.")
+        x = o["champ"][pick]
+        if x is None:
+            raise ValueError("Esse deck já não pode ganhar o torneio.")
+    elif kind == "match":
+        m = next((m for m in st["matches"] if m["id"] == d.get("mid")), None)
+        if not m or m["id"] not in o["match"]:
+            raise ValueError("As apostas nesta partida já fecharam.")
+        if pick not in m["p"]:
+            raise ValueError("Aposta inválida.")
+        x, mid = o["match"][m["id"]][m["p"].index(pick)], m["id"]
+    else:
+        raise ValueError("Aposta inválida.")
+    con.execute("UPDATE wallets SET coins=coins-? WHERE owner=?", (stake, owner))
+    con.execute("INSERT INTO bets (owner, tid, kind, mid, pick, stake, odds, ts, status) VALUES (?,?,?,?,?,?,?,?, 'open')",
+                (owner, tid, kind, mid, pick, stake, x, time.time()))
+
+
+def settle(con, tid, st, cancelled=False):
+    """Apostas abertas deste torneio -> ganhas (stake × odd), perdidas ou devolvidas (empate, isento, cancelado)."""
+    ms = {m["id"]: m for m in st["matches"]}
+    for bid, owner, kind, mid, pick, stake, x in con.execute(
+            "SELECT id, owner, kind, mid, pick, stake, odds FROM bets WHERE tid=? AND status='open'", (tid,)).fetchall():
+        if cancelled:
+            res = "refund"
+        elif kind == "champ":
+            if st.get("champion") is None:
+                continue
+            res = "won" if st["champion"] == pick else "lost"
+        else:
+            m = ms.get(mid)
+            if not m or m["st"] != "done":
+                continue
+            res = "refund" if m["win"] is None or m.get("skip") or m.get("bye") else "won" if m["win"] == pick else "lost"
+        pay = round(stake * x) if res == "won" else stake if res == "refund" else 0
+        con.execute("UPDATE bets SET status=?, payout=? WHERE id=?", (res, pay, bid))
+        if pay:
+            con.execute("UPDATE wallets SET coins=coins+? WHERE owner=?", (pay, owner))
+
+
+def bets_view(con, owner, tid, status, st):
+    mine = [dict(zip(("id", "kind", "mid", "pick", "stake", "odds", "ts", "status", "payout"), r)) for r in con.execute(
+        "SELECT id, kind, mid, pick, stake, odds, ts, status, payout FROM bets WHERE owner=? AND tid=? ORDER BY id DESC", (owner, tid))]
+    return {**wallet(con, owner, top=True), "bets": mine, **odds_of(con, tid, st, status)}
 
 
 # ---------- a thread que faz avançar os torneios ----------
@@ -756,6 +921,59 @@ def init(data_dir, busy=None):
 
 
 # ---------- verificação ----------
+
+def bets_selfcheck(rng):
+    """Odds pelo Elo, campeão por Monte Carlo e liquidação (ganha, perde, devolve), numa base temporária."""
+    global DB
+    import tempfile
+    assert abs(win_probs({"p": [0, 1]}, [1700, 1500])[0] - 1 / (1 + 10 ** (-200 / 400))) < 1e-12  # = ratings.expected()
+    assert (to_odds(0.5), to_odds(0.99), to_odds(0.001), to_odds(0)) == (1.9, 1.05, 50.0, 50.0)
+    st = build("elim", 4)
+    st.update(format="modern", players=[{"name": f"D{i}", "src": "meta", "ref": f"modern-{i}"} for i in range(4)])
+    ps = champ_probs(st, [1800, 1500, 1500, 1200], 600, rng)
+    assert abs(sum(ps) - 1) < 1e-9 and ps[0] == max(ps) and ps[3] == min(ps), ps
+    old, DB = DB, os.path.join(tempfile.mkdtemp(), "t.db")
+    try:
+        with db() as con:
+            r1 = [m for m in st["matches"] if m["r"] == 1]
+            place(con, "x", "t1", "running", st, {"kind": "champ", "pick": 0, "stake": 100})
+            place(con, "x", "t1", "running", st, {"kind": "match", "mid": r1[0]["id"], "pick": r1[0]["p"][0], "stake": 50})
+            place(con, "x", "t1", "running", st, {"kind": "match", "mid": r1[1]["id"], "pick": r1[1]["p"][0], "stake": 50})
+            assert wallet(con, "x")["coins"] == 800
+            for bad in ({"kind": "champ", "pick": 0, "stake": 801}, {"kind": "match", "mid": "nope", "pick": 0, "stake": 1}, {"kind": "champ", "pick": 9, "stake": 1}):
+                try:
+                    place(con, "x", "t1", "running", st, bad)
+                    raise AssertionError(bad)
+                except ValueError:
+                    pass
+            o = {b[0]: b[1] for b in con.execute("SELECT mid, odds FROM bets")}
+            gone = {**st, "matches": json.loads(json.dumps(st["matches"]))}
+            m0 = next(m for m in gone["matches"] if m["r"] == 1)
+            m0.update(st="done", win=m0["p"][0], lose=m0["p"][1])
+            resolve(gone)
+            try:
+                place(con, "x", "t3", "running", gone, {"kind": "champ", "pick": m0["p"][1], "stake": 1})
+                raise AssertionError("aposta num eliminado")
+            except ValueError:
+                pass
+            r1[0].update(st="done", win=r1[0]["p"][0], lose=r1[0]["p"][1])  # ganha
+            r1[1].update(st="done", win=None)  # empate: devolve
+            settle(con, "t1", st)
+            assert wallet(con, "x")["coins"] == 800 + round(50 * o[r1[0]["id"]]) + 50
+            st["champion"] = 1  # o campeão foi outro: perde
+            settle(con, "t1", st)
+            assert [r[0] for r in con.execute("SELECT status FROM bets ORDER BY id")] == ["lost", "won", "refund"]
+            place(con, "x", "t2", "running", build("elim", 4) | {"players": st["players"], "format": "modern"}, {"kind": "champ", "pick": 2, "stake": 30})
+            before = wallet(con, "x")["coins"]
+            settle(con, "t2", {"matches": []}, cancelled=True)
+            assert wallet(con, "x")["coins"] == before + 30
+            con.execute("UPDATE wallets SET coins=10 WHERE owner='x'")
+            assert wallet(con, "x", top=True) == {"coins": SUBSIDY, "subsidy": True} and wallet(con, "x", top=True)["coins"] == SUBSIDY
+            con.execute("UPDATE wallets SET coins=10 WHERE owner='x'")
+            assert wallet(con, "x", top=True)["coins"] == 10  # um subsídio por dia
+    finally:
+        DB = old
+
 
 def selfcheck():
     rng = random.Random(7)
@@ -908,6 +1126,7 @@ def selfcheck():
     assert not plan_side(C, deck, {"main": {"Bear": 20}}, [])  # nada a responder: fica a lista base
     d2 = apply_swaps(deck, sw)
     assert d2["main"] == {"Bear": 4, "Shatter": 2} and d2["side"] == {"Shatter": 1, "Fog": 2, "Dragon": 2} and deck["main"]["Dragon"] == 2
+    bets_selfcheck(rng)
     print("selfcheck ok")
 
 
