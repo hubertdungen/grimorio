@@ -112,7 +112,7 @@ export function setBasicDefaults(v) { basicDef = v || {}; try { localStorage.set
 export const img = (c, size = 'normal', back = false, pid = null) => {
   if (pid?.startsWith('https:') || pid?.startsWith('arts/')) { if (!back) return pid; pid = null }  // imagem própria (site de origem ou carregada)
   const id = pid || basicDef[c.n]?.id || c.id
-  return `https://cards.scryfall.io/${size}/${back ? 'back' : 'front'}/${id[0]}/${id[1]}/${id}.jpg`
+  return `https://cards.scryfall.io/${size}/${back ? 'back' : 'front'}/${id[0]}/${id[1]}/${id}.${size === 'png' ? 'png' : 'jpg'}`
 }
 
 // --- Estilos alternativos (impressões), pedidos à API da Scryfall a pedido ---

@@ -461,6 +461,18 @@ class H(BaseHTTPRequestHandler):
                     return self.json({"id": rid}, 201)
             except (ValueError, TypeError, AttributeError) as e:
                 return self.json({"erro": str(e) if isinstance(e, ValueError) else "pedido inválido"}, 400)
+        if self.path == "/api/proxies.zip":  # imagens do deck para gráficas de proxies (artfolder.proxies_zip)
+            if not self.owner():
+                return self.json({"erro": "sem utilizador"}, 401)
+            try:
+                b = self.body(1_000_000)
+                data, missed = artfolder.proxies_zip(b.get("items") or [], os.path.join(ARGS.data_dir, "arts"), str(b.get("list") or ""), bool(b.get("perCopy")))
+            except ValueError as e:
+                return self.json({"erro": str(e)}, 400)
+            except Exception:
+                return self.json({"erro": "Não consegui juntar as imagens (a Scryfall ou um dos links não respondeu)."}, 502)
+            name = re.sub(r"[^\w\- ]+", "", str(b.get("name") or "deck"))[:60] or "deck"
+            return self.send(200, data, "application/zip", {"Content-Disposition": f'attachment; filename="{name} - proxies.zip"', "X-Missed": str(len(missed))})
         if self.path == "/api/arts/folder":  # lista as imagens de uma pasta na net: {url} → [{name, url}] (artfolder.py)
             if not self.owner():
                 return self.json({"erro": "sem utilizador"}, 401)

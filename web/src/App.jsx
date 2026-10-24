@@ -1,6 +1,7 @@
 import Home from './Home.jsx'
 import Mesa from './Mesa.jsx'
-import { ask, confirmOn } from './confirm.jsx'
+import ProxyDialog from './Proxies.jsx'
+import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras } from './data.js'
@@ -419,6 +420,7 @@ export default function App() {
 
 function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist }) {
   const [viewBy, setViewBy] = useState(deck.groups?.length ? 'grupos' : 'tipo')
+  const [proxies, setProxies] = useState(false)
   const bySec = viewBy === 'grupos' && deck.groups?.length
   const secOf = new Map()
   if (bySec) for (const g of deck.groups) for (const n of g.cartas) if (!secOf.has(n)) secOf.set(n, g.nome)
@@ -467,7 +469,7 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
           ))}
         </select>
       </label>
-      <label className="chk" title={tx('Pode ter cartas proibidas, banidas ou de fora do formato. Só joga em modo casual (Laboratório, torneios e Arena casuais) e só tem rating casual.')}><input type="checkbox" checked={!!deck.casual} onChange={e => setDeck(d => ({ ...d, casual: e.target.checked || undefined }))} /> {tx('Deck casual (pode violar as regras do formato)')}</label>
+      <label className="chk" title={tx('Pode ter cartas proibidas, banidas ou de fora do formato. Só joga em modo casual (Laboratório, torneios e Arena casuais) e só tem rating casual.')}><input type="checkbox" checked={!!deck.casual} onChange={async e => { const on = e.target.checked; if (await casualAsk(on)) setDeck(d => ({ ...d, casual: on || undefined })) }} /> {tx('Deck casual (pode violar as regras do formato)')}</label>
       {fmt.cmd === 'commander' && (
         <label className="fmt">
           <span>{tx('Bracket alvo')}</span>
@@ -538,6 +540,8 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
         {deck.id && <button onClick={() => setShowRefresh(true)} title={sourceOf(deck) ? tx('Voltar a ler {url}', { url: sourceOf(deck) }) : tx('Ler artes, capa e lista do site de onde veio o deck')}>⟳ {tx('Atualizar do site')}</button>}
         <button onClick={copy}>{tx('Copiar lista')}</button>
         <button onClick={download}>{tx('Descarregar')}</button>
+        <button onClick={() => setProxies(true)} title={tx('Lista com edições, ZIP com as imagens ou folha para imprimir')}>🖨 {tx('Proxies')}</button>
+        {proxies && <ProxyDialog data={data} deck={deck} onClose={() => setProxies(false)} />}
         {deck.id && <button className="danger" onClick={delDeck}>{tx('Eliminar')}</button>}
       </div>
       <textarea className="notes" placeholder={tx('Notas do deck…')} value={deck.notes} onChange={e => setDeck(d => ({ ...d, notes: e.target.value }))} />

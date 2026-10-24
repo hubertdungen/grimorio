@@ -7,7 +7,7 @@ import { img, HUE, coverOf, colorsOf } from './data.js'
 import ProfileImport from './ProfileImport.jsx'
 import DeckSearch from './DeckSearch.jsx'
 import DeckCompare, { similarity } from './DeckCompare.jsx'
-import { ask } from './confirm.jsx'
+import { ask, casualAsk } from './confirm.jsx'
 import { BasicArtPicker, applyBasics } from './Basics.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 import { SyncHint } from './Settings.jsx'
@@ -313,8 +313,8 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <span className="cmp-mass">
             <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}>🌐 {tx('Comunidade')}</button>
             <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}>🧙 {tx('Meus')}</button>
-            <button onClick={() => bulk({ casual: true }, '{n} deck passou a casual|{n} decks passaram a casual')}><Ico n="dice" /> {tx('Casual')}</button>
-            <button onClick={() => bulk({ casual: false }, '{n} deck deixou de ser casual|{n} decks deixaram de ser casual')}>{tx('Tirar casual')}</button>
+            <button onClick={async () => (await casualAsk(true, sel.length)) && bulk({ casual: true }, '{n} deck passou a casual|{n} decks passaram a casual')}><Ico n="dice" /> {tx('Casual')}</button>
+            <button onClick={async () => (await casualAsk(false, sel.length)) && bulk({ casual: false }, '{n} deck deixou de ser casual|{n} decks deixaram de ser casual')}>{tx('Tirar casual')}</button>
             <button onClick={() => bulk({ fav: true }, '{n} deck nos favoritos|{n} decks nos favoritos')}>★ {tx('Favoritos')}</button>
             <button onClick={() => bulk({ fav: false }, '{n} deck tirado dos favoritos|{n} decks tirados dos favoritos')}>☆ {tx('Tirar favorito')}</button>
             <button onClick={() => setBulkLand(true)}>⛰ {tx('Terrenos básicos')}</button>

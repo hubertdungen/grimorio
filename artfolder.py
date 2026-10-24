@@ -82,6 +82,56 @@ def fetch(url):
     return body, ctype
 
 
+def _safe(n):
+    return re.sub(r'[\\/:*?"<>|]+', "", str(n)).strip()[:80] or "carta"
+
+
+def proxies_zip(items, arts_dir, list_txt="", per_copy=False):
+    """ZIP para gráficas de proxies: items = [{"name", "q", "url", "back", "fallback"}] (url = https:// ou arts/<ficheiro>;
+    back = verso das cartas de duas faces; fallback = a arte normal, se a imagem própria não vier — há sites que recusam
+    pedidos que não venham de um browser). Um ficheiro por grupo («Island (x4).png») ou um por cópia; lista.txt com as
+    edições e faltam.txt com as imagens que tiveram de ser trocadas. Devolve (bytes do zip, nomes das cartas trocadas)."""
+    import io, zipfile
+    buf, cache, k, missed = io.BytesIO(), {}, 0, []
+
+    def load(url):
+        if url not in cache:
+            m = re.fullmatch(r"arts/([a-f0-9]{20}\.(?:jpg|png|webp|gif))", url)
+            if m:
+                with open(os.path.join(arts_dir, m.group(1)), "rb") as f:
+                    cache[url] = (f.read(), os.path.splitext(m.group(1))[1])
+            else:
+                body, ctype = fetch(url)
+                cache[url] = (body, "." + {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif"}.get(ctype, "jpg"))
+        return cache[url]
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:  # imagens já vêm comprimidas
+        if list_txt:
+            z.writestr("lista.txt", list_txt)
+        for it in items[:400]:
+            k += 1
+            q = max(1, min(int(it.get("q") or 1), 99))
+            for side, url in (("", it.get("url")), (" - verso", it.get("back"))):
+                if not url:
+                    continue
+                try:
+                    body, ext = load(url)
+                except Exception:  # imagem própria que o site recusa: fica a arte normal (ou nada, se também falhar)
+                    missed.append(str(it.get("name")))
+                    try:
+                        if side or not it.get("fallback"):
+                            continue
+                        body, ext = load(it["fallback"])
+                    except Exception:
+                        continue
+                base = f"{k:03d} {_safe(it.get('name'))}"
+                names = [f"{base}{side} ({i + 1}){ext}" for i in range(q)] if per_copy and q > 1 else [f"{base}{side}{f' (x{q})' if q > 1 else ''}{ext}"]
+                for n in names:
+                    z.writestr(n, body)
+        if missed:
+            z.writestr("faltam.txt", "Imagens próprias que o site não deixou descarregar (ficou a arte normal):\n" + "\n".join(sorted(set(missed))) + "\n")
+    return buf.getvalue(), sorted(set(missed))
+
+
 def selfcheck():
     page = '<a href="Island%20(Unhinged).jpg">x</a><img src="/img/Forest-2.PNG"><a href="notas.txt">n</a><a href="https://cdn.x.com/a/Swamp.webp?v=2">s</a>'
     got = parse_index(page, "https://exemplo.pt/artes/")
@@ -93,6 +143,16 @@ def selfcheck():
         except ValueError:
             continue
         raise AssertionError(f"devia recusar {bad}")
+    import tempfile, zipfile, io
+    with tempfile.TemporaryDirectory() as d:
+        open(os.path.join(d, "0123456789abcdef0123.webp"), "wb").write(b"img")
+        z = zipfile.ZipFile(io.BytesIO(proxies_zip([{"name": "Island", "q": 3, "url": "arts/0123456789abcdef0123.webp"}], d, "3 Island", per_copy=True)[0]))
+        assert sorted(z.namelist()) == ["001 Island (1).webp", "001 Island (2).webp", "001 Island (3).webp", "lista.txt"], z.namelist()
+        z = zipfile.ZipFile(io.BytesIO(proxies_zip([{"name": "A/B: C", "q": 4, "url": "arts/0123456789abcdef0123.webp"}], d)[0]))
+        assert z.namelist() == ["001 AB C (x4).webp"], z.namelist()
+        data, missed = proxies_zip([{"name": "X", "q": 1, "url": "arts/ffffffffffffffffffff.png", "fallback": "arts/0123456789abcdef0123.webp"}], d)
+        z = zipfile.ZipFile(io.BytesIO(data))
+        assert missed == ["X"] and sorted(z.namelist()) == ["001 X.webp", "faltam.txt"], (missed, z.namelist())
     return True
 
 

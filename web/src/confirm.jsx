@@ -9,6 +9,7 @@ export const CONFIRMS = [
   ['ultima', tx('Tirar a última cópia de uma carta do deck')],
   ['ultimaSingleton', tx('… também em formatos de uma cópia (Commander/EDH)')],
   ['formato', tx('Mudar o formato de um deck com cartas')],
+  ['casual', tx('Pôr ou tirar um deck do modo casual')],
   ['torneio', tx('Apagar ou cancelar um torneio')],
   ['teste', tx('Apagar um teste guardado')],
   ['registo', tx('Limpar os registos da mesa (vida e dados)')],
@@ -58,6 +59,13 @@ export function ConfirmHost() {
     </div>
   )
 }
+
+// textos das confirmações do modo casual (Biblioteca em massa e construtor)
+export const casualAsk = (on, n = 1) => ask('casual', on
+  ? { title: n > 1 ? tx('Passar {n} decks a casual?', { n }) : tx('Passar o deck a casual?'), ok: tx('Passar a casual'), danger: false,
+    body: tx('Um deck casual pode ter cartas proibidas, banidas ou de fora do formato. Passa a jogar só em modo casual (Laboratório, torneios e Arena casuais) e só conta para o rating casual; deixa de entrar nos torneios e na Arena do formato.') }
+  : { title: n > 1 ? tx('Tirar {n} decks do modo casual?', { n }) : tx('Tirar o deck do modo casual?'), ok: tx('Tirar do casual'), danger: false,
+    body: tx('Volta a seguir as regras do formato: entra nos torneios e na Arena do formato e conta para os ratings normais. Se tiver cartas que o formato não deixa, aparece como inválido até as trocares.') })
 
 // Definições › Confirmações
 export function ConfirmSettings() {

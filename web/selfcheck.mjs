@@ -409,3 +409,7 @@ console.log('selfcheck universo ok')
   for (let i = 0; i < 400; i++) n[artPick(v, `a${i}`)]++
   assert.ok(n.A > 120 && n.B > 120, 'artPick divide as cópias'); assert.equal(artPick(v, 'a7'), artPick(v, 'a7')); assert.equal(artPick('x', 'a1'), 'x'); assert.equal(artPick(null), null)
   console.log('selfcheck artes por cópia ok') }
+{ const d = { ...emptyDeck('modern'), main: { Island: 10, 'Sol Ring': 1 }, prints: { Island: { set: 'TRK', cn: '320' } }, split: { Island: [{ id: 'x', q: 3, set: 'FRA', cn: '386' }, { id: 'arts/y.webp', q: 2 }] } }
+  const L = exportList(d).split('\n')
+  assert.deepEqual(L.filter(l => l.includes('Island')), ['3 Island (FRA) 386', '2 Island', '5 Island (TRK) 320'])
+  console.log('selfcheck exportação por arte ok') }

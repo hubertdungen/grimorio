@@ -86,10 +86,16 @@ export function parseList(text, data) {
 }
 
 // Com estilo escolhido sai "1 Sol Ring (CMR) 263 *F*", que o Moxfield, o Archidekt e o Arena percebem.
+// Cópias divididas por várias artes (deck.split) saem numa linha por arte; as que sobram ficam com a edição principal.
 export function exportList(deck) {
+  const one = (n, q, pr) => `${q} ${n}${pr?.set ? ` (${pr.set}) ${pr.cn}` : ''}${pr?.foil ? ' *F*' : ''}`
   const ln = (n, q) => {
-    const pr = deck.prints?.[n]
-    return `${q} ${n}${pr ? ` (${pr.set}) ${pr.cn}` : ''}${pr?.foil ? ' *F*' : ''}`
+    const pr = deck.prints?.[n], sp = deck.split?.[n]
+    if (!sp?.length) return one(n, q, pr)
+    let left = q
+    const out = sp.map(x => { const k = Math.min(x.q, left); left -= k; return k ? one(n, k, x) : null }).filter(Boolean)
+    if (left > 0) out.push(one(n, left, pr))
+    return out.join('\n')
   }
   const lines = []
   if (deck.commanders.length) lines.push('Commander', ...deck.commanders.map(n => ln(n, 1)), '')
@@ -104,4 +110,21 @@ export function sampleHand(deck, size = 7) {
   for (const [n, q] of Object.entries(deck.main)) for (let k = 0; k < q; k++) pool.push(n)
   for (let k = pool.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [pool[k], pool[j]] = [pool[j], pool[k]] }
   return pool.slice(0, size)
+}
+
+// Proxies: cada grupo de cópias com a mesma arte → { name, q, src } (src = id da edição, imagem própria ou null =
+// a predefinida) e o verso das cartas de duas faces. Comandantes, deck e (opcional) sideboard.
+export function proxyGroups(deck, data, { side = true } = {}) {
+  const out = [], add = (n, q) => {
+    const c = data.byName.get(n); if (!c || q <= 0) return
+    const main = deck.art?.[n] || deck.prints?.[n]?.id || null
+    let left = q
+    for (const x of deck.split?.[n] || []) { const k = Math.min(x.q, left); left -= k; if (k) out.push({ c, q: k, src: x.id }) }
+    if (left > 0) out.push({ c, q: left, src: main })
+  }
+  for (const n of deck.commanders || []) add(n, 1)
+  if (deck.signature) add(deck.signature, 1)
+  for (const [n, q] of Object.entries(deck.main || {})) add(n, q)
+  if (side) for (const [n, q] of Object.entries(deck.side || {})) add(n, q)
+  return out
 }

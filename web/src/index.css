@@ -1663,3 +1663,7 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .split-slot { display: grid; justify-items: center; gap: 3px; } .split-slot img { width: 66px; border-radius: 5px; }
 .split-slot .qty { display: inline-flex; align-items: center; gap: 4px; } .split-slot .qty button { width: 22px; height: 22px; padding: 0; line-height: 1; }
 .dg-tile.split .dg-img { box-shadow: 0 0 0 1px #ffffff22; }
+/* proxies */
+.modal.proxies { width: min(640px, 100%); padding: 18px 20px; display: grid; gap: 10px; }
+.proxies h3 { margin: 0; padding-right: 30px; } .px-opt { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel2); }
+.px-opt h4 { margin: 0; } .px-opt p { margin: 0; } .px-opt textarea { width: 100%; font: 12px/1.4 ui-monospace, monospace; resize: vertical; }

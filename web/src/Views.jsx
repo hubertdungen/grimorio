@@ -1694,12 +1694,12 @@ export function ArtPicker({ c, deck, act, onClose }) {
   const [splitOn, setSplitOn] = useState(slots.length > 0)
   const sum = slots.reduce((a, x) => a + x.q, 0)
   const putSlots = l => act.setSplit(c.n, l.filter(x => x.q > 0))
-  const addSlot = id => {
+  const addSlot = (id, pr) => {  // pr: a edição (set e número vão para a exportação); sem ela é uma imagem própria
     if (sum >= total) return act.say(tx('Já estão as {n} cópias atribuídas: tira uma a outra arte primeiro.', { n: total }))
     const k = slots.findIndex(x => x.id === id)
-    putSlots(k >= 0 ? slots.map((x, j) => (j === k ? { ...x, q: x.q + 1 } : x)) : [...slots, { id, q: 1 }])
+    putSlots(k >= 0 ? slots.map((x, j) => (j === k ? { ...x, q: x.q + 1 } : x)) : [...slots, { id, q: 1, ...(pr && { set: pr.set, cn: pr.cn }) }])
   }
-  const act2 = canSplit && splitOn ? { ...act, setPrint: (cc, p) => p && addSlot(p.id), setArt: (n, url) => url && addSlot(url) } : act
+  const act2 = canSplit && splitOn ? { ...act, setPrint: (cc, p) => p && addSlot(p.id, p), setArt: (n, url) => url && addSlot(url) } : act
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal artpick" onClick={e => e.stopPropagation()}>
