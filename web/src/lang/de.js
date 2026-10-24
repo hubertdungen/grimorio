@@ -1949,4 +1949,7 @@ export default {
   "voltar a verificar": "erneut prüfen",
   "ignorar": "ignorieren",
   "Esconder este grupo: são decks diferentes de propósito": "Diese Gruppe ausblenden: die Decks sind absichtlich verschieden",
+  "Capa de «{name}»": "Cover für „{name}“",
+  "Procurar uma carta do deck…": "Karte im Deck suchen…",
+  "Nenhuma carta com esse nome.": "Keine Karte mit diesem Namen.",
 }

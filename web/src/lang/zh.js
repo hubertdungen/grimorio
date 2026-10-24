@@ -1949,4 +1949,7 @@ export default {
   "voltar a verificar": "重新检查",
   "ignorar": "忽略",
   "Esconder este grupo: são decks diferentes de propósito": "隐藏此组：这些套牌是有意不同的",
+  "Capa de «{name}»": "「{name}」的封面",
+  "Procurar uma carta do deck…": "在套牌中搜索卡牌…",
+  "Nenhuma carta com esse nome.": "没有该名称的卡牌。",
 }

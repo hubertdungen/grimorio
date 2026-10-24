@@ -1957,4 +1957,7 @@ export default {
   "voltar a verificar": "check again",
   "ignorar": "ignore",
   "Esconder este grupo: são decks diferentes de propósito": "Hide this group: these decks are different on purpose",
+  "Capa de «{name}»": "Cover for “{name}”",
+  "Procurar uma carta do deck…": "Search a card in the deck…",
+  "Nenhuma carta com esse nome.": "No card with that name.",
 }

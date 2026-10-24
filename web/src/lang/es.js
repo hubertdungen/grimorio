@@ -1949,4 +1949,7 @@ export default {
   "voltar a verificar": "volver a comprobar",
   "ignorar": "ignorar",
   "Esconder este grupo: são decks diferentes de propósito": "Ocultar este grupo: son mazos distintos a propósito",
+  "Capa de «{name}»": "Portada de «{name}»",
+  "Procurar uma carta do deck…": "Buscar una carta del mazo…",
+  "Nenhuma carta com esse nome.": "Ninguna carta con ese nombre.",
 }

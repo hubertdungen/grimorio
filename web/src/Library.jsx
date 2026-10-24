@@ -71,46 +71,82 @@ function Trophies({ list }) {
   )
 }
 
+// ícones em SVG (os emojis ⚔ ⧉ 🖼 🗑 saíam a preto e branco e desalinhados no Windows; assim são iguais em todo o lado)
+const ICONS = {
+  play: <><path d="M4 4l10 10M11 17l6-6M16 16l4 4" /><path d="M20 4L10 14M7 11l6 6M8 16l-4 4" /></>,
+  copy: <><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h8" /></>,
+  image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="M21 16l-5-5-9 9" /></>,
+  trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />,
+  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
+  user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
+  dice: <><rect x="4" y="4" width="16" height="16" rx="3" /><circle cx="9" cy="9" r="1.2" fill="currentColor" /><circle cx="15" cy="15" r="1.2" fill="currentColor" /><circle cx="15" cy="9" r="1.2" fill="currentColor" /><circle cx="9" cy="15" r="1.2" fill="currentColor" /></>,
+}
+export const Ico = ({ n }) => <svg className="ico" viewBox="0 0 24 24" aria-hidden="true">{ICONS[n]}</svg>
+
+// Escolher a capa: popup com todas as cartas do deck (deck, sideboard, comandantes; terrenos no fim), pesquisa,
+// link ou imagem carregada. As artes próprias (TappedOut) vêm do deck completo.
+function CoverPicker({ d, data, setCover, setImg, onClose }) {
+  const [full, setFull] = useState(null), [q, setQ] = useState(''), [link, setLink] = useState('')
+  useEffect(() => { fetch(`/api/decks/${d.id}`).then(r => r.json()).then(setFull).catch(() => setFull({})) }, [d.id])
+  useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
+  const art = full?.art || {}, cur = coverOf(d, data)
+  const cards = useMemo(() => {
+    const x = full || d, names = [...new Set([...(x.commanders || []), ...Object.keys(x.main || {}), ...Object.keys(x.side || {})])]
+    const cs = names.map(n => data.byName.get(n)).filter(Boolean)
+    return [...cs.filter(c => c.mt !== 'Land'), ...cs.filter(c => c.mt === 'Land')]
+  }, [full, d, data])
+  const shown = q.trim() ? cards.filter(c => c.n.toLowerCase().includes(q.trim().toLowerCase())) : cards
+  const done = f => { f(); onClose() }
+  return createPortal(
+    <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal cover-pick" role="dialog" aria-label={tx('Escolher a capa')}>
+        <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
+        <h3>{tx('Capa de «{name}»', { name: d.name })}</h3>
+        <div className="cover-own">
+          <form onSubmit={e => { e.preventDefault(); if (link.trim()) done(() => setImg(d.id, { url: link.trim() })) }}>
+            <input value={link} onChange={e => setLink(e.target.value)} placeholder={tx('Link de uma imagem (https://…)')} inputMode="url" /><button disabled={!link.trim()}>{tx('Usar')}</button>
+          </form>
+          <label className="dbox-up">⬆ {tx('Carregar imagem')}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => { const f = e.target.files?.[0]; if (f) done(() => setImg(d.id, { file: f })) }} /></label>
+          {d.coverImg && <button className="link small" onClick={() => done(() => setImg(d.id, { url: null }))}>{tx('tirar a imagem (volta à carta)')}</button>}
+        </div>
+        <input className="cover-q" value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar uma carta do deck…')} />
+        <div className="cover-grid">{shown.map(c => {
+          const own = art[c.n], on = own ? d.coverImg === own : !d.coverImg && c.n === cur?.n
+          return (
+            <button key={c.n} className={on ? 'on' : ''} onClick={() => done(() => (own ? setImg(d.id, { url: own }) : setCover(d.id, c.n)))} title={own ? tx('{name} (arte própria)', { name: c.n }) : c.n}>
+              <img src={img(c, 'normal', false, own)} alt={c.n} loading="lazy" />
+            </button>
+          )
+        })}{!shown.length && <p className="muted small">{tx('Nenhuma carta com esse nome.')}</p>}</div>
+      </div>
+    </div>, document.body)
+}
+
 function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rtc, tro, selected, onSelect, onFav, onCom, onDelete }) {
-  const [link, setLink] = useState('')
   const [pick, setPick] = useState(false)
   const c = coverOf(d, data), cols = colorsOf(d, data)
   const edge = cols.length ? cols.map(x => HUE[x]) : ['#8a8a99']
   const bg = edge.length > 1 ? `linear-gradient(135deg, ${edge.join(', ')})` : edge[0]
   const open = t => openDeck(d.id).then(() => goTab(t))
-  const opts = Object.keys(d.main || {}).map(n => data.byName.get(n)).filter(x => x && x.mt !== 'Land')
-  // artes próprias do deck (TappedOut): só no deck completo, lidas ao abrir a escolha da capa
-  const [art, setArt] = useState(null)
-  useEffect(() => { if (pick && !art) fetch(`/api/decks/${d.id}`).then(r => r.json()).then(x => setArt(x.art || {})).catch(() => setArt({})) }, [pick, art, d.id])
   return (
     <div className={`dbox ${selected ? 'sel' : ''}`} style={{ '--edge': bg }} data-deck={d.id}>
       <label className="dbox-check" title={tx('Selecionar (para comparar ou mudar vários de uma vez)')}><input type="checkbox" checked={!!selected} onChange={() => onSelect(d.id)} /></label>
       <button className={`dbox-fav ${d.fav ? 'on' : ''}`} onClick={() => onFav(d)} title={d.fav ? tx('Tirar dos favoritos') : tx('Pôr nos favoritos')}>{d.fav ? '★' : '☆'}</button>
       <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
         {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
-        <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}{d.community && <span title={tx('Deck da comunidade (de outra pessoa)')}> · 🌐 {tx('Comunidade')}</span>}</span>
+        <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}{d.community && <span title={tx('Deck da comunidade (de outra pessoa)')}> · <Ico n="globe" /> {tx('Comunidade')}</span>}</span>
       </button>
       <div className="dbox-body">
         <b title={d.name}>{d.name}</b>
-        <span className="dbox-meta">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}>{d.community ? '🌐' : '🧙'}</button><Trophies list={tro} /><DeckRating d={d} rt={rt} rtc={rtc} /></span>
+        <span className="dbox-meta">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}><Ico n={d.community ? 'globe' : 'user'} /></button><Trophies list={tro} /><DeckRating d={d} rt={rt} rtc={rtc} /></span>
         <span className="row-btns">
           <button onClick={() => open('deck')}>{tx('Abrir')}</button>
-          <button onClick={() => open('teste')} title={tx('Testar no Forge')}>⚔</button>
-          <button onClick={() => duplicate(d.id)} title={tx('Duplicar')}>⧉</button>
-          <button className={pick ? 'on' : ''} onClick={() => setPick(x => !x)} title={tx('Escolher a capa: carta do deck, link ou imagem tua')}>🖼</button>
-          <button onClick={() => onDelete(d)} title={tx('Apagar (vai para o lixo)')}>🗑</button>
+          <button className="ib" onClick={() => open('teste')} title={tx('Testar no Forge')} aria-label={tx('Testar no Forge')}><Ico n="play" /></button>
+          <button className="ib" onClick={() => duplicate(d.id)} title={tx('Duplicar')} aria-label={tx('Duplicar')}><Ico n="copy" /></button>
+          <button className={`ib ${pick ? 'on' : ''}`} onClick={() => setPick(true)} title={tx('Escolher a capa: carta do deck, link ou imagem tua')} aria-label={tx('Escolher a capa')}><Ico n="image" /></button>
+          <button className="ib" onClick={() => onDelete(d)} title={tx('Apagar (vai para o lixo)')} aria-label={tx('Apagar')}><Ico n="trash" /></button>
         </span>
-        {pick && <div className="dbox-own">
-          <form onSubmit={e => { e.preventDefault(); if (link.trim()) { setImg(d.id, { url: link.trim() }); setLink(''); setPick(false) } }}>
-            <input value={link} onChange={e => setLink(e.target.value)} placeholder={tx('Link de uma imagem (https://…)')} inputMode="url" /><button disabled={!link.trim()}>{tx('Usar')}</button>
-          </form>
-          <label className="dbox-up">⬆ {tx('Carregar imagem')}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => { const f = e.target.files?.[0]; if (f) { setImg(d.id, { file: f }); setPick(false) } }} /></label>
-          {d.coverImg && <button className="link small" onClick={() => { setImg(d.id, { url: null }); setPick(false) }}>{tx('tirar a imagem (volta à carta)')}</button>}
-          <small className="muted">{tx('ou escolhe uma carta do deck:')}</small>
-        </div>}
-        {pick && <div className="dbox-pick">{opts.map(o => (
-          <button key={o.n} className={(art?.[o.n] ? d.coverImg === art[o.n] : !d.coverImg && o.n === c?.n) ? 'on' : ''} onClick={() => { if (art?.[o.n]) setImg(d.id, { url: art[o.n] }); else setCover(d.id, o.n); setPick(false) }} title={art?.[o.n] ? tx('{name} (arte própria)', { name: o.n }) : o.n}><img src={img(o, 'small', false, art?.[o.n])} alt={o.n} loading="lazy" /></button>
-        ))}</div>}
+        {pick && <CoverPicker {...{ d, data, setCover, setImg }} onClose={() => setPick(false)} />}
       </div>
     </div>
   )
@@ -262,13 +298,13 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <b>{tx('{n} deck selecionado|{n} decks selecionados', { n: sel.length })}</b>
           <button className="primary" disabled={sel.length < 2 || sel.length > 3} title={tx('escolhe 2 ou 3 para comparar')} onClick={() => setCmp(true)}>⇄ {tx('Comparar')}</button>
           <span className="cmp-mass">
-            <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}>🌐 {tx('Comunidade')}</button>
-            <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}>🧙 {tx('Meus')}</button>
-            <button onClick={() => bulk({ casual: true }, '{n} deck passou a casual|{n} decks passaram a casual')}>🎲 {tx('Casual')}</button>
+            <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}><Ico n="globe" /> {tx('Comunidade')}</button>
+            <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}><Ico n="user" /> {tx('Meus')}</button>
+            <button onClick={() => bulk({ casual: true }, '{n} deck passou a casual|{n} decks passaram a casual')}><Ico n="dice" /> {tx('Casual')}</button>
             <button onClick={() => bulk({ casual: false }, '{n} deck deixou de ser casual|{n} decks deixaram de ser casual')}>{tx('Tirar casual')}</button>
             <button onClick={() => bulk({ fav: true }, '{n} deck nos favoritos|{n} decks nos favoritos')}>★ {tx('Favoritos')}</button>
             <button onClick={() => bulk({ fav: false }, '{n} deck tirado dos favoritos|{n} decks tirados dos favoritos')}>☆ {tx('Tirar favorito')}</button>
-            <button className="danger" onClick={() => setBulkDel(true)}>🗑 {tx('Apagar')}</button>
+            <button className="danger" onClick={() => setBulkDel(true)}><Ico n="trash" /> {tx('Apagar')}</button>
           </span>
           <button className="link small" onClick={() => setSel([])}>{tx('limpar')}</button>
         </div>}
@@ -276,7 +312,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <h3>{tx('Apagar {n} decks?', { n: sel.length })}</h3>
           <p className="muted small">{sel.map(id => mine.find(d => d.id === id)?.name).filter(Boolean).join(' · ')}</p>
           <p className="small">{tx('Vão para o lixo e podes recuperá-los durante 30 dias.')}</p>
-          <div className="row"><button className="danger" onClick={removeSel}>🗑 {tx('Apagar')}</button><button onClick={() => setBulkDel(false)}>{tx('Cancelar')}</button></div>
+          <div className="row"><button className="danger" onClick={removeSel}><Ico n="trash" /> {tx('Apagar')}</button><button onClick={() => setBulkDel(false)}>{tx('Cancelar')}</button></div>
         </div></div>}
         {cmp && <DeckCompare data={data} decks={sel.map(id => mine.find(d => d.id === id)).filter(Boolean)} onClose={() => setCmp(false)}
           onOpen={id => { setCmp(false); openDeck(id).then(() => goTab('deck')) }} onFav={toggleFav} onDelete={setDel} />}
@@ -316,7 +352,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <div key={gid(g)} className="dupe-g">
             <span className={`chip ${g.top >= 0.999 ? 'bad' : ''}`}>{g.top >= 0.999 ? tx('iguais') : tx('{p}% iguais', { p: Math.round(g.top * 100) })}</span>
             {g.decks.map(d => <span key={d.id} className="dupe-d"><b>{d.name}</b><small className="muted">{FORMAT[d.format]?.name || d.format} · {when(d.updated)}</small>
-              <button onClick={() => setDel(d)} title={tx('Apagar este (vai para o lixo)')}>🗑</button></span>)}
+              <button onClick={() => setDel(d)} className="ib" title={tx('Apagar este (vai para o lixo)')} aria-label={tx('Apagar')}><Ico n="trash" /></button></span>)}
             <button className="primary" onClick={() => { setSel(g.decks.slice(0, 3).map(d => d.id)); setCmp(true) }}>⇄ {tx('Comparar')}</button>
             <button className="link small" onClick={() => setIgn(i => [...i, gid(g)])} title={tx('Esconder este grupo: são decks diferentes de propósito')}>{tx('ignorar')}</button>
           </div>
