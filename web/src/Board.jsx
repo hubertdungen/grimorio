@@ -417,27 +417,35 @@ export default function Replay({ data, game, onBack, backLabel = '← Relatório
   const art = useMemo(() => ({ arts: arts0 || game.arts || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, d?.art]))), k: null }), [arts0, game]), arts = art.arts
   const [hands, setHandsS] = useState(hands0 || 'ambas')
   // No Coliseu o tabuleiro escala as cartas (--fit) para caber na altura do ecrã: ao abrir, ao redimensionar e em ecrã inteiro
-  const boardRef = useRef(null), fitRef = useRef(null)
+  const boardRef = useRef(null), fitRef = useRef(null), zoomRef = useRef(null)  // zoomRef: −/⤢/+ (ajuste manual, guardado)
   useLayoutEffect(() => {
     const el = boardRef.current
     if (!el?.closest('.coliseu')) return
     // altura livre = do sítio onde o tabuleiro começa (com a página no topo, ou o ecrã inteiro no topo) até ao fundo do ecrã
     const avail = () => {
-      const fe = document.fullscreenElement || document.webkitFullscreenElement, sc = fe?.contains(el) ? fe : null
+      // dentro de uma janela (ver ao vivo, repetições do torneio) mede-se na janela; em ecrã inteiro no elemento; senão na página
+      const md = el.closest('.modal'), fe = document.fullscreenElement || document.webkitFullscreenElement
+      const sc = md || (fe?.contains(el) ? fe : null), vh = window.visualViewport?.height || innerHeight  // altura visível real (tablet)
       const top = el.getBoundingClientRect().top + (sc ? sc.scrollTop - sc.getBoundingClientRect().top : scrollY)
-      return (window.visualViewport?.height || innerHeight) - top - 8  // altura visível real (barra do browser no tablet)
+      return (md ? Math.min(vh, innerHeight - 24) : vh) - top - 8
     }
     const fit = () => {
       if (innerWidth < 901) return el.style.removeProperty('--fit')
       let f = 1
       el.style.setProperty('--fit', f)
       for (let n = 0; n < 4; n++) { f = Math.max(0.4, Math.min(1.6, f * avail() / el.offsetHeight)); el.style.setProperty('--fit', f) }
+      el.style.setProperty('--fit', Math.max(0.35, Math.min(1.9, f * adj())))
+    }
+    const adj = () => { try { return Math.max(0.6, Math.min(1.6, +localStorage.getItem('grimorio.zoom') || 1)) } catch { return 1 } }
+    zoomRef.current = d => {  // d = ±0,1 afina à mão; 0 volta a detetar a altura e repõe o ajuste automático
+      try { localStorage.setItem('grimorio.zoom', d ? Math.max(0.6, Math.min(1.6, adj() + d)).toFixed(2) : '1') } catch { /* sem armazenamento */ }
+      fit()
     }
     fit()
     fitRef.current = () => {  // segurança: se uma jogada fizer crescer o tabuleiro (terrenos a mudar de linha), só encolhe
       if (innerWidth < 901) return
       const a = avail(), h = el.offsetHeight
-      if (h > a + 4) el.style.setProperty('--fit', Math.max(0.4, (+el.style.getPropertyValue('--fit') || 1) * a / h))
+      if (h > a * Math.max(1, adj()) + 4) el.style.setProperty('--fit', Math.max(0.4, (+el.style.getPropertyValue('--fit') || 1) * a / h))
     }
     // no tablet o tamanho final chega atrasado (ecrã inteiro, rodar, barra do browser): volta a medir pouco depois
     let tm = []
@@ -542,6 +550,7 @@ export default function Replay({ data, game, onBack, backLabel = '← Relatório
         <button className="primary" onClick={() => setPlaying(!playing)}>{playing ? '❚❚ Pausa' : '▶ Continuar'}</button>
         <button onClick={() => go(i + 1, false)} title="Passo à frente" aria-label="Passo à frente">▶</button>
         <button onClick={() => go(evs.length)} title={live ? 'Ir para o momento atual' : 'Fim'} aria-label="Fim">⏭</button>
+        <span className="rp-zoom"><button onClick={() => zoomRef.current?.(-0.1)} title="Mais pequeno">−</button><button onClick={() => zoomRef.current?.(0)} title="Ajustar ao ecrã (volta a detetar a altura)">⤢</button><button onClick={() => zoomRef.current?.(0.1)} title="Maior">+</button></span>
         <label className="sl rp-speed"><span>Velocidade <b>{speed}×</b></span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
         {onPlayFrom && !live && !multi && <button onClick={() => { setPlaying(false); onPlayFrom(s, game) }} title="Abre esta posição no Forge e jogas tu com o teu deck">🎮 Jogar daqui</button>}
         <select value={hands} onChange={e => setHands(e.target.value)} aria-label="Mãos à vista">{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>

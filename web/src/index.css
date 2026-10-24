@@ -1233,3 +1233,4 @@ button.brand { padding: 0; border: 0; background: none; text-align: left; } butt
 .home-card b { font-size: 18px; } .home-card span { color: var(--muted); font-size: 13px; line-height: 1.35; }
 .home-card small { position: absolute; top: 10px; right: 12px; color: var(--gold2); font-size: 11px; }
 .home-foot { margin: 0; text-align: center; }
+.rp-zoom { display: inline-flex; gap: 2px; } .rp-zoom button { min-width: 34px; padding: 4px 8px; } @media (max-width: 900px) { .rp-zoom { display: none; } }
