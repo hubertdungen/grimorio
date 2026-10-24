@@ -47,11 +47,15 @@ Si quieres instalarlo en un servidor doméstico para varios dispositivos, o desa
   impórtalo o describe una idea.
 - **Importa** desde TappedOut, Moxfield, Archidekt, MTGGoldfish, Deckstats, MTGTop8 y Scryfall: perfiles enteros,
   ilustraciones y portadas personalizadas, sideboard y maybeboard. Busca mazos públicos de Archidekt con filtros.
-- **Universo 3D de cartas**, combos y paquetes de sinergia, comparación de mazos y detección de duplicados.
+- **Universo 3D de cartas**: regiones por función que muestran lo que le falta a tu mazo, el rendimiento de cada carta
+  en partidas reales con cambios sugeridos, constelaciones de los arquetipos del meta y un lazo para encontrar las mejores
+  cartas de cualquier zona.
+- **Combos y paquetes de sinergia**, comparación de mazos y detección de duplicados.
 - **Coliseo (IA de Forge)**: IA contra IA con reglas reales (Bo1/Bo3, sideboard inteligente, aprendizaje), todos
   contra todos de 3–4 jugadores y mesas de Commander, un tablero animado que puedes seguir en directo, informes y
   mejoras sugeridas, y la opción de jugar tú contra Forge en el navegador (instalación de servidor con Docker).
-- **Torneos**: eliminación directa y doble eliminación, suizo, liga y mesas, cuadro en directo, podio e historial.
+- **Torneos**: eliminación directa y doble eliminación, suizo, liga y mesas, cuadro en directo, podio e historial;
+  apuestas con monedas de juego (no se compra nada, sin dinero real) y trofeos en los mazos que ganan.
 - **Ratings**: de 0 a 6 estrellas por mazo (Elo por formato, más un rating casual aparte), alimentados por las
   pruebas, los torneos y una Arena automática opcional.
 - **Perfiles**: una instalación, varios jugadores, cada uno con sus propios mazos.

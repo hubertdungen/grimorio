@@ -46,11 +46,14 @@ Du willst Grimório auf einem Heimserver für mehrere Geräte betreiben oder dar
   Hand, importiere oder beschreibe eine Idee.
 - **Import** von TappedOut, Moxfield, Archidekt, MTGGoldfish, Deckstats, MTGTop8 und Scryfall – ganze Profile, eigene
   Kartenbilder und Cover, Sideboard und Maybeboard. Durchsuche öffentliche Archidekt-Decks mit Filtern.
-- **3D-Kartenuniversum**, Combos und Synergiepakete, Deckvergleich und Erkennung doppelter Decks.
+- **3D-Kartenuniversum** – Regionen nach Rolle, die zeigen, was deinem Deck fehlt, die Leistung jeder Karte in echten
+  Spielen mit Tauschvorschlägen, Sternbilder der Meta-Archetypen und ein Lasso, um die besten Karten jedes Bereichs zu finden.
+- **Combos und Synergiepakete**, Deckvergleich und Erkennung doppelter Decks.
 - **Kolosseum (Forge-KI)** – KI gegen KI mit echten Regeln (Bo1/Bo3, cleveres Sideboarding, lernend), Jeder gegen jeden
   mit 3–4 Spielern und Commander-Tische, ein animiertes Spielfeld, das du live verfolgen kannst, Berichte und
   Verbesserungsvorschläge – und du kannst selbst im Browser gegen Forge spielen (Server-Installation mit Docker).
-- **Turniere** – K.-o.-System, Doppel-K.-o., Schweizer System, Liga und Tische, Live-Turnierbaum, Podium und Verlauf.
+- **Turniere** – K.-o.-System, Doppel-K.-o., Schweizer System, Liga und Tische, Live-Turnierbaum, Podium und Verlauf;
+  Wetten mit Spielmünzen (nichts zu kaufen, kein echtes Geld) und Trophäen für die Siegerdecks.
 - **Ratings** – 0–6 Sterne pro Deck (Elo pro Format, dazu ein eigenes Casual-Rating), gespeist aus Tests, Turnieren und
   einer optionalen automatischen Arena.
 - **Profile** – eine Installation, mehrere Spieler, jeder mit seinen eigenen Decks.

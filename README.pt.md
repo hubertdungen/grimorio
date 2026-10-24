@@ -42,11 +42,14 @@ Para o pôr a correr num servidor em casa para vários dispositivos, ou para o d
 - **Começa à tua maneira** — escolhe 3–10 cartas (ou um comandante) e deixa-o completar o deck, constrói à mão, importa, ou descreve uma ideia.
 - **Importar** do TappedOut, Moxfield, Archidekt, MTGGoldfish, Deckstats, MTGTop8 e Scryfall — perfis inteiros,
   ilustrações de carta e capas personalizadas, sideboard e maybeboard. Pesquisa decks públicos do Archidekt com filtros.
-- **Universo 3D de cartas**, combos e pacotes de sinergia, comparação de decks e deteção de duplicados.
+- **Universo 3D de cartas** — regiões por função que mostram o que falta ao teu deck, o desempenho de cada carta nos
+  jogos com trocas sugeridas, constelações dos arquétipos do meta e um laço para achar as melhores cartas de qualquer zona.
+- **Combos e pacotes de sinergia**, comparação de decks e deteção de duplicados.
 - **Coliseu (IA do Forge)** — IA contra IA com regras reais (Bo1/Bo3, sideboard inteligente, aprendizagem), todos contra
   todos a 3–4 jogadores e mesas de Commander, um tabuleiro animado que podes ver ao vivo, relatórios e melhorias
   sugeridas, e joga tu próprio contra o Forge no navegador (instalação de servidor com Docker).
-- **Torneios** — eliminação simples/dupla, suíço, liga e mesas, árvore ao vivo, pódio e histórico.
+- **Torneios** — eliminação simples/dupla, suíço, liga e mesas, árvore ao vivo, pódio e histórico; apostas com moedas
+  a fingir (nada se compra, sem dinheiro a sério) e troféus nos decks que ganham.
 - **Ratings** — 0–6 estrelas por deck (Elo por formato, mais um rating casual à parte) alimentadas por testes, torneios
   e uma Arena automática opcional.
 - **Perfis** — uma instalação, vários jogadores, cada um com os seus decks.

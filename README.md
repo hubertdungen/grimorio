@@ -41,11 +41,14 @@ Running it on a home server for several devices, or developing it: see [Develope
 - **Start your way** — pick 3–10 cards (or a commander) and let it complete the deck, build by hand, import, or describe an idea.
 - **Import** from TappedOut, Moxfield, Archidekt, MTGGoldfish, Deckstats, MTGTop8 and Scryfall — whole profiles,
   custom card art and covers, sideboard and maybeboard. Search public Archidekt decks with filters.
-- **3D card universe**, combos and synergy packages, deck comparison and duplicate detection.
+- **3D card universe** — role regions that show what your deck is missing, each card's performance in real games with
+  suggested swaps, meta archetype constellations and a lasso to find the best cards of any area.
+- **Combos and synergy packages**, deck comparison and duplicate detection.
 - **Coliseum (Forge AI)** — AI vs AI with real rules (Bo1/Bo3, smart sideboarding, learning), 3–4 player free-for-all
   and Commander pods, an animated board you can watch live, reports and suggested improvements, and play against
   Forge yourself in the browser (server install with Docker).
-- **Tournaments** — single/double elimination, Swiss, league and pods, live bracket, podium and history.
+- **Tournaments** — single/double elimination, Swiss, league and pods, live bracket, podium and history; bets with
+  play coins (nothing to buy, no real money) and trophies on the decks that win.
 - **Ratings** — 0–6 stars per deck (Elo per format, plus a separate casual rating) fed by tests, tournaments and an
   optional automatic Arena.
 - **Profiles** — one install, several players, each with their own decks.
