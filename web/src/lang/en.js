@@ -2120,4 +2120,6 @@ export default {
   "quanto chega, em média, ao objetivo de ganhar": "how close it gets, on average, to the goal of winning",
   "Rating": "Rating",
   "Troféus": "Trophies",
+  "Nos torneios não casuais entra sempre o meta (pelo menos 20%), para os ratings terem decks de referência.": "Non-casual tournaments always include meta decks (at least 20%), so the ratings have reference decks.",
+  "Mistura": "Mix",
 }

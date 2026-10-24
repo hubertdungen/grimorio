@@ -413,3 +413,11 @@ console.log('selfcheck universo ok')
   const L = exportList(d).split('\n')
   assert.deepEqual(L.filter(l => l.includes('Island')), ['3 Island (FRA) 386', '2 Island', '5 Island (TRK) 320'])
   console.log('selfcheck exportação por arte ok') }
+{ const { mixTake } = await import('./src/game.js')
+  const mk = (s, n, com = false) => Array.from({ length: n }, (_, i) => [s, { id: `${s}${com ? 'c' : ''}${i}`, community: com }])
+  const pool = [...mk('meus', 10), ...mk('meus', 10, true), ...mk('meta', 10)], kinds = r => r.reduce((o, [s, d]) => { const k = s === 'meta' ? 'meta' : d.community ? 'com' : 'meu'; o[k] = (o[k] || 0) + 1; return o }, {})
+  assert.deepEqual(kinds(mixTake(pool, 10, { meu: 50, com: 20, meta: 30 })), { meu: 5, com: 2, meta: 3 })
+  assert.deepEqual(kinds(mixTake(pool, 10, { meu: 100, meta: 5 }, 0.2)), { meu: 8, meta: 2 })            // pelo menos 20% do meta
+  assert.deepEqual(kinds(mixTake([...mk('meus', 2), ...mk('meta', 10)], 8, { meu: 75, meta: 25 })), { meu: 2, meta: 6 })  // faltam meus: o meta completa
+  assert.equal(mixTake(pool, 7, { meu: 1, com: 1, meta: 1 }).length, 7)
+  console.log('selfcheck mistura ok') }

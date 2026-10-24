@@ -7,7 +7,7 @@ import { img, coverOf, colorsOf, HUE } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import Replay from './Board.jsx'
 import { Cup, PLACE, TIERS, tierOf } from './Library.jsx'
-import { swapSide, nextGame } from './game.js'
+import { swapSide, nextGame, mixTake } from './game.js'
 import { DIFF_INFO } from './difficulty.js'
 import { ask } from './confirm.jsx'
 import { tx, LOCALE } from './i18n.js'
@@ -120,6 +120,17 @@ function Create({ data, fmt0, onCreated, deckId }) {
   const okMine = o => srcs.includes(o.community ? 'com' : 'meu')
   const [favOnly, setFavOnlyS] = useState(() => ls('grimorio.torneio.favoritos') === '1')  // «Preencher» só com os meus favoritos
   const setFavOnly = v => { setFavOnlyS(v); ls('grimorio.torneio.favoritos', v ? '1' : '0') }
+  // mistura das fontes no «Preencher» (pesos 0–100; nos não casuais o meta fica ligado e com pelo menos 20%)
+  const META_MIN = casual ? 0 : 0.2
+  const [mix, setMixS] = useState(() => { try { return { meu: 50, com: 20, meta: 30, ...JSON.parse(ls('grimorio.torneio.mistura') || '{}') } } catch { return { meu: 50, com: 20, meta: 30 } } })
+  const setMix = (k, v) => setMixS(m => { const n = { ...m, [k]: v }; ls('grimorio.torneio.mistura', JSON.stringify(n)); return n })
+  useEffect(() => { if (!casual && !srcs.includes('meta')) setSrcs(v => [...v, 'meta']) }, [casual, srcs])
+  const weights = Object.fromEntries(srcs.map(k => [k, Math.max(k === 'meta' ? META_MIN * 100 : 0, mix[k] ?? 0)]))
+  const share = (() => {  // a parte de cada fonte, como o mixTake a vai usar
+    const sum = Object.values(weights).reduce((a, b) => a + b, 0) || 1, out = Object.fromEntries(Object.entries(weights).map(([k, v]) => [k, v / sum]))
+    if (META_MIN && out.meta < META_MIN) { const rest = 1 - out.meta; for (const k of Object.keys(out)) out[k] = k === 'meta' ? META_MIN : rest ? (out[k] * (1 - META_MIN)) / rest : 0 }
+    return out
+  })()
   const [allDiff, setAllDiff] = useState('default')
   const [smin, setSmin] = useState(0)
   const [smax, setSmax] = useState(6)
@@ -187,9 +198,9 @@ function Create({ data, fmt0, onCreated, deckId }) {
       .then(r => (Array.isArray(r) ? r.filter(x => (x.games ? x.stars >= smin && x.stars <= smax : unrated)).map(x => byKey[x.key] || (x.src === 'meta' && ['meta', { id: x.ref, name: x.name }])).filter(Boolean) : null)).catch(() => null)
     const pool = (picked || [...mine.filter(okMine).map(o => ['meus', o]), ...(srcs.includes('meta') ? meta.map(o => ['meta', o]) : [])]
       .filter(([s, o]) => inStars(s, o.id)).sort(() => Math.random() - 0.5))
-      .filter(([s, o]) => !used.has(`${s}:${o.id}`) && (!favOnly || (s === 'meus' && o.fav)))
+      .filter(([s, o]) => !used.has(`${s}:${o.id}`) && (!favOnly || s === 'meta' || o.fav))  // favoritos: só nos meus/comunidade
     if (pool.length < want) setErr(tx('Só há {k} decks diferentes com esta fonte e estas estrelas: preenchi o que deu.', { k: pool.length })); else setErr('')
-    const add = await Promise.all(pool.slice(0, want).map(([s, o]) => entry(s, o, allDiff).catch(() => null)))
+    const add = await Promise.all(mixTake(pool, want, weights, META_MIN).map(([s, o]) => entry(s, o, allDiff).catch(() => null)))
     setPlayers(p => [...p, ...add.filter(Boolean)])
   }
   const setP = (k, v) => setPlayers(p => p.map((x, i) => (i === k ? { ...x, ...v } : x)))
@@ -249,7 +260,13 @@ function Create({ data, fmt0, onCreated, deckId }) {
           <div className="tc-fill">
             <span>{tx('🎲 Preencher até')}</span><input type="number" min="2" max={max} value={fillN} onChange={e => setFillN(+e.target.value)} />
             <span className="seg small tc-srcs" role="group" aria-label={tx('De onde')}>{[['meu', tx('🧙 Meus')], ['com', tx('🌐 Comunidade')], ['meta', tx('📊 Meta')]].map(([k, l]) => (
-              <button key={k} className={srcs.includes(k) ? 'on' : ''} aria-pressed={srcs.includes(k)} onClick={() => setSrcs(v => (v.includes(k) ? (v.length > 1 ? v.filter(x => x !== k) : v) : [...v, k]))}>{l}</button>))}</span>
+              <button key={k} className={srcs.includes(k) ? 'on' : ''} aria-pressed={srcs.includes(k)} disabled={k === 'meta' && !casual} title={k === 'meta' && !casual ? tx('Nos torneios não casuais entra sempre o meta (pelo menos 20%), para os ratings terem decks de referência.') : undefined}
+                onClick={() => setSrcs(v => (v.includes(k) ? (v.length > 1 ? v.filter(x => x !== k) : v) : [...v, k]))}>{l}</button>))}</span>
+            {srcs.length > 1 && <span className="tc-mix" role="group" aria-label={tx('Mistura')}>{srcs.map(k => (
+              <label key={k} className={`tc-mix-${k}`}><span>{{ meu: tx('🧙 Meus'), com: tx('🌐 Comunidade'), meta: tx('📊 Meta') }[k]}</span>
+                <input type="range" min={k === 'meta' ? META_MIN * 100 : 0} max="100" step="5" value={weights[k]} onChange={e => setMix(k, +e.target.value)} />
+                <b>{Math.round((share[k] || 0) * 100)}%</b></label>
+            ))}</span>}
             {!casual && <><span className="tc-stars">{tx('estrelas')} <select value={smin} onChange={e => setSmin(+e.target.value)} aria-label={tx('Mínimo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select>
               {tx('a')} <select value={smax} onChange={e => setSmax(+e.target.value)} aria-label={tx('Máximo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select></span>
             <label className="chk small"><input type="checkbox" checked={unrated} onChange={e => setUnrated(e.target.checked)} /> {tx('incluir decks sem rating')}</label></>}

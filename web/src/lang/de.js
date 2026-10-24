@@ -2112,4 +2112,6 @@ export default {
   "quanto chega, em média, ao objetivo de ganhar": "wie nah es im Schnitt dem Siegziel kommt",
   "Rating": "Rating",
   "Troféus": "Trophäen",
+  "Nos torneios não casuais entra sempre o meta (pelo menos 20%), para os ratings terem decks de referência.": "Nicht-Casual-Turniere enthalten immer Meta-Decks (mindestens 20%), damit die Ratings Referenzdecks haben.",
+  "Mistura": "Mischung",
 }

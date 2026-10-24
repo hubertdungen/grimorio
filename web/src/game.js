@@ -478,3 +478,21 @@ export function nextGame(fl, i, mode, home, done) {
   const last = fl[fl.length - 1]
   return last.id !== fl[i].id ? { x: last } : null
 }
+
+// «Preencher» com mistura: pool = [[src, deck], …] já baralhado (src 'meus' ou 'meta'; deck.community = da comunidade),
+// want = quantos faltam, w = {meu, com, meta} pesos (só os das fontes ligadas), minMeta = parte mínima do meta (0,2 nos
+// torneios não casuais). Cada fonte leva a sua parte; se uma não tiver decks que cheguem, as outras completam.
+export function mixTake(pool, want, w, minMeta = 0) {
+  const kind = ([s, o]) => (s === 'meta' ? 'meta' : o.community ? 'com' : 'meu')
+  const keys = Object.keys(w).filter(k => w[k] > 0), sum = keys.reduce((a, k) => a + w[k], 0) || 1
+  const by = Object.fromEntries(keys.map(k => [k, pool.filter(x => kind(x) === k)]))
+  const raw = keys.map(k => [k, (want * w[k]) / sum]), tgt = Object.fromEntries(raw.map(([k, x]) => [k, Math.floor(x)]))
+  for (const [k] of raw.sort((a, b) => (b[1] % 1) - (a[1] % 1)).slice(0, want - Object.values(tgt).reduce((a, b) => a + b, 0))) tgt[k]++
+  if (minMeta && 'meta' in tgt) {
+    const need = Math.ceil(want * minMeta - 1e-9)
+    while (tgt.meta < need) { const k = keys.filter(x => x !== 'meta' && tgt[x] > 0).sort((a, b) => tgt[b] - tgt[a])[0]; if (!k) break; tgt[k]--; tgt.meta++ }
+  }
+  const out = keys.flatMap(k => by[k].slice(0, tgt[k]))
+  const rest = keys.sort((a, b) => w[b] - w[a]).flatMap(k => by[k].slice(tgt[k]))
+  return [...out, ...rest].slice(0, want)
+}

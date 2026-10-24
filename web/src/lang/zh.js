@@ -2112,4 +2112,6 @@ export default {
   "quanto chega, em média, ao objetivo de ganhar": "平均离获胜目标有多近",
   "Rating": "评分",
   "Troféus": "奖杯",
+  "Nos torneios não casuais entra sempre o meta (pelo menos 20%), para os ratings terem decks de referência.": "非休闲锦标赛总会加入环境套牌（至少 20%），让评分有参照套牌。",
+  "Mistura": "混合比例",
 }
