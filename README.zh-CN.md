@@ -33,6 +33,38 @@ Grimório 是一款免费的套牌构筑工具，支持所有赛制（指挥官 
 
 想把它部署在家用服务器上供多台设备使用，或者参与开发：请看[开发者部署](#开发者部署)。
 
+## 备份与云同步
+
+你创建的一切都保存在自己的安装中（数据文件夹里的 `grimorio.db`）。有两种可选、免费的保存方式，都在
+**设置 › 数据与备份**：
+
+- **全部导出**：下载一个 `.grimorio` 文件（套牌、档案、测试、赛事、投注、评分以及你的套牌封面）。**导入**可以恢复：
+  默认*合并*（不会丢失任何内容，每副套牌保留最新版本），也可以*全部替换*；导入前总会先把当前数据另存一份
+  （`grimorio.db.before-import-…`）。
+- **与云端文件夹同步**：借助任何能同步文件夹的免费应用，让多台电脑保持一致。Grimório 始终使用本地副本，因此离线也能
+  用（比如在飞机上）：联网后由同步应用上传和下载更改。每台电脑只在该文件夹里写自己的文件，并合并其他电脑的文件。
+
+| 免费应用 | 免费空间 | 账号 | Windows / macOS / Linux / Android |
+|---|---|---|---|
+| Google 云端硬盘电脑版 | 15 GB（与 Gmail 共用） | Google | ✓ / ✓ / —（请用 Syncthing 或 Nextcloud） / 应用 |
+| OneDrive | 5 GB | Microsoft | ✓（系统自带） / ✓ / 非官方客户端 / 应用 |
+| Dropbox | 2 GB | Dropbox | ✓ / ✓ / ✓ / 应用 |
+| Syncthing | 不限（无云端：设备之间直接同步） | 无需 | ✓ / ✓ / ✓ / Syncthing-Fork |
+| Nextcloud | 取决于服务商，或使用你自己的服务器 | Nextcloud | ✓ / ✓ / ✓ / 应用 |
+| iCloud 云盘 | 5 GB | Apple | Windows 版 iCloud / ✓ / — / — |
+
+**Google 云端硬盘 3 步。** 1）安装 *Google 云端硬盘电脑版* 并登录（Windows 上会出现 `G:` 盘和 *My Drive*）。
+2）在 Grimório 中：设置 › 数据与备份 › 勾选 *与云端文件夹同步*，选择建议的 *Google Drive*（`G:\My Drive\Grimorio`），
+点击 *使用此文件夹*。3）在另一台电脑上使用同一个 Google 账号和同一个文件夹。完成。
+
+**Syncthing 3 步**（无需账号，数据不经过任何云）。1）在两台设备上安装 Syncthing（[syncthing.net](https://syncthing.net)；
+Android：*Syncthing-Fork*）。2）互相添加设备并共享一个文件夹，例如 `~/Sync/Grimorio`。3）在两边的 Grimório 中选择这个
+文件夹。两台设备同时开机时就会同步。
+
+如果同一副套牌在两次同步之间被两台电脑修改，保留最新的版本，另一个会另存为 *「名称 (conflito)」*，任何版本都不会
+丢失。进行中的赛事到达另一台电脑时会处于暂停状态（同一时间只由一台电脑进行）。在需要登录的服务器上，每个人只导出和
+导入自己的数据；云端文件夹同步适用于个人电脑和单一所有者的服务器。
+
 ## 功能
 
 - **全赛制套牌构筑**——合法性检查、各赛制专属目标、法术力基础建议、法术力曲线、预算、分级（bracket）。
@@ -102,6 +134,7 @@ AI 配置和卡牌脚本（`forge-ext/ai`、`forge-ext/cardsfolder`）复制到 
 | 路径 | 内容 |
 |---|---|
 | `server.py` | 基于标准库的 HTTP 服务器：API、套牌（SQLite）、档案、导入、代理 |
+| `backup.py` | 导出/导入 `.grimorio` 备份，以及可选的云端文件夹同步（合并规则、评分重算） |
 | `sim.py`、`build/forge/` | Forge 运行器（Docker 或本地 Java）和 `GrimorioSim` 启动器（精确的对局事件、AI 调整、卡牌 AI 提示） |
 | `tournament.py`、`ratings.py` | 赛事和评分 / Arena |
 | `deck_import.py`、`ia.py`、`play.py` | 各网站导入器、可选的 AI 服务商、对战 Forge（noVNC，仅限 Docker） |

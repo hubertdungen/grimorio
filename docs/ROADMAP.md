@@ -40,6 +40,22 @@ and show the live board and reports as the web app does now. Tournaments, rating
 | Coliseum against a remote Grimório (pairing, CORS/cookies or token auth, live view) | 1–2 weeks |
 | **Total** | **about 2–3 months** |
 
+## Backups and sync on Android
+
+The desktop and server editions already export/import `.grimorio` files and sync through a cloud folder
+(`backup.py`: each device writes only `grimorio-<device>.grimorio` there and merges the others'). The APK reuses the same
+files, so phones join the same folder as the computers:
+
+- **Folder sync apps:** Syncthing-Fork (no account, direct device-to-device), or Dropbox / OneDrive / Nextcloud apps (or
+  a folder-sync app such as FolderSync) pointed at the shared `Grimorio` folder. The APK reads and writes there through
+  the Android Storage Access Framework (the user picks the folder once).
+- **Same merge rules** as `backup.merge`: decks newest-wins with «(conflito)» copies, union of tests, tournaments, bets
+  and rating games, ratings rebuilt from the games. Ported to JS (IndexedDB) or run on the phone's SQLite via a
+  Capacitor plugin.
+- **Manual backup** stays the fallback: share/receive a `.grimorio` file.
+
+Estimate: 1–2 weeks on top of the «client-only data» step above.
+
 ## Desktop packages
 
 - Play against Forge yourself (Coliseum › Play) without Docker: the desktop packages would need Forge's GUI running

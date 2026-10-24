@@ -90,6 +90,10 @@ jogos que estiverem a decorrer também param. Os teus decks são guardados à me
 Os teus decks, perfis, testes, torneios e ratings estão em **`grimorio.db`**, nessa pasta, e as capas que escolheste
 para os decks estão em `covers`. Para fazeres uma cópia de segurança, copia esses dois (com o Grimório parado).
 
+**Cópias e nuvem:** em **Definições › Dados e cópias** exportas tudo para um ficheiro `.grimorio` ou ligas uma pasta
+do Google Drive, OneDrive, Dropbox ou Syncthing para manter dois computadores iguais (funciona sem rede e sincroniza
+depois). Opções grátis e guias em 3 passos: [Cópias e sincronização na nuvem](../README.pt.md#cópias-e-sincronização-na-nuvem).
+
 ## Atualizar
 
 1. Descarrega a nova versão em [Releases](https://github.com/hubertdungen/grimorio/releases), como acima.

@@ -34,6 +34,41 @@ tests, tournaments and ratings stay separate. Several people can share one insta
 
 Running it on a home server for several devices, or developing it: see [Developer setup](#developer-setup).
 
+## Backups and cloud sync
+
+Everything you create lives in your own install (`grimorio.db` in the data folder). Two optional ways to keep it safe,
+both free and both in **Settings › Data & backups**:
+
+- **Export everything** downloads one `.grimorio` file (decks, profiles, tests, tournaments, bets, ratings and your deck
+  covers). **Import** puts it back: it *merges* by default (nothing is lost, the newest version of each deck wins) or
+  *replaces* everything; your current data is always saved next to it first (`grimorio.db.before-import-…`).
+- **Sync with a cloud folder** keeps several computers in step through any free app that syncs a folder. Grimório always
+  works on its local copy, so it works offline (on a plane, say): the app uploads and downloads the changes when you're
+  back online. Each computer writes only its own file in that folder and merges the others' files.
+
+| Free app | Free space | Account | Windows / macOS / Linux / Android |
+|---|---|---|---|
+| Google Drive for desktop | 15 GB (shared with Gmail) | Google | ✓ / ✓ / — (use Syncthing or Nextcloud) / app |
+| OneDrive | 5 GB | Microsoft | ✓ (built in) / ✓ / unofficial client / app |
+| Dropbox | 2 GB | Dropbox | ✓ / ✓ / ✓ / app |
+| Syncthing | unlimited (no cloud: your devices sync directly) | none | ✓ / ✓ / ✓ / Syncthing-Fork |
+| Nextcloud | depends on the provider, or your own server | Nextcloud | ✓ / ✓ / ✓ / app |
+| iCloud Drive | 5 GB | Apple | iCloud for Windows / ✓ / — / — |
+
+**Google Drive in 3 steps.** 1) Install *Google Drive for desktop* and sign in (Windows shows a `G:` drive with
+*My Drive*). 2) In Grimório: Settings › Data & backups › tick *Sync with a cloud folder*, pick the *Google Drive*
+suggestion (`G:\My Drive\Grimorio`) and press *Use this folder*. 3) On your other computer, same Google account, same
+folder. Done.
+
+**Syncthing in 3 steps** (no account, nothing in anyone's cloud). 1) Install Syncthing on both devices
+([syncthing.net](https://syncthing.net); Android: *Syncthing-Fork*). 2) Add each device to the other and share one
+folder, e.g. `~/Sync/Grimorio`. 3) Choose that folder in Grimório on both. The devices sync whenever both are on.
+
+When the same deck was changed on two computers between syncs, the newest wins and the other one is kept as
+*«name (conflito)»* — you never lose a version. A tournament that's still running arrives paused on the other computer
+(only one plays it at a time). On a server with a login, each person exports and imports only their own data; folder
+sync is for computers and single-owner servers.
+
 ## Features
 
 - **Deck building for every format** — legality, format-specific targets, mana base advice, curve, budget, brackets.
@@ -108,6 +143,7 @@ this. Desktop packages: `packaging/build.py` and `.github/workflows/release.yml`
 | Path | What |
 |---|---|
 | `server.py` | stdlib HTTP server: API, decks (SQLite), profiles, imports, proxies |
+| `backup.py` | export/import `.grimorio` backups and the optional cloud-folder sync (merge rules, ratings rebuild) |
 | `sim.py`, `build/forge/` | Forge runner (Docker or local Java) and the `GrimorioSim` launcher (exact game events, AI tweaks, card AI hints) |
 | `tournament.py`, `ratings.py` | tournaments and ratings / Arena |
 | `deck_import.py`, `ia.py`, `play.py` | site importers, optional AI providers, play against Forge (noVNC, Docker only) |

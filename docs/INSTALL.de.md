@@ -90,6 +90,11 @@ beendet es). Laufende Partien werden ebenfalls beendet. Deine Decks werden laufe
 Deine Decks, Profile, Tests, Turniere und Ratings liegen in **`grimorio.db`** in diesem Ordner, deine eigenen Deck-Cover
 in `covers`. Für ein Backup kopierst du diese beiden (während Grimório beendet ist).
 
+**Sicherungen und Cloud:** unter **Einstellungen › Daten & Sicherungen** exportierst du alles in eine `.grimorio`-Datei
+oder verbindest einen Ordner von Google Drive, OneDrive, Dropbox oder Syncthing, um zwei Computer gleich zu halten
+(funktioniert offline und synchronisiert später). Kostenlose Optionen und Anleitungen in 3 Schritten:
+[Sicherungen und Cloud-Sync](../README.de.md#sicherungen-und-cloud-sync).
+
 ## Aktualisieren
 
 1. Lade die neue Version wie oben unter [Releases](https://github.com/hubertdungen/grimorio/releases) herunter.

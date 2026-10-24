@@ -8,6 +8,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
 import play
+import backup
 import ratings
 import sim
 import tournament
@@ -167,6 +168,8 @@ class H(BaseHTTPRequestHandler):
         p = self.path.split("?")[0]
         if p == "/api/profiles":
             return self.profiles_route("GET")
+        if p in ("/api/backup/export", "/api/sync"):  # cópias e sincronização por pasta (backup.py)
+            return backup.http(self, "GET", p, ARGS.data_dir)
         if self.no_profile():
             return
         if p == "/play/ws":  # jogar contra o Forge: websocket do noVNC -> VNC do contentor (play.py)
@@ -388,6 +391,8 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path.startswith("/api/profiles"):
             return self.profiles_route("POST")
+        if self.path.startswith(("/api/backup/", "/api/sync")):
+            return backup.http(self, "POST", self.path, ARGS.data_dir)
         if self.no_profile():
             return
         if self.path.startswith("/api/tournaments"):
@@ -725,5 +730,6 @@ if __name__ == "__main__":
         backfill_created(con)
     tournament.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma os torneios a decorrer
     ratings.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma a Arena automática se estava ligada
+    backup.init(ARGS.data_dir)  # pasta na nuvem (se ligada): traz o que mudou noutros aparelhos e leva o daqui
     print(f"Grimório em http://{ARGS.host}:{ARGS.port}", flush=True)
     ThreadingHTTPServer((ARGS.host, ARGS.port), H).serve_forever()
