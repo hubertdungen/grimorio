@@ -41,8 +41,15 @@ import forge.game.cost.Cost;
 import forge.game.cost.CostPart;
 import forge.game.cost.CostPayLife;
 import forge.game.cost.CostPayment;
+import forge.game.cost.CostPartMana;
+import forge.game.cost.CostSacrifice;
+import forge.game.ability.AbilityUtils;
 import forge.game.card.CardCollection;
 import forge.game.card.CardCollectionView;
+import forge.game.card.CardLists;
+import forge.game.card.CardPredicates;
+import forge.game.card.CounterEnumType;
+import forge.ai.ability.TokenAi;
 import forge.game.player.DelayedReveal;
 import forge.util.collect.FCollectionView;
 import forge.ai.AiProfileUtil;
@@ -238,8 +245,10 @@ public class GrimorioSim {
             if (sa == null) sa = reanimate(false);
             if (sa == null) sa = entomb();
             if (sa == null) sa = disrupt();
+            if (sa == null) sa = sacOutlet();
             if (sa != null) return List.of(sa);
-            List<SpellAbility> r = super.chooseSpellAbilityToPlay();
+            List<SpellAbility> held = holdBack(), r;
+            try { r = super.chooseSpellAbilityToPlay(); } finally { for (SpellAbility h : held) h.removeParam("AILifeThreshold"); }
             if (r != null && !r.isEmpty()) {
                 // o CounterAi contraria ao acaso pelo custo (30% a custo 1, 75% a custo 2): com o último contrafeitiço na
                 // mão não o gasta no que não vale (fica para a ameaça seguinte)
@@ -249,6 +258,7 @@ public class GrimorioSim {
             }
             sa = cantrip();
             if (sa == null) sa = reanimate(true);
+            if (sa == null) sa = construct();
             return sa != null ? List.of(sa) : r;
         }
 
@@ -739,6 +749,194 @@ public class GrimorioSim {
                 sa.getTargets().add(t);
                 if (sa.canPlay() && ComputerUtilCost.canPayCost(sa, player, false)) return sa;
                 sa.resetTargets();
+            }
+            return null;
+        }
+
+        // ---------- decks de artefactos (Arcbound Ravager, Inkmoth Nexus, Urza's Saga…) ----------
+
+        // Jogadas da IA do Forge que este passo não deixa fazer: a habilidade fica com AILifeThreshold enorme (o
+        // AiController.checkAiSpecificRestrictions recusa-a) só durante o super.chooseSpellAbilityToPlay — assim a IA passa
+        // à jogada seguinte que queria fazer em vez de passar a prioridade.
+        //   - saídas de sacrifício que só fazem crescer a carta (growSac): decide o sacOutlet;
+        //   - no nosso turno, antes dos bloqueios, animar um terreno (Inkmoth Nexus, Mutavault…) ou dar a si própria um
+        //     bónus até ao fim do turno (Zabaz: {W} voar) com a mana que faz falta para lançar a carta mais cara que dá
+        //     para pagar agora (hungry). O Forge lança as criaturas no Main 2 e gastava antes a mana a atacar com 1/1: num
+        //     registo de 27 jogos animou o Inkmoth 92 vezes e o Arcbound Ravager ficou na mão 112 turnos.
+        List<SpellAbility> holdBack() {
+            List<SpellAbility> held = new ArrayList<>();
+            Game g = player.getGame();
+            PhaseHandler ph = g.getPhaseHandler();
+            int keep = ph.isPlayerTurn(player) && g.getStack().isEmpty() && ph.getPhase().isBefore(PhaseType.COMBAT_DECLARE_BLOCKERS) ? castable() : 0;
+            for (Card c : player.getCardsIn(ZoneType.Battlefield))
+                for (SpellAbility sa : c.getSpellAbilities()) {
+                    if (sa.hasParam("AILifeThreshold") || !sa.isActivatedAbility() || sa.isManaAbility()) continue;
+                    if (growSac(sa) == null && (keep == 0 || !hungry(sa, keep))) continue;
+                    sa.putParam("AILifeThreshold", "1000000");
+                    held.add(sa);
+                }
+            return held;
+        }
+
+        // a mana da carta mais cara da mão que dá para lançar agora (X conta 1; seleção barata fica de fora)
+        int castable() {
+            int keep = 0;
+            for (Card o : player.getCardsIn(ZoneType.Hand)) {
+                SpellAbility os = o.isLand() ? null : o.getFirstSpellAbility();
+                if (os == null || selects(os)) continue;
+                int x = o.getManaCost().countX(), need = o.getManaCost().getCMC() + x - o.getManaCost().getPhyrexianCount();
+                if (need <= keep) continue;
+                os.setActivatingPlayer(player);
+                if (os.usesTargeting() && os.getTargetRestrictions().getNumCandidates(os) == 0) continue;
+                if (ComputerUtilMana.canPayManaCost(os, player, x, false)) keep = need;
+            }
+            return keep;
+        }
+
+        // terreno que se anima ou criatura que se dá um bónus até ao fim do turno, com mana, quando depois de a pagar (e,
+        // num terreno que vai atacar, sem a mana dele) já não sobra `keep`; um ataque que sozinho mata fica com o Forge
+        boolean hungry(SpellAbility sa, int keep) {
+            Card c = sa.getHostCard();
+            boolean animate = sa.getApi() == ApiType.Animate && c.isLand() && !c.isCreature();
+            if (!animate && !(sa.getApi() == ApiType.Pump && c.isCreature()) || sa.usesTargeting() || sa.getPayCosts() == null
+                    || sa.getPayCosts().getTotalMana().getCMC() == 0 || !"Self".equals(sa.getParamOrDefault("Defined", "Self"))
+                    || "Permanent".equals(sa.getParam("Duration"))) return false;
+            sa.setActivatingPlayer(player);
+            Player opp = player.getWeakestOpponent();
+            int pow = animate ? AbilityUtils.calculateAmount(c, sa.getParamOrDefault("Power", "0"), sa) + c.getCounters(CounterEnumType.P1P1)
+                    : c.getNetPower() + AbilityUtils.calculateAmount(c, sa.getParamOrDefault("NumAtt", "0"), sa);
+            boolean infect = animate ? sa.getParamOrDefault("Keywords", "").contains("Infect") : c.hasKeyword(Keyword.INFECT);
+            if (opp != null && (infect ? opp.getPoisonCounters() + pow >= 10 : opp.getLife() <= pow)) return false;
+            return !ComputerUtilMana.canPayManaCost(sa, player, keep + (animate ? 1 : 0), false);
+        }
+
+        // «Sacrifica um artefacto: +1/+1 neste» (Arcbound Ravager) e afins: habilidade sem alvo que só faz crescer a carta,
+        // custo = sacrificar 1 outra permanente (+ mana). O CountersPutAi usava-a sempre que o getCardPreference achava o
+        // que sacrificar — o Haywire Mite (SacMe), com 6+ terrenos o Darksteel Citadel, no perfil Experimental tudo de custo
+        // 0–1 —, no Main 1 ou 2 e sem nada em jogo: num registo de 27 jogos o Ravager comeu 6 Citadels, 4 Mox Opal e 3
+        // The Ozolith assim. Fica com o sacOutlet.
+        static CostSacrifice growSac(SpellAbility sa) {
+            if (!sa.isActivatedAbility() || sa.isManaAbility() || sa.isPwAbility() || sa.hasParam("AILogic") || sa.usesTargeting()
+                    || sa.getSubAbility() != null || (sa.getApi() != ApiType.PutCounter && sa.getApi() != ApiType.Pump)
+                    || !"Self".equals(sa.getParamOrDefault("Defined", "Self")) || sa.getPayCosts() == null) return null;
+            CostSacrifice sac = null;
+            for (CostPart p : sa.getPayCosts().getCostParts()) {
+                if (p instanceof CostSacrifice s && !s.payCostFromSource() && "1".equals(s.getAmount())) sac = s;
+                else if (!(p instanceof CostPartMana)) return null;
+            }
+            return sac;
+        }
+
+        // Quando um jogador sacrifica para a saída (o que escolhe vai em `victim` e o playChosenSpellAbility marca-o com
+        // SacMe 6 para o pagamento do custo o escolher):
+        //   - em resposta a um feitiço/habilidade do adversário, o que dele está ameaçado (destruir, dano, exilar; devolver
+        //     à mão só fichas), o mais valioso; a própria carta só com Modular e contra exílio (morta, o Modular já dispara);
+        //   - no combate, já com os bloqueios, uma criatura nossa que vai morrer sem levar o adversário com ela (o Modular
+        //     dela passa os marcadores e esta cresce; sem atropelar: um bloqueador sacrificado não deixa passar dano);
+        //   - para matar: atacante não bloqueado, quando com +1 por cada permanente que se pode sacrificar (fora os outros
+        //     atacantes não bloqueados) o dano — ou o veneno, com infect — chega; vai primeiro o que não é criatura nem terreno.
+        final Map<SpellAbility, Card> victim = new HashMap<>();
+
+        SpellAbility sacOutlet() {
+            Game g = player.getGame();
+            PhaseHandler ph = g.getPhaseHandler();
+            Combat cb = g.getCombat();
+            SpellAbility top = g.getStack().isEmpty() ? null : g.getStack().peekAbility();
+            if (top != null && !top.getActivatingPlayer().isOpponentOf(player)) return null;
+            if (top == null && (cb == null || !ph.is(PhaseType.COMBAT_DECLARE_BLOCKERS))) return null;
+            List<GameObject> threat = top == null ? List.of() : ComputerUtil.predictThreatenedObjects(player, null, true);
+            boolean zone = top != null && (top.getApi() == ApiType.ChangeZone || top.getApi() == ApiType.ChangeZoneAll);
+            boolean exile = zone && "Exile".equals(top.getParam("Destination")), bounce = zone && !exile && !"Graveyard".equals(top.getParam("Destination"));
+            if (top != null && threat.isEmpty()) return null;
+            for (Card src : player.getCardsIn(ZoneType.Battlefield)) {
+                for (SpellAbility sa : src.getSpellAbilities()) {
+                    CostSacrifice sac = growSac(sa);
+                    if (sac == null) continue;
+                    sa.setActivatingPlayer(player);
+                    if (!sa.canPlay() || !ComputerUtilCost.canPayCost(sa, player, false)) continue;
+                    CardCollection fodder = CardLists.filter(CardLists.getValidCards(player.getCardsIn(ZoneType.Battlefield),
+                            sac.getType().split(";"), player, src, sa), CardPredicates.canBeSacrificedBy(sa, false));
+                    Card v = null;
+                    if (top != null) {
+                        int best = -1;
+                        for (Card x : fodder) {
+                            if (!threat.contains(x) || (bounce && !x.isToken()) || (x == src && !(exile && src.hasKeyword(Keyword.MODULAR)))) continue;
+                            int val = x.isCreature() ? ComputerUtilCard.evaluateCreature(x) : 100 + x.getCMC();
+                            if (val > best) { best = val; v = x; }
+                        }
+                    } else {
+                        for (Card x : fodder) {
+                            if (x == src || !x.isCreature() || !(cb.isAttacking(x) || cb.isBlocking(x)) || !ComputerUtilCombat.combatantWouldBeDestroyed(player, x, cb)) continue;
+                            boolean keep = false;
+                            if (cb.isBlocking(x)) for (Card a : cb.getAttackersBlockedBy(x)) keep |= a.hasKeyword(Keyword.TRAMPLE) || ComputerUtilCombat.attackerWouldBeDestroyed(player, a, cb);
+                            else for (Card b : cb.getBlockers(x)) keep |= ComputerUtilCombat.blockerWouldBeDestroyed(player, b, cb);
+                            if (!keep) { v = x; break; }
+                        }
+                        if (v == null && cb.isAttacking(src) && cb.isUnblocked(src)) v = lethalFodder(src, fodder, cb);
+                    }
+                    if (v == null || !tried.add(ph.getTurn() + ":" + ph.getPhase() + ":" + g.getStack().size() + ":" + sa.getId() + ":" + v.getId() + ":sac")) continue;
+                    victim.put(sa, v);
+                    return sa;
+                }
+            }
+            return null;
+        }
+
+        Card lethalFodder(Card src, CardCollection fodder, Combat cb) {
+            Player opp = cb.getDefenderPlayerByAttacker(src);
+            if (opp == null) return null;
+            int dmg = 0, poison = 0;
+            for (Card a : cb.getAttackers())
+                if (cb.isUnblocked(a) && cb.getDefenderPlayerByAttacker(a) == opp) {
+                    if (a.hasKeyword(Keyword.INFECT)) poison += a.getNetCombatDamage(); else dmg += a.getNetCombatDamage();
+                }
+            List<Card> free = new ArrayList<>();
+            for (Card x : fodder) if (x != src && !(cb.isAttacking(x) && cb.isUnblocked(x))) free.add(x);
+            int need = src.hasKeyword(Keyword.INFECT) ? 10 - opp.getPoisonCounters() - poison : opp.canLoseLife() ? opp.getLife() - dmg : Integer.MAX_VALUE;
+            if (need <= 0 || need > free.size()) return null;
+            free.sort(Comparator.comparingInt((Card x) -> x.isCreature() ? 2 : x.isLand() ? 1 : 0).thenComparingInt(Card::getCMC));
+            return free.get(0);
+        }
+
+        @Override
+        public boolean playChosenSpellAbility(SpellAbility sa) {
+            Card v = victim.remove(sa);
+            if (v == null) return super.playChosenSpellAbility(sa);
+            String old = v.hasSVar("SacMe") ? v.getSVar("SacMe") : null;
+            v.setSVar("SacMe", "6");  // ComputerUtil.getCardPreference("SacCost") escolhe primeiro o SacMe mais alto
+            try {
+                return super.playChosenSpellAbility(sa);
+            } finally {
+                if (old == null) v.removeSVar("SacMe"); else v.setSVar("SacMe", old);
+            }
+        }
+
+        // Fichas por habilidade (Urza's Saga II: «{2},{T}: Construct 0/0 com +1/+1 por artefacto»): o TokenAi só as faz no
+        // turno do adversário (a partir dos atacantes) e com 80% de sorte; com a mana gasta no nosso turno e a Saga
+        // sacrificada no capítulo III, em 25 Sagas houve 4 Constructs. Aqui também no Main 2 do nosso turno com a mana que
+        // sobra (guardando a das respostas instantâneas), no fim do turno do adversário antes do nosso e em resposta ao
+        // último capítulo da Saga (a última ocasião). Só custos de mana e/ou {T}, ficha criatura com resistência >= 1.
+        SpellAbility construct() {
+            Game g = player.getGame();
+            PhaseHandler ph = g.getPhaseHandler();
+            boolean mine = ph.isPlayerTurn(player);
+            boolean main2 = mine && ph.is(PhaseType.MAIN2) && g.getStack().isEmpty();
+            boolean eot = !mine && ph.is(PhaseType.END_OF_TURN) && ph.getNextTurn() == player && g.getStack().isEmpty();
+            for (Card c : player.getCardsIn(ZoneType.Battlefield)) {
+                boolean last = mine && c.isSaga() && !g.getStack().isEmpty() && c.getCounters(CounterEnumType.LORE) >= c.getFinalChapterNr();
+                if (!main2 && !eot && !last) continue;
+                for (SpellAbility sa : c.getSpellAbilities()) {
+                    if (sa.getApi() != ApiType.Token || !sa.isActivatedAbility() || sa.isPwAbility() || sa.usesTargeting() || !sa.hasParam("TokenScript")
+                            || sa.getPayCosts() == null || !sa.getPayCosts().isReusuableResource()) continue;
+                    if (!tried.add(ph.getTurn() + ":" + ph.getPhase() + ":" + g.getStack().size() + ":" + sa.getId() + ":token")) continue;
+                    sa.setActivatingPlayer(player);
+                    if (!sa.canPlay() || !ComputerUtilCost.canPayCost(sa, player, false)) continue;
+                    Card t = TokenAi.spawnToken(player, sa);
+                    if (t == null || !t.isCreature() || t.getNetToughness() < 1 || (t.getType().isLegendary() && player.isCardInPlay(t.getName()))) continue;
+                    int keep = main2 ? reserve(new ArrayList<>(player.getCardsIn(ZoneType.Hand)), null, false) : 0;
+                    if (keep > 0 && !ComputerUtilMana.canPayManaCost(sa, player, keep, false)) continue;
+                    return sa;
+                }
             }
             return null;
         }
