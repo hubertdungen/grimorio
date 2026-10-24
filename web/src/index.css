@@ -1441,3 +1441,10 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .ownart { margin-top: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); display: grid; gap: 6px; }
 .ownart summary { cursor: pointer; } .ownart input:not([type=file]) { flex: 1 1 200px; min-width: 0; }
 .ownart textarea { width: 100%; font: 12px/1.4 monospace; }
+/* torneio a ver um jogo: a barra Criar/Ao vivo/Registo esconde-se e «← Voltar» fica na mesma linha do placar (poupa altura) */
+.tour:has(.board) .tour-nav { display: none; }
+@media (min-width: 600px) {
+  .board .rp-bar { flex-wrap: nowrap; }
+  .board .rp-bar > button:first-child { flex: none; }
+  .board .rp-bar > :not(button) { flex: 1 1 0; min-width: 0; }
+}
