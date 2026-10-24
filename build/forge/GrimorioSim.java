@@ -264,9 +264,14 @@ public class GrimorioSim {
             Card c = decider == player && origin.contains(ZoneType.Library) && fetchList != null && fetchList.size() > 1
                     && fetchList.stream().allMatch(Card::isLand) ? landForHand(fetchList) : null;
             if (c == null && decider == player && destination == ZoneType.Graveyard && origin.contains(ZoneType.Library) && fetchList != null && reanimator()) {
-                int bv = -1;  // Unmarked Grave/Entomb num deck que reanima: a maior criatura (não lendária, custo 5+)
-                for (Card x : fetchList)
-                    if (x.isCreature() && !x.getType().isLegendary() && x.getCMC() >= 5 && ComputerUtilCard.evaluateCreature(x) > bv) { bv = ComputerUtilCard.evaluateCreature(x); c = x; }
+                // Unmarked Grave/Entomb num deck que reanima: a melhor criatura grande (não lendária, custo 5+); as que têm
+                // gatilhos (ao entrar/atacar: Archon of Cruelty, Agent of Treachery) antes das só grandes (Serra's Emissary)
+                int bv = -1;
+                for (Card x : fetchList) {
+                    if (!x.isCreature() || x.getType().isLegendary() || x.getCMC() < 5) continue;
+                    int v = ComputerUtilCard.evaluateCreature(x) + (x.getTriggers().isEmpty() ? 0 : 1000);
+                    if (v > bv) { bv = v; c = x; }
+                }
             }
             if (c == null) return super.chooseSingleCardForZoneChange(destination, origin, sa, fetchList, delayedReveal, selectPrompt, isOptional, decider);
             if (delayedReveal != null) reveal(delayedReveal);
@@ -307,8 +312,13 @@ public class GrimorioSim {
         // de custo em mana sem «a não ser que pague» (Mana Leak e afins ficam com o Forge, que conta a mana do adversário).
         SpellAbility counter() {
             Game g = player.getGame();
-            SpellAbility top = g.getStack().isEmpty() ? null : g.getStack().peekAbility();
-            if (top == null || !top.isSpell() || !top.getActivatingPlayer().isOpponentOf(player) || !worth(top)) return null;
+            // o feitiço do adversário mais acima na pilha (por cima dele podem estar gatilhos: prowess, Dragon's Rage Channeler…)
+            SpellAbility top = null;
+            for (forge.game.spellability.SpellAbilityStackInstance si : g.getStack()) {
+                SpellAbility x = si.getSpellAbility();
+                if (x != null && x.isSpell()) { top = x; break; }
+            }
+            if (top == null || !top.getActivatingPlayer().isOpponentOf(player) || !worth(top)) return null;
             for (Card c : player.getCardsIn(ZoneType.Hand)) {
                 SpellAbility sa = c.getFirstSpellAbility();
                 if (sa == null || sa.getApi() != ApiType.Counter || !sa.usesTargeting() || sa.hasParam("UnlessCost")
