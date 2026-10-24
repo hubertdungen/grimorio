@@ -238,6 +238,11 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
     return Object.values(g).filter(x => x.length > 1).map(x => ({ decks: x, top: Math.max(...x.flatMap((a, i) => x.slice(i + 1).map(b => sim[`${a.id}|${b.id}`] || sim[`${b.id}|${a.id}`] || 0))) }))
       .sort((a, b) => b.top - a.top)
   }, [mine, data])
+  // grupos ignorados (pelos ids do grupo: se entrar outro deck parecido, o grupo volta a aparecer); lembrados neste browser
+  const [ign, setIgn] = useState(() => { try { return JSON.parse(ls('grimorio.lib.parecidos') || '[]') } catch { return [] } })
+  useEffect(() => { ls('grimorio.lib.parecidos', JSON.stringify(ign)) }, [ign])
+  const gid = g => g.decks.map(d => d.id).sort().join('|')
+  const shownDupes = dupes.filter(g => !ign.includes(gid(g))), hiddenDupes = dupes.length - shownDupes.length
   const favs = sorted.filter(d => d.fav)
   const fmts = [...(favs.length ? [['★', favs]] : []), ...Object.entries(byFmt).sort((a, b) => b[1].length - a[1].length)]
   const fname = f => (f === '★' ? tx('★ Favoritos') : FORMAT[f]?.name || f)
@@ -304,13 +309,16 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
       </section>
 
       {dupes.length > 0 && <section className="card dupes">
-        <h3>{tx('Decks repetidos ou muito parecidos')} <span className="muted small">{tx('{n} grupo|{n} grupos', { n: dupes.length })} · {tx('mesmo com nomes e capas diferentes')}</span></h3>
-        {dupes.map((g, k) => (
-          <div key={k} className="dupe-g">
+        <h3>{tx('Decks repetidos ou muito parecidos')} <span className="muted small">{tx('{n} grupo|{n} grupos', { n: shownDupes.length })} · {tx('mesmo com nomes e capas diferentes')}</span>
+          {shownDupes.length > 1 && <button className="link small" onClick={() => setIgn(i => [...i, ...shownDupes.map(gid)])}>{tx('ignorar todos')}</button>}</h3>
+        {hiddenDupes > 0 && <p className="muted small">{tx('{n} grupo ignorado|{n} grupos ignorados', { n: hiddenDupes })} · <button className="link small" onClick={() => setIgn([])}>↻ {tx('voltar a verificar')}</button></p>}
+        {shownDupes.map(g => (
+          <div key={gid(g)} className="dupe-g">
             <span className={`chip ${g.top >= 0.999 ? 'bad' : ''}`}>{g.top >= 0.999 ? tx('iguais') : tx('{p}% iguais', { p: Math.round(g.top * 100) })}</span>
             {g.decks.map(d => <span key={d.id} className="dupe-d"><b>{d.name}</b><small className="muted">{FORMAT[d.format]?.name || d.format} · {when(d.updated)}</small>
               <button onClick={() => setDel(d)} title={tx('Apagar este (vai para o lixo)')}>🗑</button></span>)}
             <button className="primary" onClick={() => { setSel(g.decks.slice(0, 3).map(d => d.id)); setCmp(true) }}>⇄ {tx('Comparar')}</button>
+            <button className="link small" onClick={() => setIgn(i => [...i, gid(g)])} title={tx('Esconder este grupo: são decks diferentes de propósito')}>{tx('ignorar')}</button>
           </div>
         ))}
       </section>}
