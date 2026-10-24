@@ -37,6 +37,66 @@ pruebas, torneos y ratings se guardan por separado. Varias personas pueden compa
 Si quieres instalarlo en un servidor doméstico para varios dispositivos, o desarrollarlo, consulta
 [Configuración para desarrolladores](#configuración-para-desarrolladores).
 
+## En tu propio servidor Linux (Docker)
+
+Instala Grimório en un servidor en casa (un mini PC, un portátil viejo, un NAS con Linux) y ábrelo desde todos los
+móviles, tablets y ordenadores de la casa. El Coliseo ejecuta Forge en **Docker** y *Jugar contra Forge* funciona en el
+navegador. Hecho en Ubuntu 24.04 (otros Debian/Ubuntu recientes deberían
+servir); necesita ~4 GB de RAM libre para las partidas y ~3 GB de disco.
+
+```bash
+# 1. Git, Python, Node.js 22 and Docker
+sudo apt update && sudo apt install -y git python3 bzip2 curl unzip
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
+curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER   # después cierra la sesión y vuelve a entrar
+
+# 2. Grimório
+git clone https://github.com/hubertdungen/grimorio.git && cd grimorio
+D=~/.local/share/grimorio && mkdir -p $D/forge
+
+# 3. Forge 2.0.15 (el motor de reglas)
+curl -L https://github.com/Card-Forge/forge/releases/download/forge-2.0.15/forge-installer-2.0.15.tar.bz2 | tar -xj -C $D/forge
+
+# 4. Datos de las cartas, ya hechos, de la última versión (o constrúyelos con build/build.sh, ~45 min)
+curl -L -o /tmp/grimorio-data.zip https://github.com/hubertdungen/grimorio/releases/latest/download/grimorio-data.zip
+unzip -o /tmp/grimorio-data.zip -d $D
+
+# 5. Compila la app web e instálala en ~/.local/share/grimorio/app
+(cd web && npm ci) && ./deploy.sh
+
+# 6. Arráncalo y abre http://IP-DEL-SERVIDOR:8107 en cualquier dispositivo de la casa
+python3 $D/app/server.py --host 0.0.0.0 --port 8107
+```
+
+**Arrancar con el servidor** (servicio systemd de usuario):
+
+```ini
+# ~/.config/systemd/user/grimorio.service
+[Unit]
+Description=Grimório
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.local/share/grimorio/app/server.py --host 0.0.0.0 --port 8107
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user daemon-reload && systemctl --user enable --now grimorio
+sudo loginctl enable-linger $USER   # sigue funcionando después de cerrar la sesión
+```
+
+- **Quién juega:** por defecto cada persona elige o crea un perfil («¿Quién juega?»). Para un solo usuario, añade
+  `--owner tunombre`.
+- **Fuera de casa:** nunca abras el puerto 8107 a internet tal cual. Ponlo detrás de un login (un proxy como Caddy +
+  Authelia, Cloudflare Tunnel con Access, o Tailscale); el usuario llega en la cabecera `Remote-User` y cada persona tiene
+  sus mazos.
+- **Actualizar:** `cd grimorio && git pull && ./deploy.sh` y luego `systemctl --user restart grimorio`.
+- **Copias:** mira la sección siguiente.
+
 ## Copias y sincronización en la nube
 
 Todo lo que creas vive en tu propia instalación (`grimorio.db` en la carpeta de datos). Hay dos formas opcionales de

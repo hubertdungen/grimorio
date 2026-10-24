@@ -32,7 +32,66 @@ The interface is available in **English** (default), **Português**, **Español*
 On the first start Grimório asks *who's playing*: each person creates a profile with their name, and their decks,
 tests, tournaments and ratings stay separate. Several people can share one install.
 
-Running it on a home server for several devices, or developing it: see [Developer setup](#developer-setup).
+Running it on a home server for every device in the house: [Your own Linux server](#your-own-linux-server-docker). Developing it: [Developer setup](#developer-setup).
+
+## Your own Linux server (Docker)
+
+Run Grimório on a home server (a mini PC, an old laptop, a NAS with Linux) and open it from every phone, tablet and
+computer in the house. The Coliseum runs Forge in **Docker**, and *Play against Forge* works in the browser. Made on
+Ubuntu 24.04 (other recent Debian/Ubuntu should work); needs ~4 GB of free RAM for games and ~3 GB of disk.
+
+```bash
+# 1. Git, Python, Node.js 22 and Docker
+sudo apt update && sudo apt install -y git python3 bzip2 curl unzip
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
+curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER   # then log out and back in
+
+# 2. Grimório
+git clone https://github.com/hubertdungen/grimorio.git && cd grimorio
+D=~/.local/share/grimorio && mkdir -p $D/forge
+
+# 3. Forge 2.0.15 (the rules engine)
+curl -L https://github.com/Card-Forge/forge/releases/download/forge-2.0.15/forge-installer-2.0.15.tar.bz2 | tar -xj -C $D/forge
+
+# 4. Card data, ready-made from the latest release (or build it yourself with build/build.sh, ~45 min)
+curl -L -o /tmp/grimorio-data.zip https://github.com/hubertdungen/grimorio/releases/latest/download/grimorio-data.zip
+unzip -o /tmp/grimorio-data.zip -d $D
+
+# 5. Build the web app and install it in ~/.local/share/grimorio/app
+(cd web && npm ci) && ./deploy.sh
+
+# 6. Start it, then open http://SERVER-IP:8107 on any device in the house
+python3 $D/app/server.py --host 0.0.0.0 --port 8107
+```
+
+**Start it with the server** (systemd user service):
+
+```ini
+# ~/.config/systemd/user/grimorio.service
+[Unit]
+Description=Grimório
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.local/share/grimorio/app/server.py --host 0.0.0.0 --port 8107
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user daemon-reload && systemctl --user enable --now grimorio
+sudo loginctl enable-linger $USER   # keeps it running after you log out
+```
+
+- **Who plays:** by default every person picks or creates a profile («Who's playing?»). For one single user, add
+  `--owner yourname`.
+- **Outside the house:** never open port 8107 to the internet as it is. Put it behind a login (a reverse proxy such as
+  Caddy + Authelia, Cloudflare Tunnel with Access, or Tailscale); the login user arrives in the `Remote-User` header and
+  each person gets their own decks.
+- **Updating:** `cd grimorio && git pull && ./deploy.sh`, then `systemctl --user restart grimorio`.
+- **Backups:** see the next section.
 
 ## Backups and cloud sync
 

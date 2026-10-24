@@ -33,6 +33,63 @@ Grimório 是一款免费的套牌构筑工具，支持所有赛制（指挥官 
 
 想把它部署在家用服务器上供多台设备使用，或者参与开发：请看[开发者部署](#开发者部署)。
 
+## 部署在你自己的 Linux 服务器上（Docker）
+
+把 Grimório 装在家里的服务器上（迷你主机、旧笔记本、装 Linux 的 NAS），家里所有手机、平板和电脑都能打开。
+竞技场在 **Docker** 中运行 Forge，*与 Forge 对战* 可直接在浏览器中进行。在 Ubuntu 24.04 上开发（其他较新的 Debian/Ubuntu 应该也可以）；
+对局需要约 4 GB 可用内存和约 3 GB 磁盘。
+
+```bash
+# 1. Git, Python, Node.js 22 and Docker
+sudo apt update && sudo apt install -y git python3 bzip2 curl unzip
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
+curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER   # 然后注销并重新登录
+
+# 2. Grimório
+git clone https://github.com/hubertdungen/grimorio.git && cd grimorio
+D=~/.local/share/grimorio && mkdir -p $D/forge
+
+# 3. Forge 2.0.15 (规则引擎)
+curl -L https://github.com/Card-Forge/forge/releases/download/forge-2.0.15/forge-installer-2.0.15.tar.bz2 | tar -xj -C $D/forge
+
+# 4. 卡牌数据：直接使用最新版本中做好的（或用 build/build.sh 自己构建，约 45 分钟）
+curl -L -o /tmp/grimorio-data.zip https://github.com/hubertdungen/grimorio/releases/latest/download/grimorio-data.zip
+unzip -o /tmp/grimorio-data.zip -d $D
+
+# 5. 构建网页应用并安装到 ~/.local/share/grimorio/app
+(cd web && npm ci) && ./deploy.sh
+
+# 6. 启动后，在家里任意设备上打开 http://服务器IP:8107
+python3 $D/app/server.py --host 0.0.0.0 --port 8107
+```
+
+**随服务器启动**（systemd 用户服务）：
+
+```ini
+# ~/.config/systemd/user/grimorio.service
+[Unit]
+Description=Grimório
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.local/share/grimorio/app/server.py --host 0.0.0.0 --port 8107
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user daemon-reload && systemctl --user enable --now grimorio
+sudo loginctl enable-linger $USER   # 注销后仍保持运行
+```
+
+- **谁在玩：** 默认每个人选择或创建一个档案（“谁在玩？”）。只有一个用户时，加上 `--owner 你的名字`。
+- **在外面访问：** 不要直接把 8107 端口开放到互联网。请放在登录之后（如 Caddy + Authelia 反向代理、带 Access 的
+  Cloudflare Tunnel 或 Tailscale）；登录用户通过 `Remote-User` 头传入，每个人都有自己的套牌。
+- **更新：** `cd grimorio && git pull && ./deploy.sh`，然后 `systemctl --user restart grimorio`。
+- **备份：** 见下一节。
+
 ## 备份与云同步
 
 你创建的一切都保存在自己的安装中（数据文件夹里的 `grimorio.db`）。有两种可选、免费的保存方式，都在

@@ -66,7 +66,7 @@ export function Empty({ children }) {
 // rating em estrelas (0,0–6,0) em três camadas, numa fila de ⌈maior valor⌉ estrelas (a última na proporção):
 // vermelho (objetivo) por baixo de tudo: contorno em todas as estrelas até ao seu valor e cheio só do maior entre
 // amarelo e azul até ao vermelho; amarelo (normal, jogos não casuais) e azul (todos os jogos), com o amarelo sempre à
-// vista: amarelo maior ou igual = degradê azul→amarelo até ao azul e amarelo no resto; azul maior = amarelo até ao seu
+// vista: amarelo maior ou igual = diagonal azul/amarelo até ao azul e amarelo no resto; azul maior = amarelo até ao seu
 // valor e azul no resto. O número
 // é só o amarelo. Sem rating, uma estrela cinzenta; provisório, mais claras. r = {stars, blue, red, routes, prov, elo,
 // games…} (de /api/ratings/stars ou das linhas de /api/ratings) ou v solto; bare = sem número. Rato por cima ou dedo
@@ -124,14 +124,19 @@ export function Stars({ r, v = r?.stars, prov = r?.prov, bare = false, label = '
           <svg key={i} viewBox="0 0 24 24" aria-hidden="true">
             <defs>
               <linearGradient id={`${id}g`}>
-                {blend ? <><stop offset="0%" stopColor={COL.b} /><stop offset={`${a}%`} stopColor={COL.y} /></> : <><stop offset={`${a}%`} stopColor={cLo} /><stop offset={`${a}%`} stopColor={cHi} /></>}
+                {blend ? <stop offset={`${a}%`} stopColor={COL.y} /> : <><stop offset={`${a}%`} stopColor={cLo} /><stop offset={`${a}%`} stopColor={cHi} /></>}
                 <stop offset={`${h}%`} stopColor={cHi} /><stop offset={`${h}%`} stopColor={COL.r} />
                 <stop offset={`${red}%`} stopColor={COL.r} /><stop offset={`${red}%`} stopColor={COL.none} />
               </linearGradient>
               {z > 0 && <clipPath id={`${id}c`} clipPathUnits="objectBoundingBox"><rect x="-.2" y="-.2" width={(z >= 100 ? 1.2 : z / 100) + 0.2} height="1.4" /></clipPath>}
+              {blend && a > 0 && <>  {/* parte comum: diagonal azul↖ amarelo↘ com a passagem curta (sem o cinzento da mistura) */}
+                <linearGradient id={`${id}d`} x1="0" y1="0" x2="1" y2="1"><stop offset=".45" stopColor={COL.b} /><stop offset=".55" stopColor={COL.y} /></linearGradient>
+                <clipPath id={`${id}a`} clipPathUnits="objectBoundingBox"><rect x="-.2" y="-.2" width={a / 100 + 0.2} height="1.4" /></clipPath>
+              </>}
             </defs>
             {z > 0 && <path d={STAR} className="st-ol" clipPath={`url(#${id}c)`} />}
             <path d={STAR} fill={`url(#${id}g)`} />
+            {blend && a > 0 && <path d={STAR} fill={`url(#${id}d)`} clipPath={`url(#${id}a)`} />}
           </svg>
         )
       })}
