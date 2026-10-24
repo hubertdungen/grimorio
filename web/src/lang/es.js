@@ -1952,4 +1952,10 @@ export default {
   "Capa de «{name}»": "Portada de «{name}»",
   "Procurar uma carta do deck…": "Buscar una carta del mazo…",
   "Nenhuma carta com esse nome.": "Ninguna carta con ese nombre.",
+  "Depois de um jogo": "Después de una partida",
+  "o mais recente": "la más reciente",
+  "por ordem (o seguinte a acabar)": "en orden (la siguiente en acabar)",
+  "a mesma mesa": "la misma mesa",
+  "A mesma mesa: segue a próxima partida desta mesa; se ainda não houver, mostra o jogo seguinte de outra mesa e volta à tua quando ela tiver jogo novo": "La misma mesa: sigue la próxima partida de esta mesa; si aún no hay, muestra la siguiente de otra mesa y vuelve a la tuya cuando tenga partida nueva",
+  "Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.": "Al ver un torneo en directo, qué partida se abre cuando acaba la que estás viendo.",
 }

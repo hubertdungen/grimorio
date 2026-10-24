@@ -1952,4 +1952,10 @@ export default {
   "Capa de «{name}»": "「{name}」的封面",
   "Procurar uma carta do deck…": "在套牌中搜索卡牌…",
   "Nenhuma carta com esse nome.": "没有该名称的卡牌。",
+  "Depois de um jogo": "一局结束后",
+  "o mais recente": "最新的一局",
+  "por ordem (o seguinte a acabar)": "按顺序（下一局结束的）",
+  "a mesma mesa": "同一桌",
+  "A mesma mesa: segue a próxima partida desta mesa; se ainda não houver, mostra o jogo seguinte de outra mesa e volta à tua quando ela tiver jogo novo": "同一桌：跟随本桌的下一局；若还没有，先显示其他桌的下一局，等本桌有新对局时再回来",
+  "Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.": "观看直播锦标赛时，当前对局结束后打开哪一局。",
 }

@@ -390,3 +390,17 @@ console.log('selfcheck universo ok')
 
 // swapSide: o deck de quem vê passa para o lugar 'a' (repetições de torneio)
 { const { swapSide } = await import('./src/game.js'); const r = swapSide({ winner: 'b', events: [{ p: 'b', card: 'a', txt: 'b' }] }, 'b'); assert.equal(r.winner, 'a'); assert.equal(r.events[0].p, 'a'); assert.equal(r.events[0].card, 'a'); assert.equal(r.events[0].txt, 'b'); console.log('selfcheck lados ok') }
+
+{ const { nextGame } = await import('./src/game.js')
+  // mesas A e B a jogar em paralelo: jogos 1(A) 2(B) 3(B) 4(A) 5(B)
+  const A = { id: 'A' }, B = { id: 'B' }, fl = [[1, A], [2, B], [3, B], [4, A], [5, B]].map(([id, m]) => ({ id, m }))
+  const open = () => false, id = r => r && r.x.id
+  assert.equal(id(nextGame(fl, 0, 'ultimo', {}, open)), 5)                      // o mais recente
+  assert.equal(nextGame(fl, 4, 'ultimo', {}, open), null)                       // já é o último: espera
+  assert.equal(id(nextGame(fl, 0, 'ordem', {}, open)), 2)                       // o seguinte a acabar
+  assert.equal(id(nextGame(fl, 0, 'mesa', { mid: 'A', gid: 1 }, open)), 4)      // a mesma mesa
+  const away = nextGame(fl.slice(0, 3), 0, 'mesa', { mid: 'A', gid: 1 }, open)   // A ainda sem jogo novo: espreita B e volta
+  assert.equal(id(away), 2); assert.equal(away.away, true)
+  assert.equal(id(nextGame(fl, 2, 'mesa', { mid: 'A', gid: 1 }, open)), 4)      // depois de espreitar, volta à mesa A
+  assert.equal(nextGame(fl.slice(0, 3), 0, 'mesa', { mid: 'A', gid: 1 }, () => true).away, false)  // A acabou: muda de mesa
+  console.log('selfcheck próximo jogo ok') }

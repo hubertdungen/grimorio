@@ -1952,4 +1952,10 @@ export default {
   "Capa de «{name}»": "Cover für „{name}“",
   "Procurar uma carta do deck…": "Karte im Deck suchen…",
   "Nenhuma carta com esse nome.": "Keine Karte mit diesem Namen.",
+  "Depois de um jogo": "Nach einem Spiel",
+  "o mais recente": "das neueste",
+  "por ordem (o seguinte a acabar)": "der Reihe nach (das nächste, das endet)",
+  "a mesma mesa": "derselbe Tisch",
+  "A mesma mesa: segue a próxima partida desta mesa; se ainda não houver, mostra o jogo seguinte de outra mesa e volta à tua quando ela tiver jogo novo": "Derselbe Tisch: folgt dem nächsten Spiel dieses Tisches; gibt es noch keins, zeigt es das nächste Spiel eines anderen Tisches und kehrt zurück, sobald deiner ein neues hat",
+  "Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.": "Beim Live-Turnier: welches Spiel geöffnet wird, wenn das aktuelle endet.",
 }

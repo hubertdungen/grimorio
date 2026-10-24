@@ -463,3 +463,18 @@ export function swapSide(v, x) {
   }
   return walk(v, '')
 }
+
+// Torneio ao vivo: que jogo abrir quando o que se está a ver acaba. fl = jogos acabados por ordem (cada um com m = partida),
+// i = índice do que se vê, mode = 'ultimo' | 'ordem' | 'mesa', home = { mid, gid } (a mesa seguida e o último jogo dela visto),
+// done(mid) = a partida dessa mesa já acabou. Devolve { x, away } (away: espreita outra mesa e volta) ou null (esperar).
+export function nextGame(fl, i, mode, home, done) {
+  if (i < 0 || !fl[i]) return null
+  if (mode === 'ordem') return fl[i + 1] ? { x: fl[i + 1] } : null
+  if (mode === 'mesa') {
+    const same = fl.find(x => x.m.id === home.mid && x.id > home.gid && x.id !== fl[i].id)
+    if (same) return { x: same }
+    return fl[i + 1] ? { x: fl[i + 1], away: !done(home.mid) } : null
+  }
+  const last = fl[fl.length - 1]
+  return last.id !== fl[i].id ? { x: last } : null
+}

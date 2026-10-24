@@ -1960,4 +1960,10 @@ export default {
   "Capa de «{name}»": "Cover for “{name}”",
   "Procurar uma carta do deck…": "Search a card in the deck…",
   "Nenhuma carta com esse nome.": "No card with that name.",
+  "Depois de um jogo": "After a game",
+  "o mais recente": "the most recent",
+  "por ordem (o seguinte a acabar)": "in order (the next one to finish)",
+  "a mesma mesa": "the same table",
+  "A mesma mesa: segue a próxima partida desta mesa; se ainda não houver, mostra o jogo seguinte de outra mesa e volta à tua quando ela tiver jogo novo": "Same table: follows this table's next game; if there isn't one yet, shows the next game from another table and comes back when yours has a new one",
+  "Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.": "When watching a live tournament, which game opens when the one you are watching ends.",
 }

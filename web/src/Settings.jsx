@@ -5,6 +5,7 @@ import { tx, num, LOCALE } from './i18n.js'
 import { LangPick, ProfileManage } from './Profiles.jsx'
 import { getStarLayers, setStarLayers } from './ui.jsx'
 import { getSettings, setEnabled, setVolume, play } from './sfx.js'
+import { NextMode } from './Tournament.jsx'
 
 const PER_GAME = 900, RESERVE = 1000  // MB: ~0,9 GB por jogo do Forge; 1 GB fica para o sistema e o browser
 // quantos jogos cabem na RAM livre agora; os que já correm contam como livres (a memória deles é deles)
@@ -131,7 +132,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Jogos do Forge ao mesmo tempo')}</h3><ForgeGames /></section>
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
       <section className="card"><h3>{tx('Estrelas dos decks')}</h3><StarLayers /></section>
-      <section className="card"><h3>{tx('Torneios')}</h3><TourHold /></section>
+      <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
     </div>
   )

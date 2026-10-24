@@ -6,7 +6,7 @@ import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.j
 import { img, coverOf, colorsOf, HUE } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import Replay from './Board.jsx'
-import { swapSide } from './game.js'
+import { swapSide, nextGame } from './game.js'
 import { DIFF_INFO } from './difficulty.js'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
@@ -35,6 +35,24 @@ const pct = x => `${Math.round(x * 100)}%`
 const rkey = (src, id) => `${src === 'meus' ? 'deck' : 'meta'}:${id}`
 const STEPS = Array.from({ length: 13 }, (_, k) => k / 2)
 const dLabel = d => DIFF_INFO[d.id]?.label || d.label  // o nosso rótulo (traduzido) quando o conhecemos
+
+// Depois de um jogo acabar (a ver um torneio ao vivo): o mais recente, por ordem, ou a mesma mesa. Guardado no browser.
+const NEXT_K = 'grimorio.torneio.proximo'
+export const nextModeOf = () => { try { return localStorage.getItem(NEXT_K) || 'ultimo' } catch { return 'ultimo' } }
+export function NextMode({ value, onChange }) {
+  const [v, setV] = useState(value || nextModeOf)
+  const set = x => { setV(x); try { localStorage.setItem(NEXT_K, x) } catch { /* sem armazenamento */ } onChange?.(x) }
+  return (
+    <label className="fmt next-mode" title={tx('A mesma mesa: segue a próxima partida desta mesa; se ainda não houver, mostra o jogo seguinte de outra mesa e volta à tua quando ela tiver jogo novo')}>
+      <span>{tx('Depois de um jogo')}</span>
+      <select value={v} onChange={e => set(e.target.value)}>
+        <option value="ultimo">{tx('o mais recente')}</option>
+        <option value="ordem">{tx('por ordem (o seguinte a acabar)')}</option>
+        <option value="mesa">{tx('a mesma mesa')}</option>
+      </select>
+    </label>
+  )
+}
 
 export default function TournamentView({ data, fmt, deckId }) {
   // o separador fica guardado (F5 volta ao mesmo sítio)
@@ -290,6 +308,11 @@ function Live({ data, tid, onGone, slot }) {
   const [onlyMine, setOnlyMineS] = useState(() => ls('grimorio.torneio.meus') === '1')
   const setOnlyMine = v => { setOnlyMineS(v); ls('grimorio.torneio.meus', v ? '1' : '0') }
   const lastSeen = useRef(null)
+  const [nextMode, setNextMode] = useState(nextModeOf)
+  // o teu deck aparece nos jogos como «Hubert - Deck X» (o nome da conta à frente)
+  const [who, setWho] = useState('')
+  useEffect(() => { fetch('/api/me').then(r => r.json()).then(x => setWho(x.user ? x.user[0].toUpperCase() + x.user.slice(1) : '')).catch(() => {}) }, [])
+  const home = useRef({ mid: null, gid: 0 })  // «a mesma mesa»: a mesa seguida e o último jogo dela já visto
   // sons: partida acabada e campeão (só quando muda, não ao abrir um torneio já acabado)
   const heard = useRef(null)
   const ding = x => {
@@ -312,12 +335,14 @@ function Live({ data, tid, onGone, slot }) {
   const games = useMemo(() => (t ? t.matches.flatMap(m => m.g.map((x, k) => ({ ...x, m, k }))).sort((a, b) => a.id - b.id) : []), [t])
   const fmt = FORMAT[t?.format] || FORMAT.modern
   const fl = useMemo(() => (onlyMine && t?.me != null ? games.filter(x => x.m.p.includes(t.me)) : games), [games, onlyMine, t?.me])  // o que se segue
-  const openGame = async x => {
+  const openGame = async (x, away = false) => {  // away: salto para outra mesa à espera da seguida (mantém-na)
+    if (!away) home.current = { mid: x.m.id, gid: x.id }
+    else if (x.m.id === home.current.mid) home.current.gid = x.id
     try {
       let g = await j(`/api/tournaments/${tid}/games/${x.id}`)
       const me0 = t.me == null ? -1 : g.seats.indexOf(t.me)
       if (me0 > 0) { const sv = [...g.seats]; [sv[0], sv[me0]] = [sv[me0], sv[0]]; g = { ...swapSide(g, 'abcd'[me0]), seats: sv } }  // o meu deck fica em baixo, no lugar do jogador
-      const names = g.seats.map(i => P[i]?.name || '?'), m = x.m
+      const names = g.seats.map(i => (i === t.me && who ? `${who} - ${P[i]?.name || '?'}` : P[i]?.name || '?')), m = x.m
       const prev = m.g.slice(0, x.k).filter(y => !y.x)
       const score = names.length === 2 ? { a: prev.filter(y => y.w === g.seats[0]).length, b: prev.filter(y => y.w === g.seats[1]).length, g: prev.length + 1, bo: t.bo, serie: 1, series: 1, sw: 0, sl: 0, k: 1, total: 1 } : null
       const mk = t.me == null ? -1 : g.seats.indexOf(t.me)
@@ -348,8 +373,9 @@ function Live({ data, tid, onGone, slot }) {
   if (!t) return <section className="card">{err ? <p className="bad-t">{err}</p> : <p><span className="spin-dot" /> {tx('A abrir o torneio…')}</p>}</section>
   const act = async a => { try { await post(`/api/tournaments/${tid}/${a}`); setT(await j(`/api/tournaments/${tid}`)) } catch (e) { setErr(e.message) } }
   const del = async () => { if (!confirm(tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: t.name }))) return; await j(`/api/tournaments/${tid}`, { method: 'DELETE' }); onGone() }
+  const nextOf = i => nextGame(fl, i, nextMode, home.current, mid => t.matches.find(m => m.id === mid)?.st === 'done')  // «Depois de um jogo»
   if (watch) {
-    const i = fl.findIndex(x => x.id === watch.gid)
+    const i = fl.findIndex(x => x.id === watch.gid), nx = nextOf(i)
     // as minhas apostas em cada lugar deste jogo: a da partida e a do campeão (lugar a, b… -> «50 × 2,10»)
     const myBets = {}, od = v => Number(v).toLocaleString(LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     for (const [k, i] of (watch.seats || []).entries()) {
@@ -362,7 +388,7 @@ function Live({ data, tid, onGone, slot }) {
     }
     return <>{slot && createPortal(<button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>, slot)}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} bots={Object.fromEntries((watch.seats || []).map((i, k) => { const d = DIFF_INFO[P[i]?.difficulty]; return ['abcd'[k], d && { label: d.label, title: tx('Bot do Forge: {d} — {r}', { d: d.label, r: d.resumo }) }] }).filter(x => x[1]))} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
       live={going && follow && i >= 0 && i === fl.length - 1} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })}
-      next={follow && i >= 0 ? { has: i < fl.length - 1, go: () => openGame(fl[i + 1]), secs: pause.secs, auto: pause.auto } : null} /></>
+      next={follow && i >= 0 ? { has: !!nx, go: () => nx && openGame(nx.x, nx.away), secs: pause.secs, auto: pause.auto } : null} /></>
   }
   const lives = (t.lives || (t.live ? [t.live] : [])).map(L => ({ L, lm: t.matches.find(m => m.id === L.match) })).filter(x => x.lm), lm = lives[0]?.lm
   const nameOf = i => (i == null ? '—' : P[i]?.name)
@@ -394,6 +420,7 @@ function Live({ data, tid, onGone, slot }) {
         </div>
         <div className="row-btns tl-opts">
           <label className="chk small"><input type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /> {tx('Seguir ao vivo (abre cada jogo quando acaba)')}</label>
+          {follow && <NextMode value={nextMode} onChange={setNextMode} />}
           <label className="small">{tx('Pausa entre jogos')} <select value={pause.secs} onChange={e => setPausePref({ ...pause, secs: +e.target.value })} disabled={!pause.auto}>{[2, 3, 4, 5, 6, 8, 10].map(n => <option key={n} value={n}>{n} s</option>)}</select></label>
           <label className="chk small"><input type="checkbox" checked={!pause.auto} onChange={e => setPausePref({ ...pause, auto: !e.target.checked })} /> {tx('não avançar sozinho')}</label>
           {t.me != null && <label className="chk small"><input type="checkbox" checked={onlyMine} onChange={e => setOnlyMine(e.target.checked)} /> {tx('seguir só os meus jogos')}</label>}
