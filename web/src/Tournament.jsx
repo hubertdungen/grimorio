@@ -35,16 +35,19 @@ const STEPS = Array.from({ length: 13 }, (_, k) => k / 2)
 const dLabel = d => DIFF_INFO[d.id]?.label || d.label  // o nosso rótulo (traduzido) quando o conhecemos
 
 export default function TournamentView({ data, fmt }) {
-  const [view, setView] = useState('criar')
+  // o separador fica guardado (F5 volta ao mesmo sítio)
+  const [view, setViewS] = useState(() => ls('grimorio.torneio.vista') || 'criar')
+  const setView = v => { setViewS(v); ls('grimorio.torneio.vista', v) }
   const [tid, setTid] = useState(null)
   const [list, setList] = useState([])
   const loadList = () => j('/api/tournaments').then(l => { setList(l); return l }).catch(() => [])
   useEffect(() => {  // ao entrar: volta ao torneio que estava aberto, ou ao que está a decorrer
     loadList().then(l => {
       const last = ls('grimorio.torneio'), on = l.find(x => x.id === last) || l.find(x => x.status === 'running')
-      if (on) { setTid(on.id); setView('ver') }
+      if (on) { setTid(on.id); if (ls('grimorio.torneio.vista') !== 'criar' && ls('grimorio.torneio.vista') !== 'registo') setView('ver') }
+      else if (view === 'ver') setView('criar')
     })
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const open = id => { setTid(id); ls('grimorio.torneio', id); setView('ver') }
   return (
     <div className="view tour">
@@ -281,6 +284,20 @@ function Live({ data, tid, onGone }) {
       setWatch({ gid: x.id, mid: m.id, seats: g.seats, deckName: names[0], pov: mk >= 0 ? 'abcd'[mk] : null, score, formats: t.casual ? Object.fromEntries(g.seats.map((i, k) => ['abcd'[k], FORMAT[P[i]?.format]?.name || P[i]?.format])) : null, game: { ...g, g: x.k + 1, opp: names[1], ...(names.length > 2 && { opps: Object.fromEntries(names.slice(1).map((nm, k) => ['bcd'[k], nm])) }), startLife: t.casual ? baseLife(t.format, names.length) : fmt.cmd ? 40 : 20 } })
     } catch (e) { setErr(e.message) }
   }
+  // F5: volta a abrir o jogo que estava a ser visto (guardado na sessão do browser)
+  const restored = useRef(false)
+  useEffect(() => {
+    if (restored.current || !t) return
+    restored.current = true
+    let v = null
+    try { v = sessionStorage.getItem('grimorio.torneio.jogo') } catch { /* sem armazenamento */ }
+    const [a, b] = (v || '').split(':'), x = a === tid && games.find(g => g.id === +b)
+    if (x) openGame(x)
+  }, [t]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!restored.current) return
+    try { if (watch) sessionStorage.setItem('grimorio.torneio.jogo', `${tid}:${watch.gid}`); else sessionStorage.removeItem('grimorio.torneio.jogo') } catch { /* sem armazenamento */ }
+  }, [watch, tid])
   // seguir ao vivo: abre cada jogo novo assim que acaba (se não estiveres já a ver um)
   useEffect(() => {
     const top = fl.length ? fl[fl.length - 1].id : 0

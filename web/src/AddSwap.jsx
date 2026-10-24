@@ -16,6 +16,7 @@ function Menu({ anchor, c, opts, act, close }) {
   const ref = useRef(null)
   const [pos, setPos] = useState(null)
   useLayoutEffect(() => {
+    if (!anchor.isConnected) return  // o botão saiu da página: fica onde estava (não salta para o canto)
     const r = anchor.getBoundingClientRect(), m = ref.current.getBoundingClientRect(), W = innerWidth, H = innerHeight
     const left = Math.max(8, Math.min(r.right - m.width, W - m.width - 8))
     const top = r.bottom + 4 + m.height > H - 8 && r.top - 4 - m.height > 8 ? r.top - 4 - m.height : Math.min(r.bottom + 4, H - m.height - 8)
@@ -55,7 +56,7 @@ export default function AddOrSwap({ c, act, swaps, up = false, children }) {
   const box = useRef(null)
   const opts = useMemo(() => (swaps && (hot || open) ? swaps(c, { limit: 3 }) : null), [swaps, c, hot, open])
   if (!swaps) return children
-  const close = () => setOpen(null)
+  const close = () => { setOpen(null); setHot(false) }
   const onClickCapture = e => {
     if (!coarse() || !e.target.closest('.act.add')) return
     e.stopPropagation(); e.preventDefault()
@@ -64,10 +65,10 @@ export default function AddOrSwap({ c, act, swaps, up = false, children }) {
   const first = opts?.[0]
   return (
     <span ref={box} className={`aos ${up ? 'up' : ''}`} onClickCapture={onClickCapture}
-      onMouseEnter={() => !coarse() && setHot(true)} onMouseLeave={() => setHot(false)}
+      onMouseEnter={() => !coarse() && setHot(true)} onMouseLeave={() => { if (!open) setHot(false) }}
       onFocus={() => !coarse() && setHot(true)} onBlur={e => { if (!box.current.contains(e.relatedTarget)) setHot(false) }}>
       {children}
-      {hot && first && (
+      {(hot || open) && first && (
         <button className="act aos-x" title={first.why.join(' · ')} aria-haspopup={opts.length > 1 ? 'menu' : undefined}
           onClick={e => (opts.length > 1 ? setOpen(open ? null : e.currentTarget) : act.swap(c, first))}>
           ⇄ <span>{first.q > 1 ? `${first.q}× ` : ''}{first.out}</span>{opts.length > 1 ? ' ▾' : ''}

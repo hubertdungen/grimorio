@@ -70,12 +70,15 @@ export default function App() {
   const [showAuto, setShowAuto] = useState(false)
   const [showAI, setShowAI] = useState(false)
   const [showWizard, setShowWizard] = useState(false)
-  const [home, setHome] = useState(() => !window.location.hash.startsWith('#importar='))  // página inicial ao abrir
+  // página inicial só na 1.ª abertura da sessão do browser: um F5 volta ao sítio onde se estava
+  const [home, setHome] = useState(() => { try { return !window.location.hash.startsWith('#importar=') && !sessionStorage.getItem('grimorio.dentro') } catch { return true } })
+  useEffect(() => { if (!home) try { sessionStorage.setItem('grimorio.dentro', '1') } catch { /* sem armazenamento */ } }, [home])
   const [showRefresh, setShowRefresh] = useState(false)
   const [section, setSectionRaw] = useState(() => store.get('grimorio.section') || 'construir')
   const setSection = x => { setSectionRaw(x); store.set('grimorio.section', x) }
   const coliseuRef = useRef(null)
-  const [colMode, setColMode] = useState('bots')  // bots a testar | jogar contra o Forge
+  const [colMode, setColModeS] = useState(() => store.get('grimorio.colMode') || 'bots')  // bots a testar | jogar contra o Forge | torneio | ratings
+  const setColMode = m => { setColModeS(m); store.set('grimorio.colMode', m) }
   const [fromState, setFromState] = useState(null)
   const playFrom = st => { setFromState(st); setColMode('jogar'); setSection('coliseu') }
   // ecrã inteiro: API normal ou a do Safari (iPad); no Android prende a rotação em paisagem enquanto durar
