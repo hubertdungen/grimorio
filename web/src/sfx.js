@@ -153,6 +153,11 @@ const R = {
   loss: (c, out, t) => (brass(c, out, t, [57, 64], 0.5, 0.035), brass(c, out, t + 0.4, [53, 60], 0.5, 0.035), brass(c, out, t + 0.8, [50, 57], 0.9, 0.03), thud(c, out, t + 0.8, 0.16, 50, 0.6), 1.7),
   tie: (c, out, t) => (brass(c, out, t, [62, 69], 0.5, 0.035), thud(c, out, t, 0.12, 70, 0.4), thud(c, out, t + 0.25, 0.1, 70, 0.4), 0.65),
   match: (c, out, t) => (brass(c, out, t, [67, 74], 0.25, 0.035), brass(c, out, t + 0.2, [72, 79], 0.5, 0.035), thud(c, out, t + 0.2, 0.14, 70, 0.4), 0.7),  // partida de torneio acabada
+  // mesa (contador de vida e dados)
+  dice: (c, out, t, o) => { const n = Math.min(o.amount || 1, 8); for (let i = 0; i < 6 + n * 2; i++) noise(c, out, t + i * 0.028 + Math.random() * 0.012, { f: 2200 + Math.random() * 1800, q: 4, dur: 0.03, a: 0.001, g: 0.05 }); thud(c, out, t, 0.06, 140, 0.12); return 0.25 + n * 0.05 },
+  diceHit: (c, out, t, o) => (noise(c, out, t, { f: 2600 + Math.random() * 1400, q: 5, dur: 0.035, a: 0.001, g: 0.03 + 0.06 * Math.min(o.amount ?? 1, 1) }), thud(c, out, t, 0.04 * Math.min(o.amount ?? 1, 1), 160, 0.08), 0.06),
+  coin: (c, out, t) => (tone(c, out, t, { type: 'triangle', f: 2350, f2: 2300, dur: 0.7, a: 0.002, g: 0.05 }), tone(c, out, t, { type: 'sine', f: 3520, dur: 0.45, a: 0.002, g: 0.03 }), 0.7),
+  tick: (c, out, t, o) => (noise(c, out, t, { f: (o.amount ?? 1) >= 0 ? 3400 : 1900, q: 7, dur: 0.03, a: 0.001, g: 0.05 }), 0.04),
   champion: (c, out, t) => {
     brass(c, out, t, [60, 67], 0.18, 0.04); brass(c, out, t + 0.15, [60, 67], 0.18, 0.04); brass(c, out, t + 0.3, [64, 72], 0.18, 0.04)
     brass(c, out, t + 0.45, [60, 67, 72, 76, 79], 1.3, 0.03); thud(c, out, t + 0.3, 0.12, 65, 0.3); thud(c, out, t + 0.45, 0.22, 65, 0.8)

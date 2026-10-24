@@ -11,7 +11,7 @@ const GO = [
   ['coliseu', 'jogar', '🎮', tx('Jogar'), tx('Senta-te tu à mesa contra o Forge com o teu deck.')],
 ]
 
-export default function Home({ deck, decks, onGo, onNew }) {
+export default function Home({ deck, decks, onGo, onNew, onTool }) {
   const last = deck?.id && decks.find(d => d.id === deck.id)
   return (
     <div className="home">
@@ -31,6 +31,11 @@ export default function Home({ deck, decks, onGo, onNew }) {
             {sec === 'biblioteca' && decks.length > 0 && <small>{tx('{n} deck|{n} decks', { n: decks.length })}</small>}
           </button>
         ))}
+      </div>
+      <div className="home-mesa">
+        <span className="muted small">{tx('Para jogar à mesa')}</span>
+        <button className="home-card home-tool life" onClick={() => onTool('vida')}><i>❤</i><b>{tx('Contador de vida')}</b><span>{tx('Até 6 jogadores, vida e veneno, com registo.')}</span></button>
+        <button className="home-card home-tool dice" onClick={() => onTool('dados')}><i>🎲</i><b>{tx('Dados')}</b><span>{tx('d4 a d100 e moeda, a rolar na mesa, com registo.')}</span></button>
       </div>
       <p className="home-foot muted small"><a href="#definicoes" className="home-set">⚙ {tx('Definições')}</a> · {tx('Cartas e imagens: Scryfall · combos: Commander Spellbook · meta: EDHREC e MTGTop8 · jogos: Forge')}</p>
     </div>

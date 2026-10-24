@@ -1,4 +1,5 @@
 import Home from './Home.jsx'
+import Mesa from './Mesa.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras } from './data.js'
@@ -73,6 +74,9 @@ export default function App() {
   // página inicial só na 1.ª abertura da sessão do browser: um F5 volta ao sítio onde se estava
   const [home, setHome] = useState(() => { try { return !window.location.hash.startsWith('#importar=') && !sessionStorage.getItem('grimorio.dentro') } catch { return true } })
   useEffect(() => { if (!home) try { sessionStorage.setItem('grimorio.dentro', '1') } catch { /* sem armazenamento */ } }, [home])
+  // contador de vida e dados (ecrã próprio, aberto do início); o F5 volta a ele
+  const [tool, setToolS] = useState(() => { try { return sessionStorage.getItem('grimorio.mesa') || null } catch { return null } })
+  const setTool = t => { setToolS(t); try { if (t) sessionStorage.setItem('grimorio.mesa', t); else sessionStorage.removeItem('grimorio.mesa') } catch { /* sem armazenamento */ } }
   const [showRefresh, setShowRefresh] = useState(false)
   const [section, setSectionRaw] = useState(() => store.get('grimorio.section') || 'construir')
   const setSection = x => { setSectionRaw(x); store.set('grimorio.section', x) }
@@ -308,7 +312,8 @@ export default function App() {
   const errors = issues.filter(i => i.nivel === 'erro').length
   const total = count(deck.main) + deck.commanders.length + (deck.signature ? 1 : 0)
 
-  if (home) return <Home deck={deck} decks={decks} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }}
+  if (tool) return <Mesa tool={tool} setTool={setTool} onHome={() => { setTool(null); setHome(true) }} onApp={() => { setTool(null); setHome(false) }} />
+  if (home) return <Home deck={deck} decks={decks} onTool={setTool} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }}
     onGo={(sec, mode) => { setHome(false); setSection(sec); if (mode) setColMode(mode) }} />
   return (
     <div className={`app tab-${tab} sec-${section}`}>
