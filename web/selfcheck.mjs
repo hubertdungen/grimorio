@@ -560,3 +560,12 @@ console.log('selfcheck universo ok')
   assert.equal(L('{T}: Add one mana of any color.').anyQ, 1)
   assert.ok(L('{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.').basicOnly)
   console.log('selfcheck terrenos ok') }
+{ const { parseQuery: P } = await import('./src/nlsearch.js')  // pesquisa por frases (pt/en) e sintaxe do Scryfall
+  const a = P('enchantment que forneça flying mas que custe no maximo 2')
+  assert.deepEqual(a.f, { type: 'Enchantment', oracle: ['flying'], cmcMax: 2 }); assert.equal(a.rest, '')
+  assert.deepEqual(P('encantamento que dê voar até 2').f, { type: 'Enchantment', oracle: ['flying'], cmcMax: 2 })
+  assert.deepEqual(P('criaturas vermelhas com ímpeto custo 1').f, { type: 'Creature', oracle: ['haste'], cmcMin: 1, cmcMax: 1, colors: ['R'] })
+  assert.equal(P('instantâneo azul menos de 3').f.cmcMax, 2)
+  assert.deepEqual(P('t:enchantment o:"gain control" mv>=3').f, { type: 'Enchantment', oracle: ['gain control'], cmcMin: 3 })
+  assert.equal(P('Lightning Bolt'), null)
+  console.log('selfcheck pesquisa por frases ok') }

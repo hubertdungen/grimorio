@@ -367,6 +367,7 @@ export function passes(c, f, ctx) {
   if (f.cmcMax != null && f.cmcMax !== '' && c.cmc > +f.cmcMax) return false
   if (f.priceMax && (c.eur ?? c.usd ?? 0) > +f.priceMax) return false
   if (f.noLands && c.mt === 'Land') return false
+  if (f.oracle?.length) { const o = c.o.toLowerCase(); if (!f.oracle.every(w => o.includes(w))) return false }
   return true
 }
 

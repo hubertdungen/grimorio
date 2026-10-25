@@ -1979,3 +1979,5 @@ select option:checked { background: #3a2f12; color: #ffd98a; }
 .mvmenu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 150px; display: grid; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 30px #000b; animation: hlTip .15s ease-out; }
 .mvmenu-list button { text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: 7px; font-size: 14px; white-space: nowrap; }
 .mvmenu-list button:hover { background: var(--panel2); color: var(--gold2); }
+.nl-got { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 6px; }
+.nl-got .chip { font-size: 12px; padding: 2px 8px; }

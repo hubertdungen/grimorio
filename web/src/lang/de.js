@@ -2541,4 +2541,12 @@ export default {
   "{n} do deck para o sideboard": "{n} vom Deck ins Sideboard",
   "Ver a outra face (ou tecla F com o rato na carta)": "Andere Seite zeigen (oder Taste F mit der Maus auf der Karte)",
   "{in} dá {k} e continua a dar {k2}: trocar {out} não perde fontes": "{in} gibt {k} und weiterhin {k2}: {out} zu tauschen kostet keine Quellen",
+  "texto": "Text",
+  "custo": "Kosten",
+  "cor": "Farbe",
+  "Nome, ou uma frase: «encantamento que dê flying até 2», «criatura verde com atropelar»…": "Name oder ein Satz auf Englisch: „enchantment that gives flying up to 2“…",
+  "Entendido como:": "Verstanden als:",
+  "nome": "Name",
+  "Procurar a frase só no nome das cartas": "Den Satz nur in Kartennamen suchen",
+  "procurar pelo nome": "nach Name suchen",
 }

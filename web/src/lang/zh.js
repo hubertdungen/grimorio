@@ -2541,4 +2541,12 @@ export default {
   "{n} do deck para o sideboard": "{n} 张移到备牌",
   "Ver a outra face (ou tecla F com o rato na carta)": "查看另一面（或鼠标停在卡上按 F）",
   "{in} dá {k} e continua a dar {k2}: trocar {out} não perde fontes": "{in} 产 {k} 且仍产 {k2}：替换 {out} 不会损失来源",
+  "texto": "文本",
+  "custo": "费用",
+  "cor": "颜色",
+  "Nome, ou uma frase: «encantamento que dê flying até 2», «criatura verde com atropelar»…": "名称，或英文短语：“enchantment that gives flying up to 2”…",
+  "Entendido como:": "理解为：",
+  "nome": "名称",
+  "Procurar a frase só no nome das cartas": "仅在卡牌名称中搜索该短语",
+  "procurar pelo nome": "按名称搜索",
 }

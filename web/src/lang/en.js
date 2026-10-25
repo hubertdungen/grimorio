@@ -2549,4 +2549,12 @@ export default {
   "{n} do deck para o sideboard": "{n} from deck to sideboard",
   "Ver a outra face (ou tecla F com o rato na carta)": "See the other face (or press F with the mouse on the card)",
   "{in} dá {k} e continua a dar {k2}: trocar {out} não perde fontes": "{in} gives {k} and still gives {k2}: swapping {out} loses no sources",
+  "texto": "text",
+  "custo": "cost",
+  "cor": "colour",
+  "Nome, ou uma frase: «encantamento que dê flying até 2», «criatura verde com atropelar»…": "Name, or a phrase: “enchantment that gives flying up to 2”, “green creature with trample”…",
+  "Entendido como:": "Understood as:",
+  "nome": "name",
+  "Procurar a frase só no nome das cartas": "Search the phrase in card names only",
+  "procurar pelo nome": "search by name",
 }
