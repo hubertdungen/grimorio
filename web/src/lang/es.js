@@ -2628,4 +2628,7 @@ export default {
   "Uma cor à escolha": "Un color a elegir",
   "Unidade": "Unidad",
   "Vertical": "Vertical",
+  "{a} de {n} cópias com esta arte": "{a} de {n} copias con este arte",
+  "Assumir as preferidas das definições": "Usar las favoritas de los ajustes",
+  "Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)": "Reparte las copias entre tus artes favoritas de {c} (Ajustes › Tierras básicas)",
 }

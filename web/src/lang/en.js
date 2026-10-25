@@ -2636,4 +2636,7 @@ export default {
   "Uma cor à escolha": "A colour of your choice",
   "Unidade": "Unit",
   "Vertical": "Portrait",
+  "{a} de {n} cópias com esta arte": "{a} of {n} copies with this art",
+  "Assumir as preferidas das definições": "Use the favourites from Settings",
+  "Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)": "Splits the copies across your favourite {c} arts (Settings › Basic lands)",
 }

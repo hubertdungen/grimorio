@@ -2628,4 +2628,7 @@ export default {
   "Uma cor à escolha": "自选颜色",
   "Unidade": "单位",
   "Vertical": "纵向",
+  "{a} de {n} cópias com esta arte": "{n} 张中有 {a} 张用此卡图",
+  "Assumir as preferidas das definições": "使用设置中的收藏卡图",
+  "Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)": "将副本分配到 {c} 的收藏卡图（设置 › 基本地）",
 }

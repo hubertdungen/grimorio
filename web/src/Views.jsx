@@ -1,6 +1,6 @@
 import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
+import { search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, WhiteStars } from './ui.jsx'
@@ -1419,12 +1419,8 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
         <TrophyCard deck={deck} />
         <PriceCard {...{ data, deck, s, act }} />
         {pcs.sug}
-        <section className="card" ref={valRef}>
-          <h3>{tx('Validação')}</h3>
-          {issues.length ? <ul className="issues">{issues.map((i, k) => <li key={k} className={i.nivel}>{i.msg}</li>)}</ul> : <p className="ok-msg">{tx('Deck válido em {f}.', { f: fmt.name })}</p>}
-        </section>
       </div>
-      {pcs.prio}
+      <div ref={valRef}>{pcs.prio}</div>
     </div>
   )
 }
@@ -1797,10 +1793,10 @@ export function DeckGrid({ data, deck, fmt, act }) {
   const tile1 = ({ c, q, zone, pid, part, k = 0 }) => (  // função e não componente (ver o row do DeckPanel em App.jsx)
     <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}`} data-card={c.n}>
       <button className="dg-img" onClick={() => act.open(c)} title={c.n}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
-      {(part ?? q) > 1 && <span className="dg-q">×{part ?? q}</span>}
+      {(part != null || q > 1) && <span className="dg-q" title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>×{part ?? q}</span>}
       <div className="dg-bar">
         <button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
-        <b>{q}</b>
+        <b title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>{part ?? q}</b>
         <button onClick={() => act.add(c, zone, 1)} aria-label={tx('Mais uma')}>+</button>
         <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte')}>🎨</button>
         {['main', ...(fmt.side ? ['side'] : []), 'maybe'].filter(z => z !== zone).map(z => <button key={z} className="dg-mv" onClick={() => act.move(c, zone, z)} title={ZONE_T[z]}>{ZONE_S[z]}</button>)}
@@ -1953,6 +1949,15 @@ export function ArtPicker({ c, deck, act, onClose }) {
     const k = slots.findIndex(x => x.id === id)
     putSlots(k >= 0 ? slots.map((x, j) => (j === k ? { ...x, q: x.q + 1 } : x)) : [...slots, { id, q: 1, ...(pr && { set: pr.set, cn: pr.cn }) }])
   }
+  // as favoritas das Definições: com várias, as cópias repartem-se por elas (a começar numa ao acaso); com uma, fica essa
+  const favs = /\bBasic\b/.test(c.t) ? basicList(c.n) : []
+  const useFavs = () => {
+    act.setPrint(c, null)
+    if (favs.length < 2 || total < 2) { act.setSplit(c.n, null); setSplitOn(false); return }
+    const k0 = Math.floor(Math.random() * favs.length), l = []
+    for (let j = 0; j < total; j++) { const id = favs[(k0 + j) % favs.length].id, e = l.find(x => x.id === id); if (e) e.q++; else l.push({ id, q: 1 }) }
+    setSplitOn(true); act.setSplit(c.n, l)
+  }
   const act2 = canSplit && splitOn ? { ...act, setPrint: (cc, p) => p && addSlot(p.id, p), setArt: (n, url) => url && addSlot(url) } : act
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -1962,6 +1967,7 @@ export function ArtPicker({ c, deck, act, onClose }) {
         <div className="ap-list">
           <h3>{tx('Arte de {c}', { c: c.n })}</h3>
           <p className="muted small">{tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
+          {favs.length > 0 && <div className="row-btns"><button onClick={useFavs} title={tx('Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)', { c: c.n })}>★ {tx('Assumir as preferidas das definições')}</button></div>}
           {canSplit && <div className="split-box">
             <label className="chk"><input type="checkbox" checked={splitOn} onChange={e => { setSplitOn(e.target.checked); if (!e.target.checked) act.setSplit(c.n, null) }} /> {tx('Dividir as {n} cópias por várias artes', { n: total })}</label>
             {splitOn && <>

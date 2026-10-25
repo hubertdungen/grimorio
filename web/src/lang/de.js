@@ -2628,4 +2628,7 @@ export default {
   "Uma cor à escolha": "Eine Farbe nach Wahl",
   "Unidade": "Einheit",
   "Vertical": "Hochformat",
+  "{a} de {n} cópias com esta arte": "{a} von {n} Kopien mit diesem Artwork",
+  "Assumir as preferidas das definições": "Favoriten aus den Einstellungen übernehmen",
+  "Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)": "Verteilt die Kopien auf deine Lieblings-Artworks von {c} (Einstellungen › Standardländer)",
 }
