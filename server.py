@@ -205,7 +205,7 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/api/friends") and method != "HEAD":  # o dono gere os amigos
             body = self.body() if method in ("POST",) and not p.endswith("/revoke") else None
             with db() as con:
-                return self.json(*reversed(guests.owner_route(con, method, p, self.owner(), body, ARGS.port, share.status()["url"])))
+                return self.json(*reversed(guests.owner_route(con, method, p, self.owner(), body, ARGS.port, share.status()["url"], getattr(ARGS, "host", "0.0.0.0"))))
         return inner()
 
     def do_GET(self):

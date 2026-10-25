@@ -2742,4 +2742,5 @@ export default {
   "Parar aqui": "Parar aquí",
   "interrompido": "interrumpido",
   "⏹ Interrompido no turno {t} (não conta)": "⏹ Interrumpido en el turno {t} (no cuenta)",
+  "Este Grimório só aceita ligações deste computador, por isso não há link para a rede de casa: usa «Partilhar pela internet» (em baixo) ou abre-o com a opção de rede (--host 0.0.0.0).": "Este Grimório solo acepta conexiones de este ordenador, así que no hay enlace para la red de casa: usa «Compartir por internet» (abajo) o ábrelo con la opción de red (--host 0.0.0.0).",
 }

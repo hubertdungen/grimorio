@@ -65,7 +65,7 @@ def public_ok(method, path):
 
 # ---------- dono: gerir os amigos ----------
 
-def owner_route(con, method, path, owner, body, port, tunnel=None):
+def owner_route(con, method, path, owner, body, port, tunnel=None, host="0.0.0.0"):
     """GET /api/friends -> {friends, lan, public}; POST {name}; POST /<id>/revoke; DELETE /<id> (os decks dele ficam)."""
     init(con)
     m = re.match(r"^/api/friends(?:/([a-f0-9]{12})(/revoke)?)?$", path)
@@ -79,7 +79,8 @@ def owner_route(con, method, path, owner, body, port, tunnel=None):
             decks[f] = decks.get(f, 0) + 1
         pub = os.environ.get("GRIMORIO_PUBLIC_URL", "").rstrip("/") or tunnel  # domínio próprio ou o túnel da partilha
         return 200, {"friends": [{"id": i, "name": n, "token": t, "created": c, "revoked": r, "decks": decks.get(i, 0)} for i, n, t, c, r in rows],
-                     "lan": f"http://{lan_ip()}:{port}", "public": pub or None}
+                     # só este computador (127.0.0.1, os pacotes por omissão): o link de casa não chegava a ninguém
+                     "lan": None if host in ("127.0.0.1", "localhost", "::1") else f"http://{lan_ip()}:{port}", "public": pub or None}
     if method == "POST" and not fid:
         name = str((body or {}).get("name") or "").strip()[:40]
         if not name:

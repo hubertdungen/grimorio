@@ -34,7 +34,7 @@ export default function Friends() {
   const revoke = async f => (await ask('amigo', { title: tx('Revogar o convite de {n}?', { n: f.name }), body: tx('O link deixa de entrar. Os decks dele ficam cá.'), ok: tx('Revogar') })) && post(`/api/friends/${f.id}/revoke`).then(load)
   const remove = async f => (await ask('amigo', { title: tx('Tirar {n} dos amigos?', { n: f.name }), body: tx('O link deixa de entrar. Os decks dele ficam na tua Biblioteca, marcados com o nome.'), ok: tx('Tirar') })) && j(`/api/friends/${f.id}`, { method: 'DELETE' }).then(load)
   const copy = async (url, k) => { try { await navigator.clipboard.writeText(url); setCopied(k); setTimeout(() => setCopied(''), 1500) } catch { window.prompt(tx('Copia o link:'), url) } }
-  const links = f => [['casa', tx('🏠 Em casa (mesma rede)'), `${d.lan}/convite/${f.token}`], ...(d.public ? [['net', tx('🌍 Pela internet'), `${d.public}/convite/${f.token}`]] : [])]
+  const links = f => [...(d.lan ? [['casa', tx('🏠 Em casa (mesma rede)'), `${d.lan}/convite/${f.token}`]] : []), ...(d.public ? [['net', tx('🌍 Pela internet'), `${d.public}/convite/${f.token}`]] : [])]
   return (
     <div className="friends">
       <p className="small muted">{tx('Cada amigo recebe um link pessoal. Ao abri-lo fica convidado neste Grimório: os decks dele ficam aqui marcados com o nome, entra nos teus torneios e arenas e aposta com a sua carteira. Não vê nem mexe em mais nada, e podes revogar o link quando quiseres.')}</p>
@@ -43,6 +43,7 @@ export default function Friends() {
         <button className="primary" onClick={add} disabled={!name.trim()}>＋ {tx('Convidar')}</button>
         {err && <span className="small bad-t">{err}</span>}
       </div>
+      {!d.lan && <p className="small muted">{tx('Este Grimório só aceita ligações deste computador, por isso não há link para a rede de casa: usa «Partilhar pela internet» (em baixo) ou abre-o com a opção de rede (--host 0.0.0.0).')}</p>}
       {!d.friends.length && <p className="small muted">{tx('Ainda não convidaste ninguém.')}</p>}
       <ul className="fr-list">{d.friends.map(f => (
         <li key={f.id} className={f.revoked ? 'off' : ''}>

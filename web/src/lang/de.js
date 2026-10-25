@@ -2742,4 +2742,5 @@ export default {
   "Parar aqui": "Hier anhalten",
   "interrompido": "abgebrochen",
   "⏹ Interrompido no turno {t} (não conta)": "⏹ In Zug {t} abgebrochen (zählt nicht)",
+  "Este Grimório só aceita ligações deste computador, por isso não há link para a rede de casa: usa «Partilhar pela internet» (em baixo) ou abre-o com a opção de rede (--host 0.0.0.0).": "Dieses Grimório nimmt nur Verbindungen von diesem Computer an, daher gibt es keinen Heimnetz-Link: nutze „Über das Internet teilen“ (unten) oder starte es mit der Netzwerkoption (--host 0.0.0.0).",
 }
