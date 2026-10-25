@@ -22,7 +22,7 @@ export function buildIndex(cards) {
     for (const part of new Set([c.n, ...c.n.split(' // ')])) {
       const k = norm(part)
       if (k.length < 2) continue
-      const id = names.push({ k, i }) - 1
+      const id = names.push({ k, i, full: part === c.n }) - 1
       if (!exact.has(k)) exact.set(k, []); exact.get(k).push(id)
       for (const g of grams(k)) { let l = tri.get(g); if (!l) tri.set(g, (l = [])); l.push(id) }
     }
@@ -40,7 +40,7 @@ export function matchName(index, lines, { top = 5 } = {}) {
     for (const g of qg) for (const id of index.tri.get(g) || []) hits.set(id, (hits.get(id) || 0) + 1)
     const cand = [...(index.exact.get(q) || []).map(id => [id]), ...[...hits].sort((a, b) => b[1] - a[1]).slice(0, 60)]  // o nome exato entra sempre
     for (const [id] of cand) {
-      const { k, i } = index.names[id]
+      const { k, i, full } = index.names[id]
       // a linha pode ter lixo à volta (custo de mana, bordas): compara também com o pedaço do tamanho do nome,
       // mas um nome curto escondido numa linha comprida vale menos (senão «Nimble Pilferer» ganhava a «Ragavan, Nimble Pilferer»)
       let score = 1 - lev(q, k) / Math.max(q.length, k.length)
@@ -50,6 +50,7 @@ export function matchName(index, lines, { top = 5 } = {}) {
         score = Math.max(score, (1 - d / k.length) * (0.7 + (0.3 * k.length) / q.length))
       }
       score -= li * 0.004  // as primeiras linhas (o nome está em cima) ganham por pouco
+      if (full) score += 0.005  // empate com a face de uma carta dupla: ganha a carta com esse nome inteiro
       const e = best.get(i) || { i, score: -1, line: raw, faces: new Set() }
       if (score > 0.85) e.faces.add(k)
       if (score > e.score) Object.assign(e, { score, line: raw })

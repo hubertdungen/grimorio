@@ -1816,3 +1816,20 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .tour.hl-mine .tp-thumb.mine { box-shadow: 0 0 0 2px #4ea8ff, 0 0 10px #4ea8ffaa; }
 .tour.hl-mine .tp-thumb.mine + * { color: #9fd0ff; font-weight: 700; }
 .gen-mix .seg { float: none; margin: 0; }
+/* ler carta pela câmara */
+.modal.scan { width: min(560px, 100%); padding: 14px 16px; display: grid; gap: 10px; }
+.scan-h { display: flex; align-items: center; justify-content: space-between; } .scan-h h3 { margin: 0; }
+.scan-cam { position: relative; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; }
+.scan-cam.off { display: none; }
+.scan-cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-guide { position: absolute; top: 7%; bottom: 7%; left: 50%; aspect-ratio: 63 / 88; transform: translateX(-50%); border: 3px solid var(--gold2); border-radius: 14px; box-shadow: 0 0 0 9999px #0008; }
+.scan-guide::before { content: ''; position: absolute; left: 6%; right: 6%; top: 3%; height: 10%; border: 2px dashed #ffd98a99; border-radius: 6px; }
+.modal.scan label.btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); min-height: 40px; }
+.modal.scan label.btn.primary { background: var(--gold); color: #1c1300; border-color: var(--gold); font-weight: 700; }
+.scan-res { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: start; }
+.scan-shot { width: 120px; border-radius: 8px; }
+.scan-res ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; grid-column: 2; }
+.scan-res li { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px; border-radius: 10px; background: #ffffff08; }
+.scan-res li img { width: 56px; height: 41px; object-fit: cover; border-radius: 6px; }
+.scan-res li span { display: grid; min-width: 0; } .scan-res li b, .scan-res li small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 520px) { .scan-res { grid-template-columns: minmax(0, 1fr); } .scan-shot { width: 90px; } .scan-res ul { grid-column: 1; } }

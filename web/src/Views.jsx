@@ -707,6 +707,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     <div className="view">
       <div className="searchbar">
         <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar cartas por nome…')} className="big" />
+        <button className="scan-btn" onClick={act.scan} title={tx('Ler uma carta pela câmara ou por uma foto')} aria-label={tx('Ler carta')}>📷</button>
         <label className="chk"><input type="checkbox" checked={f.inText} onChange={e => setF(x => ({ ...x, inText: e.target.checked }))} /> {tx('também no texto')}</label>
         <select value={f.sort} onChange={e => setF(x => ({ ...x, sort: e.target.value }))} aria-label={tx('Ordenar')}>
           <option value="pop">{tx('Mais jogadas')}</option><option value="name">{tx('Nome')}</option><option value="cmc">{tx('Custo')}</option><option value="price">{tx('Preço')}</option><option value="new">{tx('Mais recentes')}</option>

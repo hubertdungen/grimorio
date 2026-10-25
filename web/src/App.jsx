@@ -1,6 +1,7 @@
 import Home from './Home.jsx'
 import Mesa from './Mesa.jsx'
 import ProxyDialog from './Proxies.jsx'
+import CardScan from './CardScan.jsx'
 import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -98,6 +99,7 @@ export default function App() {
   // da Biblioteca/Teste para outra área
   const goTab = t => { if (t === 'teste' || t === 'coliseu') return setSection('coliseu'); setSection('construir'); setTab(t) }
   const [artCard, setArtCard] = useState(null)
+  const [scan, setScan] = useState(false)  // ler carta pela câmara (CardScan)
   // favorito do TappedOut: abre o Grimório com #importar=<links>
   const [importLinks] = useState(() => {
     const h = window.location.hash
@@ -294,7 +296,7 @@ export default function App() {
       && !(await ask('ultima', { title: tx('Tirar «{c}» do deck?', { c: c.n }), body: tx('Era a última cópia. Podes desfazer com ↶.'), ok: tx('Tirar') }))) return
     add(c, zone, -q)
   }, [add])
-  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard,
+  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
@@ -325,7 +327,7 @@ export default function App() {
   const total = count(deck.main) + deck.commanders.length + (deck.signature ? 1 : 0)
 
   if (tool) return <Mesa tool={tool} setTool={setTool} onHome={() => { setTool(null); setHome(true) }} onApp={() => { setTool(null); setHome(false) }} />
-  if (home) return <Home deck={deck} decks={decks} onTool={setTool} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }}
+  if (home) return <Home deck={deck} decks={decks} onTool={setTool} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }} onScan={() => { setHome(false); setSection('construir'); setScan(true) }}
     onGo={(sec, mode) => { setHome(false); setSection(sec); if (mode) setColMode(mode) }} />
   return (
     <div className={`app tab-${tab} sec-${section}`}>
@@ -400,6 +402,7 @@ export default function App() {
         if (auto) setTimeout(() => setShowAuto(true), 50)
       }} />}
       {artCard && <ArtPicker c={artCard} deck={deck} act={act} onClose={() => setArtCard(null)} />}
+      {scan && data && <CardScan data={data} onPick={c => act.add(c)} onClose={() => setScan(false)} />}
       {showAI && <AIDialog {...{ data, deck, fmt, ctx, act, setDeck, issues, onClose: () => setShowAI(false) }} />}
       {showAuto && <AutoBuildDialog {...{ data, deck, fmt, ctx, setDeck, say, act, onClose: () => setShowAuto(false) }} />}
       {showRefresh && <RefreshDialog {...{ data, deck, setDeck, say, onClose: () => setShowRefresh(false) }} />}
