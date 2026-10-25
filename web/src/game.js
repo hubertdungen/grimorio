@@ -483,7 +483,7 @@ export function nextGame(fl, i, mode, home, done) {
 // want = quantos faltam, w = {meu, com, meta} pesos (só os das fontes ligadas), minMeta = parte mínima do meta (0,2 nos
 // torneios não casuais). Cada fonte leva a sua parte; se uma não tiver decks que cheguem, as outras completam.
 export function mixTake(pool, want, w, minMeta = 0) {
-  const kind = ([s, o]) => (s === 'meta' ? 'meta' : o.community ? 'com' : 'meu')
+  const kind = ([s, o]) => (s === 'meta' ? 'meta' : o.friend ? 'ami' : o.community ? 'com' : 'meu')
   const keys = Object.keys(w).filter(k => w[k] > 0), sum = keys.reduce((a, k) => a + w[k], 0) || 1
   const by = Object.fromEntries(keys.map(k => [k, pool.filter(x => kind(x) === k)]))
   const raw = keys.map(k => [k, (want * w[k]) / sum]), tgt = Object.fromEntries(raw.map(([k, x]) => [k, Math.floor(x)]))
