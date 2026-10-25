@@ -1,6 +1,6 @@
 import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { search, recommend, termsOf, termMatch, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
+import { search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, WhiteStars } from './ui.jsx'
@@ -12,7 +12,7 @@ import { manaNeeds, recommendLands, reanimTargets } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 import { prepareSwaps, cutPlan, landPlan } from './swap.js'
 import AddOrSwap from './AddSwap.jsx'
-import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan } from './universe.js'
+import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
@@ -121,6 +121,42 @@ function LandPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
   )
 }
 
+// 🧩 Preencher o deck: só aparece com cartas a menos (Commander incluído); várias estratégias, cada carta com o porquê
+const FILL_ST = [['equilibrada', '⚖', tx('Equilibrada')], ['plano', '🎯', tx('Reforçar o plano')], ['interacao', '🛡', tx('Mais interação')], ['curva', '⚡', tx('Curva baixa')], ['copias', '📈', tx('Mais cópias')]]
+function FillPanel({ data, deck, fmt, ctx, act, recs, needs }) {
+  const total = Object.values(deck.main).reduce((a, q) => a + q, 0) + deck.commanders.length, min = fmt.size[0]
+  const [st, setSt] = useState(() => { try { return localStorage.getItem('grimorio.preencher') || 'equilibrada' } catch { return 'equilibrada' } })
+  const pick = v => { setSt(v); try { localStorage.setItem('grimorio.preencher', v) } catch { /* sem armazenamento */ } }
+  const need = useMemo(() => (total < min ? manaNeeds(data, deck, fmt) : null), [total, min, data, deck, fmt])
+  const lands = useMemo(() => (need ? recommendLands(data, { deck, fmt, ctx, need, limit: 12 }).filter(l => !deck.main[l.c.n]) : []), [need, data, deck, fmt, ctx])
+  const sts = FILL_ST.filter(([k]) => k !== 'copias' || fmt.copies !== 1)
+  const s = sts.some(([k]) => k === st) ? st : 'equilibrada'
+  const plan = useMemo(() => {
+    if (!need) return null
+    if (s === 'copias') { const r = sizePlan(data, deck, ctx.tests, { min, max: fmt.size[1] || Infinity, maxOf: c => maxCopies(c, fmt, ctx.bit), need, needs }); return { ...r, items: r.items.map(x => ({ ...x, why: [x.why] })) } }
+    return fillPlan(data, deck, { min, recs, lands, need, needs, strategy: s })
+  }, [need, s, data, deck, ctx, min, fmt, needs, recs, lands])
+  if (!plan || !plan.gap) return null
+  const n = plan.items.reduce((a, x) => a + x.k, 0)
+  return (
+    <div className="prefs cutp on fillp">
+      <div className="prefs-head"><span>🧩 {tx('Preencher o deck')}</span><small className="bad-t">{tx('faltam {n} cartas ({t} de {f})', { n: plan.gap, t: plan.total, f: min })}</small></div>
+      <div className="cutp-body">
+        <div className="seg small fill-st" role="group" aria-label={tx('Estratégia')}>{sts.map(([k, ic, l]) => <button key={k} className={s === k ? 'on' : ''} onClick={() => pick(k)}>{ic} {l}</button>)}</div>
+        <p className="small muted">{plan.lands != null ? tx('{n} cartas: {l} terrenos · custo médio do resto {m}', { n, l: plan.lands, m: (plan.mv || 0).toLocaleString(LOCALE, { maximumFractionDigits: 1 }) }) : tx('{n} cópias a mais de cartas que já tens', { n })}</p>
+        <ul className="fill-list">{plan.items.map(x => (
+          <li key={x.c.n} {...hlProps([{ n: x.c.n, tone: 'in' }])}>
+            <button className="cutp-card in" onClick={() => act.open(x.c)}><img src={img(x.c, 'art_crop')} alt="" loading="lazy" /><span><b>+{x.k} {x.c.n}</b><Mana cost={x.c.mc} /></span></button>
+            <ul className="why">{x.why.filter(Boolean).map((w, k) => <li key={k} className={k ? 'tema' : 'falta'}>{w}</li>)}</ul>
+            <QtyPick c={x.c} deck={deck} fmt={fmt} act={act}><button className="small" onClick={() => act.add(x.c, 'main', x.k)}>＋ {x.k > 1 ? `${x.k} ` : ''}{tx('juntar')}</button></QtyPick>
+          </li>))}</ul>
+        {plan.items.length > 0 && <button className="primary" onClick={() => plan.items.forEach(x => act.add(x.c, 'main', x.k))}>✓ {tx('Juntar todas ({n})', { n })}</button>}
+        {n < plan.gap && <p className="small muted">{tx('Ainda ficam {n} por escolher: mais sugestões abaixo.', { n: plan.gap - n })}</p>}
+      </div>
+    </div>
+  )
+}
+
 // ± Ajustar quantidades: mais cópias do que ganha jogos, menos do que pesa (aos pares; universe.js adjustPlan)
 function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
   const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.ajustar') === '1' } catch { return false } })
@@ -128,7 +164,8 @@ function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
   const ev = ctx.tests, games = ev?.exact || 0
   const plan = useMemo(() => (open && games >= 3 && fmt.copies !== 1 ? adjustPlan(data, deck, ev, { needs, maxOf: c => maxCopies(c, fmt, ctx.bit), skip: reanimTargets(data, deck) }) : []), [open, games, data, deck, ev, needs, fmt, ctx.bit])
   // tamanho do formato (60, 40, 100…): o que juntar ou tirar para fechar a diferença, com o porquê (não precisa de jogos)
-  const sz = useMemo(() => sizePlan(data, deck, ev, { min: fmt.size[0], max: fmt.size[1] || Infinity, maxOf: c => maxCopies(c, fmt, ctx.bit), need: manaNeeds(data, deck, fmt), needs }), [data, deck, ev, fmt, ctx.bit, needs])
+  // 60 «ou mais»: acima do ideal também sugere onde reduzir
+  const sz = useMemo(() => sizePlan(data, deck, ev, { min: fmt.size[0], max: fmt.size[1] || fmt.size[0], maxOf: c => maxCopies(c, fmt, ctx.bit), need: manaNeeds(data, deck, fmt), needs }), [data, deck, ev, fmt, ctx.bit, needs])
   const szDone = sz.items.reduce((a, x) => a + x.k, 0)
   if (fmt.copies === 1 && !sz.gap) return null  // singleton (Commander, Gladiator…) com o tamanho certo: não há cópias a ajustar
   const Row = ({ r, sign, k }) => (
@@ -138,12 +175,12 @@ function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
   return (
     <div className={`prefs cutp ${open ? 'on' : ''}`}>
       <button className="prefs-head" onClick={() => setOpen(!open)}>
-        <span>± {tx('Ajustar quantidades')}</span><small className="muted">{sz.gap ? <b className="bad-t">{sz.gap > 0 ? tx('faltam {n} cartas ({t} de {f})', { n: sz.gap, t: sz.total, f: fmt.size[0] }) : tx('sobram {n} cartas ({t} de {f})', { n: -sz.gap, t: sz.total, f: fmt.size[1] || fmt.size[0] })}</b> : open ? (games < 3 ? tx('precisa de jogos') : tx('{n} ajuste|{n} ajustes', { n: plan.length })) : tx('mais cópias do que ganha, menos do que pesa')}</small><span className="chev">{open ? '▾' : '▸'}</span>
+        <span>± {tx('Ajustar quantidades')}</span><small className="muted">{sz.gap ? <b className="bad-t">{sz.gap > 0 ? tx('faltam {n} cartas ({t} de {f})', { n: sz.gap, t: sz.total, f: fmt.size[0] }) : tx('sobram {n} cartas ({t} para {f})', { n: -sz.gap, t: sz.total, f: fmt.size[1] || fmt.size[0] })}</b> : open ? (games < 3 ? tx('precisa de jogos') : tx('{n} ajuste|{n} ajustes', { n: plan.length })) : tx('mais cópias do que ganha, menos do que pesa')}</small><span className="chev">{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div className="cutp-body">
           {sz.gap !== 0 && <div className="sz-plan">
-            <p className="small"><b>{sz.gap > 0 ? tx('O deck tem {t} cartas de {f}: faltam {n}.', { t: sz.total, f: fmt.size[0], n: sz.gap }) : tx('O deck tem {t} cartas para um máximo de {f}: sobram {n}.', { t: sz.total, f: fmt.size[1], n: -sz.gap })}</b> {sz.items.length > 0 && tx('Proposta para fechar a diferença:')}</p>
+            <p className="small"><b>{sz.gap > 0 ? tx('O deck tem {t} cartas de {f}: faltam {n}.', { t: sz.total, f: fmt.size[0], n: sz.gap }) : (fmt.size[1] ? tx('O deck tem {t} cartas para um máximo de {f}: sobram {n}.', { t: sz.total, f: fmt.size[1], n: -sz.gap }) : tx('O deck tem {t} cartas; o ideal são {f} (mais cartas = menos vezes as melhores): sobram {n}.', { t: sz.total, f: fmt.size[0], n: -sz.gap }))}</b> {sz.items.length > 0 && tx('Proposta para fechar a diferença:')}</p>
             <ul className="sz-list">{sz.items.map(x => (
               <li key={x.c.n} {...hlProps([{ n: x.c.n, tone: x.k > 0 ? 'in' : 'out' }])}><b className={x.k > 0 ? 'pos' : 'neg'}>{x.k > 0 ? `+${x.k}` : `−${-x.k}`}</b> <button className="link plain" onClick={() => act.open(x.c)}>{x.c.n}</button> <span className="muted small">{tx('tens {q}', { q: deck.main[x.c.n] || 0 })} · {x.why}</span>
                 <button className="small" onClick={() => act.add(x.c, 'main', x.k)}>{x.k > 0 ? tx('juntar') : tx('tirar')}</button></li>))}</ul>
@@ -175,6 +212,8 @@ function SidePanel({ data, deck, fmt, ctx, act, meta, have }) {
       .sort((a, b) => b[1].side - a[1].side).slice(0, 10).map(([i, m]) => ({ c: data.cards[i], m }))
   }, [open, meta, fmt, have, data, deck, ctx])
   const heur = useMemo(() => (open && fmt.side > 0 && !side.length ? sideSuggest(data, deck, ctx) : []), [open, fmt, side.length, data, deck, ctx])
+  // do deck para o sideboard: cartas que só servem contra um tipo/cor do adversário ou respostas de sideboard no main
+  const toSide = useMemo(() => (fmt.side > 0 ? Object.keys(deck.main).map(n => data.byName.get(n)).filter(c => c && (narrowHate(c).length || c.tg.includes('hate'))) : []), [fmt.side, deck.main, data])
   if (!fmt.side) return null
   const sideCount = Object.values(deck.side).reduce((a, b) => a + b, 0)
   const fillSide = () => {
@@ -192,10 +231,20 @@ function SidePanel({ data, deck, fmt, ctx, act, meta, have }) {
   return (
     <div className={`prefs cutp ${open ? 'on' : ''}`}>
       <button className="prefs-head" onClick={() => setOpen(!open)}>
-        <span>🛡 {tx('Sideboard')}</span><small className="muted">{sideCount}/{fmt.side} · {side.length ? tx('{n} listas de {f}', { n: meta.decks, f: fmt.name }) : tx('respostas por tipo de ameaça, nas tuas cores')}</small><span className="chev">{open ? '▾' : '▸'}</span>
+        <span>🛡 {tx('Sideboard')}</span><small className="muted">{toSide.length > 0 && <b className="bad-t">{tx('{n} do deck para o sideboard', { n: toSide.length })} · </b>}{sideCount}/{fmt.side} · {side.length ? tx('{n} listas de {f}', { n: meta.decks, f: fmt.name }) : tx('respostas por tipo de ameaça, nas tuas cores')}</small><span className="chev">{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div className="cutp-body">
+          {toSide.length > 0 && <div className="to-side">
+            <h4>{tx('Do deck para o sideboard')}</h4>
+            <ul className="land-list">{toSide.map(c => { const h = narrowHate(c); return (
+              <li key={c.i} {...hlProps([{ n: c.n, tone: 'out' }])}>
+                <button className="live-img" onClick={() => act.open(c)}><img src={img(c, 'art_crop')} alt="" loading="lazy" /></button>
+                <div className="live-txt"><div className="live-name"><button className="link plain" onClick={() => act.open(c)}>{deck.main[c.n] > 1 ? `${deck.main[c.n]}× ` : ''}{c.n}</button><Mana cost={c.mc} /></div>
+                  <ul className="why"><li className="falta">{h.length ? tx('Só serve contra {x}: guarda-a para os jogos 2 e 3 contra quem a precisa', { x: h.join('/') }) : tx('Resposta de sideboard: no main ocupa o lugar de uma carta do plano')}</li></ul></div>
+                <button className="act" onClick={() => act.move(c, 'main', 'side')} title={tx('Passar para o sideboard')}>→SB</button>
+              </li>) })}</ul>
+          </div>}
           {side.length > 0 && <ul className="land-list">{side.map(({ c, m }) => row(c, <ul className="why"><li className="edh">{tx('Em {p}% dos sideboards (≈{c} cópias)', { p: Math.round(m.side * 100), c: num(m.sideCopies) })}</li>{c.tg.filter(t => ['removal', 'counter', 'wipe', 'discard', 'lifegain', 'graveyard'].includes(t)).slice(0, 2).map(t => <li key={t} className="tema">{TAG_LABEL[t]}</li>)}</ul>, Math.max(1, Math.round(m.sideCopies))))}</ul>}
           {heur.map(g => <div key={g.label}><h4>{g.label}</h4><ul className="land-list">{g.cards.map(c => row(c, null, 2))}</ul></div>)}
           {sideCount < fmt.side && (side.length > 0 || heur.length > 0) && <button className="primary" onClick={fillSide}>{tx('Completar o sideboard até {n}', { n: fmt.side })}</button>}
@@ -682,11 +731,27 @@ export function hideCardPeek() { if (peek) peek.style.display = 'none' }
 
 const inDeck = (deck, n) => (deck.main[n] || 0) + (deck.side[n] || 0) + (deck.commanders.includes(n) ? 1 : 0) + (deck.signature === n ? 1 : 0)
 
+// o botão de juntar (children) com as outras quantidades: ao passar o rato (ou ▾ no tátil) abre 1–4 por cima — o número
+// é o total no deck, até ao máximo do formato; nos formatos de uma cópia fica só o botão
+export function QtyPick({ c, deck, fmt, act, zone = 'main', children }) {
+  const [open, setOpen] = useState(false)
+  const q = (deck[zone] || {})[c.n] || 0, lim = Math.min(4, maxCopies(c, fmt))
+  if (fmt.copies === 1 || lim < 2) return children
+  return (
+    <span className={`qadd ${open ? 'open' : ''}`} onMouseLeave={() => setOpen(false)}>
+      {children}
+      <button className="qmore" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label={tx('Cópias de {c}', { c: c.n })}>▾</button>
+      <span className="qpick" role="group" aria-label={tx('Cópias de {c}', { c: c.n })}>{Array.from({ length: lim }, (_, k) => k + 1).map(n => (
+        <button key={n} className={q === n ? 'on' : ''} onClick={() => { if (n !== q) act.add(c, zone, n - q); setOpen(false) }} title={tx('Ficar com {n} no deck', { n })}>{n}</button>))}</span>
+    </span>
+  )
+}
+
 function Actions({ c, deck, fmt, act, swaps }) {
   const q = inDeck(deck, c.n)
   return (
     <>
-      <AddOrSwap c={c} act={act} swaps={swaps} up><button className="act add" onClick={() => act.add(c)} title={tx('Juntar ao deck')}>+{q ? <sup>{q}</sup> : null}</button></AddOrSwap>
+      <QtyPick c={c} deck={deck} fmt={fmt} act={act}><AddOrSwap c={c} act={act} swaps={swaps} up><button className="act add" onClick={() => act.add(c)} title={tx('Juntar ao deck')}>+{q ? <sup>{q}</sup> : null}</button></AddOrSwap></QtyPick>
       {fmt.side > 0 && <button className="act" onClick={() => act.add(c, 'side')} title={tx('Juntar ao sideboard')}>SB</button>}
       {fmt.cmd && canBeCommander(c, fmt) && <button className={`act ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)} title={fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}>♛</button>}
       {fmt.cmd === 'oathbreaker' && /Instant|Sorcery/.test(c.t) && <button className={`act ${deck.signature === c.n ? 'on' : ''}`} onClick={() => act.setSignature(c)} title={tx('Feitiço de assinatura')}>✦</button>}
@@ -807,6 +872,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
         <SeedPicker {...{ data, ctx, act }} />
       </div>
       <PrefsPanel {...{ deck, fmt, act }} />
+      <FillPanel {...{ data, deck, fmt, ctx, act, recs: allSug, needs }} />
       <CutPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug, co, cmdIdx, needs, meta, archetype }} />
       <AdjustPanel {...{ data, deck, fmt, ctx, act, needs }} />
       <LandPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug }} />

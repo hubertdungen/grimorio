@@ -538,3 +538,17 @@ console.log('selfcheck universo ok')
   const dh = deckCuts(sdata, kn, { ctx: { bit: -1, allowUn: true, identity: 'W' }, meta }).find(x => x.c.n === 'Dragon Hunter')
   assert.ok(dh && /Carta de sideboard/.test(dh.why[0]), JSON.stringify(dh?.why))
   console.log('selfcheck sugestões ok') }
+{ const { fillPlan } = await import('./src/universe.js')  // «Preencher o deck»: fecha a diferença com cartas novas, por estratégia
+  const mk = (n, t, tg = [], cmc = 2) => ({ n, t, mt: t.includes('Land') ? 'Land' : 'Creature', tg, cmc, o: '' })
+  const L = [mk('Plains', 'Basic Land — Plains'), mk('Island', 'Basic Land — Island'), mk('Tundra', 'Land')]
+  const S = [mk('Big', 'Creature', [], 6), mk('Bolt', 'Instant', ['removal'], 1), mk('Cheap', 'Creature', [], 1), mk('Mid', 'Creature', [], 3), mk('Counter', 'Instant', ['counter'], 2)]
+  const data = { byName: new Map([...L, ...S].map(c => [c.n, c])) }
+  const deck = { main: { Plains: 10, Bear: 40 }, commanders: [] }  // 50 de 54 (alvo pequeno de propósito)
+  const recs = S.map(c => ({ c, why: [{ txt: 'boa' }] })), need = { lands: 10, target: 11, cols: { U: { have: 0, full: 8 } } }
+  const eq = fillPlan(data, deck, { min: 55, recs, lands: [{ c: L[2], why: [] }], need, needs: { removal: [0, 2] } })
+  assert.equal(eq.items.reduce((a, x) => a + x.k, 0), 5); assert.equal(eq.items[0].c.n, 'Tundra'); assert.equal(eq.items[1].c.n, 'Bolt')
+  const cv = fillPlan(data, deck, { min: 55, recs, lands: [], need: { ...need, target: 10 }, strategy: 'curva' })
+  assert.deepEqual(cv.items.map(x => x.c.cmc).slice(0, 2), [1, 1])
+  const it = fillPlan(data, deck, { min: 55, recs, lands: [], need: { ...need, target: 10 }, strategy: 'interacao' })
+  assert.deepEqual(it.items.slice(0, 2).map(x => x.c.n).sort(), ['Bolt', 'Counter'])
+  console.log('selfcheck preencher o deck ok') }

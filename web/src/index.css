@@ -1941,3 +1941,21 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .hl-tip.in { box-shadow: inset 3px 0 0 #3dcf7a, 0 0 0 1px #3dcf7a88, 0 6px 18px #000a; }
 .hl-tip.on { box-shadow: inset 3px 0 0 #ffd98a, 0 0 0 1px #ffd98a88, 0 6px 18px #000a; }
 @keyframes hlTip { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+/* 🧩 preencher o deck */
+.fillp { border-color: var(--gold); }
+.fill-st { flex-wrap: wrap; float: none; margin: 0 0 8px; }
+.fill-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.fill-list > li { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+@media (max-width: 700px) { .fill-list > li { grid-template-columns: minmax(0, 1fr) auto; } .fill-list > li .why { grid-column: 1 / -1; grid-row: 2; } }
+/* escolher quantas cópias (1–4): abre por cima do botão de juntar */
+.qadd { position: relative; display: inline-flex; align-items: center; }
+.qmore { display: none; min-width: 22px; padding: 0 4px; border: 0; background: transparent; color: var(--muted); }
+.qadd .qpick { display: none; position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 30; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); box-shadow: 0 10px 24px #000b; animation: hlTip .15s ease-out; }
+.qadd:hover .qpick, .qadd:focus-within .qpick, .qadd.open .qpick { display: inline-flex; }
+.qpick button { min-width: 30px; min-height: 30px; padding: 0 6px; border: 0; border-radius: 0; background: transparent; font-size: 13px; font-weight: 700; color: var(--text); }
+.qpick button + button { border-left: 1px solid var(--line); }
+.qpick button:hover { background: var(--panel2); }
+.qpick button.on { background: var(--gold); color: #1c1300; }
+@media (pointer: coarse) { .qmore { display: inline-block; min-height: 34px; } .qadd:hover .qpick { display: none; } .qadd.open .qpick { display: inline-flex; } .qpick button { min-width: 42px; min-height: 42px; font-size: 16px; } }
+.tile .qadd .qpick { bottom: auto; top: calc(100% + 4px); }
+.to-side { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--line); } .to-side h4 { margin: 0 0 6px; }

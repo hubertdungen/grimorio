@@ -122,6 +122,54 @@ export function sizePlan(data, deck, ev, { min, max = Infinity, maxOf = () => 4,
   return { total, gap, items }
 }
 
+// «🧩 Preencher o deck»: com cartas a menos (qualquer formato, Commander incluído), as cartas NOVAS que o fecham, pela
+// ordem: terrenos até ao alvo (sugestões de terrenos, depois básicos da cor em falta), cartas que cobrem funções em
+// falta, e as melhores sugestões. recs = sugestões (sem terrenos) e lands = recommendLands, já legais e fora do deck.
+// estratégias: equilibrada (terrenos → funções em falta → melhores), plano (terrenos → melhores), interacao (terrenos →
+// remoção/contra-feitiços/proteção → melhores), curva (terrenos → as mais baratas entre as 40 melhores)
+const INTER = ['removal', 'counter', 'wipe', 'protection', 'hate']
+export function fillPlan(data, deck, { min, recs = [], lands = [], need = null, needs = {}, strategy = 'equilibrada' } = {}) {
+  const main = deck.main || {}, total = Object.values(main).reduce((a, q) => a + q, 0) + (deck.commanders?.length || 0)
+  const gap = Math.max(0, min - total)
+  if (!gap) return { total, gap, items: [] }
+  const items = [], used = new Set()
+  const put = (c, k, why) => { const e = items.find(x => x.c === c); if (e) e.k += k; else items.push({ c, k, why }); used.add(c.n) }
+  let left = gap
+  // 1) terrenos até ao alvo
+  let lg = need ? Math.min(left, Math.max(0, need.target - need.lands)) : 0
+  const lw = need ? tx('faltam terrenos: {h} para ~{t}', { h: need.lands, t: need.target }) : ''
+  for (const l of lands) { if (lg <= 0) break; if (used.has(l.c.n)) continue; put(l.c, 1, [lw, ...(l.why || []).slice(0, 1).map(w => w.txt || w)]); lg--; left-- }
+  const cols = Object.entries(need?.cols || {}).filter(([k]) => BASIC[k]).map(([k, x]) => ({ k, gap: x.full - x.have }))
+  while (lg > 0 && cols.length) {  // básicos (podem repetir-se em qualquer formato)
+    cols.sort((a, b) => b.gap - a.gap)
+    const c = data.byName.get(BASIC[cols[0].k]); if (!c) break
+    put(c, 1, [lw, tx('a cor com menos fontes')]); cols[0].gap--; lg--; left--
+  }
+  // 2) conforme a estratégia: funções em falta, interação ou curva; 3) as melhores sugestões
+  const syn = r => Object.entries(r.parts || {}).filter(([k]) => /texto|comandante|tribo|combo|inter|semente/.test(k)).reduce((a, [, v]) => a + v, 0)  // sinergia com o deck
+  const pool = strategy === 'curva' ? [...recs.slice(0, 40)].sort((a, b) => a.c.cmc - b.c.cmc) : strategy === 'plano' ? [...recs.slice(0, 60)].sort((a, b) => syn(b) - syn(a)) : recs
+  if (strategy === 'interacao') for (const r of pool) {
+    if (left <= 0) break
+    if (used.has(r.c.n) || main[r.c.n] || !r.c.tg.some(t => INTER.includes(t))) continue
+    put(r.c, 1, [tx('interação: {f}', { f: r.c.tg.filter(t => INTER.includes(t)).map(t => TAG_LABEL[t]?.toLowerCase() || t).join(', ') }), ...(r.why || []).slice(0, 1).map(w => w.txt)]); left--
+  }
+  const short = strategy === 'equilibrada' ? Object.entries(needs).filter(([, [h, n]]) => h < n).map(([t, [h, n]]) => ({ t, miss: n - h })) : []
+  for (const r of short.length ? pool : []) {
+    if (left <= 0) break
+    if (used.has(r.c.n) || main[r.c.n]) continue
+    const s = short.find(x => x.miss > 0 && r.c.tg.includes(x.t))
+    if (!s) continue
+    put(r.c, 1, [tx('cobre {f} ({h}/{n})', { f: TAG_LABEL[s.t]?.toLowerCase() || s.t, h: needs[s.t][1] - s.miss, n: needs[s.t][1] }), ...(r.why || []).slice(0, 1).map(w => w.txt)]); s.miss--; left--
+  }
+  for (const r of pool) {
+    if (left <= 0) break
+    if (used.has(r.c.n) || main[r.c.n]) continue
+    put(r.c, 1, [...(strategy === 'curva' ? [tx('custo {m}', { m: r.c.cmc })] : []), ...(r.why || []).slice(0, 2).map(w => w.txt)]); left--
+  }
+  const spells = items.filter(x => x.c.mt !== 'Land'), lands_ = items.filter(x => x.c.mt === 'Land').reduce((a, x) => a + x.k, 0)
+  return { total, gap, items, lands: lands_, mv: spells.length ? spells.reduce((a, x) => a + x.c.cmc * x.k, 0) / spells.reduce((a, x) => a + x.k, 0) : 0 }
+}
+
 // Constelações do meta: cada arquétipo no centro (pesado pela inclusão) das cartas do núcleo; fit = parte do núcleo
 // que o deck já tem (como detectArchetype); missing = o que falta, do mais jogado para o menos.
 export function archetypesOf(data, meta, have) {
