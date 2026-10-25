@@ -4,6 +4,24 @@ import { testsBoost, wrDelta } from './tests.js'
 import { landInfo, offColorLand } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 
+// funções a mais, tiradas do texto ao carregar (os dados só trazem as 20 do build_data): moer, dano direto, reforço,
+// piscar, devolver à mão, copiar, roubar, drenar, escolher cartas, reduzir custos, desvirar, turno extra, landfall, taxar
+export const EXTRA_TAGS = [
+  ['mill', /\bmills? (\d+|x|that many|a|one|two|three|four|five|ten|half)\b|puts? the top [^.]* of (their|his or her|target player's|each opponent's) library into (their|his or her|that player's) graveyard/],
+  ['burn', /deals? (\d+|x|that much) damage to (any target|target player|target opponent|each opponent|target creature or player|target player or planeswalker)/],
+  ['pump', /creatures you control get \+\d|other [^.]{1,40} you control get \+\d|target creature gets \+\d\/\+\d|equipped creature gets \+\d|enchanted creature gets \+\d/],
+  ['blink', /exile [^.]*(you control|target creature|another target)[^.]*(then )?return (it|that card|them|those cards) to the battlefield/],
+  ['bounce', /return (target|up to \w+ target|another target|each|all) [^.]*to (its|their) owners?'?s?'? hands?/],
+  ['copy', /copy target (instant|sorcery|spell|activated|triggered)|create a token that's a copy|becomes a copy of/],
+  ['steal', /gain control of (target|all|each)/],
+  ['drain', /(each opponent|target (player|opponent)|each player) loses (\d+|x|that much) life/],
+  ['selection', /\bscry \d|\bsurveil \d|look at the top (\w+|x) cards? of your library/],
+  ['cost', /spells? [^.]{0,40}cost \{\d+\} less|abilities [^.]{0,30}cost \{\d+\} less/],  // «this spell costs» (só a própria) não conta
+  ['untap', /untap (target|all|up to|another|each)/],
+  ['extraturn', /takes? an extra turn/],
+  ['landfall', /whenever a land (you control )?enters/],
+  ['stax', /(spells?|abilities) (your opponents cast )?cost \{\d+\} more|players can't (cast|search|draw)|can't untap|each player can't/],
+]
 export const TAG_LABEL = {
   ramp: tx('Ramp'), draw: tx('Compra'), removal: tx('Remoção'), wipe: tx('Wipe'), counter: tx('Contra-feitiço'),
   tutor: tx('Tutor'), recursion: tx('Recursão'), protection: tx('Proteção'), tokens: tx('Fichas'),
@@ -11,7 +29,18 @@ export const TAG_LABEL = {
   graveyard: tx('Cemitério'), etb: tx('Entradas (ETB)'), spellslinger: tx('Instantâneos e feitiços'),
   artifacts: tx('Artefactos'), enchantments: tx('Encantamentos'), discard: tx('Descarte'), evasion: tx('Evasão'), land: tx('Terreno'),
   creature: tx('Criaturas'), wincon: tx('Condição de vitória'), hate: tx('Resposta de sideboard'), reanimate: tx('Reanimação'),
+  mill: tx('Moer (mill)'), burn: tx('Dano direto'), pump: tx('Reforço (+X/+X)'), blink: tx('Piscar (blink)'), bounce: tx('Devolver à mão'),
+  copy: tx('Copiar'), steal: tx('Roubar (ganhar controlo)'), drain: tx('Drenar vida'), selection: tx('Escolher cartas (scry/surveil)'),
+  cost: tx('Reduzir custos'), untap: tx('Desvirar'), extraturn: tx('Turno extra'), landfall: 'Landfall', stax: tx('Taxar / travar (stax)'),
 }
+// grupos do filtro de funções (para a lista não ficar gigante)
+export const TAG_GROUPS = [
+  [tx('Interação'), ['removal', 'wipe', 'counter', 'bounce', 'steal', 'discard', 'stax', 'hate']],
+  [tx('Recursos'), ['ramp', 'draw', 'selection', 'tutor', 'cost', 'untap', 'recursion', 'reanimate']],
+  [tx('Ganhar'), ['wincon', 'evasion', 'pump', 'burn', 'drain', 'mill', 'extraturn']],
+  [tx('Temas'), ['tokens', 'counters', 'sacrifice', 'lifegain', 'graveyard', 'etb', 'blink', 'landfall', 'copy', 'spellslinger', 'artifacts', 'enchantments']],
+  [tx('Outros'), ['creature', 'protection', 'land']],
+]
 
 // Papéis mecânicos: quem alimenta quem. Calculados uma vez por carta ao carregar.
 const ROLE_RE = {
@@ -262,6 +291,9 @@ export function prepData(meta, cards, combos, emb, pos) {
       || (c.mt === 'Creature' && (pw >= 6 || (pw >= 4 && /flying|trample|menace|can't be blocked/.test(o))))
       || (/Planeswalker/.test(c.t) && c.cmc >= 3)) c.tg.push('wincon')
     if (/exile (all|target|each)[^.]*(cards? )?from (a|an|target|that|their|each|all) (player's |opponent's )?graveyards?|exile target player's graveyard|exile all graveyards|search its owner's graveyard, hand, and library|players can't gain life|(instant|noncreature|artifact) spells? (your opponents cast )?cost \{?\d/.test(o)) c.tg.push('hate')
+    const or = o.replace(/\([^)]*\)/g, '')  // sem o texto de lembrete (split second, etc.)
+    for (const [t, re] of EXTRA_TAGS) if (!c.tg.includes(t) && re.test(or)) c.tg.push(t)
+    if (!c.tg.includes('landfall') && c.kw?.includes('Landfall')) c.tg.push('landfall')
     if (/return target creature card from (a|your|any|an opponent's) graveyard to the battlefield|put target creature card from a graveyard onto the battlefield|return up to (one|two) target creature cards? from (your|a) graveyard to the battlefield|target creature cards? in your graveyard[^.]*\.[^.]*return (the chosen cards|them|it) to the battlefield|return the chosen cards? to the battlefield/.test(o)) c.tg.push('reanimate')
     byName.set(c.n, c)
     byLower.set(c.l, c)

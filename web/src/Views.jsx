@@ -1,6 +1,6 @@
 import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList } from './data.js'
+import { search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, WhiteStars } from './ui.jsx'
@@ -448,7 +448,9 @@ function WhyDetail({ r }) {
 
 // Filtro das sugestões: razão (porque é sugerida) e função (o que faz), com contadores.
 const REASONS = [['', tx('Tudo'), '✦'], ['combo', 'Combos', '∞'], ['edh', tx('Decks reais'), '◉'], ['meta', tx('Torneios'), '♜'], ['inter', tx('Interações'), '⇄'], ['falta', tx('O que falta'), '◔'], ['estilo', tx('Estilo'), '◆'], ['gosto', tx('O teu gosto'), '♥'], ['testes', tx('Testes'), '⚗']]
-const FUNC_TAGS = ['creature', 'wincon', 'reanimate', 'ramp', 'draw', 'removal', 'wipe', 'counter', 'tutor', 'protection', 'recursion', 'tokens', 'sacrifice', 'counters', 'lifegain', 'graveyard', 'etb', 'spellslinger', 'artifacts', 'enchantments', 'discard', 'evasion']
+const FUNC_TAGS = ['creature', 'wincon', 'reanimate', 'ramp', 'draw', 'removal', 'wipe', 'counter', 'tutor', 'protection', 'recursion', 'tokens', 'sacrifice', 'counters', 'lifegain', 'graveyard', 'etb', 'spellslinger', 'artifacts', 'enchantments', 'discard', 'evasion',
+  'mill', 'burn', 'pump', 'blink', 'bounce', 'copy', 'steal', 'drain', 'selection', 'cost', 'untap', 'extraturn', 'landfall', 'stax']
+const CHIPS = 10  // funções à vista; as outras num «+N»
 const hasKind = (r, k) => !k || r.why.some(w => w.k === k || (k === 'combo' && w.k === 'combo2'))
 // ordem da lista de sugestões: pontuação (a do motor), custo, cor (WUBRG, multicor, incolor), tipo, nome, preço
 const COLOR_ORD = c => (c.ci.length > 1 ? 5 : c.ci.length ? 'WUBRG'.indexOf(c.ci) : 6)
@@ -465,6 +467,7 @@ const sortRecs = (recs, k) => (SORTS[k] ? [...recs].sort(SORTS[k]) : recs)
 const applyFilter = (recs, kind, tag) => recs.filter(r => hasKind(r, kind) && (!tag || r.c.tg.includes(tag)))
 
 function ReasonFilter({ recs, kind, setKind, tag, setTag, needs = {}, extra = null }) {
+  const [all, setAll] = useState(false)
   const base = applyFilter(recs, '', tag)
   const tags = FUNC_TAGS.map(t => ({ t, n: applyFilter(recs, kind, t).length, gap: needs[t] ? Math.max(0, needs[t][1] - needs[t][0]) : 0 }))
     .filter(x => x.n || x.gap).sort((a, b) => (b.gap > 0) - (a.gap > 0) || b.gap - a.gap || b.n - a.n)
@@ -485,12 +488,13 @@ function ReasonFilter({ recs, kind, setKind, tag, setTag, needs = {}, extra = nu
       {tags.length > 0 && (
         <div className="fchips" aria-label={tx('Função')}>
           {tag && <button className="fchip clear" onClick={() => setTag('')}>× {tx('todas as funções')}</button>}
-          {tags.map(x => (
+          {(all ? tags : tags.filter((x, k) => k < CHIPS || x.t === tag)).map(x => (
             <button key={x.t} className={`fchip ${tag === x.t ? 'on' : ''} ${x.gap ? 'gap' : ''}`} onClick={() => setTag(tag === x.t ? '' : x.t)}
               title={x.gap ? tx('O deck tem {a} de {b} recomendadas', { a: needs[x.t][0], b: needs[x.t][1] }) : ''}>
               {TAG_LABEL[x.t]}<b>{x.n}</b>{x.gap > 0 && <em>{tx('faltam {n}', { n: x.gap })}</em>}
             </button>
           ))}
+          {tags.length > CHIPS && <button className="fchip more" onClick={() => setAll(a => !a)}>{all ? tx('menos') : `+${tags.length - CHIPS}`}</button>}
         </div>
       )}
     </div>
@@ -795,7 +799,7 @@ function Filters({ f, set, compact, noTag }) {
         )}
       </div>
       <select value={f.type} onChange={e => up('type', e.target.value)} aria-label={tx('Tipo')}><option value="">{tx('Todos os tipos')}</option>{TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}<option value="Legendary">{tx('Lendárias')}</option></select>
-      {!noTag && <select value={f.tag} onChange={e => up('tag', e.target.value)} aria-label={tx('Função')}><option value="">{tx('Qualquer função')}</option>{Object.entries(TAG_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}
+      {!noTag && <select value={f.tag} onChange={e => up('tag', e.target.value)} aria-label={tx('Função')}><option value="">{tx('Qualquer função')}</option>{TAG_GROUPS.map(([g, ks]) => <optgroup key={g} label={g}>{ks.map(k => <option key={k} value={k}>{TAG_LABEL[k]}</option>)}</optgroup>)}</select>}
       <input value={f.sub} onChange={e => up('sub', e.target.value)} placeholder={tx('Subtipo (Elf, Dragon…)')} className="w-sub" />
       <span className="mv"><abbr title={tx('MV = valor de mana: o custo total de mana da carta (ex.: 2 genéricos + 1 vermelho = 3)')}>MV</abbr> <input type="number" min="0" value={f.cmcMin} onChange={e => up('cmcMin', e.target.value)} aria-label={tx('Custo mínimo')} />–<input type="number" min="0" value={f.cmcMax} onChange={e => up('cmcMax', e.target.value)} aria-label={tx('Custo máximo')} /></span>
       {!compact && <select value={f.rarity} onChange={e => up('rarity', e.target.value)} aria-label={tx('Raridade')}><option value="">{tx('Raridade')}</option><option value="c">{tx('Comum')}</option><option value="u">{tx('Incomum')}</option><option value="r">{tx('Rara')}</option><option value="m">{tx('Mítica')}</option></select>}
@@ -860,7 +864,6 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       <div className={`filters-wrap ${showF ? 'open' : ''}`}><Filters f={f} set={setF} /></div>
       <div className="search-layout">
       <div>
-      <div className="basic-row"><span className="muted small">{tx('Terrenos básicos')}</span><BasicBar {...{ data, deck, ctx, act }} /></div>
       {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.v}</b></span>)}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">
