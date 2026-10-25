@@ -1902,3 +1902,4 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .subs-list > li { display: grid; gap: 4px; }
 .subs-ia { border-top: 1px dashed var(--line); padding-top: 6px; }
 .subs-ia .subs-list > li { display: block; }
+.fr-share { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; }

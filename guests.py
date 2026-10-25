@@ -65,7 +65,7 @@ def public_ok(method, path):
 
 # ---------- dono: gerir os amigos ----------
 
-def owner_route(con, method, path, owner, body, port):
+def owner_route(con, method, path, owner, body, port, tunnel=None):
     """GET /api/friends -> {friends, lan, public}; POST {name}; POST /<id>/revoke; DELETE /<id> (os decks dele ficam)."""
     init(con)
     m = re.match(r"^/api/friends(?:/([a-f0-9]{12})(/revoke)?)?$", path)
@@ -77,7 +77,7 @@ def owner_route(con, method, path, owner, body, port):
         decks = {}
         for (f,) in con.execute("SELECT json_extract(body, '$.friend') FROM decks WHERE owner=? AND deleted IS NULL AND json_extract(body, '$.friend') IS NOT NULL", (owner,)):
             decks[f] = decks.get(f, 0) + 1
-        pub = os.environ.get("GRIMORIO_PUBLIC_URL", "").rstrip("/")
+        pub = os.environ.get("GRIMORIO_PUBLIC_URL", "").rstrip("/") or tunnel  # domínio próprio ou o túnel da partilha
         return 200, {"friends": [{"id": i, "name": n, "token": t, "created": c, "revoked": r, "decks": decks.get(i, 0)} for i, n, t, c, r in rows],
                      "lan": f"http://{lan_ip()}:{port}", "public": pub or None}
     if method == "POST" and not fid:

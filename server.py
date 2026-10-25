@@ -15,6 +15,7 @@ import tournament
 import artfolder
 import guests
 import rooms
+import share
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(HERE, "web", "dist")
@@ -190,6 +191,8 @@ class H(BaseHTTPRequestHandler):
             return self.json({"guest": None, "expired": bool(guests.cookie_token(self.headers)), "guestHost": guests.is_guest_host(self.headers)})
         if guests.is_guest_host(self.headers) and not guests.public_ok(method, p):
             return self.json({"erro": "Precisas de um convite para entrar.", "code": "invite"}, 403)
+        if p.startswith("/api/share") and method in ("GET", "POST"):  # partilhar pela internet (túnel da Cloudflare)
+            return self.json(*reversed(share.route(method, p, ARGS.data_dir, ARGS.port)))
         if p.startswith("/api/rooms") and method in ("GET", "POST"):  # salas de torneio com amigos (rooms.py)
             body = self.body() if method == "POST" else None
             with db() as con:
@@ -197,7 +200,7 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/api/friends") and method != "HEAD":  # o dono gere os amigos
             body = self.body() if method in ("POST",) and not p.endswith("/revoke") else None
             with db() as con:
-                return self.json(*reversed(guests.owner_route(con, method, p, self.owner(), body, ARGS.port)))
+                return self.json(*reversed(guests.owner_route(con, method, p, self.owner(), body, ARGS.port, share.status()["url"])))
         return inner()
 
     def do_GET(self):

@@ -19,9 +19,16 @@ function QR({ text }) {
 }
 
 export default function Friends() {
+  const [sh, setSh] = useState(null)  // partilha pela internet (share.py): {running, url, err}
   const [d, setD] = useState(null), [name, setName] = useState(''), [err, setErr] = useState(''), [qr, setQr] = useState(null), [copied, setCopied] = useState('')
   const load = () => j('/api/friends').then(setD).catch(e => setErr(e.message))
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); j('/api/share').then(setSh).catch(() => {}) }, [])
+  useEffect(() => {  // a arrancar: espera pelo endereço e refaz os links
+    if (!sh?.running || sh.url) return
+    const t = setInterval(() => j('/api/share').then(x => { setSh(x); if (x.url || !x.running) load() }).catch(() => {}), 1500)
+    return () => clearInterval(t)
+  }, [sh])
+  const toggleShare = async () => { setErr(''); try { setSh(await post(`/api/share/${sh?.running ? 'stop' : 'start'}`)); load() } catch (e) { setErr(e.message) } }
   if (!d) return err ? <p className="small bad-t">{err}</p> : null
   const add = async () => { setErr(''); try { await post('/api/friends', { name: name.trim() }); setName(''); load() } catch (e) { setErr(e.message) } }
   const revoke = async f => (await ask('amigo', { title: tx('Revogar o convite de {n}?', { n: f.name }), body: tx('O link deixa de entrar. Os decks dele ficam cá.'), ok: tx('Revogar') })) && post(`/api/friends/${f.id}/revoke`).then(load)
@@ -49,7 +56,13 @@ export default function Friends() {
               {qr === f.id + k && <QR text={url} />}
             </div>))}
         </li>))}</ul>
-      {!d.public && <p className="small muted">{tx('Para convidar pela internet é preciso um endereço público (o Grimório num servidor com domínio, ou a partilha pela internet que vem a seguir). Em casa basta o link da rede local ou o QR.')}</p>}
+      <div className="fr-share">
+        <b>🌍 {tx('Partilhar pela internet')}</b>
+        <button className={sh?.running ? '' : 'primary'} onClick={toggleShare}>{sh?.running ? tx('Parar a partilha') : tx('Abrir a partilha')}</button>
+        <span className="small muted">{sh?.running ? (sh.url ? tx('Ligado: os links «Pela internet» funcionam em qualquer lado enquanto estiver aberto.') : tx('a abrir o túnel…')) : tx('Túnel gratuito da Cloudflare: dá um endereço público sem abrir portas no router. Sem convite ninguém vê nada.')}</span>
+        {sh?.err && <span className="small bad-t">{tx(sh.err)}</span>}
+      </div>
+      {!d.public && <p className="small muted">{tx('Para convidar pela internet abre a partilha acima (ou usa um domínio próprio). Em casa basta o link da rede local ou o QR.')}</p>}
     </div>
   )
 }
