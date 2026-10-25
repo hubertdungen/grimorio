@@ -858,7 +858,7 @@ function Fame({ data, list }) {
   for (const x of list) if (x.podium && (!f || (f === 'casual' ? x.casual : !x.casual && x.format === f))) for (const p of x.podium) {
     const r = (rows[`${p.src}:${p.ref}`] ||= { ...p, m: [0, 0, 0], med: [] })
     r.m[p.place - 1]++
-    r.med.push({ tier: tierOf(p.place, x.champions), casual: !!x.casual || x.ranked === false, tid: x.id, place: p.place })
+    r.med.push({ tier: tierOf(p.place, x.champions), casual: !!x.casual || x.ranked === false, tid: x.id, place: p.place, kind: x.type })
   }
   // troféus dos meus decks que já não contam (a lista mudou mais de 10% desde o torneio): ficam a cinzento na galeria
   const [tro, setTro] = useState({})
@@ -886,10 +886,10 @@ function Fame({ data, list }) {
         <div className="fame-gal">{top.slice(0, 30).map(r => {
           const off = m => r.src === 'meus' && (tro[r.ref] || []).some(t => t.tid === m.tid && t.place === m.place && !t.valid)
           const g = {}
-          for (const m of r.med) { const k = `${m.tier}|${m.casual}|${off(m)}`; (g[k] ||= { ...m, off: off(m), n: 0 }).n++ }
+          for (const m of r.med) { const k = `${m.tier}|${m.kind}|${m.casual}|${off(m)}`; (g[k] ||= { ...m, off: off(m), n: 0 }).n++ }
           const cups = Object.values(g).sort((a, b) => a.off - b.off || TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.casual - b.casual)
           const body = <><Thumb data={data} p={r} /><b title={r.name}>{r.name}</b>
-            <span className="fg-cups">{cups.map(c => <span key={`${c.tier}${c.casual}${c.off}`} className="fg-cup" title={`${PLACE[c.tier]}${c.casual ? ` · ${tx('casual')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''}`}><Cup place={c.tier} casual={c.casual} off={c.off} />{c.n > 1 && <small>×{c.n}</small>}</span>)}</span></>
+            <span className="fg-cups">{cups.map(c => <span key={`${c.tier}${c.kind}${c.casual}${c.off}`} className="fg-cup" title={`${PLACE[c.tier]}${c.casual ? ` · ${tx('casual')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''}`}><Cup place={c.tier} casual={c.casual} off={c.off} kind={c.kind} />{c.n > 1 && <small>×{c.n}</small>}</span>)}</span></>
           return r.src === 'meus' ? <button key={`${r.src}:${r.ref}`} className="fg-card me" onClick={() => showDeck(r.ref)} title={tx('Abrir na Biblioteca')}>{body}</button>
             : <div key={`${r.src}:${r.ref}`} className="fg-card">{body}</div>
         })}</div>

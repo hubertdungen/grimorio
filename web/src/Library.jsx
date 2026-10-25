@@ -26,14 +26,26 @@ function DeckRating({ d, rt, rtc }) {
 // torneio dos campeões: 1.º platina, 2.º safira, 3.º rubi (pedras preciosas, com o brilho da platina)
 const MEDAL = { plat: ['#ffffff', '#9cc7f0'], safira: ['#bfe0ff', '#1f4fd1'], rubi: ['#ffc2cc', '#b3122f'], 1: ['#ffd98a', '#e9a93a'], 2: ['#f4f7fb', '#a9b4c2'], 3: ['#f0b27a', '#a8652f'] }
 const CUP = 'M6 3h12v2h3v3a4 4 0 0 1-4 4h-.3A6 6 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1A6 6 0 0 1 7.3 12H7a4 4 0 0 1-4-4V5h3V3zm-1 4v1a2 2 0 0 0 1.2 1.8A6 6 0 0 1 6 9V7H5zm13 0v2a6 6 0 0 1-.2.8A2 2 0 0 0 19 8V7h-1z'
-export function Cup({ place, casual, off }) {
-  const id = `cup${useId().replace(/[^\w-]/g, '')}`, [hi, lo] = MEDAL[place] || MEDAL[1]
+// forma do troféu por tipo de torneio (as cores continuam a ser as do lugar; azul nos casuais / não ranked)
+const SHAPE = {
+  elim: { d: CUP },
+  dupla: { d: 'M8 1h8v3a4 4 0 0 1-8 0zM11 7.5h2V10h-2zM5 10h14v2a7 5 0 0 1-14 0zM10.5 16.5h3V19h3v3h-9v-3h3z' },
+  suico: { d: 'M5 2h14a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V5a3 3 0 0 1 3-3zM10 5.5V10H5.5v4H10v4.5h4V14h4.5v-4H14V5.5z', eo: true },
+  liga: { d: 'M12 1.5l9 3v6.5c0 6-4 10-9 12-5-2-9-6-9-12V4.5zM12 6.5l1.6 3.3 3.6.5-2.6 2.5.6 3.6-3.2-1.7-3.2 1.7.6-3.6-2.6-2.5 3.6-.5z', eo: true },
+  mesas: { d: 'M12 2a10 10 0 1 1 0 20 10 10 0 1 1 0-20zM12 5.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 1 0 0-13zM12 9.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 1 1 0-5z', eo: true },
+  gauntlet: { d: 'M10.6 1h2.8l1.1 3.2V15h-5V4.2zM5.5 15h13v2.4h-13zM10.7 17.4h2.6V21h-2.6zM9.5 21h5v2h-5z' },
+  rei: { d: 'M2.5 7.5l4.7 3.6L12 3.5l4.8 7.6 4.7-3.6-1.9 11H4.4zM4.4 20h15.2v2.5H4.4z' },
+  grupos: { d: 'M1.5 13.5h6.5V22H1.5zM8.8 8h6.4v14H8.8zM16 11h6.5v11H16z' },
+  equipas: { d: 'M1.5 3.5h8.5v3a4.3 4.3 0 0 1-3.1 4.1v3.4h2v2.2H2.6V14h2v-3.4A4.3 4.3 0 0 1 1.5 6.5zM14 3.5h8.5v3a4.3 4.3 0 0 1-3.1 4.1v3.4h2v2.2h-6.8V14h2v-3.4A4.3 4.3 0 0 1 14 6.5zM1.5 18h21v3.5h-21z' },
+}
+export function Cup({ place, casual, off, kind = 'elim' }) {
+  const id = `cup${useId().replace(/[^\w-]/g, '')}`, [hi, lo] = MEDAL[place] || MEDAL[1], sh = SHAPE[kind] || SHAPE.elim
   return (
     <svg className={`cup ${off ? 'off' : ''} ${place === 'plat' ? 'plat' : ''} ${place === 'safira' || place === 'rubi' ? `gem ${place}` : ''}`} viewBox="0 0 24 24" aria-hidden="true">
       <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
         {casual ? <><stop offset="0" stopColor="#4ea8ff" /><stop offset=".55" stopColor={hi} /><stop offset="1" stopColor={lo} /></> : <><stop offset="0" stopColor={hi} /><stop offset="1" stopColor={lo} /></>}
       </linearGradient></defs>
-      <path d={CUP} fill={`url(#${id})`} stroke={casual ? '#4ea8ff' : '#0008'} strokeWidth=".8" />
+      <path d={sh.d} fillRule={sh.eo ? 'evenodd' : undefined} fill={`url(#${id})`} stroke={casual ? '#4ea8ff' : '#0008'} strokeWidth=".8" />
     </svg>
   )
 }
@@ -58,7 +70,7 @@ function Trophies({ list }) {
   return (
     <span className={`tro ${ok.length ? '' : 'lost'}`} onMouseEnter={show} onMouseLeave={() => setOpen(null)}>
       <button className="tro-ic" onClick={e => { e.stopPropagation(); if (open) setOpen(null); else show({ currentTarget: e.currentTarget.parentNode }) }} aria-expanded={!!open} aria-label={sum}>
-        {shown.slice(0, 3).map((x, k) => <i key={`${x.tid}-${x.place}`} style={{ zIndex: 3 - k }}><Cup place={tier(x)} casual={x.casual} off={!x.valid} /></i>)}
+        {shown.slice(0, 3).map((x, k) => <i key={`${x.tid}-${x.place}`} style={{ zIndex: 3 - k }}><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /></i>)}
         {shown.length > 3 && <small>+{shown.length - 3}</small>}
       </button>
       {open && createPortal(
@@ -66,7 +78,7 @@ function Trophies({ list }) {
           <b>{sum}</b>
           {list.map(x => (
             <span key={`${x.tid}-${x.place}`} className={`tro-row ${x.valid ? '' : 'off'}`}>
-              <span className="tro-t"><Cup place={tier(x)} casual={x.casual} off={!x.valid} /> {PLACE[tier(x)]} · {x.name}</span>
+              <span className="tro-t"><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /> {PLACE[tier(x)]} · {x.name}</span>
               <small>{new Date(x.ts * 1000).toLocaleDateString(LOCALE)}{x.casual ? ` · ${tx('casual')}` : ''} · {tx('{n} decks', { n: x.n })} · {tx('{v}V {d}D', { v: x.rec[0], d: x.rec[1] })}{x.rec[2] ? ` ${x.rec[2]}E` : ''}{x.place > 1 && x.first.length ? ` · ${tx('1.º: {d}', { d: x.first.join(', ') })}` : x.second.length ? ` · ${tx('2.º: {d}', { d: x.second.join(', ') })}` : ''}</small>
               {!x.valid && <small className="tro-why">{tx('Não conta: a lista mudou {p} desde este torneio (máx. 10%)', { p: `${Math.round((1 - x.same) * 100)}%` })}</small>}
             </span>
