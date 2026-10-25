@@ -2103,3 +2103,13 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .wl-side { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
 .wl-side h4 { margin: 0 0 4px; } .wl-side p { margin: 2px 0; }
 .wl-side.forte { border-color: #45ad6266; } .wl-side.fraco, .wl-side.vazio { border-color: #e05a4466; }
+/* página inicial: 6 caminhos em 3×2 (sem um cartão sozinho na última linha); Construir em destaque; a mesa em 4 compactos */
+@media (min-width: 900px) { .home-grid { grid-template-columns: repeat(3, 1fr); } .home-mesa { grid-template-columns: repeat(4, 1fr); } }
+.home-card.main { border-color: #f2b84b77; background: linear-gradient(135deg, #2b2338, #1b1628); box-shadow: 0 8px 24px #0006, 0 0 0 1px #f2b84b22; }
+.home-card.main i { background: linear-gradient(135deg, #f2b84b44, #f2b84b14); }
+.home-card.main:hover { border-color: var(--gold2); box-shadow: 0 12px 30px #0009, 0 0 0 1px #f2b84b66; }
+.home-mesa .home-card { padding: 12px 14px; column-gap: 10px; }
+.home-mesa .home-card i { width: 40px; height: 40px; font-size: 22px; border-radius: 11px; }
+.home-mesa .home-card b { font-size: 15px; } .home-mesa .home-card span { font-size: 12px; }
+@media (min-width: 900px) { .home-mesa .home-card { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; row-gap: 6px; align-items: start; align-content: start; } .home-mesa .home-card i { grid-row: auto; } }
+.home-tool.rules i { background: linear-gradient(135deg, #f2b84b33, #7c5cff22); }

@@ -1,4 +1,5 @@
-// Página inicial: aparece ao abrir a app e ao tocar no logótipo. Só os caminhos principais, cada um com uma linha.
+// Página inicial: aparece ao abrir a app e ao tocar no logótipo. Os seis caminhos principais (Construir em destaque) e,
+// por baixo, as ferramentas para a mesa (vida, ler carta, dados, regras).
 import { Logo } from './ui.jsx'
 import { tx } from './i18n.js'
 
@@ -9,7 +10,6 @@ const GO = [
   ['coliseu', 'torneio', '🏆', tx('Torneios'), tx('Eliminação, suíço, liga e mesas de Commander, com árvore ao vivo e pódio.')],
   ['coliseu', 'ratings', '📊', tx('Ratings'), tx('Estrelas de 0 a 6 por deck e a Arena automática a criar registos.')],
   ['coliseu', 'jogar', '🎮', tx('Jogar'), tx('Senta-te tu à mesa contra o Forge com o teu deck.')],
-  ['regras', null, '📖', tx('Regras'), tx('Dúvidas de regras e cartas em qualquer língua, com os rulings oficiais e a câmara.')],
 ]
 
 export default function Home({ deck, decks, onGo, onNew, onTool, onScan }) {
@@ -27,7 +27,7 @@ export default function Home({ deck, decks, onGo, onNew, onTool, onScan }) {
       </div>
       <div className="home-grid">
         {GO.map(([sec, mode, ic, t, d]) => (
-          <button key={t} className="home-card" onClick={() => onGo(sec, mode)}>
+          <button key={t} className={`home-card ${sec === 'construir' ? 'main' : ''}`} onClick={() => onGo(sec, mode)}>
             <i>{ic}</i><b>{t}</b><span>{d}</span>
             {sec === 'biblioteca' && decks.length > 0 && <small>{tx('{n} deck|{n} decks', { n: decks.length })}</small>}
           </button>
@@ -38,6 +38,7 @@ export default function Home({ deck, decks, onGo, onNew, onTool, onScan }) {
         <button className="home-card home-tool life" onClick={() => onTool('vida')}><i>❤</i><b>{tx('Contador de vida')}</b><span>{tx('Até 6 jogadores, vida e veneno, com registo.')}</span></button>
         <button className="home-card home-tool scan" onClick={onScan}><i>📷</i><b>{tx('Ler carta')}</b><span>{tx('Aponta a câmara a uma carta e ela entra no deck aberto.')}</span></button>
         <button className="home-card home-tool dice" onClick={() => onTool('dados')}><i>🎲</i><b>{tx('Dados')}</b><span>{tx('d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.')}</span></button>
+        <button className="home-card home-tool rules" onClick={() => onGo('regras')}><i>📖</i><b>{tx('Regras')}</b><span>{tx('Dúvidas de regras e cartas em qualquer língua, com os rulings oficiais e a câmara.')}</span></button>
       </div>
       <p className="home-foot muted small"><a href="#definicoes" className="home-set">⚙ {tx('Definições')}</a> · {tx('Cartas e imagens: Scryfall · combos: Commander Spellbook · meta: EDHREC e MTGTop8 · jogos: Forge')}</p>
     </div>
