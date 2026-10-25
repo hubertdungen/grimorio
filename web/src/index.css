@@ -2160,10 +2160,11 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 /* resolve: brilha e sai na direção do adversário */
 @keyframes stkResolve {
   0% { transform: rotate(0) scale(1); filter: brightness(1); }
-  28% { transform: scale(1.14); filter: brightness(1.6) drop-shadow(0 0 18px #ffd98a); }
+  12% { transform: scale(1.14); filter: brightness(1.6) drop-shadow(0 0 18px #ffd98a); }
+  80% { transform: scale(1.06); opacity: 1; filter: brightness(1.15) drop-shadow(0 0 10px #ffd98a88); }
   100% { transform: translateY(var(--to)) scale(.55) rotate(8deg); opacity: 0; filter: brightness(1.2); }
 }
-.stackfx .stk.resolving { --to: -150px; animation: stkResolve 1.1s cubic-bezier(.4, 0, .6, 1) forwards; z-index: 5; }
+.stackfx .stk.resolving { --to: -150px; animation: stkResolve var(--d, 1.1s) cubic-bezier(.4, 0, .6, 1) forwards; z-index: 5; }
 .stackfx .stk.resolving.a { --to: -150px; } .stackfx .stk.resolving.b, .stackfx .stk.resolving.c, .stackfx .stk.resolving.d { --to: 150px; }
 /* o que está a fazer */
 @keyframes capIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }

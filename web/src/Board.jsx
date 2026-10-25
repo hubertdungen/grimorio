@@ -132,14 +132,19 @@ function effectOf(c, kind) {
 }
 const KIND_L = { cast: tx('Feitiço'), trigger: tx('Gatilho'), activate: tx('Habilidade') }
 function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
-  const [ghost, setGhost] = useState(null), [nudge, setNudge] = useState(false), n = s.stack.length, prevN = useRef(n)
-  useEffect(() => {  // resolver: a carta fica a brilhar e sai, com o efeito real
+  const [ghost, setGhost] = useState(null), [nudge, setNudge] = useState(false), n = s.stack.length, prevN = useRef(n), gT = useRef(null)
+  // resolver: a carta brilha e a legenda mostra o efeito real o tempo de o ler (pelo tamanho do texto e pela velocidade
+  // escolhida); o temporizador é só dele, por isso o evento seguinte já não o cancela (a legenda ficava lá para sempre)
+  useEffect(() => {
     if (quiet || rev?.k !== 'resolve' || !rev.card) return
     const named = String(rev.txt || '').replace(/^.*? - /, '').replace(/Ai\(\d+\)-([A-D])\b/g, (m, k) => short(who[k.toLowerCase()]) || m)  // «Ai(2)-B» → nome do deck
-    setGhost({ key: ri, card: rev.card, p: rev.p, txt: clean(named) })
-    const t = setTimeout(() => setGhost(null), 1800 / Math.max(1, speed / 2))
-    return () => clearTimeout(t)
+    const txt = clean(named), ms = Math.round(Math.min(7000, 1400 + txt.length * 28) / Math.max(0.5, speed || 1))
+    setGhost({ key: ri, card: rev.card, p: rev.p, txt, ms })
+    clearTimeout(gT.current)
+    gT.current = setTimeout(() => setGhost(null), ms)
   }, [ri]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (quiet) { clearTimeout(gT.current); setGhost(null) } }, [quiet])
+  useEffect(() => () => clearTimeout(gT.current), [])
   useEffect(() => {  // chega uma carta nova: as de baixo abanam
     if (n > prevN.current && n > 1 && !quiet) { setNudge(true); const t = setTimeout(() => setNudge(false), 380); prevN.current = n; return () => clearTimeout(t) }
     prevN.current = n
@@ -156,7 +161,7 @@ function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
             {pic(x.card, x.p, x.kind)}
           </In>
         ))}
-        {ghost && <div key={`g${ghost.key}`} className={`stk resolving ${ghost.p || ''}`} style={{ '--j': n }}>{pic(ghost.card, ghost.p)}</div>}
+        {ghost && <div key={`g${ghost.key}`} className={`stk resolving ${ghost.p || ''}`} style={{ '--j': n, '--d': `${ghost.ms}ms` }}>{pic(ghost.card, ghost.p)}</div>}
       {(top || ghost) && (
         <div key={top ? `t${top.uid}` : `g${ghost.key}`} className={`stk-cap ${(top || ghost).p || ''} ${top ? '' : 'res'}`}>
           {top ? <>
