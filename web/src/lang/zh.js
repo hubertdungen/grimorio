@@ -2539,4 +2539,5 @@ export default {
   "Resposta de sideboard: no main ocupa o lugar de uma carta do plano": "备牌应对卡：放在主牌会占用计划内卡牌的位置",
   "Só serve contra {x}: guarda-a para os jogos 2 e 3 contra quem a precisa": "只对 {x} 有效：留到第 2、3 局针对需要的对手",
   "{n} do deck para o sideboard": "{n} 张移到备牌",
+  "Ver a outra face (ou tecla F com o rato na carta)": "查看另一面（或鼠标停在卡上按 F）",
 }

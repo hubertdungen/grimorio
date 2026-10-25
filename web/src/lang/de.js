@@ -2539,4 +2539,5 @@ export default {
   "Resposta de sideboard: no main ocupa o lugar de uma carta do plano": "Sideboard-Antwort: im Hauptdeck nimmt sie den Platz einer Plankarte ein",
   "Só serve contra {x}: guarda-a para os jogos 2 e 3 contra quem a precisa": "Wirkt nur gegen {x}: hebe sie für Spiel 2 und 3 gegen passende Gegner auf",
   "{n} do deck para o sideboard": "{n} vom Deck ins Sideboard",
+  "Ver a outra face (ou tecla F com o rato na carta)": "Andere Seite zeigen (oder Taste F mit der Maus auf der Karte)",
 }

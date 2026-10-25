@@ -76,7 +76,14 @@ header.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: 
 .hint { margin-top: 18px; }
 .deck-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
 .notes { width: 100%; min-height: 70px; margin-top: 10px; resize: vertical; }
-.peek { position: fixed; width: 240px; border-radius: 12px; pointer-events: none; z-index: 50; box-shadow: 0 12px 40px #000a; display: none; }
+.peek { position: fixed; width: 240px; pointer-events: none; z-index: 50; display: none; perspective: 1100px; }
+.peek-in { position: relative; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.2, .8, .2, 1); }
+.peek.flipped .peek-in { transform: rotateY(180deg); }
+.peek img { display: block; width: 100%; border-radius: 12px; box-shadow: 0 12px 40px #000a; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.peek .pb { position: absolute; inset: 0; transform: rotateY(180deg); }
+.peek:not([data-df="1"]) .pb { display: none; }
+.peek-flip { flex: none; min-width: 22px; padding: 0 4px; border: 0; background: transparent; color: var(--muted); font-size: 14px; line-height: 1; }
+.peek-flip:hover { color: var(--gold2); }
 
 .mana { display: inline-flex; gap: 1px; align-items: center; vertical-align: middle; }
 .mana img { width: 15px; height: 15px; }

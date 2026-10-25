@@ -2539,4 +2539,5 @@ export default {
   "Resposta de sideboard: no main ocupa o lugar de uma carta do plano": "Respuesta de sideboard: en el main ocupa el lugar de una carta del plan",
   "Só serve contra {x}: guarda-a para os jogos 2 e 3 contra quem a precisa": "Solo sirve contra {x}: guárdala para las partidas 2 y 3 contra quien la necesite",
   "{n} do deck para o sideboard": "{n} del mazo al sideboard",
+  "Ver a outra face (ou tecla F com o rato na carta)": "Ver la otra cara (o tecla F con el ratón sobre la carta)",
 }

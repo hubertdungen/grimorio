@@ -705,29 +705,41 @@ const placePeek = (el, a) => {
   el.style.top = `${Math.min(window.innerHeight - 350, Math.max(8, r.top - 120))}px`
   el.style.left = `${Math.min(window.innerWidth - 250, r.right + 12)}px`
 }
+// cartas de duas faces: a imagem vira em 3D para a outra face passado 1 s (e com F ou o ⟲ da linha)
+let peekFlipT
+export function flipCardPeek() { clearTimeout(peekFlipT); if (peek?.dataset.df && peek.style.display === 'block') peek.classList.toggle('flipped') }  // virar à mão cancela o automático
 export function showCardPeek(e, c, pid) {
   if (!matchMedia('(hover: hover)').matches) return
-  peek ||= Object.assign(document.body.appendChild(document.createElement('img')), { className: 'peek' })
-  peek.src = img(c, 'normal', false, pid)
+  if (!peek) {
+    peek = document.body.appendChild(document.createElement('div')); peek.className = 'peek'
+    peek.innerHTML = '<div class="peek-in"><img class="pf" alt=""><img class="pb" alt=""></div>'
+  }
+  peek.querySelector('.pf').src = img(c, 'normal', false, pid)
+  peek.dataset.df = c.df ? '1' : ''
+  peek.querySelector('.pb').src = c.df ? img(c, 'normal', true, pid) : ''
+  peek.classList.remove('flipped')
+  clearTimeout(peekFlipT)
+  if (c.df) peekFlipT = setTimeout(flipCardPeek, 1000)
   placePeek(peek, e.currentTarget)
   peek.style.display = 'block'
   watchPeek(peek, e.currentTarget)
 }
 // fecha-se se a linha por baixo desaparecer (ex.: «−» tirou a última cópia), se o rato sair dela ou a qualquer clique/tecla
 let peekAnchor, peekTimer
-const anchored = () => peekAnchor?.isConnected && peekAnchor.matches(':hover')
+const anchored = () => peekAnchor?.isConnected && (peekAnchor.matches(':hover') || !!peekAnchor.parentElement?.matches('.row:hover'))  // a linha inteira (o ⟲ incluído)
 function watchPeek(el, a) {
   peekAnchor = a
   if (!window.__peekGuard) {
     window.__peekGuard = true
-    for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => hideCardPeek(), true)
+    addEventListener('pointerdown', e => { if (!e.target.closest?.('.peek-flip')) hideCardPeek() }, true)
+    addEventListener('keydown', e => { if ((e.key === 'f' || e.key === 'F') && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { if (peek?.dataset.df && peek.style.display === 'block') { e.preventDefault(); clearTimeout(peekFlipT); flipCardPeek() } } else hideCardPeek() }, true)
     addEventListener('scroll', () => { if (peek?.style.display === 'block') { if (anchored()) placePeek(peek, peekAnchor); else hideCardPeek() } }, true)
   }
   clearInterval(peekTimer)
   peekTimer = setInterval(() => { if (!anchored()) { el.style.display = 'none'; clearInterval(peekTimer) } }, 250)
 }
 
-export function hideCardPeek() { if (peek) peek.style.display = 'none' }
+export function hideCardPeek() { clearTimeout(peekFlipT); if (peek) peek.style.display = 'none' }
 
 const inDeck = (deck, n) => (deck.main[n] || 0) + (deck.side[n] || 0) + (deck.commanders.includes(n) ? 1 : 0) + (deck.signature === n ? 1 : 0)
 

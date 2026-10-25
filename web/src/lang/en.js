@@ -2547,4 +2547,5 @@ export default {
   "Resposta de sideboard: no main ocupa o lugar de uma carta do plano": "Sideboard answer: in the main deck it takes the place of a card from the plan",
   "Só serve contra {x}: guarda-a para os jogos 2 e 3 contra quem a precisa": "Only works against {x}: keep it for games 2 and 3 against those who need it",
   "{n} do deck para o sideboard": "{n} from deck to sideboard",
+  "Ver a outra face (ou tecla F com o rato na carta)": "See the other face (or press F with the mouse on the card)",
 }
