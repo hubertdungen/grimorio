@@ -2089,3 +2089,8 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #e05a44; box-shadow: 0 0 0 0 #e05a4499; animation: liveP 1.6s infinite; }
 @keyframes liveP { 70% { box-shadow: 0 0 0 7px #e05a4400; } 100% { box-shadow: 0 0 0 0 #e05a4400; } }
 @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+.bots-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.bots-tbl th, .bots-tbl td { padding: 5px 6px; text-align: left; }
+.bots-tbl thead th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.bots-tbl tbody th { font-weight: 600; white-space: nowrap; }
+.bots-tbl select { width: 100%; min-width: 0; }

@@ -9,7 +9,7 @@ import Replay from './Board.jsx'
 import { Cup, PLACE, TIERS, KIND, tierOf } from './Library.jsx'
 import { trophyValue, TIER_PTS, KIND_W, BLUE_W, trophyStars, starPoints } from './trophyvalue.js'
 import { swapSide, nextGame, mixTake } from './game.js'
-import { DIFF_INFO } from './difficulty.js'
+import { DIFF_INFO, getBots } from './difficulty.js'
 import { ask } from './confirm.jsx'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
@@ -166,7 +166,8 @@ function Create({ data, fmt0, onCreated, deckId, onRoom }) {
     if (META_MIN && out.meta < META_MIN) { const rest = 1 - out.meta; for (const k of Object.keys(out)) out[k] = k === 'meta' ? META_MIN : rest ? (out[k] * (1 - META_MIN)) / rest : 0 }
     return out
   })()
-  const [allDiff, setAllDiff] = useState('default')
+  const [allDiff, setAllDiff] = useState(() => getBots().torneio.b || 'default')  // bots predefinidos (Definições)
+  const myDiff = getBots().torneio.a  // o teu deck; '' = o mesmo dos outros
   const [smin, setSmin] = useState(0)
   const [smax, setSmax] = useState(6)
   const [unrated, setUnrated] = useState(true)
@@ -213,7 +214,7 @@ function Create({ data, fmt0, onCreated, deckId, onRoom }) {
     }
     if (out.length < lo) { setErr(places.includes(1) ? tx('Só há {k} campeões de torneios anteriores para isto (mínimo {m}).', { k: out.length, m: lo }) : tx('Só há {k} 2.ºs e 3.ºs lugares de torneios anteriores para isto (mínimo {m}).', { k: out.length, m: lo })); return }
     setErr('')
-    setPlayers(out.slice(0, max).map(w => ({ key: `${w.src}:${w.ref}:${Math.random()}`, src: w.src, ref: w.ref, name: w.name, difficulty: allDiff, fmt: w.format, cover: w.cover || '', colors: w.colors || '' })))
+    setPlayers(out.slice(0, max).map(w => ({ key: `${w.src}:${w.ref}:${Math.random()}`, src: w.src, ref: w.ref, name: w.name, difficulty: (w.src === 'meus' && myDiff) || allDiff, fmt: w.format, cover: w.cover || '', colors: w.colors || '' })))
     if (places.includes(1)) { setChamps(true); setPods(false) } else { setPods(true); setChamps(false) }
   }
   const roundsDef = type === 'suico' ? Math.ceil(Math.log2(Math.max(n, 2))) : type === 'rei' ? 3 * Math.max(n - 1, 1) : 3  // rei: nº de partidas (por omissão 3 × (decks − 1); até 200)
@@ -232,7 +233,7 @@ function Create({ data, fmt0, onCreated, deckId, onRoom }) {
   const entry = async (src, o, difficulty) => {
     const d = await deckOf(src, o), c = coverOf(d, data)
     if (src === 'meta' && o.of && o.of !== format && !casual && !legalDeck(d, format, data)) return null  // deck do meta de outro formato com cartas ilegais aqui
-    return { key: `${src}:${o.id}:${Math.random()}`, src, ref: o.id, name: o.name, fr: o.friendName || '', difficulty, fmt: src === 'meus' ? o.format : mf, cover: c?.n || '', colors: colorsOf(d, data).join('') }
+    return { key: `${src}:${o.id}:${Math.random()}`, src, ref: o.id, name: o.name, fr: o.friendName || '', difficulty: (src === 'meus' && myDiff) || difficulty, fmt: src === 'meus' ? o.format : mf, cover: c?.n || '', colors: colorsOf(d, data).join('') }
   }
   const add = async (src, o) => {
     if (n >= max) return setErr(tx('Este tipo leva no máximo {m} participantes.', { m: max }))

@@ -2669,4 +2669,11 @@ export default {
   "Ver a Arena ao vivo": "Arena live ansehen",
   "Ver os testes ao vivo": "Tests live ansehen",
   "Ver o torneio": "Turnier ansehen",
+  "🤖 Bots predefinidos": "🤖 Standard-Bots",
+  "Guardado no servidor: vale para a Arena automática": "Auf dem Server gespeichert: gilt für die automatische Arena",
+  "{m}: adversários": "{m}: Gegner",
+  "{m}: o teu deck": "{m}: dein Deck",
+  "O perfil da IA que joga cada lado quando abres o Laboratório, crias um torneio ou a Arena joga. Podes mudar em cada jogo; isto é só o ponto de partida.": "Das KI-Profil für jede Seite, wenn du das Labor öffnest, ein Turnier erstellst oder die Arena spielt. Pro Spiel änderbar; das ist nur der Ausgangspunkt.",
+  "Os teus decks e os outros participantes": "Deine Decks und die anderen Teilnehmer",
+  "Testes contra bots": "Tests gegen Bots",
 }

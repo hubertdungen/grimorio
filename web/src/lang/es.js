@@ -2669,4 +2669,11 @@ export default {
   "Ver a Arena ao vivo": "Ver la Arena en directo",
   "Ver os testes ao vivo": "Ver las pruebas en directo",
   "Ver o torneio": "Ver el torneo",
+  "🤖 Bots predefinidos": "🤖 Bots predeterminados",
+  "Guardado no servidor: vale para a Arena automática": "Guardado en el servidor: vale para la Arena automática",
+  "{m}: adversários": "{m}: rivales",
+  "{m}: o teu deck": "{m}: tu mazo",
+  "O perfil da IA que joga cada lado quando abres o Laboratório, crias um torneio ou a Arena joga. Podes mudar em cada jogo; isto é só o ponto de partida.": "El perfil de la IA que juega cada lado al abrir el Laboratorio, crear un torneo o cuando juega la Arena. Puedes cambiarlo en cada partida; esto es solo el punto de partida.",
+  "Os teus decks e os outros participantes": "Tus mazos y los demás participantes",
+  "Testes contra bots": "Pruebas contra bots",
 }

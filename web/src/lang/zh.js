@@ -2669,4 +2669,11 @@ export default {
   "Ver a Arena ao vivo": "观看竞技场直播",
   "Ver os testes ao vivo": "观看测试直播",
   "Ver o torneio": "查看锦标赛",
+  "🤖 Bots predefinidos": "🤖 默认机器人",
+  "Guardado no servidor: vale para a Arena automática": "保存在服务器：用于自动竞技场",
+  "{m}: adversários": "{m}：对手",
+  "{m}: o teu deck": "{m}：你的套牌",
+  "O perfil da IA que joga cada lado quando abres o Laboratório, crias um torneio ou a Arena joga. Podes mudar em cada jogo; isto é só o ponto de partida.": "打开实验室、创建锦标赛或竞技场对战时各方使用的 AI 配置。每局都可更改；这里只是默认值。",
+  "Os teus decks e os outros participantes": "你的套牌和其他参赛者",
+  "Testes contra bots": "对战机器人测试",
 }

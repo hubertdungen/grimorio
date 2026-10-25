@@ -491,7 +491,7 @@ def deck_record(con, did, owner):
 # ---------- Arena automática ----------
 
 ARENA = {"on": False, "owner": "", "sources": ["meu", "meta"], "formats": ["pauper"], "min": 0.0, "max": TOP, "bo": 1,
-         "difficulty": "default", "pause": 30, "max_rounds": 0, "per_hour": 20, "casual": False}
+         "difficulty": "default", "difficulty_mine": "", "pause": 30, "max_rounds": 0, "per_hour": 20, "casual": False}
 ST = {"state": "", "job": None, "error": None, "since": 0.0, "seen": 0.0, "last_end": 0.0, "secs": []}
 ALOCK = threading.RLock()
 
@@ -668,7 +668,11 @@ def arena_step(con):
     flip = len(cur["games"]) % 2 == 1  # nas séries troca quem começa
     base = cur.get("base") or cur["format"]  # casual: as regras base são as do formato do deck A
     cmd = sim.GAME_TYPE.get(base, "Constructed") != "Constructed"
-    seats = [{"deck": d, "difficulty": cfg["difficulty"]} for d in ((B, A) if flip else (A, B))]
+    # bot dos meus decks (Definições › Bots predefinidos; vazio = o mesmo dos outros)
+    mine = lambda k: bool(cfg.get("difficulty_mine")) and k.startswith("deck:") and bool(con.execute(  # noqa: E731
+        "SELECT 1 FROM decks WHERE id=? AND owner=?", (k[5:], cfg["owner"])).fetchone())
+    da, db = (cfg["difficulty_mine"] if mine(k) else cfg["difficulty"] for k in (cur["a"], cur["b"]))
+    seats = [{"deck": d, "difficulty": df} for d, df in (((B, db), (A, da)) if flip else ((A, da), (B, db)))]
     try:  # background: os trabalhos da Arena ficam sempre atrás dos teus na fila do sim
         ST["job"] = sim.submit(DATA, {"format": base, "casual": cur["format"] == CASUAL, "games": 1, "clock": 600 if cmd else 300,
                                       "seats": seats, "background": True})
@@ -736,6 +740,8 @@ def arena_set(con, owner, d):
     cfg["bo"] = 3 if d.get("bo", cfg["bo"]) == 3 else 1
     if d.get("difficulty") in {x[0] for x in sim.DIFFICULTIES}:
         cfg["difficulty"] = d["difficulty"]
+    if d.get("difficulty_mine") == "" or d.get("difficulty_mine") in {x[0] for x in sim.DIFFICULTIES}:
+        cfg["difficulty_mine"] = d["difficulty_mine"]
     cfg["pause"] = int(num(d.get("pause"), 0, 3600, cfg["pause"]))
     cfg["max_rounds"] = int(num(d.get("max_rounds"), 0, 1000, cfg["max_rounds"]))
     cfg["per_hour"] = int(num(d.get("per_hour"), 1, 60, cfg["per_hour"]))
@@ -1008,6 +1014,13 @@ def selfcheck():
     assert not rated(c2, "meta:p") and "meta:p" not in all_stars(c2, "") and history(c2, "meta:p", "pauper")["rounds"] == []
     record_round(c2, "pauper", D("meta:p"), D("meta:q"), ["a"], "arena")
     assert layers(c2)["meta:p"]["blue_games"] == 1 and rated(c2, "meta:p")
+    # bot dos meus decks na Arena (Definições › Bots predefinidos): só perfis conhecidos ou vazio
+    c2 = sqlite3.connect(":memory:")
+    schema(c2)
+    arena_set(c2, "ana", {"difficulty_mine": "zzz"})
+    assert settings(c2)["difficulty_mine"] == ""
+    arena_set(c2, "ana", {"difficulty_mine": sim.DIFFICULTIES[1][0]})
+    assert settings(c2)["difficulty_mine"] == sim.DIFFICULTIES[1][0]
     print("selfcheck ok")
 
 

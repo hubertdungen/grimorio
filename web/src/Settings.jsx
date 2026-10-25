@@ -11,11 +11,41 @@ import Friends from './Friends.jsx'
 import AIKeys from './AIKeys.jsx'
 import { BasicSettings } from './Basics.jsx'
 import { getBasicDefaults, setBasicDefaults } from './data.js'
+import { DIFF_INFO, getBots, setBots } from './difficulty.js'
 
 const PER_GAME = 900, RESERVE = 1000  // MB: ~0,9 GB por jogo do Forge; 1 GB fica para o sistema e o browser
 // quantos jogos cabem na RAM livre agora; os que já correm contam como livres (a memória deles é deles)
 const recommend = st => Math.max(1, Math.min(st.max || 6, Math.floor((st.mem_free + st.running * PER_GAME - RESERVE) / PER_GAME)))
 const gb = mb => num(mb / 1000, 1)
+
+// bots predefinidos: que perfil da IA joga o teu deck e os adversários no Laboratório, nos torneios e na Arena
+function DefaultBots() {
+  const [diffs, setDiffs] = useState([]), [b, setB] = useState(getBots), [arena, setArena] = useState(null), [err, setErr] = useState('')
+  useEffect(() => {
+    fetch('/api/sim/difficulties').then(r => r.json()).then(setDiffs).catch(() => setErr(tx('O servidor não respondeu.')))
+    fetch('/api/arena').then(r => (r.ok ? r.json() : null)).then(setArena).catch(() => {})
+  }, [])
+  const put = (k, side, v) => { const n = { ...b, [k]: { ...b[k], [side]: v } }; setB(n); setBots(n) }
+  const putArena = v => fetch('/api/arena', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(v) }).then(r => r.json()).then(setArena).catch(() => setErr(tx('O servidor não respondeu.')))
+  // '' = Normal (o perfil «default» fica nessa opção); na Arena os adversários podem ser «ao acaso»
+  const opts = random => <><option value="">{tx('Normal')}</option>{diffs.filter(d => d.id !== 'default' && (random || d.id !== 'random')).map(d => <option key={d.id} value={d.id}>{DIFF_INFO[d.id]?.label || d.label}</option>)}</>
+  const row = (label, a, setA, bb, setBb, hint, random = false) => (
+    <tr><th title={hint}>{label}</th>
+      <td><select value={a} onChange={e => setA(e.target.value)} aria-label={tx('{m}: o teu deck', { m: label })}>{opts(false)}</select></td>
+      <td><select value={bb} onChange={e => setBb(e.target.value)} aria-label={tx('{m}: adversários', { m: label })}>{opts(random)}</select></td></tr>
+  )
+  return (
+    <>
+      <p className="muted small">{tx('O perfil da IA que joga cada lado quando abres o Laboratório, crias um torneio ou a Arena joga. Podes mudar em cada jogo; isto é só o ponto de partida.')}</p>
+      <table className="bots-tbl"><thead><tr><th /><th>{tx('O teu deck')}</th><th>{tx('Adversários')}</th></tr></thead><tbody>
+        {row(tx('Laboratório'), b.lab.a, v => put('lab', 'a', v), b.lab.b, v => put('lab', 'b', v), tx('Testes contra bots'))}
+        {row(tx('Torneios'), b.torneio.a, v => put('torneio', 'a', v), b.torneio.b, v => put('torneio', 'b', v), tx('Os teus decks e os outros participantes'))}
+        {arena?.mine !== false && arena && row('Arena', arena.difficulty_mine || '', v => putArena({ difficulty_mine: v }), arena.difficulty === 'default' ? '' : arena.difficulty || '', v => putArena({ difficulty: v || 'default' }), tx('Guardado no servidor: vale para a Arena automática'), true)}
+      </tbody></table>
+      {err && <p className="small bad-t">{err}</p>}
+    </>
+  )
+}
 
 function ForgeGames() {
   const [st, setSt] = useState(null)
@@ -170,6 +200,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Língua')}</h3><LangPick />
         <p className="muted small">{tx('Os nomes e os textos das cartas ficam em inglês (dados do Scryfall).')} {tx('A escolha fica guardada neste browser.')}</p></section>
       <section className="card"><h3>{tx('Jogos do Forge ao mesmo tempo')}</h3><ForgeGames /></section>
+      <section className="card"><h3>{tx('🤖 Bots predefinidos')}</h3><DefaultBots /></section>
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
       <section className="card"><h3>{tx('Estrelas dos decks')}</h3><StarLayers /></section>
       <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>

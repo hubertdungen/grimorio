@@ -68,3 +68,13 @@ export const DIFF_INFO = {
     pontos: [tx('Útil em séries longas para não afinar o deck contra um único estilo de jogo.')],
   },
 }
+
+// bots predefinidos (Definições › Bots predefinidos) para o Laboratório e os torneios, neste browser: a = o teu deck,
+// b = os adversários; '' = o de sempre (Normal). A Arena guarda os seus no servidor (difficulty / difficulty_mine).
+const BOTS = 'grimorio.bots'
+export function getBots() {
+  let v = {}
+  try { v = JSON.parse(localStorage.getItem(BOTS) || '{}') } catch { /* sem armazenamento */ }
+  return { lab: { a: '', b: '', ...v.lab }, torneio: { a: '', b: '', ...v.torneio } }
+}
+export function setBots(v) { try { localStorage.setItem(BOTS, JSON.stringify(v)) } catch { /* sem armazenamento */ } }

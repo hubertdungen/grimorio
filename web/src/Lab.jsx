@@ -8,7 +8,7 @@ import { landAdvice, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './format
 import { Empty, Stars } from './ui.jsx'
 import Replay, { HANDS } from './Board.jsx'
 import { toForgeState } from './forgeState.js'
-import { DIFF_INFO } from './difficulty.js'
+import { DIFF_INFO, getBots } from './difficulty.js'
 import { planSideboard, applySwaps } from './sideboard.js'
 import { aiCaveats } from './tests.js'
 import { ask } from './confirm.jsx'
@@ -71,8 +71,8 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
   const [paste, setPaste] = useState('')
   const [bo, setBo] = useState(SIDE_FORMATS_NO.has(fmt.key) ? 1 : 3)  // Commander e afins: Bo3 é possível, só não há sideboard
   const [matches, setMatches] = useState(1)
-  const [diff, setDiff] = useState('')
-  const [diffA, setDiffA] = useState('default')
+  const [diff, setDiff] = useState(() => getBots().lab.b)  // bots predefinidos (Definições)
+  const [diffA, setDiffA] = useState(() => getBots().lab.a || 'default')
   const [smartSide, setSmartSide] = useState(true)
   const [mode, setMode] = useState('1v1')
   // modo casual: adversários de qualquer formato; as regras base (vida, tipo de jogo) valem para todos (sim.py casual)

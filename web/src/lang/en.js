@@ -2677,4 +2677,11 @@ export default {
   "Ver a Arena ao vivo": "Watch the Arena live",
   "Ver os testes ao vivo": "Watch the tests live",
   "Ver o torneio": "View the tournament",
+  "🤖 Bots predefinidos": "🤖 Default bots",
+  "Guardado no servidor: vale para a Arena automática": "Saved on the server: applies to the automatic Arena",
+  "{m}: adversários": "{m}: opponents",
+  "{m}: o teu deck": "{m}: your deck",
+  "O perfil da IA que joga cada lado quando abres o Laboratório, crias um torneio ou a Arena joga. Podes mudar em cada jogo; isto é só o ponto de partida.": "The AI profile that plays each side when you open the Lab, create a tournament or the Arena plays. You can change it for each game; this is only the starting point.",
+  "Os teus decks e os outros participantes": "Your decks and the other entrants",
+  "Testes contra bots": "Tests against bots",
 }
