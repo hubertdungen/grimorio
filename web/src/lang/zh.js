@@ -2736,4 +2736,5 @@ export default {
   "O tabuleiro segue o jogo que está a decorrer à medida que o Forge o joga; os jogos que já acabaram ficam aqui para rever.": "棋盘会随 Forge 进行实时跟随当前牌局；已结束的牌局保留在此可回看。",
   "a decorrer agora": "正在进行",
   "Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)": "仅传奇牌（可与类型组合：传奇生物、传奇神器…）",
+  "beneficia de": "受益于",
 }

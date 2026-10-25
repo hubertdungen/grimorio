@@ -407,6 +407,7 @@ export function passes(c, f, ctx) {
   if (f.noLands && c.mt === 'Land') return false
   if (f.oracle?.length) { const o = c.o.toLowerCase(); if (!f.oracle.every(w => o.includes(w))) return false }
   if (f.tags?.length && !f.tags.every(t => c.tg.includes(t))) return false
+  if (f.anyText?.length) { const o = c.o.toLowerCase(); if (!f.anyText.every(g => g.some(w => o.includes(w)))) return false }  // «que beneficiem de X»
   return true
 }
 

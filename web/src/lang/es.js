@@ -2736,4 +2736,5 @@ export default {
   "O tabuleiro segue o jogo que está a decorrer à medida que o Forge o joga; os jogos que já acabaram ficam aqui para rever.": "El tablero sigue la partida en curso mientras Forge la juega; las partidas terminadas quedan aquí para volver a verlas.",
   "a decorrer agora": "en curso ahora",
   "Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)": "Solo cartas legendarias (se combina con el tipo: criaturas legendarias, artefactos legendarios…)",
+  "beneficia de": "se beneficia de",
 }

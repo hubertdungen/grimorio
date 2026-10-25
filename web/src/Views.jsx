@@ -1,6 +1,6 @@
 import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList } from './data.js'
+import { search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, WhiteStars } from './ui.jsx'
@@ -836,13 +836,13 @@ export function BasicBar({ data, deck, ctx, act }) {
   )
 }
 
-const NL_L = { type: tx('tipo'), tag: tx('função'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor') }
+const NL_L = { type: tx('tipo'), sub: tx('subtipo'), tag: tx('função'), cares: tx('beneficia de'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor') }
 export function SearchView({ data, deck, fmt, ctx, act }) {
   const [q, setQ] = useState('')
   const [f, setF] = useState(F0)
   const dq = useDeferredValue(q), df = useDeferredValue(f)
   const [raw, setRaw] = useState('')  // frase que o utilizador quis pelo nome (✕ no «Entendido como»)
-  const nl = useMemo(() => (raw === dq ? null : parseQuery(dq)), [dq, raw])
+  const nl = useMemo(() => (raw === dq ? null : parseQuery(dq, { types: CREATURE_TYPES })), [dq, raw])
   const res = useMemo(() => {  // frase: só se a sintaxe é explícita ou se pelo nome não há nada (assim «Black Lotus» continua a ser a carta)
     const byName = search(data, dq, df, ctx)
     if (!nl || (byName.total && !/[:<>=]/.test(dq))) return { ...byName, nl: null }

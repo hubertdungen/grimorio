@@ -2744,4 +2744,5 @@ export default {
   "O tabuleiro segue o jogo que está a decorrer à medida que o Forge o joga; os jogos que já acabaram ficam aqui para rever.": "The board follows the game in progress as Forge plays it; finished games stay here to watch again.",
   "a decorrer agora": "in progress now",
   "Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)": "Legendary cards only (combines with the type: legendary creatures, legendary artifacts…)",
+  "beneficia de": "benefits from",
 }
