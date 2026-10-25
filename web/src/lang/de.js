@@ -2332,4 +2332,6 @@ export default {
   "d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.": "d4 bis d100 und Münze in 3D: werfen, greifen und mit dem Finger schleudern, mit Protokoll.",
   "d100 = dois d10: dezenas e unidades": "d100 = zwei d10: Zehner und Einer",
   "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez. O d100 são dois d10: dezenas (00–90) e unidades.": "Wähle oben die Würfel und drücke «Werfen». Danach kannst du einen Würfel mit der Maus oder dem Finger greifen und erneut werfen. Der d100 sind zwei d10: Zehner (00–90) und Einer.",
+  "Contadores de {n}": "Zähler von {n}",
+  "Veneno, comandante e mais": "Gift, Kommandeur und mehr",
 }

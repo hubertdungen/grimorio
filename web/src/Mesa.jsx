@@ -1,6 +1,7 @@
 // Mesa: contador de vida (1 a 6 jogadores, vida e veneno/infect, registo) e lançador de dados (d4–d100 e moeda, com
 // física, registo). Cada um guarda o seu estado no browser; abrir os dados por cima do contador não mexe nas vidas.
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Logo } from './ui.jsx'
 import { ask } from './confirm.jsx'
 import { tx, LOCALE } from './i18n.js'
@@ -40,12 +41,40 @@ function useHold(fn) {  // carregar e manter: 1 já, depois repete cada vez mais
   return { onPointerDown: start, onPointerUp: stop, onPointerLeave: stop, onPointerCancel: stop, onContextMenu: e => e.preventDefault() }
 }
 
+const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+
 function Player({ p, i, flip, onLife, onPoison, onCmd, onName, spot, pend, opps, cmdr, onTax, onPartner, mon, ini, onMon, onIni }) {  // opps: adversários (modo Commander)
   const minus = useHold(() => onLife(i, -1)), plus = useHold(() => onLife(i, 1))
   const dead = p.life <= 0 || p.poison >= POISON_MAX || Object.values(p.cmd || {}).some(x => x >= CMD_MAX)
   const [bump, setBump] = useState(0)
   const prev = useRef(p.life)
   useEffect(() => { if (prev.current !== p.life) { setBump(p.life < prev.current ? -1 : 1); prev.current = p.life; const k = setTimeout(() => setBump(0), 260); return () => clearTimeout(k) } }, [p.life])
+  // no tátil os contadores pequenos ficam num botão de resumo; tocar (ou puxar para cima) abre-os em grande por cima do jogador
+  const [open, setOpen] = useState(false), sy = useRef(0)
+  const controls = (<>
+        <span className={`lc-poison ${p.poison ? 'on' : ''}`} title={tx('Veneno (infect): com {m} perde-se o jogo', { m: POISON_MAX })}>
+          <button onClick={() => onPoison(i, -1)} aria-label={tx('Tirar veneno')}>−</button>
+          <span>☠ {p.poison}</span><small className="lc-lbl">{tx('veneno')}</small>
+          <button onClick={() => onPoison(i, 1)} aria-label={tx('Dar veneno')}>+</button>
+        </span>
+        {opps && <span className="lc-cmds">{opps.flatMap(o => (o.partner ? ['', 'b'] : ['']).map(b => { const v = p.cmd?.[`${o.i}${b}`] || 0, n = b ? tx('{n} (partner)', { n: o.name }) : o.name; return (
+          <span key={o.i + b} className={`lc-cmd ${v ? 'on' : ''} ${v >= CMD_MAX ? 'kill' : ''}`} style={{ '--oc': o.color }} title={tx('Dano do comandante de {n} ({m} = perde)', { n, m: CMD_MAX })}>
+            <button onClick={() => onCmd(i, `${o.i}${b}`, -1)} aria-label={tx('Tirar dano de comandante de {n}', { n })}>−</button>
+            <b>⚔{b && '²'} {v}</b><small className="lc-lbl">{n}</small>
+            <button onClick={() => onCmd(i, `${o.i}${b}`, 1)} aria-label={tx('Dar dano de comandante de {n}', { n })}>+</button>
+          </span>) }))}</span>}
+        {cmdr && <span className="lc-extra">
+          {(p.partner ? ['tax', 'taxb'] : ['tax']).map(f => (
+            <span key={f} className={`lc-tax ${p[f] ? 'on' : ''}`} title={tx('Imposto de comandante: +2 de mana por cada vez que já foi lançado da zona de comando ({k}×)', { k: p[f] || 0 })}>
+              <button onClick={() => onTax(i, f, -1)} aria-label={tx('Tirar um lançamento')}>−</button>
+              <span><i className="lc-tx">{f === 'taxb' ? '²' : ''}{tx('imposto')} </i><b>+{2 * (p[f] || 0)}</b></span><small className="lc-lbl">{tx('imposto')}{f === 'taxb' ? ' ²' : ''}</small>
+              <button onClick={() => onTax(i, f, 1)} aria-label={tx('Lançou o comandante')}>+</button>
+            </span>))}
+          <button className={`lc-tag ${p.partner ? 'on' : ''}`} onClick={() => onPartner(i)} aria-pressed={!!p.partner} title={tx('Dois comandantes (partner, «Friends forever», background…): o dano e o imposto contam-se em separado')}>⚭ {tx('partner')}</button>
+          <button className={`lc-tag ${mon ? 'on gold' : ''}`} onClick={() => onMon(i)} aria-pressed={mon} title={tx('Monarca: compra uma carta no fim de cada turno seu; quem lhe fizer dano de combate fica monarca')}>👑 {tx('monarca')}</button>
+          <button className={`lc-tag ${ini ? 'on gold' : ''}`} onClick={() => onIni(i)} aria-pressed={ini} title={tx('Iniciativa: avança na Undercity ao ficar com ela e no início de cada turno seu; quem lhe fizer dano de combate fica com ela')}>🏰 {tx('iniciativa')}</button>
+        </span>}
+  </>)
   return (
     <div className={`lc-p ${flip ? 'flip' : ''} ${dead ? 'dead' : ''} ${spot ? 'spot' : ''}`} style={{ '--pc': p.color }}>
       <button className="lc-zone minus" {...minus} aria-label={tx('Tirar 1 de vida a {n}', { n: p.name })}><span>−</span></button>
@@ -54,29 +83,16 @@ function Player({ p, i, flip, onLife, onPoison, onCmd, onName, spot, pend, opps,
         <input className="lc-name" value={p.name} onChange={e => onName(i, e.target.value)} aria-label={tx('Nome')} />
         <b className={`lc-life ${bump < 0 ? 'down' : bump > 0 ? 'up' : ''}`}>{p.life}</b>
         {pend ? <i className={`lc-delta ${pend.d < 0 ? 'neg' : ''}`} key={pend.k}>{pend.d > 0 ? `+${pend.d}` : pend.d}</i> : null}
-        <span className={`lc-poison ${p.poison ? 'on' : ''}`} title={tx('Veneno (infect): com {m} perde-se o jogo', { m: POISON_MAX })}>
-          <button onClick={() => onPoison(i, -1)} aria-label={tx('Tirar veneno')}>−</button>
-          <span>☠ {p.poison}</span>
-          <button onClick={() => onPoison(i, 1)} aria-label={tx('Dar veneno')}>+</button>
-        </span>
-        {opps && <span className="lc-cmds">{opps.flatMap(o => (o.partner ? ['', 'b'] : ['']).map(b => { const v = p.cmd?.[`${o.i}${b}`] || 0, n = b ? tx('{n} (partner)', { n: o.name }) : o.name; return (
-          <span key={o.i + b} className={`lc-cmd ${v ? 'on' : ''} ${v >= CMD_MAX ? 'kill' : ''}`} style={{ '--oc': o.color }} title={tx('Dano do comandante de {n} ({m} = perde)', { n, m: CMD_MAX })}>
-            <button onClick={() => onCmd(i, `${o.i}${b}`, -1)} aria-label={tx('Tirar dano de comandante de {n}', { n })}>−</button>
-            <b>⚔{b && '²'} {v}</b>
-            <button onClick={() => onCmd(i, `${o.i}${b}`, 1)} aria-label={tx('Dar dano de comandante de {n}', { n })}>+</button>
-          </span>) }))}</span>}
-        {cmdr && <span className="lc-extra">
-          {(p.partner ? ['tax', 'taxb'] : ['tax']).map(f => (
-            <span key={f} className={`lc-tax ${p[f] ? 'on' : ''}`} title={tx('Imposto de comandante: +2 de mana por cada vez que já foi lançado da zona de comando ({k}×)', { k: p[f] || 0 })}>
-              <button onClick={() => onTax(i, f, -1)} aria-label={tx('Tirar um lançamento')}>−</button>
-              <span>{f === 'taxb' ? '²' : ''}{tx('imposto')} <b>+{2 * (p[f] || 0)}</b></span>
-              <button onClick={() => onTax(i, f, 1)} aria-label={tx('Lançou o comandante')}>+</button>
-            </span>))}
-          <button className={`lc-tag ${p.partner ? 'on' : ''}`} onClick={() => onPartner(i)} aria-pressed={!!p.partner} title={tx('Dois comandantes (partner, «Friends forever», background…): o dano e o imposto contam-se em separado')}>⚭ {tx('partner')}</button>
-          <button className={`lc-tag ${mon ? 'on gold' : ''}`} onClick={() => onMon(i)} aria-pressed={mon} title={tx('Monarca: compra uma carta no fim de cada turno seu; quem lhe fizer dano de combate fica monarca')}>👑 {tx('monarca')}</button>
-          <button className={`lc-tag ${ini ? 'on gold' : ''}`} onClick={() => onIni(i)} aria-pressed={ini} title={tx('Iniciativa: avança na Undercity ao ficar com ela e no início de cada turno seu; quem lhe fizer dano de combate fica com ela')}>🏰 {tx('iniciativa')}</button>
-        </span>}
+        {coarse ? <button className="lc-more" onClick={() => setOpen(true)} onPointerDown={e => { sy.current = e.clientY }} onPointerUp={e => { if (sy.current - e.clientY > 20) setOpen(true) }}
+          aria-label={tx('Veneno, comandante e mais')}>☠ {p.poison}{opps && ` · ⚔ ${Math.max(0, ...Object.values(p.cmd || {}))}`}{mon ? ' 👑' : ''}{ini ? ' 🏰' : ''} <i>⌃</i></button> : controls}
       </div>
+      {open && createPortal(  // por cima de tudo, rodado para quem está do outro lado da mesa
+        <div className={`lc-panel-bg ${flip ? 'flip' : ''}`} onClick={e => { if (e.target === e.currentTarget) setOpen(false) }}>
+          <div className="lc-panel" role="dialog" aria-label={tx('Contadores de {n}', { n: p.name })} style={{ '--pc': p.color }}>
+            <header><b>{p.name}</b> <span className="muted">{tx('vida')} {p.life}</span><button className="close" onClick={() => setOpen(false)} aria-label={tx('Fechar')}>×</button></header>
+            <div className="lc-panel-in">{controls}</div>
+          </div>
+        </div>, document.body)}
       {dead && <span className="lc-skull" aria-hidden="true">☠</span>}
     </div>
   )

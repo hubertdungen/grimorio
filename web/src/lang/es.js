@@ -2332,4 +2332,6 @@ export default {
   "d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.": "d4 a d100 y moneda en 3D: se lanzan, se agarran y se tiran con el dedo, con registro.",
   "d100 = dois d10: dezenas e unidades": "d100 = dos d10: decenas y unidades",
   "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez. O d100 são dois d10: dezenas (00–90) e unidades.": "Elige los dados arriba y pulsa «Lanzar». Después puedes agarrar un dado con el ratón o el dedo y volver a lanzarlo. El d100 son dos d10: decenas (00–90) y unidades.",
+  "Contadores de {n}": "Contadores de {n}",
+  "Veneno, comandante e mais": "Veneno, comandante y más",
 }
