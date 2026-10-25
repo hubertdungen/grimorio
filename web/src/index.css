@@ -1692,3 +1692,11 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .rk-cas { background: #4ea8ff1c; color: #9fd0ff; }
 .ask-typed { display: grid; gap: 4px; font-size: 13px; } .ask-typed input { font: 600 15px/1.2 ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; }
 .danger-zone { box-shadow: inset 0 0 0 1px #b3261e55; } .reset-set { display: grid; gap: 8px; }
+/* galeria: filtros, valor e tabela de valores */
+.fg-filt { margin: 4px 0 10px; } .fg-val { padding: 0 9px; margin-top: -4px; color: var(--gold2); font-size: 11px; font-weight: 700; }
+.fg-info { padding: 8px 12px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+.fg-info p { margin: 0 0 6px; } .fg-tab { display: grid; gap: 6px; }
+.fg-tab > span { display: flex; flex-wrap: wrap; gap: 4px 14px; } .fg-tab i { display: inline-flex; align-items: center; gap: 4px; font-style: normal; }
+.fg-tab .cup { width: 16px; height: 16px; } .fg-tab b { color: var(--gold2); }
+.tro-pts { margin-left: 4px; padding: 0 6px; border-radius: 99px; background: #0009; color: var(--gold2); font-size: 11px; font-weight: 800; line-height: 18px; font-variant-numeric: tabular-nums; }
+.tro-t .tro-p { margin-left: 4px; color: var(--gold2); font-size: 11px; font-weight: 700; }

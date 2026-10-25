@@ -7,6 +7,7 @@ import { img, coverOf, colorsOf, HUE } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import Replay from './Board.jsx'
 import { Cup, PLACE, TIERS, KIND, tierOf } from './Library.jsx'
+import { trophyValue, TIER_PTS, KIND_W, BLUE_W } from './trophyvalue.js'
 import { swapSide, nextGame, mixTake } from './game.js'
 import { DIFF_INFO } from './difficulty.js'
 import { ask } from './confirm.jsx'
@@ -858,13 +859,21 @@ function Fame({ data, list }) {
   for (const x of list) if (x.podium && !x.old && (!f || (f === 'casual' ? x.casual : !x.casual && x.format === f))) for (const p of x.podium) {
     const r = (rows[`${p.src}:${p.ref}`] ||= { ...p, m: [0, 0, 0], med: [] })
     r.m[p.place - 1]++
-    r.med.push({ tier: tierOf(p.place, x.champions), casual: !!x.casual || x.ranked === false, tid: x.id, place: p.place, kind: x.type, name: x.name })
+    r.med.push({ tier: tierOf(p.place, x.champions), casual: !!x.casual || x.ranked === false, tid: x.id, place: p.place, kind: x.type, name: x.name, n: x.n, m: x.m })
   }
   // troféus dos meus decks que já não contam (a lista mudou mais de 10% desde o torneio): ficam a cinzento na galeria
   const [tro, setTro] = useState({})
   useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const top = Object.values(rows).filter(r => who === 'todos' || (who === 'meus') === (r.src === 'meus'))
     .sort((a, b) => b.m[0] - a.m[0] || b.m[1] - a.m[1] || b.m[2] - a.m[2] || a.name.localeCompare(b.name))
+  // galeria: filtros (lugar/cor e tipo de torneio) e ordem (valor, quantidade, nome) próprios
+  const [gTier, setGTier] = useState(''), [gKind, setGKind] = useState(''), [gSort, setGSort] = useState('valor'), [gInfo, setGInfo] = useState(false)
+  const offOf = (r, m) => r.src === 'meus' && (tro[r.ref] || []).some(t => t.tid === m.tid && t.place === m.place && !t.valid)
+  const keepM = m => (!gKind || m.kind === gKind) && (!gTier || (gTier === 'azul' ? m.casual : gTier === 'normal' ? !m.casual : String(m.tier) === gTier))
+  const gal = top.map(r => { const med = r.med.filter(keepM), ok = med.filter(m => !offOf(r, m)); return { r, med, val: ok.reduce((a, m) => a + trophyValue(m), 0), n: ok.length } })
+    .filter(x => x.med.length)
+    .sort((a, b) => (gSort === 'nome' ? a.r.name.localeCompare(b.r.name) : gSort === 'quantidade' ? b.n - a.n || b.val - a.val : b.val - a.val || b.n - a.n))
+  const kinds = [...new Set(top.flatMap(r => r.med.map(m => m.kind)))].filter(Boolean)
   return (
     <>
     <section className="card fame">
@@ -882,14 +891,34 @@ function Fame({ data, list }) {
       )}
     </section>
       {top.length > 0 && <section className="card fg-sec">
-        <h3>{tx('Galeria de troféus')} <span className="muted small">{tx('segue os filtros do hall da fama')}</span></h3>
-        <div className="fame-gal">{top.slice(0, 30).map(r => {
-          const off = m => r.src === 'meus' && (tro[r.ref] || []).some(t => t.tid === m.tid && t.place === m.place && !t.valid)
+        <h3>{tx('Galeria de troféus')} <span className="muted small">{tx('segue os filtros do hall da fama')}</span> <button className="link small" onClick={() => setGInfo(v => !v)}>ⓘ {tx('Valor dos troféus')}</button></h3>
+        {gInfo && <div className="fg-info small">
+          <p className="muted">{tx('Valor = pontos do lugar × peso do tipo × jogadores (√(decks ÷ 8), ×0,6 a ×1,6) × duração no rei da colina, suíço e mesas (partidas jogadas ÷ típicas, ×0,5 a ×1,5); os azuis (casual ou não ranked) valem metade ({w}).', { w: `×${BLUE_W}` })}</p>
+          <div className="fg-tab"><span>{TIERS.map(t => <i key={t}><Cup place={t} /> {PLACE[t].split(':')[0]} <b>{TIER_PTS[t]}</b></i>)}</span>
+            <span>{Object.entries(KIND_W).sort((a, b) => b[1] - a[1]).map(([k, w]) => <i key={k}><Cup place={1} kind={k} /> {KIND[k]} <b>×{w}</b></i>)}</span></div>
+        </div>}
+        <div className="row-btns fg-filt">
+          <select value={gTier} onChange={e => setGTier(e.target.value)} aria-label={tx('Troféus')}>
+            <option value="">{tx('Todos os troféus')}</option>
+            {TIERS.map(t => <option key={t} value={t}>{PLACE[t].split(':')[0]}</option>)}
+            <option value="normal">{tx('Só normais (ranked)')}</option><option value="azul">{tx('Só azuis (casual ou não ranked)')}</option>
+          </select>
+          <select value={gKind} onChange={e => setGKind(e.target.value)} aria-label={tx('Tipo de torneio')}>
+            <option value="">{tx('Todos os tipos de torneio')}</option>{kinds.map(k => <option key={k} value={k}>{KIND[k] || k}</option>)}
+          </select>
+          <select value={gSort} onChange={e => setGSort(e.target.value)} aria-label={tx('Ordenar')}>
+            <option value="valor">{tx('Ordenar: valor dos troféus')}</option><option value="quantidade">{tx('Ordenar: número de troféus')}</option><option value="nome">{tx('Ordenar: nome')}</option>
+          </select>
+          <span className="muted small">{tx('{n} deck|{n} decks', { n: gal.length })}</span>
+        </div>
+        {!gal.length && <p className="muted small">{tx('Nenhum troféu com estes filtros.')}</p>}
+        <div className="fame-gal">{gal.slice(0, 40).map(({ r, med, val }) => {
+          const off = m => offOf(r, m)
           const g = {}
-          for (const m of r.med) { const k = `${m.tier}|${m.kind}|${m.casual}|${off(m)}`; const e = (g[k] ||= { ...m, off: off(m), n: 0, names: [] }); e.n++; e.names.push(m.name) }
+          for (const m of med) { const k = `${m.tier}|${m.kind}|${m.casual}|${off(m)}`; const e = (g[k] ||= { ...m, off: off(m), n: 0, names: [], pts: 0 }); e.n++; e.names.push(m.name); e.pts += off(m) ? 0 : trophyValue(m) }
           const cups = Object.values(g).sort((a, b) => a.off - b.off || TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.casual - b.casual)
-          const body = <><Thumb data={data} p={r} /><b title={r.name}>{r.name}</b>
-            <span className="fg-cups">{cups.map(c => <span key={`${c.tier}${c.kind}${c.casual}${c.off}`} className="fg-cup" title={`${PLACE[c.tier]} · ${KIND[c.kind] || ''}${c.casual ? ` · ${tx('troféu azul: casual ou não ranked')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''}\n${c.names.slice(0, 6).map(nm => `• ${nm}`).join('\n')}${c.names.length > 6 ? `\n+${c.names.length - 6}` : ''}`}><Cup place={c.tier} casual={c.casual} off={c.off} kind={c.kind} />{c.n > 1 && <small>×{c.n}</small>}</span>)}</span></>
+          const body = <><Thumb data={data} p={r} /><b title={r.name}>{r.name}</b><small className="fg-val" title={tx('Valor dos troféus')}>{val} {tx('pts')}</small>
+            <span className="fg-cups">{cups.map(c => <span key={`${c.tier}${c.kind}${c.casual}${c.off}`} className="fg-cup" title={`${PLACE[c.tier]} · ${KIND[c.kind] || ''}${c.casual ? ` · ${tx('troféu azul: casual ou não ranked')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''} · ${tx('+{p} pontos', { p: c.pts })}\n${c.names.slice(0, 6).map(nm => `• ${nm}`).join('\n')}${c.names.length > 6 ? `\n+${c.names.length - 6}` : ''}`}><Cup place={c.tier} casual={c.casual} off={c.off} kind={c.kind} />{c.n > 1 && <small>×{c.n}</small>}</span>)}</span></>
           return r.src === 'meus' ? <button key={`${r.src}:${r.ref}`} className="fg-card me" onClick={() => showDeck(r.ref)} title={tx('Abrir na Biblioteca')}>{body}</button>
             : <div key={`${r.src}:${r.ref}`} className="fg-card">{body}</div>
         })}</div>

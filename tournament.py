@@ -766,7 +766,7 @@ def trophies(con, owner):
                 continue
             row, same = rows.get(x["i"], {}), round(similarity(st["decks"][x["i"]], cur[x["ref"]]), 3)
             out.setdefault(x["ref"], []).append({
-                "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "casual": not ranked(st),
+                "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "m": len(st["matches"]), "casual": not ranked(st),
                 "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")),
                 "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
                 "first": [y["name"] for y in pod if y["place"] == 1 and y["i"] != x["i"]],
@@ -799,10 +799,10 @@ def route(method, path, owner, body=None):
     with db() as con:
         if method == "GET" and not parts:
             rows = con.execute("SELECT id, ts, name, type, format, status, champion, n, json_extract(state, '$.casual'),"
-                               " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions'), json_extract(state, '$.ranked') FROM tournaments WHERE owner=? ORDER BY ts DESC",
+                               " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions'), json_extract(state, '$.ranked'), json_array_length(state, '$.matches') FROM tournaments WHERE owner=? ORDER BY ts DESC",
                                (owner,)).fetchall()
             cut = trophy_cut(con, owner)
-            out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked"), r)),
+            out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked", "m"), r)),
                     **({"old": True} if r[1] < cut else {})} for r in rows]  # old: de antes de repor os troféus
             for x in out:  # os acabados antes de haver pódio calculam-no agora
                 x["podium"] = json.loads(x["podium"]) if x["podium"] else podium(json.loads(con.execute(

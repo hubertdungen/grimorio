@@ -10,6 +10,7 @@ import DeckCompare, { similarity } from './DeckCompare.jsx'
 import { ask, casualAsk } from './confirm.jsx'
 import { BasicArtPicker, applyBasics } from './Basics.jsx'
 import { tx, num, LOCALE } from './i18n.js'
+import { trophyValue } from './trophyvalue.js'
 import { SyncHint } from './Settings.jsx'
 
 const META_FMTS = ['commander', 'duel', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'premodern']
@@ -56,7 +57,9 @@ export const KIND = { elim: tx('Eliminação simples'), dupla: tx('Dupla elimina
 const BLUE = tx('troféu azul: casual ou não ranked')
 export const tierOf = (place, champions) => (champions ? { 1: 'plat', 2: 'safira', 3: 'rubi' }[place] : place)
 const tier = x => (x.platinum ? 'plat' : tierOf(x.place, x.champions))
-const label = x => [PLACE[tier(x)], KIND[x.type], `«${x.name}»`, x.casual && BLUE].filter(Boolean).join(' · ')
+const ptsOf = x => trophyValue({ tier: tier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m })  // pontos que este troféu dá ao deck
+const ptsTxt = x => (x.valid === false ? tx('não conta (0 pontos)') : tx('+{p} pontos', { p: ptsOf(x) }))
+const label = x => [PLACE[tier(x)], KIND[x.type], `«${x.name}»`, x.casual && BLUE, ptsTxt(x)].filter(Boolean).join(' · ')
 function Trophies({ list }) {
   const [open, setOpen] = useState(null)  // posição no ecrã (o cartão do deck corta o que sai dele)
   useEffect(() => {  // fecha ao tocar fora ou ao rolar a página (está preso ao ecrã)
@@ -82,7 +85,7 @@ function Trophies({ list }) {
           <b>{sum}</b>
           {list.map(x => (
             <span key={`${x.tid}-${x.place}`} className={`tro-row ${x.valid ? '' : 'off'}`}>
-              <span className="tro-t"><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /> {PLACE[tier(x)]} · {KIND[x.type] ? `${KIND[x.type]} · ` : ''}{x.name}</span>
+              <span className="tro-t"><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /> {PLACE[tier(x)]} · {KIND[x.type] ? `${KIND[x.type]} · ` : ''}{x.name} <b className="tro-p">{ptsTxt(x)}</b></span>
               <small>{new Date(x.ts * 1000).toLocaleDateString(LOCALE)}{x.casual ? ` · ${tx('casual')}` : ''} · {tx('{n} decks', { n: x.n })} · {tx('{v}V {d}D', { v: x.rec[0], d: x.rec[1] })}{x.rec[2] ? ` ${x.rec[2]}E` : ''}{x.place > 1 && x.first.length ? ` · ${tx('1.º: {d}', { d: x.first.join(', ') })}` : x.second.length ? ` · ${tx('2.º: {d}', { d: x.second.join(', ') })}` : ''}</small>
               {!x.valid && <small className="tro-why">{tx('Não conta: a lista mudou {p} desde este torneio (máx. 10%)', { p: `${Math.round((1 - x.same) * 100)}%` })}</small>}
             </span>
@@ -143,7 +146,7 @@ function CoverPicker({ d, data, setCover, setImg, onClose }) {
     </div>, document.body)
 }
 
-function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rtc, tro, selected, onSelect, onFav, onCom, onDelete }) {
+function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rtc, tro, tp, selected, onSelect, onFav, onCom, onDelete }) {
   const [pick, setPick] = useState(false)
   const c = coverOf(d, data), cols = colorsOf(d, data)
   const edge = cols.length ? cols.map(x => HUE[x]) : ['#8a8a99']
@@ -157,7 +160,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
       <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
         {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
         <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}{d.community && <span title={tx('Deck da comunidade (de outra pessoa)')}> · <Ico n="globe" /> {tx('Comunidade')}</span>}</span>
-      </button>{tro?.length > 0 && <span className="dbox-tro"><Trophies list={tro} /></span>}</div>
+      </button>{tro?.length > 0 && <span className="dbox-tro"><Trophies list={tro} />{tp && <b className="tro-pts" title={tx('{p} pontos de troféus · n.º {r} de {n} no ranking dos teus decks', { p: tp.p, r: tp.rank, n: tp.of })}>{tp.rank === 1 ? '👑 ' : `#${tp.rank} · `}{tp.p}</b>}</span>}</div>
       <div className="dbox-body">
         <b title={d.name}>{d.name}</b>
         <span className="dbox-l1">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}>{d.community ? '🌐' : '🧙'}</button></span>
@@ -263,9 +266,15 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   // ordenação (guardada): dentro de cada grupo de formato
   const [sort, setSortS] = useState(() => ls('grimorio.lib.sort') || 'alterado')
   const setSort = v => { setSortS(v); ls('grimorio.lib.sort', v) }
+  // pontos de troféus de cada deck (soma do valor dos troféus que ainda contam) e o lugar no ranking dos meus decks
+  const tpts = useMemo(() => {
+    const v = mine.map(d => [d.id, (tro[d.id] || []).filter(x => x.valid).reduce((t, x) => t + trophyValue({ tier: tier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m }), 0)])
+    const r = v.filter(([, p]) => p > 0).sort((a, b) => b[1] - a[1])
+    return Object.fromEntries(r.map(([id, p], k) => [id, { p, rank: k + 1, of: r.length }]))
+  }, [mine, tro])
   const sorted = useMemo(() => {
     const W = 'WUBRG', st = (d, k) => rt[`deck:${d.id}`]?.[k] ?? -1
-    const won = d => (tro[d.id] || []).filter(x => x.valid).reduce((t, x) => t + ({ plat: 1000, safira: 300, rubi: 150, 1: 100, 2: 10, 3: 1 }[tier(x)] || 0), 0)  // platina > safira > rubi > ouro > prata > bronze
+    const won = d => tpts[d.id]?.p || 0  // valor dos troféus (trophyvalue.js)
     const key = {
       alterado: d => -(d.updated || 0), criado: d => -(d.created || d.updated || 0), nome: null,
       cores: d => { const c = colorsOf(d, data); return c.length * 100 + (c.length ? W.indexOf(c[0]) * 10 + W.indexOf(c[c.length - 1]) : 0) },
@@ -274,7 +283,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
     }[sort]
     const byName = (a, b) => a.name.localeCompare(b.name, LOCALE, { sensitivity: 'base' })
     return [...mine].sort((a, b) => (key ? key(a) - key(b) : 0) || byName(a, b))
-  }, [mine, sort, rt, tro, data])
+  }, [mine, sort, rt, tpts, data])
   const byFmt = {}
   for (const d of sorted) (byFmt[d.format] ||= []).push(d)
   // deck pedido de fora (pódio): mostra todos os formatos, abre o grupo dele, desliza até ao cartão e acende-o
@@ -357,7 +366,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
             <button className="fmt-head" onClick={() => setClosed(c => { const n = { ...c }; if (n[f]) delete n[f]; else n[f] = 1; return n })} aria-expanded={!closed[f]}>
               <i className="chev">▾</i><b>{fname(f)}</b><span className="muted">{ds.length} {ds.length === 1 ? 'deck' : 'decks'}</span><span className="fmt-line" />
             </button>
-            {view === 'grelha' ? <div className="dgrid">{ds.map(d => <DeckBox key={d.id} d={d} data={data} openDeck={openDeck} goTab={goTab} duplicate={duplicate} setCover={setCover} setImg={setImg} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} tro={tro[d.id]} onCom={toggleCom} selected={sel.includes(d.id)} onSelect={toggleSel} onFav={toggleFav} onDelete={remove} />)}</div> : <ul className="lib-list">{ds.map(d => (
+            {view === 'grelha' ? <div className="dgrid">{ds.map(d => <DeckBox key={d.id} d={d} data={data} openDeck={openDeck} goTab={goTab} duplicate={duplicate} setCover={setCover} setImg={setImg} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} tro={tro[d.id]} tp={tpts[d.id]} onCom={toggleCom} selected={sel.includes(d.id)} onSelect={toggleSel} onFav={toggleFav} onDelete={remove} />)}</div> : <ul className="lib-list">{ds.map(d => (
               <li key={d.id}>
                 <button className="link plain" onClick={() => openDeck(d.id).then(() => goTab('deck'))}><b>{d.name}</b></button>
                 <span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span>

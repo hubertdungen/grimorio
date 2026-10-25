@@ -425,3 +425,10 @@ console.log('selfcheck universo ok')
   assert.ok(needsMark(6, 20) && needsMark(9, 20) && needsMark(6, 8) && !needsMark(16, 20) && !needsMark(10, 20) && !needsMark(8, 20) && !needsMark(11, 20))
   assert.ok(needsMark(66, 100) && needsMark(68, 100) && needsMark(86, 100) && !needsMark(88, 100) && needsMark(61, 100) && !needsMark(1, 100) && !needsMark(50, 100))
   console.log('selfcheck traço do 6 e do 9 ok') }
+{ const { trophyValue, playersW, lengthW } = await import('./src/trophyvalue.js')
+  assert.equal(trophyValue({ tier: 1, kind: 'elim', n: 8 }), 100)                       // ouro numa eliminação de 8: o padrão
+  assert.ok(playersW(16) > 1 && playersW(4) < 1 && playersW(100) === 1.6)                 // mais decks, mais pontos (com teto)
+  assert.ok(lengthW('rei', 4, 3) < 1 && lengthW('rei', 4, 24) === 1.5 && lengthW('elim', 8, 7) === 1)
+  assert.equal(trophyValue({ tier: 1, kind: 'elim', n: 8, casual: true }), 50)            // azul vale metade
+  assert.ok(trophyValue({ tier: 'plat', kind: 'gauntlet', n: 8 }) > trophyValue({ tier: 1, kind: 'grupos', n: 16 }))
+  console.log('selfcheck valor dos troféus ok') }
