@@ -1705,3 +1705,4 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .wstars .ws-row { position: relative; display: inline-block; } .wstars .ws-bg { color: #ffffff26; } .wstars .ws-fg { position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; color: #fff; text-shadow: 0 0 6px #ffffff88; }
 .wstars b { font-size: 11px; color: #e8e8f0; }
 .fg-card .wstars { padding: 0 9px; }
+.fg-note { display: flex; align-items: center; gap: 6px; margin: 2px 0 6px; color: var(--muted); } .fg-note .cup { width: 18px; height: 18px; flex: none; }

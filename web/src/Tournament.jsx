@@ -898,6 +898,7 @@ function Fame({ data, list }) {
             <span>{Object.entries(KIND_W).sort((a, b) => b[1] - a[1]).map(([k, w]) => <i key={k}><Cup place={1} kind={k} /> {KIND[k]} <b>×{w}</b></i>)}</span>
             <span>{tx('Estrelas brancas (dos pontos de cada deck):')} {[1, 2, 3, 4, 5, 6].map(k => <i key={k}>{k}★ <b>{starPoints(k)}</b></i>)}</span></div>
         </div>}
+        <p className="fg-note small"><Cup place={1} casual /> {tx('Os troféus azuis vêm de torneios casuais ou não ranked (menos de 20% de decks do meta) e valem metade dos pontos. Os pontos de cada deck somam todos os troféus que contam, e as estrelas brancas vêm desse total.')}</p>
         <div className="row-btns fg-filt">
           <select value={gTier} onChange={e => setGTier(e.target.value)} aria-label={tx('Troféus')}>
             <option value="">{tx('Todos os troféus')}</option>

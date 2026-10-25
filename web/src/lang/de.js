@@ -2235,4 +2235,5 @@ export default {
   "n.º {r} de {o} entre os teus decks": "Nr. {r} von {o} unter deinen Decks",
   "{p} pontos de troféus · {n} troféu|{p} pontos de troféus · {n} troféus": "{p} Trophäenpunkte · {n} Trophäe|{p} Trophäenpunkte · {n} Trophäen",
   "{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)": "{a} normale (gewertet) + {b} aus blauen Trophäen (casual oder ungewertet, zählen halb)",
+  "Os troféus azuis vêm de torneios casuais ou não ranked (menos de 20% de decks do meta) e valem metade dos pontos. Os pontos de cada deck somam todos os troféus que contam, e as estrelas brancas vêm desse total.": "Blaue Trophäen stammen aus Casual- oder ungewerteten Turnieren (weniger als 20% Meta-Decks) und zählen die Hälfte der Punkte. Die Punkte jedes Decks summieren alle zählenden Trophäen, und die weißen Sterne kommen aus dieser Summe.",
 }
