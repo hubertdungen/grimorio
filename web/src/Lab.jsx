@@ -1,7 +1,8 @@
 // Laboratório: o teu deck joga contra adversários (Forge no servidor), com sideboard entre jogos,
 // aprendizagem pelo histórico, repetição animada e relatório.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { img, recommend, sideSuggest, SIDE_CATS } from './data.js'
+import { img, pidOf, recommend, sideSuggest, SIDE_CATS } from './data.js'
+import { showCardPeek, hideCardPeek } from './Views.jsx'
 import { parseList, stats } from './deck.js'
 import { landAdvice, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
 import { Empty, Stars } from './ui.jsx'
@@ -13,15 +14,19 @@ import { aiCaveats } from './tests.js'
 import { ask } from './confirm.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 
-// Até onde confiar nos testes: o que a IA do Forge joga mal neste deck
-function Caveats({ c }) {
+// Até onde confiar nos testes: o que a IA do Forge joga mal neste deck (cada carta mostra-se ao passar e abre ao clicar)
+function Caveats({ c, data, deck, act }) {
   if (!c.flagged.length && !c.style.length && !c.unused.length) return null
+  const names = l => l.map((t, k) => {  // «Nome (2 de 3)»: o nome é o que está antes dos parênteses
+    const n = data.byName.has(t) ? t : t.replace(/ \([^()]*\)$/, ''), card = data.byName.get(n)
+    return <span key={t}>{k ? ', ' : ''}{card ? <button className="link plain cav-card" onMouseEnter={e => showCardPeek(e, card, pidOf(deck, n))} onMouseLeave={hideCardPeek} onClick={() => { hideCardPeek(); act.open(card) }}>{t}</button> : t}</span>
+  })
   return (
     <div className="caveats small">
       <b>{tx('⚠ Até onde confiar nos testes')}</b>
-      {c.flagged.length > 0 && <p>{tx('O próprio Forge avisa que a IA joga mal:')} <i>{c.flagged.join(', ')}</i>.</p>}
+      {c.flagged.length > 0 && <p>{tx('O próprio Forge avisa que a IA joga mal:')} <i>{names(c.flagged)}</i>.</p>}
       {c.style.length > 0 && <p>{tx('Deck de {s}: a IA do Forge não planeia vários turnos à frente, por isso os resultados tendem a sair abaixo do que o deck vale nas mãos de uma pessoa.', { s: c.style.join(tx(' e ')) })}</p>}
-      {c.unused.length > 0 && <p>{tx('Ficaram na mão sem a IA as usar (jogos em que estiveram na mão):')} <i>{c.unused.join(', ')}</i>.</p>}
+      {c.unused.length > 0 && <p>{tx('Ficaram na mão sem a IA as usar (jogos em que estiveram na mão):')} <i>{names(c.unused)}</i>.</p>}
     </div>
   )
 }
@@ -312,7 +317,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
             <label className="fmt"><span>{tx('Cartas na mão')}</span>
               <select value={pause.hands || 'ambas'} onChange={e => setPausePref({ ...pause, hands: e.target.value })}>{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
             </label>
-            <Caveats c={aiCaveats(data, deck, aiFlags)} />
+            <Caveats c={aiCaveats(data, deck, aiFlags)} {...{ data, deck, act }} />
             <div className="row-btns lab-go">
               <button className="primary" onClick={run} disabled={!canRun || !!busy}>{busy ? tx('A jogar…') : tx('▶ Correr testes')}</button>
               {busy && <button onClick={() => { stop.current = true }}>{tx('Parar')}</button>}
@@ -378,7 +383,7 @@ function Report({ data, runs, games, deck, fmt, ctx, onWatch, act, aiFlags }) {
     <section className="card lab-report">
       <h3>{tx('Relatório')}</h3>
       <ul className="tips">{notes.map((x, k) => <li key={k}>{x}</li>)}</ul>
-      <Caveats c={aiCaveats(data, deck, aiFlags, games)} />
+      <Caveats c={aiCaveats(data, deck, aiFlags, games)} {...{ data, deck, act }} />
       <h4>{tx('Séries')}</h4>
       <table className="lab-table"><tbody>{runs.map(r => (
         <tr key={r.matchId}><td><b>{r.opp}</b></td><td className={r.wa > r.wb ? 'ok-t' : 'bad-t'} title={r.mode ? tx('vitórias – derrotas') : undefined}>{r.wa}-{r.wb}</td>

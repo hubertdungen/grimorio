@@ -2079,3 +2079,5 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .modal.proxies, .px-opt, .px-print .pgrid > * { min-width: 0; }
 .pset select, .pset input:not([type="checkbox"]):not([type="color"]) { min-width: 0; width: 100%; max-width: 100%; }
 .pset .chk { overflow-wrap: anywhere; }
+.caveats .cav-card { font: inherit; font-style: italic; color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; padding: 0; }
+.caveats .cav-card:hover { color: var(--gold2); }
