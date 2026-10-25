@@ -86,7 +86,7 @@ export default function TournamentView({ data, fmt, deckId }) {
   useEffect(() => {  // ao entrar: volta ao torneio que estava aberto, ou ao que está a decorrer
     loadList().then(l => {
       const last = ls('grimorio.torneio'), on = l.find(x => x.id === last) || l.find(x => x.status === 'running')
-      if (on) { setTid(on.id); if (ls('grimorio.torneio.vista') !== 'criar' && ls('grimorio.torneio.vista') !== 'registo') setView('ver') }
+      if (on) { setTid(on.id); if (!['criar', 'registo', 'gerar'].includes(ls('grimorio.torneio.vista'))) setView('ver') }
       else if (view === 'ver') setView('criar')
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -95,10 +95,12 @@ export default function TournamentView({ data, fmt, deckId }) {
     <div className="view tour">
       <div className="tour-top"><div className="seg tour-nav">
         <button className={view === 'criar' ? 'on' : ''} onClick={() => setView('criar')}>{tx('✦ Criar')}</button>
+        <button className={view === 'gerar' ? 'on' : ''} onClick={() => setView('gerar')}>{tx('🎲 Gerador')}</button>
         <button className={view === 'ver' ? 'on' : ''} onClick={() => setView('ver')} disabled={!tid}>{tx('🏆 Ao vivo')}</button>
         <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}>{tx('📜 Registo')} <b>{list.length}</b></button>
       </div><span className="tour-slot" ref={setSlot} /></div>
       {view === 'criar' && <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} />}
+      {view === 'gerar' && <Generator data={data} onCreated={() => { loadList(); setView('registo') }} />}
       {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} onGone={() => { loadList(); setView('registo') }} />}
       {view === 'registo' && <Registry data={data} list={list} open={open} reload={loadList} />}
     </div>
@@ -350,6 +352,134 @@ function Create({ data, fmt0, onCreated, deckId }) {
         <span className="small muted">{n < lo ? tx('Faltam {k} decks (mínimo {m}).', { k: lo - n, m: lo }) : teamBad ? tx('Com equipas de {s} o número de decks tem de ser múltiplo de {s}.', { s: team }) : tx('{p} partidas · ≈ {g} jogos · ≈ {t} min (um jogo de cada vez no Forge)', { p: matches, g: games, t: Math.max(1, Math.round((games * MIN_PER_GAME * (type === 'mesas' ? 2 : 1)) / 5) * 5) })}</span>
         {err && <span className="small bad-t">{err}</span>}
       </div>
+    </section>
+  )
+}
+
+// ---------- gerador: vários torneios de uma vez, cada característica fixa ou 🎲 ----------
+
+const RND = '🎲'  // valor «ao acaso» nos seletores
+const pick = a => a[Math.floor(Math.random() * a.length)]
+const rint = (a, b) => a + Math.floor(Math.random() * (b - a + 1))
+const STAR_SETS = { todas: [0, 6, tx('todas')], fracos: [0, 2.5, tx('fracos (0–2,5★)')], medios: [2, 4, tx('médios (2–4★)')], fortes: [3.5, 6, tx('fortes (3,5–6★)')] }
+const GEN_FMTS = FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited')
+const multi = f => FORMAT[f]?.cmd === 'commander' && f !== 'duel'  // Commander a 4: mesas
+const savedMix = () => { try { return { meu: 50, com: 20, meta: 30, ...JSON.parse(ls('grimorio.torneio.mistura') || '{}') } } catch { return { meu: 50, com: 20, meta: 30 } } }
+const GEN0 = { count: 3, casual: 'nao', format: RND, type: RND, n: RND, bo: RND, mix: RND, stars: 'todas', diff: 'default', fav: false }
+
+function Generator({ data, onCreated }) {
+  const [g, setG] = useState(() => { try { return { ...GEN0, ...JSON.parse(ls('grimorio.torneio.gerador') || '{}') } } catch { return GEN0 } })
+  const set = (k, v) => setG(o => { const n = { ...o, [k]: v }; ls('grimorio.torneio.gerador', JSON.stringify(n)); return n })
+  const [diffs, setDiffs] = useState([])
+  const [allMine, setAllMine] = useState(null)
+  const [list, setList] = useState([])  // os torneios gerados (pré-visualização)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const cache = useRef({})  // por formato: meta e estrelas; por deck do meta: o deck (para a capa e as cores)
+  useEffect(() => { j('/api/sim/difficulties').then(setDiffs).catch(() => {}); j('/api/decks').then(setAllMine).catch(() => setAllMine([])) }, [])
+  const once = (k, f) => (cache.current[k] ??= f().catch(e => { delete cache.current[k]; throw e }))
+  const metaOf = f => once(`m:${f}`, () => j(`/api/sim/opponents?format=${f}`))
+  const starsOf = f => once(`s:${f}`, () => j(`/api/ratings?format=${f}`).then(r => Object.fromEntries((Array.isArray(r) ? r : r.rows || []).filter(x => x?.key).map(x => [x.key, x.stars]))).catch(() => ({})))
+  const deckOf = (src, o) => (src === 'meus' ? Promise.resolve(o) : once(`d:${o.id}`, () => j(`/api/sim/opponents/${encodeURIComponent(o.id)}`)))
+  const ids = diffs.map(d => d.id).filter(x => x !== 'random')
+
+  // um torneio: sorteia o que está em 🎲 e escolhe os decks pelas regras do «Preencher» (fora do casual, ≥ 20% do meta)
+  const make = async () => {
+    const casual = g.casual === RND ? Math.random() < 0.25 : g.casual === 'sim'
+    const format = g.format !== RND ? g.format : pick(CASUAL_META)
+    const mf = casual ? pick(CASUAL_META) : format
+    const mine = (allMine || []).filter(d => casual || (d.format === format && !d.casual)).filter(d => !g.fav || d.fav)
+    const own = mine.filter(o => !o.community)
+    // gauntlet ao acaso só com um deck meu para desafiante
+    const type = g.type !== RND ? g.type : multi(format) ? 'mesas' : pick(Object.keys(TYPES).filter(k => k !== 'mesas' && (k !== 'gauntlet' || own.length)))
+    const team = type === 'equipas' ? pick([2, 3]) : 2
+    const meta = await metaOf(mf).catch(() => []), stars = casual ? {} : await starsOf(format)
+    const avail = { meu: mine.some(o => !o.community), com: mine.some(o => o.community), meta: meta.length > 0 }
+    const srcs = Object.keys(avail).filter(k => avail[k])
+    const w = Object.fromEntries(srcs.map(k => [k, g.mix === RND ? rint(0, 10) * 10 : savedMix()[k]]))
+    if (!casual && 'meta' in w) w.meta = Math.max(20, w.meta)
+    const [smin, smax] = STAR_SETS[g.stars === RND ? pick(Object.keys(STAR_SETS)) : g.stars]
+    const inStars = (s, id) => { const x = stars[rkey(s, id)]; return casual || x == null || (x >= smin && x <= smax) }
+    const pool = [...mine.map(o => ['meus', o]), ...meta.map(o => ['meta', o])].filter(([s, o]) => inStars(s, o.id)).sort(() => Math.random() - 0.5)
+    let [, lo, hi] = TYPES[type]
+    if (type === 'equipas') { lo = 3 * team; hi = 8 * team }
+    const top = Math.min(hi, pool.length, 16)
+    let n = g.n === RND ? rint(lo, Math.max(lo, top)) : Math.min(hi, Math.max(lo, +g.n))
+    if (type === 'equipas') n -= n % team
+    const bo = type === 'mesas' ? 1 : g.bo !== RND ? (+g.bo === 2 && !BO2.includes(type) ? 3 : +g.bo) : pick([1, 1, 3, 3, ...(BO2.includes(type) ? [2] : []), 5])
+    const diff = g.diff === RND ? pick(ids) : g.diff
+    const base = { key: Math.random(), casual, format, type, team, bo, smin, smax, n, w, mf }
+    if (pool.length < lo || n < lo) return { ...base, players: [], bad: tx('Só há {k} decks para {t} em {f} (mínimo {m}).', { k: pool.length, t: TYPES[type][0], f: casual ? tx('casual') : FORMAT[format]?.name, m: lo }) }
+    let chosen = mixTake(pool, n, w, casual ? 0 : 0.2)
+    if (type === 'gauntlet') {  // o desafiante (1.º, ☆ eu) é um deck meu
+      const ch = chosen.find(([s, o]) => s === 'meus' && !o.community) || (own.length && ['meus', pick(own)])
+      if (ch) chosen = [ch, ...chosen.filter(x => x !== ch && !(x[0] === 'meus' && x[1].id === ch[1].id))].slice(0, n)
+    }
+    const players = (await Promise.all(chosen.map(async ([src, o]) => {
+      const d = await deckOf(src, o).catch(() => null), c = d && coverOf(d, data)
+      return d && { src, ref: o.id, name: o.name, com: !!o.community, difficulty: g.diff === 'cada' ? pick(ids) : diff, cover: c?.n || '', colors: colorsOf(d, data).join('') }
+    }))).filter(Boolean)
+    const nMeta = players.filter(p => p.src === 'meta').length
+    const name = `${RND} ${TYPES[type][0]} · ${casual ? tx('casual') : FORMAT[format]?.name} · ${new Date().toLocaleDateString(LOCALE, { day: '2-digit', month: 'short' })}`
+    return { ...base, players, name, ranked: !casual && nMeta >= Math.max(1, Math.ceil(0.2 * players.length - 1e-9)), bad: players.length < lo ? tx('Faltaram decks.') : '' }
+  }
+  const generate = async () => {
+    setBusy(true); setErr('')
+    try { setList(await Promise.all(Array.from({ length: Math.max(1, Math.min(10, +g.count || 1)) }, make))) } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  const redo = async k => { const t = await make().catch(() => null); if (t) setList(l => l.map((x, i) => (i === k ? t : x))) }
+  const good = list.filter(t => !t.bad)
+  const createAll = async () => {
+    setBusy(true); setErr('')
+    let ok = 0
+    for (const t of good) {
+      try {
+        await post('/api/tournaments', { name: t.name, type: t.type, format: t.format, casual: t.casual, hold: ls('grimorio.torneio.hold') === '1', bo: t.bo, third: true, seeding: 'aleatorio', team: t.team,
+          players: t.players.map(({ src, ref, difficulty, cover, colors }, i) => ({ src, ref, difficulty, cover, colors, me: t.type === 'gauntlet' && !i && src === 'meus' })) })
+        ok++
+      } catch (e) { setErr(`${t.name}: ${e.message}`) }
+    }
+    setBusy(false)
+    if (ok) { setList([]); onCreated() }
+  }
+  const sel = (k, label, opts, rnd = true) => (
+    <label className="fmt"><span>{label}</span><select value={g[k]} onChange={e => set(k, e.target.value)}>
+      {rnd && <option value={RND}>{tx('🎲 ao acaso')}</option>}{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>)
+  return (
+    <section className="card tour-gen">
+      <h3>{tx('Gerador de torneios')} <span className="muted small">{tx('cria vários torneios de uma vez; o que estiver em 🎲 sai diferente em cada um')}</span></h3>
+      <div className="gen-grid">
+        <label className="fmt"><span>{tx('Quantos')}</span><input type="number" min="1" max="10" value={g.count} onChange={e => set('count', e.target.value)} /></label>
+        {sel('casual', tx('Modo'), [['nao', tx('Normal (ranked)')], ['sim', tx('Casual (formatos misturados)')]])}
+        {sel('format', tx('Formato'), GEN_FMTS.map(f => [f.key, f.name]))}
+        {sel('type', tx('Tipo'), Object.entries(TYPES).map(([k, [l]]) => [k, l]))}
+        {sel('n', tx('Decks'), [4, 6, 8, 12, 16, 24, 32].map(x => [x, String(x)]))}
+        {sel('bo', tx('Partidas'), [[1, 'Bo1'], [2, tx('Bo2 (onde pode empatar)')], [3, 'Bo3'], [5, 'Bo5']])}
+        {sel('mix', tx('Mistura de fontes'), [['preencher', tx('a do «Preencher»')]])}
+        {sel('stars', tx('Estrelas'), Object.entries(STAR_SETS).map(([k, [, , l]]) => [k, l]))}
+        {sel('diff', tx('Dificuldade'), [['cada', tx('🎲 uma a cada deck')], ...diffs.filter(d => d.id !== 'random').map(d => [d.id, dLabel(d)])])}
+        <label className="chk small"><input type="checkbox" checked={g.fav} onChange={e => set('fav', e.target.checked)} /> ★ {tx('dos meus, só favoritos')}</label>
+      </div>
+      <p className="small muted tc-info">{tx('O formato ao acaso escolhe entre os que têm decks do meta. Commander a 4 joga em mesas. Fora do casual entra sempre pelo menos 20% do meta, para os torneios serem ranked. A seguir é só vê-los no Registo e no Ao vivo: o simulador reparte os jogos como está nas Definições.')}</p>
+      <div className="row-btns">
+        <button onClick={generate} disabled={busy || allMine == null}>{tx('🎲 Gerar')}</button>
+        {good.length > 0 && <button className="primary" onClick={createAll} disabled={busy}>{tx('🏆 Criar os {k} torneios', { k: good.length })}</button>}
+        {busy && <span className="small muted">{tx('a escolher os decks…')}</span>}
+        {err && <span className="small bad-t">{err}</span>}
+      </div>
+      {list.length > 0 && <div className="gen-list">{list.map((t, k) => (
+        <div key={t.key} className={`gen-row ${t.bad ? 'bad' : ''}`}>
+          <TypeIco k={t.type} />
+          <div className="gen-info">
+            <b>{TYPES[t.type][0]}</b>
+            <span className="small">{t.casual ? `${tx('casual')} · ${tx('meta de {f}', { f: FORMAT[t.mf]?.name || t.mf })}` : FORMAT[t.format]?.name} · {tx('{n} decks', { n: t.players.length || t.n })} · Bo{t.bo}{t.type === 'equipas' ? ` · ${tx('equipas de {s}', { s: t.team })}` : ''}</span>
+            <span className="small muted">{[['meu', tx('🧙 meus')], ['com', tx('🌐 comunidade')], ['meta', tx('📊 meta')]].map(([s, l]) => [l, t.players.filter(p => (p.src === 'meta' ? 'meta' : p.com ? 'com' : 'meu') === s).length]).filter(([, c]) => c).map(([l, c]) => `${c} ${l}`).join(' · ')}{!t.casual && ` · ${t.smin.toLocaleString(LOCALE)}–${t.smax.toLocaleString(LOCALE)}★`}</span>
+            {t.bad ? <span className="small bad-t">{t.bad}</span> : t.casual ? <span className="rk rk-cas">{tx('Casual')}</span> : t.ranked ? <span className="rk rk-ok">🏅 {tx('Ranked')}</span> : <span className="rk rk-warn">⚠ {tx('Não ranked')}</span>}
+          </div>
+          <div className="gen-decks">{t.players.map((p, i) => (
+            <span key={i} className="gen-deck" style={{ '--edge': edge(p.colors) }} title={`${p.name} · ${p.src === 'meus' ? tx('meu') : 'meta'}`}>{data.byName.get(p.cover) ? <img src={img(data.byName.get(p.cover), 'art_crop')} alt="" loading="lazy" /> : <i>✦</i>}</span>))}</div>
+          <span className="row-btns gen-btns"><button onClick={() => redo(k)} disabled={busy} title={tx('Sortear este outra vez')}>🎲</button><button className="link small" onClick={() => setList(l => l.filter((_, i) => i !== k))}>{tx('tirar')}</button></span>
+        </div>))}</div>}
     </section>
   )
 }

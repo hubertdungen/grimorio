@@ -1721,3 +1721,18 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .ht-d i { font-style: normal; font-size: 12px; } .ht-vs { color: var(--muted); font-size: 11px; }
 .ht-s { color: var(--gold2); font-size: 11px; font-weight: 700; } .ht-g { display: flex; gap: 2px; }  /* o jogo (ou os jogos, em Bo3) na mesma linha */
 .ht-g .gchip { padding: 0 5px; font-size: 10.5px; line-height: 18px; }
+
+/* gerador de torneios */
+.gen-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px 14px; align-items: end; margin: 10px 0; }
+.gen-grid .fmt { margin: 0; }
+.gen-list { display: grid; gap: 8px; margin-top: 12px; }
+.gen-row { display: grid; grid-template-columns: 28px minmax(180px, 260px) minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2, #0002); }
+.gen-row.bad { opacity: .7; }
+.gen-row .tc-ico { width: 24px; height: 24px; }
+.gen-info { display: grid; gap: 2px; min-width: 0; }
+.gen-info .rk { justify-self: start; }
+.gen-decks { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.gen-deck { width: 44px; height: 32px; border-radius: 6px; padding: 2px; background: var(--edge); display: inline-flex; }
+.gen-deck img, .gen-deck i { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; display: grid; place-items: center; font-style: normal; background: #0006; }
+.gen-btns { flex-wrap: nowrap; }
+@media (max-width: 700px) { .gen-row { grid-template-columns: 28px minmax(0, 1fr) auto; } .gen-decks { grid-column: 1 / -1; } .gen-btns { grid-row: 1; grid-column: 3; align-self: start; } }
