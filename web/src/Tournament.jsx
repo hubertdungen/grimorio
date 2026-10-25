@@ -507,7 +507,7 @@ function Live({ data, tid, onGone, slot }) {
       {t.podium?.length > 0 && <Podium data={data} t={t} />}
       {bracket ? <Bracket t={t} k={k} {...tools} />
         : t.type === 'gauntlet' ? <Gauntlet t={t} {...tools} />
-          : t.type === 'rei' ? <div className="tl-grid"><div style={{ display: 'grid', gap: 12 }}><Hill t={t} {...tools} /><Standings t={t} {...tools} /></div><Rounds t={t} {...tools} /></div>
+          : t.type === 'rei' ? <><div className="tl-grid"><Hill t={t} {...tools} /><Standings t={t} {...tools} /></div><HillThread t={t} {...tools} /></>
             : t.type === 'grupos' ? <>{t.final && <Bracket t={t} k={k} {...tools} />}<div className="tl-grid"><div style={{ display: 'grid', gap: 12 }}>{t.group_tabs.map((g, i) => <Standings key={i} t={t} rows={g} title={tx('Grupo {g}', { g: 'ABCD'[i] })} cut={2} {...tools} />)}</div><Rounds t={t} {...tools} ms={t.matches.filter(m => m.b === 'R')} /></div></>
               : t.type === 'equipas' ? <Teams t={t} {...tools} />
                 : <div className="tl-grid"><Standings t={t} {...tools} /><Rounds t={t} {...tools} /></div>}
@@ -745,7 +745,40 @@ function Hill({ t, data, P }) {
       <h4>👑 {tx('Rei da colina')}</h4>
       <p><span className="ts-name"><Thumb data={data} p={P[h.king]} /> <b>{P[h.king]?.name}</b></span> <span className="muted small">{tx('série de {s}', { s: h.streak })}</span></p>
       {cur && <p className="small">{tx('A desafiar: {d}', { d: P[cur.p[1]]?.name })}</p>}
-      <p className="small muted">{tx('Fila:')} {h.queue.map(i => P[i]?.name).join(' → ') || '—'}</p>
+      <div className="hill-q"><span className="muted small">{tx('Fila:')}</span>{h.queue.length ? h.queue.map((i, k) => <span key={i} className={`hq ${k === 0 ? 'next' : ''}`} title={`${k + 1}.º · ${P[i]?.name}`}><Thumb data={data} p={P[i]} /><small>{k + 1}</small></span>) : <span className="muted">—</span>}</div>
+    </section>
+  )
+}
+
+// o fio das partidas do rei da colina: mosaico compacto (a mais recente primeiro), com quem ganhou e a série do rei
+// depois de cada uma; a partida em curso fica com o cartão completo (apostas, «a jogar»)
+function HillThread({ t, data, P, live, num, onGame, me, casual, odds, bet }) {
+  const ms = [...t.matches].sort((a, b) => a.r - b.r), streak = {}
+  let s = 0
+  for (const m of ms) {  // a série do rei depois de cada partida (empate: o rei fica e a série volta a 0)
+    if (m.st !== 'done') break
+    s = m.win === m.p[0] ? s + 1 : m.win === m.p[1] ? 1 : 0
+    streak[m.id] = s
+  }
+  const now = ms.filter(m => m.st !== 'done' && (live?.ids?.has(m.id) || m.st === 'ready')).slice(0, 1)
+  const done = ms.filter(m => m.st === 'done').reverse()
+  return (
+    <section className="card hill-thread">
+      <h4>{tx('Partidas')} <span className="muted small">{tx('{a} de {b}', { a: done.length, b: t.rounds || t.matches.length })}</span></h4>
+      {now.map(m => <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} odds={odds} bet={bet} label={tx('Partida {r}', { r: m.r })} />)}
+      <div className="ht-grid">{done.map(m => {
+        const [k, c] = m.p, w = m.win
+        const side = i => <span className={`ht-d ${w === i ? 'win' : ''} ${i === me ? 'me' : ''}`} title={P[i]?.name}><Thumb data={data} p={P[i]} /><span>{P[i]?.name}</span>{w === i && <i>👑</i>}</span>
+        return (
+          <div key={m.id} className={`ht-m ${m.p.includes(me) ? 'mine' : ''}`}>
+            <span className="ht-n">#{m.r}</span>
+            {side(k)}<span className="ht-vs">⚔</span>{side(c)}
+            <span className="ht-s" title={tx('série do rei depois desta partida')}>{w == null ? tx('empate') : `×${streak[m.id]}`}</span>
+            {m.g.length > 0 && <span className="ht-g"><GameChips m={m} onGame={onGame} P={P} /></span>}
+          </div>
+        )
+      })}</div>
+      {!done.length && !now.length && <p className="muted small">{tx('Ainda sem partidas.')}</p>}
     </section>
   )
 }

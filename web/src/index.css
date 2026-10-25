@@ -1706,3 +1706,18 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .wstars b { font-size: 11px; color: #e8e8f0; }
 .fg-card .wstars { padding: 0 9px; }
 .fg-note { display: flex; align-items: center; gap: 6px; margin: 2px 0 6px; color: var(--muted); } .fg-note .cup { width: 18px; height: 18px; flex: none; }
+/* rei da colina: a fila como um fio de miniaturas e o mosaico compacto das partidas */
+.hill-q { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 4px 0 2px; scrollbar-width: thin; }
+.hill-q .hq { position: relative; flex: none; display: inline-flex; } .hill-q .hq .tp-thumb { width: 38px; height: 28px; }
+.hill-q .hq small { position: absolute; right: -2px; bottom: -4px; min-width: 15px; padding: 0 3px; border-radius: 99px; background: #000b; font-size: 10px; text-align: center; }
+.hill-q .hq.next .tp-thumb { box-shadow: 0 0 0 2px var(--gold); }
+.hill-thread { margin-top: 12px; }
+.ht-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 6px; margin-top: 8px; }
+.ht-m { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel2); font-size: 12.5px; }
+.ht-m.mine { box-shadow: inset 0 0 0 1px var(--me, var(--cyan)); }
+.ht-n { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ht-d { display: inline-flex; align-items: center; gap: 5px; min-width: 0; color: var(--muted); } .ht-d span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ht-d .tp-thumb { width: 26px; height: 19px; } .ht-d.win { color: var(--text); font-weight: 700; } .ht-d.me span { color: var(--me, var(--cyan)); }
+.ht-d i { font-style: normal; font-size: 12px; } .ht-vs { color: var(--muted); font-size: 11px; }
+.ht-s { color: var(--gold2); font-size: 11px; font-weight: 700; } .ht-g { display: flex; gap: 2px; }  /* o jogo (ou os jogos, em Bo3) na mesma linha */
+.ht-g .gchip { padding: 0 5px; font-size: 10.5px; line-height: 18px; }

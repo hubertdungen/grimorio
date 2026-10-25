@@ -2245,4 +2245,6 @@ export default {
   "{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)": "{a} normal (ranked) + {b} from blue trophies (casual or unranked, worth half)",
   "Os troféus azuis vêm de torneios casuais ou não ranked (menos de 20% de decks do meta) e valem metade dos pontos. Os pontos de cada deck somam todos os troféus que contam, e as estrelas brancas vêm desse total.": "Blue trophies come from casual or unranked tournaments (less than 20% meta decks) and are worth half the points. Each deck's points add up all trophies that count, and the white stars come from that total.",
   "Pelo menos {m} (para todos os decks jogarem) e até 200": "At least {m} (so every deck plays) and up to 200",
+  "Ainda sem partidas.": "No matches yet.",
+  "série do rei depois desta partida": "king's streak after this match",
 }

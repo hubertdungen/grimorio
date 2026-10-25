@@ -2237,4 +2237,6 @@ export default {
   "{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)": "{a} 分来自普通奖杯（排位）+ {b} 分来自蓝色奖杯（休闲或非排位，价值减半）",
   "Os troféus azuis vêm de torneios casuais ou não ranked (menos de 20% de decks do meta) e valem metade dos pontos. Os pontos de cada deck somam todos os troféus que contam, e as estrelas brancas vêm desse total.": "蓝色奖杯来自休闲或非排位锦标赛（环境套牌少于 20%），积分减半。每副套牌的积分是所有计入奖杯的总和，白星由该总分得出。",
   "Pelo menos {m} (para todos os decks jogarem) e até 200": "至少 {m} 局（让所有套牌都能上场），最多 200 局",
+  "Ainda sem partidas.": "还没有对局。",
+  "série do rei depois desta partida": "本局后国王的连胜",
 }
