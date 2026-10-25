@@ -121,6 +121,7 @@ export default function App() {
   // perfis (edições sem login) e Definições (#definicoes: o ⚙ do cabeçalho, a página inicial e o Laboratório abrem-nas)
   const [prof, setProf] = useState(null)
   const [who, setWho] = useState('')  // '' | 'switch' | 'new': «Quem vai jogar?» por cima da app
+  const guest = prof?.mode === 'guest'  // entrou por um convite (guests.py): só os decks dele, torneios e ratings
   useEffect(() => {
     fetch('/api/profiles').then(r => r.json()).then(setProf).catch(() => {})
     const lost = () => setProf(p => (p?.mode === 'profiles' ? { ...p, current: null } : p))  // um pedido respondeu 401 «profile»
@@ -317,7 +318,7 @@ export default function App() {
   }
 
   if (prof?.mode === 'profiles' && (!prof.current || who)) return <WhoPlays list={prof.list} startNew={who === 'new'} onClose={prof.current ? () => setWho('') : null} />
-  if (settings) return <Settings prof={prof} onClose={closeSettings} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />
+  if (settings && !guest) return <Settings prof={prof} onClose={closeSettings} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />
   if (err) return <div className="boot"><Logo size={64} /><p>{tx('Não consegui carregar os dados: {err}', { err })}</p><p className="muted">{tx('Os dados são gerados por')} <code>build/build.sh</code>.</p></div>
   if (!data) return <div className="boot"><Logo size={64} /><div className="spinner" /><p>{tx('A abrir o grimório…')} <span className="muted">{tx('(34 mil cartas, ~10 MB)')}</span></p></div>
 
@@ -342,12 +343,13 @@ export default function App() {
           <span className="save">{saveState}</span>
         </div>}
         <ProfileChip prof={prof} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />
-        <a className="gear" href="#definicoes" title={tx('Definições')} aria-label={tx('Definições')}>⚙</a>
+        {!guest && <a className="gear" href="#definicoes" title={tx('Definições')} aria-label={tx('Definições')}>⚙</a>}
         {section === 'construir' && <nav className="tabs">
           <button className={`tab-deck ${tab === 'deck' ? 'on' : ''}`} onClick={() => setTab('deck')}>{tx('Deck')} <b>{total}</b></button>
           {TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
         </nav>}
       </header>
+      {guest && <p className="guest-bar">🤝 {tx('Estás aqui como convidado ({n}): os teus decks ficam guardados neste Grimório e vês os torneios em que entras.', { n: prof.current?.name })} <button className="link small" onClick={() => fetch('/api/guest/leave', { method: 'POST' }).then(() => window.location.reload())}>{tx('sair do convite')}</button></p>}
 
       {section === 'biblioteca' && <div className="area"><Library data={data} openDeck={id => openDeck(id).then(() => goTab('deck'))} goTab={goTab} say={say} importLinks={importLinks} focus={libFocus} /></div>}
       {section === 'coliseu' && (
@@ -355,13 +357,13 @@ export default function App() {
           <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>
           <div className="col-bar">
             <b>⚔ {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
-            <span className="seg">{[['bots', `🤖 ${tx('Bots a testar')}`], ['jogar', `🎮 ${tx('Jogar contra o Forge')}`], ['torneio', `🏆 ${tx('Torneio')}`], ['ratings', `📊 ${tx('Ratings')}`]].map(([k, l]) => <button key={k} className={colMode === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
+            <span className="seg">{[['bots', `🤖 ${tx('Bots a testar')}`], ['jogar', `🎮 ${tx('Jogar contra o Forge')}`], ['torneio', `🏆 ${tx('Torneio')}`], ['ratings', `📊 ${tx('Ratings')}`]].filter(([k]) => !guest || k === 'torneio' || k === 'ratings').map(([k, l]) => <button key={k} className={colMode === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
             <button className="fs-btn" onClick={fullscreen} title={tx('Ecrã inteiro (sair: este botão ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
             <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>
-          <div hidden={colMode !== 'bots'}><LabView {...{ data, deck, fmt, act, ctx, playFrom }} /></div>
-          {colMode === 'jogar' && <div className="view"><PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} /></div>}
-          {colMode === 'torneio' && <TournamentView data={data} fmt={fmt} deckId={deck.id} />}
+          <div hidden={guest || colMode !== 'bots'}>{!guest && <LabView {...{ data, deck, fmt, act, ctx, playFrom }} />}</div>
+          {colMode === 'jogar' && !guest && <div className="view"><PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} /></div>}
+          {(colMode === 'torneio' || (guest && colMode !== 'ratings')) && <TournamentView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
           {colMode === 'ratings' && <RatingsView data={data} fmt={fmt} />}
         </div>
       )}

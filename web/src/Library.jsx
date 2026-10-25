@@ -159,7 +159,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
       <div className="dbox-top">
       <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
         {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
-        <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}{d.community && <span title={tx('Deck da comunidade (de outra pessoa)')}> · <Ico n="globe" /> {tx('Comunidade')}</span>}</span>
+        <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}{d.friend && <span className="dbox-fr" title={tx('Deck de um amigo convidado')}> · 🤝 {d.friendName}</span>}{d.community && <span title={tx('Deck da comunidade (de outra pessoa)')}> · <Ico n="globe" /> {tx('Comunidade')}</span>}</span>
       </button>{tro?.length > 0 && <span className="dbox-tro"><Trophies list={tro} />{tp && <b className="tro-pts" title={`${tx('{p} pontos de troféus · n.º {r} de {n} no ranking dos teus decks', { p: tp.p, r: tp.rank, n: tp.of })}${tp.blue ? `\n${tx('{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)', { a: tp.p - tp.blue, b: tp.blue })}` : ''}`}>{tp.rank === 1 ? '👑 ' : `#${tp.rank} · `}{tp.p}</b>}</span>}</div>
       <div className="dbox-body">
         <b title={d.name}>{d.name}</b>

@@ -1853,3 +1853,15 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .tc-fill .tc-champ-from { max-width: 100%; }
 .tc-fill .seg.tc-srcs { float: none; margin: 0; flex-wrap: wrap; }
 @media (max-width: 600px) { .tc-mix { width: 100%; } .tc-mix label { grid-template-columns: minmax(0, 7.5em) minmax(0, 1fr) 3em; } }
+/* amigos (Definições) */
+.friends { display: grid; gap: 10px; }
+.fr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.fr-list li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 6px; }
+.fr-list li.off { opacity: .6; }
+.fr-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; } .fr-h .row-btns { margin-left: auto; }
+.fr-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.fr-link code { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; font-size: 12px; padding: 3px 6px; border-radius: 6px; background: #0004; }
+.fr-qr { flex-basis: 100%; display: block; width: 180px; padding: 8px; border-radius: 10px; background: #fff; }
+.fr-qr svg { display: block; width: 100%; height: auto; }
+.guest-bar { margin: 0; padding: 6px 16px; background: #4ea8ff1c; border-bottom: 1px solid #4ea8ff55; color: #cfe6ff; font-size: 13px; }
+.dbox-fr { color: #9fd0ff; }

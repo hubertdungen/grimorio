@@ -89,9 +89,9 @@ export function HighlightMine() {
   return <label className="chk" title={tx('Os meus decks (não os da comunidade) ficam com contorno azul nas chaves, classificações, jogos e pódios.')}><input type="checkbox" checked={v} onChange={e => { setV(e.target.checked); ls(HL_K, e.target.checked ? '1' : '0') }} /> {tx('Destacar os meus decks em todos os torneios')}</label>
 }
 
-export default function TournamentView({ data, fmt, deckId }) {
+export default function TournamentView({ data, fmt, deckId, guest }) {
   // o separador fica guardado (F5 volta ao mesmo sítio)
-  const [view, setViewS] = useState(() => ls('grimorio.torneio.vista') || 'criar')
+  const [view, setViewS] = useState(() => { const v = ls('grimorio.torneio.vista') || 'criar'; return guest && (v === 'criar' || v === 'gerar') ? 'registo' : v })
   const setView = v => { setViewS(v); ls('grimorio.torneio.vista', v) }
   const [tid, setTid] = useState(null)
   const [slot, setSlot] = useState(null)  // ao lado das abas: o «← Voltar ao torneio» de um jogo aberto vai para aqui
@@ -108,14 +108,14 @@ export default function TournamentView({ data, fmt, deckId }) {
   return (
     <div className={`view tour ${hlOn() ? 'hl-mine' : ''}`}>
       <div className="tour-top"><div className="seg tour-nav">
-        <button className={view === 'criar' ? 'on' : ''} onClick={() => setView('criar')}>{tx('✦ Criar')}</button>
-        <button className={view === 'gerar' ? 'on' : ''} onClick={() => setView('gerar')}>{tx('🎲 Gerador')}</button>
+        {!guest && <button className={view === 'criar' ? 'on' : ''} onClick={() => setView('criar')}>{tx('✦ Criar')}</button>}
+        {!guest && <button className={view === 'gerar' ? 'on' : ''} onClick={() => setView('gerar')}>{tx('🎲 Gerador')}</button>}
         <button className={view === 'ver' ? 'on' : ''} onClick={() => setView('ver')} disabled={!tid}>{tx('🏆 Ao vivo')}</button>
         <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}>{tx('📜 Registo')} <b>{list.length}</b></button>
         <button className={view === 'apostas' ? 'on' : ''} onClick={() => setView('apostas')}>{tx('🪙 Apostas')}</button>
       </div><span className="tour-slot" ref={setSlot} /></div>
-      {view === 'criar' && <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} />}
-      {view === 'gerar' && <Generator data={data} onCreated={() => { loadList(); setView('registo') }} />}
+      {view === 'criar' && !guest && <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} />}
+      {view === 'gerar' && !guest && <Generator data={data} onCreated={() => { loadList(); setView('registo') }} />}
       {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} onGone={() => { loadList(); setView('registo') }} />}
       {view === 'apostas' && <BetsTab open={open} />}
       {view === 'registo' && <Registry data={data} list={list} open={open} reload={loadList} />}
