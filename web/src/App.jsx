@@ -2,6 +2,7 @@ import Home from './Home.jsx'
 import Mesa from './Mesa.jsx'
 import ProxyDialog from './Proxies.jsx'
 import CardScan from './CardScan.jsx'
+import Rules from './Rules.jsx'
 import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -26,7 +27,7 @@ import Settings from './Settings.jsx'
 import { WhoPlays, ProfileChip } from './Profiles.jsx'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
-const SECTIONS = [['construir', '✎', tx('Construir')], ['biblioteca', '▤', tx('Biblioteca')], ['coliseu', '⚔', tx('Coliseu')]]
+const SECTIONS = [['construir', '✎', tx('Construir')], ['biblioteca', '▤', tx('Biblioteca')], ['coliseu', '⚔', tx('Coliseu')], ['regras', '📖', tx('Regras')]]
 const ZONE_L = { main: tx('deck'), side: tx('sideboard'), maybe: tx('maybeboard') }
 // Desfazer: só o conteúdo do deck (nome, notas, formato, preferências e sementes ficam de fora)
 const CONTENT = ['main', 'side', 'maybe', 'commanders', 'signature', 'prints', 'cover', 'coverImg']
@@ -351,6 +352,7 @@ export default function App() {
       </header>
       {guest && <p className="guest-bar">🤝 {tx('Estás aqui como convidado ({n}): os teus decks ficam guardados neste Grimório e vês os torneios em que entras.', { n: prof.current?.name })} <button className="link small" onClick={() => fetch('/api/guest/leave', { method: 'POST' }).then(() => window.location.reload())}>{tx('sair do convite')}</button></p>}
 
+      {section === 'regras' && <div className="area"><Rules data={data} /></div>}
       {section === 'biblioteca' && <div className="area"><Library data={data} openDeck={id => openDeck(id).then(() => goTab('deck'))} goTab={goTab} say={say} importLinks={importLinks} focus={libFocus} /></div>}
       {section === 'coliseu' && (
         <div className="area coliseu" ref={coliseuRef}>

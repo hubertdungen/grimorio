@@ -1903,3 +1903,19 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .subs-ia { border-top: 1px dashed var(--line); padding-top: 6px; }
 .subs-ia .subs-list > li { display: block; }
 .fr-share { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; }
+/* 📖 regras */
+.rules-v { display: grid; gap: 14px; }
+.rules-bar { display: flex; gap: 8px; } .rules-bar input { flex: 1; min-width: 0; }
+.rules-card { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 16px; align-items: start; }
+.rules-card img { width: 100%; border-radius: 12px; }
+.rules-oracle { white-space: pre-line; line-height: 1.5; } .kw { font-weight: 700; text-decoration: underline dotted; }
+.rulings { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.rules-cards { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.rules-cc { display: grid; gap: 4px; width: 130px; padding: 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); font-size: 12px; text-align: left; }
+.rules-cc.on { border-color: var(--gold); } .rules-cc img { width: 100%; height: 80px; object-fit: cover; border-radius: 6px; }
+.rules-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.rules-list > li { padding-bottom: 10px; border-bottom: 1px solid #ffffff10; } .rules-list p { margin: 4px 0; }
+.rules-sub { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.rules-list code { color: var(--gold2); font-size: 12px; margin-right: 4px; }
+.rules-ai { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #4ea8ff12; border: 1px solid #4ea8ff44; }
+@media (max-width: 700px) { .rules-card { grid-template-columns: minmax(0, 1fr); } .rules-card img { max-width: 260px; } }

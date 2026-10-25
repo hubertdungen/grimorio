@@ -15,7 +15,7 @@ DECK = re.compile(r"^/api/decks/([a-z0-9-]{8,40})$")
 TOUR = re.compile(r"^/api/tournaments/([a-z0-9]{12})(/.*)?$")
 # GET que um convidado pode ler como está (dados públicos, sem nada do dono)
 PASS_GET = ("/data/", "/arts/", "/covers/", "/assets/", "/ocr/", "/api/health", "/api/import", "/api/search/decks",
-            "/api/sim/difficulties", "/api/sim/opponents", "/api/meta/", "/api/l17/", "/api/edhrec/", "/api/ratings")
+            "/api/sim/difficulties", "/api/sim/opponents", "/api/meta/", "/api/l17/", "/api/edhrec/", "/api/ratings", "/api/rules")
 
 
 def init(con):

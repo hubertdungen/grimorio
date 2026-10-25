@@ -66,6 +66,9 @@ MODES = {
     "sugerir": "Sugere melhorias: cartas para adicionar e trocas (todas as que o deck merecer, ordenadas por impacto), com prioridade ao que falta ao deck.",
     "reorganizar": "Reorganiza o deck: agrupa todas as cartas em secções por função (\"grupos\") e propõe cortes e trocas para o deck ficar mais coerente com o plano.",
     "livre": "Responde ao pedido do utilizador; usa adicionar/tirar/trocas só se fizer sentido.",
+    "regras": ("Responde à dúvida de regras do utilizador: explica de forma clara em pt-PT no \"resumo\" (pode ser longo, com "
+               "parágrafos), cita os números das Comprehensive Rules que se aplicam (ex.: 702.19b) e dá um exemplo concreto de jogo. "
+               "Usa as regras e as cartas que o Grimório te dá. Todas as listas vazias."),
     "carta": ("Analisa SÓ a carta indicada no pedido, dentro deste deck: diz no \"resumo\" se deve ficar e porquê; em \"trocas\" "
               "propõe 3 a 6 substitutas (\"sai\" = essa carta) que sirvam melhor ESTE deck (plano, curva, cores, formato), da melhor "
               "para a pior, cada uma com o porquê; em \"ajustes\" muda as cópias dela se fizer sentido. \"adicionar\", \"tirar\" e \"grupos\" vazios."),

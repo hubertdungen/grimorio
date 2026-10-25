@@ -9,6 +9,7 @@ const GO = [
   ['coliseu', 'torneio', '🏆', tx('Torneios'), tx('Eliminação, suíço, liga e mesas de Commander, com árvore ao vivo e pódio.')],
   ['coliseu', 'ratings', '📊', tx('Ratings'), tx('Estrelas de 0 a 6 por deck e a Arena automática a criar registos.')],
   ['coliseu', 'jogar', '🎮', tx('Jogar'), tx('Senta-te tu à mesa contra o Forge com o teu deck.')],
+  ['regras', null, '📖', tx('Regras'), tx('Dúvidas de regras e cartas em qualquer língua, com os rulings oficiais e a câmara.')],
 ]
 
 export default function Home({ deck, decks, onGo, onNew, onTool, onScan }) {

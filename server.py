@@ -16,6 +16,7 @@ import artfolder
 import guests
 import rooms
 import share
+import rules
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(HERE, "web", "dist")
@@ -240,6 +241,8 @@ class H(BaseHTTPRequestHandler):
         mm = META_PATH.match(p)
         if mm:  # meta de torneios (build/meta_mtgtop8.py)
             return self.file(os.path.join(ARGS.data_dir, "meta", f"{mm.group(1)}.json"), "no-cache")
+        if p == "/api/rules":  # biblioteca de regras (rules.py)
+            return self.json(*reversed(rules.route(self.path, ARGS.data_dir)))
         if p == "/api/ia/config":
             return self.json(ia.public_config(ARGS.data_dir))
         if p == "/api/ia/models":  # modelos mais recentes do fornecedor (pela chave guardada)
