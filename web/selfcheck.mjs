@@ -626,3 +626,10 @@ console.log('selfcheck universo ok')
   S = replayStates([...ev, { t: 2, k: 'turn', p: 'b' }], { byName: new Map(), byLower: new Map() })
   assert.equal(S[S.length - 1].stack.length, 0)
   console.log('selfcheck pilha sem cartas presas ok') }
+{ const { passes } = await import('./src/data.js')  // terrenos: a cor do filtro é a mana que dão
+  const L = (n, o, t = 'Land') => ({ n, o, t, mt: 'Land', co: '', ci: '', tg: [], lg: 1, un: 0 })
+  const ctx = { bit: 0, identity: null }, f = cs => ({ colors: cs, colorMode: 'incl' })
+  const fountain = L('Hallowed Fountain', '({T}: Add {W} or {U}.)', 'Land — Plains Island'), tower = L('Reliquary Tower', '{T}: Add {C}.')
+  assert.ok(passes(fountain, f(['U']), ctx) && !passes(fountain, f(['G']), ctx))
+  assert.ok(passes(fountain, { colors: ['W', 'U'], colorMode: 'exact' }, ctx) && passes(tower, { colorless: true }, ctx) && !passes(fountain, { colorless: true }, ctx))
+  console.log('selfcheck cor dos terrenos ok') }

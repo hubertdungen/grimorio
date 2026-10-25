@@ -382,18 +382,20 @@ export const fmtBit = (data, fmt) => (fmt?.lg ? data.meta.formats.indexOf(fmt.lg
 const subset = (a, b) => { for (const ch of a) if (!b.includes(ch)) return false; return true }
 
 // Filtros comuns à pesquisa e às sugestões.
+const landCols = c => (c._lp ??= (() => { const L = landInfo(c, true); return L.any || L.colors.has('*') ? 'WUBRG' : 'WUBRG'.split('').filter(k => L.colors.has(k)).join('') })())
 export function passes(c, f, ctx) {
   if (ctx.bit >= 0 && !(c.lg & (1 << ctx.bit))) return false
   if (ctx.bit < 0 && c.un && !ctx.allowUn) return false
   if (ctx.identity != null && !subset(c.ci, ctx.identity)) return false
   if (!f) return true
+  // num terreno, a «cor» é a mana que dá (Hallowed Fountain = WU, Command Tower/fetches de básicos = todas), não o custo
+  const cs = c.mt === 'Land' ? landCols(c) : c.co || ''
   if (f.colors?.length) {
-    const cs = c.co || ''
     if (f.colorMode === 'exact' && (cs.length !== f.colors.length || !subset(cs, f.colors.join('')))) return false
     if (f.colorMode === 'within' && !subset(cs, f.colors.join(''))) return false
     if ((f.colorMode || 'incl') === 'incl' && !f.colors.some(x => cs.includes(x))) return false
   }
-  if (f.colorless && (c.co || '').length) return false
+  if (f.colorless && cs.length) return false
   if (f.type && c.mt !== f.type && !c.t.includes(f.type)) return false
   if (f.sub && !c.t.toLowerCase().includes(f.sub.toLowerCase())) return false
   if (f.tag && !c.tg.includes(f.tag)) return false
