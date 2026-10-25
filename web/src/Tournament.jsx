@@ -38,6 +38,7 @@ const TYPE_ICO = {
 }
 const TypeIco = ({ k }) => <svg className="tc-ico" viewBox="0 0 24 24" aria-hidden="true">{TYPE_ICO[k]}</svg>
 const STATUS = { running: tx('a decorrer'), paused: tx('em pausa'), done: tx('terminado'), cancelled: tx('cancelado'), error: tx('parado (erro)') }
+const BO2 = ['suico', 'liga', 'grupos', 'rei', 'equipas', 'gauntlet']  // como tournament.BO2_OK
 const MIN_PER_GAME = 1  // medido: ~45 s por jogo de Pauper no Forge, com o arranque da JVM
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
 async function j(url, opts) {
@@ -188,7 +189,8 @@ function Create({ data, fmt0, onCreated, deckId }) {
     gauntlet: Math.max(n - 1, 0), rei: R, equipas: ((T * (T - 1)) / 2) * team,
     grupos: Array.from({ length: G }, (_, i) => { const s = Math.floor(n / G) + (i < n % G ? 1 : 0); return (s * (s - 1)) / 2 }).reduce((a, b) => a + b, 0) + 2 * G }[type]
   const chK = Math.max(0, players.findIndex(x => x.me))  // gauntlet: o desafiante
-  const games = Math.round(matches * (bo === 3 && type !== 'mesas' ? 2.5 : 1))
+  const boOf = type === 'mesas' ? 1 : bo === 2 && !BO2.includes(type) ? 3 : bo  // Bo2 só onde o empate faz parte do formato
+  const games = Math.round(matches * ({ 1: 1, 2: 2, 3: 2.5, 5: 4 }[boOf] || 1))
 
   const deckOf = async (src, o) => (src === 'meus' ? o : j(`/api/sim/opponents/${encodeURIComponent(o.id)}`))
   const entry = async (src, o, difficulty) => {
@@ -240,7 +242,7 @@ function Create({ data, fmt0, onCreated, deckId }) {
   const start = async () => {
     setBusy(true); setErr('')
     try {
-      const { id } = await post('/api/tournaments', { name: name.trim() || suggested, type, format, casual, hold, champions: champs, bo: type === 'mesas' ? 1 : bo, third, rounds: R, seeding, team,
+      const { id } = await post('/api/tournaments', { name: name.trim() || suggested, type, format, casual, hold, champions: champs, bo: boOf, third, rounds: R, seeding, team,
         players: players.map(({ src, ref, difficulty, cover, colors, me }) => ({ src, ref, difficulty, cover, colors, me })) })
       onCreated(id)
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
@@ -262,7 +264,7 @@ function Create({ data, fmt0, onCreated, deckId }) {
           ))}</div>
           <p className="small muted tc-info">{info}</p>
           <div className="tc-row">
-            <label className="fmt"><span>{tx('Partidas')}</span><select value={type === 'mesas' ? 1 : bo} onChange={e => setBo(+e.target.value)} disabled={type === 'mesas'}><option value={1}>{tx('Um jogo (Bo1)')}</option><option value={3}>{tx('Melhor de 3 (Bo3)')}</option></select></label>
+            <label className="fmt"><span>{tx('Partidas')}</span><select value={boOf} onChange={e => setBo(+e.target.value)} disabled={type === 'mesas'}><option value={1}>{tx('Um jogo (Bo1)')}</option>{BO2.includes(type) && <option value={2} title={tx('Dois jogos: 2-0 ganha, 1-1 é empate')}>{tx('Dois jogos (Bo2, pode empatar)')}</option>}<option value={3}>{tx('Melhor de 3 (Bo3)')}</option><option value={5}>{tx('Melhor de 5 (Bo5)')}</option></select></label>
             {(type === 'suico' || type === 'mesas' || type === 'rei') && <label className="fmt"><span>{type === 'rei' ? tx('N.º de partidas') : tx('Rondas')}</span><input type="number" min="1" max={type === 'rei' ? 2 * roundsDef : roundsDef + 3} value={rounds} placeholder={String(roundsDef)} onChange={e => setRounds(e.target.value)} /></label>}
             {type === 'equipas' && <label className="fmt"><span>{tx('Decks por equipa')}</span><select value={team} onChange={e => setTeam(+e.target.value)}><option value={2}>2</option><option value={3}>3</option></select></label>}
             <label className="fmt"><span>Seeds</span><select value={seeding} onChange={e => setSeeding(e.target.value)}><option value="aleatorio">{tx('Sorteados ao começar')}</option><option value="ordem">{tx('Pela ordem da lista')}</option></select></label>

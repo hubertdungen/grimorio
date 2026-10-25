@@ -40,6 +40,8 @@ START_WAIT = 10  # segundos entre criar o torneio e o 1.º jogo (tempo para apos
 TYPES = {"elim": (4, 16), "dupla": (4, 16), "suico": (4, 32), "liga": (4, 16), "mesas": (4, 16),
          "gauntlet": (3, 32), "rei": (4, 16), "grupos": (6, 16), "equipas": (6, 24)}
 GAUNTLET_WIN = 0.75  # no gauntlet o desafiante só é campeão se ganhar pelo menos 75% das partidas
+BO_OK = (1, 2, 3, 5)  # melhor de N; ganha quem passa de metade (Bo2: 2-0 ganha, 1-1 é empate)
+BO2_OK = ("suico", "liga", "grupos", "rei", "equipas", "gauntlet")  # só onde o empate faz parte do formato
 MAX_EXTRA = 2   # jogos a mais numa partida de eliminação para desfazer empates
 MAX_ERRORS = 3  # jogos partidos / trabalhos falhados por partida antes de a fechar
 LOCK = threading.RLock()
@@ -680,7 +682,7 @@ def create(owner, d):
         team = 3 if d.get("team") == 3 else 2
         if t == "equipas" and (n % team or not 3 <= n // team <= 8):
             raise ValueError(f"Com equipas de {team} são precisos entre {3 * team} e {8 * team} decks, em múltiplos de {team}.")
-        bo = 3 if d.get("bo") == 3 and t != "mesas" else 1
+        bo = d.get("bo") if d.get("bo") in BO_OK and t != "mesas" and (d.get("bo") != 2 or t in BO2_OK) else 1
         rounds = None
         if t in ("suico", "mesas", "rei"):  # no rei da colina `rounds` é o número de partidas
             base = {"suico": math.ceil(math.log2(n)), "mesas": 3, "rei": 2 * (n - 1)}[t]
@@ -1213,6 +1215,21 @@ def bets_selfcheck(rng):
 
 def selfcheck():
     rng = random.Random(7)
+
+    def series(t, bo, ws):  # joga uma partida com os vencedores dados (0/1/None) e devolve-a
+        st = build(t, 4, bo=bo)
+        m = next(m for m in st["matches"] if m["st"] == "ready")
+        for k in ws:
+            m["seats"] = seats_for(m)
+            record(st, m, {"winner": "draw" if k is None else sim.SIDES[m["seats"].index(m["p"][k])]}, 0)
+        return m
+    m = series("liga", 2, [0, 1])
+    assert m["st"] == "done" and m["win"] is None, m  # Bo2: 1-1 é empate
+    assert series("liga", 2, [0, 0])["win"] is not None
+    m = series("liga", 5, [0, 0, 1])
+    assert m["st"] != "done"  # Bo5: com 2-1 ainda não acabou
+    m = series("liga", 5, [0, 0, 1, 0])
+    assert m["st"] == "done" and m["win"] == m["p"][0]
 
     def play(st, pick):
         """Joga o torneio até ao fim; pick(m) -> lugar vencedor (0/1) ou None (empate)."""

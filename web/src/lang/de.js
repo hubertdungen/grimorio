@@ -2173,4 +2173,7 @@ export default {
   "o torneio mais recente": "das neueste Turnier",
   "Prioridade": "Priorität",
   "todos (acaba um de cada vez)": "alle (eins nach dem anderen)",
+  "Dois jogos: 2-0 ganha, 1-1 é empate": "Zwei Spiele: 2-0 gewinnt, 1-1 ist unentschieden",
+  "Dois jogos (Bo2, pode empatar)": "Zwei Spiele (Bo2, Remis möglich)",
+  "Melhor de 5 (Bo5)": "Best of 5 (Bo5)",
 }

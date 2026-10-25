@@ -2173,4 +2173,7 @@ export default {
   "o torneio mais recente": "最新的锦标赛",
   "Prioridade": "优先",
   "todos (acaba um de cada vez)": "全部（一次完成一个）",
+  "Dois jogos: 2-0 ganha, 1-1 é empate": "两局：2-0 获胜，1-1 为平局",
+  "Dois jogos (Bo2, pode empatar)": "两局（Bo2，可平局）",
+  "Melhor de 5 (Bo5)": "五局三胜（Bo5）",
 }
