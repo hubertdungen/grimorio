@@ -1684,6 +1684,14 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .lc-cmd.on { color: #fff; } .lc-cmd.kill { background: #b3261e; color: #fff; }
 .lc-cmd button { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 0; background: #ffffff1c; color: #fff; line-height: 1; font-size: 13px; }
 .lc-cmd b { min-width: 2.6ch; text-align: center; font-variant-numeric: tabular-nums; }
+.lc-extra { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 94%; pointer-events: auto; }
+.lc-tax { display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px; border-radius: 99px; background: #0005; color: #ffffffa0; font-size: 12px; font-weight: 600; }
+.lc-tax.on { color: #fff; box-shadow: inset 0 0 0 1px #ffffff55; }
+.lc-tax button { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 0; background: #ffffff1c; color: #fff; line-height: 1; font-size: 13px; }
+.lc-tag { padding: 2px 8px; border-radius: 99px; border: 0; background: #0005; color: #ffffffa0; font-size: 12px; font-weight: 600; min-height: 0; }
+.lc-tag.on { color: #fff; box-shadow: inset 0 0 0 1px #ffffff77; }
+.lc-tag.gold { background: #f2b84b; color: #2a1c00; box-shadow: 0 0 12px #f2b84b88; }
+@media (pointer: coarse) { .lc-cmd button, .lc-tax button, .lc-poison button { min-height: 0; width: 26px; height: 26px; } .lc-tag { min-height: 26px; } }
 /* ranked / não ranked no planeador e no cabeçalho do torneio */
 .rk { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 700; line-height: 1.5; }
 .rk.sm { padding: 0 7px; font-size: 11px; vertical-align: 1px; }
