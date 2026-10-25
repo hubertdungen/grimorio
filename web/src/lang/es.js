@@ -2334,4 +2334,7 @@ export default {
   "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez. O d100 são dois d10: dezenas (00–90) e unidades.": "Elige los dados arriba y pulsa «Lanzar». Después puedes agarrar un dado con el ratón o el dedo y volver a lanzarlo. El d100 son dos d10: decenas (00–90) y unidades.",
   "Contadores de {n}": "Contadores de {n}",
   "Veneno, comandante e mais": "Veneno, comandante y más",
+  "🎲 ao acaso (onde tenho decks)": "🎲 al azar (donde tengo mazos)",
+  "🎲 ao acaso (todos os formatos)": "🎲 al azar (todos los formatos)",
+  "O formato ao acaso escolhe entre os que têm decks do meta (por omissão, só onde também tens decks teus). Commander a 4 joga em mesas. Fora do casual entra sempre pelo menos 20% do meta, para os torneios serem ranked. A seguir é só vê-los no Registo e no Ao vivo: o simulador reparte os jogos como está nas Definições.": "El formato al azar se elige entre los que tienen mazos del meta (por defecto, solo donde también tienes mazos tuyos). Commander a 4 juega en mesas. Fuera del casual entra siempre al menos un 20% del meta, para que los torneos sean ranked. Después solo hay que verlos en Registro y En directo: el simulador reparte las partidas según los Ajustes.",
 }

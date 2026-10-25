@@ -388,7 +388,9 @@ function Generator({ data, onCreated }) {
   // um torneio: sorteia o que está em 🎲 e escolhe os decks pelas regras do «Preencher» (fora do casual, ≥ 20% do meta)
   const make = async () => {
     const casual = g.casual === RND ? Math.random() < 0.25 : g.casual === 'sim'
-    const format = g.format !== RND ? g.format : pick(CASUAL_META)
+    // ao acaso: por omissão só formatos onde tens decks (senão saíam quase todos só com meta)
+    const withMine = CASUAL_META.filter(f => (allMine || []).some(d => d.format === f && !d.casual && !d.community))
+    const format = g.format === RND ? pick(withMine.length ? withMine : CASUAL_META) : g.format === 'rnd-all' ? pick(CASUAL_META) : g.format
     const mf = casual ? pick(CASUAL_META) : format
     const mine = (allMine || []).filter(d => casual || (d.format === format && !d.casual)).filter(d => !g.fav || d.fav)
     const own = mine.filter(o => !o.community)
@@ -453,7 +455,9 @@ function Generator({ data, onCreated }) {
       <div className="gen-grid">
         <label className="fmt"><span>{tx('Quantos')}</span><input type="number" min="1" max="10" value={g.count} onChange={e => set('count', e.target.value)} /></label>
         {sel('casual', tx('Modo'), [['nao', tx('Normal (ranked)')], ['sim', tx('Casual (formatos misturados)')]])}
-        {sel('format', tx('Formato'), GEN_FMTS.map(f => [f.key, f.name]))}
+        <label className="fmt"><span>{tx('Formato')}</span><select value={g.format} onChange={e => set('format', e.target.value)}>
+          <option value={RND}>{tx('🎲 ao acaso (onde tenho decks)')}</option><option value="rnd-all">{tx('🎲 ao acaso (todos os formatos)')}</option>
+          {GEN_FMTS.map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</select></label>
         {sel('type', tx('Tipo'), Object.entries(TYPES).map(([k, [l]]) => [k, l]))}
         {sel('n', tx('Decks'), [4, 6, 8, 12, 16, 24, 32].map(x => [x, String(x)]))}
         {sel('bo', tx('Partidas'), [[1, 'Bo1'], [2, tx('Bo2 (onde pode empatar)')], [3, 'Bo3'], [5, 'Bo5']])}
@@ -462,7 +466,7 @@ function Generator({ data, onCreated }) {
         {sel('diff', tx('Dificuldade'), [['cada', tx('🎲 uma a cada deck')], ...diffs.filter(d => d.id !== 'random').map(d => [d.id, dLabel(d)])])}
         <label className="chk small"><input type="checkbox" checked={g.fav} onChange={e => set('fav', e.target.checked)} /> ★ {tx('dos meus, só favoritos')}</label>
       </div>
-      <p className="small muted tc-info">{tx('O formato ao acaso escolhe entre os que têm decks do meta. Commander a 4 joga em mesas. Fora do casual entra sempre pelo menos 20% do meta, para os torneios serem ranked. A seguir é só vê-los no Registo e no Ao vivo: o simulador reparte os jogos como está nas Definições.')}</p>
+      <p className="small muted tc-info">{tx('O formato ao acaso escolhe entre os que têm decks do meta (por omissão, só onde também tens decks teus). Commander a 4 joga em mesas. Fora do casual entra sempre pelo menos 20% do meta, para os torneios serem ranked. A seguir é só vê-los no Registo e no Ao vivo: o simulador reparte os jogos como está nas Definições.')}</p>
       <div className="row-btns">
         <button onClick={generate} disabled={busy || allMine == null}>{tx('🎲 Gerar')}</button>
         {good.length > 0 && <button className="primary" onClick={createAll} disabled={busy}>{tx('🏆 Criar os {k} torneios', { k: good.length })}</button>}

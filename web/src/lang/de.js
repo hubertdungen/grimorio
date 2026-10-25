@@ -2334,4 +2334,7 @@ export default {
   "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez. O d100 são dois d10: dezenas (00–90) e unidades.": "Wähle oben die Würfel und drücke «Werfen». Danach kannst du einen Würfel mit der Maus oder dem Finger greifen und erneut werfen. Der d100 sind zwei d10: Zehner (00–90) und Einer.",
   "Contadores de {n}": "Zähler von {n}",
   "Veneno, comandante e mais": "Gift, Kommandeur und mehr",
+  "🎲 ao acaso (onde tenho decks)": "🎲 zufällig (wo ich Decks habe)",
+  "🎲 ao acaso (todos os formatos)": "🎲 zufällig (alle Formate)",
+  "O formato ao acaso escolhe entre os que têm decks do meta (por omissão, só onde também tens decks teus). Commander a 4 joga em mesas. Fora do casual entra sempre pelo menos 20% do meta, para os torneios serem ranked. A seguir é só vê-los no Registo e no Ao vivo: o simulador reparte os jogos como está nas Definições.": "Das Zufallsformat wird aus denen mit Meta-Decks gewählt (standardmäßig nur dort, wo du auch eigene Decks hast). Commander zu viert spielt an Tischen. Außer bei Casual sind immer mindestens 20 % Meta-Decks dabei, damit die Turniere gewertet werden. Danach einfach im Verlauf und Live zusehen: der Simulator verteilt die Spiele wie in den Einstellungen.",
 }

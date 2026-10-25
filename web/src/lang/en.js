@@ -2342,4 +2342,7 @@ export default {
   "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez. O d100 são dois d10: dezenas (00–90) e unidades.": "Pick the dice above and press «Roll». Then you can grab a die with the mouse or your finger and throw it again. The d100 is two d10s: tens (00–90) and units.",
   "Contadores de {n}": "{n} counters",
   "Veneno, comandante e mais": "Poison, commander and more",
+  "🎲 ao acaso (onde tenho decks)": "🎲 random (where I have decks)",
+  "🎲 ao acaso (todos os formatos)": "🎲 random (all formats)",
+  "O formato ao acaso escolhe entre os que têm decks do meta (por omissão, só onde também tens decks teus). Commander a 4 joga em mesas. Fora do casual entra sempre pelo menos 20% do meta, para os torneios serem ranked. A seguir é só vê-los no Registo e no Ao vivo: o simulador reparte os jogos como está nas Definições.": "A random format is picked among those with meta decks (by default only where you also have decks of your own). 4-player Commander plays in tables. Outside casual at least 20% are meta decks, so the tournaments are ranked. Then just watch them in Log and Live: the simulator shares out the games as set in Settings.",
 }

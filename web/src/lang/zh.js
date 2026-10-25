@@ -2334,4 +2334,7 @@ export default {
   "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez. O d100 são dois d10: dezenas (00–90) e unidades.": "在上方选择骰子并点击「投掷」。之后可以用鼠标或手指抓起骰子再掷一次。d100 是两个 d10：十位（00–90）和个位。",
   "Contadores de {n}": "{n} 的计数器",
   "Veneno, comandante e mais": "毒性、指挥官等",
+  "🎲 ao acaso (onde tenho decks)": "🎲 随机（我有套牌的赛制）",
+  "🎲 ao acaso (todos os formatos)": "🎲 随机（所有赛制）",
+  "O formato ao acaso escolhe entre os que têm decks do meta (por omissão, só onde também tens decks teus). Commander a 4 joga em mesas. Fora do casual entra sempre pelo menos 20% do meta, para os torneios serem ranked. A seguir é só vê-los no Registo e no Ao vivo: o simulador reparte os jogos como está nas Definições.": "随机赛制从有环境套牌的赛制中选择（默认只选你也有自己套牌的赛制）。四人 Commander 以牌桌进行。非休闲时至少 20% 为环境套牌，使锦标赛计入排位。之后在记录和直播中观看即可：模拟器按设置分配对局。",
 }
