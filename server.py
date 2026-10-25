@@ -13,6 +13,7 @@ import ratings
 import sim
 import tournament
 import artfolder
+import guests
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(HERE, "web", "dist")
@@ -165,7 +166,48 @@ class H(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    # entrada única: convite, convidado (lista fechada em guests.py) ou dono
+    _as_guest = None
+
+    def guest(self):
+        tok = guests.cookie_token(self.headers)
+        if not tok:
+            return None
+        with db() as con:
+            return guests.by_token(con, tok)
+
+    def _route(self, method, inner):
+        p = self.path.split("?")[0]
+        if method == "GET" and p.startswith("/convite/"):
+            with db() as con:
+                return guests.accept(self, con, p[len("/convite/"):])
+        g = self.guest()
+        if g:
+            self._as_guest = g
+            return guests.handle(self, method, g, db, tournament)
+        if p == "/api/guest/me":  # a app pergunta se é convidada; com um convite revogado diz-lho
+            return self.json({"guest": None, "expired": bool(guests.cookie_token(self.headers)), "guestHost": guests.is_guest_host(self.headers)})
+        if guests.is_guest_host(self.headers) and not guests.public_ok(method, p):
+            return self.json({"erro": "Precisas de um convite para entrar.", "code": "invite"}, 403)
+        if p.startswith("/api/friends") and method != "HEAD":  # o dono gere os amigos
+            body = self.body() if method in ("POST",) and not p.endswith("/revoke") else None
+            with db() as con:
+                return self.json(*reversed(guests.owner_route(con, method, p, self.owner(), body, ARGS.port)))
+        return inner()
+
     def do_GET(self):
+        return self._route("GET", self._get)
+
+    def do_POST(self):
+        return self._route("POST", self._post)
+
+    def do_PUT(self):
+        return self._route("PUT", self._put)
+
+    def do_DELETE(self):
+        return self._route("DELETE", self._delete)
+
+    def _get(self):
         p = self.path.split("?")[0]
         if p == "/api/profiles":
             return self.profiles_route("GET")
@@ -277,7 +319,9 @@ class H(BaseHTTPRequestHandler):
             out = []
             for r in rows:  # resumo para a caixa do deck: capa, comandantes e lista (as cores calculam-se no browser)
                 d = json.loads(r[4])
-                out.append({"id": r[0], "name": r[1], "format": r[2], "updated": r[3], "deleted": r[5], "count": d.get("count", 0), "created": d.get("created") or r[3], "community": bool(d.get("community")),
+                if self._as_guest and d.get("friend") != self._as_guest["id"]:
+                    continue  # convidado: só os decks dele
+                out.append({"id": r[0], "name": r[1], "format": r[2], "updated": r[3], "deleted": r[5], "count": d.get("count", 0), "created": d.get("created") or r[3], "community": bool(d.get("community")), **({"friend": d["friend"], "friendName": d.get("friendName")} if d.get("friend") else {}),
                             "cover": d.get("cover"), "coverImg": d.get("coverImg"), "fav": bool(d.get("fav")), "casual": bool(d.get("casual")), "commanders": d.get("commanders") or [], "seeds": (d.get("seeds") or [])[:3],
                             "main": d.get("main") or {}, **({"art": d["art"]} if d.get("art") else {})})  # artes próprias (capa)
             return self.json(out)
@@ -402,7 +446,7 @@ class H(BaseHTTPRequestHandler):
         except RuntimeError as e:
             return self.json({"erro": str(e)}, 409)
 
-    def do_POST(self):
+    def _post(self):
         if self.path.startswith("/api/profiles"):
             return self.profiles_route("POST")
         if self.path.startswith(("/api/backup/", "/api/sync")):
@@ -545,7 +589,7 @@ class H(BaseHTTPRequestHandler):
         d["id"] = str(uuid.uuid4())
         return self.save(d, 201)
 
-    def do_PUT(self):
+    def _put(self):
         if self.path.startswith("/api/profiles"):
             return self.profiles_route("PUT")
         if self.no_profile():
@@ -588,6 +632,8 @@ class H(BaseHTTPRequestHandler):
         return self.json({**d, **({"rated_reset": True} if reset else {})}, code)
 
     def owner(self):
+        if self._as_guest:  # convidado: os dados vivem no espaço do anfitrião que o convidou
+            return self._as_guest["owner"]
         # 1) login do proxy (Caddy + Authelia) em Remote-User; 2) --owner/GRIMORIO_OWNER fixo; 3) perfil do cookie (None sem perfil)
         if self.mode() != "profiles":
             return (self.headers.get("Remote-User") or ARGS.owner).strip()[:64]
@@ -660,7 +706,7 @@ class H(BaseHTTPRequestHandler):
         cur = self.profile()
         return self.send(200, b'{"ok": true}', headers=None if cur else cookie("", 0))
 
-    def do_DELETE(self):
+    def _delete(self):
         if self.path.startswith("/api/profiles"):
             return self.profiles_route("DELETE")
         if self.no_profile():
@@ -685,13 +731,13 @@ def selfcheck():
     import tempfile, threading
     global ARGS
     tmp = tempfile.mkdtemp(prefix="grim-prof-")
-    ARGS = argparse.Namespace(data_dir=tmp, owner=None)
+    ARGS = argparse.Namespace(data_dir=tmp, owner=None, port=0)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{srv.server_address[1]}"
 
-    def call(method, path, body=None, cookie="", user=""):
-        h = {"Content-Type": "application/json", **({"Cookie": cookie} if cookie else {}), **({"Remote-User": user} if user else {})}
+    def call(method, path, body=None, cookie="", user="", host=""):
+        h = {"Content-Type": "application/json", **({"Cookie": cookie} if cookie else {}), **({"Remote-User": user} if user else {}), **({"Host": host} if host else {})}
         req = urllib.request.Request(base + path, json.dumps(body).encode() if body is not None else None, h, method=method)
         try:
             with urllib.request.urlopen(req) as r:
@@ -728,6 +774,28 @@ def selfcheck():
         assert call("GET", "/api/decks")[0] == 200 and call("POST", "/api/profiles", {"name": "X"})[0] == 400
         assert call("GET", "/api/me", user="eva")[1] == {"user": "eva"} and call("GET", "/api/profiles", user="eva")[1]["mode"] == "login"
         print("selfcheck perfis ok")
+        # amigos e convidados (guests.py): o convidado só vê o que é dele e nunca chega às rotas do dono
+        tournament.DATA, tournament.DB = tmp, os.path.join(tmp, "grimorio.db")
+        assert call("POST", "/api/decks", {"name": "Deck do Hubert", "main": {"Island": 1}})[0] == 201
+        assert call("POST", "/api/friends", {"name": "Rui"})[0] == 201
+        fr = call("GET", "/api/friends")[1]["friends"][0]
+        G = f"grimorio_guest={fr['token']}"
+        assert call("GET", "/api/guest/me", cookie=G)[1]["guest"]["name"] == "Rui"
+        assert call("GET", "/api/decks", cookie=G)[1] == []  # não vê os decks do anfitrião
+        st, dk, _ = call("POST", "/api/decks", {"name": "Deck do Rui", "main": {"Swamp": 1}, "community": True}, G)
+        assert st == 201 and dk["friend"] == fr["id"] and "community" not in dk
+        assert [d["name"] for d in call("GET", "/api/decks", cookie=G)[1]] == ["Deck do Rui"]
+        own = [d for d in call("GET", "/api/decks")[1] if d["name"] == "Deck do Hubert"][0]
+        assert call("GET", f"/api/decks/{own['id']}", cookie=G)[0] == 404 and call("PUT", f"/api/decks/{own['id']}", {"name": "x"}, G)[0] == 403
+        assert call("DELETE", f"/api/decks/{own['id']}", cookie=G)[0] == 403
+        assert call("GET", "/api/friends", cookie=G)[0] == 403 and call("POST", "/api/arena", {}, G)[0] == 403  # rotas do dono: não
+        assert call("GET", "/api/backup/export", cookie=G)[0] == 403 and call("GET", "/api/tournaments", cookie=G)[1] == []
+        assert any(d.get("friendName") == "Rui" for d in call("GET", "/api/decks")[1])  # o anfitrião vê o deck do amigo
+        os.environ["GRIMORIO_GUEST_HOSTS"] = "amigos.exemplo.pt"  # endereço público de convidados: sem convite, nada de APIs
+        assert call("GET", "/api/decks", host="amigos.exemplo.pt")[0] == 403 and call("GET", "/api/decks", cookie=G, host="amigos.exemplo.pt")[0] == 200
+        del os.environ["GRIMORIO_GUEST_HOSTS"]
+        assert call("POST", f"/api/friends/{fr['id']}/revoke")[0] == 200 and call("GET", "/api/guest/me", cookie=G)[1]["expired"] is True  # revogado
+        print("selfcheck convidados ok")
     finally:
         srv.shutdown()
         import shutil

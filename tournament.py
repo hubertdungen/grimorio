@@ -814,8 +814,9 @@ def trophies(con, owner):
     return out
 
 
-def route(method, path, owner, body=None):
-    """/api/tournaments… -> (código, objeto)."""
+def route(method, path, owner, body=None, bettor=None):
+    """/api/tournaments… -> (código, objeto). `bettor`: de quem é a carteira das apostas (um convidado aposta com a sua)."""
+    bettor = bettor or owner
     parts = path.split("?")[0].strip("/").split("/")[2:]
     tid = parts[0] if parts and len(parts[0]) == 12 and parts[0].isalnum() else None
     if method == "GET" and parts == ["trophies"]:
@@ -831,15 +832,15 @@ def route(method, path, owner, body=None):
         if (body or {}).get("confirm") is not True:
             return 400, {"erro": "Falta a confirmação."}
         with db() as con:
-            wallet(con, owner)
-            con.execute("UPDATE wallets SET coins=? WHERE owner=?", (START_COINS, owner))
-            k = f"wallet_resets:{owner}"
+            wallet(con, bettor)
+            con.execute("UPDATE wallets SET coins=? WHERE owner=?", (START_COINS, bettor))
+            k = f"wallet_resets:{bettor}"
             r = con.execute("SELECT v FROM ratings_kv WHERE k=?", (k,)).fetchone()
             con.execute("INSERT OR REPLACE INTO ratings_kv (k, v) VALUES (?, ?)", (k, json.dumps((json.loads(r[0]) if r else []) + [time.time()])))
-            return 200, bets_all(con, owner)
+            return 200, bets_all(con, bettor)
     if method == "GET" and parts == ["bets"]:  # separador Apostas: todas as minhas apostas, com os nomes
         with db() as con:
-            return 200, bets_all(con, owner)
+            return 200, bets_all(con, bettor)
     if parts and not tid:
         return 404, {"erro": "não existe"}
     if method == "POST" and not parts:
@@ -875,15 +876,15 @@ def route(method, path, owner, body=None):
             g["arts"] = {"abcd"[k]: m for k, i in enumerate(g.get("seats") or []) if k < 4 and isinstance(i, int) and i < len(ds) and (m := sim.art_map(ds[i]))}
             return 200, g
         if method == "GET" and len(parts) == 2 and parts[1] == "bets":
-            return 200, bets_view(con, owner, tid, row[5], json.loads(row[8]))
+            return 200, bets_view(con, bettor, tid, row[5], json.loads(row[8]))
         if method == "POST" and len(parts) == 2 and parts[1] == "bets":
             with LOCK:  # o step() também segura o LOCK: a janela não fecha a meio da aposta
                 status, state = con.execute("SELECT status, state FROM tournaments WHERE id=?", (tid,)).fetchone()
                 try:
-                    place(con, owner, tid, status, json.loads(state), body or {})
+                    place(con, bettor, tid, status, json.loads(state), body or {})
                 except ValueError as e:
                     return 400, {"erro": str(e)}
-            return 201, bets_view(con, owner, tid, status, json.loads(state))
+            return 201, bets_view(con, bettor, tid, status, json.loads(state))
         if method == "DELETE" and len(parts) == 1:  # só este torneio, pelo id
             settle(con, tid, json.loads(row[8]), cancelled=True)
             stop(con, tid, row[8])
