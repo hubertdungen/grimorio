@@ -157,7 +157,6 @@ function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
           </In>
         ))}
         {ghost && <div key={`g${ghost.key}`} className={`stk resolving ${ghost.p || ''}`} style={{ '--j': n }}>{pic(ghost.card, ghost.p)}</div>}
-      </div>
       {(top || ghost) && (
         <div key={top ? `t${top.uid}` : `g${ghost.key}`} className={`stk-cap ${(top || ghost).p || ''} ${top ? '' : 'res'}`}>
           {top ? <>
@@ -171,6 +170,7 @@ function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
           </>}
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -183,7 +183,8 @@ export function applyEvent(s0, ev, data) {
 
   switch (ev.k) {
     case 'turn': {
-      s.turn = ev.t; s.active = ev.p; s.phase = 'untap'
+      s.turn = ev.t; s.active = ev.p; s.phase = 'untap'; s.phn = (s.phn || 0) + 1
+      if (s.stack.length) s.stack = []
       if (s.first == null) s.first = ev.p
       const ut = new Set(ev.ut || [])
       for (const k of S) {
@@ -211,7 +212,10 @@ export function applyEvent(s0, ev, data) {
       }
       break
     }
-    case 'phase': s.phase = ev.ph; break
+    // a pilha esvazia antes de a fase avançar; o Forge às vezes não regista o «resolve» (ex.: Solitude) e a carta
+    // ficava no meio da mesa o jogo todo. O que sobrevive a uma fase inteira sai (o registo às vezes chega um passo
+    // atrasado, por isso não à primeira); no turno seguinte a pilha começa vazia
+    case 'phase': s.phase = ev.ph; s.phn = (s.phn || 0) + 1; if (s.stack.some(x => x.ph < s.phn - 1)) s.stack = s.stack.filter(x => x.ph >= s.phn - 1); break
     case 'mulligan': if (me && ev.n && !X) { const z = s[me]; if (z.library != null) z.library += z.hand - ev.n; z.hand = ev.n } break
     case 'land': if (me && !X) {
       handOut(me, ev.card)
@@ -229,11 +233,11 @@ export function applyEvent(s0, ev, data) {
       const cmd = z.command.find(c => c.name === ev.card && !c.out)
       if (cmd) z.command = z.command.map(c => (c === cmd ? { ...c, casts: c.casts + 1, out: true } : c))
       else if (!X) handOut(me, ev.card)
-      s.stack = [...s.stack, { uid: ++s.seq, p: me, card: ev.card, kind: 'cast', target: ev.target }]
+      s.stack = [...s.stack, { uid: ++s.seq, p: me, card: ev.card, kind: 'cast', target: ev.target, ph: s.phn || 0 }]
       break
     } break
     case 'trigger': case 'activate': {
-      s.stack = [...s.stack, { uid: ++s.seq, p: me, card: ev.card, kind: ev.k, target: ev.target }]
+      s.stack = [...s.stack, { uid: ++s.seq, p: me, card: ev.card, kind: ev.k, target: ev.target, ph: s.phn || 0 }]
       if (ev.k === 'activate' && me && ev.card) {
         const f = find(ev.id, ev.card, me)
         const c = look(ev.card)

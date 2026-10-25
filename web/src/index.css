@@ -2175,3 +2175,23 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 @media (max-width: 700px) { .stackfx { flex-direction: column; gap: 8px; } .stk-cap { max-width: 78vw; } }
 .board.quiet .stackfx .stk, .board.quiet .stk-cap { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .stackfx .stk, .stackfx .stk img, .stk-cap { animation: none !important; } }
+/* a pilha ao centro da mesa: a barra do meio reserva uma coluna fixa para ela (fases | pilha | texto), por isso nem
+   tapa as fases nem muda a largura da barra dos turnos; as cartas ficam a meio, entre as duas metades da mesa */
+.bmid { --sw: clamp(64px, calc(var(--cw) * 1.25), 160px); grid-template-columns: minmax(0, 1.25fr) calc(var(--sw) * 1.15) minmax(0, 1fr); }
+.bmid .phases { grid-column: 1; grid-row: 1; } .bmid .ribbon { grid-column: 3; grid-row: 1; }
+.bmid .stackfx { position: relative; left: auto; bottom: auto; top: auto; transform: none; grid-column: 2; grid-row: 1; align-self: center; justify-self: center; height: 0; display: flex; align-items: center; justify-content: center; }
+.bmid .stk-pile { flex: none; }
+.bmid .stk-cap { position: absolute; left: calc(100% + 16px); top: 50%; transform: translateY(-50%); animation-name: capInY; }
+@keyframes capInY { from { opacity: 0; transform: translate(-10px, -50%); } to { opacity: 1; transform: translateY(-50%); } }
+@media (max-width: 900px) {
+  .bmid { grid-template-columns: minmax(0, 1fr); }
+  .bmid .phases, .bmid .ribbon { grid-column: 1; } .bmid .ribbon { grid-row: 2; }
+  .bmid .stackfx { position: absolute; left: 50%; top: 50%; grid-column: auto; grid-row: auto; transform: translate(-50%, -50%); }
+  .bmid .stk-cap { left: 50%; top: calc(100% + 8px); transform: translateX(-50%); animation-name: capIn; }
+}
+
+/* «a decorrer» no rodapé: altura fixa (uma linha), não tapa a página e esconde-se em ecrã inteiro */
+.live-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; height: 34px; flex-wrap: nowrap; overflow: hidden; padding: 0 12px; border-bottom: 0; border-top: 1px solid var(--line); background: #0d0f18f2; backdrop-filter: blur(6px); }
+.live-bar button { flex: 0 1 auto; min-width: 0; max-width: 46vw; }
+.live-bar-pad { height: 34px; }
+.app:has(.live-bar) .toast { bottom: 52px; }

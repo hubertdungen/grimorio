@@ -107,15 +107,22 @@ function LiveBar({ guest, go }) {
     tick(); const t = setInterval(tick, 30000)
     return () => { off = true; clearInterval(t) }
   }, [guest])
-  if (!lab && !tour.length && !arena) return null
-  return (
+  const [full, setFull] = useState(false)  // em ecrã inteiro (Coliseu, jogo) a barra sai do caminho
+  useEffect(() => {
+    const f = () => setFull(!!(document.fullscreenElement || document.webkitFullscreenElement))
+    document.addEventListener('fullscreenchange', f); document.addEventListener('webkitfullscreenchange', f)
+    return () => { document.removeEventListener('fullscreenchange', f); document.removeEventListener('webkitfullscreenchange', f) }
+  }, [])
+  if (full || (!lab && !tour.length && !arena)) return null
+  return (<>
+    <div className="live-bar-pad" aria-hidden="true" />
     <div className="live-bar" role="status">
       <span className="live-dot" aria-hidden="true" />
       {lab && <button onClick={() => go('bots')} title={tx('Ver os testes ao vivo')}>🧪 {tx('Laboratório')} · {labDeck ? `${labDeck} · ` : ''}{lab}</button>}
       {tour.map(t => <button key={t.id} onClick={() => { try { localStorage.setItem('grimorio.torneio', t.id) } catch { /* sem armazenamento */ } go('torneio') }} title={tx('Ver o torneio')}>🏆 {t.name}</button>)}
       {arena && <button onClick={() => go('ratings')} title={tx('Ver a Arena ao vivo')}>⚔ {tx('Arena')} · {arena.a} {tx('contra')} {arena.b} · {arena.wa}–{arena.wb}</button>}
     </div>
-  )
+  </>)
 }
 
 export default function App() {
@@ -409,7 +416,6 @@ export default function App() {
           {TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
         </nav>}
       </header>
-      <LiveBar guest={guest} go={m => { setColMode(m); setSection('coliseu') }} />
       {guest && <p className="guest-bar">🤝 {tx('Estás aqui como convidado ({n}): os teus decks ficam guardados neste Grimório e vês os torneios em que entras.', { n: prof.current?.name })} <button className="link small" onClick={() => fetch('/api/guest/leave', { method: 'POST' }).then(() => window.location.reload())}>{tx('sair do convite')}</button></p>}
 
       {section === 'regras' && <div className="area"><Rules data={data} /></div>}
@@ -481,6 +487,7 @@ export default function App() {
         </div>
       )}
       {toast && <div className="toast">{toast.msg}{toast.undo && histN[0] > 0 && <button className="link toast-undo" onClick={undo}>↶ {tx('Desfazer')}</button>}</div>}
+      <LiveBar guest={guest} go={m => { setColMode(m); setSection('coliseu') }} />
     </div>
   )
 }

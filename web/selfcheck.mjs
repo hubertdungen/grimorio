@@ -617,3 +617,12 @@ console.log('selfcheck universo ok')
   assert.ok(r.wins.some(w => w.why.includes('20')) && r.risks.some(x => x.key === 'wipe') && r.risks.some(x => x.key === 'creatures'))
   assert.equal(r.side.verdict, 'vazio')
   console.log('selfcheck como ganha e perde ok') }
+{ const { replayStates } = await import('./src/game.js')  // pilha: o que não resolve sai depois de uma fase inteira e na mudança de turno
+  const ev = [{ t: 1, k: 'turn', p: 'a' }, { t: 1, k: 'trigger', p: 'a', card: 'Solitude' }, { t: 1, k: 'phase', p: 'a', ph: 'main1' }]
+  let S = replayStates(ev, { byName: new Map(), byLower: new Map() })
+  assert.equal(S[S.length - 1].stack.length, 1)  // um passo de folga (o registo às vezes chega atrasado)
+  S = replayStates([...ev, { t: 1, k: 'phase', p: 'a', ph: 'combat' }], { byName: new Map(), byLower: new Map() })
+  assert.equal(S[S.length - 1].stack.length, 0)
+  S = replayStates([...ev, { t: 2, k: 'turn', p: 'b' }], { byName: new Map(), byLower: new Map() })
+  assert.equal(S[S.length - 1].stack.length, 0)
+  console.log('selfcheck pilha sem cartas presas ok') }
