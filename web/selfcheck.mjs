@@ -644,3 +644,13 @@ console.log('selfcheck universo ok')
   assert.ok(passes(fountain, f(['U']), ctx) && !passes(fountain, f(['G']), ctx))
   assert.ok(passes(fountain, { colors: ['W', 'U'], colorMode: 'exact' }, ctx) && passes(tower, { colorless: true }, ctx) && !passes(fountain, { colorless: true }, ctx))
   console.log('selfcheck cor dos terrenos ok') }
+{ const { markDormant, isCreature } = await import('./src/game.js')  // deuses de Theros: só são criaturas com devoção suficiente
+  const cards = [{ n: 'Thassa, God of the Sea', mc: '{2}{U}', t: 'Legendary Enchantment Creature — God', o: "Indestructible\nAs long as your devotion to blue is less than five, Thassa isn't a creature." },
+    { n: 'Tide', mc: '{U}{U}', t: 'Creature — Merfolk', o: '' }, { n: 'Hybrid', mc: '{U/B}{U/B}', t: 'Creature — Rogue', o: '' }]
+  const data = { byName: new Map(cards.map(c => [c.n, c])), byLower: new Map(cards.map(c => [c.n.toLowerCase(), c])) }
+  const P = n => ({ key: n, name: n })
+  const low = markDormant(data, [P('Thassa, God of the Sea'), P('Tide')])
+  assert.ok(!isCreature(data, low[0]) && low[0].dormant.d === 3 && low[0].dormant.need === 5)
+  const ok = markDormant(data, [P('Thassa, God of the Sea'), P('Tide'), P('Hybrid')])
+  assert.ok(isCreature(data, ok[0]) && !ok[0].dormant)  // 1 + 2 + 2 (híbridos contam) = 5
+  console.log('selfcheck deuses e devoção ok') }

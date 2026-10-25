@@ -43,7 +43,25 @@ export const typeOf = (data, perm) => {
   const tl = c ? c.t.split(' // ')[perm.flipped && c.t.includes(' // ') ? 1 : 0] : ''
   return tl || (perm.token ? (perm.pt ? tx('Ficha de criatura') : tx('Ficha')) : '')
 }
-export const isCreature = (data, perm) => perm.crewed || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt)
+export const isCreature = (data, perm) => !perm.dormant && (perm.crewed || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt))
+// deuses de Theros: «As long as your devotion to blue is less than five, Thassa isn't a creature.» — devoção = símbolos
+// dessa(s) cor(es) nos custos das permanentes do dono (um híbrido conta uma vez)
+const COL_W = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }
+const NUM_W = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8 }
+export function devotionGate(data, perm) {
+  const c = lookup(data, perm.name)
+  const m = c && /as long as your devotion to (white|blue|black|red|green)(?: and (white|blue|black|red|green))? is less than (\w+)/i.exec(c.o)
+  return m ? { cols: [m[1], m[2]].filter(Boolean).map(x => COL_W[x.toLowerCase()]), need: NUM_W[m[3].toLowerCase()] || +m[3] || 0 } : null
+}
+export function devotion(data, perms, cols) {
+  let n = 0
+  for (const p of perms) { const c = !p.token && lookup(data, p.name); for (const sym of (c?.mc || '').split(' // ')[0].match(/\{[^}]+\}/g) || []) if (cols.some(k => sym.includes(k))) n++ }
+  return n
+}
+// marca os deuses abaixo da devoção (não são criaturas: saem da fila das criaturas e mostram «devoção 3/5»)
+export function markDormant(data, perms) {
+  return perms.map(p => { const g = devotionGate(data, p); if (!g) return p; const d = devotion(data, perms, g.cols); return d < g.need ? { ...p, dormant: { d, need: g.need, cols: g.cols } } : p })
+}
 export const isLand = (data, perm) => perm.land || /\bLand\b/.test(typeOf(data, perm))
 
 // P/R atual: base (do Forge ou da carta) + marcadores +1/+1 e −1/−1 + efeitos até ao fim do turno

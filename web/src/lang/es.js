@@ -2737,4 +2737,5 @@ export default {
   "a decorrer agora": "en curso ahora",
   "Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)": "Solo cartas legendarias (se combina con el tipo: criaturas legendarias, artefactos legendarios…)",
   "beneficia de": "se beneficia de",
+  "não é criatura: devoção {d} de {n}": "no es criatura: devoción {d} de {n}",
 }

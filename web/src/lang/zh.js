@@ -2737,4 +2737,5 @@ export default {
   "a decorrer agora": "正在进行",
   "Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)": "仅传奇牌（可与类型组合：传奇生物、传奇神器…）",
   "beneficia de": "受益于",
+  "não é criatura: devoção {d} de {n}": "不是生物：献力 {d}/{n}",
 }

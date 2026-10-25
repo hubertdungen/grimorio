@@ -7,7 +7,7 @@ import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
-import { PHASES, replayStates, lookup, isCreature, isLand, powTough, typeOf } from './game.js'
+import { PHASES, replayStates, lookup, isCreature, isLand, powTough, typeOf, markDormant } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
 const PH_SHORT = { untap: tx('Desvirar'), upkeep: tx('Manut.'), draw: tx('fase§Compra'), main1: tx('Princ. 1'), combat: tx('Combate'), main2: tx('Princ. 2'), end: tx('fase§Final') }
@@ -204,10 +204,11 @@ const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // 
   const pt = creature ? powTough(data, p) : null
   const kws = kwsOf(c, p)
   const ctr = Object.entries(p.counters || {}).filter(([k]) => k !== 'loyalty')
-  const cls = ['pc', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', enter && 'in'].filter(Boolean).join(' ')
-  const title = [short(p.face || p.name), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
+  const cls = ['pc', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', enter && 'in'].filter(Boolean).join(' ')
+  const title = [short(p.face || p.name), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
   return (
     <div className={cls} data-z={`k:${p.key}`} title={title}>
+      {p.dormant && <span className="pc-dev" aria-hidden="true">{p.dormant.cols.map(k => <img key={k} src={`https://svgs.scryfall.io/card-symbols/${k}.svg`} alt="" />)}{p.dormant.d}/{p.dormant.need}</span>}
       {att?.length > 0 && <div className="pc-att">{att.map(a => <div key={a.key} className="pc-attc" data-z={`k:${a.key}`}><Face p={a} c={lookup(data, a.name)} /></div>)}</div>}
       <div className="pc-rot">
         <div className={`pc-flip ${p.flipped ? 'on' : ''}`}>
@@ -348,7 +349,7 @@ function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, b
 function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots }) {  // hand: a mão vai ao centro da faixa dos terrenos
   const z = s[k]  // compact: um de 3–4 jogadores (cartas mais pequenas); hit: está a ser atacado
   const all = s.sides.flatMap(x => s[x].perms)
-  const live = z.perms.filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))
+  const live = markDormant(data, z.perms).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
   const creatures = [], lands = [], others = []
   for (const p of live) (isCreature(data, p) ? creatures : isLand(data, p) ? lands : others).push(p)
   const front = <Row perms={creatures} data={data} fx={fx} att={att} cls="front" groupable={p => p.token} empty={tx('sem criaturas')} quiet={fast} who={who} />

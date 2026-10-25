@@ -2737,4 +2737,5 @@ export default {
   "a decorrer agora": "läuft gerade",
   "Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)": "Nur legendäre Karten (kombinierbar mit dem Typ: legendäre Kreaturen, legendäre Artefakte…)",
   "beneficia de": "profitiert von",
+  "não é criatura: devoção {d} de {n}": "keine Kreatur: Ergebenheit {d} von {n}",
 }
