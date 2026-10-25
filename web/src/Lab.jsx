@@ -32,6 +32,9 @@ function Caveats({ c, data, deck, act }) {
   )
 }
 
+// o jogo parado a meio: o registo que o Forge já tinha escrito, sem vencedor (só para rever; não conta para nada)
+const partialGame = (live, extra) => (live?.events?.length ? { ...extra, events: live.events, exact: true, winner: null, stopped: true, turns: Math.max(0, ...live.events.map(e => e.t || 0)) } : null)
+
 const SIDE_FORMATS_NO = new Set(['commander', 'duel', 'oathbreaker', 'brawl', 'standardbrawl', 'paupercommander', 'predh', 'gladiator', 'casual', 'limited'])
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 // modos de jogo (sim.py, MODES): jogadores; com 3–4 o teu deck é o lugar A e os outros B, C, D
@@ -151,9 +154,17 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
       setBusy(`${modeLabel(mode, fmt.cmd)} · ${tx('jogo {g}/{m}', { g, m: matches })}`)
       const { job } = await j('/api/sim/run', { format: rules, casual, mode, games: 1, clock: cmdish ? 1500 : 900,
         seats: [{ deck: deckA, difficulty: diffA }, ...ds.map((d, i) => ({ deck: d, difficulty: seats[i].diff || diff }))] })
+      setRun('job', job)
       let st
-      for (;;) { await sleep(900); st = await j(`/api/sim/jobs/${job}`); setLiveGame(st, { key: job, g, opp: label, opps, startLife: life, decks: { a: deckA, ...Object.fromEntries(sides.map((k, i) => [k, ds[i]])) } }); if (st.status === 'done' || st.status === 'error') break; setBusy(`${modeLabel(mode, fmt.cmd)} · ${tx('jogo {g}/{m}', { g, m: matches })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
-      setLiveGame(null)
+      let seen = null
+      for (;;) { await sleep(900); st = await j(`/api/sim/jobs/${job}`); seen = runState.liveGame || seen; setLiveGame(st, { key: job, g, opp: label, opps, startLife: life, decks: { a: deckA, ...Object.fromEntries(sides.map((k, i) => [k, ds[i]])) } }); if (st.status === 'done' || st.status === 'error') break; setBusy(`${modeLabel(mode, fmt.cmd)} · ${tx('jogo {g}/{m}', { g, m: matches })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
+      const lastLive = runState.liveGame || seen
+      setLiveGame(null); setRun('job', null)
+      if (st.status === 'error' && stop.current) {
+        const part = partialGame(lastLive, { g, startLife: life, opps })
+        if (part) { setPlayed(p => [...p, { ...part, opp: label, decks: { a: deckA, ...Object.fromEntries(sides.map((k, i) => [k, ds[i]])) }, matchId, serie: 1, series: 1, bo: 1 }]); games.push(part); setRuns(r => [...r.filter(x => x.matchId !== matchId), { matchId, opp: label, mode, seats: ds.map(d => d.name), games: [...games], wa: games.filter(x => x.winner === 'a').length, wb: games.filter(x => lost(x.winner)).length }]) }
+        return
+      }
       if (st.status === 'error') throw new Error(st.error ? tx(st.error) : tx('A simulação falhou.'))
       const game = { ...st.games[0], g, unknown: st.unknown, startLife: life, opps }
       setPlayed(p => [...p, { ...game, opp: label, decks: { a: deckA, ...Object.fromEntries(sides.map((k, i) => [k, ds[i]])) }, matchId, serie: 1, series: 1, bo: 1 }])
@@ -164,6 +175,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
     }
   }
 
+  const stopNow = () => { stop.current = true; const jid = runState.job; if (jid) fetch(`/api/sim/jobs/${jid}/cancel`, { method: 'POST' }).catch(() => {}) }
   const run = async () => {
     setErr(''); stop.current = false; setRun('deckId', deck.id); setRun('deckName', deck.name)
     const t0 = Date.now()
@@ -171,23 +183,31 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
     if (paste.trim()) { const p = parseList(paste, data); list.push({ id: 'colada', name: tx('Lista colada'), source: 'colada', deck: { name: tx('Lista colada'), commanders: p.commanders, main: p.main, side: p.side } }) }
     try {
       if (multi) await runMulti()
-      else for (const o of list) {
+      else outer: for (const o of list) {
         const opp = o.id === 'espelho' ? { ...deckA, name: tx('{d} (espelho)', { d: deck.name }) } : o.deck || (o.source === 'meus' ? await j(`/api/decks/${o.id}`) : await j(`/api/sim/opponents/${encodeURIComponent(o.id)}`))
         const B = { name: opp.name || o.name, commanders: opp.commanders || [], main: opp.main, side: opp.side || {}, format: fmtOf(String(o.id), { format: opp.format || o.format }) }
         const history = learn ? await j(`/api/sim/history?deck_id=${deck.id || ''}`).then(h => (h.recent || []).filter(g => g.opp_name === B.name)).catch(() => []) : []
         for (let m = 0; m < matches; m++) {
-          if (stop.current) return
+          if (stop.current) break outer
           const matchId = `${Date.now()}-${m}`
           let cur = deckA
           const games = []
           let wa = 0, wb = 0, swaps = []
           for (let g = 1; g <= bo && wa < Math.ceil(bo / 2) && wb < Math.ceil(bo / 2); g++) {
-            if (stop.current) return
+            if (stop.current) break outer
             setBusy(`${B.name} · ${tx('série {s}/{m} · jogo {g}', { s: m + 1, m: matches, g })}`)
             const { job } = await j('/api/sim/run', { format: rules, casual, a: cur, b: B, games: 1, difficulty: diff, difficulty_a: diffA, clock: cmdish ? 600 : 300 })
+            setRun('job', job)
             let st
-            for (;;) { await sleep(700); st = await j(`/api/sim/jobs/${job}`); setLiveGame(st, { key: job, g, opp: B.name, startLife: life, swaps, decks: { a: cur, b: B }, serie: m + 1, series: matches, bo }); if (st.status === 'done' || st.status === 'error') break; setBusy(`${B.name} · ${tx('série {s}/{m} · jogo {g}', { s: m + 1, m: matches, g })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
-            setLiveGame(null)
+            let seen = null  // a última versão do jogo em curso (para o guardar se for parado a meio)
+            for (;;) { await sleep(700); st = await j(`/api/sim/jobs/${job}`); seen = runState.liveGame || seen; setLiveGame(st, { key: job, g, opp: B.name, startLife: life, swaps, decks: { a: cur, b: B }, serie: m + 1, series: matches, bo }); if (st.status === 'done' || st.status === 'error') break; setBusy(`${B.name} · ${tx('série {s}/{m} · jogo {g}', { s: m + 1, m: matches, g })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
+            const lastLive = runState.liveGame || seen
+            setLiveGame(null); setRun('job', null)
+            if (st.status === 'error' && stop.current) {  // parado a meio: o jogo fica até onde chegou (para rever; não conta)
+              const part = partialGame(lastLive, { g, swaps, startLife: life })
+              if (part) { setPlayed(p => [...p, { ...part, opp: B.name, decks: { a: cur, b: B }, matchId, serie: m + 1, series: matches, bo }]); games.push(part); setRuns(r => [...r.filter(x => x.matchId !== matchId), { matchId, opp: B.name, archetype: o.archetype, games: [...games], wa, wb }]) }
+              break outer
+            }
             if (st.status === 'error') throw new Error(st.error ? tx(st.error) : tx('A simulação falhou.'))
             const game = { ...st.games[0], g, swaps, unknown: st.unknown, startLife: life }
             setPlayed(p => [...p, { ...game, opp: B.name, decks: { a: cur, b: B }, matchId, serie: m + 1, series: matches, bo }])
@@ -207,10 +227,10 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
     await sleep(80)
     const session = runState.runs.filter(r => +String(r.matchId).split('-')[0] >= t0)
     if (session.length && deck.id) {
-      const gs = session.flatMap(r => r.games)
+      const gs = session.flatMap(r => r.games).filter(g => !g.stopped), stopped = stop.current
       await fetch('/api/sim/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-        deck_id: deck.id, label: [...new Set(session.map(r => r.opp))].join(', '),
-        summary: { games: gs.length, wins: gs.filter(g => g.winner === 'a').length, matches: session.length, matchWins: session.filter(r => r.wa > r.wb).length, bo: multi ? 1 : bo, diff, diffA, format: fmt.key, ...(multi && { mode }) },
+        deck_id: deck.id, label: `${[...new Set(session.map(r => r.opp))].join(', ')}${stopped ? ` (${tx('interrompido')})` : ''}`,
+        summary: { games: gs.length, wins: gs.filter(g => g.winner === 'a').length, matches: session.length, matchWins: session.filter(r => r.wa > r.wb).length, bo: multi ? 1 : bo, diff, diffA, format: fmt.key, ...(multi && { mode }), ...(stopped && { stopped: true }) },
         runs: session,
       }) }).catch(() => {})
       loadSaved(); act.refreshTests?.()
@@ -325,7 +345,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
             <Caveats c={aiCaveats(data, deck, aiFlags)} {...{ data, deck, act }} />
             <div className="row-btns lab-go">
               <button className="primary" onClick={run} disabled={!canRun || !!busy}>{busy ? tx('A jogar…') : tx('▶ Correr testes')}</button>
-              {busy && <button onClick={() => { stop.current = true }}>{tx('Parar')}</button>}
+              {busy && <button onClick={stopNow} title={tx('Interrompe já o jogo a decorrer; os jogos acabados e o que este já tinha ficam guardados')}>■ {tx('Parar aqui')}</button>}
             </div>
             {busy && <p className="small"><span className="spin-dot" /> {runDeck && runDeck !== deck.name ? `${runDeck} · ` : ''}{busy}</p>}
             {err && <p className="small bad-t">{err}</p>}

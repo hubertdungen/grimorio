@@ -2738,4 +2738,8 @@ export default {
   "Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)": "Solo cartas legendarias (se combina con el tipo: criaturas legendarias, artefactos legendarios…)",
   "beneficia de": "se beneficia de",
   "não é criatura: devoção {d} de {n}": "no es criatura: devoción {d} de {n}",
+  "Interrompe já o jogo a decorrer; os jogos acabados e o que este já tinha ficam guardados": "Detiene ya la partida en curso; las partidas terminadas y lo que esta llevaba quedan guardadas",
+  "Parar aqui": "Parar aquí",
+  "interrompido": "interrumpido",
+  "⏹ Interrompido no turno {t} (não conta)": "⏹ Interrumpido en el turno {t} (no cuenta)",
 }

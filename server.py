@@ -514,6 +514,12 @@ class H(BaseHTTPRequestHandler):
                 return self.json(sim.settings(ARGS.data_dir, self.body()))
             except (ValueError, TypeError) as e:
                 return self.json({"erro": str(e) or "pedido inválido"}, 400)
+        mc = re.match(r"^/api/sim/jobs/([a-f0-9]{12})/cancel$", self.path)
+        if mc:  # «Parar» do Laboratório: tira da fila ou mata o jogo a decorrer (o resto da sessão fica guardado no browser)
+            if not self.owner():
+                return self.json({"erro": "sem utilizador"}, 401)
+            sim.cancel(mc.group(1))
+            return self.json({"ok": True})
         if self.path in ("/api/sim/run", "/api/sim/record"):
             try:
                 d = self.body()

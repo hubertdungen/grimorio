@@ -2738,4 +2738,8 @@ export default {
   "Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)": "Nur legendäre Karten (kombinierbar mit dem Typ: legendäre Kreaturen, legendäre Artefakte…)",
   "beneficia de": "profitiert von",
   "não é criatura: devoção {d} de {n}": "keine Kreatur: Ergebenheit {d} von {n}",
+  "Interrompe já o jogo a decorrer; os jogos acabados e o que este já tinha ficam guardados": "Bricht die laufende Partie sofort ab; beendete Partien und der bisherige Verlauf werden gespeichert",
+  "Parar aqui": "Hier anhalten",
+  "interrompido": "abgebrochen",
+  "⏹ Interrompido no turno {t} (não conta)": "⏹ In Zug {t} abgebrochen (zählt nicht)",
 }

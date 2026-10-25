@@ -2738,4 +2738,8 @@ export default {
   "Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)": "仅传奇牌（可与类型组合：传奇生物、传奇神器…）",
   "beneficia de": "受益于",
   "não é criatura: devoção {d} de {n}": "不是生物：献力 {d}/{n}",
+  "Interrompe já o jogo a decorrer; os jogos acabados e o que este já tinha ficam guardados": "立即停止当前牌局；已完成的牌局和本局已进行的部分都会保存",
+  "Parar aqui": "在此停止",
+  "interrompido": "已中断",
+  "⏹ Interrompido no turno {t} (não conta)": "⏹ 第 {t} 回合中断（不计入）",
 }
