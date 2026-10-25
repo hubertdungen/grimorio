@@ -156,6 +156,10 @@ def handle(h, method, g, db, tournament):
                 con.execute("UPDATE decks SET deleted=? WHERE id=? AND owner=?", (time.time(), did, g["owner"]))
             return h.json({"ok": True})
         return deny()
+    if p.startswith("/api/rooms") and method in ("GET", "POST"):  # salas: ver as abertas, entrar/sair com um deck seu
+        import rooms
+        with db() as con:
+            return h.json(*reversed(rooms.route(con, method, p, g["owner"], h.body() if method == "POST" else None, guest=g)))
     bettor = f"guest:{g['id']}"
     if p in ("/api/tournaments/bets", "/api/tournaments/wallet-reset") and method in ("GET", "POST"):
         return h.json(*reversed(tournament.route(method, h.path, g["owner"], h.body() if method == "POST" else None, bettor=bettor)))

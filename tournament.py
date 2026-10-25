@@ -733,6 +733,8 @@ def create(owner, d):
         st.update(start_at=time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
         if cross:
             st["cross"] = True
+        if d.get("friends_open"):
+            st["friends_open"] = True  # nasceu de uma sala: os amigos convidados veem-no ao vivo e apostam
         if any(p.get("fr") for p in players) and all(p["src"] == "meus" and not p.get("com") for p in players):
             st["friends"] = True  # só eu e amigos: troféu com contorno de amigos em vez do azul
         if d.get("podiums") and not d.get("champions"):  # liga dos pódios: troféus normais que valem menos

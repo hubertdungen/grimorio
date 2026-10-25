@@ -100,7 +100,7 @@ export default function TournamentView({ data, fmt, deckId, guest }) {
   useEffect(() => {  // ao entrar: volta ao torneio que estava aberto, ou ao que está a decorrer
     loadList().then(l => {
       const last = ls('grimorio.torneio'), on = l.find(x => x.id === last) || l.find(x => x.status === 'running')
-      if (on) { setTid(on.id); if (!['criar', 'registo', 'gerar', 'apostas'].includes(ls('grimorio.torneio.vista'))) setView('ver') }
+      if (on) { setTid(on.id); if (!['criar', 'registo', 'gerar', 'apostas', 'salas'].includes(ls('grimorio.torneio.vista'))) setView('ver') }
       else if (view === 'ver') setView('criar')
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,12 +112,14 @@ export default function TournamentView({ data, fmt, deckId, guest }) {
         {!guest && <button className={view === 'gerar' ? 'on' : ''} onClick={() => setView('gerar')}>{tx('🎲 Gerador')}</button>}
         <button className={view === 'ver' ? 'on' : ''} onClick={() => setView('ver')} disabled={!tid}>{tx('🏆 Ao vivo')}</button>
         <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}>{tx('📜 Registo')} <b>{list.length}</b></button>
+        <button className={view === 'salas' ? 'on' : ''} onClick={() => setView('salas')}>{tx('🚪 Salas')}</button>
         <button className={view === 'apostas' ? 'on' : ''} onClick={() => setView('apostas')}>{tx('🪙 Apostas')}</button>
       </div><span className="tour-slot" ref={setSlot} /></div>
-      {view === 'criar' && !guest && <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} />}
+      {view === 'criar' && !guest && <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} onRoom={() => setView('salas')} />}
       {view === 'gerar' && !guest && <Generator data={data} onCreated={() => { loadList(); setView('registo') }} />}
       {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} onGone={() => { loadList(); setView('registo') }} />}
       {view === 'apostas' && <BetsTab open={open} />}
+      {view === 'salas' && <Rooms guest={guest} open={id => { loadList(); open(id) }} />}
       {view === 'registo' && <Registry data={data} list={list} open={open} reload={loadList} />}
     </div>
   )
@@ -125,7 +127,7 @@ export default function TournamentView({ data, fmt, deckId, guest }) {
 
 // ---------- criar ----------
 
-function Create({ data, fmt0, onCreated, deckId }) {
+function Create({ data, fmt0, onCreated, deckId, onRoom }) {
   const [format, setFormat] = useState(fmt0.key === 'casual' ? 'modern' : fmt0.key)
   const F = FORMAT[format]
   const [type, setType] = useState(F.cmd === 'commander' && format !== 'duel' ? 'mesas' : 'elim')
@@ -274,6 +276,15 @@ function Create({ data, fmt0, onCreated, deckId }) {
   }
   const dragEnd = () => { drag.current = null; setDragK(null) }
   const randomDiffs = () => { const ids = diffs.map(d => d.id).filter(x => x !== 'random'); setPlayers(p => p.map(x => ({ ...x, difficulty: ids[Math.floor(Math.random() * ids.length)] }))) }
+  const [asRoom, setAsRoom] = useState(false)  // abrir como sala: os amigos convidados entram com os seus decks antes de começar
+  const openRoom = async () => {
+    setBusy(true); setErr('')
+    try {
+      await post('/api/rooms', { name: name.trim() || suggested, type, format, casual, hold, cross, bo: boOf, third, rounds: R, seeding, team,
+        players: players.map(({ src, ref, difficulty, cover, colors, me, name: nm }) => ({ src, ref, difficulty, cover, colors, me, name: nm })) })
+      onRoom()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
   const start = async () => {
     setBusy(true); setErr('')
     try {
@@ -373,7 +384,9 @@ function Create({ data, fmt0, onCreated, deckId }) {
         </div>
       ))}</div>}
       <div className="row-btns tc-go">
-        <button className="primary" onClick={start} disabled={busy || n < lo || n > max || teamBad}>{tx('🏆 Começar o torneio')}</button>
+        {asRoom ? <button className="primary" onClick={openRoom} disabled={busy || n > max}>{tx('🚪 Abrir a sala')}</button>
+          : <button className="primary" onClick={start} disabled={busy || n < lo || n > max || teamBad}>{tx('🏆 Começar o torneio')}</button>}
+        <label className="chk small" title={tx('Os amigos convidados (Definições › Amigos) entram com um deck seu; começas quando estiverem todos.')}><input type="checkbox" checked={asRoom} onChange={e => setAsRoom(e.target.checked)} /> 🚪 {tx('Abrir como sala para amigos')}</label>
         <label className="chk small" title={tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}><input type="checkbox" checked={hold} onChange={e => { setHold(e.target.checked); ls('grimorio.torneio.hold', e.target.checked ? '1' : '0') }} /> {tx('Só começar quando eu der OK')}</label>
         {n > 0 && (casual ? <span className="rk rk-cas" title={tx('Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.')}>{tx('Casual')}</span>
           : isRanked ? <span className="rk rk-ok" title={tx('Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).')}>🏅 {tx('Ranked')}</span>
@@ -583,6 +596,38 @@ function GenPeek({ data, p, r, diffs, onClose }) {
       <span className="small">{p.src === 'meta' ? tx('📊 Meta') : p.fr ? `🤝 ${p.fr}` : p.com ? tx('🌐 Comunidade') : tx('🧙 Meu')}{c ? ` · ${tx('capa: {c}', { c: c.n })}` : ''}</span>
       <span className="gp-row">{p.colors ? <Mana cost={[...p.colors].map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}{d && <span className="small muted">🤖 {dLabel(d)}</span>}</span>
     </div>
+  )
+}
+
+// ---------- salas: torneios com amigos (rooms.py) ----------
+function Rooms({ guest, open }) {
+  const [list, setList] = useState(null), [decks, setDecks] = useState([]), [pick, setPick] = useState({}), [err, setErr] = useState('')
+  const load = () => j('/api/rooms').then(setList).catch(e => setErr(e.message))
+  useEffect(() => { load(); j('/api/decks').then(setDecks).catch(() => {}); const t = setInterval(load, 3000); return () => clearInterval(t) }, [])
+  const act = async (id, a, body) => { setErr(''); try { const r = await post(`/api/rooms/${id}/${a}`, body); if (a === 'start' && r.tid) open(r.tid); load() } catch (e) { setErr(e.message) } }
+  if (!list) return <p className="muted">{err || tx('a carregar…')}</p>
+  const myDecks = r => decks.filter(d => (guest ? true : !d.friend && !d.community) && (r.casual || (d.format === r.format && !d.casual)))
+  const shown = list.filter(r => r.status !== 'cancelled')
+  return (
+    <section className="card rooms">
+      <h3>🚪 {tx('Salas')} <span className="muted small">{guest ? tx('Entra numa sala com um deck teu; quem aloja começa o torneio quando estiverem todos.') : tx('Abre uma sala no «✦ Criar» (opção «Abrir como sala para amigos»): os convidados entram com um deck seu e tu começas.')}</span></h3>
+      {err && <p className="small bad-t">{err}</p>}
+      {!shown.length && <p className="muted small">{tx('Não há salas abertas.')}</p>}
+      {shown.map(r => { const mine = r.players.filter(p => p.mine), opts = myDecks(r), sel = pick[r.id] || opts[0]?.id || ''; return (
+        <div key={r.id} className={`room ${r.status}`}>
+          <div className="room-h"><TypeIco k={r.type} /><b>{r.name}</b>
+            <span className="small muted">{TYPES[r.type]?.[0]} · {r.casual ? tx('casual') : FORMAT[r.format]?.name || r.format} · {r.players.length}/{r.max} {tx('(mínimo {m})', { m: r.min })}</span>
+            {r.status === 'started' ? <button className="primary small" onClick={() => open(r.tid)}>{tx('🏆 Ver o torneio')}</button>
+              : !guest && <span className="row-btns"><button className="primary small" disabled={r.players.length < r.min} onClick={() => act(r.id, 'start')}>{tx('▶ Começar')}</button><button className="link small" onClick={() => act(r.id, 'cancel')}>{tx('cancelar')}</button></span>}
+          </div>
+          <ul className="room-pl">{r.players.map((p, k) => (
+            <li key={k} className={p.by ? 'fr' : ''}>{p.by ? `🤝 ${p.by}` : '🏠'} · {p.name}{(!guest || p.mine) && r.status === 'open' && <button className="link small" onClick={() => act(r.id, 'leave', { ref: p.ref })}>{tx('tirar')}</button>}</li>))}</ul>
+          {r.status === 'open' && (!guest || !mine.length) && (opts.length ? (
+            <div className="row-btns"><select value={sel} onChange={e => setPick(x => ({ ...x, [r.id]: e.target.value }))} aria-label={tx('Deck para entrar')}>{opts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+              <button onClick={() => act(r.id, 'join', { deck: sel })} disabled={!sel || r.players.length >= r.max}>{tx('＋ Entrar com este deck')}</button></div>)
+            : <p className="small muted">{guest ? tx('Não tens decks de {f}. Cria um no Construir.', { f: r.casual ? tx('qualquer formato') : FORMAT[r.format]?.name || r.format }) : null}</p>)}
+        </div>) })}
+    </section>
   )
 }
 

@@ -14,6 +14,7 @@ import sim
 import tournament
 import artfolder
 import guests
+import rooms
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(HERE, "web", "dist")
@@ -189,6 +190,10 @@ class H(BaseHTTPRequestHandler):
             return self.json({"guest": None, "expired": bool(guests.cookie_token(self.headers)), "guestHost": guests.is_guest_host(self.headers)})
         if guests.is_guest_host(self.headers) and not guests.public_ok(method, p):
             return self.json({"erro": "Precisas de um convite para entrar.", "code": "invite"}, 403)
+        if p.startswith("/api/rooms") and method in ("GET", "POST"):  # salas de torneio com amigos (rooms.py)
+            body = self.body() if method == "POST" else None
+            with db() as con:
+                return self.json(*reversed(rooms.route(con, method, p, self.owner(), body)))
         if p.startswith("/api/friends") and method != "HEAD":  # o dono gere os amigos
             body = self.body() if method in ("POST",) and not p.endswith("/revoke") else None
             with db() as con:
@@ -794,6 +799,19 @@ def selfcheck():
         os.environ["GRIMORIO_GUEST_HOSTS"] = "amigos.exemplo.pt"  # endereço público de convidados: sem convite, nada de APIs
         assert call("GET", "/api/decks", host="amigos.exemplo.pt")[0] == 403 and call("GET", "/api/decks", cookie=G, host="amigos.exemplo.pt")[0] == 200
         del os.environ["GRIMORIO_GUEST_HOSTS"]
+        # sala: o anfitrião abre com 3 decks seus, o amigo entra com o dele, o anfitrião começa
+        hs = [call("POST", "/api/decks", {"name": f"H{i}", "format": "modern", "main": {"Island": 60}})[1]["id"] for i in range(3)]
+        st, room, _ = call("POST", "/api/rooms", {"name": "Sala QA", "type": "elim", "format": "modern", "casual": True, "players": [{"src": "meus", "ref": h} for h in hs]})
+        assert st == 201
+        assert call("POST", "/api/rooms", {"type": "elim", "format": "modern"}, G)[0] == 403  # convidado não abre salas
+        assert call("POST", f"/api/rooms/{room['id']}/join", {"deck": hs[0]}, G)[0] == 400  # deck do anfitrião: não
+        st, rv, _ = call("POST", f"/api/rooms/{room['id']}/join", {"deck": dk["id"]}, G)
+        assert st == 200 and len(rv["players"]) == 4 and rv["players"][3]["mine"], rv
+        assert call("POST", f"/api/rooms/{room['id']}/join", {"deck": dk["id"]}, G)[0] == 409  # um deck por amigo
+        assert call("POST", f"/api/rooms/{room['id']}/start", None, G)[0] == 403  # só o anfitrião começa
+        st, sr, _ = call("POST", f"/api/rooms/{room['id']}/start")
+        assert st == 200 and sr["tid"], sr
+        assert [t["id"] for t in call("GET", "/api/tournaments", cookie=G)[1]] == [sr["tid"]]  # o amigo vê o torneio da sala
         assert call("POST", f"/api/friends/{fr['id']}/revoke")[0] == 200 and call("GET", "/api/guest/me", cookie=G)[1]["expired"] is True  # revogado
         print("selfcheck convidados ok")
     finally:

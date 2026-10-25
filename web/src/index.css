@@ -1866,3 +1866,11 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .guest-bar { margin: 0; padding: 6px 16px; background: #4ea8ff1c; border-bottom: 1px solid #4ea8ff55; color: #cfe6ff; font-size: 13px; }
 .dbox-fr { color: #9fd0ff; }
 .badge.ami { background: #3dcf7a22; color: #9be8b8; }
+/* salas de torneio com amigos */
+.rooms { display: grid; gap: 10px; } .rooms h3 { margin: 0; }
+.room { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.room.started { border-color: var(--gold); }
+.room-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; } .room-h .row-btns, .room-h > button { margin-left: auto; }
+.room-pl { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.room-pl li { padding: 3px 10px; border-radius: 99px; background: #ffffff10; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.room-pl li.fr { background: #3dcf7a1f; color: #c6f3d6; }
