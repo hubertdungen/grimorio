@@ -579,6 +579,10 @@ console.log('selfcheck universo ok')
   for (const q of ['criaturas lendárias humano que beneficiem de encantamentos', 'legendary human creatures that benefit from enchantments', 'legendäre menschliche Kreaturen die von Verzauberungen profitieren', '受益于结界的传奇人类生物'])
     assert.deepEqual({ ...P(q, { types }).f, cares: undefined }, { cares: undefined, type: 'Creature', legendary: true, sub: 'Human', anyText: [['enchantment', 'aura', 'enchanted']] }, q)
   assert.ok(P('criaturas que beneficiem de marcadores').f.anyText[0].includes('counter on'))
+  assert.deepEqual(P('criaturas lendárias humano encantamento', { types: new Set(['Human']) }).f, { type: 'Creature', legendary: true, sub: 'Human', types2: ['Enchantment'] })
+  assert.deepEqual(P('enchantment creature').f, { type: 'Enchantment', types2: ['Creature'] })
+  { const { passes } = await import('./src/data.js'), C = t => ({ t, o: '', mt: t.includes('Creature') ? 'Creature' : 'Enchantment', co: 'W', ci: 'W', tg: [], lg: 1, un: 0 }), f = { type: 'Creature', types2: ['Enchantment'] }, ctx = { bit: 0, identity: null }
+    assert.ok(passes(C('Legendary Enchantment Creature — God'), f, ctx) && !passes(C('Legendary Creature — Human // Legendary Enchantment Creature'.replace('Enchantment Creature', 'Enchantment — Saga')), f, ctx)) }
   console.log('selfcheck pesquisa por frases ok') }
 { const src = readFileSync(new URL('./src/App.jsx', import.meta.url), 'utf8')  // básicos novos com arte favorita ao acaso; tirar encolhe a divisão
   const i0 = src.indexOf('function withBasicArt'), body = src.slice(i0, src.indexOf('\n}\n', i0) + 2)

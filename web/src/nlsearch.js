@@ -167,7 +167,7 @@ export function parseQuery(q, opts = {}) {
     s = s.replaceAll(w, ' ')
     if (x.tag) add('tags', x.tag)
     if (x.kw) add('oracle', x.kw)
-    if (x.type) f.type ||= x.type
+    if (x.type) { if (!f.type) f.type = x.type; else if (f.type !== x.type && !(f.types2 ||= []).includes(x.type)) f.types2.push(x.type) }
     if (x.color) add('colors', x.color)
     if (x.colorless) f.colorless = true
     if (x.legendary) f.legendary = true
@@ -184,7 +184,7 @@ export function parseQuery(q, opts = {}) {
   for (const w of s.trim().split(/\s+/)) {
     const base = [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/en$/, ''), w.replace(/n$/, '')].find(x => TYPES[x] || COLORS[x])
     if (LEGEND.has(w) || LEGEND.has(w.replace(/s$/, '')) || LEGEND.has(w.replace(/n$/, ''))) { f.legendary = true; s = s.replace(` ${w} `, ' ') }
-    else if (base && TYPES[base]) { f.type ||= TYPES[base]; s = s.replace(` ${w} `, ' ') }
+    else if (base && TYPES[base]) { const t = TYPES[base]; if (!f.type) f.type = t; else if (f.type !== t && !(f.types2 ||= []).includes(t)) f.types2.push(t); s = s.replace(` ${w} `, ' ') }  // vários tipos: todos («criatura encantamento»)
     else if (!f.sub && subOf(w, opts.types)) { f.sub = subOf(w, opts.types); s = s.replace(` ${w} `, ' ') }
     else if (base && COLORS[base]) { add('colors', COLORS[base]); s = s.replace(` ${w} `, ' ') }
     else if (['incolor', 'incolores', 'colorless', 'farblos', 'farblose'].includes(w)) { f.colorless = true; s = s.replace(` ${w} `, ' ') }
@@ -194,6 +194,7 @@ export function parseQuery(q, opts = {}) {
   const rest = s.replace(/[\u3400-\u9fff]+/g, ' ').trim().split(/\s+/).filter(w => w && !STOP.has(w)).join(' ')
   const got = []
   if (f.type) got.push({ k: 'type', v: f.type })
+  for (const t of f.types2 || []) got.push({ k: 'type', v: t })
   if (f.legendary) got.push({ k: 'legendary', v: '' })
   if (f.sub) got.push({ k: 'sub', v: f.sub })
   for (const c of f.cares || []) got.push({ k: 'cares', v: CARES[c].join(' / ') })
