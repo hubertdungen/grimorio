@@ -60,6 +60,21 @@ async function api(path, opts) {
   return r.json()
 }
 
+// «⇄ mover para»: menu próprio (o select nativo ficava ilegível); fecha ao escolher ou ao tocar fora
+function MoveMenu({ label, to, onMove }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const f = e => { if (ref.current?.open && !ref.current.contains(e.target)) ref.current.open = false }
+    document.addEventListener('pointerdown', f); return () => document.removeEventListener('pointerdown', f)
+  }, [])
+  return (
+    <details className="mvmenu" ref={ref}>
+      <summary className="mv" aria-label={label} title={tx('Mover para…')}>⇄</summary>
+      <div className="mvmenu-list" role="menu">{to.map(z => <button key={z} role="menuitem" onClick={() => { ref.current.open = false; onMove(z) }}>→ {ZONE_L[z]}</button>)}</div>
+    </details>
+  )
+}
+
 export default function App() {
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
@@ -462,8 +477,7 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
       </span>
       <button className="row-name" onClick={() => c && act.open(c)} onMouseEnter={e => c && showCardPeek(e, c, pidOf(deck, n))} onMouseLeave={hideCardPeek}>{n}</button>
       {c && <Mana cost={c.mc} />}
-      {c && <select className="mv" value="" onChange={e => act.move(c, zone, e.target.value)} aria-label={tx('Mover {card}', { card: n })} title={tx('Mover para…')}>
-        <option value="">⇄</option>{zones.filter(z => z !== zone).map(z => <option key={z} value={z}>→ {ZONE_L[z]}</option>)}</select>}
+      {c && <MoveMenu label={tx('Mover {card}', { card: n })} to={zones.filter(z => z !== zone)} onMove={z => act.move(c, zone, z)} />}
     </li>
   )
   return (

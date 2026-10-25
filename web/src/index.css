@@ -1959,3 +1959,16 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 @media (pointer: coarse) { .qmore { display: inline-block; min-height: 34px; } .qadd:hover .qpick { display: none; } .qadd.open .qpick { display: inline-flex; } .qpick button { min-width: 42px; min-height: 42px; font-size: 16px; } }
 .tile .qadd .qpick { bottom: auto; top: calc(100% + 4px); }
 .to-side { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--line); } .to-side h4 { margin: 0 0 6px; }
+/* dropdowns modernos em toda a app: seta própria, opções legíveis no tema escuro */
+select { appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b9b2d6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 11px 8px; transition: border-color .15s, background-color .15s; }
+select:hover:not(:disabled) { border-color: #ffffff3a; background-color: #ffffff08; }
+select:disabled { opacity: .55; cursor: default; }
+select option, select optgroup { background: #1d1a31; color: #ece8f6; }
+select option:checked { background: #3a2f12; color: #ffd98a; }
+/* menu «⇄ mover para» das linhas do deck */
+.mvmenu { position: relative; flex: none; }
+.mvmenu > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; }
+.mvmenu > summary::-webkit-details-marker { display: none; }
+.mvmenu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 150px; display: grid; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 12px 30px #000b; animation: hlTip .15s ease-out; }
+.mvmenu-list button { text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: 7px; font-size: 14px; white-space: nowrap; }
+.mvmenu-list button:hover { background: var(--panel2); color: var(--gold2); }
