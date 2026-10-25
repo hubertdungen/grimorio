@@ -2711,4 +2711,8 @@ export default {
   "vazio": "leer",
   "Veneno": "Gift",
   "Vulnerável a wipes": "Anfällig für Wipes",
+  "Tirar foto": "Foto aufnehmen",
+  "Tirar foto e ler": "Foto aufnehmen und lesen",
+  "Toca para ler": "Zum Lesen tippen",
+  "Põe a carta dentro da moldura, com o nome em cima, e toca na imagem ou em «Tirar foto e ler».": "Lege die Karte in den Rahmen, Name oben, und tippe auf das Bild oder „Foto aufnehmen und lesen“.",
 }

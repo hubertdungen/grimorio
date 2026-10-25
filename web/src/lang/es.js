@@ -2711,4 +2711,8 @@ export default {
   "vazio": "vacío",
   "Veneno": "Veneno",
   "Vulnerável a wipes": "Vulnerable a barridos",
+  "Tirar foto": "Hacer foto",
+  "Tirar foto e ler": "Hacer foto y leer",
+  "Toca para ler": "Toca para leer",
+  "Põe a carta dentro da moldura, com o nome em cima, e toca na imagem ou em «Tirar foto e ler».": "Pon la carta dentro del marco, con el nombre arriba, y toca la imagen o «Hacer foto y leer».",
 }

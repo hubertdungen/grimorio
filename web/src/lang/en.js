@@ -2719,4 +2719,8 @@ export default {
   "vazio": "empty",
   "Veneno": "Poison",
   "Vulnerável a wipes": "Vulnerable to wipes",
+  "Tirar foto": "Take photo",
+  "Tirar foto e ler": "Take photo and read",
+  "Toca para ler": "Tap to read",
+  "Põe a carta dentro da moldura, com o nome em cima, e toca na imagem ou em «Tirar foto e ler».": "Put the card inside the frame, name at the top, and tap the image or “Take photo and read”.",
 }

@@ -2711,4 +2711,8 @@ export default {
   "vazio": "空",
   "Veneno": "中毒",
   "Vulnerável a wipes": "怕清场",
+  "Tirar foto": "拍照",
+  "Tirar foto e ler": "拍照并识别",
+  "Toca para ler": "点按识别",
+  "Põe a carta dentro da moldura, com o nome em cima, e toca na imagem ou em «Tirar foto e ler».": "将卡牌放入框内，名称在上方，然后点按画面或“拍照并识别”。",
 }

@@ -1,6 +1,6 @@
 // Ler uma carta pela câmara (ou por uma foto): OCR no próprio browser (tesseract.js, servido pela app — funciona sem
 // internet), depois cardmatch.js encontra a carta pelo nome e, se der, pela edição/número. Fica aberto para ler a seguinte.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { buildIndex, matchName, setInfo } from './cardmatch.js'
 import { img } from './data.js'
 import { tx } from './i18n.js'
@@ -21,7 +21,7 @@ function cut(src, sx, sy, sw, sh, max = 1400, up = 1) {
 }
 
 export default function CardScan({ data, onPick, onClose }) {
-  const video = useRef(null), stream = useRef(null)
+  const video = useRef(null), stream = useRef(null), guide = useRef(null), fileIn = useRef(null)
   const camOk = typeof window !== 'undefined' && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia
   const [live, setLive] = useState(false), [busy, setBusy] = useState(''), [res, setRes] = useState(null), [shot, setShot] = useState(''), [added, setAdded] = useState([]), [err, setErr] = useState('')
   useEffect(() => {
@@ -31,6 +31,8 @@ export default function CardScan({ data, onPick, onClose }) {
       .catch(() => setLive(false))
     return () => stream.current?.getTracks().forEach(t => t.stop())
   }, [camOk])
+  // sem câmara ao vivo (http): abre logo a câmara do telemóvel (ainda dentro do toque que abriu o leitor)
+  useLayoutEffect(() => { if (!camOk) fileIn.current?.click() }, [camOk])
   useEffect(() => { onProg = m => { if (m.status === 'recognizing text') setBusy(tx('a ler… {p}%', { p: Math.round(m.progress * 100) })); else if (/load|initializ/.test(m.status)) setBusy(tx('a preparar o leitor (só da 1.ª vez)…')) }; return () => { onProg = null } }, [])
 
   // canvases a ler: a carta inteira e a faixa do nome (ampliada, lê-se melhor)
@@ -53,9 +55,12 @@ export default function CardScan({ data, onPick, onClose }) {
       if (!out.length) setErr(tx('Não consegui ler o nome. Tenta com mais luz, a carta direita e o nome bem visível.'))
     } catch (e) { setErr(tx('O leitor não arrancou: {e}', { e: e.message })) } finally { setBusy('') }
   }
-  const snap = () => {  // da câmara: só o que está dentro da moldura
+  const snap = () => {  // da câmara: exatamente o que se vê dentro da moldura (o vídeo está em «cover»: parte fica de fora)
     const v = video.current, W = v.videoWidth, H = v.videoHeight
-    const h = H * 0.86, w = h * CARD, x = (W - w) / 2, y = (H - h) / 2
+    const vr = v.getBoundingClientRect(), gr = guide.current.getBoundingClientRect()
+    const k = Math.max(vr.width / W, vr.height / H), ox = (vr.width - W * k) / 2, oy = (vr.height - H * k) / 2
+    const x = Math.max(0, (gr.left - vr.left - ox) / k), y = Math.max(0, (gr.top - vr.top - oy) / k)
+    const w = Math.min(W - x, gr.width / k), h = Math.min(H - y, gr.height / k)
     setShot(cut(v, x, y, w, h, 900).toDataURL('image/jpeg', 0.8))
     read([cut(v, x, y, w, h), cut(v, x, y, w, h * 0.13, 1600, 2.5), cut(v, x, y + h * 0.88, w, h * 0.12, 1600, 2.5)])
   }
@@ -71,11 +76,11 @@ export default function CardScan({ data, onPick, onClose }) {
     <div className="modal-bg" onClick={onClose}>
       <div className="modal scan" onClick={e => e.stopPropagation()} role="dialog" aria-label={tx('Ler carta')}>
         <header className="scan-h"><h3>📷 {tx('Ler carta')}</h3><button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button></header>
-        {camOk && <div className={`scan-cam ${live ? '' : 'off'}`}><video ref={video} autoPlay playsInline muted /><i className="scan-guide" /></div>}
-        <p className="small muted">{live ? tx('Põe a carta dentro da moldura, com o nome em cima, e carrega em «Ler».') : tx('Tira uma foto à carta (de frente, com o nome visível) ou escolhe uma imagem. Para a câmara ao vivo abre a app em https.')}</p>
+        {camOk && <div className={`scan-cam ${live ? '' : 'off'}`} onClick={() => live && !busy && snap()} title={tx('Toca para ler')}><video ref={video} autoPlay playsInline muted /><i className="scan-guide" ref={guide} data-l={tx('nome')} /></div>}
+        <p className="small muted">{live ? tx('Põe a carta dentro da moldura, com o nome em cima, e toca na imagem ou em «Tirar foto e ler».') : tx('Tira uma foto à carta (de frente, com o nome visível) ou escolhe uma imagem. Para a câmara ao vivo abre a app em https.')}</p>
         <div className="row-btns">
-          {live && <button className="primary" onClick={snap} disabled={!!busy}>📸 {tx('Ler')}</button>}
-          <label className={`btn ${live ? '' : 'primary'}`}>🖼 {tx('Foto ou imagem')}<input type="file" accept="image/*" capture="environment" onChange={file} hidden /></label>
+          {live && <button className="primary" onClick={snap} disabled={!!busy}>📸 {tx('Tirar foto e ler')}</button>}
+          <label className={`btn ${live ? '' : 'primary'}`}>{live ? '🖼' : '📷'} {live ? tx('Foto ou imagem') : tx('Tirar foto')}<input ref={fileIn} type="file" accept="image/*" capture="environment" onChange={file} hidden /></label>
           {busy && <span className="small muted">{busy}</span>}
         </div>
         {err && <p className="small bad-t">{err}</p>}

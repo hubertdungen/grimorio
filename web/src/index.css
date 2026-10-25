@@ -2113,3 +2113,15 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .home-mesa .home-card b { font-size: 15px; } .home-mesa .home-card span { font-size: 12px; }
 @media (min-width: 900px) { .home-mesa .home-card { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; row-gap: 6px; align-items: start; align-content: start; } .home-mesa .home-card i { grid-row: auto; } }
 .home-tool.rules i { background: linear-gradient(135deg, #f2b84b33, #7c5cff22); }
+/* leitor de cartas: moldura com a forma da carta, cantos marcados e a faixa do nome; no telemóvel a vista fica ao alto */
+.scan-cam { cursor: pointer; }
+.scan-guide { border-color: #ffd98acc; }
+.scan-guide::before { content: attr(data-l); display: grid; place-items: center; color: #ffd98acc; font: 600 11px system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.scan-guide::after { content: ''; position: absolute; inset: -6px; border-radius: 18px; pointer-events: none;
+  background: linear-gradient(var(--gold2), var(--gold2)) top left / 22px 4px, linear-gradient(var(--gold2), var(--gold2)) top left / 4px 22px,
+    linear-gradient(var(--gold2), var(--gold2)) top right / 22px 4px, linear-gradient(var(--gold2), var(--gold2)) top right / 4px 22px,
+    linear-gradient(var(--gold2), var(--gold2)) bottom left / 22px 4px, linear-gradient(var(--gold2), var(--gold2)) bottom left / 4px 22px,
+    linear-gradient(var(--gold2), var(--gold2)) bottom right / 22px 4px, linear-gradient(var(--gold2), var(--gold2)) bottom right / 4px 22px;
+  background-repeat: no-repeat; }
+@media (max-width: 600px), (orientation: portrait) { .scan-cam { aspect-ratio: 3 / 4; max-height: 62vh; margin: 0 auto; width: 100%; } }
+.modal.scan { align-content: start; }
