@@ -15,21 +15,24 @@ const NAME = { ...COLORS, C: tx('Incolor') }
 const sym = k => `https://svgs.scryfall.io/card-symbols/${k}.svg`
 const pc = x => Math.round(x * 100)
 
+// ⓘ com a explicação: aparece ao passar o rato e ao tocar (foco), também no tátil
+export function Hint({ t }) { return <span className="hint" tabIndex={0} role="note" aria-label={t} data-t={t}>ⓘ</span> }
+
 export function Kpis({ s, total, fmt, advised, odds, issues, onIssues }) {
   const min = fmt.size[0] || 60
   const tiles = [
-    { l: tx('Cartas'), v: total, sub: tx('mínimo {n}', { n: min }), bad: total < min },
-    { l: tx('Terrenos'), v: s.lands, sub: tx('recomendado ~{n}', { n: advised }), bad: Math.abs(s.lands - advised) > 2 },
-    { l: tx('Custo médio'), v: num(s.avgMv, 2), sub: tx('sem terrenos') },
-    { l: tx('Mão jogável'), v: `${pc(odds.keep)}%`, sub: tx('2 a 4 terrenos em 7'), bad: odds.keep < 0.7 },
-    { l: tx('Preço'), v: `${num(s.price, 0)} €`, sub: s.missingPrice ? tx('{n} sem preço', { n: s.missingPrice }) : 'Cardmarket' },
-    { l: tx('Validação'), v: issues.length ? issues.length : '✓', sub: issues.length ? tx('problema|problemas', { n: issues.length }) : tx('válido em {f}', { f: fmt.name }), bad: issues.length > 0, ok: !issues.length, onClick: issues.length ? onIssues : null },
+    { l: tx('Cartas'), v: total, sub: tx('mínimo {n}', { n: min }), bad: total < min, h: tx('Cartas no deck principal (com o comandante). O mínimo é o do formato.') },
+    { l: tx('Terrenos'), v: s.lands, sub: tx('recomendado ~{n}', { n: advised }), bad: Math.abs(s.lands - advised) > 2, h: tx('O recomendado vem da fórmula de Frank Karsten: custo médio do deck e ramp/compra baratos.') },
+    { l: tx('Custo médio'), v: num(s.avgMv, 2), sub: tx('sem terrenos'), h: tx('Média do valor de mana (MV) das cartas que não são terrenos. Abaixo de 2,5 é um deck rápido.') },
+    { l: tx('Mão jogável'), v: `${pc(odds.keep)}%`, sub: tx('2 a 4 terrenos em 7'), bad: odds.keep < 0.7, h: tx('Probabilidade de a mão inicial de 7 cartas ter 2 a 4 terrenos (conta exata, hipergeométrica).') },
+    { l: tx('Preço'), v: `${num(s.price, 0)} €`, sub: s.missingPrice ? tx('{n} sem preço', { n: s.missingPrice }) : 'Cardmarket', h: tx('Soma dos preços da Cardmarket (via Scryfall), com as edições que escolheste.') },
+    { l: tx('Validação'), v: issues.length ? issues.length : '✓', sub: issues.length ? tx('problema|problemas', { n: issues.length }) : tx('válido em {f}', { f: fmt.name }), bad: issues.length > 0, ok: !issues.length, onClick: issues.length ? onIssues : null, h: tx('Problemas com as regras do formato: cartas ilegais, cópias a mais, tamanho. Clica para ver as melhorias.') },
   ]
   return (
     <div className="an-kpis">
       {tiles.map(t => {
         const T = t.onClick ? 'button' : 'div'
-        return <T key={t.l} className={`kpi ${t.bad ? 'bad' : ''} ${t.ok ? 'ok' : ''}`} onClick={t.onClick || undefined}><small>{t.l}</small><b>{t.v}</b><span>{t.sub}</span></T>
+        return <T key={t.l} className={`kpi ${t.bad ? 'bad' : ''} ${t.ok ? 'ok' : ''}`} onClick={t.onClick || undefined}><small>{t.l} <Hint t={t.h} /></small><b>{t.v}</b><span>{t.sub}</span></T>
       })}
     </div>
   )
@@ -50,7 +53,7 @@ export function CurveChart({ data, deck, s }) {
   const types = Object.entries(s.types).sort((a, b) => b[1] - a[1]), tmax = Math.max(1, ...types.map(t => t[1]))
   return (
     <section className="card an-curve">
-      <h3>{tx('Curva de mana')} <span className="muted small">{tx('média {m}', { m: num(s.avgMv, 2) })}</span></h3>
+      <h3>{tx('Curva de mana')} <span className="muted small">{tx('média {m}', { m: num(s.avgMv, 2) })}</span> <Hint t={tx('Quantas cartas há de cada custo de mana, criaturas em baixo e o resto em cima. Passa o rato numa barra para ver os números.')} /></h3>
       <div className="an-legend"><span><i style={{ background: 'var(--c-crit)' }} />{tx('Criaturas')}</span><span><i style={{ background: 'var(--c-other)' }} />{tx('Outras cartas')}</span></div>
       <div className="scurve" role="img" aria-label={tx('Curva de mana')}>
         {rows.map(([a, b], k) => (
@@ -124,7 +127,7 @@ export function ColorDonuts({ data, deck, s }) {
   const parts = o => ORDER.filter(k => o[k] > 0).map(k => ({ k, v: o[k], color: COL[k], name: NAME[k] }))
   return (
     <section className="card an-colors">
-      <h3>{tx('Cores')} <span className="muted small">{tx('o que os custos pedem vs. o que os terrenos dão')}</span></h3>
+      <h3>{tx('Cores')} <span className="muted small">{tx('o que os custos pedem vs. o que os terrenos dão')}</span> <Hint t={tx('À esquerda, as cores dos símbolos de mana nos custos; à direita, as cores que os terrenos produzem. Devem ser parecidas: uma cor que pede muito mais do que recebe falha nos primeiros turnos.')} /></h3>
       <div className="donuts">
         <Donut title={tx('Símbolos nos custos')} unit={tx('símbolos')} parts={parts(s.pips)} />
         <Donut title={tx('Mana dos terrenos')} unit={tx('terrenos')} parts={parts(prod)} />
@@ -138,7 +141,7 @@ export function HandOdds({ odds, onDraw, hand, data, deck, act, canDraw }) {
   const max = Math.max(...odds.hist)
   return (
     <section className="card an-hand">
-      <h3>{tx('Mão inicial')}</h3>
+      <h3>{tx('Mão inicial')} <Hint t={tx('Contas exatas com os terrenos do deck: a mão de 7 cartas e os terrenos que vês até ao 3.º e 4.º turno, a jogar primeiro.')} /></h3>
       <div className="odds">
         <span><b>{pc(odds.keep)}%</b><small>{tx('2 a 4 terrenos em 7 cartas')}</small></span>
         <span><b>{pc(odds.t3)}%</b><small>{tx('3.º terreno a tempo (a jogar primeiro)')}</small></span>
@@ -195,7 +198,7 @@ export function CardsInGames({ data, deck, ev, act, peek, unpeek }) {
   const why = tx('Diferença na percentagem de vitórias entre os jogos em que a carta esteve na mão e os outros (puxada para a média enquanto há poucos jogos).')
   return (
     <section className="card">
-      <h3>{tx('Cartas nos jogos')} {ev?.exact ? <span className="muted small">{tx('{n} jogos com registo completo', { n: ev.exact })}</span> : null}</h3>
+      <h3>{tx('Cartas nos jogos')} <Hint t={why} /> {ev?.exact ? <span className="muted small">{tx('{n} jogos com registo completo', { n: ev.exact })}</span> : null}</h3>
       {!rows ? <p className="muted small">{tx('Joga o deck no Laboratório (ou num torneio) para saber com que cartas ganha e quais ficam paradas na mão.')}</p> : <>
         {ev.wincon && <p className="small" title={tx('A via mais comum nas vitórias dos testes')}>{tx('Nos testes ganha sobretudo por {v} ({n} vitórias).', { v: WIN_LABEL[ev.wincon.kind] || ev.wincon.kind, n: ev.wincon.games })}</p>}
         <h4 title={why}>{tx('Ganha mais com ela na mão')}</h4>
@@ -216,7 +219,7 @@ export function WinLoseCard({ data, deck, fmt, ctx, act, peek, unpeek, toSide })
   const item = (x, k) => <li key={k}><b>{x.label}</b><span className="muted small">{x.why}</span>{x.cards?.length > 0 && <span className="wl-cards">{x.cards.map(name)}</span>}</li>
   return (
     <section className="card wl">
-      <h3>{tx('Como ganha e como perde')}</h3>
+      <h3>{tx('Como ganha e como perde')} <Hint t={tx('Vias de vitória e riscos tirados da construção do deck e dos jogos de teste; o sideboard é avaliado contra o que te venceu.')} /></h3>
       <div className="wl-grid">
         <div><h4 className="ok-t">✓ {tx('Formas de ganhar')}</h4>{r.wins.length ? <ul className="wl-list">{r.wins.map(item)}</ul> : <p className="muted small">{tx('Sem uma via clara: falta uma condição de vitória.')}</p>}</div>
         <div><h4 className="bad-t">⚠ {tx('Formas de perder')}</h4>{r.risks.length ? <ul className="wl-list">{r.risks.map(item)}</ul> : <p className="muted small">{tx('Nada de evidente na construção nem nos testes.')}</p>}</div>

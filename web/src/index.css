@@ -2125,3 +2125,9 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
   background-repeat: no-repeat; }
 @media (max-width: 600px), (orientation: portrait) { .scan-cam { aspect-ratio: 3 / 4; max-height: 62vh; margin: 0 auto; width: 100%; } }
 .modal.scan { align-content: start; }
+/* ⓘ com explicação (Análise): ao passar o rato ou ao tocar */
+.hint { position: relative; display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: 2px; border-radius: 50%; font: 600 11px/1 system-ui, sans-serif; color: var(--muted); cursor: help; vertical-align: 1px; text-transform: none; letter-spacing: 0; outline: none; }
+.hint:hover, .hint:focus { color: var(--gold2); }
+.hint::after { content: attr(data-t); position: absolute; z-index: 40; left: 50%; top: calc(100% + 8px); transform: translateX(-50%); width: max-content; max-width: min(300px, 80vw); padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 10px 26px #000b; color: var(--text); font: 400 12px/1.4 system-ui, sans-serif; text-align: left; white-space: normal; display: none; pointer-events: none; }
+.hint:hover::after, .hint:focus::after { display: block; }
+.kpi .hint::after { left: 0; transform: none; }

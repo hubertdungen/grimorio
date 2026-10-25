@@ -15,7 +15,7 @@ import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 import { parseQuery } from './nlsearch.js'
-import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard } from './AnalysisDash.jsx'
+import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint } from './AnalysisDash.jsx'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -1262,7 +1262,7 @@ function usePlanCuts({ data, deck, fmt, ctx, act, issues }) {
   const toSug = key => { try { localStorage.setItem(key, '1') } catch { /* sem armazenamento */ } act.suggestFor('') }
   const manaCard = (
     <Fold>
-      <h3>{tx('Base de mana')}</h3>
+      <h3>{tx('Base de mana')} <Hint t={tx('Fontes de cada cor que o deck tem e de que precisa nesta fase (Frank Karsten); a vermelho as que faltam.')} /></h3>
       <p className="muted small">{tx('Fontes por cor: tem/precisa nesta fase (aprox. Frank Karsten; um custo com {gg} pede mais fontes verdes do que {g}).', { gg: '{G}{G}', g: '{G}' })}</p>
       <ManaBlock {...{ data, deck, fmt, ctx, act, co }} limit={0} />
       <button className="link small" onClick={() => toSug('grimorio.terrenos')}>⛰ {tx('Terrenos sugeridos (em Sugestões) →')}</button>
@@ -1274,7 +1274,7 @@ function usePlanCuts({ data, deck, fmt, ctx, act, issues }) {
     mana: manaCard,
     plan: (
       <section className="card">
-        <h3>{tx('Plano do deck')}</h3>
+        <h3>{tx('Plano do deck')} <Hint t={tx('Os eixos do deck: cartas que geram algo (fichas, marcadores, cemitério…) e cartas que o aproveitam.')} /></h3>
         {archetype && <p className="small">{tx('Arquétipo provável:')} <b>{archetype.name}</b> <span className="muted">({tx('{n} cartas do núcleo, {p}% do meta de {f}', { n: archetype.got, p: Math.round(archetype.share * 100), f: fmt.name })})</span></p>}
         {plan.length ? plan.map(x => (
           <div key={x.label} className="plan-row"><b>{x.label}</b><span className="muted small">{x.roles.length ? tx('{a} geram · {b} aproveitam', { a: x.enablers, b: x.payoffs }) : tx('{n} criatura|{n} criaturas', { n: x.n })}</span></div>
@@ -1327,7 +1327,7 @@ function DeckRecord({ deck, data, act }) {
   const pct = o => Math.round((100 * (o.w + o.d / 2)) / Math.max(1, o.w + o.l + o.d))
   return (
     <Fold>
-      <h3>{tx('Registo de jogos')} {rec?.games > 0 && <span className="muted small">{tx('{n} jogo|{n} jogos', { n: rec.games })} · {wdl(rec)} · {pct(rec)}% · {rec.by_source_wld ? Object.entries(rec.by_source_wld).map(([k, o]) => <span key={k} className="src-wld" title={tx('{s}: vitórias-derrotas-empates', { s: SRC_LABEL[k] || k })}>{SRC_LABEL[k] || k} {wdl(o)}</span>) : Object.entries(rec.by_source).map(([k, n]) => `${SRC_LABEL[k] || k} ${n}`).join(' · ')}</span>}</h3>
+      <h3>{tx('Registo de jogos')} <Hint t={tx('Todos os jogos deste deck no Laboratório, torneios e Arena, sem contar o mesmo jogo duas vezes.')} /> {rec?.games > 0 && <span className="muted small">{tx('{n} jogo|{n} jogos', { n: rec.games })} · {wdl(rec)} · {pct(rec)}% · {rec.by_source_wld ? Object.entries(rec.by_source_wld).map(([k, o]) => <span key={k} className="src-wld" title={tx('{s}: vitórias-derrotas-empates', { s: SRC_LABEL[k] || k })}>{SRC_LABEL[k] || k} {wdl(o)}</span>) : Object.entries(rec.by_source).map(([k, n]) => `${SRC_LABEL[k] || k} ${n}`).join(' · ')}</span>}</h3>
       {rec?.rating && <RatingLayers r={rec.rating} />}
       {!rec?.games ? <p className="muted small">{deck.id ? tx('Ainda sem jogos: testa-o no Laboratório, põe-no num torneio ou liga a Arena automática nos Ratings.') : tx('Guarda o deck para começar a juntar o registo.')}</p> : <>
         <div className="rec-dmg">
@@ -1412,7 +1412,7 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
         {pcs.mana}
         {targets.length > 0 && (
           <section className="card">
-            <h3>{tx('Funções do deck')}</h3>
+            <h3>{tx('Funções do deck')} <Hint t={tx('Quantas cartas fazem cada coisa (remoção, compra, ramp…) contra o recomendado para o formato; a linha marca o alvo.')} /></h3>
             <p className="muted small">{tx('Contagem pelas etiquetas automáticas; carrega numa linha para ver sugestões dessa função.')}</p>
             {targets.map(([t, n]) => <Bar key={t} label={TAG_LABEL[t]} v={s.tags[t] || 0} max={n * 1.6} target={n} onClick={() => act.suggestFor(t)} />)}
             <div className="types">{Object.entries(s.tags).filter(([t]) => !(t in fmt.targets) && t !== 'land').sort((a, b) => b[1] - a[1]).slice(0, 10).map(([t, v]) => <span key={t}>{TAG_LABEL[t]} <b>{v}</b></span>)}</div>
@@ -1766,7 +1766,7 @@ export function PriorityCard({ data, deck, fmt, ctx, act, issues, cuts, needs })
   if (!items.length) return null
   return (
     <section className="card prio">
-      <h3>{tx('Melhorias prioritárias')}</h3>
+      <h3>{tx('Melhorias prioritárias')} <Hint t={tx('O que mais vale a pena mudar primeiro: legalidade, terrenos e cores, funções em falta e trocas por cartas melhores.')} /></h3>
       <ol>{items.slice(0, 10).map((x, k) => <li key={k} className={x.k}><span><Linked txt={x.txt} names={x.cards} {...{ data, deck, act }} /></span>{x.go && <button className="link small" onClick={x.go}>{x.goL || tx('resolver')}</button>}</li>)}</ol>
     </section>
   )
