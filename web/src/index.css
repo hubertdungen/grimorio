@@ -1896,3 +1896,9 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .aik select { max-width: 100%; min-width: 0; flex: 1 1 200px; }
 .ok-t { color: var(--ok); }
 .sz-plan { display: grid; gap: 6px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--line); } .sz-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; } .sz-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; } .sz-list li > button.small { margin-left: auto; }
+.subs { margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 8px; }
+.subs h4 { margin: 0; }
+.subs-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.subs-list > li { display: grid; gap: 4px; }
+.subs-ia { border-top: 1px dashed var(--line); padding-top: 6px; }
+.subs-ia .subs-list > li { display: block; }

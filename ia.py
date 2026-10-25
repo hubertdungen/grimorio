@@ -66,6 +66,9 @@ MODES = {
     "sugerir": "Sugere melhorias: cartas para adicionar e trocas (todas as que o deck merecer, ordenadas por impacto), com prioridade ao que falta ao deck.",
     "reorganizar": "Reorganiza o deck: agrupa todas as cartas em secções por função (\"grupos\") e propõe cortes e trocas para o deck ficar mais coerente com o plano.",
     "livre": "Responde ao pedido do utilizador; usa adicionar/tirar/trocas só se fizer sentido.",
+    "carta": ("Analisa SÓ a carta indicada no pedido, dentro deste deck: diz no \"resumo\" se deve ficar e porquê; em \"trocas\" "
+              "propõe 3 a 6 substitutas (\"sai\" = essa carta) que sirvam melhor ESTE deck (plano, curva, cores, formato), da melhor "
+              "para a pior, cada uma com o porquê; em \"ajustes\" muda as cópias dela se fizer sentido. \"adicionar\", \"tirar\" e \"grupos\" vazios."),
     "gerar": ("Cria a base de um deck NOVO a partir da ideia do utilizador. Em \"adicionar\" põe 15 a 30 cartas-chave "
               "(motor, sinergias, condições de vitória; nada de terrenos básicos). Se o formato tiver comandante, o PRIMEIRO "
               "item é o comandante e o seu \"porque\" começa por \"Comandante:\". Em \"resumo\" explica o plano do deck "

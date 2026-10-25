@@ -429,6 +429,7 @@ function ReasonFilter({ recs, kind, setKind, tag, setTag, needs = {}, extra = nu
   )
 }
 const NOLANDS = { noLands: true }
+const LANDS_ONLY = { type: 'Land', colors: [] }
 
 // Base de mana: equilíbrio de terrenos, fontes por cor e terrenos sugeridos (com mecânica).
 function ManaBlock({ data, deck, fmt, ctx, act, co, swaps, limit = 4, full = false }) {
@@ -1335,6 +1336,7 @@ function Prints({ c, deck, act, onPreview }) {
 
 export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
   const [back, setBack] = useState(false)
+  const [subs, setSubs] = useState(false)  // 🔁 substitutos desta carta neste deck (motor + IA)
   const [preview, setPreview] = useState(null)
   const [hoverPid, setHoverPid] = useState(null)
   const pid = hoverPid || preview || pidOf(deck, c.n)
@@ -1366,7 +1368,9 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
             {fmt.cmd && canBeCommander(c, fmt) && <button onClick={() => act.setCommander(c)}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : tx('Comandante')}</button>}
             <button onClick={() => act.toggleSeed(c)}>{deck.seeds.includes(c.n) ? `★ ${tx('É semente')}` : `☆ ${tx('Semente')}`}</button>
             <button onClick={() => act.showOnMap(c)}>{tx('Ver no universo')}</button>
+            {(deck.main[c.n] || deck.side[c.n]) && <button className={subs ? 'on' : ''} onClick={() => setSubs(!subs)}>🔁 {tx('Substitutos neste deck')}</button>}
           </div>
+          {subs && <Subs c={c} data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} />}
           {combos.length > 0 && (
             <>
               <h4>{tx('Combos com esta carta')} <span className="muted">{data.combosByCard[c.i].length}</span></h4>
@@ -1381,6 +1385,55 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
           <div className="sims">{sims.map(({ c: s }) => <button key={s.i} onClick={() => act.open(s)} title={s.n}><img src={img(s, 'small')} alt={s.n} loading="lazy" /></button>)}</div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// 🔁 Substitutos de uma carta do deck: as sugestões que o motor das trocas põe no lugar DELA (o porquê de cada), e a
+// mesma pergunta à IA, só sobre esta carta
+function Subs({ c, data, deck, fmt, ctx, act }) {
+  const land = c.mt === 'Land'
+  const { recs, swaps, plan } = useDeckRecs(data, deck, fmt, ctx, land ? LANDS_ONLY : NOLANDS, 60)
+  const list = useMemo(() => {
+    const cands = [...recs.map(r => r.c), ...similar(data, c.i, ctx, 12).map(x => x.c)].filter((x, k, a) => x.n !== c.n && a.indexOf(x) === k && !deck.main[x.n])
+    const out = []
+    for (const S of cands) {
+      let l = []
+      try { l = swaps(S, { limit: 8 }) || [] } catch { continue }
+      const x = !l.none && l.find(o => o.out === c.n)
+      if (x) out.push({ S, ...x })
+    }
+    return out.sort((a, b) => b.score - a.score).slice(0, 6)
+  }, [recs, swaps, data, c, ctx, deck.main])
+  const [ia, setIa] = useState(null), [busy, setBusy] = useState(false), [err, setErr] = useState('')
+  const askIA = async () => {
+    setBusy(true); setErr('')
+    try {
+      setIa(await postJSON('/api/ia/ask', { mode: 'carta', question: tx('A carta a analisar é «{c}» ({q} cópia(s) no deck).', { c: c.n, q: deck.main[c.n] || deck.side[c.n] || 0 }),
+        context: { formato: `${fmt.name}: ${fmt.size[0]} cartas`, comandante: deck.commanders.join(' + '), plano: plan.map(x => `${x.label} (${x.n})`).join(', '), lista: exportList(deck) } }))
+    } catch (e) { setErr(e.message) }
+    setBusy(false)
+  }
+  const card = n => n && (data.byName.get(n) || data.byLower.get(String(n).toLowerCase()))
+  const iaSubs = (ia?.trocas || []).map(x => ({ ...x, b: card(x.entra) })).filter(x => x.b && x.b.n !== c.n && passes(x.b, null, ctx))
+  const q = deck.main[c.n] || 0
+  return (
+    <div className="subs">
+      <h4>🔁 {tx('Substitutos para {c} neste deck', { c: c.n })}</h4>
+      {!list.length ? <p className="small muted">{tx('O motor não encontra uma substituta claramente melhor: a carta está a cumprir o seu papel neste deck.')}</p>
+        : <ul className="subs-list">{list.map(x => (
+          <li key={x.S.n}>
+            <button className="cutp-card in" onClick={() => act.open(x.S)}><img src={img(x.S, 'art_crop')} alt="" loading="lazy" /><span><b>{x.S.n}</b><Mana cost={x.S.mc} /></span></button>
+            <ul className="why">{x.why.slice(0, 3).map((w, k) => <li key={k} className="falta">{w}</li>)}</ul>
+            {q > 0 && <button className="primary small" onClick={() => act.swap(x.S, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button>}
+          </li>))}</ul>}
+      <div className="row-btns"><button onClick={askIA} disabled={busy}>{busy ? tx('A pensar…') : `✦ ${tx('Perguntar à IA')}`}</button>{err && <span className="small bad-t">{err}</span>}</div>
+      {ia && <div className="subs-ia">
+        {ia.resumo && <p className="small">{ia.resumo}</p>}
+        {iaSubs.length > 0 && <ul className="subs-list">{iaSubs.map(x => (
+          <li key={x.b.n}><button className="link plain" onClick={() => act.open(x.b)}><b>{x.b.n}</b></button> <Mana cost={x.b.mc} /> <small className="muted">{x.porque}</small>
+            {q > 0 && !deck.main[x.b.n] && <button className="small" onClick={() => { const k = Math.min(q, +x.qtd || q); act.add(c, 'main', -k); act.add(x.b, 'main', k) }}>⇄ {tx('Trocar')}</button>}</li>))}</ul>}
+      </div>}
     </div>
   )
 }

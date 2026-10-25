@@ -2466,4 +2466,9 @@ export default {
   "O deck tem {t} cartas para um máximo de {f}: sobram {n}.": "The deck has {t} cards for a maximum of {f}: {n} too many.",
   "Proposta para fechar a diferença:": "Proposal to close the gap:",
   "sobram {n} cartas ({t} de {f})": "{n} cards too many ({t} of {f})",
+  "A carta a analisar é «{c}» ({q} cópia(s) no deck).": "The card to analyse is «{c}» ({q} cop(ies) in the deck).",
+  "O motor não encontra uma substituta claramente melhor: a carta está a cumprir o seu papel neste deck.": "The engine finds no clearly better replacement: the card is doing its job in this deck.",
+  "Perguntar à IA": "Ask the AI",
+  "Substitutos neste deck": "Replacements in this deck",
+  "Substitutos para {c} neste deck": "Replacements for {c} in this deck",
 }

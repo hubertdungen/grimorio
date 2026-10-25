@@ -2458,4 +2458,9 @@ export default {
   "O deck tem {t} cartas para um máximo de {f}: sobram {n}.": "套牌有 {t} 张，上限 {f}：多 {n} 张。",
   "Proposta para fechar a diferença:": "补齐差额的建议：",
   "sobram {n} cartas ({t} de {f})": "多 {n} 张（{t}/{f}）",
+  "A carta a analisar é «{c}» ({q} cópia(s) no deck).": "要分析的卡是「{c}」（套牌中 {q} 张）。",
+  "O motor não encontra uma substituta claramente melhor: a carta está a cumprir o seu papel neste deck.": "引擎未找到明显更好的替代：这张卡在此套牌中发挥着作用。",
+  "Perguntar à IA": "询问 AI",
+  "Substitutos neste deck": "此套牌中的替代",
+  "Substitutos para {c} neste deck": "此套牌中 {c} 的替代",
 }

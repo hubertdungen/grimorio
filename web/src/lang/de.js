@@ -2458,4 +2458,9 @@ export default {
   "O deck tem {t} cartas para um máximo de {f}: sobram {n}.": "Das Deck hat {t} Karten bei maximal {f}: {n} zu viel.",
   "Proposta para fechar a diferença:": "Vorschlag, um die Lücke zu schließen:",
   "sobram {n} cartas ({t} de {f})": "{n} Karten zu viel ({t} von {f})",
+  "A carta a analisar é «{c}» ({q} cópia(s) no deck).": "Die zu analysierende Karte ist «{c}» ({q} Kopie(n) im Deck).",
+  "O motor não encontra uma substituta claramente melhor: a carta está a cumprir o seu papel neste deck.": "Die Engine findet keinen klar besseren Ersatz: die Karte erfüllt in diesem Deck ihre Aufgabe.",
+  "Perguntar à IA": "Die KI fragen",
+  "Substitutos neste deck": "Ersatz in diesem Deck",
+  "Substitutos para {c} neste deck": "Ersatz für {c} in diesem Deck",
 }

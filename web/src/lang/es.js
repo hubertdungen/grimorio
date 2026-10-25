@@ -2458,4 +2458,9 @@ export default {
   "O deck tem {t} cartas para um máximo de {f}: sobram {n}.": "El mazo tiene {t} cartas para un máximo de {f}: sobran {n}.",
   "Proposta para fechar a diferença:": "Propuesta para cerrar la diferencia:",
   "sobram {n} cartas ({t} de {f})": "sobran {n} cartas ({t} de {f})",
+  "A carta a analisar é «{c}» ({q} cópia(s) no deck).": "La carta a analizar es «{c}» ({q} copia(s) en el mazo).",
+  "O motor não encontra uma substituta claramente melhor: a carta está a cumprir o seu papel neste deck.": "El motor no encuentra un sustituto claramente mejor: la carta está cumpliendo su papel en este mazo.",
+  "Perguntar à IA": "Preguntar a la IA",
+  "Substitutos neste deck": "Sustitutos en este mazo",
+  "Substitutos para {c} neste deck": "Sustitutos para {c} en este mazo",
 }
