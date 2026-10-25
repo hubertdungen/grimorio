@@ -2662,4 +2662,8 @@ export default {
   "Taxar / travar (stax)": "Gravar / bloquear (stax)",
   "Temas": "Temas",
   "Turno extra": "Turno extra",
+  "Estas palavras não ajudaram a encontrar nada e ficaram de fora": "Estas palabras no ayudaron a encontrar nada y se dejaron fuera",
+  "função": "función",
+  "ignorado: «{w}»": "ignorado: «{w}»",
+  "Nome, ou uma frase em qualquer língua: «encantamento que dê flying até 2», «terrenos que compram cartas»…": "Nombre, o una frase en cualquier idioma: «encantamiento que dé volar hasta 2», «tierras que roban cartas»…",
 }

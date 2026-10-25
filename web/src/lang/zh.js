@@ -2662,4 +2662,8 @@ export default {
   "Taxar / travar (stax)": "税/锁（stax）",
   "Temas": "主题",
   "Turno extra": "额外回合",
+  "Estas palavras não ajudaram a encontrar nada e ficaram de fora": "这些词没有帮助找到结果，已忽略",
+  "função": "功能",
+  "ignorado: «{w}»": "已忽略：“{w}”",
+  "Nome, ou uma frase em qualquer língua: «encantamento que dê flying até 2», «terrenos que compram cartas»…": "名称，或任意语言的短语：“费用最多2的飞行结界”、“抽牌的地”…",
 }

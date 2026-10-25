@@ -835,7 +835,7 @@ export function BasicBar({ data, deck, ctx, act }) {
   )
 }
 
-const NL_L = { type: tx('tipo'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor') }
+const NL_L = { type: tx('tipo'), tag: tx('função'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor') }
 export function SearchView({ data, deck, fmt, ctx, act }) {
   const [q, setQ] = useState('')
   const [f, setF] = useState(F0)
@@ -845,7 +845,8 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   const res = useMemo(() => {  // frase: só se a sintaxe é explícita ou se pelo nome não há nada (assim «Black Lotus» continua a ser a carta)
     const byName = search(data, dq, df, ctx)
     if (!nl || (byName.total && !/[:<>=]/.test(dq))) return { ...byName, nl: null }
-    return { ...search(data, nl.rest, { ...df, ...nl.f }, ctx), nl }
+    const r = search(data, nl.rest, { ...df, ...nl.f }, ctx)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
+    return r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...df, ...nl.f }, ctx), nl: { ...nl, rest: '', skipped: nl.rest } }
   }, [data, dq, df, ctx, nl])
   const [showF, setShowF] = useState(false)
   const [swaps, setSwaps] = useState(null)
@@ -853,7 +854,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   return (
     <div className="view">
       <div className="searchbar">
-        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Nome, ou uma frase: «encantamento que dê flying até 2», «criatura verde com atropelar»…')} className="big" />
+        <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Nome, ou uma frase em qualquer língua: «encantamento que dê flying até 2», «terrenos que compram cartas»…')} className="big" />
         <button className="scan-btn" onClick={act.scan} title={tx('Ler uma carta pela câmara ou por uma foto')} aria-label={tx('Ler carta')}>📷</button>
         <label className="chk"><input type="checkbox" checked={f.inText} onChange={e => setF(x => ({ ...x, inText: e.target.checked }))} /> {tx('também no texto')}</label>
         <select value={f.sort} onChange={e => setF(x => ({ ...x, sort: e.target.value }))} aria-label={tx('Ordenar')}>
@@ -864,7 +865,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       <div className={`filters-wrap ${showF ? 'open' : ''}`}><Filters f={f} set={setF} /></div>
       <div className="search-layout">
       <div>
-      {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.v}</b></span>)}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
+      {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.v}</b></span>)}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">
         {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} />)}

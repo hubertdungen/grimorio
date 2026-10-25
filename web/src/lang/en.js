@@ -2670,4 +2670,8 @@ export default {
   "Taxar / travar (stax)": "Tax / lock (stax)",
   "Temas": "Themes",
   "Turno extra": "Extra turn",
+  "Estas palavras não ajudaram a encontrar nada e ficaram de fora": "These words didn't help find anything and were left out",
+  "função": "function",
+  "ignorado: «{w}»": "ignored: “{w}”",
+  "Nome, ou uma frase em qualquer língua: «encantamento que dê flying até 2», «terrenos que compram cartas»…": "Name, or a phrase in any language: “enchantment that gives flying up to 2”, “lands that draw cards”…",
 }

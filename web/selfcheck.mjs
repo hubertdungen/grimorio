@@ -568,6 +568,10 @@ console.log('selfcheck universo ok')
   assert.equal(P('instantâneo azul menos de 3').f.cmcMax, 2)
   assert.deepEqual(P('t:enchantment o:"gain control" mv>=3').f, { type: 'Enchantment', oracle: ['gain control'], cmcMin: 3 })
   assert.equal(P('Lightning Bolt'), null)
+  for (const q of ['Lands que permitam fazer draw', 'Lands draw', 'terreno comprar cartas', 'tierras que roban cartas', '抽牌的地']) assert.deepEqual(P(q).f, { tags: ['draw'], type: 'Land' }, q)
+  assert.deepEqual(P('费用最多2的飞行结界').f, { cmcMax: 2, oracle: ['flying'], type: 'Enchantment' })
+  assert.deepEqual(P('Kreaturen mit Flugfähigkeit höchstens 3').f, { cmcMax: 3, oracle: ['flying'], type: 'Creature' })
+  assert.deepEqual(P('robar el control').f, { tags: ['steal'] })
   console.log('selfcheck pesquisa por frases ok') }
 { const src = readFileSync(new URL('./src/App.jsx', import.meta.url), 'utf8')  // básicos novos com arte favorita ao acaso; tirar encolhe a divisão
   const body = src.slice(src.indexOf('function withBasicArt'), src.indexOf('export default function App'))

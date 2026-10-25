@@ -2662,4 +2662,8 @@ export default {
   "Taxar / travar (stax)": "Besteuern / sperren (Stax)",
   "Temas": "Themen",
   "Turno extra": "Zusätzlicher Zug",
+  "Estas palavras não ajudaram a encontrar nada e ficaram de fora": "Diese Wörter halfen nicht und wurden weggelassen",
+  "função": "Funktion",
+  "ignorado: «{w}»": "ignoriert: „{w}“",
+  "Nome, ou uma frase em qualquer língua: «encantamento que dê flying até 2», «terrenos que compram cartas»…": "Name oder ein Satz in jeder Sprache: „Verzauberung mit Flugfähigkeit höchstens 2“, „Länder, die Karten ziehen“…",
 }
