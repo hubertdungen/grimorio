@@ -2746,4 +2746,7 @@ export default {
   "Fechar este deck": "关闭此套牌",
   "Fechar este deck (fica na Biblioteca)": "关闭此套牌（仍保留在牌库中）",
   "Nenhum deck": "未选择套牌",
+  "Este jogo já não está no servidor (acabou há mais de uma hora ou o servidor reiniciou).": "该牌局已不在服务器上（已结束超过一小时或服务器已重启）。",
+  "O Forge está a arrancar o jogo…": "Forge 正在启动牌局…",
+  "Ver ao vivo (teste lançado noutro separador ou dispositivo)": "实时观看（在其他标签页或设备上启动的测试）",
 }

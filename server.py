@@ -259,6 +259,8 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/api/sim/"):  # laboratório de testes (sim.py)
             q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             m = SIM_JOB.match(p) or SIM_OPP.match(p)
+            if p == "/api/sim/active":  # os meus jogos do Laboratório a decorrer (qualquer separador/dispositivo)
+                return self.json(sim.active(self.owner()))
             if p == "/api/sim/aiflags":  # cartas que o próprio Forge diz que a IA joga mal (AI:RemoveDeck:All)
                 return self.json(ai_flags())
             if p == "/api/sim/settings":  # jogos do Forge em simultâneo
@@ -526,7 +528,7 @@ class H(BaseHTTPRequestHandler):
                 if self.path == "/api/sim/run":
                     if play.status().get("running"):  # a RAM não chega para um jogo teu no Forge e testes ao mesmo tempo
                         return self.json({"erro": "Há um jogo teu aberto contra o Forge (Coliseu › Jogar). Pára-o antes de correr testes."}, 409)
-                    return self.json({"job": sim.submit(ARGS.data_dir, d)}, 202)
+                    return self.json({"job": sim.submit(ARGS.data_dir, {**d, "_src": "lab", "_owner": self.owner()})}, 202)
                 with db() as con:
                     rid = sim.record(con, d)
                     ratings.from_lab(con, d, self.owner())  # 1 contra 1 com opp_key: conta para os ratings

@@ -2746,4 +2746,7 @@ export default {
   "Fechar este deck": "Dieses Deck schließen",
   "Fechar este deck (fica na Biblioteca)": "Dieses Deck schließen (bleibt in der Bibliothek)",
   "Nenhum deck": "Kein Deck",
+  "Este jogo já não está no servidor (acabou há mais de uma hora ou o servidor reiniciou).": "Diese Partie ist nicht mehr auf dem Server (vor über einer Stunde beendet oder der Server wurde neu gestartet).",
+  "O Forge está a arrancar o jogo…": "Forge startet die Partie…",
+  "Ver ao vivo (teste lançado noutro separador ou dispositivo)": "Live ansehen (Test in einem anderen Tab oder Gerät gestartet)",
 }

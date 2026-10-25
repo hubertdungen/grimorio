@@ -244,6 +244,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
   if (watch) return <Replay data={data} game={watch} formats={fmtsOf(watch)} onBack={() => setWatch(null)} deckName={deck.name} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })} onPlayFrom={playFrom && !watch.opps && ((st, g) => playFrom(toForgeState(st, g.decks || { a: deck }, { control: 'a', format: fmt.key })))} />
   return (
     <div className="view lab">
+      {!list.length && busy && showLive && <section className="card livecard"><p className="muted"><span className="spin-dot" /> {tx('O Forge está a arrancar o jogo…')}</p></section>}
       {list.length > 0 && showLive && (
         <section className="card livecard">
           <div className="row-btns">

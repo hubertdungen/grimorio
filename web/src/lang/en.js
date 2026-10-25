@@ -2754,4 +2754,7 @@ export default {
   "Fechar este deck": "Close this deck",
   "Fechar este deck (fica na Biblioteca)": "Close this deck (it stays in the Library)",
   "Nenhum deck": "No deck",
+  "Este jogo já não está no servidor (acabou há mais de uma hora ou o servidor reiniciou).": "This game is no longer on the server (it ended over an hour ago or the server restarted).",
+  "O Forge está a arrancar o jogo…": "Forge is starting the game…",
+  "Ver ao vivo (teste lançado noutro separador ou dispositivo)": "Watch live (test started in another tab or device)",
 }

@@ -904,6 +904,8 @@ def submit(data_dir, body):
     job = {"id": jid, "status": "queued", "position": 0, "error": None, "games": [], "unknown": unknown,
            "format": fmt, "game_type": gtype, "difficulty": seats[1].get("difficulty") or "default", "created": time.time(),
            "mode": mode, **({"casual": True} if casual else {}),
+           # quem e o quê (o Laboratório vê os seus jogos a decorrer noutro separador/dispositivo: active())
+           "src": body.get("_src"), "owner": body.get("_owner"), "names": {s: str(decks[s].get("name") or s.upper())[:80] for s in sides},
            "_args": {"dir": jdir, "games": games, "clock": clock, "profiles": prof, "gtype": gtype,
                      "search": search, "teams": teams, "mode": mode, **({"forte_off": True} if forte_off else {}),
                      "forge": fdir, "cards": cards,
@@ -936,6 +938,14 @@ def status(jid):
         if j["status"] == "queued":
             out["position"] = PENDING.index(jid) + 1
         return out
+
+
+def active(owner):
+    """Jogos do Laboratório (de um dono) na fila ou a jogar: para os ver ao vivo noutro separador ou dispositivo."""
+    with LOCK:
+        return [{"id": j["id"], "status": j["status"], "names": j.get("names") or {}, "format": j.get("format"), "mode": j.get("mode"),
+                 "created": j["created"], **({"position": PENDING.index(k) + 1} if k in PENDING else {})}
+                for k, j in JOBS.items() if j.get("src") == "lab" and j.get("owner") == owner and j["status"] in ("queued", "running")]
 
 
 def cancel(jid):

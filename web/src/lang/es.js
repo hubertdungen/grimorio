@@ -2746,4 +2746,7 @@ export default {
   "Fechar este deck": "Cerrar este mazo",
   "Fechar este deck (fica na Biblioteca)": "Cerrar este mazo (queda en la Biblioteca)",
   "Nenhum deck": "Ningún mazo",
+  "Este jogo já não está no servidor (acabou há mais de uma hora ou o servidor reiniciou).": "Esta partida ya no está en el servidor (terminó hace más de una hora o el servidor se reinició).",
+  "O Forge está a arrancar o jogo…": "Forge está iniciando la partida…",
+  "Ver ao vivo (teste lançado noutro separador ou dispositivo)": "Ver en directo (prueba lanzada en otra pestaña o dispositivo)",
 }

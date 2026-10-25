@@ -15,6 +15,7 @@ import DraftView from './Draft.jsx'
 import NewDeckWizard from './Wizard.jsx'
 import LabView from './Lab.jsx'
 import { useRun } from './labrun.js'
+import LiveJob from './LiveJob.jsx'
 import PlayView from './Play.jsx'
 import TournamentView from './Tournament.jsx'
 import RatingsView from './Ratings.jsx'
@@ -95,16 +96,17 @@ function withBasicArt(d, n, q) {
 
 // o que está a decorrer agora (testes do Laboratório, torneios, Arena): uma barra fina por baixo do cabeçalho, só
 // quando há alguma coisa, e cada ficha leva ao visualizador em direto
-function LiveBar({ guest, go }) {
-  const [lab] = useRun('busy'), [labDeck] = useRun('deckName')
-  const [tour, setTour] = useState([]), [arena, setArena] = useState(null)
+function LiveBar({ guest, go, data }) {
+  const [lab] = useRun('busy'), [labDeck] = useRun('deckName'), [labJob] = useRun('job')
+  const [tour, setTour] = useState([]), [arena, setArena] = useState(null), [jobs, setJobs] = useState([]), [watchJob, setWatchJob] = useState(null)
   useEffect(() => {
     let off = false
     const tick = () => {
       fetch('/api/tournaments').then(r => (r.ok ? r.json() : [])).then(l => { if (!off) setTour((Array.isArray(l) ? l : []).filter(t => t.status === 'running')) }).catch(() => {})
       if (!guest) fetch('/api/arena').then(r => (r.ok ? r.json() : null)).then(a => { if (!off) setArena(a?.on && a.cur?.a ? a.cur : null) }).catch(() => {})
+      if (!guest) fetch('/api/sim/active').then(r => (r.ok ? r.json() : [])).then(l => { if (!off) setJobs(Array.isArray(l) ? l : []) }).catch(() => {})  // testes noutro separador/dispositivo
     }
-    tick(); const t = setInterval(tick, 30000)
+    tick(); const t = setInterval(tick, 15000)
     return () => { off = true; clearInterval(t) }
   }, [guest])
   const [full, setFull] = useState(false)  // em ecrã inteiro (Coliseu, jogo) a barra sai do caminho
@@ -113,15 +115,18 @@ function LiveBar({ guest, go }) {
     document.addEventListener('fullscreenchange', f); document.addEventListener('webkitfullscreenchange', f)
     return () => { document.removeEventListener('fullscreenchange', f); document.removeEventListener('webkitfullscreenchange', f) }
   }, [])
-  if (full || (!lab && !tour.length && !arena)) return null
+  const others = jobs.filter(x => x.id !== labJob)  // os deste separador já aparecem como «Laboratório»
+  if (full || (!lab && !tour.length && !arena && !others.length)) return null
   return (<>
     <div className="live-bar-pad" aria-hidden="true" />
     <div className="live-bar" role="status">
       <span className="live-dot" aria-hidden="true" />
       {lab && <button onClick={() => go('bots')} title={tx('Ver os testes ao vivo')}>🧪 {tx('Laboratório')} · {labDeck ? `${labDeck} · ` : ''}{lab}</button>}
+      {!lab && others.map(x => <button key={x.id} onClick={() => setWatchJob(x)} title={tx('Ver ao vivo (teste lançado noutro separador ou dispositivo)')}>🧪 {tx('Laboratório')} · {x.names?.a} {tx('contra')} {x.names?.b}{x.status === 'queued' ? ` · ${tx('na fila ({p})', { p: x.position || 1 })}` : ''}</button>)}
       {tour.map(t => <button key={t.id} onClick={() => { try { localStorage.setItem('grimorio.torneio', t.id) } catch { /* sem armazenamento */ } go('torneio') }} title={tx('Ver o torneio')}>🏆 {t.name}</button>)}
       {arena && <button onClick={() => go('ratings')} title={tx('Ver a Arena ao vivo')}>⚔ {tx('Arena')} · {arena.a} {tx('contra')} {arena.b} · {arena.wa}–{arena.wb}</button>}
     </div>
+    {watchJob && data && <LiveJob data={data} job={watchJob} onClose={() => setWatchJob(null)} />}
   </>)
 }
 
@@ -487,7 +492,7 @@ export default function App() {
         </div>
       )}
       {toast && <div className="toast">{toast.msg}{toast.undo && histN[0] > 0 && <button className="link toast-undo" onClick={undo}>↶ {tx('Desfazer')}</button>}</div>}
-      <LiveBar guest={guest} go={m => { setColMode(m); setSection('coliseu') }} />
+      <LiveBar guest={guest} data={data} go={m => { setColMode(m); setSection('coliseu') }} />
     </div>
   )
 }
