@@ -18,7 +18,7 @@ function thumb(d, data) {
 }
 const colors = (d, data) => 'WUBRG'.split('').filter(x => [...(d.commanders || []), ...Object.keys(d.main || {})].some(n => { const c = data.byName.get(n); return c && c.mt !== 'Land' && (c.ci || '').includes(x) }))
 
-export default function DeckPicker({ decks, deck, data, onOpen }) {
+export default function DeckPicker({ decks, deck, data, onOpen, onClose }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [tab, setTab] = useState(() => ls('grimorio.picker.tab') || 'todos')
@@ -54,9 +54,10 @@ export default function DeckPicker({ decks, deck, data, onOpen }) {
     <div className="dpick" ref={box}>
       <button className="dpick-cur" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label={tx('Escolher deck')}>
         {t ? <img src={t} alt="" /> : <span className="dpick-noimg">✦</span>}
-        <span><b>{cur?.name || deck.name || tx('Deck novo')}</b><small>{FORMAT[deck.format]?.name || deck.format}{cur ? ` · ${tx('{n} carta|{n} cartas', { n: cur.count })}` : ''}</small></span>
+        <span><b>{cur?.name || (!deck.id && !Object.keys(deck.main || {}).length ? tx('Nenhum deck') : deck.name || tx('Deck novo'))}</b><small>{FORMAT[deck.format]?.name || deck.format}{cur ? ` · ${tx('{n} carta|{n} cartas', { n: cur.count })}` : ''}</small></span>
         <i>▾</i>
       </button>
+      {deck.id && onClose && <button className="dpick-x" onClick={() => { setOpen(false); onClose() }} title={tx('Fechar este deck (fica na Biblioteca)')} aria-label={tx('Fechar este deck')}>✕</button>}
       {open && (
         <div className="dpick-pop" role="dialog" aria-label={tx('Os meus decks')} onKeyDown={e => { if (e.key === 'Escape') setOpen(false); if (e.key === 'Enter' && list[0]) pick(list[0].id) }}>
           <input ref={input} value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar entre {n} decks…', { n: decks.length })} />

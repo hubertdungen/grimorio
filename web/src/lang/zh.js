@@ -2743,4 +2743,7 @@ export default {
   "interrompido": "已中断",
   "⏹ Interrompido no turno {t} (não conta)": "⏹ 第 {t} 回合中断（不计入）",
   "Este Grimório só aceita ligações deste computador, por isso não há link para a rede de casa: usa «Partilhar pela internet» (em baixo) ou abre-o com a opção de rede (--host 0.0.0.0).": "此 Grimório 只接受本机连接，因此没有家庭网络链接：请使用下方的“通过互联网分享”，或用网络选项（--host 0.0.0.0）启动。",
+  "Fechar este deck": "关闭此套牌",
+  "Fechar este deck (fica na Biblioteca)": "关闭此套牌（仍保留在牌库中）",
+  "Nenhum deck": "未选择套牌",
 }

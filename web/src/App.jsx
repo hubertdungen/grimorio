@@ -405,7 +405,7 @@ export default function App() {
           <button key={k} className={section === k ? 'on' : ''} onClick={() => setSection(k)}><i>{ic}</i><span>{l}</span></button>
         ))}</nav>
         {section !== 'biblioteca' && <div className="deck-pick">
-          <DeckPicker decks={decks} deck={deck} data={data} onOpen={openDeck} />
+          <DeckPicker decks={decks} deck={deck} data={data} onOpen={openDeck} onClose={newDeck} />
           <button className="new-btn" onClick={() => setShowWizard(true)}>✦ {tx('Novo deck')}</button>
           <span className="save">{saveState}</span>
         </div>}

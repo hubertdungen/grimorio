@@ -2220,3 +2220,7 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .stk-cap .fx-dmg { color: #ff8a7a; } .stk-cap .fx-life { color: #6fdc8c; } .stk-cap .fx-draw { color: #7cc4ff; }
 .stk-cap .fx-kill { color: #ffb35c; } .stk-cap .fx-token { color: #f5d06f; } .stk-cap .fx-grave { color: #c9a2ff; }
 .stk-cap .fx-kw { color: #8fe3e8; }
+/* fechar o deck aberto (nenhum selecionado) */
+.dpick { display: inline-flex; align-items: center; gap: 4px; }
+.dpick-x { flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 12px; line-height: 1; }
+.dpick-x:hover { color: var(--text); border-color: var(--gold); }
