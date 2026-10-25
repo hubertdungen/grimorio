@@ -21,7 +21,8 @@ SKIP_LAYOUTS = {"token", "double_faced_token", "emblem", "art_series", "vanguard
 TAGS = {
     "ramp": r"add \{|add (one|two|three) mana|search your library for (a|up to \w+) (basic )?land|land cards?[^.]*onto the battlefield|create (a|\w+) treasure",
     "draw": r"draws? (a|an|one|two|three|four|x|that many|cards equal)[^.]*cards?|investigate|connive",
-    "removal": r"(destroy|exile) target (?!card)[^.]*(creature|artifact|enchantment|planeswalker|permanent|nonland)|deals? (\d+|x) damage to (any target|target creature|target planeswalker)|target creature gets -\d|return target (nonland )?(creature|permanent)[^.]*to its owner's hand|fights? target",
+    # exilar/destruir/devolver as próprias criaturas («you control») é blink, não remoção; «you don't control» continua
+    "removal": r"(destroy|exile) target (?!card)(?![^.]*\byou control\b)[^.]*(creature|artifact|enchantment|planeswalker|permanent|nonland)|deals? (\d+|x) damage to (any target|target creature|target planeswalker)|target creature gets -\d|return target (nonland )?(creature|permanent)(?![^.]*\byou control\b)[^.]*to its owner's hand|fights? target",
     "wipe": r"(destroy|exile) all|each creature gets -|damage to each creature|return all (nonland )?(creatures|permanents)",
     "counter": r"counter target",
     "tutor": r"search your library for (a|an|up to)(?! basic land)(?! land)(?![^.]*basic)",

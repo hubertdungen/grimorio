@@ -20,7 +20,7 @@ export const HATE = [
   ['enchantments', /destroy (target|all|each)[^.]*enchantment|exile target enchantment/i, tx('remove encantamentos')],
   ['graveyard', /exile (all|each)[^.]*graveyards?|target player's graveyard|card (from|in) (a|an opponent's) graveyard|search its owner's graveyard|graveyards? (can't|lose)|cards in graveyards can't/i, tx('castiga o cemitério')],
   ['spells', /counter target (spell|instant|sorcery|noncreature)|instant (and|or) sorcery spells? cost|nonland card from it|instant or sorcery card from it/i, tx('trava instantâneos e feitiços')],
-  ['creatures', /counter target creature spell|destroy all creatures|damage to each creature|each creature gets -|destroy target creature|exile target creature/i, tx('trava criaturas')],
+  ['creatures', /counter target creature spell|destroy all creatures|damage to each creature|each creature gets -|(destroy|exile) target creature(?![^.]*\byou control\b)/i, tx('trava criaturas')],  // exilar as tuas (blink) não trava nada
   ['flyers', /creature with flying|reach|destroy target creature with flying/i, tx('trava voadores')],
   ['lifegain', /can't gain life|life total can't|players can't gain/i, tx('corta o ganho de vida')],
 ]
@@ -70,6 +70,12 @@ export function testEvidence(data, games) {
     }
   }
   return { games: games.length, exact, lost, dead, impact, cats }
+}
+
+// gameEvidence: diferença de % de vitórias com a carta vista e sem ela, encolhida para 3 jogos «médios» de cada lado
+export function wrDelta(ev, x) {
+  const p0 = ev.exact ? ev.winsExact / ev.exact : 0.5
+  return (x.seenW + 3 * p0) / (x.seen + 3) - (ev.winsExact - x.seenW + 3 * p0) / (ev.exact - x.seen + 3)
 }
 
 // Fator «testes» de uma candidata: responde a uma categoria com que perdemos 2+ jogos e metade ou mais.

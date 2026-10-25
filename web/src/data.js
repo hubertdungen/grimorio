@@ -1,6 +1,7 @@
 // Carregamento dos dados e motor de pesquisa/sugestões. Tudo corre no browser:
 // os embeddings (int8, 128 dim) chegam para fazer as contas de semelhança em ~50 ms.
-import { testsBoost } from './tests.js'
+import { testsBoost, wrDelta } from './tests.js'
+import { landInfo, offColorLand } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 
 export const TAG_LABEL = {
@@ -33,6 +34,8 @@ const ROLE_RE = {
   landfall: /landfall|whenever a land (you control )?enters/,
   drawPayoff: /whenever you draw/,
   draw: /draws? (a|two|three|x|that many) cards?/,
+  ninjutsu: /ninjutsu/,
+  equipped: /\bequipped\b|\bequipment\b/,
 }
 const ROLES = Object.keys(ROLE_RE)
 export const ROLE_LABEL = {
@@ -42,12 +45,14 @@ export const ROLE_LABEL = {
   spells: tx('são instantâneos ou feitiços'), spellPayoff: tx('pagam por lançar feitiços'), artifactMaker: tx('criam artefactos'),
   artifactPayoff: tx('gostam de artefactos'), extraLands: tx('põem terrenos a mais'), landfall: tx('disparam com terrenos (landfall)'),
   draw: tx('compram cartas'), drawPayoff: tx('pagam por comprar cartas'),
+  evasive: tx('são difíceis de bloquear'), ninjutsu: tx('têm ninjutsu'), equipment: tx('são equipamentos'), equipped: tx('gostam de equipamentos'),
 }
 // [quem alimenta, quem aproveita]
 export const PAIRS = [['tokenMaker', 'tokenPayoff'], ['tokenMaker', 'sacOutlet'], ['sacOutlet', 'deathPayoff'], ['counterPlacer', 'counterPayoff'],
   ['etb', 'blink'], ['selfFill', 'recursion'], ['lifeGain', 'lifePayoff'], ['spells', 'spellPayoff'], ['artifactMaker', 'artifactPayoff'],
-  ['extraLands', 'landfall'], ['draw', 'drawPayoff']]
-const ALL_ROLES = [...ROLES, 'spells']
+  ['extraLands', 'landfall'], ['draw', 'drawPayoff'], ['evasive', 'ninjutsu'], ['equipment', 'equipped']]
+const ALL_ROLES = [...ROLES, 'spells', 'evasive', 'equipment']
+const EVASIVE_KW = ['Flying', 'Menace', 'Shadow', 'Fear', 'Intimidate', 'Skulk', 'Horsemanship']
 export const RB = Object.fromEntries(ALL_ROLES.map((r, k) => [r, 1 << k]))
 
 export function rolesOf(c) {
@@ -57,6 +62,8 @@ export function rolesOf(c) {
   if (/Instant|Sorcery/.test(c.t)) m |= RB.spells
   if (/Artifact/.test(c.t.split(' // ')[0])) m |= RB.artifactMaker
   if (!/Creature/.test(c.t)) m &= ~RB.etb // blink só serve para permanentes que entram com efeito
+  if (/Creature/.test(c.t) && ((c.kw || []).some(k => EVASIVE_KW.includes(k)) || /can't be blocked/.test(o))) m |= RB.evasive // abre caminho ao ninjutsu
+  if (/Equipment/.test(c.t)) m = (m | RB.equipment) & ~RB.equipped
   return m
 }
 
@@ -218,12 +225,27 @@ async function get(name, kind) {
   return kind === 'json' ? r.json() : r.arrayBuffer()
 }
 
+// Remoção (igual a build_data.py): exilar/destruir as tuas próprias criaturas é blink, não remoção.
+export const REMOVAL_RE = /(destroy|exile) target (?!card)(?![^.]*\byou control\b)[^.]*(creature|artifact|enchantment|planeswalker|permanent|nonland)|deals? (\d+|x) damage to (any target|target creature|target planeswalker)|target creature gets -\d|return target (nonland )?(creature|permanent)(?![^.]*\byou control\b)[^.]*to its owner's hand|fights? target/
+// Tipos de criatura (das linhas de tipo), para ler «If it's a Spirit…» no texto.
+export const CREATURE_TYPES = new Set()
+const NOT_CREATURE = new Set(['Saga', 'Equipment', 'Aura', 'Food', 'Clue', 'Treasure', 'Vehicle', 'Time', 'Lord', 'Eye'])
+const ownTypes = c => new Set(c.t.split(' // ').flatMap(f => (f.includes('—') ? f.split('—')[1].trim().split(/\s+/) : [])))
+
 export async function loadData() {
   const [meta, cards, combos, emb, pos] = await Promise.all([
     get('meta.json', 'json'), get('cards.json', 'json'), get('combos.json', 'json'),
     get('emb.bin'), get('pos.bin'),
   ])
+  return prepData(meta, cards, combos, emb, pos)
+}
+
+// Índices e etiquetas calculadas por carta (separado de loadData para o selfcheck usar cartas inventadas).
+export function prepData(meta, cards, combos, emb, pos) {
   const byName = new Map(), byLower = new Map()
+  const tc = {} // 3+ cartas a sério com o tipo; subtipos de artefacto/encantamento que aparecem em criaturas ficam de fora
+  for (const c of cards) if (!c.un) for (const f of c.t.split(' // ')) if (/Creature|Kindred|Tribal/.test(f) && f.includes('—')) for (const w of f.split('—')[1].trim().split(/\s+/)) tc[w] = (tc[w] || 0) + 1
+  for (const [w, n] of Object.entries(tc)) if (n >= 3 && !NOT_CREATURE.has(w)) CREATURE_TYPES.add(w)
   cards.forEach((c, i) => {
     c.i = i
     c.l = c.n.toLowerCase()
@@ -231,6 +253,7 @@ export async function loadData() {
     c.ro = rolesOf(c)
     // Estrutura do deck: criaturas, condições de vitória, respostas de sideboard, reanimação.
     const o = c.o.toLowerCase(), pw = parseInt(c.pt) || 0
+    if (c.tg.includes('removal') && !REMOVAL_RE.test(o)) c.tg = c.tg.filter(t => t !== 'removal') // dados antigos: Ephemerate, Essence Flux…
     if (c.mt === 'Creature') c.tg.push('creature')
     if (/you win the game|loses the game|each opponent loses (\d+|x|that much|half)|deals? (\d+|x) damage to each opponent|creatures you control get \+[1-9]|double strike|\binfect\b|poison counter/.test(o)
       || (c.mt === 'Creature' && (pw >= 6 || (pw >= 4 && /flying|trample|menace|can't be blocked/.test(o))))
@@ -245,6 +268,80 @@ export async function loadData() {
   combos.forEach((cb, k) => { for (const i of cb[1]) combosByCard[i].push(k) })
   return { meta, cards, combos, combosByCard, emb: new Int8Array(emb), pos: new Float32Array(pos), byName, byLower, D: meta.dim }
 }
+
+// --- Referências a tipos/mecânicas que o deck não tem (Essence Flux sem Spirits, Puresteel Paladin sem equipamentos) ---
+const COLOR_WORD = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }
+const typeWord = w => { // «Dragons» → Dragon, «Elves» → Elf
+  for (const t of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ves$/, 'f')]) if (CREATURE_TYPES.has(t)) return t
+  return null
+}
+// alvo de um troço que só olha para o adversário: «protection from Dragons», «can block Dragons», «an opponent casts a red spell»…
+const HL = String.raw`((?:\w+, )*(?:\w+,? (?:or|and) )?\w+)(?: (?:creature|permanent|spell)s?)?` // «Spirit, Werewolf, or Demon»
+const HATE_TARGET = new RegExp(String.raw`protection from ${HL}|can block ${HL}(?: as though it had reach)?|can.t be blocked by ${HL}|opponents? casts? an? ${HL}|${HL} (?:your opponents control|an opponent controls)|(?:destroy|exile) (?:target|all) ${HL}`, 'gi')
+const TOKENS = /create[^.]*?tokens?/gi
+const typesIn = s => (s.match(/\b[A-Z][a-z'-]+\b/g) || []).map(typeWord).filter(Boolean)
+function textInfo(c) {
+  if (c._ti) return c._ti
+  let o = c.o.replace(/\([^)]*\)/g, '')
+  for (const n of [c.n, ...c.n.split(' // '), c.n.split(',')[0]]) if (n.length > 3) o = o.split(n).join('~')
+  const own = ownTypes(c), refs = [], hate = new Set()
+  for (const m of o.match(TOKENS) || []) for (const t of typesIn(m)) own.add(t) // os ovos que a própria carta cria
+  // tipos que a carta dá (becomes, «is a black Zombie», «doesn't remove Auras») não são referências
+  o = o.replace(TOKENS, '').replace(/becomes? [^.]*/gi, '').replace(/doesn't remove [^.]*/gi, '')
+    .replace(/\b(is|are) (an? )?((white|blue|black|red|green|colorless) )?[A-Z][a-z]+( [A-Z][a-z]+)*( in addition to (its|their) other (creature )?types)?/g, '')
+  const lines = o.split(/[\n.;]/).map(x => x.trim()).filter(x => x && x !== '~' && x !== '//')
+  let targeted = 0
+  for (let line of lines) {
+    // troços que só olham para o adversário: o tipo/cor é o dele, não conta como referência
+    let any = false
+    line = line.replace(HATE_TARGET, (m, ...g) => {
+      const hits = g.slice(0, 5).filter(x => typeof x === 'string').flatMap(x => x.split(/,? (?:or|and) |, /))
+        .map(w => (COLOR_WORD[w.toLowerCase()] ? w.toLowerCase() : typeWord(w))).filter(Boolean)
+      if (!hits.length) return m
+      any = true; for (const x of hits) hate.add(x)
+      return ''
+    })
+    if (any && !line.replace(/~|\bthis (creature|card|permanent)\b|[\s,]/gi, '')) { targeted++; continue }
+    // por linha: «Ninja and Rogue creatures» só está morta se nenhum dos tipos da linha estiver no deck
+    const ts = (line.match(/(?<!non-)\b[A-Z][a-z'-]+\b/g) || []).map(typeWord).filter(Boolean)
+    if (ts.some(t => own.has(t))) continue // a linha também fala do tipo da própria carta (Ninja and Rogue num Ninja)
+    const g = new Set(ts)
+    if (!own.has('Equipment') && /\bEquipment\b|\bequipped\b/.test(line)) g.add('Equipment')
+    if (!own.has('Aura') && /\bAuras?\b/.test(line)) g.add('Aura')
+    if (g.size) refs.push([...g])
+  }
+  // estreita: todas as linhas do texto só servem contra um tipo/cor do adversário (Dragon Hunter, Thraben Exorcism)
+  return (c._ti = { refs, hate: c.mt !== 'Land' && lines.length && targeted === lines.length ? [...hate] : [] })
+}
+export const narrowHate = c => textInfo(c).hate
+const COUNTERS_REF = tx('marcadores +1/+1')
+/** Quantos representantes de cada tipo/mecânica o deck tem (changelings contam para todos; fichas criadas também). */
+export function deckReps(deckCards) {
+  const types = new Map(), add = (m, k) => m.set(k, (m.get(k) || 0) + 1)
+  let changeling = 0, placers = 0, spells = 0
+  for (const d of deckCards) {
+    if (d.mt !== 'Land') spells++
+    if (/\bchangeling\b/i.test(d.o) || d.kw?.includes('Changeling')) changeling++
+    for (const t of ownTypes(d)) add(types, t)
+    for (const t of new Set((d.o.match(TOKENS) || []).flatMap(typesIn))) if (!ownTypes(d).has(t)) add(types, t)
+    if (d.ro & RB.counterPlacer) placers++
+  }
+  return { types, changeling, placers, spells }
+}
+/** [[ref, n]] das referências da carta com menos de 2 representantes no deck (terrenos: 20% das não-terreno, porque a
+ * mana deles só serve a esse tipo — Villainous Hideout com 2 Villains em 60 cartas é um terreno incolor). */
+export function deadRefsN(c, deckCards, reps = deckReps(deckCards)) {
+  const min = c.mt === 'Land' ? Math.max(2, Math.round(0.2 * reps.spells)) : 2
+  const out = [], seen = new Set()
+  for (const g of textInfo(c).refs) {
+    const ns = g.map(r => [r, (reps.types.get(r) || 0) + (r === 'Equipment' || r === 'Aura' ? 0 : reps.changeling)])
+    if (ns.every(([, n]) => n < min)) for (const x of ns) if (!seen.has(x[0])) { seen.add(x[0]); out.push(x) }
+  }
+  if (c.ro & RB.counterPayoff && !(c.ro & RB.counterPlacer) && reps.placers < 2) out.push([COUNTERS_REF, reps.placers])
+  return out
+}
+export const deadRefs = (c, deckCards, reps) => deadRefsN(c, deckCards, reps).map(x => x[0])
+export const deadTxt = ([t, n]) => (n ? tx('Refere {t}: o deck só tem {n}', { t, n }) : tx('Refere {t}: o deck não tem nenhum', { t }))
 
 export const fmtBit = (data, fmt) => (fmt?.lg ? data.meta.formats.indexOf(fmt.lg) : -1)
 const subset = (a, b) => { for (const ch of a) if (!b.includes(ch)) return false; return true }
@@ -355,6 +452,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
   for (const k of touched) {
     const missing = combos[k][1].filter(i => !haveSet.has(i))
     if (!missing.length || missing.length > 2) continue
+    if (missing.some(i => !passes(cards[i], null, ctx))) continue // a outra peça fora das cores ou ilegal: combo impossível
     for (const i of missing) {
       if (!comboHits.has(i)) comboHits.set(i, [])
       comboHits.get(i).push({ k, missing })
@@ -387,7 +485,9 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
   const piecesOf = cb => cb[1].filter(x => !cmdSet.has(x)).length
   const pOf = (cb, extraTutor = 0) => comboProb({ pieces: piecesOf(cb), tutors: tutorsN + extraTutor, deckSize, turn })
   const Pref = comboProb({ pieces: 2, tutors: 3, deckSize, turn })
-  const wP = p => Math.max(0.3, Math.min(1.5, p / Pref))
+  const wP = p => Math.min(1.5, p / Pref)
+  // bracket ≤ 3: combos infinitos de 2 cartas pesam metade
+  const cbW = cb => (bracket != null && bracket <= 3 && cb[1].length === 2 && /infinite/i.test(cb[2].join(' ')) ? 0.5 : 1)
   const fullInDeck = deckCombos(data, [...haveSet], ctx).full
   const bestDeckCombo = fullInDeck[0]?.cb
 
@@ -417,6 +517,15 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     }
   }
 
+  // EDHREC (rank «er») só diz algo em formatos de comandante; nos de 60 cartas manda o meta dos torneios
+  const edhOk = commanders.length > 0 || deckSize >= 99
+  const deckCards = [...haveSet].map(i => cards[i]), reps = deckReps(deckCards)
+  const deckCi = ctx?.identity ?? [...new Set(deckCards.filter(c => c.mt !== 'Land').flatMap(c => [...c.ci]))].join('')
+  const cSrc = deckStats ? deckStats.sources.C : Infinity
+  // meta: só conta a inclusão vinda de arquétipos com cores compatíveis (Arid Mesa não vem dos decks R/W para um deck UB)
+  const archOk = meta ? meta.archetypes.map(a => !deckCi || [...a.colors].every(k => deckCi.includes(k))) : []
+  const metaIncl = m => (!m?.archs.length || !deckCi ? m?.incl || 0 : m.incl * m.archs.filter(k => archOk[k]).length / m.archs.length)
+
   const LOGR = Math.log(40000)
   const res = [], allSem = [], allCmd = []
   for (let i = 0; i < cards.length; i++) {
@@ -425,6 +534,8 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     if (/\bBasic\b/.test(c.t)) continue
     if (!passes(c, filters, ctx)) continue
     if (c.gc && gcCount >= gcLimit) continue
+    if (c.mt === 'Land' && ((deckCi && offColorLand(landInfo(c, commanders.length > 0), deckCi)) || deadRefsN(c, deckCards, reps).length)) continue
+    if (cSrc < 4 && /\{C\}/.test(c.mc || '')) continue // {C} no custo sem fontes de incolor
     let sem = 0
     const o = i * D
     for (let k = 0; k < D; k++) sem += cen[k] * E[o + k]
@@ -437,13 +548,13 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     const P = {}
     P.texto = commanders.length ? 0.4 * sem + 0.35 * mx : 0.55 * sem + 0.45 * mx
     P.comandante = commanders.length ? 0.25 * cmd : 0
-    P.popular = c.er ? 0.06 * Math.max(0, 1 - Math.log(c.er) / LOGR) : 0
+    P.popular = edhOk && c.er ? 0.06 * Math.max(0, 1 - Math.log(c.er) / LOGR) : 0
     const hits = comboHits.get(i)
     let completes = 0, partial = 0
     let comboP = 0, cw = 0, pw = 0
     if (hits) for (const h of hits) {
-      const p = pOf(combos[h.k])
-      if (h.missing.length === 1) { completes++; cw += 0.18 * wP(p); comboP = Math.max(comboP, p) } else { partial++; pw += 0.025 * wP(p) }
+      const p = pOf(combos[h.k]), w = wP(p) * cbW(combos[h.k])
+      if (h.missing.length === 1) { completes++; cw += 0.18 * w; comboP = Math.max(comboP, p) } else { partial++; pw += 0.025 * w }
     }
     P.combos = noCombos ? 0 : Math.min(0.35, cw) + Math.min(0.08, pw)
     // Tutor num deck com combos: sobe a probabilidade de os montar.
@@ -462,6 +573,8 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     const tribal = hasTribe && (subtypes(c).includes(tribe) || tribeRe.test(c.o.toLowerCase()) || /changeling/i.test(c.o))
     const kws = topKw.filter(k => c.kw.includes(k))
     P.tribo = (tribal ? 0.07 : 0) + Math.min(0.04, kws.length * 0.02)
+    const dead = deadRefsN(c, deckCards, reps)
+    P.tribo -= 0.06 * dead.length
     // Plano de reanimação: as criaturas grandes são o alvo.
     const power = parseInt(c.pt) || 0
     const reanTarget = reanimators.length > 0 && c.mt === 'Creature' && (power >= 6 || c.cmc >= 6)
@@ -472,7 +585,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     const inter = []
     for (const [a, b] of PAIRS) {
       if (c.ro & RB[b] && byRole[a].length >= 2) inter.push({ side: 'usa', role: a, who: byRole[a] })
-      else if (c.ro & RB[a] && byRole[b].length >= 1) inter.push({ side: 'alimenta', role: b, who: byRole[b] })
+      else if (c.ro & RB[a] && byRole[b].length >= 2) inter.push({ side: 'alimenta', role: b, who: byRole[b] })
     }
     P.interacoes = Math.min(0.12, inter.reduce((s, x) => s + 0.03 + 0.01 * Math.min(4, x.who.length), 0))
     // Decks reais (EDHREC): inclusão e sinergia com o comandante, lift com as outras cartas.
@@ -484,15 +597,16 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
       let b = 0
       for (const e of edh) {
         if (e.kind === 'commanders') { edhCmd = e; b += 0.35 * Math.max(0, Math.min(e.syn, 0.5)) / 0.5 + 0.2 * e.incl }
-        else if (e.lift > 1) { edhCards.push(e); b += 0.05 * Math.min(1, Math.log(e.lift) / Math.log(6)) * Math.min(1, e.incl * 4) }
+        else if (e.lift > 1) { edhCards.push(e); b += 0.05 * Math.min(1, Math.log(e.lift) / Math.log(6)) * Math.min(1, e.incl * 4) * e.pot / (e.pot + 200) }
       }
       P.decksReais = Math.min(0.4, b)
       edhCards.sort((x, y) => y.lift - x.lift)
     }
     // Torneios (MTGTop8): inclusão no formato, peça do arquétipo, parceiras em listas reais.
     P.torneios = 0
-    const mRow = meta?.byCard.get(i), mArch = archCore.get(i), mPart = (metaPartner.get(i) || []).sort((a, b) => b.cond - a.cond)
-    if (mRow) P.torneios += 0.25 * Math.min(1, mRow.incl * 2.5)
+    const mRow0 = meta?.byCard.get(i), mInc = metaIncl(mRow0), mRow = mInc > 0 ? mRow0 : null
+    const mArch = archCore.get(i), mPart = (metaPartner.get(i) || []).sort((a, b) => b.cond - a.cond)
+    if (mRow) P.torneios += 0.25 * Math.min(1, mInc * 2.5)
     if (mArch) P.torneios += 0.25 * mArch.incl
     if (mPart.length) P.torneios += 0.04 * Math.min(3, mPart.length)
     P.torneios = Math.min(0.45, P.torneios)
@@ -543,7 +657,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     const score = Object.values(P).reduce((a, b) => a + b, 0)
     allSem.push(sem)
     if (commanders.length) allCmd.push(cmd)
-    res.push({ i, score, P, sem, near, cmd, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mArch, mPart, stHit, tasteBest, tasteName, tb })
+    res.push({ i, score, P, sem, near, cmd, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mInc, mArch, mPart, stHit, tasteBest, tasteName, tb, dead })
   }
   res.sort((a, b) => b.score - a.score)
   const name = i => cards[i].n
@@ -564,7 +678,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     }
     if (r.tb) why.push({ k: 'testes', txt: r.tb.txt })
     if (r.mArch) why.push({ k: 'meta', txt: tx('Peça de {a}: em {p}% das listas, {q} cópias', { a: archetype.name, p: Math.round(r.mArch.incl * 100), q: num(r.mArch.copies, 1) }) })
-    else if (r.mRow && r.mRow.incl >= 0.03) why.push({ k: 'meta', txt: tx('Em {p}% dos decks de {f} (MTGTop8, {n} listas)', { p: Math.round(r.mRow.incl * 100), f: meta.fmtName, n: meta.decks }) })
+    else if (r.mRow && r.mInc >= 0.03) why.push({ k: 'meta', txt: tx('Em {p}% dos decks de {f} (MTGTop8, {n} listas)', { p: Math.round(r.mRow.incl * 100), f: meta.fmtName, n: meta.decks }) })
     if (r.mPart.length) why.push({ k: 'meta', txt: tx('Jogada com {with} em torneios ({p}% das vezes)', { with: r.mPart.slice(0, 2).map(p => p.from).join(tx(' e ')), p: Math.round(r.mPart[0].cond * 100) }) })
     if (r.tutorGain) why.push({ k: 'combo', txt: tx('Tutor: o teu combo passa de ≈{a} para ≈{b} até ao turno {turn}', { a: pctP(r.tutorGain[0]), b: pctP(r.tutorGain[1]), turn }) })
     if (r.edhCmd) {
@@ -593,7 +707,8 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     if (r.tasteName && r.tasteBest >= 0.3) why.push({ k: 'gosto', txt: tx('Ao teu gosto: perto das cartas de «{d}»', { d: r.tasteName }) })
     if (r.P.original) why.push({ k: 'estilo', txt: tx('Escolha original (pouco jogada)') })
     if (r.near >= 0 && why.length < 3) why.push({ k: 'perto', txt: tx('Parecida com {c}', { c: name(r.near) }) })
-    if (c.er && c.er <= 300 && why.length < 3) why.push({ k: 'tema', txt: tx('Staple: n.º {n} do EDHREC', { n: c.er }) })
+    if (edhOk && c.er && c.er <= 300 && why.length < 3) why.push({ k: 'tema', txt: tx('Staple: n.º {n} do EDHREC', { n: c.er }) })
+    why.splice(Math.min(1, why.length), 0, ...r.dead.map(d => ({ k: 'tribo', txt: deadTxt(d) }))) // aviso logo a seguir ao 1.º motivo
     // Detalhe completo para o «Porquê?».
     const detail = {
       combos: (r.hits || []).sort((a, b) => a.missing.length - b.missing.length || (combos[b.k][5] || 0) - (combos[a.k][5] || 0)).slice(0, 4).map(h => {
@@ -662,11 +777,33 @@ export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, rec
   for (const i of nonland) for (const t of subtypes(cards[i])) tribeCount[t] = (tribeCount[t] || 0) + 1
   const [tribe0, tn] = Object.entries(tribeCount).sort((a, b) => b[1] - a[1])[0] || []
   const tribe = tn >= 5 ? tribe0 : null
+  const edhOk = commanders.length > 0  // EDHREC só com comandante; nos de 60 cartas, o meta
+  const ev = ctx?.tests?.cards && ctx.tests.exact >= 10 ? ctx.tests : null
+  // frequência no meta de um alvo (tipo ou cor): a maior inclusão de uma carta dele, ou a quota dos arquétipos que o jogam
+  const isT = (c, t) => c.mt !== 'Land' && (COLOR_WORD[t] ? (c.co || '').includes(COLOR_WORD[t]) : ownTypes(c).has(t))
+  const metaShare = t => {
+    let p = 0
+    for (const [j, m] of meta.byCard) if (m.incl > p && isT(cards[j], t)) p = m.incl
+    const arch = meta.archetypes.filter(a => a.core.some(x => x.incl >= 0.5 && isT(cards[x.i], t))).reduce((a, x) => a + x.share, 0)
+    return Math.min(1, Math.max(p, arch))
+  }
   for (const i of nonland) {
     const c = cards[i]
     if (seedSet.has(c.n) || c.tg.includes('hate')) continue // as tuas sementes não se cortam; respostas de sideboard têm aviso próprio
     const why = []
-    let fit = 0, buts = 0  // buts: motivos «Mas…», a favor de ficar
+    let fit = 0, buts = 0, force = false, sb = false  // buts: motivos «Mas…», a favor de ficar
+    // só serve contra um tipo/cor do adversário (Dragon Hunter): para o sideboard, ou fora se o meta quase não o joga
+    const hate = narrowHate(c)
+    if (hate.length) {
+      const x = hate.map(t => (COLOR_WORD[t] ? COLORS[COLOR_WORD[t]].toLowerCase() : t)).join('/')
+      const p = meta ? Math.max(...hate.map(metaShare)) : null
+      fit -= 0.3; force = true
+      why.push(p == null ? tx('Carta de sideboard: só serve contra {x}', { x }) : tx('Carta de sideboard: só serve contra {x} ({p}% do meta de {f})', { x, p: Math.round(p * 100), f: meta.fmtName }))
+      if (p != null && p < 0.05) { fit -= 0.3; why.push(tx('Quase ninguém joga {x}: corta de vez', { x })) } else sb = true
+    }
+    // com 10+ jogos exatos: quem ganha mais quando aparece não se corta pelo texto
+    const xe = ev?.cards[c.n]
+    if (!force && xe?.seen && wrDelta(ev, xe) > 0 && passes(c, null, ctx)) continue
     if (!passes(c, null, ctx)) { fit -= 2; why.push(ctx.identity != null ? tx('Fora da identidade ou ilegal no formato') : tx('Ilegal no formato')) }
     const sim = sims.get(i)
     fit += 0.5 * sim
@@ -689,9 +826,10 @@ export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, rec
     }
     const needed = c.tg.find(t => needs[t] && needs[t][0] <= needs[t][1])
     if (needed) fit += 0.1
-    if (c.er) fit += 0.04 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000))
+    if (edhOk && c.er) fit += 0.04 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000))
+    else if (!edhOk && mRow) fit += 0.04 * Math.min(1, mRow.incl * 2.5)
     const roleCard = c.tg.some(t => ['removal', 'draw', 'ramp', 'counter', 'wipe', 'protection', 'tutor', 'discard'].includes(t))
-    if (roleCard && c.er && c.er < 800) fit += 0.15 // peça de função muito jogada: vale por si
+    if (roleCard && (edhOk ? c.er && c.er < 800 : (mRow?.incl || 0) >= 0.1)) fit += 0.15 // peça de função muito jogada: vale por si
     const tribal = tribe && (subtypes(c).includes(tribe) || c.o.toLowerCase().includes(tribe.toLowerCase()))
     if (tribal) fit += 0.25
     if (sim < q25 && !tribal) why.push(tx('Texto entre os mais afastados do resto do deck'))
@@ -706,11 +844,11 @@ export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, rec
     if (dd && dd.dead >= 2 && dd.dead / dd.seen >= 0.5) { fit -= 0.2 * dd.dead / dd.seen; why.push(tx('Testes: ficou na mão sem ser jogada em {a} de {n} jogos', { a: dd.dead, n: dd.seen })) }
     if (im?.dmg >= 5) { fit += 0.1; buts++; why.push(tx('Mas nos testes causou {n} de dano', { n: im.dmg })) }
     if (needed) { buts++; why.push(tx('Mas conta como {t}, de que o deck precisa', { t: TAG_LABEL[needed].toLowerCase() })) }
-    out.push({ c, fit, why, buts })
+    out.push({ c, fit, why, buts, force, sb })
   }
   out.sort((a, b) => a.fit - b.fit)
   const used = new Set()
-  const real = out.filter(x => x.why.length > x.buts) // só se propõe cortar com um motivo
+  const real = out.filter(x => x.force || x.why.length > x.buts) // só se propõe cortar com um motivo
   return real.slice(0, limit).map(x => {
     const fn = x.c.tg.filter(t => ROLE_TAGS.includes(t))
     const swap = recs.find(r => !used.has(r.c.i) && r.c.mt !== 'Land' && (fn.length ? fn.some(t => r.c.tg.includes(t)) : !r.c.tg.some(t => ROLE_TAGS.includes(t))))
@@ -799,26 +937,31 @@ export function metaIndex(data, raw, fmtName) {
     if (i != null) byCard.set(i, { incl, copies, side, sideCopies, archs: archs || [] })
   }
   const archetypes = (raw.archetypes || []).map(a => ({ name: a.name, share: a.share, decks: a.decks, core: a.core.map(([n, incl, copies]) => ({ i: find(n), incl, copies })).filter(x => x.i != null) }))
+  // cores de cada arquétipo: identidade das cartas do núcleo em metade ou mais das listas
+  for (const a of archetypes) a.colors = [...new Set(a.core.filter(x => x.incl >= 0.5).flatMap(x => [...data.cards[x.i].ci]))].join('')
+  const ciOf = i => data.cards[i].mt === 'Land' ? '' : data.cards[i].ci
   const pairs = new Map()
   for (const [n, list] of Object.entries(raw.pairs || {})) {
     const i = find(n)
     if (i != null) pairs.set(i, list.map(([m, lift, cond]) => ({ i: find(m), lift, cond })).filter(x => x.i != null))
   }
-  return { byCard, archetypes, pairs, decks: raw.decks, since: raw.since, fmtName }
+  return { byCard, archetypes, pairs, decks: raw.decks, since: raw.since, fmtName, ciOf }
 }
 
 /** Arquétipo mais parecido com o deck: fração do núcleo (pesada pela inclusão) que já lá está. */
 export function detectArchetype(meta, haveIdx) {
   if (!meta || haveIdx.length < 4) return null
   const have = new Set(haveIdx)
+  const cols = new Set(haveIdx.flatMap(i => [...(meta.ciOf?.(i) || '')]))
   let best = null
   for (const a of meta.archetypes) {
+    if (meta.ciOf && cols.size && ![...(a.colors || '')].every(k => cols.has(k))) continue // cores incompatíveis com o deck
     const tot = a.core.reduce((s, x) => s + x.incl, 0) || 1
     const got = a.core.filter(x => have.has(x.i))
     const fit = got.reduce((s, x) => s + x.incl, 0) / tot
     if (!best || fit > best.fit) best = { ...a, fit, got: got.length }
   }
-  return best && best.fit >= 0.35 ? best : null // abaixo disto é coincidência, não o arquétipo
+  return best && best.fit >= 0.45 ? best : null // abaixo disto é coincidência, não o arquétipo
 }
 
 export const pctP = p => (p >= 0.995 ? '99%' : p >= 0.1 ? `${Math.round(p * 100)}%` : `${num(p * 100, 1)}%`)
