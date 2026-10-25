@@ -513,10 +513,19 @@ def free_mb():
         return 1 << 20
 
 
+def together():
+    """A Arena joga durante os torneios (Definições › Jogos do Forge): fica com um dos lugares do simulador."""
+    sch = sim.PAR.get("sched") or {}
+    return bool(sch.get("arena")) and sim.PAR["n"] > 1
+
+
 def others_busy():
-    """Alguém mais quer o Forge: jogo teu aberto ou trabalhos que não são da Arena na fila/a jogar."""
+    """Alguém mais quer o Forge: jogo teu aberto ou trabalhos que não são da Arena na fila/a jogar. Com a Arena a jogar
+    durante os torneios, só o jogo teu a obriga a parar (os torneios deixam-lhe um lugar)."""
     if BUSY():
         return "Há um jogo teu aberto contra o Forge."
+    if together():
+        return None
     with sim.LOCK:
         if any(j["status"] in ("queued", "running") for jid, j in sim.JOBS.items() if jid != ST["job"]):
             ST["seen"] = time.time()
@@ -528,13 +537,17 @@ def wait_reason(con, cfg):
     r = others_busy()
     if r:
         return r
-    if time.time() - ST["seen"] < IDLE:
-        return f"À espera de o simulador estar parado há {IDLE} s."
-    try:
-        if con.execute("SELECT 1 FROM tournaments WHERE status='running' LIMIT 1").fetchone():
-            return "Há um torneio a decorrer."
-    except sqlite3.OperationalError:
-        pass
+    if together():  # a jogar ao lado dos torneios: só precisa de um lugar livre no simulador
+        if sim.busy_slots() >= sim.PAR["n"]:
+            return "Sem lugar livre no simulador."
+    else:
+        if time.time() - ST["seen"] < IDLE:
+            return f"À espera de o simulador estar parado há {IDLE} s."
+        try:
+            if con.execute("SELECT 1 FROM tournaments WHERE status='running' LIMIT 1").fetchone():
+                return "Há um torneio a decorrer."
+        except sqlite3.OperationalError:
+            pass
     if free_mb() < MIN_FREE_MB:
         return f"Pouca RAM livre ({free_mb()} MB)."
     left = ST["last_end"] + cfg["pause"] - time.time()
@@ -594,6 +607,7 @@ def arena_step(con):
     """Um passo da Arena (de 2 em 2 s): vê o jogo em curso, regista, e só arranca outro quando ninguém mais precisa
     do Forge. Se aparecer um trabalho teu ou um jogo contra o Forge, o jogo da Arena é cancelado e repete-se depois."""
     cfg, cur = settings(con), kv(con, "arena_cur") or {}
+    sim.ARENA_ON["on"] = bool(cfg["on"])
     if ST["job"]:
         j = sim.status(ST["job"])
         if j and j["status"] in ("queued", "running"):

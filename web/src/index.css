@@ -1677,3 +1677,4 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .tc-mix input[type=range] { width: 110px; accent-color: var(--gold); } .tc-mix b { min-width: 3.2ch; text-align: right; font-variant-numeric: tabular-nums; }
 .tc-mix-meta b { color: #8cc8ff; } .tc-mix-com b { color: #c9a2ff; } .tc-mix-meu b { color: var(--gold2); }
 .tc-srcs button.on:disabled { opacity: 1; cursor: default; } .tc-srcs button.on:disabled::after { content: ' 🔒'; font-size: 10px; }  /* meta obrigatório: ligado, não apagado */
+.fg-dist { margin: 14px 0 4px; } .fg-row { display: flex; flex-wrap: wrap; gap: 8px 14px; }

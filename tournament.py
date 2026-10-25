@@ -1052,14 +1052,13 @@ def step():
     with LOCK, db() as con:
         # partidas em jogo ao mesmo tempo, somando todos os torneios (definição «jogos do Forge ao mesmo tempo»); antes de o
         # simulador arrancar lê-se do ficheiro, senão o 1.º passo depois de reiniciar mandava só uma
-        inflight, cap = 0, max(1, sim.PAR["n"] if sim._worker else sim.load_parallel(DATA))
+        cap = max(1, sim.PAR["n"] if sim._worker else sim.load_parallel(DATA))
         rows = con.execute("SELECT id, status, state, owner FROM tournaments WHERE status IN ('running', 'paused') ORDER BY ts").fetchall()
         tours = [(tid, status, json.loads(s), owner) for tid, status, s, owner in rows]
         for tid, status, st, owner in tours:
             for m in [m for m in st["matches"] if m.get("job")]:
                 j, was = sim.status(m["job"]), m["st"]
                 if j and j["status"] in ("queued", "running"):
-                    inflight += 1
                     continue
                 if j is None:  # o servidor reiniciou: o trabalho perdeu-se, volta à fila
                     pass
@@ -1084,43 +1083,60 @@ def step():
                 return
         if BUSY():
             return
-        for tid, status, st, owner in tours:
-            if status != "running" or not started(st):
-                continue
-            while inflight < cap:
-                m = next_match(st)
-                if not m:
-                    if not any(x.get("job") for x in st["matches"]):
-                        resolve(st)  # não devia acontecer; fecha o torneio se já tem campeão
-                        save(con, tid, st, None if over(st) else "error")
-                    break
-                seats = seats_for(m)
-                m["sb"], decks = {}, {}
-                for i in seats:
-                    sw = []
-                    if len(seats) == 2 and side_ok(st, i):
-                        try:
-                            sw = sideboard(con, tid, owner, st, m, i)
-                        except Exception as e:  # o sideboard é um extra: sem ele joga a lista base
-                            print(f"[torneio {tid}] sideboard: {e!r}", file=sys.stderr, flush=True)
-                    if sw:
-                        m["sb"][str(i)] = sw
-                    decks[i] = apply_swaps(st["decks"][i], sw) if sw else st["decks"][i]
-                cmd = sim.GAME_TYPE.get(st["format"], "Constructed") != "Constructed"
-                body = {"format": st["format"], "casual": st.get("casual"), "mode": {2: "1v1", 3: "ffa3", 4: "ffa4"}[len(seats)], "games": 1,
-                        "clock": (1500 if cmd else 900) if len(seats) > 2 else (600 if cmd else 300),
-                        "seats": [{"deck": decks[i], "difficulty": st["players"][i]["difficulty"]} for i in seats]}
-                try:
-                    m["job"], m["seats"] = sim.submit(DATA, body), seats
-                except ValueError as e:
-                    st["error"] = str(e)
-                    save(con, tid, st, "error")
-                    break
-                st.pop("error", None)
-                save(con, tid, st)
-                inflight += 1
-            if inflight >= cap:
-                return
+        # Lugares livres no simulador (contam os testes, os torneios e a Arena). Definições › Jogos do Forge: prioridade ao
+        # torneio mais antigo ou ao mais recente; «quota» = jogos no máximo por torneio na 1.ª volta (0 = todos: enche um de
+        # cada vez); na 2.ª volta os lugares que sobram vão para quem ainda tiver partidas; com a Arena durante os
+        # torneios, um lugar fica para ela.
+        sch = sim.PAR.get("sched") or sim.load_sched(DATA)
+        reserve = 1 if sch.get("arena") and sim.ARENA_ON.get("on") and cap > 1 else 0
+        free = cap - reserve - sim.busy_slots()
+        run = [x for x in tours if x[1] == "running" and started(x[2])]
+        if sch.get("dist") == "recente":
+            run.reverse()
+        own = {tid: sum(1 for m in st["matches"] if m.get("job")) for tid, _, st, _ in run}
+        quota = sch.get("quota") or cap
+        for lap in (1, 2):
+            for tid, status, st, owner in run:
+                while free > 0 and (lap == 2 or own[tid] < quota):
+                    if not launch(con, tid, st, owner):
+                        break
+                    own[tid] += 1
+                    free -= 1
+
+
+def launch(con, tid, st, owner):
+    """Manda a próxima partida pronta deste torneio para o simulador; False se não há nenhuma (ou falhou)."""
+    m = next_match(st)
+    if not m:
+        if not any(x.get("job") for x in st["matches"]):
+            resolve(st)  # não devia acontecer; fecha o torneio se já tem campeão
+            save(con, tid, st, None if over(st) else "error")
+        return False
+    seats = seats_for(m)
+    m["sb"], decks = {}, {}
+    for i in seats:
+        sw = []
+        if len(seats) == 2 and side_ok(st, i):
+            try:
+                sw = sideboard(con, tid, owner, st, m, i)
+            except Exception as e:  # o sideboard é um extra: sem ele joga a lista base
+                print(f"[torneio {tid}] sideboard: {e!r}", file=sys.stderr, flush=True)
+        if sw:
+            m["sb"][str(i)] = sw
+        decks[i] = apply_swaps(st["decks"][i], sw) if sw else st["decks"][i]
+    cmd = sim.GAME_TYPE.get(st["format"], "Constructed") != "Constructed"
+    body = {"format": st["format"], "casual": st.get("casual"), "mode": {2: "1v1", 3: "ffa3", 4: "ffa4"}[len(seats)], "games": 1,
+            "clock": (1500 if cmd else 900) if len(seats) > 2 else (600 if cmd else 300),
+            "seats": [{"deck": decks[i], "difficulty": st["players"][i]["difficulty"]} for i in seats]}
+    try:
+        m["job"], m["seats"] = sim.submit(DATA, body), seats
+    except ValueError as e:
+        st["error"] = str(e)
+        save(con, tid, st, "error")
+        return False
+    st.pop("error", None)
+    save(con, tid, st)
+    return True
 
 
 def runner():

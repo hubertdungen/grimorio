@@ -973,7 +973,8 @@ def worker(data_dir):
     for d in os.listdir(jobs_root) if os.path.isdir(jobs_root) else []:
         if d not in live:
             shutil.rmtree(os.path.join(jobs_root, d), ignore_errors=True)
-    PAR["n"] = load_parallel(data_dir)
+    PAR["sched"] = load_sched(data_dir)
+    PAR["n"] = PAR["sched"]["parallel"]
     while True:
         with LOCK:  # até PAR["n"] jogos ao mesmo tempo; um jogo extra só arranca com RAM livre (MEM_MIN)
             while not PENDING or len(RUNNING) >= PAR["n"] or (RUNNING and mem_free() < MEM_MIN):
@@ -1001,7 +1002,10 @@ def run_job(jid, job):
 
 
 # ---------- jogos do Forge em simultâneo (definição: 1, 2 ou 3) ----------
-RUNNING, PAR, MEM_MIN = set(), {"n": 1}, 1500  # MB livres para arrancar um jogo extra (cada jogo ~0,7–1 GB)
+MAX_PAR = 6  # jogos do Forge ao mesmo tempo (a RAM decide o resto: um jogo extra só arranca com MEM_MIN livres)
+SCHED0 = {"parallel": 1, "dist": "antigo", "quota": 0, "arena": False}
+ARENA_ON = {"on": False}  # a Arena está ligada (ratings.py): com sched["arena"], os torneios deixam-lhe um lugar
+RUNNING, PAR, MEM_MIN = set(), {"n": 1, "sched": dict(SCHED0)}, 1500  # MB livres para arrancar um jogo extra (cada jogo ~0,7–1 GB)
 
 
 def mem_free():
@@ -1020,26 +1024,53 @@ def mem_free():
         return 0
 
 
-def load_parallel(data_dir):
+
+
+def load_sched(data_dir):
+    """Definições do simulador: parallel (1–6 jogos ao mesmo tempo); dist = que torneio tem prioridade ('antigo' ou
+    'recente'); quota = jogos no máximo por torneio antes de passar ao seguinte (0 = todos: enche um de cada vez);
+    arena = a Arena joga durante os torneios, com um dos lugares."""
     try:
         with open(os.path.join(data_dir, "sim-settings.json")) as f:
-            return max(1, min(3, int(json.load(f).get("parallel", 1))))
+            j = json.load(f)
     except (OSError, ValueError, TypeError):
-        return 1
+        j = {}
+    return clean_sched({**SCHED0, **(j if isinstance(j, dict) else {})})
+
+
+def clean_sched(j):
+    try:
+        n = max(1, min(MAX_PAR, int(j.get("parallel", 1))))
+        q = max(0, min(MAX_PAR, int(j.get("quota", 0))))
+    except (ValueError, TypeError):
+        n, q = 1, 0
+    return {"parallel": n, "dist": "recente" if j.get("dist") == "recente" else "antigo", "quota": q, "arena": bool(j.get("arena"))}
+
+
+def load_parallel(data_dir):
+    return load_sched(data_dir)["parallel"]
+
+
+def busy_slots():
+    """Lugares do simulador ocupados: jogos a correr e na fila (testes, torneios e Arena)."""
+    with LOCK:
+        return len(RUNNING) + len(PENDING)
 
 
 def settings(data_dir, new=None):
-    """GET/POST das definições do simulador: {"parallel": 1–3, "running": n, "mem_free": MB}."""
+    """GET/POST das definições do simulador: {"parallel": 1–6, "dist", "quota", "arena", "running": n, "mem_free": MB}."""
+    cur = load_sched(data_dir)
     if new is not None:
-        n = max(1, min(3, int(new.get("parallel", PAR["n"]))))
+        cur = clean_sched({**cur, **{k: v for k, v in new.items() if k in SCHED0}})
         with open(os.path.join(data_dir, "sim-settings.json"), "w") as f:
-            json.dump({"parallel": n}, f)
+            json.dump(cur, f)
         with LOCK:
-            PAR["n"] = n
+            PAR.update(n=cur["parallel"], sched=cur)
             LOCK.notify_all()
     else:
-        PAR["n"] = PAR["n"] if _worker else load_parallel(data_dir)
-    return {"parallel": PAR["n"], "running": len(RUNNING), "mem_free": mem_free(), "mem_min": MEM_MIN}
+        PAR["n"] = PAR["n"] if _worker else cur["parallel"]
+        PAR["sched"] = cur
+    return {**cur, "parallel": PAR["n"], "max": MAX_PAR, "running": len(RUNNING), "mem_free": mem_free(), "mem_min": MEM_MIN}
 
 
 def redo_crashed(jid, a, games):
@@ -1349,6 +1380,8 @@ def history(con, deck_id):
 # ---------- verificação ----------
 
 def selfcheck():
+    assert clean_sched({"parallel": 9, "quota": -1, "dist": "x"}) == {"parallel": MAX_PAR, "dist": "antigo", "quota": 0, "arena": False}
+    assert clean_sched({"parallel": "4", "quota": 1, "dist": "recente", "arena": 1}) == {"parallel": 4, "dist": "recente", "quota": 1, "arena": True}
     d = {"prints": {"Island": {"id": "p1"}, "Forest": {"id": "p2"}}, "art": {"Forest": "arts/x.webp"}, "split": {"Island": [{"id": "p1", "q": 4}, {"id": "p3", "q": 4}]}}
     assert art_map(d) == {"Island": [{"id": "p1", "q": 4}, {"id": "p3", "q": 4}], "Forest": "arts/x.webp"} and art_map(None) == {}, "art_map"
     names = {fold(n): n for n in ("Fire // Ice", "Delver of Secrets", "Lightning Bolt", "Lim-Dûl's Vault", "Mountain")}

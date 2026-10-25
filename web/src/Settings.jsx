@@ -12,7 +12,7 @@ import { getBasicDefaults, setBasicDefaults } from './data.js'
 
 const PER_GAME = 900, RESERVE = 1000  // MB: ~0,9 GB por jogo do Forge; 1 GB fica para o sistema e o browser
 // quantos jogos cabem na RAM livre agora; os que já correm contam como livres (a memória deles é deles)
-const recommend = st => Math.max(1, Math.min(3, Math.floor((st.mem_free + st.running * PER_GAME - RESERVE) / PER_GAME)))
+const recommend = st => Math.max(1, Math.min(st.max || 6, Math.floor((st.mem_free + st.running * PER_GAME - RESERVE) / PER_GAME)))
 const gb = mb => num(mb / 1000, 1)
 
 function ForgeGames() {
@@ -25,18 +25,29 @@ function ForgeGames() {
     return () => clearInterval(iv)
   }, [])
   if (!st) return <p className="muted small">{err || tx('A ler a memória…')}</p>
-  const set = n => fetch('/api/sim/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parallel: n }) }).then(r => r.json()).then(setSt)
+  const save = o => fetch('/api/sim/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) }).then(r => r.json()).then(setSt)
+  const set = n => save({ parallel: n })
   const rec = recommend(st)
   return (
     <>
       <div className="seg-pick" role="radiogroup" aria-label={tx('Jogos do Forge ao mesmo tempo')}>
-        {[1, 2, 3].map(n => <button key={n} role="radio" aria-checked={st.parallel === n} className={st.parallel === n ? 'on' : ''} onClick={() => set(n)}>
+        {Array.from({ length: st.max || 6 }, (_, k) => k + 1).map(n => <button key={n} role="radio" aria-checked={st.parallel === n} className={st.parallel === n ? 'on' : ''} onClick={() => set(n)}>
           {n}{n === rec && <small>{tx('sugerido')}</small>}</button>)}
       </div>
       <p className="small">{tx('Sugestão agora: {n} jogo|Sugestão agora: {n} jogos', { n: rec })} · <span className="muted">{tx('~0,9 GB por jogo; {free} GB livres agora, 1 GB fica para o sistema.', { free: gb(st.mem_free) })}
         {st.running > 0 && ` ${tx('{n} jogo a correr (já conta).|{n} jogos a correr (já contam).', { n: st.running })}`}</span></p>
       {st.parallel > rec && <p className="small warn-t">⚠ {tx('Escolheste mais do que a RAM livre aguenta agora: os jogos extra esperam até haver {min} GB livres, e o computador pode ficar lento.', { min: gb(st.mem_min) })}</p>}
       <p className="muted small">{tx('Vale para os testes do Laboratório, os torneios e a Arena. Cada jogo usa também quase um núcleo do processador.')}</p>
+      <h4 className="fg-dist">{tx('Com vários torneios ao mesmo tempo')}</h4>
+      <div className="fg-row">
+        <label className="fmt"><span>{tx('Prioridade')}</span><select value={st.dist} onChange={e => save({ dist: e.target.value })}>
+          <option value="antigo">{tx('o torneio mais antigo')}</option><option value="recente">{tx('o torneio mais recente')}</option></select></label>
+        <label className="fmt"><span>{tx('Jogos por torneio')}</span><select value={st.quota} onChange={e => save({ quota: +e.target.value })}>
+          <option value={0}>{tx('todos (acaba um de cada vez)')}</option>
+          {Array.from({ length: Math.max(1, st.parallel - 1) }, (_, k) => k + 1).map(n => <option key={n} value={n}>{n === 1 ? tx('1 (repartir por todos)') : tx('até {n}', { n })}</option>)}</select></label>
+      </div>
+      <label className="chk small"><input type="checkbox" checked={!!st.arena} disabled={st.parallel < 2} onChange={e => save({ arena: e.target.checked })} /> {tx('A Arena joga durante os torneios (fica com um dos lugares)')}</label>
+      <p className="muted small">{st.quota ? tx('Cada torneio joga até {q} ao mesmo tempo, começando pelo {o}; os lugares que sobram vão para quem ainda tiver partidas.', { q: st.quota, o: st.dist === 'recente' ? tx('mais recente') : tx('mais antigo') }) : tx('O {o} usa todos os lugares que conseguir; os outros só jogam com o que sobrar.', { o: st.dist === 'recente' ? tx('mais recente') : tx('mais antigo') })}{' '}{st.arena && st.parallel > 1 ? tx('A Arena fica sempre com um lugar.') : tx('A Arena só joga quando não há torneios.')}</p>
     </>
   )
 }
