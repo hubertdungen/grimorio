@@ -103,6 +103,8 @@ function LiveArena({ data, a, onClose }) {
 
 function Arena({ data, fmts, onRound }) {
   const [a, setA] = useState(null)
+  const [decks, setDecks] = useState([])  // para saber que fontes têm decks nos formatos escolhidos
+  useEffect(() => { j('/api/decks').then(setDecks).catch(() => {}) }, [])
   const [watch, setWatch] = useState(false)
   const [diffs, setDiffs] = useState([])
   const [err, setErr] = useState('')
@@ -119,6 +121,8 @@ function Arena({ data, fmts, onRound }) {
   if (!a) return null
   const set = v => { setErr(''); setA(x => ({ ...x, ...v })); j('/api/arena', v).then(setA).catch(e => setErr(e.message)) }
   const allF = [...new Set([...META_FMTS, ...fmts, ...a.formats])]
+  const fits = d => (a.casual ? true : !d.casual && a.formats.includes(d.format))  // no modo casual servem os de todos os formatos
+  const avail = { meu: decks.some(d => !d.community && fits(d)), com: decks.some(d => d.community && fits(d)), meta: true }
   const job = a.cur?.job
   return (
     <section className="card">
@@ -127,7 +131,7 @@ function Arena({ data, fmts, onRound }) {
       {watch && <LiveArena data={data} a={a} onClose={() => setWatch(false)} />}
       <div className="arena-grid">
         <label>{tx('Modo')}<span className="seg">{[[false, tx('Normais')], [true, tx('Casuais')]].map(([k, l]) => <button key={l} className={!!a.casual === k ? 'on' : ''} onClick={() => set({ casual: k })} title={k ? tx('Decks dos formatos escolhidos misturados (e os teus decks casuais), com as regras base do formato do 1.º deck; contam para o rating casual') : tx('Cada ronda num formato, entre decks desse formato; contam para o rating normal')}>{l}</button>)}</span></label>
-        <label>Decks<span className="seg">{[['meu', tx('🧙 Meus')], ['com', tx('🌐 Comunidade')], ['meta', tx('📊 Meta')]].map(([k, l]) => { const on = a.sources.includes(k); return <button key={k} className={on ? 'on' : ''} aria-pressed={on} onClick={() => set({ sources: on ? (a.sources.length > 1 ? a.sources.filter(x => x !== k) : a.sources) : [...a.sources, k] })}>{l}</button> })}</span></label>
+        <label>Decks<span className="seg">{[['meu', tx('🧙 Meus')], ['com', tx('🌐 Comunidade')], ['meta', tx('📊 Meta')]].map(([k, l]) => { const on = a.sources.includes(k) && avail[k]; return <button key={k} className={on ? 'on' : ''} aria-pressed={on} disabled={!avail[k]} title={!avail[k] ? (k === 'meu' ? tx('Não tens decks teus nos formatos escolhidos.') : tx('Não tens decks da comunidade nos formatos escolhidos.')) : undefined} onClick={() => set({ sources: on ? (a.sources.length > 1 ? a.sources.filter(x => x !== k) : a.sources) : [...a.sources, k] })}>{l}</button> })}</span></label>
         <label>{tx('Estrelas')}<span className="row-btns">{tx('de')} <select value={a.min} onChange={e => set({ min: +e.target.value, max: Math.max(a.max, +e.target.value) })}>{STEPS.map(s => <option key={s} value={s}>{num(s)}★</option>)}</select>
           {tx('a')} <select value={a.max} onChange={e => set({ max: +e.target.value, min: Math.min(a.min, +e.target.value) })}>{STEPS.map(s => <option key={s} value={s}>{num(s)}★</option>)}</select></span></label>
         <label>{tx('Ronda')}<span className="seg">{[1, 3].map(b => <button key={b} className={a.bo === b ? 'on' : ''} onClick={() => set({ bo: b })}>Bo{b}</button>)}</span></label>

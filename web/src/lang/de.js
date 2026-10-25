@@ -2176,4 +2176,9 @@ export default {
   "Dois jogos: 2-0 ganha, 1-1 é empate": "Zwei Spiele: 2-0 gewinnt, 1-1 ist unentschieden",
   "Dois jogos (Bo2, pode empatar)": "Zwei Spiele (Bo2, Remis möglich)",
   "Melhor de 5 (Bo5)": "Best of 5 (Bo5)",
+  "Junta um deck da comunidade ao acaso": "Ein zufälliges Community-Deck hinzufügen",
+  "Não tens decks da comunidade neste formato.": "Du hast keine Community-Decks in diesem Format.",
+  "Não tens decks da comunidade nos formatos escolhidos.": "Du hast keine Community-Decks in den gewählten Formaten.",
+  "Não tens decks teus neste formato.": "Du hast keine eigenen Decks in diesem Format.",
+  "Não tens decks teus nos formatos escolhidos.": "Du hast keine eigenen Decks in den gewählten Formaten.",
 }

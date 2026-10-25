@@ -126,7 +126,10 @@ function Create({ data, fmt0, onCreated, deckId }) {
   const [diffs, setDiffs] = useState([])
   const [fillN, setFillN] = useState(8)
   const [srcs, setSrcs] = useState(['meu', 'meta'])  // de onde vem o «Preencher»: meus, comunidade (decks de outros guardados) e meta
-  const okMine = o => srcs.includes(o.community ? 'com' : 'meu')
+  // fontes sem decks neste formato ficam a cinzento e não contam (a escolha fica guardada para quando houver)
+  const avail = { meu: mine.some(o => !o.community), com: mine.some(o => o.community), meta: meta.length > 0 }
+  const srcsOn = srcs.filter(k => avail[k])
+  const okMine = o => srcsOn.includes(o.community ? 'com' : 'meu')
   const [favOnly, setFavOnlyS] = useState(() => ls('grimorio.torneio.favoritos') === '1')  // «Preencher» só com os meus favoritos
   const setFavOnly = v => { setFavOnlyS(v); ls('grimorio.torneio.favoritos', v ? '1' : '0') }
   // mistura das fontes no «Preencher» (pesos 0–100; nos não casuais o meta fica ligado e com pelo menos 20%)
@@ -134,7 +137,7 @@ function Create({ data, fmt0, onCreated, deckId }) {
   const [mix, setMixS] = useState(() => { try { return { meu: 50, com: 20, meta: 30, ...JSON.parse(ls('grimorio.torneio.mistura') || '{}') } } catch { return { meu: 50, com: 20, meta: 30 } } })
   const setMix = (k, v) => setMixS(m => { const n = { ...m, [k]: v }; ls('grimorio.torneio.mistura', JSON.stringify(n)); return n })
   useEffect(() => { if (!casual && !srcs.includes('meta')) setSrcs(v => [...v, 'meta']) }, [casual, srcs])
-  const weights = Object.fromEntries(srcs.map(k => [k, Math.max(k === 'meta' ? META_MIN * 100 : 0, mix[k] ?? 0)]))
+  const weights = Object.fromEntries(srcsOn.map(k => [k, Math.max(k === 'meta' ? META_MIN * 100 : 0, mix[k] ?? 0)]))
   const share = (() => {  // a parte de cada fonte, como o mixTake a vai usar
     const sum = Object.values(weights).reduce((a, b) => a + b, 0) || 1, out = Object.fromEntries(Object.entries(weights).map(([k, v]) => [k, v / sum]))
     if (META_MIN && out.meta < META_MIN) { const rest = 1 - out.meta; for (const k of Object.keys(out)) out[k] = k === 'meta' ? META_MIN : rest ? (out[k] * (1 - META_MIN)) / rest : 0 }
@@ -211,9 +214,9 @@ function Create({ data, fmt0, onCreated, deckId }) {
     const byKey = Object.fromEntries([...mine.map(o => [rkey('meus', o.id), ['meus', o]]), ...meta.map(o => [rkey('meta', o.id), ['meta', o]])])
     // pede todos os candidatos já baralhados (os sem rating vêm como 3,0★ com games 0) e filtra aqui: «sem rating» entra
     // pela caixa, independentemente do intervalo de estrelas
-    const picked = casual ? null : await j(`/api/ratings/pick?format=${format}&n=999&min=0&max=6&sources=${srcs.join(',')}`)
+    const picked = casual ? null : await j(`/api/ratings/pick?format=${format}&n=999&min=0&max=6&sources=${srcsOn.join(',') || 'meta'}`)
       .then(r => (Array.isArray(r) ? r.filter(x => (x.games ? x.stars >= smin && x.stars <= smax : unrated)).map(x => byKey[x.key] || (x.src === 'meta' && ['meta', { id: x.ref, name: x.name }])).filter(Boolean) : null)).catch(() => null)
-    const pool = (picked || [...mine.filter(okMine).map(o => ['meus', o]), ...(srcs.includes('meta') ? meta.map(o => ['meta', o]) : [])]
+    const pool = (picked || [...mine.filter(okMine).map(o => ['meus', o]), ...(srcsOn.includes('meta') ? meta.map(o => ['meta', o]) : [])]
       .filter(([s, o]) => inStars(s, o.id)).sort(() => Math.random() - 0.5))
       .filter(([s, o]) => !used.has(`${s}:${o.id}`) && (!favOnly || s === 'meta' || o.fav))  // favoritos: só nos meus/comunidade
     if (pool.length < want) setErr(tx('Só há {k} decks diferentes com esta fonte e estas estrelas: preenchi o que deu.', { k: pool.length })); else setErr('')
@@ -278,9 +281,10 @@ function Create({ data, fmt0, onCreated, deckId }) {
           <div className="tc-fill">
             <span>{tx('🎲 Preencher até')}</span><input type="number" min="2" max={max} value={fillN} onChange={e => setFillN(+e.target.value)} />
             <span className="seg small tc-srcs" role="group" aria-label={tx('De onde')}>{[['meu', tx('🧙 Meus')], ['com', tx('🌐 Comunidade')], ['meta', tx('📊 Meta')]].map(([k, l]) => (
-              <button key={k} className={srcs.includes(k) ? 'on' : ''} aria-pressed={srcs.includes(k)} disabled={k === 'meta' && !casual} title={k === 'meta' && !casual ? tx('Nos torneios não casuais entra sempre o meta (pelo menos 20%), para os ratings terem decks de referência.') : undefined}
+              <button key={k} className={srcsOn.includes(k) ? 'on' : ''} aria-pressed={srcsOn.includes(k)} disabled={!avail[k] || (k === 'meta' && !casual)}
+                title={!avail[k] ? ({ meu: tx('Não tens decks teus neste formato.'), com: tx('Não tens decks da comunidade neste formato.'), meta: tx('Sem decks do meta para este formato.') }[k]) : k === 'meta' && !casual ? tx('Nos torneios não casuais entra sempre o meta (pelo menos 20%), para os ratings terem decks de referência.') : undefined}
                 onClick={() => setSrcs(v => (v.includes(k) ? (v.length > 1 ? v.filter(x => x !== k) : v) : [...v, k]))}>{l}</button>))}</span>
-            {srcs.length > 1 && <span className="tc-mix" role="group" aria-label={tx('Mistura')}>{srcs.map(k => (
+            {srcsOn.length > 1 && <span className="tc-mix" role="group" aria-label={tx('Mistura')}>{srcsOn.map(k => (
               <label key={k} className={`tc-mix-${k}`}><span>{{ meu: tx('🧙 Meus'), com: tx('🌐 Comunidade'), meta: tx('📊 Meta') }[k]}</span>
                 <input type="range" min={k === 'meta' ? META_MIN * 100 : 0} max="100" step="5" value={weights[k]} onChange={e => setMix(k, +e.target.value)} />
                 <b>{Math.round((share[k] || 0) * 100)}%</b></label>

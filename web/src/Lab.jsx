@@ -57,6 +57,7 @@ const scoreOf = (list, k) => {
 export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
   const [opps, setOpps] = useState([])
   const [mine, setMine] = useState([])
+  const own = mine.filter(o => !o.community), com = mine.filter(o => o.community)  // os meus e os da comunidade, em listas à parte
   const [diffs, setDiffs] = useState([])
   const [aiFlags, setAiFlags] = useState([])
   useEffect(() => { fetch('/api/sim/aiflags').then(r => r.json()).then(setAiFlags).catch(() => {}) }, [])
@@ -254,12 +255,16 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
             <div className="opp-list">{opps.map(o => (
               <label key={o.id} className={`opp ${sel.some(x => x.id === o.id) ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === o.id)} onChange={() => toggle(o)} /> {o.name} <Stars r={rt[`meta:${o.id}${casual ? '|casual' : ''}`]} /> {o.share ? <span className="muted">{Math.round(o.share * 100)}%</span> : null}</label>
             ))}{!opps.length && <p className="muted small">{tx('Sem decks do meta para este formato.')}</p>}</div>
-            <h4>{tx('Os meus decks')} {mine.length > 0 && <button className="small" onClick={() => pickRandom(mine, { source: 'meus' })} title={tx('Junta um deck teu ao acaso')}>🎲 {tx('ao acaso')}</button>}</h4>
+            <h4>{tx('Os meus decks')} {own.length > 0 && <button className="small" onClick={() => pickRandom(own, { source: 'meus' })} title={tx('Junta um deck teu ao acaso')}>🎲 {tx('ao acaso')}</button>}</h4>
             <div className="opp-list">
               <label className={`opp mirror ${sel.some(x => x.id === 'espelho') ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === 'espelho')} onChange={() => toggle({ id: 'espelho', name: tx('Espelho'), source: 'espelho' })} /> {tx('⇄ Espelho: o mesmo deck')}</label>
-              {mine.map(o => (
+              {own.map(o => (
               <label key={o.id} className={`opp ${sel.some(x => x.id === o.id) ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === o.id)} onChange={() => toggle({ ...o, source: 'meus' })} /> {o.name}{casual && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} <Stars r={rt[`deck:${o.id}${casual ? '|casual' : ''}`]} /></label>
-            ))}{!mine.length && <p className="muted small">{tx('Nenhum outro deck teu neste formato.')}</p>}</div>
+            ))}{!own.length && <p className="muted small">{tx('Nenhum outro deck teu neste formato.')}</p>}</div>
+            {com.length > 0 && <><h4>{tx('🌐 Da comunidade')} <button className="small" onClick={() => pickRandom(com, { source: 'meus' })} title={tx('Junta um deck da comunidade ao acaso')}>🎲 {tx('ao acaso')}</button></h4>
+              <div className="opp-list">{com.map(o => (
+                <label key={o.id} className={`opp ${sel.some(x => x.id === o.id) ? 'on' : ''}`}><input type="checkbox" checked={sel.some(x => x.id === o.id)} onChange={() => toggle({ ...o, source: 'meus' })} /> {o.name}{casual && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} <Stars r={rt[`deck:${o.id}${casual ? '|casual' : ''}`]} /></label>
+              ))}</div></>}
             <h4>{tx('Ou cola uma lista')}</h4>
             <textarea value={paste} onChange={e => setPaste(e.target.value)} placeholder={'4 Lightning Bolt\n…'} />
             </>}

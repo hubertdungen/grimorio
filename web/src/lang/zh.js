@@ -2176,4 +2176,9 @@ export default {
   "Dois jogos: 2-0 ganha, 1-1 é empate": "两局：2-0 获胜，1-1 为平局",
   "Dois jogos (Bo2, pode empatar)": "两局（Bo2，可平局）",
   "Melhor de 5 (Bo5)": "五局三胜（Bo5）",
+  "Junta um deck da comunidade ao acaso": "随机加入一副社区套牌",
+  "Não tens decks da comunidade neste formato.": "你在该赛制没有社区套牌。",
+  "Não tens decks da comunidade nos formatos escolhidos.": "你在所选赛制中没有社区套牌。",
+  "Não tens decks teus neste formato.": "你在该赛制没有自己的套牌。",
+  "Não tens decks teus nos formatos escolhidos.": "你在所选赛制中没有自己的套牌。",
 }

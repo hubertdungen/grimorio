@@ -2184,4 +2184,9 @@ export default {
   "Dois jogos: 2-0 ganha, 1-1 é empate": "Two games: 2-0 wins, 1-1 is a draw",
   "Dois jogos (Bo2, pode empatar)": "Two games (Bo2, can draw)",
   "Melhor de 5 (Bo5)": "Best of 5 (Bo5)",
+  "Junta um deck da comunidade ao acaso": "Add a random community deck",
+  "Não tens decks da comunidade neste formato.": "You have no community decks in this format.",
+  "Não tens decks da comunidade nos formatos escolhidos.": "You have no community decks in the chosen formats.",
+  "Não tens decks teus neste formato.": "You have no decks of your own in this format.",
+  "Não tens decks teus nos formatos escolhidos.": "You have no decks of your own in the chosen formats.",
 }
