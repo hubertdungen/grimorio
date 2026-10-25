@@ -111,15 +111,19 @@ function In({ as, quiet, className = '', ...p }) {
 const Arts = createContext({ arts: null, k: null })
 const artOf = (arts, k, c, inst) => c && artPick((arts && (k ? arts[k]?.[c.n] : Object.values(arts).map(x => x?.[c.n]).find(Boolean))) || basicSplit(c.n), inst)  // sem arte do deck: as várias artes por omissão dos básicos
 const useImg = () => { const { arts, k } = useContext(Arts); return (c, size, back, side = k, inst) => img(c, size, back, artOf(arts, side, c, inst)) }
+// srcset: a pequena (146 px) só quando a carta é mesmo pequena no ecrã, a normal (488 px) quando é grande, em monitores
+// 2K ou com mais densidade (Windows a 125–150%). A pequena declara-se com 100w (e não 146w) para a troca acontecer cedo:
+// a JPEG pequena da Scryfall já vem muito comprimida e nota-se mesmo reduzida. Cada imagem vem uma vez (cache).
+const useImgSet = () => { const { arts, k } = useContext(Arts); return (c, back, side = k, inst) => { const pid = artOf(arts, side, c, inst), s = img(c, 'small', back, pid), n = img(c, 'normal', back, pid); return s === n ? undefined : `${s} 100w, ${n} 488w` } }
 
 // ---------- uma carta no campo ----------
 const kwsOf = (c, p) => [...new Set([...(c?.kw || []), ...(p.kw || [])])].filter(k => KW[k])
 
 function Face({ p, c, back, size = 'small' }) {
-  const im = useImg()
+  const im = useImg(), set = useImgSet()
   if (p.hidden) return <div className="pc-back" />
   if (!c && p.token) c = tokenCard(p.name, p.pt, p.src)
-  if (c) return <img src={im(c, size, back && !!c.df, undefined, p.key)} alt={short(p.face || p.name)} loading="lazy" draggable="false" />
+  if (c) return <img src={im(c, size, back && !!c.df, undefined, p.key)} srcSet={size === 'small' ? set(c, back && !!c.df, undefined, p.key) : undefined} sizes="(max-width: 900px) 60px, 7.4vw" alt={short(p.face || p.name)} loading="lazy" draggable="false" />
   return (
     <div className="pc-token">
       <small>{p.token ? tx('FICHA') : ''}</small>
@@ -302,7 +306,7 @@ function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, com
 // a nossa mão, virada para cima: num jogo exato, a mão verdadeira (o Forge diz cada compra); num jogo antigo,
 // as cartas que sabemos que lá estavam + o resto de costas
 function Hand({ z, data, quiet, exact, opp, hidden, label }) {  // opp: mão do adversário (jogos exatos; num teste entre bots não há nada a esconder)
-  const seen = {}, im = useImg()
+  const seen = {}, im = useImg(), set = useImgSet()
   const unknown = Math.max(0, z.hand - z.known.length)
   const n = z.known.length + Math.min(unknown, 10)
   return (
@@ -312,7 +316,7 @@ function Hand({ z, data, quiet, exact, opp, hidden, label }) {  // opp: mão do 
           seen[nm] = (seen[nm] || 0) + 1
           const c = lookup(data, nm), rot = (j - (n - 1) / 2) * Math.min(5, 40 / Math.max(1, n))
           if (hidden) return <In key={`${nm}-${seen[nm]}`} quiet={quiet} className="hc unk" style={{ '--r': `${rot}deg` }}><span className="pc-back" /></In>
-          return <In key={`${nm}-${seen[nm]}`} quiet={quiet} className="hc" style={{ '--r': `${rot}deg` }} data-z={`n:${nm}`}>{c ? <img src={im(c, 'small')} alt={nm} draggable="false" /> : <span>{short(nm)}</span>}</In>
+          return <In key={`${nm}-${seen[nm]}`} quiet={quiet} className="hc" style={{ '--r': `${rot}deg` }} data-z={`n:${nm}`}>{c ? <img src={im(c, 'small')} srcSet={set(c)} sizes="(max-width: 900px) 70px, 6.2vw" alt={nm} draggable="false" /> : <span>{short(nm)}</span>}</In>
         })}
         {Array.from({ length: Math.min(unknown, 10) }).map((_, j) => <In key={`u${j}`} quiet={quiet} className="hc unk" style={{ '--r': `${(z.known.length + j - (n - 1) / 2) * Math.min(5, 40 / Math.max(1, n))}deg` }}><span className="pc-back" /></In>)}
       </div>
