@@ -112,6 +112,24 @@ export function readValue(b) {
   return S.labels[k]
 }
 
+// a face mais virada para baixo (a moeda só cara ou coroa): [normal no mundo, quanto aponta para baixo]
+function downFace(b) {
+  let nb = null, d = -2
+  b.S.info.forEach((f, i) => { if (b.kind === 'coin' && i > 1) return; const n = qrot(b.q, f.n); if (-n[1] > d) { d = -n[1]; nb = n } })
+  return [nb, d]
+}
+// parar: alinha exatamente essa face com o chão e pousa-o
+function settle(b, planes) {
+  const [nb] = downFace(b), ax = cross(nb, [0, -1, 0]), s = len(ax), c = -nb[1]
+  if (s > 1e-9) { const h = Math.atan2(s, c) / 2, k = Math.sin(h) / s; b.q = qnorm(qmul([ax[0] * k, ax[1] * k, ax[2] * k, Math.cos(h)], b.q)) }
+  for (const [n, d] of planes) {  // chão e paredes: nenhum vértice fica de fora
+    const pen = Math.max(...b.S.verts.map(v => d - dot(add(b.x, qrot(b.q, v)), n)))
+    if (pen > 0) b.x = add(b.x, mul(n, pen))
+  }
+  b.x[1] -= Math.min(...b.S.verts.map(v => b.x[1] + qrot(b.q, v)[1]))
+  b.asleep = true; b.v = [0, 0, 0]; b.w = [0, 0, 0]
+}
+
 // ---------- mundo ----------
 const G = -32, E = 0.32, MU = 0.45, DT = 1 / 240
 export function makeWorld({ X = 6, Z = 4, rng = Math.random } = {}) {
@@ -154,13 +172,21 @@ export function makeWorld({ X = 6, Z = 4, rng = Math.random } = {}) {
         }
         if (deep > 0) b.x = add(b.x, mul(n, deep * 0.8))
       }
-      if (touch) {  // rolar gasta energia; já devagar, trava mais (senão fica a abanar numa aresta)
-        const slow = len(b.v) < 0.6 && len(b.w) < 1.5
-        b.w = mul(b.w, 1 - (slow ? 6 : 1.6) * DT); b.v = mul(b.v, 1 - (slow ? 3 : 0.6) * DT)
+      b.flat = false
+      if (touch) {  // rolar gasta energia
+        b.w = mul(b.w, 1 - 1.6 * DT); b.v = mul(b.v, 1 - 0.6 * DT)
+        if (len(b.v) < 0.8 && len(b.w) < 3) {  // já devagar: cai para a face mais próxima (como a gravidade faria) em vez de ficar numa aresta
+          const [nb, d] = downFace(b)
+          b.w = add(mul(b.w, 1 - 3 * DT), mul(cross(nb, [0, -1, 0]), 40 * DT))
+          b.flat = d > 0.995  // quase assente (≈ 6°): o settle() alinha-o de vez
+          // parado mas torto (encostado a uma parede ou a outro dado): ao fim de 0,6 s assenta na face mais próxima
+          b.stuck = !b.flat && len(b.v) < 0.3 && len(b.w) < 0.3 ? (b.stuck || 0) + DT : 0
+          if (b.stuck > 0.6) { settle(b, planes); continue }
+        }
       }
-      const still = len(b.v) < 0.25 && len(b.w) < 0.35 && touch  // a gravidade sozinha dá 0,13 por passo
+      const still = len(b.v) < 0.25 && len(b.w) < 0.35 && touch && b.flat  // a gravidade sozinha dá 0,13 por passo
       b.rest = still ? b.rest + DT : 0
-      if (b.rest > 0.25) { b.asleep = true; b.v = [0, 0, 0]; b.w = [0, 0, 0] }
+      if (b.rest > 0.25) settle(b, planes)
     }
     // choques entre dados (esferas)
     for (let i = 0; i < bodies.length; i++) for (let j = i + 1; j < bodies.length; j++) {
@@ -180,7 +206,10 @@ export function makeWorld({ X = 6, Z = 4, rng = Math.random } = {}) {
       }
     }
   }
-  const done = () => bodies.every(b => b.asleep && !b.held) || t > 9
+  const done = () => {
+    if (t > 9) bodies.forEach(b => { if (!b.asleep && !b.held) settle(b, planes) })  // ponytail: ao fim de 9 s assenta à força (dado encostado a outro)
+    return bodies.every(b => b.asleep && !b.held)
+  }
   // agarrar e atirar à mão: enquanto agarrado segue o ponteiro; ao largar leva a velocidade do gesto e um pouco de rotação
   const hold = b => { b.held = true; b.asleep = false; b.rest = 0 }
   const moveTo = (b, x, v) => { b.x = [Math.max(-X + b.S.R, Math.min(X - b.S.R, x[0])), x[1], Math.max(-Z + b.S.R, Math.min(Z - b.S.R, x[2]))]; b.v = v }

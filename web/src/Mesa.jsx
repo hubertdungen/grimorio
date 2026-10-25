@@ -316,7 +316,7 @@ function Dice({ s, set, compact = false }) {
         {gl && <span className="seg small dc-mode" role="group" aria-label={tx('Vista dos dados')}>{[[true, '3D'], [false, '2D']].map(([v, l]) => <button key={l} className={d3 === v ? 'on' : ''} onClick={() => { setLive([]); setRes3(null); setBusy3(false); set(x => ({ ...x, d3: v })) }}>{l}</button>)}</span>}
       </div>
       {d3 ? <div className="dc-tray dc-3d" ref={box}>
-        {!res3 && !busy3 && <p className="dc-hint muted">{tx('Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez.')}</p>}
+        {!res3 && !busy3 && <p className="dc-hint muted">{tx('Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez. O d100 são dois d10: dezenas (00–90) e unidades.')}</p>}
       </div> : <div className="dc-tray" ref={tray}>
         {!live.length && <p className="dc-hint muted">{tx('Escolhe os dados acima e carrega em «Lançar».')}</p>}
         {live.map(d => (
@@ -326,7 +326,7 @@ function Dice({ s, set, compact = false }) {
         ))}
         {live.length > 0 && !rolling && live.some(d => d.type !== 'moeda') && <div className="dc-sum">{live.filter(d => d.type !== 'moeda').length > 1 ? `Σ ${sum}` : sum}</div>}
       </div>}
-      {d3 && <div className="dc-res3" aria-live="polite">{busy3 ? <span className="muted">{tx('a rolar…')}</span> : res3 && <>{res3.map((x, k) => <span key={k} className={`dl ${x.type === 'd20' && x.v === 20 ? 'crit' : x.type === 'd20' && x.v === 1 ? 'fumble' : ''}`}><small>{x.type === 'moeda' ? '🪙' : x.type}</small> {face(x.type, x.v)}</span>)}
+      {d3 && <div className="dc-res3" aria-live="polite">{busy3 ? <span className="muted">{tx('a rolar…')}</span> : res3 && <>{res3.map((x, k) => <span key={k} className={`dl ${x.type === 'd20' && x.v === 20 ? 'crit' : x.type === 'd20' && x.v === 1 ? 'fumble' : ''}`} title={x.parts ? tx('d100 = dois d10: dezenas e unidades') : undefined}><small>{x.type === 'moeda' ? '🪙' : x.type}</small> {face(x.type, x.v)}{x.parts && <small> ({String(x.parts[0]).padStart(2, '0')} + {x.parts[1]})</small>}</span>)}
         {res3.filter(x => x.type !== 'moeda').length > 1 && <b className="dc-res3-sum">Σ {res3.filter(x => x.type !== 'moeda').reduce((a, x) => a + x.v, 0)}</b>}</>}</div>}
       <Log title={tx('Registo dos dados')} empty={tx('Cada lançamento fica aqui.')} onClear={async () => (await ask('registo', { title: tx('Limpar o registo dos dados?'), ok: tx('Limpar') })) && set(x => ({ ...x, log: [] }))} items={s.log.map((e, k) => (
         <li key={k}><time>{hhmm(e.t)}</time> {e.items.map((it, j) => <span key={j} className={`dl ${it.type === 'd20' && it.v === 20 ? 'crit' : it.type === 'd20' && it.v === 1 ? 'fumble' : ''}`}><small>{it.type === 'moeda' ? '🪙' : it.type}</small> {face(it.type, it.v)}</span>)}

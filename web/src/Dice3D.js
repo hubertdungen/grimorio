@@ -36,8 +36,9 @@ function meshOf(kind, colors, words) {
   S.faces.forEach((f, i) => {
     const { c, n } = S.info[i], P = k => S.verts[f[k]]
     const d = v => [v[0] - c[0], v[1] - c[1], v[2] - c[2]], dt = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-    const u0 = d(P(0)), L = Math.hypot(...u0), up = u0.map(x => x / L), rt = [n[1] * up[2] - n[2] * up[1], n[2] * up[0] - n[0] * up[2], n[0] * up[1] - n[1] * up[0]]
-    const R = Math.max(...f.map((_, k) => Math.hypot(...d(P(k)))))
+    // d6: o «cima» aponta para o meio de um lado e o quadrado ocupa a textura toda (pintas alinhadas); os outros apontam para um vértice
+    const u0 = kind === 'd6' ? d(P(0).map((x, j) => (x + P(1)[j]) / 2)) : d(P(0)), L = Math.hypot(...u0), up = u0.map(x => x / L), rt = [n[1] * up[2] - n[2] * up[1], n[2] * up[0] - n[0] * up[2], n[0] * up[1] - n[1] * up[0]]
+    const R = kind === 'd6' ? L : Math.max(...f.map((_, k) => Math.hypot(...d(P(k)))))
     const UV = v => { const q = d(v); return [0.5 + (0.5 * dt(q, rt)) / R, 0.5 + (0.5 * dt(q, up)) / R] }
     const start = pos.length / 3
     for (let k = 1; k < f.length - 1; k++) {
@@ -74,6 +75,8 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
 
   const fit = () => {
     const w = el.clientWidth || 300, h = el.clientHeight || 300, a = w / h
+    // abertura horizontal até 50°: numa mesa larga e baixa a câmara afasta-se em vez de ficar grande angular (dados deformados nas pontas)
+    camera.fov = Math.min(32, (2 * Math.atan(Math.tan((25 * Math.PI) / 180) / a) * 180) / Math.PI)
     const halfH = VIEW / Math.min(1, a), dist = halfH / Math.tan((camera.fov * Math.PI) / 360)
     camera.aspect = a; camera.position.set(0, dist, dist * 0.12); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix()
     renderer.setSize(w, h, false)
@@ -86,12 +89,14 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
   const hit = sp => { const now = performance.now(); if (now - lastHit > 60) { lastHit = now; onHit?.(Math.min(1, sp / 14)) } }
   const report = () => onSettle?.(groups.map(g => {
     const vs = g.bodies.map(readValue)
-    return { type: g.type, v: g.type === 'd100' ? (vs[0] + vs[1] || 100) : g.type === 'd10' ? vs[0] || 10 : vs[0] }
+    return { type: g.type, v: g.type === 'd100' ? (vs[0] + vs[1] || 100) : g.type === 'd10' ? vs[0] || 10 : vs[0], ...(g.type === 'd100' && { parts: vs }) }
   }))
-  const loop = () => {
-    for (let k = 0; k < 4; k++) world.step(hit)  // 4 × 1/240 s por imagem
+  let tPrev = 0
+  const loop = now => {
+    const n = tPrev ? Math.max(1, Math.min(16, Math.round((now - tPrev) / 1000 / world.DT))) : 4; tPrev = now  // pelo tempo real (aparelhos lentos não ficam em câmara lenta)
+    for (let k = 0; k < n; k++) world.step(hit)
     sync(); render()
-    if (world.done() && !drag) { if (!settled) { settled = true; report() } return }
+    if (world.done() && !drag) { tPrev = 0; if (!settled) { settled = true; report() } return }
     raf = requestAnimationFrame(loop)
   }
   const kick = () => { settled = false; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop) }

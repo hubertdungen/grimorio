@@ -2330,4 +2330,6 @@ export default {
   "Vista dos dados": "骰子视图",
   "a rolar…": "滚动中…",
   "d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.": "3D 的 d4 到 d100 和硬币：投掷、抓起并用手指抛出，附记录。",
+  "d100 = dois d10: dezenas e unidades": "d100 = 两个 d10：十位与个位",
+  "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez. O d100 são dois d10: dezenas (00–90) e unidades.": "在上方选择骰子并点击「投掷」。之后可以用鼠标或手指抓起骰子再掷一次。d100 是两个 d10：十位（00–90）和个位。",
 }

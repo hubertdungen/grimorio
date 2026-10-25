@@ -449,4 +449,9 @@ console.log('selfcheck universo ok')
   for (let i = 0; i < 240; i++) { const r = simulate(['d6'], { rng }); assert.ok(r.t < 9, 'd6 assenta'); cnt[r.values[0]]++ }
   assert.ok(cnt.slice(1).every(c => c > 20 && c < 60), `d6 justo ${cnt}`)
   const m = simulate(['d20', 'd20', 'd10t', 'd10', 'coin'], { rng }); assert.ok(m.t < 9 && m.values.every(v => v != null))
+  const { qrot } = await import('./src/dicephys.js')
+  for (let i = 0; i < 40; i++) for (const b of simulate(['d12', 'd20', 'd8', 'coin'], { rng }).bodies) {  // assentes numa face, de vez
+    const d = Math.max(...b.S.info.filter((_, k) => b.kind !== 'coin' || k < 2).map(f => -qrot(b.q, f.n)[1]))
+    assert.ok(d > 0.99999 && b.asleep, `${b.kind} torto`)
+  }
   console.log('selfcheck dados 3D ok') }

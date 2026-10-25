@@ -2338,4 +2338,6 @@ export default {
   "Vista dos dados": "Dice view",
   "a rolar…": "rolling…",
   "d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.": "d4 to d100 and a coin in 3D: roll them, grab them and throw them with your finger, with a log.",
+  "d100 = dois d10: dezenas e unidades": "d100 = two d10s: tens and units",
+  "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez. O d100 são dois d10: dezenas (00–90) e unidades.": "Pick the dice above and press «Roll». Then you can grab a die with the mouse or your finger and throw it again. The d100 is two d10s: tens (00–90) and units.",
 }
