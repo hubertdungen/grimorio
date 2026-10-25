@@ -617,6 +617,7 @@ def db():
     con.execute("CREATE TABLE IF NOT EXISTS bets (id INTEGER PRIMARY KEY, owner TEXT, tid TEXT, kind TEXT, mid TEXT, pick INTEGER,"
                 " stake INTEGER, odds REAL, ts REAL, status TEXT, payout INTEGER)")
     con.execute("CREATE INDEX IF NOT EXISTS bets_tid ON bets (tid, status)")
+    con.execute("CREATE TABLE IF NOT EXISTS ratings_kv (k TEXT PRIMARY KEY, v TEXT)")  # o mesmo do ratings.py (cortes e recomeços)
     return con
 
 
@@ -789,6 +790,19 @@ def route(method, path, owner, body=None):
         with db() as con:
             con.execute("INSERT OR REPLACE INTO ratings_kv (k, v) VALUES (?, ?)", (f"trophies_reset:{owner}", json.dumps(time.time())))
         return 200, {"ok": True}
+    if method == "POST" and parts == ["wallet-reset"]:  # separador Apostas: a carteira volta às moedas do começo
+        if (body or {}).get("confirm") is not True:
+            return 400, {"erro": "Falta a confirmação."}
+        with db() as con:
+            wallet(con, owner)
+            con.execute("UPDATE wallets SET coins=? WHERE owner=?", (START_COINS, owner))
+            k = f"wallet_resets:{owner}"
+            r = con.execute("SELECT v FROM ratings_kv WHERE k=?", (k,)).fetchone()
+            con.execute("INSERT OR REPLACE INTO ratings_kv (k, v) VALUES (?, ?)", (k, json.dumps((json.loads(r[0]) if r else []) + [time.time()])))
+            return 200, bets_all(con, owner)
+    if method == "GET" and parts == ["bets"]:  # separador Apostas: todas as minhas apostas, com os nomes
+        with db() as con:
+            return 200, bets_all(con, owner)
     if parts and not tid:
         return 404, {"erro": "não existe"}
     if method == "POST" and not parts:
@@ -1012,6 +1026,21 @@ def settle(con, tid, st, cancelled=False):
         con.execute("UPDATE bets SET status=?, payout=? WHERE id=?", (res, pay, bid))
         if pay:
             con.execute("UPDATE wallets SET coins=coins+? WHERE owner=?", (pay, owner))
+
+
+def bets_all(con, owner):
+    """Todas as apostas do dono, da mais recente para a mais antiga, com o torneio e os decks pelo nome."""
+    out, states = [], {}
+    for r in con.execute("SELECT b.id, b.tid, b.kind, b.mid, b.pick, b.stake, b.odds, b.ts, b.status, b.payout, t.name, t.type, t.format, t.state"
+                         " FROM bets b JOIN tournaments t ON t.id=b.tid WHERE b.owner=? ORDER BY b.id DESC", (owner,)):
+        st = states.setdefault(r[1], json.loads(r[13]))
+        names = [p.get("name", "?") for p in st.get("players", [])]
+        m = next((m for m in st.get("matches", []) if m["id"] == r[3]), None) if r[2] == "match" else None
+        out.append({**dict(zip(("id", "tid", "kind", "mid", "pick", "stake", "odds", "ts", "status", "payout", "tname", "type", "format"), r[:13])),
+                    "who": names[r[4]] if 0 <= r[4] < len(names) else "?", "vs": [names[i] for i in m["p"] if i != r[4]] if m else [],
+                    "casual": bool(st.get("casual"))})
+    r = con.execute("SELECT v FROM ratings_kv WHERE k=?", (f"wallet_resets:{owner}",)).fetchone()
+    return {**wallet(con, owner), "bets": out, "start": START_COINS, "resets": json.loads(r[0]) if r else []}
 
 
 def bets_view(con, owner, tid, status, st):
@@ -1244,6 +1273,9 @@ def bets_selfcheck(rng):
             assert wallet(con, "x", top=True) == {"coins": SUBSIDY, "subsidy": True} and wallet(con, "x", top=True)["coins"] == SUBSIDY
             con.execute("UPDATE wallets SET coins=10 WHERE owner='x'")
             assert wallet(con, "x", top=True)["coins"] == 10  # um subsídio por dia
+        assert route("POST", "/api/tournaments/wallet-reset", "x", {})[0] == 400  # sem confirmação não mexe
+        code, v = route("POST", "/api/tournaments/wallet-reset", "x", {"confirm": True})
+        assert code == 200 and v["coins"] == START_COINS and len(v["resets"]) == 1, v  # (sem torneios na base de teste, a lista vem vazia)
     finally:
         DB = old
 

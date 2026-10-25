@@ -86,7 +86,7 @@ export default function TournamentView({ data, fmt, deckId }) {
   useEffect(() => {  // ao entrar: volta ao torneio que estava aberto, ou ao que está a decorrer
     loadList().then(l => {
       const last = ls('grimorio.torneio'), on = l.find(x => x.id === last) || l.find(x => x.status === 'running')
-      if (on) { setTid(on.id); if (!['criar', 'registo', 'gerar'].includes(ls('grimorio.torneio.vista'))) setView('ver') }
+      if (on) { setTid(on.id); if (!['criar', 'registo', 'gerar', 'apostas'].includes(ls('grimorio.torneio.vista'))) setView('ver') }
       else if (view === 'ver') setView('criar')
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -98,10 +98,12 @@ export default function TournamentView({ data, fmt, deckId }) {
         <button className={view === 'gerar' ? 'on' : ''} onClick={() => setView('gerar')}>{tx('🎲 Gerador')}</button>
         <button className={view === 'ver' ? 'on' : ''} onClick={() => setView('ver')} disabled={!tid}>{tx('🏆 Ao vivo')}</button>
         <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}>{tx('📜 Registo')} <b>{list.length}</b></button>
+        <button className={view === 'apostas' ? 'on' : ''} onClick={() => setView('apostas')}>{tx('🪙 Apostas')}</button>
       </div><span className="tour-slot" ref={setSlot} /></div>
       {view === 'criar' && <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} />}
       {view === 'gerar' && <Generator data={data} onCreated={() => { loadList(); setView('registo') }} />}
       {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} onGone={() => { loadList(); setView('registo') }} />}
+      {view === 'apostas' && <BetsTab open={open} />}
       {view === 'registo' && <Registry data={data} list={list} open={open} reload={loadList} />}
     </div>
   )
@@ -484,6 +486,93 @@ function Generator({ data, onCreated }) {
   )
 }
 
+// ---------- separador Apostas: carteira, números e histórico de todas as apostas ----------
+
+const KIND_LBL = { champ: tx('campeão'), match: tx('partida') }
+const net = x => (x.status === 'won' || x.status === 'lost' ? x.payout - x.stake : 0)  // devolvidas e em jogo não contam
+
+function BetsTab({ open }) {
+  const [d, setD] = useState(null)
+  const [fs, setFs] = useState('todas'), [fk, setFk] = useState('todas')
+  useEffect(() => { j('/api/tournaments/bets').then(setD).catch(() => setD({ coins: 0, bets: [], start: 1000 })) }, [])
+  if (!d) return <p className="muted">{tx('a carregar…')}</p>
+  const B = d.bets, done = B.filter(x => x.status === 'won' || x.status === 'lost'), won = done.filter(x => x.status === 'won')
+  const staked = done.reduce((a, x) => a + x.stake, 0), profit = done.reduce((a, x) => a + net(x), 0)
+  const best = won.reduce((a, x) => (!a || net(x) > net(a) ? x : a), null)
+  const pct = (a, b) => (b ? `${Math.round((100 * a) / b)}%` : '—')
+  const sign = v => (v > 0 ? `+${v}` : String(v))
+  const groups = (key, lbl) => Object.entries(done.reduce((o, x) => { (o[x[key]] ??= []).push(x); return o }, {}))
+    .map(([k, xs]) => ({ k, l: lbl(k), n: xs.length, w: xs.filter(x => x.status === 'won').length, p: xs.reduce((a, x) => a + net(x), 0), s: xs.reduce((a, x) => a + x.stake, 0) }))
+    .sort((a, b) => b.n - a.n)
+  const RES = { open: ['⏳', tx('em jogo')], won: ['✓', tx('ganha')], lost: ['✗', tx('perdida')], refund: ['↺', tx('devolvida')] }
+  const rows = B.filter(x => (fs === 'todas' || x.status === fs) && (fk === 'todas' || x.kind === fk))
+  const broke = d.coins < 50, R = d.resets || []
+  const restart = async () => {
+    if (!(await ask('carteira', { title: tx('Recomeçar a carteira com {n} moedas?', { n: d.start }), body: tx('Tens {c} moedas. O histórico e as estatísticas das apostas ficam; só a carteira volta ao começo (e conta como um recomeço).', { c: d.coins }), ok: tx('Recomeçar'), danger: !broke }))) return
+    setD(await post('/api/tournaments/wallet-reset', { confirm: true }))
+  }
+  return (
+    <section className="card bets-tab">
+      <h3>🪙 {tx('Apostas')} <span className="muted small">{tx('Moedas a fingir: não se compram nem valem dinheiro. As odds vêm do Elo de cada deck.')} {tx('Abaixo de 50 moedas recebes um subsídio de 100 por dia; e podes sempre recomeçar a carteira.')}</span></h3>
+      <div className="bt-tiles">
+        <div className={broke ? 'bt-broke' : ''}><small>{tx('Carteira')}</small><b className="gold-t">{d.coins}</b>
+          <span className="muted small">{R.length ? tx('recomeçada {k}× · última {t}', { k: R.length, t: when(R[R.length - 1]) }) : tx('começaste com {n}', { n: d.start })}</span>
+          <button className={`small ${broke ? 'primary' : 'link'}`} onClick={restart} title={tx('A carteira volta às {n} moedas do começo', { n: d.start })}>↺ {broke ? tx('Sem moedas? Recomeçar com {n}', { n: d.start }) : tx('recomeçar a carteira')}</button></div>
+        <div><small>{tx('Lucro')}</small><b className={profit > 0 ? 'res-w' : profit < 0 ? 'res-l' : ''}>{sign(profit)}</b><span className="muted small">{tx('retorno {r} do apostado', { r: pct(profit, staked) })}</span></div>
+        <div><small>{tx('Acerto')}</small><b>{pct(won.length, done.length)}</b><span className="muted small">{tx('{w} de {n} decididas', { w: won.length, n: done.length })}</span></div>
+        <div><small>{tx('Apostas')}</small><b>{B.length}</b><span className="muted small">{tx('{k} em jogo', { k: B.filter(x => x.status === 'open').length })}</span></div>
+        <div><small>{tx('Maior prémio')}</small><b>{best ? sign(net(best)) : '—'}</b><span className="muted small" title={best ? `${best.who} · ${best.tname}` : ''}>{best ? tx('odd {o} · {w}', { o: best.odds.toFixed(2), w: best.who }) : tx('ainda nenhum')}</span></div>
+      </div>
+      {done.length > 1 && <ProfitLine bets={[...done].sort((a, b) => a.ts - b.ts)} />}
+      {done.length > 0 && <div className="bt-groups">{[[tx('Por tipo de aposta'), groups('kind', k => KIND_LBL[k] || k)], [tx('Por tipo de torneio'), groups('type', k => TYPES[k]?.[0] || k)]].map(([h, gs]) => (
+        <table key={h} className="bt-table"><caption>{h}</caption><thead><tr><th /><th>{tx('Apostas')}</th><th>{tx('Acerto')}</th><th>{tx('Lucro')}</th></tr></thead>
+          <tbody>{gs.map(g => <tr key={g.k}><td>{g.l}</td><td>{g.n}</td><td>{pct(g.w, g.n)}</td><td className={g.p > 0 ? 'res-w' : g.p < 0 ? 'res-l' : ''}>{sign(g.p)}</td></tr>)}</tbody></table>))}</div>}
+      <div className="bt-filters">
+        <span className="seg small">{['todas', 'open', 'won', 'lost', 'refund'].map(k => <button key={k} className={fs === k ? 'on' : ''} onClick={() => setFs(k)}>{k === 'todas' ? tx('todas') : `${RES[k][0]} ${RES[k][1]}`}</button>)}</span>
+        <span className="seg small">{['todas', 'champ', 'match'].map(k => <button key={k} className={fk === k ? 'on' : ''} onClick={() => setFk(k)}>{k === 'todas' ? tx('todas') : KIND_LBL[k]}</button>)}</span>
+      </div>
+      {B.length === 0 ? <p className="muted">{tx('Ainda não apostaste. Abre um torneio a decorrer e aposta no campeão (antes da 2.ª ronda) ou numa partida por começar (🪙 em cada partida).')}</p>
+        : <div className="bt-scroll"><table className="bt-table bt-hist"><thead><tr><th>{tx('Quando')}</th><th>{tx('Torneio')}</th><th>{tx('Aposta')}</th><th>{tx('Odd')}</th><th>{tx('Moedas')}</th><th>{tx('Resultado')}</th></tr></thead>
+          <tbody>{rows.map(x => (
+            <tr key={x.id} className={`bet-${x.status}`}>
+              <td className="muted">{when(x.ts)}</td>
+              <td><button className="link" onClick={() => open(x.tid)} title={tx('Abrir o torneio')}><TypeIco k={x.type} /> {x.tname}</button></td>
+              <td><b>{x.who}</b> <span className="muted">{x.kind === 'champ' ? tx('campeão') : x.vs.length ? tx('contra {v}', { v: x.vs.join(', ') }) : ''}</span></td>
+              <td>{x.odds.toFixed(2)}</td><td>{x.stake}</td>
+              <td className={x.status === 'won' ? 'res-w' : x.status === 'lost' ? 'res-l' : 'res-d'}>{RES[x.status][0]} {x.status === 'won' ? `+${x.payout - x.stake}` : x.status === 'lost' ? `−${x.stake}` : RES[x.status][1]}</td>
+            </tr>))}</tbody></table>{!rows.length && <p className="muted small">{tx('Nenhuma aposta com estes filtros.')}</p>}</div>}
+    </section>
+  )
+}
+
+// lucro acumulado, aposta a aposta (só as decididas); passar por cima mostra cada uma
+function ProfitLine({ bets }) {
+  const [hv, setHv] = useState(null)
+  const W = 640, H = 150, pad = 8
+  let acc = 0
+  const ys = [0, ...bets.map(x => (acc += net(x)))]
+  const lo = Math.min(0, ...ys), hi = Math.max(0, ...ys), span = hi - lo || 1
+  const X = k => pad + (k * (W - 2 * pad)) / (ys.length - 1), Y = v => pad + ((hi - v) * (H - 2 * pad)) / span
+  const pts = ys.map((v, k) => `${X(k).toFixed(1)},${Y(v).toFixed(1)}`).join(' ')
+  const move = e => { const r = e.currentTarget.getBoundingClientRect(), k = Math.round((((e.clientX - r.left) / r.width) * W - pad) / ((W - 2 * pad) / (ys.length - 1))); setHv(Math.max(1, Math.min(ys.length - 1, k))) }
+  const b = hv && bets[hv - 1]
+  return (
+    <figure className="bt-chart">
+      <figcaption className="small muted">{tx('Lucro acumulado (aposta a aposta)')}</figcaption>
+      <div className="bt-plot">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" onPointerMove={move} onPointerLeave={() => setHv(null)} role="img" aria-label={tx('Lucro acumulado: {v} moedas', { v: ys[ys.length - 1] })}>
+          <line x1={pad} x2={W - pad} y1={Y(0)} y2={Y(0)} className="bt-zero" />
+          <polyline points={pts} className="bt-line" />
+          {hv != null && <><line x1={X(hv)} x2={X(hv)} y1={pad} y2={H - pad} className="bt-cross" /></>}
+        </svg>
+        <span className="bt-lab hi">{hi > 0 ? `+${hi}` : hi}</span><span className="bt-lab lo">{lo}</span>
+        {b && <i className="bt-dot" style={{ left: `calc(44px + (100% - 44px) * ${X(hv) / W})`, top: `${(Y(ys[hv]) / H) * 100}%` }} />}
+        {b && <div className="bt-tip" style={{ left: `calc(44px + (100% - 44px) * ${X(hv) / W})` }}><b>{b.who}</b> <span className={net(b) > 0 ? 'res-w' : 'res-l'}>{net(b) > 0 ? `+${net(b)}` : net(b)}</span><br /><span className="muted">{tx('total {v}', { v: ys[hv] })} · {when(b.ts)}</span></div>}
+      </div>
+    </figure>
+  )
+}
+
 // ---------- ao vivo ----------
 
 // onde está uma partida, para a frase do «meu deck»: «Estás nas meias-finais», «Foste eliminado nos quartos»
@@ -679,6 +768,7 @@ function Stake({ coins, odds, onBet }) {
       {[10, 50, 100].filter(x => x < coins).map(x => <button key={x} className="small" onClick={() => setS(x)}>{x}</button>)}
       <button className="small" onClick={() => setS(coins)}>{tx('tudo')}</button>
       <button className="primary" disabled={busy || coins < 1} onClick={go}>{tx('Apostar {s} → recebes {w}', { s, w: Math.round(s * odds) })}</button>
+      <span className="small muted" title={tx('Pelo Elo dos decks (a odd já desconta 5% para a casa)')}>{tx('≈ {p}% de hipótese', { p: Math.round(Math.min(99, 95 / odds)) })}</span>
       {err && <span className="bad-t small">{err}</span>}
     </div>
   )
