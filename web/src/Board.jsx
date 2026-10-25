@@ -520,9 +520,18 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
     }
     const fit = () => {
       if (innerWidth < 901) return el.style.removeProperty('--fit')
-      let f = 1
-      el.style.setProperty('--fit', f)
-      for (let n = 0; n < 4; n++) { f = Math.max(0.4, Math.min(1.6, f * avail() / el.offsetHeight)); el.style.setProperty('--fit', f) }
+      // a altura é fixa (barras, etiquetas) + proporcional ao --fit: com a secante acerta em 2–3 medições
+      // (o f × livre/altura parava a 6–10px do alvo e o resultado dependia do caminho: janela, ecrã inteiro, zoom do sistema)
+      const a = avail(), h = f => { el.style.setProperty('--fit', f); return el.offsetHeight }
+      let f0 = 1, h0 = h(1), f = Math.max(0.4, Math.min(1.6, a / h0))
+      for (let n = 0; n < 5; n++) {
+        const h1 = h(f)
+        if (Math.abs(h1 - a) < 2 || h1 === h0) break
+        const g = Math.max(0.4, Math.min(1.6, f + (a - h1) * (f - f0) / (h1 - h0)))
+        f0 = f; h0 = h1
+        if (g === f) break
+        f = g
+      }
       el.style.setProperty('--fit', Math.max(0.35, Math.min(1.9, f * adj())))
     }
     const adj = () => { try { return Math.max(0.6, Math.min(1.6, +localStorage.getItem('grimorio.zoom') || 1)) } catch { return 1 } }

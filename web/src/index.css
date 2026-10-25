@@ -716,7 +716,8 @@ h2 .mana img { width: 20px; height: 20px; }
 .coliseu { background: var(--bg); }
 .col-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--line); }
 .col-bar > button:first-of-type { margin-left: auto; }
-.coliseu:fullscreen { overflow-y: auto; padding-bottom: 0; }
+.coliseu:fullscreen { overflow-y: auto; padding-bottom: 0; scrollbar-width: none; }  /* o jogo ocupa o ecrã todo: rola-se até ao Laboratório sem a barra a comer a margem direita */
+.coliseu:fullscreen::-webkit-scrollbar { display: none; }
 .coliseu .bc.m { width: 96px; }
 .coliseu .blog { max-height: none; contain: size; align-self: stretch; }  /* o registo acompanha a altura do tabuleiro e não a empurra */
 .to-coliseu { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 10px 20px 0; }
@@ -2201,3 +2202,16 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .pc.dormant .pc-rot { filter: saturate(.45) brightness(.8); }
 .pc-dev { position: absolute; z-index: 3; left: 50%; bottom: 4px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px; border-radius: 99px; background: #0d0f18e6; border: 1px solid #ffffff33; font-size: 10px; font-weight: 700; color: #d9dcef; white-space: nowrap; pointer-events: none; }
 .pc-dev img { width: 10px; height: 10px; }
+
+/* Safari antigo (iPadOS < 16.4) só conhece :-webkit-full-screen: as mesmas regras do ecrã inteiro, à parte (um seletor
+   desconhecido numa lista anula a regra toda) */
+.coliseu:-webkit-full-screen { overflow-y: auto; padding-bottom: 0; scrollbar-width: none; }  /* o jogo ocupa o ecrã todo: rola-se até ao Laboratório sem a barra a comer a margem direita */
+.coliseu:-webkit-full-screen::-webkit-scrollbar { display: none; }
+.coliseu:-webkit-full-screen .board { --cw: calc(min(220px, 7.4vw) * var(--fit, .8)); --ow: calc(min(170px, 5.8vw) * var(--fit, .8)); --lw: calc(min(170px, 5.8vw) * var(--fit, .8)); --hw: calc(min(180px, 6.2vw) * var(--fit, .8)); --ohw: calc(min(120px, 4.4vw) * var(--fit, .8)); }
+.coliseu:-webkit-full-screen .myhand.exact:not(.opp) .hc { width: var(--hw); }
+.coliseu:-webkit-full-screen .myhand.opp .hc { width: var(--ohw); }
+.coliseu:-webkit-full-screen .livecard { min-height: 100vh; margin: 0; border-radius: 0; }
+.coliseu:-webkit-full-screen .col-bar { position: fixed; top: 6px; right: 8px; z-index: 40; padding: 0; border: 0; background: none; }
+.coliseu:-webkit-full-screen .col-bar > :not(.fs-btn) { display: none; }
+.coliseu:-webkit-full-screen .fs-btn { padding: 4px 9px; opacity: .75; } .coliseu:-webkit-full-screen .fs-btn span { display: none; }
+.coliseu:-webkit-full-screen .rodar-hint { display: none; }
