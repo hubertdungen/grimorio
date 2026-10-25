@@ -5,12 +5,12 @@
 // ganha menos quando aparece; e protege o que faz o deck GANHAR pela via que ele ganha (dano, dreno, mill,
 // veneno, combo) ou o segura (remoção, compra, bloqueios). Terrenos só por terrenos.
 // Puro (browser e node). prepareSwaps calcula o deck uma vez; cada sugestão custa < 1 ms.
-import { passes, deckCombos, deckPlan, deckCuts, fmtBit, RB, PAIRS, TAG_LABEL, SIDE_CATS } from './data.js'
+import { passes, deckCombos, deckPlan, deckCuts, fmtBit, RB, PAIRS, TAG_LABEL, SIDE_CATS, deadRefsN, deckReps, deadTxt as refTxt } from './data.js'
 import { stats } from './deck.js'
 import { maxCopies, targetsFor } from './formats.js'
 import { manaNeeds, landInfo, recommendLands } from './mana.js'
 import { SYN } from './synergy.js'
-import { testEvidence, testsBoost, heldTurns } from './tests.js'
+import { testEvidence, testsBoost, heldTurns, wrDelta as wrD } from './tests.js'
 import { tx, LOCALE } from './i18n.js'
 
 // kind é um identificador; mostrar com KIND_LABEL
@@ -145,13 +145,13 @@ export function gameEvidence(data, games) {
 const cache = new WeakMap() // deck (imutável) -> {key, fn}
 
 /**
- * Pré-cálculo por deck. opts: {evidence, co, archetype}. evidence = gameEvidence() (ou testEvidence(),
+ * Pré-cálculo por deck. opts: {evidence, co, archetype, meta}. evidence = gameEvidence() (ou testEvidence(),
  * só com «presa na mão»), de qualquer fonte de jogos; por omissão ctx.tests.
  * Devolve (card, {limit}) => [{out, q, score, why, kind, zone, eur}] com .none quando vazio e
  * .kept = [{n, why}] (cartas da mesma função que os jogos mandam manter).
  */
 export function prepareSwaps(data, deck, fmt, ctx, opts = {}) {
-  const key = [data, fmt, ctx, opts.evidence, opts.co, opts.archetype]
+  const key = [data, fmt, ctx, opts.evidence, opts.co, opts.archetype, opts.meta]
   const hit = cache.get(deck)
   if (hit && hit.key.every((x, k) => x === key[k])) return hit.fn
   const fn = build(data, deck, fmt, ctx, opts)
@@ -203,7 +203,7 @@ export function landPlan(data, deck, fmt, ctx, { fn = null, recs = [], co = null
   const lands = Object.entries(deck.main || {}).map(([n, q]) => [get(n), q]).filter(([c]) => c?.mt === 'Land')
   const done = N.s.spells + N.s.lands + (deck.commanders?.length || 0) >= N.total * 0.9
   // a regra (Karsten) pede terrenos a mais em decks agressivos, que jogam de propósito com menos: aí não se pede «mais»
-  const raw = done ? N.lands - N.target : 0, diff = raw >= 3 || (raw <= -3 && N.s.avgMv >= 2) ? raw : 0
+  const raw = done ? N.lands - N.target : 0, diff = raw >= 3 || (raw <= -3 && N.s.avgMv >= 2.4) ? raw : 0
   const acts = [], used = new Set()
   const surplus = k => (N.cols[k]?.have || 0) - (N.cols[k]?.need || 0)
   const landOut = except => {  // um básico da cor com mais sobra; senão um terreno que entra virado
@@ -275,7 +275,11 @@ function build(data, deck, fmt, ctx, opts) {
   const nonland = mainE.filter(([c]) => c.mt !== 'Land' && !c.tg.includes('hate')).map(([c]) => c.i)
   const all = [...new Set([...nonland, ...cmds.map(c => c.i)])]
   const deckCards = [...cmds, ...mainE.map(([c]) => c)]
+  const reps = deckReps(deckCards)
   const s = stats(deck, data)
+  // EDHREC (rank «er») só em formatos de comandante; nos de 60 cartas, a inclusão no meta dos torneios
+  const edhOk = !!(fmt.cmd || cmds.length)
+  const mInc = c => opts.meta?.byCard.get(c.i)?.incl || 0
 
   // Protegidas: sementes, comandantes, peças de combos completos, peças centrais do arquétipo.
   const prot = new Set([...(deck.seeds || []), ...cmds.map(c => c.n)])
@@ -398,9 +402,7 @@ function build(data, deck, fmt, ctx, opts) {
   const ev = T?.cards ? T : null
   const wk = ev?.wincon?.kind
   const evC = n => ev?.cards[n]
-  const p0 = ev?.exact ? ev.winsExact / ev.exact : 0.5
-  // diferença de % de vitórias com a carta vista e sem ela, encolhida para 3 jogos «médios» de cada lado
-  const wrDelta = x => (x.seenW + 3 * p0) / (x.seen + 3) - (ev.winsExact - x.seenW + 3 * p0) / (ev.exact - x.seen + 3)
+  const wrDelta = x => wrD(ev, x)
   const unitsTxt = x => ({ damage: tx('fez {n} de dano', { n: x.units }), drain: tx('drenou {n} de vida', { n: x.units }), mill: tx('moeu {n} cartas', { n: x.units }),
     poison: tx('deu {n} de veneno', { n: x.units }), alt: tx('esteve em campo em {n} vitórias', { n: x.units }) }[wk])
   const deadOf = n => {
@@ -421,7 +423,7 @@ function build(data, deck, fmt, ctx, opts) {
   }
 
   // Terrenos: valor pela base de mana (cores com falta, virado, utilidade, sinergias).
-  const landGives = c => { const L = landInfo(c); return { L, gives: L.any || L.colors.has('*') ? deckCols : deckCols.filter(k => L.colors.has(k)) } }
+  const landGives = c => { const L = landInfo(c, (deck.commanders?.length || 0) > 0); return { L, gives: L.any || L.colors.has('*') ? deckCols : deckCols.filter(k => L.colors.has(k)) } }
   const landVal = c => {
     const { L, gives } = landGives(c)
     let v = 0
@@ -433,7 +435,7 @@ function build(data, deck, fmt, ctx, opts) {
   const deadTxt = d => (d.lost >= 2 ? tx('Esteve na mão em {n} derrotas sem ser lançada', { n: d.lost }) : tx('Ficou presa na mão em {a} de {n} jogos', { a: d.dead, n: d.seen }))
 
   function landSwaps(S, room, limit) {
-    const vS = landVal(S), gS = landGives(S).gives
+    const vS = landVal(S), gS = landGives(S).gives, deadS = deadRefsN(S, deckCards, reps)
     const out = []
     for (const [X, q0] of mainE) {
       if (X.mt !== 'Land' || X.n === S.n || prot.has(X.n) || keepWhy(X.n)) continue
@@ -449,6 +451,7 @@ function build(data, deck, fmt, ctx, opts) {
       if (deckCols.length >= 2 && !gives.length && !L.any) why.push(tx('Só dá mana incolor'))
       const d = deadOf(X.n)
       if (d) { gain += 0.3; why.push(deadTxt(d)) }
+      gain -= 0.15 * deadS.length  // Villainous Hideout sem Villains
       if (gain <= 0.05 || !why.length) continue
       out.push({ out: X.n, q, score: +gain.toFixed(3), why: why.slice(0, 3), kind: 'mesmo papel', zone: 'main', eur: eurDelta(S, X, q) })
     }
@@ -476,6 +479,7 @@ function build(data, deck, fmt, ctx, opts) {
     const answers = testsBoost(S, T)?.txt
     const slotS = Math.min(7, Math.floor(S.cmc))
     const pS = castProb(S)
+    const deadS = deadRefsN(S, deckCards, reps)  // a sugestão refere um tipo/mecânica que o deck não tem
 
     const res = [], kept = []
     for (const [X, q0] of pool) {
@@ -501,7 +505,7 @@ function build(data, deck, fmt, ctx, opts) {
       // carta de função (remoção, compra, contra…) só sai por outra com a mesma função, a não ser que esteja morta ou ilegal
       if (!side && xFn && !sharedFn.length && !illegal && !d) continue
       const sharedTheme = THEME.filter(t => X.tg.includes(t) && S.tg.includes(t))
-      const rel = sharedFn.length || sharedSide.length ? 0.35 : bothCre ? 0.25 : X.mt === S.mt && sharedTheme.length ? 0.15 : X.mt === S.mt ? 0.08 : 0
+      const rel = (sharedFn.length || sharedSide.length ? 0.35 : bothCre ? 0.25 : X.mt === S.mt && sharedTheme.length ? 0.15 : X.mt === S.mt ? 0.08 : 0) * (deadS.length ? 0.5 : 1)
       const role = sharedSide.length ? SIDE_CATS[sharedSide[0]][0].toLowerCase() : sharedFn.length ? roleLabel(sharedFn[0]) : bothCre ? roleLabel('creature') : null
       const ax = [] // [peso, kind, texto]
       const push = (w, kind, t) => ax.push([w, kind, t])
@@ -521,7 +525,7 @@ function build(data, deck, fmt, ctx, opts) {
       if (hard) push(0.12, 'linha fraca', tx('Pede {p} com só {h} fontes de {k}', { p: `{${hard}}`.repeat(pipsOf(X, hard)), h: N.cols[hard].have, k: hard }))
       else if (pS - pX >= 0.15) push(0.12, 'curva', tx('A tempo em {x} dos jogos; a sugestão em {s}', { x: pct(pX), s: pct(pS) }))
       const lr = Math.log(X.er || 40000) - lerS
-      if (lr > Math.log(2.5) && (X.er || 40000) > 1500) push(0.06 * Math.min(3, lr), 'mesmo papel', tx('Pouco usada (EDHREC {x}) face a {s}', { x: erT(X), s: erT(S) }))
+      if (edhOk && lr > Math.log(2.5) && (X.er || 40000) > 1500) push(0.06 * Math.min(3, lr), 'mesmo papel', tx('Pouco usada (EDHREC {x}) face a {s}', { x: erT(X), s: erT(S) }))
       if (!side) {
         const partX = partners(X), synX = inCat.get(X.n) || 0, intX = partX + 2 * synX
         if (xFn) { /* funções valem por si: não se medem por interações nem pelo plano */ } else if (intX === 0 && intS > 0) push(0.22, role ? 'mesmo papel' : 'fora do plano', tx('Sem interações no deck; {c} liga a {n}', { c: S.n, n: intS }))
@@ -548,9 +552,10 @@ function build(data, deck, fmt, ctx, opts) {
       // contra: função abaixo da meta, staples, muito jogada com o comandante, mexer na curva, a sugestão é cara, rende nos jogos
       let pen = 0
       for (const t of X.tg) if (targets[t] && !S.tg.includes(t) && (s.tags[t] || 0) - q < targets[t] && (t !== 'wincon' || !winKind || /damage|drain/.test(winKind))) pen += 0.25
-      if (X.er && X.er < 1000 && !(S.er < X.er)) pen += 0.3 // staple: só sai por outra ainda mais jogada
+      if (edhOk ? X.er && X.er < 1000 && !(S.er < X.er) : mInc(X) >= 0.1 && !(mInc(S) > mInc(X))) pen += 0.3 // staple: só sai por outra ainda mais jogada
       if (role) pen += 0.08 * Math.max(0, S.cmc - X.cmc - 1) // trocar uma barata por uma bem mais cara mexe na curva
-      if (role && X.cmc <= S.cmc && X.er && (!S.er || X.er * 3 < S.er)) pen += 0.25 // a que sai parece a versão melhor
+      if (role && X.cmc <= S.cmc && (edhOk ? X.er && (!S.er || X.er * 3 < S.er) : mInc(X) >= 0.05 && mInc(X) > 3 * mInc(S))) pen += 0.25 // a que sai parece a versão melhor
+      if (deadS.length) pen += 0.15
       if (budget && prS > budget) pen += 0.2
       if (opts.co) pen += Math.max(0, edhVal(X) - edhVal(S)) // mais jogada com o comandante do que a sugestão
       if (cmds.length && cmdSim(X) >= 0.5 && cmdSim(X) > cmdSim(S)) pen += 0.2 // perto do comandante pelo texto
@@ -566,6 +571,7 @@ function build(data, deck, fmt, ctx, opts) {
       }
       for (const y of ax) if (y[2] && why.length < 3) why.push(y[2])
       if (answers && why.length < 4) why.push(answers)
+      for (const dr of deadS) why.push(refTxt(dr))
       res.push({ out: X.n, q, score: +score.toFixed(3), worse, why, kind: role && ax[0][1] === 'linha fraca' ? 'mesmo papel' : ax[0][1], zone: side ? 'side' : 'main', eur: eurDelta(S, X, q) })
     }
     res.sort((a, b) => b.score - a.score)

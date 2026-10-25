@@ -97,7 +97,7 @@ function LandPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
   return (
     <div className={`prefs cutp ${open ? 'on' : ''}`}>
       <button className="prefs-head" onClick={() => setOpen(!open)}>
-        <span>⛰ {tx('Terrenos')}</span><small className="muted">{plan ? `${plan.N.s.avgMv < 2 && plan.N.lands < plan.N.target ? tx('{l} terrenos (deck rápido: menos do que a regra é normal)', { l: plan.N.lands }) : tx('{l} de {t} ideais', { l: plan.N.lands, t: plan.N.target })} · ${tx('{n} sugestão|{n} sugestões', { n: plan.acts.length })}` : tx('quantidade, cores e terrenos melhores')}</small><span className="chev">{open ? '▾' : '▸'}</span>
+        <span>⛰ {tx('Terrenos')}</span><small className="muted">{plan ? `${plan.N.s.avgMv < 2.4 && plan.N.lands < plan.N.target ? tx('{l} terrenos (deck rápido: menos do que a regra é normal)', { l: plan.N.lands }) : tx('{l} de {t} ideais', { l: plan.N.lands, t: plan.N.target })} · ${tx('{n} sugestão|{n} sugestões', { n: plan.acts.length })}` : tx('quantidade, cores e terrenos melhores')}</small><span className="chev">{open ? '▾' : '▸'}</span>
       </button>
       {open && plan && (
         <div className="cutp-body">
@@ -246,6 +246,12 @@ function CutPanel({ data, deck, fmt, ctx, act, swaps, recs, co, cmdIdx, needs, m
                     {fmt.side > 0 && <button onClick={() => act.move(x.c, 'main', 'side')} title={tx('Não corta: passa para o sideboard (fica para jogos 2 e 3)')}>→ SB</button>}
                   </div>
                 )}
+                {!x.swap && (x.force || x.sb) && (
+                  <div className="swap">
+                    {fmt.side > 0 && x.sb && <button className="primary small" onClick={() => act.move(x.c, 'main', 'side')} title={tx('Não corta: passa para o sideboard (fica para jogos 2 e 3)')}>→ SB</button>}
+                    <button onClick={() => act.add(x.c, 'main', -(deck.main[x.c.n] || 1))}>{tx('Cortar')}</button>
+                  </div>
+                )}
               </li>
             ))}</ul>
           </>}
@@ -346,7 +352,7 @@ function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
     [data, seeds, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt])
   const plan = useMemo(() => deckPlan(data, have), [data, have])
   // trocas: preparadas só quando um «+» as pede (o rato em cima ou o menu aberto); swap.js guarda-as por deck
-  const swaps = useMemo(() => (c, o) => prepareSwaps(data, deck, fmt, ctx, { co, archetype, evidence: ctx.tests })(c, o), [data, deck, fmt, ctx, co, archetype])
+  const swaps = useMemo(() => (c, o) => prepareSwaps(data, deck, fmt, ctx, { co, archetype, meta, evidence: ctx.tests })(c, o), [data, deck, fmt, ctx, co, archetype, meta])
   return { recs, seeds, seedsIdx, have, usingDeck: !seedsIdx.length, plan, co, cmdIdx, needs, bracket, meta, archetype, tastes, swaps }
 }
 

@@ -1,5 +1,5 @@
 // Base de mana: equilíbrio de terrenos, fontes por cor e terrenos sugeridos pela mecânica do deck.
-import { passes, PAIRS, RB, ROLE_LABEL } from './data.js'
+import { passes, PAIRS, RB, ROLE_LABEL, deadRefsN, deckReps } from './data.js'
 import { stats } from './deck.js'
 import { landAdvice } from './formats.js'
 import { tx, num } from './i18n.js'
@@ -7,10 +7,11 @@ import { tx, num } from './i18n.js'
 const COLS = 'WUBRG'
 const BASIC_OF = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' }
 
-/** O que um terreno faz: cores, se entra virado, fetch, manland e funções extra. */
-export function landInfo(c) {
+/** O que um terreno faz: cores, se entra virado, fetch, manland e funções extra. cmd: o deck tem comandante. */
+export function landInfo(c, cmd = true) {
   const o = c.o.toLowerCase()
-  const any = /any color|any one color|mana of any type|mana of any one color/.test(o)
+  // Command Tower sem comandante não dá cor; Gemstone Caverns só com o marcador de sorte (quase nunca)
+  const any = /any color|any one color|mana of any type|mana of any one color/.test(o) && !/luck counter/.test(o) && (cmd || !/commander's color identity/.test(o))
   const colors = new Set()
   for (const k of COLS) if (c.o.includes(`{${k}}`)) colors.add(k)
   for (const [t, k] of Object.entries(BASIC_OF)) if (c.t.includes(t)) colors.add(k)
@@ -33,6 +34,9 @@ export function landInfo(c) {
 }
 
 // Fontes recomendadas por cor (aprox. Karsten), consoante o maior número de símbolos dessa cor num só custo.
+// terreno que só dá cores que o deck não usa (Arid Mesa num deck UB)
+export const offColorLand = (L, cols) => !L.any && !L.colors.has('*') && L.colors.size > 0 && ![...L.colors].some(k => cols.includes(k))
+
 const SRC = { 100: [0, 16, 22, 27], 60: [0, 13, 18, 22], 40: [0, 8, 11, 13] }
 
 /** Necessidades de mana do deck: terrenos alvo, fontes por cor (tem/precisa), terrenos virados. */
@@ -61,7 +65,7 @@ export function manaNeeds(data, deck, fmt) {
     const c = data.byName.get(n)
     if (!c || RT.has(n)) continue
     if (c.mt === 'Land') {
-      const L = landInfo(c)
+      const L = landInfo(c, deck.commanders.length > 0)
       if (L.tapped === 'sim') tapped += q
       for (const k of COLS) if (L.any || L.colors.has(k) || (L.colors.has('*') && deckColors.has(k))) sources[k] += q
       continue
@@ -97,12 +101,15 @@ export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, n
   const byRole = Object.fromEntries(Object.keys(RB).map(r => [r, haveIdx.filter(i => cards[i].ro & RB[r] && cards[i].mt !== 'Land')]))
   const deckCols = Object.keys(N.cols)
   const landfall = byRole.landfall.length, gy = byRole.recursion.length
+  const deckCards = haveIdx.map(i => cards[i]), reps = deckReps(deckCards), cmd = deck.commanders.length > 0
   const out = []
   for (const c of cards) {
     if (c.mt !== 'Land' || haveSet.has(c.i) || /\bBasic\b/.test(c.t)) continue
     if (!passes(c, null, ctx)) continue
     if (ctx.identity == null && deckCols.length && c.ci && ![...c.ci].every(k => deckCols.includes(k))) continue
-    const L = landInfo(c)
+    const L = landInfo(c, cmd)
+    if (deckCols.length && offColorLand(L, deckCols)) continue
+    if (deadRefsN(c, deckCards, reps).length) continue  // Villainous Hideout sem Villains: a mana dela não serve ao deck
     const why = [], P = {}
     // 1) cores que faltam
     const gives = L.any || L.colors.has('*') ? deckCols : deckCols.filter(k => L.colors.has(k))

@@ -463,3 +463,66 @@ console.log('selfcheck universo ok')
   assert.equal(top(['Fire', 'Ice']), 'Fire // Ice')
   assert.deepEqual(setInfo('0123 R\nMH3 • EN'), { set: 'mh3', cn: '123' })
   console.log('selfcheck foto de carta ok') }
+
+// Sugestões com cartas inventadas: blink não é remoção, referências mortas, combos impossíveis, EDHREC fora do
+// Commander, terrenos fora das cores, ninjutsu e cartas de ódio estreitas.
+{ const { prepData, recommend, deckCuts, deadRefs, metaIndex } = await import('./src/data.js')
+  const { prepareSwaps } = await import('./src/swap.js')
+  const { recommendLands } = await import('./src/mana.js')
+  const all = (1 << F.length) - 1
+  const K = (n, t, o, mc, ci, tg = [], extra = {}) => ({ n, t, o, mc, cmc: (+(mc.match(/\{(\d+)\}/)?.[1] || 0)) + (mc.match(/\{[WUBRGC]\}/g) || []).length, ci, co: ci, lg: all, rs: 0, r: 'c', kw: [], pt: '', er: 5000, tg, ...extra })
+  const vanilla = (n, sub, ci) => K(n, `Creature — ${sub}`, '', `{1}{${ci}}`, ci, ['creature'], { pt: '2/2' })
+  const nine = [1, 2, 3, 4, 5, 6, 7, 8]
+  const cards = [
+    K('Essence Flux', 'Instant', "Exile target creature you control, then return that card to the battlefield under its owner's control. If it's a Spirit, put a +1/+1 counter on it.", '{U}', 'U', ['removal', 'counters']),
+    ...'ABCDE'.split('').map(x => vanilla(`Human ${x}`, 'Human Soldier', 'U')),
+    vanilla('Some Spirit', 'Spirit', 'U'), vanilla('Other Spirit', 'Spirit', 'U'), vanilla('Third Spirit', 'Spirit', 'U'),
+    vanilla('Some Villain', 'Human Villain', 'B'), vanilla('Other Villain', 'Villain', 'B'), vanilla('Third Villain', 'Villain', 'B'),
+    vanilla('Some Dragon', 'Dragon', 'R'), vanilla('Other Dragon', 'Dragon', 'R'), vanilla('Third Dragon', 'Dragon', 'R'),
+    K('Combo Rogue', 'Creature — Human Rogue', 'Whenever a creature dies, draw a card.', '{1}{B}', 'B', ['creature'], { pt: '2/2' }),
+    K('Combo Blue', 'Sorcery', 'Untap all creatures you control.', '{2}{U}', 'U'),
+    K('Combo Red', 'Instant', 'Creatures you control gain haste.', '{R}', 'R'),
+    K('Arid Mesa', 'Land', '{T}, Pay 1 life, Sacrifice this land: Search your library for a Mountain or Plains card, put it onto the battlefield, then shuffle.', '', '', ['tutor', 'land']),
+    K('Villainous Hideout', 'Land', '{T}: Add {C}.\n{T}: Add one mana of any color. Spend this mana only to cast a Villain spell or to activate an ability of a Villain source.\n{3}, {T}: Target Villain you control connives.', '', '', ['draw', 'land']),
+    K('Island', 'Basic Land — Island', '({T}: Add {U}.)', '', 'U', ['land']), K('Swamp', 'Basic Land — Swamp', '({T}: Add {B}.)', '', 'B', ['land']),
+    K('Old Murder', 'Instant', 'Destroy target creature.', '{2}{B}', 'B', ['removal'], { er: 40000 }),
+    K('Fresh Murder', 'Instant', 'Destroy target creature.', '{1}{B}', 'B', ['removal'], { er: 200 }),
+    K('Ornithopter', 'Artifact Creature — Thopter', 'Flying', '{0}', '', ['evasion', 'creature'], { kw: ['Flying'], pt: '0/2' }),
+    ...nine.map(k => K(`Ninja ${k}`, 'Creature — Human Ninja', 'Ninjutsu {1}{U}\nWhenever this creature deals combat damage to a player, draw a card.', '{2}{U}', 'U', ['draw', 'creature'], { kw: ['Ninjutsu'], pt: '2/2' })),
+    K('Dragon Hunter', 'Creature — Human Warrior', 'Protection from Dragons\nThis creature can block Dragons as though it had reach.', '{W}', 'W', ['creature'], { pt: '2/1' }),
+    ...nine.map(k => vanilla(`Knight ${k}`, 'Human Knight', 'W')),
+  ]
+  const D = 8, emb = new Int8Array(cards.length * D)
+  let sd = 7
+  for (let k = 0; k < emb.length; k++) emb[k] = ((sd = (sd * 16807) % 2147483647) % 200) - 100
+  const iOf = n => cards.findIndex(c => c.n === n)
+  const combos = [['c1', [iOf('Combo Rogue'), iOf('Combo Blue'), iOf('Combo Red')], ['Infinite damage'], [], 0, 50]]
+  const sdata = prepData({ formats: F, dim: D }, cards, combos, emb.buffer, new Float32Array(cards.length * 2).buffer)
+  const by = n => sdata.byName.get(n)
+  // blink não é remoção; «If it's a Spirit» num deck de Humans é referência morta
+  assert.ok(!by('Essence Flux').tg.includes('removal'))
+  const humans = 'ABCDE'.split('').map(x => by(`Human ${x}`))
+  assert.deepEqual(deadRefs(by('Essence Flux'), humans), ['Spirit'])
+  assert.deepEqual(deadRefs(by('Essence Flux'), [...humans, by('Some Spirit'), by('Other Spirit')]), [])
+  const ctxUB = { bit: -1, allowUn: true, identity: 'UB' }
+  const deckUB = { ...emptyDeck('modern'), main: { 'Human A': 4, 'Human B': 4, 'Human C': 4, 'Human D': 4, 'Combo Rogue': 4, 'Old Murder': 4, Island: 10, Swamp: 10 } }
+  const haveUB = Object.keys(deckUB.main).map(n => by(n).i)
+  const recs = recommend(sdata, { seeds: haveUB.filter(i => sdata.cards[i].mt !== 'Land'), have: haveUB, ctx: ctxUB, filters: null, limit: 80, deckSize: 60, turn: 6 })
+  // quase-combo cuja outra peça é vermelha: impossível num deck UB
+  assert.ok(recs.some(r => r.c.n === 'Combo Blue') && !recs.some(r => r.why.some(w => w.k === 'combo2')), 'quase-combo fora das cores')
+  // Arid Mesa (R/W) e Villainous Hideout sem Villains não aparecem num deck UB
+  assert.ok(!recs.some(r => r.c.n === 'Arid Mesa' || r.c.n === 'Villainous Hideout'))
+  const lands = recommendLands(sdata, { deck: deckUB, fmt: FORMAT.modern, ctx: ctxUB, limit: 12 }).map(r => r.c.n)
+  assert.ok(!lands.includes('Arid Mesa') && !lands.includes('Villainous Hideout'), lands.join())
+  // Modern: o rank do EDHREC não é motivo para trocar
+  const sw = prepareSwaps(sdata, deckUB, FORMAT.modern, ctxUB)(by('Fresh Murder'), { limit: 3 })
+  assert.ok(!sw.some(x => x.why.some(w => /EDHREC/.test(w))), JSON.stringify(sw))
+  // Ornithopter num deck de ninjas abre caminho ao ninjutsu: não é «Não interage»
+  const ninja = { ...emptyDeck('modern'), main: { Ornithopter: 4, ...Object.fromEntries(nine.map(k => [`Ninja ${k}`, 4])), Island: 20 } }
+  assert.ok(!deckCuts(sdata, ninja, { ctx: ctxUB }).some(x => x.c.n === 'Ornithopter' && x.why.some(w => /Não interage/.test(w))))
+  // Dragon Hunter num Pioneer sem dragões no meta: carta de sideboard
+  const meta = metaIndex(sdata, { decks: 300, cards: [['Human A', 0.4, 4, 0, 0, [0]]], archetypes: [{ name: 'Humans', share: 0.2, decks: 60, core: [['Human A', 0.9, 4]] }], pairs: {} }, 'Pioneer')
+  const kn = { ...emptyDeck('pioneer'), main: { 'Dragon Hunter': 3, ...Object.fromEntries(nine.map(k => [`Knight ${k}`, 4])) } }
+  const dh = deckCuts(sdata, kn, { ctx: { bit: -1, allowUn: true, identity: 'W' }, meta }).find(x => x.c.n === 'Dragon Hunter')
+  assert.ok(dh && /Carta de sideboard/.test(dh.why[0]), JSON.stringify(dh?.why))
+  console.log('selfcheck sugestões ok') }

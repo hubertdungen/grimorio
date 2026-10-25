@@ -35,7 +35,7 @@ export function stats(deck, data) {
     if (c.mt === 'Land') {
       lands += q
       const prod = c.o.match(/\{[WUBRGC]\}/g) || []
-      const any = /any color|any one color|mana of any/i.test(c.o)
+      const any = /any color|any one color|mana of any/i.test(c.o) && !/luck counter/i.test(c.o) && (deck.commanders?.length || !/commander's color identity/i.test(c.o))
       for (const k of Object.keys(sources)) if (any || prod.includes(`{${k}}`) || (c.t.includes('Basic') && basicColor(c.n) === k)) sources[k] += q
       continue
     }
