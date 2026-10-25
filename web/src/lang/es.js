@@ -2730,4 +2730,7 @@ export default {
   "Quantas cartas fazem cada coisa (remoção, compra, ramp…) contra o recomendado para o formato; a linha marca o alvo.": "Cuántas cartas hacen cada cosa (eliminación, robo, aceleración…) frente a lo recomendado para el formato; la línea marca el objetivo.",
   "Todos os jogos deste deck no Laboratório, torneios e Arena, sem contar o mesmo jogo duas vezes.": "Todas las partidas de este mazo en el Laboratorio, torneos y Arena, sin contar la misma dos veces.",
   "O que mais vale a pena mudar primeiro: legalidade, terrenos e cores, funções em falta e trocas por cartas melhores.": "Lo que más vale la pena cambiar primero: legalidad, tierras y colores, funciones que faltan y cambios por cartas mejores.",
+  "A resolver": "Resolviendo",
+  "Gatilho": "Disparo",
+  "{n} na pilha": "{n} en la pila",
 }

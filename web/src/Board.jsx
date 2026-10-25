@@ -116,6 +116,65 @@ const useImg = () => { const { arts, k } = useContext(Arts); return (c, size, ba
 // a JPEG pequena da Scryfall já vem muito comprimida e nota-se mesmo reduzida. Cada imagem vem uma vez (cache).
 const useImgSet = () => { const { arts, k } = useContext(Arts); return (c, back, side = k, inst) => { const pid = artOf(arts, side, c, inst), s = img(c, 'small', back, pid), n = img(c, 'normal', back, pid); return s === n ? undefined : `${s} 100w, ${n} 488w` } }
 
+// ---------- a pilha (stack): flutua por cima do centro da mesa, fora da barra dos turnos ----------
+// cada carta cai com o seu ângulo (do uid, sempre o mesmo), as de baixo abanam quando chega outra; a do topo diz o que
+// vai fazer (texto da carta: o gatilho «When/Whenever/At…», a habilidade com custo ou o feitiço) e, ao resolver, brilha
+// e sai na direção do alvo com o efeito que o Forge aplicou
+const tilt = uid => ((uid * 37) % 13) - 6
+const clean = t => String(t || '').replace(/\s*\(\d+\)/g, '').replace(/\[[^\]]*\]/g, '').replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim()
+function effectOf(c, kind) {
+  if (!c) return ''
+  const lines = c.o.split('\n').map(l => l.replace(/\([^)]*\)/g, '').trim()).filter(Boolean)
+  const pick = kind === 'trigger' ? lines.find(l => /^(When|Whenever|At)\b/.test(l) || /\b(When|Whenever)\b/.test(l))
+    : kind === 'activate' ? lines.find(l => /^[^"]{1,60}:/.test(l) && !/Add \{/.test(l)) || lines.find(l => l.includes(':')) : null
+  const t = pick || lines.join(' ')
+  return t.length > 220 ? `${t.slice(0, 217)}…` : t
+}
+const KIND_L = { cast: tx('Feitiço'), trigger: tx('Gatilho'), activate: tx('Habilidade') }
+function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
+  const [ghost, setGhost] = useState(null), [nudge, setNudge] = useState(false), n = s.stack.length, prevN = useRef(n)
+  useEffect(() => {  // resolver: a carta fica a brilhar e sai, com o efeito real
+    if (quiet || rev?.k !== 'resolve' || !rev.card) return
+    const named = String(rev.txt || '').replace(/^.*? - /, '').replace(/Ai\(\d+\)-([A-D])\b/g, (m, k) => short(who[k.toLowerCase()]) || m)  // «Ai(2)-B» → nome do deck
+    setGhost({ key: ri, card: rev.card, p: rev.p, txt: clean(named) })
+    const t = setTimeout(() => setGhost(null), 1800 / Math.max(1, speed / 2))
+    return () => clearTimeout(t)
+  }, [ri]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {  // chega uma carta nova: as de baixo abanam
+    if (n > prevN.current && n > 1 && !quiet) { setNudge(true); const t = setTimeout(() => setNudge(false), 380); prevN.current = n; return () => clearTimeout(t) }
+    prevN.current = n
+  }, [n, quiet])
+  const top = s.stack[n - 1], tc = top && lookup(data, top.card)
+  if (!n && !ghost) return null
+  const pic = (card, p, kind) => { const c = lookup(data, card); return c ? <img src={img(c, kind === 'cast' || !kind ? 'normal' : 'art_crop', false, artOf(arts, p, c))} alt={card} draggable="false" /> : <span>{short(card) || tx('habilidade')}</span> }
+  const tgt = top?.target && (who[top.target] || short(top.target))
+  return (
+    <div className={`stackfx ${nudge ? 'nudge' : ''}`} aria-live="polite">
+      <div className="stk-pile" style={{ '--n': n }}>
+        {s.stack.map((x, j) => (
+          <In key={x.uid} quiet={quiet} className={`stk ${x.p || ''} ${x.kind} ${j === n - 1 ? 'top' : ''}`} style={{ '--j': j, '--r': `${tilt(x.uid)}deg` }} data-z={x.card ? `n:${x.card}` : undefined}>
+            {pic(x.card, x.p, x.kind)}
+          </In>
+        ))}
+        {ghost && <div key={`g${ghost.key}`} className={`stk resolving ${ghost.p || ''}`} style={{ '--j': n }}>{pic(ghost.card, ghost.p)}</div>}
+      </div>
+      {(top || ghost) && (
+        <div key={top ? `t${top.uid}` : `g${ghost.key}`} className={`stk-cap ${(top || ghost).p || ''} ${top ? '' : 'res'}`}>
+          {top ? <>
+            <small>{KIND_L[top.kind] || top.kind}{n > 1 ? ` · ${tx('{n} na pilha', { n })}` : ''}</small>
+            <b>{short(top.card) || tx('habilidade')}{tgt ? <span className="muted"> → {tgt}</span> : null}</b>
+            {tc && <p>{effectOf(tc, top.kind)}</p>}
+          </> : <>
+            <small>{tx('A resolver')}</small>
+            <b>{short(ghost.card)}</b>
+            {ghost.txt && <p>{ghost.txt}</p>}
+          </>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ---------- uma carta no campo ----------
 const kwsOf = (c, p) => [...new Set([...(c?.kw || []), ...(p.kw || [])])].filter(k => KW[k])
 
@@ -610,14 +669,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
                 {PHASES.map((x, j) => <span key={x} className={j === ph ? 'on' : j < ph ? 'past' : ''} title={PH_LABEL[x]}>{PH_SHORT[x]}</span>)}
               </div>
             </div>
-            <div className="stack" title={tx('Pilha')}>
-              {s.stack.map((x, j) => {
-                const c = lookup(data, x.card)
-                return <In key={x.uid} quiet={fast || pos.jump} className={`stk ${x.p || ''} ${x.kind}`} style={{ '--j': j }} data-z={x.card ? `n:${x.card}` : undefined} title={`${x.kind === 'cast' ? tx('Feitiço') : tx('Habilidade')}: ${short(x.card) || '?'}${x.target ? ` → ${short(x.target)}` : ''}`}>
-                  {c ? <img src={img(c, x.kind === 'cast' ? 'small' : 'art_crop', false, artOf(arts, x.p, c))} alt={x.card} /> : <span>{short(x.card) || tx('habilidade')}</span>}
-                </In>
-              })}
-            </div>
+            <StackFx {...{ s, rev, ri, data, arts, who, speed }} quiet={fast || pos.jump} />
             <div className={`ribbon ${actor ? `by-${actor}` : ''} k-${rev?.k || ''}`} aria-live="polite">
               <span key={ri}>{actor && <i className="arrow">{actor === 'a' || mates.includes(actor) ? '▼' : '▲'}</i>}{rev ? describe(rev, who) : live ? tx('À espera do Forge…') : tx('O jogo vai começar…')}</span>
             </div>

@@ -2738,4 +2738,7 @@ export default {
   "Quantas cartas fazem cada coisa (remoção, compra, ramp…) contra o recomendado para o formato; a linha marca o alvo.": "How many cards do each job (removal, draw, ramp…) against what's recommended for the format; the line marks the target.",
   "Todos os jogos deste deck no Laboratório, torneios e Arena, sem contar o mesmo jogo duas vezes.": "All of this deck's games in the Lab, tournaments and Arena, without counting the same game twice.",
   "O que mais vale a pena mudar primeiro: legalidade, terrenos e cores, funções em falta e trocas por cartas melhores.": "What's most worth changing first: legality, lands and colours, missing functions and swaps for better cards.",
+  "A resolver": "Resolving",
+  "Gatilho": "Trigger",
+  "{n} na pilha": "{n} on the stack",
 }

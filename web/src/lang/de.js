@@ -2730,4 +2730,7 @@ export default {
   "Quantas cartas fazem cada coisa (remoção, compra, ramp…) contra o recomendado para o formato; a linha marca o alvo.": "Wie viele Karten jede Aufgabe erfüllen (Entfernung, Ziehen, Ramp…) gegenüber der Empfehlung fürs Format; die Linie markiert das Ziel.",
   "Todos os jogos deste deck no Laboratório, torneios e Arena, sem contar o mesmo jogo duas vezes.": "Alle Partien dieses Decks im Labor, in Turnieren und in der Arena, ohne doppelte Zählung.",
   "O que mais vale a pena mudar primeiro: legalidade, terrenos e cores, funções em falta e trocas por cartas melhores.": "Was sich zuerst am meisten lohnt: Legalität, Länder und Farben, fehlende Funktionen und Tausch gegen bessere Karten.",
+  "A resolver": "Wird verrechnet",
+  "Gatilho": "Ausgelöst",
+  "{n} na pilha": "{n} auf dem Stapel",
 }

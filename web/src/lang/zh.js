@@ -2730,4 +2730,7 @@ export default {
   "Quantas cartas fazem cada coisa (remoção, compra, ramp…) contra o recomendado para o formato; a linha marca o alvo.": "每种功能（移除、抽牌、加速…）的牌数与赛制建议的对比；竖线为目标。",
   "Todos os jogos deste deck no Laboratório, torneios e Arena, sem contar o mesmo jogo duas vezes.": "此套牌在实验室、锦标赛和竞技场的所有牌局，同一局不重复计算。",
   "O que mais vale a pena mudar primeiro: legalidade, terrenos e cores, funções em falta e trocas por cartas melhores.": "最值得优先修改的：合法性、地与颜色、缺少的功能，以及换成更好的牌。",
+  "A resolver": "结算中",
+  "Gatilho": "触发",
+  "{n} na pilha": "堆叠中 {n} 个",
 }
