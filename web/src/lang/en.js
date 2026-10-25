@@ -2247,4 +2247,11 @@ export default {
   "Pelo menos {m} (para todos os decks jogarem) e até 200": "At least {m} (so every deck plays) and up to 200",
   "Ainda sem partidas.": "No matches yet.",
   "série do rei depois desta partida": "king's streak after this match",
+  "Campeões de": "Champions from",
+  "Campeões de todos os tipos": "Champions of every type",
+  "Campeões dos campeões": "Champion of champions",
+  "🏆 Campeões dos campeões (platinas)": "🏆 Champions of champions (platinum)",
+  "Campeões · {t}": "Champions · {t}",
+  "Campeões: {t}": "Champions: {t}",
+  "De que torneios vêm os campeões": "Which tournaments the champions come from",
 }

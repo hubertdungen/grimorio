@@ -2239,4 +2239,11 @@ export default {
   "Pelo menos {m} (para todos os decks jogarem) e até 200": "至少 {m} 局（让所有套牌都能上场），最多 200 局",
   "Ainda sem partidas.": "还没有对局。",
   "série do rei depois desta partida": "本局后国王的连胜",
+  "Campeões de": "冠军来源",
+  "Campeões de todos os tipos": "所有类型的冠军",
+  "Campeões dos campeões": "冠军中的冠军",
+  "🏆 Campeões dos campeões (platinas)": "🏆 冠军中的冠军（白金）",
+  "Campeões · {t}": "冠军 · {t}",
+  "Campeões: {t}": "冠军：{t}",
+  "De que torneios vêm os campeões": "冠军来自哪些锦标赛",
 }

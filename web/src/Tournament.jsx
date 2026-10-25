@@ -164,6 +164,7 @@ function Create({ data, fmt0, onCreated, deckId }) {
   const n = players.length
   const teamBad = type === 'equipas' && n >= lo && n % team !== 0
   const [champs, setChamps] = useState(false)  // torneio dos campeões: o vencedor leva o troféu de platina
+  const [champFrom, setChampFrom] = useState('')  // de onde vêm os campeões: '' todos, um tipo (ex.: 'suico') ou 'campeoes' (campeões dos campeões)
   // «o meu deck»: o escolhido da última vez (guardado) ou o deck aberto, se estiver entre os decks do torneio
   const setMe = ref => { setPlayers(ps => ps.map(x => ({ ...x, me: !!ref && x.src === 'meus' && x.ref === ref }))); ls('grimorio.torneio.eu', ref || '-') }  // «-» = escolheste nenhum
   useEffect(() => {
@@ -171,12 +172,13 @@ function Create({ data, fmt0, onCreated, deckId }) {
     const want = [ls('grimorio.torneio.eu'), deckId].filter(Boolean).find(r => players.some(x => x.src === 'meus' && x.ref === r))
     if (want) setPlayers(ps => ps.map(x => ({ ...x, me: x.src === 'meus' && x.ref === want })))
   }, [players, deckId])
-  const suggested = `${champs ? `🏆 ${tx('Campeões')}` : TYPES[type][0]} · ${casual ? tx('casual') : F.name} · ${new Date().toLocaleDateString(LOCALE, { day: '2-digit', month: 'short' })}`
+  const suggested = `${champs ? `🏆 ${champFrom === 'campeoes' ? tx('Campeões dos campeões') : champFrom ? tx('Campeões · {t}', { t: TYPES[champFrom]?.[0] }) : tx('Campeões')}` : TYPES[type][0]} · ${casual ? tx('casual') : F.name} · ${new Date().toLocaleDateString(LOCALE, { day: '2-digit', month: 'short' })}`
   // os vencedores dos torneios acabados: deste formato (sem os casuais) ou, em modo casual, de todos os torneios
   const loadChampions = async () => {
     const l = await j('/api/tournaments').catch(() => []), seen = new Set(), out = []
     for (const t of l) {
-      if (t.status !== 'done' || (!casual && (t.casual || t.format !== format))) continue
+      if (t.status !== 'done' || t.old || (!casual && (t.casual || t.format !== format))) continue  // old: antes de repor os troféus
+      if (champFrom === 'campeoes' ? !t.champions : champFrom && t.type !== champFrom) continue
       const w = (t.podium || []).find(x => x.place === 1)
       if (!w || seen.has(`${w.src}:${w.ref}`) || (w.src === 'meus' && !allMine.some(d => d.id === w.ref))) continue
       seen.add(`${w.src}:${w.ref}`); out.push(w)
@@ -297,6 +299,11 @@ function Create({ data, fmt0, onCreated, deckId }) {
             <label className="chk small"><input type="checkbox" checked={unrated} onChange={e => setUnrated(e.target.checked)} /> {tx('incluir decks sem rating')}</label></>}
             <label className="chk small" title={tx('Só os decks que marcaste com ★ na Biblioteca')}><input type="checkbox" checked={favOnly} onChange={e => setFavOnly(e.target.checked)} /> ★ {tx('só favoritos')}</label>
             <button onClick={fill} disabled={n >= Math.min(fillN, max)}>{tx('Preencher')}</button>
+            <select className="tc-champ-from" value={champFrom} onChange={e => { setChampFrom(e.target.value); setChamps(false) }} aria-label={tx('Campeões de')} title={tx('De que torneios vêm os campeões')}>
+              <option value="">{tx('Campeões de todos os tipos')}</option>
+              <option value="campeoes">{tx('🏆 Campeões dos campeões (platinas)')}</option>
+              {Object.entries(TYPES).map(([k, [l]]) => <option key={k} value={k}>{tx('Campeões: {t}', { t: l })}</option>)}
+            </select>
             <button className={champs ? 'on' : ''} onClick={champs ? () => setChamps(false) : loadChampions} title={tx('Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.')}>🏆 {champs ? tx('Torneio dos campeões ✓') : tx('Campeões')}</button>
             {n > 0 && <button className="link small" onClick={() => setPlayers([])}>{tx('limpar')}</button>}
           </div>

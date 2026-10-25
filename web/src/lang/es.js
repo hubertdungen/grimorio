@@ -2239,4 +2239,11 @@ export default {
   "Pelo menos {m} (para todos os decks jogarem) e até 200": "Al menos {m} (para que jueguen todos los mazos) y hasta 200",
   "Ainda sem partidas.": "Aún sin partidas.",
   "série do rei depois desta partida": "racha del rey después de esta partida",
+  "Campeões de": "Campeones de",
+  "Campeões de todos os tipos": "Campeones de todos los tipos",
+  "Campeões dos campeões": "Campeones de campeones",
+  "🏆 Campeões dos campeões (platinas)": "🏆 Campeones de campeones (platinos)",
+  "Campeões · {t}": "Campeones · {t}",
+  "Campeões: {t}": "Campeones: {t}",
+  "De que torneios vêm os campeões": "De qué torneos vienen los campeones",
 }

@@ -2239,4 +2239,11 @@ export default {
   "Pelo menos {m} (para todos os decks jogarem) e até 200": "Mindestens {m} (damit jedes Deck spielt) und bis zu 200",
   "Ainda sem partidas.": "Noch keine Partien.",
   "série do rei depois desta partida": "Serie des Königs nach dieser Partie",
+  "Campeões de": "Champions aus",
+  "Campeões de todos os tipos": "Champions aller Arten",
+  "Campeões dos campeões": "Champion der Champions",
+  "🏆 Campeões dos campeões (platinas)": "🏆 Champions der Champions (Platin)",
+  "Campeões · {t}": "Champions · {t}",
+  "Campeões: {t}": "Champions: {t}",
+  "De que torneios vêm os campeões": "Aus welchen Turnieren die Champions kommen",
 }
