@@ -2540,4 +2540,5 @@ export default {
   "Só serve contra {x}: guarda-a para os jogos 2 e 3 contra quem a precisa": "Solo sirve contra {x}: guárdala para las partidas 2 y 3 contra quien la necesite",
   "{n} do deck para o sideboard": "{n} del mazo al sideboard",
   "Ver a outra face (ou tecla F com o rato na carta)": "Ver la otra cara (o tecla F con el ratón sobre la carta)",
+  "{in} dá {k} e continua a dar {k2}: trocar {out} não perde fontes": "{in} da {k} y sigue dando {k2}: cambiar {out} no pierde fuentes",
 }

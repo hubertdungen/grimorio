@@ -13,9 +13,14 @@ export function landInfo(c, cmd = true) {
   // Command Tower sem comandante não dá cor; Gemstone Caverns só com o marcador de sorte (quase nunca)
   const any = /any color|any one color|mana of any type|mana of any one color/.test(o) && !/luck counter/.test(o) && (cmd || !/commander's color identity/.test(o))
   const colors = new Set()
-  for (const k of COLS) if (c.o.includes(`{${k}}`)) colors.add(k)
+  // só o que vem a seguir a «Add» (o {G}{W} do custo de uma habilidade não é mana que a terra dê)
+  const adds = [...c.o.matchAll(/\badd ((?:\{[WUBRGC]\}|\s|,|or|and)+)/gi)].map(m => m[1]).join(' ')
+  for (const k of COLS) if (adds.includes(`{${k}}`)) colors.add(k)
   for (const [t, k] of Object.entries(BASIC_OF)) if (c.t.includes(t)) colors.add(k)
+  // «qualquer cor» com limites vale menos: só para um tipo de feitiço / só no turno em que entra (0,25), filtro que pede {1} (0,5)
+  const anyQ = !any ? 0 : /spend this mana only|activate only if|could produce|energy|turned face up/.test(o) ? 0.25 : /\{t\}, [^:]{2,60}: add (one|\w+) mana of any (one )?color|\{\d\}, \{t\}: add one mana of any color/.test(o) ? 0.5 : 1
   const fetch = /search your library for (a|an|up to \w+)[^.]*(land|plains|island|swamp|mountain|forest)/.test(o) && /sacrifice/.test(o)
+  const basicOnly = fetch && /search your library for (a|an|up to \w+) basic/.test(o)  // só vai buscar básicos (precisa de os ter no deck)
   if (fetch) {
     for (const [t, k] of Object.entries(BASIC_OF)) if (o.includes(t.toLowerCase())) colors.add(k)
     if (/basic land/.test(o) && !colors.size) colors.add('*')
@@ -30,7 +35,7 @@ export function landInfo(c, cmd = true) {
   if (/hexproof|indestructible|shroud/.test(o)) util.push(tx('protege'))
   if (/add \{c\}\{c\}|twice that much|additional/.test(o) && !any) util.push(tx('mana a mais'))
   // tapped: identificador interno ('sim' | 'às vezes' | 'não'), não se mostra
-  return { any, colors, fetch, tapped: tappedAlways ? 'sim' : tappedCond ? 'às vezes' : 'não', util }
+  return { any, anyQ, basicOnly, colors, fetch, tapped: tappedAlways ? 'sim' : tappedCond ? 'às vezes' : 'não', util }
 }
 
 // Fontes recomendadas por cor (aprox. Karsten), consoante o maior número de símbolos dessa cor num só custo.
@@ -100,6 +105,7 @@ export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, n
   const haveSet = new Set(haveIdx)
   const byRole = Object.fromEntries(Object.keys(RB).map(r => [r, haveIdx.filter(i => cards[i].ro & RB[r] && cards[i].mt !== 'Land')]))
   const deckCols = Object.keys(N.cols)
+  const basicCols = new Set(Object.keys(deck.main).map(n => cards[data.byName.get(n)?.i]).filter(c => c && /\bBasic\b/.test(c.t)).flatMap(c => Object.entries(BASIC_OF).filter(([t]) => c.t.includes(t)).map(([, k]) => k)))
   const landfall = byRole.landfall.length, gy = byRole.recursion.length
   const deckCards = haveIdx.map(i => cards[i]), reps = deckReps(deckCards), cmd = deck.commanders.length > 0
   const out = []
@@ -111,14 +117,15 @@ export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, n
     if (deckCols.length && offColorLand(L, deckCols)) continue
     if (deadRefsN(c, deckCards, reps).length) continue  // Villainous Hideout sem Villains: a mana dela não serve ao deck
     const why = [], P = {}
-    // 1) cores que faltam
-    const gives = L.any || L.colors.has('*') ? deckCols : deckCols.filter(k => L.colors.has(k))
+    // 1) cores que faltam (as que vão buscar básicos só dão as cores dos básicos que o deck tem)
+    let gives = L.any || L.colors.has('*') ? deckCols : deckCols.filter(k => L.colors.has(k))
+    if (L.basicOnly || L.colors.has('*')) gives = gives.filter(k => basicCols.has(k))
     let fix = 0
     const short = []
     for (const k of gives) {
       const x = N.cols[k]
       const gap = Math.max(0, x.full - x.have) / x.full
-      fix += gap
+      fix += gap * (L.any ? L.anyQ : 1)
       if (x.have < x.need) short.push(`${k} ${x.have}/${x.need}`)
     }
     P.cores = Math.min(0.4, 0.22 * fix) + (gives.length >= 2 ? 0.04 : 0)

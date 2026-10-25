@@ -707,6 +707,7 @@ const placePeek = (el, a) => {
 }
 // cartas de duas faces: a imagem vira em 3D para a outra face passado 1 s (e com F ou o ⟲ da linha)
 let peekFlipT
+export const peekOpen = () => peek?.style.display === 'block'
 export function flipCardPeek() { clearTimeout(peekFlipT); if (peek?.dataset.df && peek.style.display === 'block') peek.classList.toggle('flipped') }  // virar à mão cancela o automático
 export function showCardPeek(e, c, pid) {
   if (!matchMedia('(hover: hover)').matches) return

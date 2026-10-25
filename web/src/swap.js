@@ -231,13 +231,31 @@ export function landPlan(data, deck, fmt, ctx, { fn = null, recs = [], co = null
       acts.push({ kind: 'mais', out: x.c.n, in: inn, q: 1, why: [why0, ...x.why.slice(0, 1)] })
     }
   }
-  for (const [k, v] of Object.entries(N.cols)) {  // cores com fontes a menos
-    if (v.have >= v.need) continue
+  // cores com fontes a menos, da mais em falta para a menos: de preferência um terreno duplo que dê essa cor E a do
+  // básico que sai (Plains → Temple Garden mantém o branco e junta o verde), várias cópias se faltar muito
+  const rlx = recommendLands(data, { deck, fmt, ctx, co, meta, need: N, limit: 60 })
+  const colOf = c => Object.keys(BASIC).find(k => BASIC[k] === c.n)
+  for (const [k, v] of Object.entries(N.cols).filter(([, x]) => x.have < x.need).sort((a, b) => (b[1].need - b[1].have) - (a[1].need - a[1].have))) {
+    const miss = v.need - v.have, why = [tx('Só {h} fontes de {k} para {n} precisas', { h: v.have, k, n: v.need })]
+    let left = miss, made = 0
+    for (let t = 0; t < 2 && left > 0; t++) {  // até dois pares por cor (ex.: Island → U/G e Plains → W/G)
+      let pair = null
+      for (const r of [...rlx.filter(x => !x.land.any), ...rlx.filter(x => x.land.any)]) {  // duplos a sério primeiro; «qualquer cor» só em último
+        if (used.has(r.c.n) || !(r.land.colors.has(k) || (r.land.any && r.land.anyQ >= 1))) continue
+        const b = lands.filter(([c, q]) => !used.has(c.n) && q > 0 && colOf(c) && colOf(c) !== k && (r.land.any || r.land.colors.has(colOf(c)))).sort((x, y) => surplus(colOf(y[0])) - surplus(colOf(x[0])))[0]
+        if (b) { pair = { inn: r.c, o: b[0], have: b[1] }; break }
+      }
+      if (!pair) break
+      const q = Math.max(1, Math.min(left, pair.have, fmt.copies === 1 ? 1 : 4))
+      used.add(pair.inn.n); used.add(pair.o.n); left -= q; made++
+      acts.push({ kind: 'cor', out: pair.o.n, in: pair.inn, q, why: [...why, tx('{in} dá {k} e continua a dar {k2}: trocar {out} não perde fontes', { in: pair.inn.n, k, k2: colOf(pair.o), out: pair.o.n })] })
+    }
+    if (made) continue
     const inn = rl.find(r => !used.has(r.c.n) && (r.land.any || r.land.colors.has(k)))?.c || get(BASIC[k])
     const o = landOut(k)
     if (!inn || !o) continue
     used.add(inn.n); used.add(o.n)
-    acts.push({ kind: 'cor', out: o.n, in: inn, q: 1, why: [tx('Só {h} fontes de {k} para {n} precisas', { h: v.have, k, n: v.need })] })
+    acts.push({ kind: 'cor', out: o.n, in: inn, q: 1, why })
   }
   if (fn) for (const r of rl.slice(0, 8)) {  // melhores terrenos (o motor diz qual sai e porquê)
     if (used.has(r.c.n)) continue

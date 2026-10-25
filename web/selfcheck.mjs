@@ -552,3 +552,11 @@ console.log('selfcheck universo ok')
   const it = fillPlan(data, deck, { min: 55, recs, lands: [], need: { ...need, target: 10 }, strategy: 'interacao' })
   assert.deepEqual(it.items.slice(0, 2).map(x => x.c.n).sort(), ['Bolt', 'Counter'])
   console.log('selfcheck preencher o deck ok') }
+{ const { landInfo } = await import('./src/mana.js')  // terrenos: cores só do que vem a seguir a «Add»; «qualquer cor» com limites vale menos
+  const L = (o, t = 'Land') => landInfo({ n: 'x', t, o, mt: 'Land' })
+  assert.ok(!L('{T}: Add {C}.\n{3}{G}{W}, {T}: Create a token.').colors.has('G'))
+  assert.ok(L('{T}: Add {G} or {W}.').colors.has('G') && L('', 'Land — Forest Plains').colors.has('W'))
+  assert.equal(L('{T}: Add {C}.\n{T}: Add one mana of any color. Spend this mana only to cast an artifact spell.').anyQ, 0.25)
+  assert.equal(L('{T}: Add one mana of any color.').anyQ, 1)
+  assert.ok(L('{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.').basicOnly)
+  console.log('selfcheck terrenos ok') }
