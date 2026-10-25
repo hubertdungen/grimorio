@@ -12,7 +12,7 @@ import { manaNeeds, recommendLands, reanimTargets } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 import { prepareSwaps, cutPlan, landPlan } from './swap.js'
 import AddOrSwap from './AddSwap.jsx'
-import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan } from './universe.js'
+import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
@@ -126,8 +126,11 @@ function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
   const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.ajustar') === '1' } catch { return false } })
   const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.ajustar', v ? '1' : '0') } catch { /* sem armazenamento */ } }
   const ev = ctx.tests, games = ev?.exact || 0
-  const plan = useMemo(() => (open && games >= 3 ? adjustPlan(data, deck, ev, { needs, maxOf: c => maxCopies(c, fmt, ctx.bit), skip: reanimTargets(data, deck) }) : []), [open, games, data, deck, ev, needs, fmt, ctx.bit])
-  if (fmt.copies === 1) return null  // singleton (Commander, Gladiator…): não há cópias a ajustar
+  const plan = useMemo(() => (open && games >= 3 && fmt.copies !== 1 ? adjustPlan(data, deck, ev, { needs, maxOf: c => maxCopies(c, fmt, ctx.bit), skip: reanimTargets(data, deck) }) : []), [open, games, data, deck, ev, needs, fmt, ctx.bit])
+  // tamanho do formato (60, 40, 100…): o que juntar ou tirar para fechar a diferença, com o porquê (não precisa de jogos)
+  const sz = useMemo(() => sizePlan(data, deck, ev, { min: fmt.size[0], max: fmt.size[1] || Infinity, maxOf: c => maxCopies(c, fmt, ctx.bit), need: manaNeeds(data, deck, fmt), needs }), [data, deck, ev, fmt, ctx.bit, needs])
+  const szDone = sz.items.reduce((a, x) => a + x.k, 0)
+  if (fmt.copies === 1 && !sz.gap) return null  // singleton (Commander, Gladiator…) com o tamanho certo: não há cópias a ajustar
   const Row = ({ r, sign, k }) => (
     <button className={`cutp-card ${sign > 0 ? 'in' : ''}`} onClick={() => act.open(r.c)}><img src={img(r.c, 'art_crop', false, pidOf(deck, r.c.n))} alt="" loading="lazy" />
       <span><b>{sign > 0 ? '+' : '−'}{k}× {r.c.n}</b><small className="muted">{tx('tens {q}', { q: r.q })} · {r.why}</small></span></button>
@@ -135,11 +138,19 @@ function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
   return (
     <div className={`prefs cutp ${open ? 'on' : ''}`}>
       <button className="prefs-head" onClick={() => setOpen(!open)}>
-        <span>± {tx('Ajustar quantidades')}</span><small className="muted">{open ? (games < 3 ? tx('precisa de jogos') : tx('{n} ajuste|{n} ajustes', { n: plan.length })) : tx('mais cópias do que ganha, menos do que pesa')}</small><span className="chev">{open ? '▾' : '▸'}</span>
+        <span>± {tx('Ajustar quantidades')}</span><small className="muted">{sz.gap ? <b className="bad-t">{sz.gap > 0 ? tx('faltam {n} cartas ({t} de {f})', { n: sz.gap, t: sz.total, f: fmt.size[0] }) : tx('sobram {n} cartas ({t} de {f})', { n: -sz.gap, t: sz.total, f: fmt.size[1] || fmt.size[0] })}</b> : open ? (games < 3 ? tx('precisa de jogos') : tx('{n} ajuste|{n} ajustes', { n: plan.length })) : tx('mais cópias do que ganha, menos do que pesa')}</small><span className="chev">{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div className="cutp-body">
-          {games < 3 ? <p className="muted small">{tx('Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).', { n: games })}</p>
+          {sz.gap !== 0 && <div className="sz-plan">
+            <p className="small"><b>{sz.gap > 0 ? tx('O deck tem {t} cartas de {f}: faltam {n}.', { t: sz.total, f: fmt.size[0], n: sz.gap }) : tx('O deck tem {t} cartas para um máximo de {f}: sobram {n}.', { t: sz.total, f: fmt.size[1], n: -sz.gap })}</b> {sz.items.length > 0 && tx('Proposta para fechar a diferença:')}</p>
+            <ul className="sz-list">{sz.items.map(x => (
+              <li key={x.c.n} {...hlProps([{ n: x.c.n, tone: x.k > 0 ? 'in' : 'out' }])}><b className={x.k > 0 ? 'pos' : 'neg'}>{x.k > 0 ? `+${x.k}` : `−${-x.k}`}</b> <button className="link plain" onClick={() => act.open(x.c)}>{x.c.n}</button> <span className="muted small">{tx('tens {q}', { q: deck.main[x.c.n] || 0 })} · {x.why}</span>
+                <button className="small" onClick={() => act.add(x.c, 'main', x.k)}>{x.k > 0 ? tx('juntar') : tx('tirar')}</button></li>))}</ul>
+            {sz.items.length > 0 && <button className="primary small" onClick={() => sz.items.forEach(x => act.add(x.c, 'main', x.k))}>✓ {tx('Aplicar tudo ({n})', { n: szDone > 0 ? `+${szDone}` : szDone })}</button>}
+            {Math.abs(szDone) < Math.abs(sz.gap) && <p className="small muted">{tx('Ainda ficam {n} por resolver: escolhe cartas novas nas sugestões abaixo.', { n: Math.abs(sz.gap) - Math.abs(szDone) })}</p>}
+          </div>}
+          {fmt.copies === 1 ? null : games < 3 ? <p className="muted small">{tx('Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).', { n: games })}</p>
             : !plan.length ? <p className="muted small">{tx('As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.')}</p>
               : <ul className="cutp-list">{plan.map(x => (
                 <li key={x.add.c.n + x.cut.c.n}>
@@ -1428,6 +1439,7 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
   const need = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
   const card = n => n && (data.byName.get(n) || data.byLower.get(String(n).toLowerCase()) || data.byLower.get(String(n).split(' // ')[0].toLowerCase()))
   const inDeckN = n => deck.main[n] || 0
+  const mainN = Object.values(deck.main).reduce((a, q) => a + q, 0) + (deck.commanders?.length || 0)
   const ask = async () => {
     setBusy(true); setErr(''); setRes(null); setDone(new Set())
     const combos = deckCombos(data, have, ctx)
@@ -1441,20 +1453,30 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
       mana: `${need.lands} terrenos (alvo ~${need.target} em ${need.total}); fontes: ${Object.entries(need.cols).map(([k, x]) => `${k} ${x.have}/${x.full}`).join(', ')}; ${need.tapped} entram virados`,
       combos: [...combos.full.slice(0, 5).map(x => `completo: ${x.cb[1].map(i => data.cards[i].n).join(' + ')} → ${x.cb[2][0]}`), ...combos.near.slice(0, 5).map(x => `falta ${data.cards[x.missing[0]].n}: ${x.cb[1].map(i => data.cards[i].n).join(' + ')} → ${x.cb[2][0]}`)].join('\n'),
       validacao: issues.filter(i => i.nivel !== 'info').map(i => i.msg).join('\n'),
+      contagem: `main: ${mainN} de ${fmt.size[0]}${fmt.size[1] && fmt.size[1] !== fmt.size[0] ? `–${fmt.size[1]}` : ''} cartas; ${need.lands} terrenos (alvo ~${need.target})`,
       sugestoes: recs.slice(0, 30).map(r => `${r.c.n} — ${r.why.slice(0, 2).map(w => w.txt).join('; ')}`).join('\n'),
       lista: exportList(deck),
     }
-    try { setRes(await postJSON('/api/ia/ask', { mode, question: q, context })) } catch (e) { setErr(e.message) }
+    try { setRes({ ...(await postJSON('/api/ia/ask', { mode, question: q, context })), snap: { ...deck.main } }) } catch (e) { setErr(e.message) }  // snap: as cópias no momento da resposta
     setBusy(false)
   }
   const mark = k => setDone(s => new Set(s).add(k))
   const vAdd = (res?.adicionar || []).map(x => ({ ...x, c: card(x.carta) })).map(x => ({ ...x, ok: x.c && passes(x.c, null, ctx) && !inDeckN(x.c.n), why2: !x.c ? tx('não existe') : !passes(x.c, null, ctx) ? tx('ilegal ou fora das cores') : inDeckN(x.c.n) ? tx('já está no deck') : '' }))
   const vCut = (res?.tirar || []).map(x => ({ ...x, c: card(x.carta) })).map(x => ({ ...x, ok: x.c && inDeckN(x.c.n), why2: x.c && !inDeckN(x.c.n) ? tx('não está no deck') : !x.c ? tx('não existe') : '' }))
-  const vSwap = (res?.trocas || []).map(x => ({ ...x, a: card(x.sai), b: card(x.entra) })).map(x => ({ ...x, ok: x.a && x.b && inDeckN(x.a.n) && passes(x.b, null, ctx) && !inDeckN(x.b.n) }))
+  const vSwap = (res?.trocas || []).map(x => ({ ...x, a: card(x.sai), b: card(x.entra) })).map(x => ({ ...x, q: Math.max(1, Math.min(+x.qtd || 0, inDeckN(x.a?.n)) || inDeckN(x.a?.n)), ok: x.a && x.b && inDeckN(x.a.n) && passes(x.b, null, ctx) && !inDeckN(x.b.n) }))
+  // ajustes de cópias (de → para): corrigir o tamanho do deck, os terrenos e os básicos por cor
+  const vAdj = (res?.ajustes || []).map(x => ({ ...x, c: card(x.carta) })).map(x => {
+    // se a IA contou mal as cópias atuais, vale a diferença que ela quis (de 0 → 3 = +3), não o número final
+    const now = x.c ? res.snap?.[x.c.n] || 0 : 0, de = Math.round(+x.de || 0), para = Math.max(0, Math.round(+x.para || 0))
+    const to = Math.max(0, de === now ? para : now + para - de), lim = x.c ? maxCopies(x.c, fmt, ctx.bit) : 0, off = de !== now
+    const why2 = !x.c ? tx('não existe') : to > lim ? tx('passa o limite de {n} cópias', { n: lim }) : to > now && !now && !passes(x.c, null, ctx) ? tx('ilegal ou fora das cores') : to === now ? tx('já tem {n}', { n: now }) : ''
+    return { ...x, now, to, off, ok: !why2, why2 }
+  })
   const applyAll = () => {
     vAdd.forEach((x, k) => { if (x.ok && !done.has(`a${k}`)) { act.add(x.c); mark(`a${k}`) } })
     vCut.forEach((x, k) => { if (x.ok && !done.has(`c${k}`)) { act.add(x.c, 'main', -inDeckN(x.c.n)); mark(`c${k}`) } })
-    vSwap.forEach((x, k) => { if (x.ok && !done.has(`s${k}`)) { act.add(x.a, 'main', -inDeckN(x.a.n)); act.add(x.b); mark(`s${k}`) } })
+    vSwap.forEach((x, k) => { if (x.ok && !done.has(`s${k}`)) { act.add(x.a, 'main', -x.q); act.add(x.b, 'main', x.q); mark(`s${k}`) } })
+    vAdj.forEach((x, k) => { if (x.ok && !done.has(`j${k}`)) { act.add(x.c, 'main', x.to - x.now); mark(`j${k}`) } })
   }
   const saveGroups = () => {
     const groups = res.grupos.map(g => ({ nome: g.nome, cartas: g.cartas.map(card).filter(Boolean).map(c => c.n) })).filter(g => g.cartas.length)
@@ -1484,8 +1506,12 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
           <div className="auto-list ia-res">
             {res.resumo && <p className="ia-sum">{res.resumo}</p>}
             {vSwap.length > 0 && <section><h4>{tx('Trocas')}</h4><ul>{vSwap.map((x, k) => (
-              <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div><Name c={x.a} raw={x.sai} /> → <Name c={x.b} raw={x.entra} /><small className="muted">{x.porque}</small></div>
-                {x.ok && <button disabled={done.has(`s${k}`)} onClick={() => { act.add(x.a, 'main', -inDeckN(x.a.n)); act.add(x.b); mark(`s${k}`) }}>{done.has(`s${k}`) ? '✓' : tx('Trocar')}</button>}</li>
+              <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div>{x.q > 1 ? `${x.q}× ` : ''}<Name c={x.a} raw={x.sai} /> → {x.q > 1 ? `${x.q}× ` : ''}<Name c={x.b} raw={x.entra} /><small className="muted">{x.porque}</small></div>
+                {x.ok && <button disabled={done.has(`s${k}`)} onClick={() => { act.add(x.a, 'main', -x.q); act.add(x.b, 'main', x.q); mark(`s${k}`) }}>{done.has(`s${k}`) ? '✓' : tx('Trocar')}</button>}</li>
+            ))}</ul></section>}
+            {vAdj.length > 0 && <section><h4>{tx('Ajustar cópias')} <span className="muted small">{tx('deck com {n} de {t}', { n: mainN, t: fmt.size[0] })}</span></h4><ul>{vAdj.map((x, k) => (
+              <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div><Name c={x.c} raw={x.carta} /> <b className={x.to > x.now ? 'pos' : 'neg'}>{x.now} → {x.to}</b><small className="muted">{x.porque}{x.off ? ` · ${tx('a IA julgava ter {n}', { n: x.de })}` : ''}{x.why2 ? ` · ${tx('ignorado: {r}', { r: x.why2 })}` : ''}</small></div>
+                {x.ok && <button disabled={done.has(`j${k}`)} onClick={() => { act.add(x.c, 'main', x.to - x.now); mark(`j${k}`) }}>{done.has(`j${k}`) ? '✓' : x.to > x.now ? `+${x.to - x.now}` : `−${x.now - x.to}`}</button>}</li>
             ))}</ul></section>}
             {vAdd.length > 0 && <section><h4>{tx('Adicionar')}</h4><ul>{vAdd.map((x, k) => (
               <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div><Name c={x.c} raw={x.carta} /> {x.c && <Mana cost={x.c.mc} />}<small className="muted">{x.porque}{x.why2 ? ` · ${tx('ignorada: {r}', { r: x.why2 })}` : ''}</small></div>
@@ -1496,7 +1522,7 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
                 {x.ok && <button disabled={done.has(`c${k}`)} onClick={() => { act.add(x.c, 'main', -inDeckN(x.c.n)); mark(`c${k}`) }}>{done.has(`c${k}`) ? '✓' : tx('Tirar')}</button>}</li>
             ))}</ul></section>}
             {res.grupos.length > 0 && <section><h4>{tx('Secções propostas')}</h4>{res.grupos.map(g => <p key={g.nome} className="small"><b>{g.nome}</b> <span className="muted">({g.cartas.length})</span> {g.cartas.join(', ')}</p>)}<button onClick={saveGroups}>{tx('Guardar secções no deck')}</button></section>}
-            <div className="row-btns">{(vAdd.some(x => x.ok) || vCut.some(x => x.ok) || vSwap.some(x => x.ok)) && <button className="primary" onClick={applyAll}>{tx('Aplicar tudo o que é válido')}</button>}<span className="muted small">{res.modelo}</span></div>
+            <div className="row-btns">{(vAdd.some(x => x.ok) || vCut.some(x => x.ok) || vSwap.some(x => x.ok) || vAdj.some(x => x.ok)) && <button className="primary" onClick={applyAll}>{tx('Aplicar tudo o que é válido')}</button>}<span className="muted small">{res.modelo}</span></div>
           </div>
         )}
       </div>

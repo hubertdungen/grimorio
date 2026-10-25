@@ -239,6 +239,13 @@ class H(BaseHTTPRequestHandler):
             return self.file(os.path.join(ARGS.data_dir, "meta", f"{mm.group(1)}.json"), "no-cache")
         if p == "/api/ia/config":
             return self.json(ia.public_config(ARGS.data_dir))
+        if p == "/api/ia/models":  # modelos mais recentes do fornecedor (pela chave guardada)
+            try:
+                return self.json(ia.models(ARGS.data_dir, urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("provider", [""])[0]))
+            except ValueError as e:
+                return self.json({"erro": str(e)}, 400)
+            except RuntimeError as e:
+                return self.json({"erro": str(e)}, 502)
         if p.startswith("/api/sim/"):  # laboratório de testes (sim.py)
             q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             m = SIM_JOB.match(p) or SIM_OPP.match(p)

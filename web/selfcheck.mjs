@@ -463,3 +463,15 @@ console.log('selfcheck universo ok')
   assert.equal(top(['Fire', 'Ice']), 'Fire // Ice')
   assert.deepEqual(setInfo('0123 R\nMH3 • EN'), { set: 'mh3', cn: '123' })
   console.log('selfcheck foto de carta ok') }
+{ const { sizePlan } = await import('./src/universe.js')  // «Ajustar quantidades» fecha a diferença para o tamanho do formato
+  const mk = (n, t, tg = []) => ({ n, t, mt: t.includes('Land') ? 'Land' : 'Creature', tg, o: '' })
+  const cards = [mk('Plains', 'Basic Land — Plains'), mk('Island', 'Basic Land — Island'), mk('Bear', 'Creature'), mk('Bolt', 'Instant', ['removal'])]
+  const data = { byName: new Map(cards.map(c => [c.n, c])) }
+  const deck = { main: { Plains: 10, Bear: 30, Bolt: 14 }, commanders: [] }  // 54 de 60
+  const r = sizePlan(data, deck, null, { min: 60, max: 60, maxOf: c => (c.mt === 'Land' ? 99 : 40), need: { lands: 10, target: 13, cols: { W: { have: 10, full: 14 } } }, needs: { removal: [14, 16] } })
+  assert.equal(r.gap, 6); assert.equal(r.items.reduce((a, x) => a + x.k, 0), 6)
+  assert.equal(r.items.find(x => x.c.n === 'Plains').k, 3)  // 3 terrenos até ao alvo, o resto em cartas
+  assert.ok(r.items.find(x => x.c.n === 'Bolt'))  // remoção em falta
+  const r2 = sizePlan(data, { main: { Plains: 20, Bear: 30, Bolt: 14 }, commanders: [] }, null, { min: 60, max: 60, need: { lands: 20, target: 17, cols: {} } })
+  assert.equal(r2.items.reduce((a, x) => a + x.k, 0), -4)
+  console.log('selfcheck tamanho do deck ok') }

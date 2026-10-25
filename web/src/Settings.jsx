@@ -1,6 +1,6 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ask, ConfirmSettings } from './confirm.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 import { LangPick, ProfileManage } from './Profiles.jsx'
@@ -8,6 +8,7 @@ import { getStarLayers, setStarLayers, useColors, setColors, COLORS0 } from './u
 import { getSettings, setEnabled, setVolume, play } from './sfx.js'
 import { NextMode, HighlightMine } from './Tournament.jsx'
 import Friends from './Friends.jsx'
+import AIKeys from './AIKeys.jsx'
 import { BasicSettings } from './Basics.jsx'
 import { getBasicDefaults, setBasicDefaults } from './data.js'
 
@@ -137,10 +138,34 @@ export function SyncHint() {
   )
 }
 
-export default function Settings({ prof, onClose, onSwitch, onNew }) {
+// índice à esquerda (ou barra no topo, no telemóvel): salta para cada secção; o filtro esconde as que não batem
+function SetIndex({ box }) {
+  const [secs, setSecs] = useState([]), [q, setQ] = useState('')
+  useEffect(() => {
+    const all = [...(box.current?.querySelectorAll('section.card') || [])]
+    all.forEach((s, k) => { s.id ||= `set-${k}` })
+    setSecs(all.map(s => ({ id: s.id, t: s.querySelector('h3')?.textContent || '' })))
+  }, [box])
+  useEffect(() => {
+    const n = q.trim().toLowerCase()
+    for (const s of box.current?.querySelectorAll('section.card') || []) s.hidden = !!n && !s.textContent.toLowerCase().includes(n)
+  }, [q, box])
+  const n = q.trim().toLowerCase()
   return (
-    <div className="view settings">
+    <nav className="set-index" aria-label={tx('Secções')}>
+      <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Filtrar definições…')} aria-label={tx('Filtrar definições')} />
+      {secs.filter(s => !n || !document.getElementById(s.id)?.hidden).map(s => <button key={s.id} className="link plain" onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>{s.t}</button>)}
+    </nav>
+  )
+}
+
+export default function Settings({ prof, onClose, onSwitch, onNew }) {
+  const box = useRef(null)
+  return (
+    <div className="view settings set-layout">
       <div className="set-head"><h2>⚙ {tx('Definições')}</h2><button onClick={onClose}>{tx('Fechar')}</button></div>
+      <SetIndex box={box} />
+      <div className="set-main" ref={box}>
       {prof?.mode === 'profiles' && prof.current && <section className="card"><h3>{tx('Perfil')}</h3><ProfileManage prof={prof} onSwitch={onSwitch} onNew={onNew} /></section>}
       <section className="card"><h3>{tx('Língua')}</h3><LangPick />
         <p className="muted small">{tx('Os nomes e os textos das cartas ficam em inglês (dados do Scryfall).')} {tx('A escolha fica guardada neste browser.')}</p></section>
@@ -150,10 +175,12 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>
       <section className="card"><h3>{tx('Terrenos básicos')}</h3><BasicSettings getDefaults={getBasicDefaults} setDefaults={setBasicDefaults} ask={ask} /></section>
       <section className="card"><h3>{tx('Confirmações')}</h3><p className="muted small">{tx('Perguntar antes de:')}</p><ConfirmSettings /></section>
+      <section className="card"><h3>{tx('🤖 IA')}</h3><AIKeys /></section>
       <section className="card"><h3>{tx('🤝 Amigos')}</h3><Friends /></section>
       <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><HighlightMine /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
       <section className="card danger-zone"><h3>{tx('Recomeçar')}</h3><ResetStats /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
+      </div>
     </div>
   )
 }

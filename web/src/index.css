@@ -1874,3 +1874,25 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .room-pl { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .room-pl li { padding: 3px 10px; border-radius: 99px; background: #ffffff10; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
 .room-pl li.fr { background: #3dcf7a1f; color: #c6f3d6; }
+/* Definições: índice à esquerda com filtro (no telemóvel, barra no topo) */
+.set-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 0 18px; align-items: start; }
+.set-layout .set-head { grid-column: 1 / -1; }
+.set-index { position: sticky; top: 12px; display: grid; gap: 2px; max-height: calc(100vh - 24px); overflow-y: auto; padding: 4px 0; }
+.set-index input { margin-bottom: 6px; width: 100%; }
+.set-index button { text-align: left; padding: 5px 8px; border-radius: 8px; font-size: 14px; }
+.set-index button:hover { background: var(--panel2); }
+.set-main { min-width: 0; display: grid; gap: 14px; } .set-main > section[hidden] { display: none; }
+@media (max-width: 800px) {
+  .set-layout { grid-template-columns: minmax(0, 1fr); }
+  .set-index { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 4px; padding: 6px 0; background: var(--bg, #14121f); max-height: none; scrollbar-width: none; }
+  .set-index input { flex: 0 0 150px; margin: 0; } .set-index button { white-space: nowrap; flex: none; background: var(--panel2); }
+}
+/* IA (Definições) */
+.aik { display: grid; gap: 8px; } .aik-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.aik-list li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 6px; }
+.aik-list li.on { border-color: var(--gold); }
+.aik-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.aik input[type=password] { flex: 1 1 220px; min-width: 0; }
+.aik select { max-width: 100%; min-width: 0; flex: 1 1 200px; }
+.ok-t { color: var(--ok); }
+.sz-plan { display: grid; gap: 6px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--line); } .sz-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; } .sz-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; } .sz-list li > button.small { margin-left: auto; }
