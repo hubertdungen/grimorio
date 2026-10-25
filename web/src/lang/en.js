@@ -2501,4 +2501,8 @@ export default {
   "Verso da carta": "Card back",
   "Virar ao contrário": "Turn upside down",
   "Clica para virar": "Click to flip",
+  "Custo de mana ↑": "Mana value ↑",
+  "Custo de mana ↓": "Mana value ↓",
+  "Melhores primeiro": "Best first",
+  "MV = valor de mana: o custo total de mana da carta (ex.: 2 genéricos + 1 vermelho = 3)": "MV = mana value: the card's total mana cost (e.g. 2 generic + 1 red = 3)",
 }

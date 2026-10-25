@@ -2493,4 +2493,8 @@ export default {
   "Verso da carta": "Dorso de la carta",
   "Virar ao contrário": "Girar al revés",
   "Clica para virar": "Haz clic para girar",
+  "Custo de mana ↑": "Valor de maná ↑",
+  "Custo de mana ↓": "Valor de maná ↓",
+  "Melhores primeiro": "Mejores primero",
+  "MV = valor de mana: o custo total de mana da carta (ex.: 2 genéricos + 1 vermelho = 3)": "MV = valor de maná: el coste total de maná de la carta (p. ej., 2 genéricos + 1 rojo = 3)",
 }

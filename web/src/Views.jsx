@@ -394,6 +394,18 @@ function WhyDetail({ r }) {
 const REASONS = [['', tx('Tudo'), '✦'], ['combo', 'Combos', '∞'], ['edh', tx('Decks reais'), '◉'], ['meta', tx('Torneios'), '♜'], ['inter', tx('Interações'), '⇄'], ['falta', tx('O que falta'), '◔'], ['estilo', tx('Estilo'), '◆'], ['gosto', tx('O teu gosto'), '♥'], ['testes', tx('Testes'), '⚗']]
 const FUNC_TAGS = ['creature', 'wincon', 'reanimate', 'ramp', 'draw', 'removal', 'wipe', 'counter', 'tutor', 'protection', 'recursion', 'tokens', 'sacrifice', 'counters', 'lifegain', 'graveyard', 'etb', 'spellslinger', 'artifacts', 'enchantments', 'discard', 'evasion']
 const hasKind = (r, k) => !k || r.why.some(w => w.k === k || (k === 'combo' && w.k === 'combo2'))
+// ordem da lista de sugestões: pontuação (a do motor), custo, cor (WUBRG, multicor, incolor), tipo, nome, preço
+const COLOR_ORD = c => (c.ci.length > 1 ? 5 : c.ci.length ? 'WUBRG'.indexOf(c.ci) : 6)
+const SORTS = {
+  score: null,
+  mv: (a, b) => a.c.cmc - b.c.cmc || a.c.n.localeCompare(b.c.n),
+  mvDesc: (a, b) => b.c.cmc - a.c.cmc || a.c.n.localeCompare(b.c.n),
+  cor: (a, b) => COLOR_ORD(a.c) - COLOR_ORD(b.c) || a.c.cmc - b.c.cmc,
+  tipo: (a, b) => (a.c.mt || '').localeCompare(b.c.mt || '') || a.c.cmc - b.c.cmc,
+  nome: (a, b) => a.c.n.localeCompare(b.c.n),
+  preco: (a, b) => (a.c.eur ?? a.c.usd ?? 1e9) - (b.c.eur ?? b.c.usd ?? 1e9),
+}
+const sortRecs = (recs, k) => (SORTS[k] ? [...recs].sort(SORTS[k]) : recs)
 const applyFilter = (recs, kind, tag) => recs.filter(r => hasKind(r, kind) && (!tag || r.c.tg.includes(tag)))
 
 function ReasonFilter({ recs, kind, setKind, tag, setTag, needs = {}, extra = null }) {
@@ -700,7 +712,7 @@ function Filters({ f, set, compact, noTag }) {
       <select value={f.type} onChange={e => up('type', e.target.value)} aria-label={tx('Tipo')}><option value="">{tx('Todos os tipos')}</option>{TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}<option value="Legendary">{tx('Lendárias')}</option></select>
       {!noTag && <select value={f.tag} onChange={e => up('tag', e.target.value)} aria-label={tx('Função')}><option value="">{tx('Qualquer função')}</option>{Object.entries(TAG_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>}
       <input value={f.sub} onChange={e => up('sub', e.target.value)} placeholder={tx('Subtipo (Elf, Dragon…)')} className="w-sub" />
-      <span className="mv">MV <input type="number" min="0" value={f.cmcMin} onChange={e => up('cmcMin', e.target.value)} aria-label={tx('Custo mínimo')} />–<input type="number" min="0" value={f.cmcMax} onChange={e => up('cmcMax', e.target.value)} aria-label={tx('Custo máximo')} /></span>
+      <span className="mv"><abbr title={tx('MV = valor de mana: o custo total de mana da carta (ex.: 2 genéricos + 1 vermelho = 3)')}>MV</abbr> <input type="number" min="0" value={f.cmcMin} onChange={e => up('cmcMin', e.target.value)} aria-label={tx('Custo mínimo')} />–<input type="number" min="0" value={f.cmcMax} onChange={e => up('cmcMax', e.target.value)} aria-label={tx('Custo máximo')} /></span>
       {!compact && <select value={f.rarity} onChange={e => up('rarity', e.target.value)} aria-label={tx('Raridade')}><option value="">{tx('Raridade')}</option><option value="c">{tx('Comum')}</option><option value="u">{tx('Incomum')}</option><option value="r">{tx('Rara')}</option><option value="m">{tx('Mítica')}</option></select>}
       <span className="mv">{tx('até')} <input type="number" min="0" step="0.5" value={f.priceMax} onChange={e => up('priceMax', e.target.value)} placeholder="€" aria-label={tx('Preço máximo')} /> €</span>
     </div>
@@ -760,8 +772,11 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
   const [f, setF] = useState(() => ({ ...F0, tag: sugTag }))
   const df = useDeferredValue(f)
   const [kind, setKind] = useState('')
-  const { recs: allSug, seeds, usingDeck, needs, swaps, co, cmdIdx, meta, archetype, have } = useDeckRecs(data, deck, fmt, ctx, df, 80)
-  const recs = applyFilter(allSug, kind, '')
+  const filtering = ['type', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].some(k => df[k] !== '' && df[k] != null) || df.colors.length > 0
+  const { recs: allSug, seeds, usingDeck, needs, swaps, co, cmdIdx, meta, archetype, have } = useDeckRecs(data, deck, fmt, ctx, df, filtering ? 200 : 80)  // com filtros: mais cartas (senão as melhores pontuadas tapam o resto)
+  const [sort, setSortS] = useState(() => { try { return localStorage.getItem('grimorio.sug.ordem') || 'score' } catch { return 'score' } })
+  const setSort = v => { setSortS(v); try { localStorage.setItem('grimorio.sug.ordem', v) } catch { /* sem armazenamento */ } }
+  const recs = useMemo(() => sortRecs(applyFilter(allSug, kind, ''), sort), [allSug, kind, sort])
   return (
     <div className="view">
       <div className="seeds">
@@ -781,6 +796,10 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
       <LandPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug }} />
       <SidePanel {...{ data, deck, fmt, ctx, act, meta, have }} />
       <Filters f={f} set={x => { setSugTag(''); setF(x) }} compact noTag />
+      <label className="sug-sort small">{tx('Ordenar')} <select value={sort} onChange={e => setSort(e.target.value)}>
+        <option value="score">{tx('Melhores primeiro')}</option><option value="mv">{tx('Custo de mana ↑')}</option><option value="mvDesc">{tx('Custo de mana ↓')}</option>
+        <option value="cor">{tx('Cor')}</option><option value="tipo">{tx('Tipo')}</option><option value="nome">{tx('Nome')}</option><option value="preco">{tx('Preço')}</option></select>
+        <span className="muted">{tx('{n} cartas', { n: recs.length })}</span></label>
       <ReasonFilter recs={allSug} kind={kind} setKind={setKind} tag={f.tag} setTag={t => { setSugTag(''); setF(x => ({ ...x, tag: t })) }} needs={needs} />
       {seeds.length > 0 && <p className="muted small">{tx('Classificadas por semelhança mecânica (modelo de texto local), combos do Commander Spellbook e popularidade.')} <button className="link" onClick={() => act.showOnMap(recs[0]?.c || data.cards[seeds[0]])}>{tx('Ver no universo →')}</button></p>}
       <div className="grid">

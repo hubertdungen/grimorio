@@ -2493,4 +2493,8 @@ export default {
   "Verso da carta": "Kartenrückseite",
   "Virar ao contrário": "Auf den Kopf drehen",
   "Clica para virar": "Zum Umdrehen klicken",
+  "Custo de mana ↑": "Manabetrag ↑",
+  "Custo de mana ↓": "Manabetrag ↓",
+  "Melhores primeiro": "Beste zuerst",
+  "MV = valor de mana: o custo total de mana da carta (ex.: 2 genéricos + 1 vermelho = 3)": "MV = Manabetrag: die gesamten Manakosten der Karte (z. B. 2 generisch + 1 rot = 3)",
 }

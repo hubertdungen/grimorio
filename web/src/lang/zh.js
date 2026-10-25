@@ -2493,4 +2493,8 @@ export default {
   "Verso da carta": "卡背",
   "Virar ao contrário": "倒转",
   "Clica para virar": "点击翻转",
+  "Custo de mana ↑": "法术力值 ↑",
+  "Custo de mana ↓": "法术力值 ↓",
+  "Melhores primeiro": "最佳优先",
+  "MV = valor de mana: o custo total de mana da carta (ex.: 2 genéricos + 1 vermelho = 3)": "MV = 法术力值：卡牌的总法术力费用（例如 2 无色 + 1 红 = 3）",
 }
