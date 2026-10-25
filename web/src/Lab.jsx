@@ -12,7 +12,7 @@ import { DIFF_INFO, getBots } from './difficulty.js'
 import { planSideboard, applySwaps } from './sideboard.js'
 import { aiCaveats } from './tests.js'
 import { ask } from './confirm.jsx'
-import { useRun, setRun, runState, stopRef } from './labrun.js'
+import { useRun, setRun, runState, stopRef, setLiveGame } from './labrun.js'
 import { tx, num, LOCALE } from './i18n.js'
 
 // Até onde confiar nos testes: o que a IA do Forge joga mal neste deck (cada carta mostra-se ao passar e abre ao clicar)
@@ -93,6 +93,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
   const [watch, setWatch] = useRun('watch')
   const [played, setPlayed] = useRun('played')
   const [runDeck] = useRun('deckName')
+  const [liveGame] = useRun('liveGame')
   const [saved, setSaved] = useState([])
   const [rt, setRt] = useState({})  // estrelas dos adversários (ratings)
   const loadSaved = () => { if (deck.id) fetch(`/api/sim/runs?deck_id=${deck.id}`).then(r => r.json()).then(setSaved).catch(() => {}) }
@@ -151,7 +152,8 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
       const { job } = await j('/api/sim/run', { format: rules, casual, mode, games: 1, clock: cmdish ? 1500 : 900,
         seats: [{ deck: deckA, difficulty: diffA }, ...ds.map((d, i) => ({ deck: d, difficulty: seats[i].diff || diff }))] })
       let st
-      for (;;) { await sleep(900); st = await j(`/api/sim/jobs/${job}`); if (st.status === 'done' || st.status === 'error') break; setBusy(`${modeLabel(mode, fmt.cmd)} · ${tx('jogo {g}/{m}', { g, m: matches })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
+      for (;;) { await sleep(900); st = await j(`/api/sim/jobs/${job}`); setLiveGame(st, { key: job, g, opp: label, opps, startLife: life, decks: { a: deckA, ...Object.fromEntries(sides.map((k, i) => [k, ds[i]])) } }); if (st.status === 'done' || st.status === 'error') break; setBusy(`${modeLabel(mode, fmt.cmd)} · ${tx('jogo {g}/{m}', { g, m: matches })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
+      setLiveGame(null)
       if (st.status === 'error') throw new Error(st.error ? tx(st.error) : tx('A simulação falhou.'))
       const game = { ...st.games[0], g, unknown: st.unknown, startLife: life, opps }
       setPlayed(p => [...p, { ...game, opp: label, decks: { a: deckA, ...Object.fromEntries(sides.map((k, i) => [k, ds[i]])) }, matchId, serie: 1, series: 1, bo: 1 }])
@@ -184,7 +186,8 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
             setBusy(`${B.name} · ${tx('série {s}/{m} · jogo {g}', { s: m + 1, m: matches, g })}`)
             const { job } = await j('/api/sim/run', { format: rules, casual, a: cur, b: B, games: 1, difficulty: diff, difficulty_a: diffA, clock: cmdish ? 600 : 300 })
             let st
-            for (;;) { await sleep(700); st = await j(`/api/sim/jobs/${job}`); if (st.status === 'done' || st.status === 'error') break; setBusy(`${B.name} · ${tx('série {s}/{m} · jogo {g}', { s: m + 1, m: matches, g })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
+            for (;;) { await sleep(700); st = await j(`/api/sim/jobs/${job}`); setLiveGame(st, { key: job, g, opp: B.name, startLife: life, swaps, decks: { a: cur, b: B }, serie: m + 1, series: matches, bo }); if (st.status === 'done' || st.status === 'error') break; setBusy(`${B.name} · ${tx('série {s}/{m} · jogo {g}', { s: m + 1, m: matches, g })} · ${st.status === 'queued' ? tx('na fila ({p})', { p: st.position }) : tx('a jogar…')}`) }
+            setLiveGame(null)
             if (st.status === 'error') throw new Error(st.error ? tx(st.error) : tx('A simulação falhou.'))
             const game = { ...st.games[0], g, swaps, unknown: st.unknown, startLife: life }
             setPlayed(p => [...p, { ...game, opp: B.name, decks: { a: cur, b: B }, matchId, serie: m + 1, series: matches, bo }])
@@ -212,26 +215,28 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
       }) }).catch(() => {})
       loadSaved(); act.refreshTests?.()
     }
-    setBusy(null)
+    setLiveGame(null); setBusy(null)
   }
 
   const games = runs.flatMap(r => r.games.map(g => ({ ...g, opp: r.opp })))
+  // o que se vê ao vivo: os jogos já acabados e, no fim, o que está a decorrer (o Forge vai escrevendo o registo)
+  const list = liveGame ? [...played, liveGame] : played, ci = Math.min(cur, Math.max(0, list.length - 1)), shown = list[ci]
   if (watch) return <Replay data={data} game={watch} formats={fmtsOf(watch)} onBack={() => setWatch(null)} deckName={deck.name} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })} onPlayFrom={playFrom && !watch.opps && ((st, g) => playFrom(toForgeState(st, g.decks || { a: deck }, { control: 'a', format: fmt.key })))} />
   return (
     <div className="view lab">
-      {played.length > 0 && showLive && (
+      {list.length > 0 && showLive && (
         <section className="card livecard">
           <div className="row-btns">
-            <b>{tx('Jogo {k} de {t}', { k: cur + 1, t: played.length })}{busy ? ` · ${tx('o próximo já está a ser jogado')}` : ''}</b>
-            <button onClick={() => setCur(c => Math.max(0, c - 1))} disabled={cur === 0}>{tx('◀ anterior')}</button>
-            <button onClick={() => setCur(c => Math.min(played.length - 1, c + 1))} disabled={cur >= played.length - 1}>{tx('seguinte ▶')}</button>
+            <b>{tx('Jogo {k} de {t}', { k: ci + 1, t: list.length })}{shown?.inProgress ? ` · ${tx('a decorrer agora')}` : busy ? ` · ${tx('o próximo já está a ser jogado')}` : ''}</b>
+            <button onClick={() => setCur(c => Math.max(0, Math.min(c, list.length - 1) - 1))} disabled={ci === 0}>{tx('◀ anterior')}</button>
+            <button onClick={() => setCur(c => Math.min(list.length - 1, c + 1))} disabled={ci >= list.length - 1}>{tx('seguinte ▶')}</button>
             <label className="small">{tx('Pausa entre jogos')} <select value={pause.secs} onChange={e => setPausePref({ ...pause, secs: +e.target.value })} disabled={!pause.auto}>{[2, 3, 4, 5, 6, 8, 10].map(n => <option key={n} value={n}>{n} s</option>)}</select></label>
             <label className="chk small"><input type="checkbox" checked={!pause.auto} onChange={e => setPausePref({ ...pause, auto: !e.target.checked })} /> {tx('não avançar sozinho')}</label>
             <button className="link small" onClick={() => setShowLive(false)}>{tx('esconder')}</button>
           </div>
-          <Replay key={cur} data={data} game={played[Math.min(cur, played.length - 1)]} formats={fmtsOf(played[Math.min(cur, played.length - 1)])} score={scoreOf(played, Math.min(cur, played.length - 1))} deckName={deck.name} live={!!busy} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })} onPlayFrom={playFrom && !played[Math.min(cur, played.length - 1)].opps && ((st, g) => playFrom(toForgeState(st, g.decks || { a: deck }, { control: 'a', format: fmt.key })))}
-            next={{ has: cur < played.length - 1, go: () => setCur(c => Math.min(c + 1, played.length - 1)), secs: pause.secs, auto: pause.auto }} />
-          <p className="muted small">{tx('O Forge joga cada jogo inteiro em segundos e só no fim entrega o registo; o tabuleiro reproduz cada jogo assim que chega, enquanto o seguinte é jogado.')}</p>
+          <Replay key={ci} data={data} game={shown} formats={fmtsOf(shown)} score={shown.inProgress ? null : scoreOf(played, ci)} deckName={runDeck || deck.name} live={!!busy} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })} onPlayFrom={playFrom && !shown.inProgress && !shown.opps && ((st, g) => playFrom(toForgeState(st, g.decks || { a: deck }, { control: 'a', format: fmt.key })))}
+            next={{ has: ci < list.length - 1, go: () => setCur(c => Math.min(c + 1, list.length - 1)), secs: pause.secs, auto: pause.auto }} />
+          <p className="muted small">{tx('O tabuleiro segue o jogo que está a decorrer à medida que o Forge o joga; os jogos que já acabaram ficam aqui para rever.')}</p>
         </section>
       )}
       <section className="card">

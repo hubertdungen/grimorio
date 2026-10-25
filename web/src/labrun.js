@@ -2,7 +2,7 @@
 // do Laboratório (Construir › Teste e Coliseu › Bots) mostram a mesma, e o cabeçalho sabe que está a decorrer.
 import { useCallback, useSyncExternalStore } from 'react'
 
-export const runState = { busy: null, runs: [], played: [], watch: null, err: '', cur: 0, deckId: null, deckName: '', stop: false }
+export const runState = { busy: null, runs: [], played: [], watch: null, err: '', cur: 0, deckId: null, deckName: '', stop: false, liveGame: null }
 const subs = new Set()
 const sub = f => { subs.add(f); return () => subs.delete(f) }
 export function setRun(k, v) { runState[k] = typeof v === 'function' ? v(runState[k]) : v; subs.forEach(f => f()) }
@@ -12,3 +12,10 @@ export function useRun(k) {
 }
 // o «Parar» com a mesma forma de um useRef, partilhado
 export const stopRef = { get current() { return runState.stop }, set current(v) { runState.stop = v } }
+// o jogo em curso (o registo que o Forge vai escrevendo: job.live) — só se atualiza quando chegam eventos novos
+export function setLiveGame(st, extra) {
+  const ev = st?.status === 'running' ? st.live?.events : null
+  if (!ev?.length) { if (runState.liveGame) setRun('liveGame', null); return }
+  if (runState.liveGame?.key === extra.key && runState.liveGame.events.length === ev.length) return
+  setRun('liveGame', { ...extra, events: ev, exact: true, inProgress: true, winner: null })
+}

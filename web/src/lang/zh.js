@@ -2733,4 +2733,6 @@ export default {
   "A resolver": "结算中",
   "Gatilho": "触发",
   "{n} na pilha": "堆叠中 {n} 个",
+  "O tabuleiro segue o jogo que está a decorrer à medida que o Forge o joga; os jogos que já acabaram ficam aqui para rever.": "棋盘会随 Forge 进行实时跟随当前牌局；已结束的牌局保留在此可回看。",
+  "a decorrer agora": "正在进行",
 }

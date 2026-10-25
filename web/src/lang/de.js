@@ -2733,4 +2733,6 @@ export default {
   "A resolver": "Wird verrechnet",
   "Gatilho": "Ausgelöst",
   "{n} na pilha": "{n} auf dem Stapel",
+  "O tabuleiro segue o jogo que está a decorrer à medida que o Forge o joga; os jogos que já acabaram ficam aqui para rever.": "Das Brett folgt der laufenden Partie, während Forge sie spielt; beendete Partien bleiben hier zum Ansehen.",
+  "a decorrer agora": "läuft gerade",
 }

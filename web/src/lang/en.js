@@ -2741,4 +2741,6 @@ export default {
   "A resolver": "Resolving",
   "Gatilho": "Trigger",
   "{n} na pilha": "{n} on the stack",
+  "O tabuleiro segue o jogo que está a decorrer à medida que o Forge o joga; os jogos que já acabaram ficam aqui para rever.": "The board follows the game in progress as Forge plays it; finished games stay here to watch again.",
+  "a decorrer agora": "in progress now",
 }
