@@ -2415,4 +2415,8 @@ export default {
   "Estás aqui como convidado ({n}): os teus decks ficam guardados neste Grimório e vês os torneios em que entras.": "You're here as a guest ({n}): your decks are stored in this Grimório and you see the tournaments you play in.",
   "sair do convite": "leave the invite",
   "Deck de um amigo convidado": "Deck of an invited friend",
+  "Contorno verde: torneio só entre os teus decks e os de amigos (vale como os azuis).": "Green outline: tournament only between your decks and friends' decks (worth the same as blue ones).",
+  "🤝 Dos amigos": "🤝 Friends'",
+  "Não há decks de amigos neste formato.": "No friends' decks in this format.",
+  "🤝 só eu e amigos": "🤝 only me and friends",
 }

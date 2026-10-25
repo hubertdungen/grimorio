@@ -703,7 +703,8 @@ def create(owner, d):
                             .replace("edhrec", "commander"),
                             "cover": str(x.get("cover") or "")[:200],
                             "colors": "".join(c for c in str(x.get("colors") or "") if c in "WUBRG")[:5],
-                            **({"com": True} if src == "meus" and deck.get("community") else {}),  # da comunidade (não é meu)
+                            **({"com": True} if src == "meus" and deck.get("community") and not deck.get("friend") else {}),  # da comunidade (não é meu)
+                            **({"fr": str(deck.get("friendName") or "?")[:40]} if src == "meus" and deck.get("friend") else {}),  # de um amigo convidado
                             **({"me": True} if x.get("me") and src == "meus" and not any(p.get("me") for p in players) else {})})
             decks.append({k: deck.get(k) or ({} if k in ("main", "side") else []) for k in ("commanders", "main", "side")} |
                          ({"signature": deck["signature"]} if deck.get("signature") else {}) |
@@ -732,6 +733,8 @@ def create(owner, d):
         st.update(start_at=time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
         if cross:
             st["cross"] = True
+        if any(p.get("fr") for p in players) and all(p["src"] == "meus" and not p.get("com") for p in players):
+            st["friends"] = True  # só eu e amigos: troféu com contorno de amigos em vez do azul
         if d.get("podiums") and not d.get("champions"):  # liga dos pódios: troféus normais que valem menos
             st["podiums"] = True
         if d.get("champions"):  # torneio dos campeões (vencedores de torneios anteriores): o 1.º leva o troféu de platina
@@ -805,7 +808,7 @@ def trophies(con, owner):
             row, same = rows.get(x["i"], {}), round(similarity(st["decks"][x["i"]], cur[x["ref"]]), 3)
             out.setdefault(x["ref"], []).append({
                 "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "m": len(st["matches"]), "casual": not ranked(st),
-                "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")), "podiums": bool(st.get("podiums")),
+                "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")), "podiums": bool(st.get("podiums")), "friends": bool(st.get("friends")),
                 "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
                 "first": [y["name"] for y in pod if y["place"] == 1 and y["i"] != x["i"]],
                 "second": [y["name"] for y in pod if y["place"] == 2 and y["i"] != x["i"]], "same": same, "valid": same >= SAME})
@@ -853,10 +856,10 @@ def route(method, path, owner, body=None, bettor=None):
             rows = con.execute("SELECT id, ts, name, type, format, status, champion, n, json_extract(state, '$.casual'),"
                                " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions'),"
                                " COALESCE(json_extract(state, '$.ranked'), json_extract(state, '$.casual') IS NULL AND EXISTS (SELECT 1 FROM json_each(state, '$.players') WHERE json_extract(value, '$.src') = 'meta')),"
-                               " json_array_length(state, '$.matches'), json_extract(state, '$.podiums') FROM tournaments WHERE owner=? ORDER BY ts DESC",
+                               " json_array_length(state, '$.matches'), json_extract(state, '$.podiums'), json_extract(state, '$.friends') FROM tournaments WHERE owner=? ORDER BY ts DESC",
                                (owner,)).fetchall()
             cut = trophy_cut(con, owner)
-            out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked", "m", "podiums"), r)),
+            out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked", "m", "podiums", "friends"), r)),
                     **({"old": True} if r[1] < cut else {})} for r in rows]  # old: de antes de repor os troféus
             for x in out:  # os acabados antes de haver pódio calculam-no agora
                 x["podium"] = json.loads(x["podium"]) if x["podium"] else podium(json.loads(con.execute(

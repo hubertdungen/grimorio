@@ -258,8 +258,11 @@ def table(con, fmt, owner):
         r["stars"] = stars(r["elo"], dists.setdefault(r["format"], dist(con, r["format"])))
         r.update(ly.get(r["key"], {}))
     com = {f"deck:{i}" for (i,) in con.execute("SELECT id FROM decks WHERE owner=? AND json_extract(body, '$.community')", (owner,))}
+    frs = {f"deck:{i}": n for i, n in con.execute("SELECT id, json_extract(body, '$.friendName') FROM decks WHERE owner=? AND json_extract(body, '$.friend') IS NOT NULL", (owner,))}
     for r in rows:
-        r["community"] = r["key"] in com  # deck guardado mas de outros (comunidade)
+        r["community"] = r["key"] in com and r["key"] not in frs  # deck guardado mas de outros (comunidade)
+        if r["key"] in frs:
+            r["friend"] = frs[r["key"]] or "?"  # de um amigo convidado
     rows.sort(key=lambda r: (-r["stars"], -r["elo"]))
     for i, r in enumerate(rows):
         r["elo"] = round(r["elo"], 1)
@@ -352,16 +355,17 @@ def all_stars(con, owner):
 
 
 def candidates(con, fmt, owner, sources=("meu", "meta")):
-    """sources ⊆ {meu, com, meta}: com = decks guardados da comunidade (de outros, importados). Decks que podem ser
+    """sources ⊆ {meu, ami, com, meta}: ami = decks de amigos convidados (body.friend), com = da comunidade (de outros, importados). Decks que podem ser
     escolhidos: os meus deste formato (sem os casuais) e os do meta (sim.opponents), com rating
     ou 3,0★ provisório. fmt CASUAL = todos os meus (casuais incluídos) e o meta de todos os formatos, com o rating
     casual; `format` = o formato do próprio deck."""
     out, cas = [], fmt == CASUAL
-    if "meu" in sources or "com" in sources:  # decks guardados: os meus e os da comunidade (body.community), tipo «meu»
-        out += [{"key": f"deck:{i}", "kind": "meu", "src": "meus", "ref": i, "name": n, "owner": owner, "format": f, "com": bool(com)}
-                for i, n, f, c, com in con.execute("SELECT id, name, lower(format), json_extract(body, '$.casual'),"
-                                                   " json_extract(body, '$.community') FROM decks WHERE owner=? AND deleted IS NULL", (owner,))
-                if (cas or f == fmt and not c) and ("com" if com else "meu") in sources]
+    if {"meu", "ami", "com"} & set(sources):  # decks guardados: os meus, dos amigos (body.friend) e da comunidade, tipo «meu»
+        out += [{"key": f"deck:{i}", "kind": "meu", "src": "meus", "ref": i, "name": n, "owner": owner, "format": f, "com": bool(com) and not fr,
+                 **({"friend": fr} if fr else {})}
+                for i, n, f, c, com, fr in con.execute("SELECT id, name, lower(format), json_extract(body, '$.casual'),"
+                                                       " json_extract(body, '$.community'), json_extract(body, '$.friend') FROM decks WHERE owner=? AND deleted IS NULL", (owner,))
+                if (cas or f == fmt and not c) and ("ami" if fr else "com" if com else "meu") in sources]
     if "meta" in sources:
         for f in sim.META_FORMATS + ("commander",) if cas else (fmt,):
             try:
@@ -721,7 +725,7 @@ def arena_set(con, owner, d):
     """Guarda as definições; on=True liga (a contagem de rondas desta sessão recomeça), on=False desliga."""
     cfg = settings(con)
     num = lambda v, lo, hi, dflt: max(lo, min(hi, float(v))) if isinstance(v, (int, float)) else dflt  # noqa: E731
-    if isinstance(d.get("sources"), list) and set(d["sources"]) <= {"meu", "com", "meta"} and d["sources"]:
+    if isinstance(d.get("sources"), list) and set(d["sources"]) <= {"meu", "ami", "com", "meta"} and d["sources"]:
         cfg["sources"] = d["sources"]
     if isinstance(d.get("formats"), list):
         cfg["formats"] = [f for f in d["formats"] if isinstance(f, str) and re.fullmatch(r"[a-z]{2,20}", f)][:12]
@@ -770,7 +774,7 @@ def route(method, path, owner, body=None):
                     reset(con, f"deck:{i}")
                 return 200, {"decks": len(ids)}
             if p == "/api/ratings/pick":
-                src = [s for s in q.get("sources", "meu,meta").split(",") if s in ("meu", "com", "meta")]
+                src = [s for s in q.get("sources", "meu,meta").split(",") if s in ("meu", "ami", "com", "meta")]
                 return 200, pick(con, fmt, owner, int(q.get("n") or 8), float(q.get("min") or 0), float(q.get("max") or TOP), src)
             m = re.fullmatch(r"/api/ratings/deck/((?:deck|meta):[a-z0-9-]{1,130})", urllib.parse.unquote(p))
             if m:

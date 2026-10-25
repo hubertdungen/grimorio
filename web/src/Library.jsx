@@ -39,14 +39,15 @@ const SHAPE = {
   grupos: { d: 'M1.5 13.5h6.5V22H1.5zM8.8 8h6.4v14H8.8zM16 11h6.5v11H16z' },
   equipas: { d: 'M1.5 3.5h8.5v3a4.3 4.3 0 0 1-3.1 4.1v3.4h2v2.2H2.6V14h2v-3.4A4.3 4.3 0 0 1 1.5 6.5zM14 3.5h8.5v3a4.3 4.3 0 0 1-3.1 4.1v3.4h2v2.2h-6.8V14h2v-3.4A4.3 4.3 0 0 1 14 6.5zM1.5 18h21v3.5h-21z' },
 }
-export function Cup({ place, casual, off, kind = 'elim' }) {
+export function Cup({ place, casual, off, kind = 'elim', friends }) {
+  if (friends) casual = false  // só eu e amigos: cores normais com contorno verde (em vez do azul)
   const id = `cup${useId().replace(/[^\w-]/g, '')}`, [hi, lo] = MEDAL[place] || MEDAL[1], sh = SHAPE[kind] || SHAPE.elim
   return (
     <svg className={`cup ${off ? 'off' : ''} ${place === 'plat' ? 'plat' : ''} ${place === 'safira' || place === 'rubi' ? `gem ${place}` : ''}`} viewBox="0 0 24 24" aria-hidden="true">
       <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
         {casual ? <><stop offset="0" stopColor="#4ea8ff" /><stop offset=".55" stopColor={hi} /><stop offset="1" stopColor={lo} /></> : <><stop offset="0" stopColor={hi} /><stop offset="1" stopColor={lo} /></>}
       </linearGradient></defs>
-      <path d={sh.d} fillRule={sh.eo ? 'evenodd' : undefined} fill={`url(#${id})`} stroke={casual ? '#4ea8ff' : '#0008'} strokeWidth=".8" />
+      <path d={sh.d} fillRule={sh.eo ? 'evenodd' : undefined} fill={`url(#${id})`} stroke={friends ? '#3dcf7a' : casual ? '#4ea8ff' : '#0008'} strokeWidth={friends ? 1.5 : 0.8} />
     </svg>
   )
 }
@@ -59,7 +60,7 @@ export const tierOf = (place, champions) => (champions ? { 1: 'plat', 2: 'safira
 const tier = x => (x.platinum ? 'plat' : tierOf(x.place, x.champions))
 const ptsOf = x => trophyValue({ tier: tier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m, podiums: x.podiums })  // pontos que este troféu dá ao deck
 const ptsTxt = x => (x.valid === false ? tx('não conta (0 pontos)') : tx('+{p} pontos', { p: ptsOf(x) }))
-const label = x => [PLACE[tier(x)], KIND[x.type], `«${x.name}»`, x.casual && BLUE, ptsTxt(x)].filter(Boolean).join(' · ')
+const label = x => [PLACE[tier(x)], KIND[x.type], `«${x.name}»`, x.friends ? tx('🤝 só eu e amigos') : x.casual && BLUE, ptsTxt(x)].filter(Boolean).join(' · ')
 function Trophies({ list }) {
   const [open, setOpen] = useState(null)  // posição no ecrã (o cartão do deck corta o que sai dele)
   useEffect(() => {  // fecha ao tocar fora ou ao rolar a página (está preso ao ecrã)
@@ -77,7 +78,7 @@ function Trophies({ list }) {
   return (
     <span className={`tro ${ok.length ? '' : 'lost'}`} onMouseEnter={show} onMouseLeave={() => setOpen(null)}>
       <button className="tro-ic" onClick={e => { e.stopPropagation(); if (open) setOpen(null); else show({ currentTarget: e.currentTarget.parentNode }) }} aria-expanded={!!open} aria-label={sum}>
-        {shown.slice(0, 3).map((x, k) => <i key={`${x.tid}-${x.place}`} style={{ zIndex: 3 - k }} title={label(x)}><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /></i>)}
+        {shown.slice(0, 3).map((x, k) => <i key={`${x.tid}-${x.place}`} style={{ zIndex: 3 - k }} title={label(x)}><Cup place={tier(x)} casual={x.casual} friends={x.friends} off={!x.valid} kind={x.type} /></i>)}
         {shown.length > 3 && <small>+{shown.length - 3}</small>}
       </button>
       {open && createPortal(
@@ -85,7 +86,7 @@ function Trophies({ list }) {
           <b>{sum}</b>
           {list.map(x => (
             <span key={`${x.tid}-${x.place}`} className={`tro-row ${x.valid ? '' : 'off'}`}>
-              <span className="tro-t"><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /> {PLACE[tier(x)]} · {KIND[x.type] ? `${KIND[x.type]} · ` : ''}{x.name} <b className="tro-p">{ptsTxt(x)}</b></span>
+              <span className="tro-t"><Cup place={tier(x)} casual={x.casual} friends={x.friends} off={!x.valid} kind={x.type} /> {PLACE[tier(x)]} · {KIND[x.type] ? `${KIND[x.type]} · ` : ''}{x.name} <b className="tro-p">{ptsTxt(x)}</b></span>
               <small>{new Date(x.ts * 1000).toLocaleDateString(LOCALE)}{x.casual ? ` · ${tx('casual')}` : ''} · {tx('{n} decks', { n: x.n })} · {tx('{v}V {d}D', { v: x.rec[0], d: x.rec[1] })}{x.rec[2] ? ` ${x.rec[2]}E` : ''}{x.place > 1 && x.first.length ? ` · ${tx('1.º: {d}', { d: x.first.join(', ') })}` : x.second.length ? ` · ${tx('2.º: {d}', { d: x.second.join(', ') })}` : ''}</small>
               {!x.valid && <small className="tro-why">{tx('Não conta: a lista mudou {p} desde este torneio (máx. 10%)', { p: `${Math.round((1 - x.same) * 100)}%` })}</small>}
             </span>

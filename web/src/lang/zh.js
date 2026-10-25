@@ -2407,4 +2407,8 @@ export default {
   "Estás aqui como convidado ({n}): os teus decks ficam guardados neste Grimório e vês os torneios em que entras.": "你以访客身份在此（{n}）：你的套牌保存在这个 Grimório 中，可查看你参加的锦标赛。",
   "sair do convite": "退出邀请",
   "Deck de um amigo convidado": "受邀好友的套牌",
+  "Contorno verde: torneio só entre os teus decks e os de amigos (vale como os azuis).": "绿色轮廓：仅你与好友套牌之间的锦标赛（价值同蓝色奖杯）。",
+  "🤝 Dos amigos": "🤝 好友的",
+  "Não há decks de amigos neste formato.": "此赛制中没有好友的套牌。",
+  "🤝 só eu e amigos": "🤝 仅我和好友",
 }

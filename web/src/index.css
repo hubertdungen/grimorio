@@ -1865,3 +1865,4 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .fr-qr svg { display: block; width: 100%; height: auto; }
 .guest-bar { margin: 0; padding: 6px 16px; background: #4ea8ff1c; border-bottom: 1px solid #4ea8ff55; color: #cfe6ff; font-size: 13px; }
 .dbox-fr { color: #9fd0ff; }
+.badge.ami { background: #3dcf7a22; color: #9be8b8; }
