@@ -2198,4 +2198,10 @@ export default {
   "de {n}": "from {n}",
   "Tirar dano de comandante de {n}": "Remove commander damage from {n}",
   "tira também vida": "also takes life",
+  "Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).": "Counts for the yellow stars and gives normal trophies (gold, silver and bronze).",
+  "Menos de 20% de decks do meta: conta só para as estrelas azuis e vermelhas e os troféus saem azuis.": "Less than 20% meta decks: counts only for the blue and red stars and trophies come out blue.",
+  "não ranked": "unranked",
+  "Não ranked: {m} de {n} decks do meta (precisa de {k}). Conta só para as estrelas azuis e vermelhas e os troféus saem azuis.": "Unranked: {m} of {n} decks are meta (needs {k}). Counts only for the blue and red stars and trophies come out blue.",
+  "Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.": "In casual tournaments trophies come out blue and the yellow stars don't move.",
+  "Ranked": "Ranked",
 }

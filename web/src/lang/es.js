@@ -2190,4 +2190,10 @@ export default {
   "de {n}": "de {n}",
   "Tirar dano de comandante de {n}": "Quitar daño de comandante de {n}",
   "tira também vida": "también quita vida",
+  "Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).": "Cuenta para las estrellas amarillas y da trofeos normales (oro, plata y bronce).",
+  "Menos de 20% de decks do meta: conta só para as estrelas azuis e vermelhas e os troféus saem azuis.": "Menos del 20% de mazos del meta: solo cuenta para las estrellas azules y rojas y los trofeos salen azules.",
+  "não ranked": "sin ranking",
+  "Não ranked: {m} de {n} decks do meta (precisa de {k}). Conta só para as estrelas azuis e vermelhas e os troféus saem azuis.": "Sin ranking: {m} de {n} mazos del meta (necesita {k}). Solo cuenta para las estrellas azules y rojas y los trofeos salen azules.",
+  "Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.": "En los torneos casuales los trofeos salen azules y las estrellas amarillas no se mueven.",
+  "Ranked": "Ranked",
 }

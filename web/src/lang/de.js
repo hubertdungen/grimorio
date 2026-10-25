@@ -2190,4 +2190,10 @@ export default {
   "de {n}": "von {n}",
   "Tirar dano de comandante de {n}": "Kommandeurschaden von {n} entfernen",
   "tira também vida": "zieht auch Leben ab",
+  "Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).": "Zählt für die gelben Sterne und gibt normale Trophäen (Gold, Silber und Bronze).",
+  "Menos de 20% de decks do meta: conta só para as estrelas azuis e vermelhas e os troféus saem azuis.": "Weniger als 20% Meta-Decks: zählt nur für die blauen und roten Sterne, und die Trophäen sind blau.",
+  "não ranked": "ungewertet",
+  "Não ranked: {m} de {n} decks do meta (precisa de {k}). Conta só para as estrelas azuis e vermelhas e os troféus saem azuis.": "Ungewertet: {m} von {n} Decks aus dem Meta (braucht {k}). Zählt nur für die blauen und roten Sterne, und die Trophäen sind blau.",
+  "Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.": "In Casual-Turnieren sind die Trophäen blau und die gelben Sterne ändern sich nicht.",
+  "Ranked": "Gewertet",
 }

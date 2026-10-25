@@ -693,6 +693,7 @@ def create(owner, d):
         me = next((i for i, p in enumerate(players) if p.pop("me", None)), None)
         st = build(t, n, bo, bool(d.get("third")), rounds, me if me is not None else players.index(first), team)
         st.update(format=fmt, players=players, decks=decks, **({"casual": True} if casual else {}), **({"me": me} if me is not None else {}))
+        st["ranked"] = ranked(st)
         # começo: START_WAIT s para apostar (ou, com hold, só quando o dono carregar em «Começar»)
         st.update(start_at=time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
         if d.get("champions"):  # torneio dos campeões (vencedores de torneios anteriores): o 1.º leva o troféu de platina
@@ -755,7 +756,7 @@ def trophies(con, owner):
                 continue
             row, same = rows.get(x["i"], {}), round(similarity(st["decks"][x["i"]], cur[x["ref"]]), 3)
             out.setdefault(x["ref"], []).append({
-                "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "casual": bool(st.get("casual")),
+                "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "casual": not ranked(st),
                 "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")),
                 "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
                 "first": [y["name"] for y in pod if y["place"] == 1 and y["i"] != x["i"]],
@@ -782,9 +783,9 @@ def route(method, path, owner, body=None):
     with db() as con:
         if method == "GET" and not parts:
             rows = con.execute("SELECT id, ts, name, type, format, status, champion, n, json_extract(state, '$.casual'),"
-                               " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions') FROM tournaments WHERE owner=? ORDER BY ts DESC",
+                               " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions'), json_extract(state, '$.ranked') FROM tournaments WHERE owner=? ORDER BY ts DESC",
                                (owner,)).fetchall()
-            out = [dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions"), r)) for r in rows]
+            out = [dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked"), r)) for r in rows]
             for x in out:  # os acabados antes de haver pódio calculam-no agora
                 x["podium"] = json.loads(x["podium"]) if x["podium"] else podium(json.loads(con.execute(
                     "SELECT state FROM tournaments WHERE id=?", (x["id"],)).fetchone()[0])) if x["champion"] is not None else None
@@ -1003,10 +1004,25 @@ def bets_view(con, owner, tid, status, st):
 
 # ---------- a thread que faz avançar os torneios ----------
 
+RANKED_META = 0.2  # parte mínima de decks do meta para um torneio ser «ranked»
+
+
+def meta_needed(n):
+    return max(1, math.ceil(RANKED_META * n - 1e-9))
+
+
+def ranked(st):
+    """Ranked = não casual e com pelo menos 20% de decks do meta (o meta é a referência das estrelas). Só estes contam para
+    o rating normal (amarelo) e dão troféus normais; os outros contam no azul e no vermelho e os troféus saem casuais
+    (azuis). Fica guardado ao criar; os torneios antigos calculam-no pelos jogadores."""
+    if "ranked" in st:
+        return bool(st["ranked"])
+    return not st.get("casual") and sum(1 for p in st["players"] if p.get("src") == "meta") >= meta_needed(len(st["players"]))
+
+
 def counts_yellow(st):
-    """O rating normal (amarelo) só se mexe com decks meta na mesa: um torneio só entre os meus decks, ou casual, vai para
-    o casual (conta no azul e no vermelho, não no amarelo)."""
-    return not st.get("casual") and any(p["src"] == "meta" for p in st["players"])
+    """O rating normal (amarelo) só se mexe nos torneios ranked (ver ranked())."""
+    return ranked(st)
 
 
 def rate(con, tid, st, m, owner):
@@ -1349,6 +1365,10 @@ def selfcheck():
     assert me_state(st)["place"] == [1, 1] and podium(st)[0].get("me")
     assert counts_yellow(st) and not counts_yellow({**st, "casual": True})
     assert not counts_yellow({"players": [{"src": "meus"}, {"src": "meus"}]})
+    P = lambda nm, nt: [{"src": "meta"}] * nm + [{"src": "meus"}] * nt  # noqa: E731
+    assert meta_needed(4) == 1 and meta_needed(10) == 2 and meta_needed(16) == 4
+    assert ranked({"players": P(2, 8)}) and not ranked({"players": P(1, 9)}) and not ranked({"players": P(5, 5), "casual": True})
+    assert not ranked({"players": P(4, 0), "ranked": False}) and ranked({"players": P(0, 4), "ranked": True})  # o guardado ganha
     for _ in range(20):  # dupla: 1.º, 2.º e 3.º sem empates
         st = build("dupla", 6)
         st["players"] = [{"name": str(i)} for i in range(6)]

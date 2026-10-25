@@ -2190,4 +2190,10 @@ export default {
   "de {n}": "来自 {n}",
   "Tirar dano de comandante de {n}": "减少来自 {n} 的指挥官伤害",
   "tira também vida": "同时扣生命",
+  "Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).": "计入黄星，并颁发普通奖杯（金、银、铜）。",
+  "Menos de 20% de decks do meta: conta só para as estrelas azuis e vermelhas e os troféus saem azuis.": "环境套牌少于 20%：只计入蓝星和红星，奖杯为蓝色。",
+  "não ranked": "非排位",
+  "Não ranked: {m} de {n} decks do meta (precisa de {k}). Conta só para as estrelas azuis e vermelhas e os troféus saem azuis.": "非排位：{n} 副中有 {m} 副环境套牌（需要 {k} 副）。只计入蓝星和红星，奖杯为蓝色。",
+  "Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.": "休闲锦标赛的奖杯为蓝色，黄星不变。",
+  "Ranked": "排位",
 }
