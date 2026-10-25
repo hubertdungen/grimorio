@@ -2189,4 +2189,13 @@ export default {
   "Não tens decks da comunidade nos formatos escolhidos.": "You have no community decks in the chosen formats.",
   "Não tens decks teus neste formato.": "You have no decks of your own in this format.",
   "Não tens decks teus nos formatos escolhidos.": "You have no decks of your own in the chosen formats.",
+  "Ao somar dano de comandante, tira também essa vida ao jogador": "Adding commander damage also takes that life from the player",
+  "As mudanças de vida, veneno e dano de comandante aparecem aqui.": "Life, poison and commander damage changes appear here.",
+  "Commander": "Commander",
+  "Dano de comandante por adversário: 21 do mesmo comandante e perde-se o jogo": "Commander damage per opponent: 21 from the same commander and you lose",
+  "Dano do comandante de {n} ({m} = perde)": "Damage from {n}'s commander ({m} = loses)",
+  "Dar dano de comandante de {n}": "Add commander damage from {n}",
+  "de {n}": "from {n}",
+  "Tirar dano de comandante de {n}": "Remove commander damage from {n}",
+  "tira também vida": "also takes life",
 }

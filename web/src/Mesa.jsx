@@ -21,7 +21,10 @@ const hhmm = t => new Date(t).toLocaleTimeString(LOCALE, { hour: '2-digit', minu
 const COLORS = ['#7c5cff', '#e0475b', '#2fa36b', '#e8a33d', '#2f8fd8', '#c74fb0']
 const NAMES = n => Array.from({ length: n }, (_, i) => tx('Jogador {n}', { n: i + 1 }))
 const LIFE0 = { n: 2, start: 20, face: true, players: NAMES(6).map((name, i) => ({ name, color: COLORS[i], life: 20, poison: 0 })), log: [] }
-const POISON_MAX = 10
+const POISON_MAX = 10, CMD_MAX = 21  // veneno 10 e 21 de dano do mesmo comandante: perde-se o jogo
+// campos de um jogador: 'life', 'poison' ou 'cmd:<j>' (dano de comandante recebido do jogador j)
+const getF = (p, f) => (f.startsWith('cmd:') ? p.cmd?.[f.slice(4)] || 0 : p[f])
+const putF = (p, f, v) => (f.startsWith('cmd:') ? { ...p, cmd: { ...(p.cmd || {}), [f.slice(4)]: v } } : { ...p, [f]: v })
 
 function useHold(fn) {  // carregar e manter: 1 já, depois repete cada vez mais depressa
   const t = useRef(null)
@@ -36,9 +39,9 @@ function useHold(fn) {  // carregar e manter: 1 já, depois repete cada vez mais
   return { onPointerDown: start, onPointerUp: stop, onPointerLeave: stop, onPointerCancel: stop, onContextMenu: e => e.preventDefault() }
 }
 
-function Player({ p, i, flip, onLife, onPoison, onName, spot, pend }) {
+function Player({ p, i, flip, onLife, onPoison, onCmd, onName, spot, pend, opps }) {  // opps: adversários (modo Commander)
   const minus = useHold(() => onLife(i, -1)), plus = useHold(() => onLife(i, 1))
-  const dead = p.life <= 0 || p.poison >= POISON_MAX
+  const dead = p.life <= 0 || p.poison >= POISON_MAX || Object.values(p.cmd || {}).some(x => x >= CMD_MAX)
   const [bump, setBump] = useState(0)
   const prev = useRef(p.life)
   useEffect(() => { if (prev.current !== p.life) { setBump(p.life < prev.current ? -1 : 1); prev.current = p.life; const k = setTimeout(() => setBump(0), 260); return () => clearTimeout(k) } }, [p.life])
@@ -55,6 +58,12 @@ function Player({ p, i, flip, onLife, onPoison, onName, spot, pend }) {
           <span>☠ {p.poison}</span>
           <button onClick={() => onPoison(i, 1)} aria-label={tx('Dar veneno')}>+</button>
         </span>
+        {opps && <span className="lc-cmds">{opps.map(o => { const v = p.cmd?.[o.i] || 0; return (
+          <span key={o.i} className={`lc-cmd ${v ? 'on' : ''} ${v >= CMD_MAX ? 'kill' : ''}`} style={{ '--oc': o.color }} title={tx('Dano do comandante de {n} ({m} = perde)', { n: o.name, m: CMD_MAX })}>
+            <button onClick={() => onCmd(i, o.i, -1)} aria-label={tx('Tirar dano de comandante de {n}', { n: o.name })}>−</button>
+            <b>⚔ {v}</b>
+            <button onClick={() => onCmd(i, o.i, 1)} aria-label={tx('Dar dano de comandante de {n}', { n: o.name })}>+</button>
+          </span>) })}</span>}
       </div>
       {dead && <span className="lc-skull" aria-hidden="true">☠</span>}
     </div>
@@ -69,17 +78,17 @@ function Life({ s, set, openDice }) {
   const players = s.players.slice(0, s.n)
   const change = (i, field, d) => {
     set(x => {
-      const ps = x.players.map((p, k) => (k === i ? { ...p, [field]: Math.max(field === 'poison' ? 0 : -999, p[field] + d) } : p))
+      const ps = x.players.map((p, k) => (k === i ? putF(p, field, Math.max(field === 'life' ? -999 : 0, getF(p, field) + d)) : p))
       return { ...x, players: ps }
     })
     play('tick', { amount: d })
     const key = `${i}:${field}`
-    setPend(o => ({ ...o, [key]: { d: (o[key]?.d || 0) + d, from: o[key]?.from ?? s.players[i][field], k: (o[key]?.k || 0) + 1, i, field } }))
+    setPend(o => ({ ...o, [key]: { d: (o[key]?.d || 0) + d, from: o[key]?.from ?? getF(s.players[i], field), k: (o[key]?.k || 0) + 1, i, field } }))
     clearTimeout(timers.current[key])
     timers.current[key] = setTimeout(() => {
       setPend(o => {
         const e = o[key]
-        if (e && e.d) set(x => ({ ...x, log: [{ t: Date.now(), p: x.players[e.i].name, c: x.players[e.i].color, field: e.field, d: e.d, to: x.players[e.i][e.field] }, ...x.log].slice(0, 300) }))
+        if (e && e.d) set(x => ({ ...x, log: [{ t: Date.now(), p: x.players[e.i].name, c: x.players[e.i].color, field: e.field, d: e.d, to: getF(x.players[e.i], e.field), ...(e.field.startsWith('cmd:') && { by: x.players[+e.field.slice(4)]?.name }) }, ...x.log].slice(0, 300) }))
         const n = { ...o }; delete n[key]; return n
       })
     }, 1400)
@@ -87,7 +96,7 @@ function Life({ s, set, openDice }) {
   useEffect(() => () => Object.values(timers.current).forEach(clearTimeout), [])
   const reset = () => {
     setUndo(s)
-    set(x => ({ ...x, players: x.players.map(p => ({ ...p, life: x.start, poison: 0 })), log: [{ t: Date.now(), reset: true }, ...x.log].slice(0, 300) }))
+    set(x => ({ ...x, players: x.players.map(p => ({ ...p, life: x.start, poison: 0, cmd: {} })), log: [{ t: Date.now(), reset: true }, ...x.log].slice(0, 300) }))
     play('shuffle')
   }
   const who = () => {  // quem começa: passa por todos e para num ao acaso
@@ -105,6 +114,8 @@ function Life({ s, set, openDice }) {
         <span className="seg">{[1, 2, 3, 4, 5, 6].map(n => <button key={n} className={s.n === n ? 'on' : ''} onClick={() => set(x => ({ ...x, n }))} aria-label={tx('{n} jogadores', { n })}>{n}</button>)}</span>
         <label className="small">{tx('Vida inicial')} <select value={s.start} onChange={e => set(x => ({ ...x, start: +e.target.value }))}>{[20, 25, 30, 40, 50, 60].map(v => <option key={v}>{v}</option>)}</select></label>
         <label className="chk small"><input type="checkbox" checked={s.face} onChange={e => set(x => ({ ...x, face: e.target.checked }))} /> {tx('Frente a frente')}</label>
+        <label className="chk small" title={tx('Dano de comandante por adversário: 21 do mesmo comandante e perde-se o jogo')}><input type="checkbox" checked={!!s.cmdr} onChange={e => { const on = e.target.checked; set(x => ({ ...x, cmdr: on, ...(on && x.start < 40 && { start: 40, players: x.players.map(p => ({ ...p, life: p.life === x.start ? 40 : p.life })) }) })) }} /> ⚔ {tx('Commander')}</label>
+        {s.cmdr && <label className="chk small" title={tx('Ao somar dano de comandante, tira também essa vida ao jogador')}><input type="checkbox" checked={s.cmdLife !== false} onChange={e => set(x => ({ ...x, cmdLife: e.target.checked }))} /> {tx('tira também vida')}</label>}
         <button onClick={who}>👑 {tx('Quem começa')}</button>
         <button onClick={openDice}>🎲 {tx('Dados')}</button>
         <button className="primary" onClick={reset}>↺ {tx('Novo jogo')}</button>
@@ -114,13 +125,15 @@ function Life({ s, set, openDice }) {
         {rows.map((r, ri) => (
           <div key={ri} className="lc-row">{r.map(p => { const i = s.players.indexOf(p); return (
             <Player key={i} p={p} i={i} flip={s.face && rows.length > 1 && ri === 0} spot={spot === i} pend={pend[`${i}:life`] && { d: pend[`${i}:life`].d, k: pend[`${i}:life`].k }}
-              onLife={(k, d) => change(k, 'life', d)} onPoison={(k, d) => { change(k, 'poison', d); if (d > 0) play('poison') }} onName={(k, name) => set(x => ({ ...x, players: x.players.map((q, j) => (j === k ? { ...q, name } : q)) }))} />
+              onLife={(k, d) => change(k, 'life', d)} onPoison={(k, d) => { change(k, 'poison', d); if (d > 0) play('poison') }}
+              opps={s.cmdr ? players.filter(q => q !== p).map(q => ({ i: s.players.indexOf(q), name: q.name, color: q.color })) : null}
+              onCmd={(k, j, d) => { if (d < 0 && !getF(s.players[k], `cmd:${j}`)) return; change(k, `cmd:${j}`, d); if (s.cmdLife !== false) change(k, 'life', -d) }} onName={(k, name) => set(x => ({ ...x, players: x.players.map((q, j) => (j === k ? { ...q, name } : q)) }))} />
           ) })}</div>
         ))}
       </div>
-      <Log title={tx('Registo da vida')} empty={tx('As mudanças de vida e veneno aparecem aqui.')} onClear={async () => (await ask('registo', { title: tx('Limpar o registo da vida?'), ok: tx('Limpar') })) && set(x => ({ ...x, log: [] }))} items={s.log.map((e, k) => (
+      <Log title={tx('Registo da vida')} empty={tx('As mudanças de vida, veneno e dano de comandante aparecem aqui.')} onClear={async () => (await ask('registo', { title: tx('Limpar o registo da vida?'), ok: tx('Limpar') })) && set(x => ({ ...x, log: [] }))} items={s.log.map((e, k) => (
         <li key={k}><time>{hhmm(e.t)}</time> {e.reset ? <b>↺ {tx('Novo jogo')}</b> : e.first ? <span><i className="dot" style={{ background: e.c }} /> 👑 {tx('{n} começa', { n: e.first })}</span>
-          : <span><i className="dot" style={{ background: e.c }} /> {e.p} <b className={e.d < 0 ? 'neg' : 'pos'}>{e.d > 0 ? `+${e.d}` : e.d}</b> {e.field === 'poison' ? `☠ → ${e.to}` : `→ ${e.to}`}</span>}</li>
+          : <span><i className="dot" style={{ background: e.c }} /> {e.p} <b className={e.d < 0 ? 'neg' : 'pos'}>{e.d > 0 ? `+${e.d}` : e.d}</b> {e.field === 'poison' ? `☠ → ${e.to}` : e.by ? `⚔ ${tx('de {n}', { n: e.by })} → ${e.to}` : `→ ${e.to}`}</span>}</li>
       ))} />
     </div>
   )

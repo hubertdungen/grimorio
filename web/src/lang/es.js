@@ -2181,4 +2181,13 @@ export default {
   "Não tens decks da comunidade nos formatos escolhidos.": "No tienes mazos de la comunidad en los formatos elegidos.",
   "Não tens decks teus neste formato.": "No tienes mazos tuyos en este formato.",
   "Não tens decks teus nos formatos escolhidos.": "No tienes mazos tuyos en los formatos elegidos.",
+  "Ao somar dano de comandante, tira também essa vida ao jogador": "Al sumar daño de comandante, también le quita esa vida al jugador",
+  "As mudanças de vida, veneno e dano de comandante aparecem aqui.": "Los cambios de vida, veneno y daño de comandante aparecen aquí.",
+  "Commander": "Commander",
+  "Dano de comandante por adversário: 21 do mesmo comandante e perde-se o jogo": "Daño de comandante por rival: 21 del mismo comandante y se pierde la partida",
+  "Dano do comandante de {n} ({m} = perde)": "Daño del comandante de {n} ({m} = pierde)",
+  "Dar dano de comandante de {n}": "Sumar daño de comandante de {n}",
+  "de {n}": "de {n}",
+  "Tirar dano de comandante de {n}": "Quitar daño de comandante de {n}",
+  "tira também vida": "también quita vida",
 }

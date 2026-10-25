@@ -2181,4 +2181,13 @@ export default {
   "Não tens decks da comunidade nos formatos escolhidos.": "Du hast keine Community-Decks in den gewählten Formaten.",
   "Não tens decks teus neste formato.": "Du hast keine eigenen Decks in diesem Format.",
   "Não tens decks teus nos formatos escolhidos.": "Du hast keine eigenen Decks in den gewählten Formaten.",
+  "Ao somar dano de comandante, tira também essa vida ao jogador": "Kommandeurschaden zieht dem Spieler auch das Leben ab",
+  "As mudanças de vida, veneno e dano de comandante aparecem aqui.": "Änderungen von Leben, Gift und Kommandeurschaden erscheinen hier.",
+  "Commander": "Commander",
+  "Dano de comandante por adversário: 21 do mesmo comandante e perde-se o jogo": "Kommandeurschaden pro Gegner: 21 vom selben Kommandeur und man verliert",
+  "Dano do comandante de {n} ({m} = perde)": "Schaden von {n}s Kommandeur ({m} = verliert)",
+  "Dar dano de comandante de {n}": "Kommandeurschaden von {n} hinzufügen",
+  "de {n}": "von {n}",
+  "Tirar dano de comandante de {n}": "Kommandeurschaden von {n} entfernen",
+  "tira também vida": "zieht auch Leben ab",
 }

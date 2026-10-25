@@ -2181,4 +2181,13 @@ export default {
   "Não tens decks da comunidade nos formatos escolhidos.": "你在所选赛制中没有社区套牌。",
   "Não tens decks teus neste formato.": "你在该赛制没有自己的套牌。",
   "Não tens decks teus nos formatos escolhidos.": "你在所选赛制中没有自己的套牌。",
+  "Ao somar dano de comandante, tira também essa vida ao jogador": "增加指挥官伤害时也同时扣除该玩家的生命",
+  "As mudanças de vida, veneno e dano de comandante aparecem aqui.": "生命、中毒和指挥官伤害的变化显示在这里。",
+  "Commander": "指挥官",
+  "Dano de comandante por adversário: 21 do mesmo comandante e perde-se o jogo": "按对手计算指挥官伤害：同一指挥官造成 21 点即输掉对局",
+  "Dano do comandante de {n} ({m} = perde)": "来自 {n} 的指挥官的伤害（{m} = 输）",
+  "Dar dano de comandante de {n}": "增加来自 {n} 的指挥官伤害",
+  "de {n}": "来自 {n}",
+  "Tirar dano de comandante de {n}": "减少来自 {n} 的指挥官伤害",
+  "tira também vida": "同时扣生命",
 }
