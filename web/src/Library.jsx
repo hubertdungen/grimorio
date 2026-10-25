@@ -51,8 +51,12 @@ export function Cup({ place, casual, off, kind = 'elim' }) {
 }
 export const PLACE = { plat: tx('Platina: campeão dos campeões'), safira: tx('Safira: 2.º no torneio dos campeões'), rubi: tx('Rubi: 3.º no torneio dos campeões'), 1: tx('1.º lugar'), 2: tx('2.º lugar'), 3: tx('3.º lugar') }
 export const TIERS = ['plat', 'safira', 'rubi', 1, 2, 3]
+// tipo de torneio de cada troféu (para o texto ao passar por cima)
+export const KIND = { elim: tx('Eliminação simples'), dupla: tx('Dupla eliminação'), suico: tx('Suíço'), liga: tx('Liga'), mesas: tx('Mesas'), gauntlet: tx('Gauntlet'), rei: tx('Rei da colina'), grupos: tx('Grupos + eliminação'), equipas: tx('Equipas') }
+const BLUE = tx('troféu azul: casual ou não ranked')
 export const tierOf = (place, champions) => (champions ? { 1: 'plat', 2: 'safira', 3: 'rubi' }[place] : place)
 const tier = x => (x.platinum ? 'plat' : tierOf(x.place, x.champions))
+const label = x => [PLACE[tier(x)], KIND[x.type], `«${x.name}»`, x.casual && BLUE].filter(Boolean).join(' · ')
 function Trophies({ list }) {
   const [open, setOpen] = useState(null)  // posição no ecrã (o cartão do deck corta o que sai dele)
   useEffect(() => {  // fecha ao tocar fora ou ao rolar a página (está preso ao ecrã)
@@ -70,7 +74,7 @@ function Trophies({ list }) {
   return (
     <span className={`tro ${ok.length ? '' : 'lost'}`} onMouseEnter={show} onMouseLeave={() => setOpen(null)}>
       <button className="tro-ic" onClick={e => { e.stopPropagation(); if (open) setOpen(null); else show({ currentTarget: e.currentTarget.parentNode }) }} aria-expanded={!!open} aria-label={sum}>
-        {shown.slice(0, 3).map((x, k) => <i key={`${x.tid}-${x.place}`} style={{ zIndex: 3 - k }}><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /></i>)}
+        {shown.slice(0, 3).map((x, k) => <i key={`${x.tid}-${x.place}`} style={{ zIndex: 3 - k }} title={label(x)}><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /></i>)}
         {shown.length > 3 && <small>+{shown.length - 3}</small>}
       </button>
       {open && createPortal(
@@ -78,7 +82,7 @@ function Trophies({ list }) {
           <b>{sum}</b>
           {list.map(x => (
             <span key={`${x.tid}-${x.place}`} className={`tro-row ${x.valid ? '' : 'off'}`}>
-              <span className="tro-t"><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /> {PLACE[tier(x)]} · {x.name}</span>
+              <span className="tro-t"><Cup place={tier(x)} casual={x.casual} off={!x.valid} kind={x.type} /> {PLACE[tier(x)]} · {KIND[x.type] ? `${KIND[x.type]} · ` : ''}{x.name}</span>
               <small>{new Date(x.ts * 1000).toLocaleDateString(LOCALE)}{x.casual ? ` · ${tx('casual')}` : ''} · {tx('{n} decks', { n: x.n })} · {tx('{v}V {d}D', { v: x.rec[0], d: x.rec[1] })}{x.rec[2] ? ` ${x.rec[2]}E` : ''}{x.place > 1 && x.first.length ? ` · ${tx('1.º: {d}', { d: x.first.join(', ') })}` : x.second.length ? ` · ${tx('2.º: {d}', { d: x.second.join(', ') })}` : ''}</small>
               {!x.valid && <small className="tro-why">{tx('Não conta: a lista mudou {p} desde este torneio (máx. 10%)', { p: `${Math.round((1 - x.same) * 100)}%` })}</small>}
             </span>

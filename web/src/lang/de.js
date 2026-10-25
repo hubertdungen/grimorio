@@ -2209,4 +2209,8 @@ export default {
   "Repor os troféus de todos os decks?": "Trophäen aller Decks zurücksetzen?",
   "Tens a certeza? Isto não se desfaz.": "Bist du sicher? Das lässt sich nicht rückgängig machen.",
   "Troféus repostos.": "Trophäen zurückgesetzt.",
+  "Equipas": "Teams",
+  "Gauntlet": "Gauntlet",
+  "Liga": "Liga",
+  "troféu azul: casual ou não ranked": "blaue Trophäe: casual oder ungewertet",
 }

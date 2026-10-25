@@ -2209,4 +2209,8 @@ export default {
   "Repor os troféus de todos os decks?": "重置所有套牌的奖杯？",
   "Tens a certeza? Isto não se desfaz.": "确定吗？此操作无法撤销。",
   "Troféus repostos.": "奖杯已重置。",
+  "Equipas": "团队",
+  "Gauntlet": "挑战赛",
+  "Liga": "联赛",
+  "troféu azul: casual ou não ranked": "蓝色奖杯：休闲或非排位",
 }

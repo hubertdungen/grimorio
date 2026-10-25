@@ -2217,4 +2217,8 @@ export default {
   "Repor os troféus de todos os decks?": "Reset the trophies of all decks?",
   "Tens a certeza? Isto não se desfaz.": "Are you sure? This can't be undone.",
   "Troféus repostos.": "Trophies reset.",
+  "Equipas": "Teams",
+  "Gauntlet": "Gauntlet",
+  "Liga": "League",
+  "troféu azul: casual ou não ranked": "blue trophy: casual or unranked",
 }

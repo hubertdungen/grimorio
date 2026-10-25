@@ -2209,4 +2209,8 @@ export default {
   "Repor os troféus de todos os decks?": "¿Restablecer los trofeos de todos los mazos?",
   "Tens a certeza? Isto não se desfaz.": "¿Seguro? Esto no se puede deshacer.",
   "Troféus repostos.": "Trofeos restablecidos.",
+  "Equipas": "Equipos",
+  "Gauntlet": "Gauntlet",
+  "Liga": "Liga",
+  "troféu azul: casual ou não ranked": "trofeo azul: casual o sin ranking",
 }
