@@ -738,17 +738,27 @@ def similarity(a, b):
 SAME = 0.9  # um troféu conta enquanto a lista de hoje tiver ≥ 90% da que ganhou (mudou no máximo 10%)
 
 
+def trophy_cut(con, owner):
+    """Hora a partir da qual contam os troféus (Definições › repor os troféus); 0 = desde sempre. Os torneios ficam no
+    registo; só os pódios de antes deixam de dar troféus (Biblioteca, hall da fama e galeria)."""
+    try:
+        r = con.execute("SELECT v FROM ratings_kv WHERE k=?", (f"trophies_reset:{owner}",)).fetchone()
+    except sqlite3.OperationalError:
+        return 0
+    return float(json.loads(r[0])) if r else 0
+
+
 def trophies(con, owner):
     """{id do deck: [pódios em torneios: ouro, prata e bronze, cada lugar do mais recente]}: resumo de cada um (data, tipo,
     formato, nº de decks, lugar, registo, 1.º e 2.º lugar) e `same` = semelhança da lista de hoje com a do torneio;
     `valid` = same ≥ SAME (o troféu só conta enquanto a lista não mudar mais de 10%)."""
     cur = {i: json.loads(b or "{}") for i, b in con.execute(
         "SELECT id, body FROM decks WHERE owner=? AND (deleted IS NULL OR deleted=0)", (owner,))}
-    out = {}
+    out, cut = {}, trophy_cut(con, owner)
     for tid, ts, name, typ, fmt, raw in con.execute("SELECT id, ts, name, type, format, state FROM tournaments"
                                                     " WHERE owner=? AND status='done' ORDER BY ts DESC", (owner,)):
         st = json.loads(raw)
-        if st.get("champion") is None or not st.get("decks"):
+        if st.get("champion") is None or not st.get("decks") or ts < cut:
             continue
         pod, rows = podium(st), {x["i"]: x for x in standings(st)}
         for x in pod:  # ouro, prata e bronze (empates no 3.º: todos bronze)
@@ -773,6 +783,12 @@ def route(method, path, owner, body=None):
     if method == "GET" and parts == ["trophies"]:
         with db() as con:
             return 200, trophies(con, owner)
+    if method == "POST" and parts == ["trophies-reset"]:  # Definições: os troféus recomeçam (os torneios ficam no registo)
+        if (body or {}).get("confirm") != "REPOR":
+            return 400, {"erro": "Falta a confirmação."}
+        with db() as con:
+            con.execute("INSERT OR REPLACE INTO ratings_kv (k, v) VALUES (?, ?)", (f"trophies_reset:{owner}", json.dumps(time.time())))
+        return 200, {"ok": True}
     if parts and not tid:
         return 404, {"erro": "não existe"}
     if method == "POST" and not parts:
@@ -785,7 +801,9 @@ def route(method, path, owner, body=None):
             rows = con.execute("SELECT id, ts, name, type, format, status, champion, n, json_extract(state, '$.casual'),"
                                " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions'), json_extract(state, '$.ranked') FROM tournaments WHERE owner=? ORDER BY ts DESC",
                                (owner,)).fetchall()
-            out = [dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked"), r)) for r in rows]
+            cut = trophy_cut(con, owner)
+            out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked"), r)),
+                    **({"old": True} if r[1] < cut else {})} for r in rows]  # old: de antes de repor os troféus
             for x in out:  # os acabados antes de haver pódio calculam-no agora
                 x["podium"] = json.loads(x["podium"]) if x["podium"] else podium(json.loads(con.execute(
                     "SELECT state FROM tournaments WHERE id=?", (x["id"],)).fetchone()[0])) if x["champion"] is not None else None
@@ -1365,6 +1383,11 @@ def selfcheck():
     assert me_state(st)["place"] == [1, 1] and podium(st)[0].get("me")
     assert counts_yellow(st) and not counts_yellow({**st, "casual": True})
     assert not counts_yellow({"players": [{"src": "meus"}, {"src": "meus"}]})
+    c0 = sqlite3.connect(":memory:")
+    assert trophy_cut(c0, "x") == 0  # sem a tabela: desde sempre
+    c0.execute("CREATE TABLE ratings_kv (k TEXT PRIMARY KEY, v TEXT)")
+    c0.execute("INSERT INTO ratings_kv VALUES ('trophies_reset:x', '123.5')")
+    assert trophy_cut(c0, "x") == 123.5 and trophy_cut(c0, "y") == 0
     P = lambda nm, nt: [{"src": "meta"}] * nm + [{"src": "meus"}] * nt  # noqa: E731
     assert meta_needed(4) == 1 and meta_needed(10) == 2 and meta_needed(16) == 4
     assert ranked({"players": P(2, 8)}) and not ranked({"players": P(1, 9)}) and not ranked({"players": P(5, 5), "casual": True})

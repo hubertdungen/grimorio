@@ -1690,3 +1690,5 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .rk-ok { background: #f2b84b22; color: var(--gold2); box-shadow: inset 0 0 0 1px #f2b84b66; }
 .rk-warn { background: #4ea8ff1c; color: #9fd0ff; box-shadow: inset 0 0 0 1px #4ea8ff55; font-weight: 500; }
 .rk-cas { background: #4ea8ff1c; color: #9fd0ff; }
+.ask-typed { display: grid; gap: 4px; font-size: 13px; } .ask-typed input { font: 600 15px/1.2 ui-monospace, monospace; letter-spacing: .1em; text-transform: uppercase; }
+.danger-zone { box-shadow: inset 0 0 0 1px #b3261e55; } .reset-set { display: grid; gap: 8px; }

@@ -28,18 +28,19 @@ export function setConfirm(k, v) {
 export const useConfirmCfg = () => useSyncExternalStore(f => { subs.add(f); return () => subs.delete(f) }, () => cfg)
 
 let show = null
-export function ask(key, { title, body = '', ok = tx('Sim'), danger = true } = {}) {
-  if (!confirmOn(key)) return Promise.resolve(true)
-  return new Promise(res => (show ? show({ key, title, body, ok, danger, res }) : res(window.confirm(title))))
+// force: pergunta sempre (sem «não voltar a perguntar»); typed: só confirma depois de escrever essa palavra
+export function ask(key, { title, body = '', ok = tx('Sim'), danger = true, force = false, typed = '' } = {}) {
+  if (!force && !confirmOn(key)) return Promise.resolve(true)
+  return new Promise(res => (show ? show({ key, title, body, ok, danger, force, typed, res }) : res(window.confirm(title))))
 }
 
 export function ConfirmHost() {
-  const [q, setQ] = useState(null), [never, setNever] = useState(false), okRef = useRef(null)
-  useEffect(() => { show = x => { setNever(false); setQ(x) }; return () => { show = null } }, [])
+  const [q, setQ] = useState(null), [never, setNever] = useState(false), [word, setWord] = useState(''), okRef = useRef(null)
+  useEffect(() => { show = x => { setNever(false); setWord(''); setQ(x) }; return () => { show = null } }, [])
   const done = v => { if (v && never) setConfirm(q.key, false); q.res(v); setQ(null) }
   useEffect(() => {
     if (!q) return
-    okRef.current?.focus()
+    if (!q.typed) okRef.current?.focus()
     const k = e => { if (e.key === 'Escape') { e.preventDefault(); done(false) } }
     addEventListener('keydown', k)
     return () => removeEventListener('keydown', k)
@@ -50,9 +51,10 @@ export function ConfirmHost() {
       <div className="modal ask" role="alertdialog" aria-modal="true" aria-label={q.title}>
         <h3>{q.title}</h3>
         {q.body && <p className="muted">{q.body}</p>}
-        <label className="chk small"><input type="checkbox" checked={never} onChange={e => setNever(e.target.checked)} /> {tx('Não voltar a perguntar (muda-se nas Definições)')}</label>
+        {q.typed && <label className="ask-typed"><span>{tx('Para confirmar, escreve {w}:', { w: q.typed })}</span><input autoFocus value={word} onChange={e => setWord(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && word.trim().toUpperCase() === q.typed) done(true) }} /></label>}
+        {!q.force && <label className="chk small"><input type="checkbox" checked={never} onChange={e => setNever(e.target.checked)} /> {tx('Não voltar a perguntar (muda-se nas Definições)')}</label>}
         <div className="row-btns">
-          <button ref={okRef} className={q.danger ? 'danger' : 'primary'} onClick={() => done(true)}>{q.ok}</button>
+          <button ref={okRef} className={q.danger ? 'danger' : 'primary'} disabled={!!q.typed && word.trim().toUpperCase() !== q.typed} onClick={() => done(true)}>{q.ok}</button>
           <button onClick={() => done(false)}>{tx('Cancelar')}</button>
         </div>
       </div>

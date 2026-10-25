@@ -150,6 +150,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Terrenos básicos')}</h3><BasicSettings getDefaults={getBasicDefaults} setDefaults={setBasicDefaults} ask={ask} /></section>
       <section className="card"><h3>{tx('Confirmações')}</h3><p className="muted small">{tx('Perguntar antes de:')}</p><ConfirmSettings /></section>
       <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
+      <section className="card danger-zone"><h3>{tx('Recomeçar')}</h3><ResetStats /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
     </div>
   )
@@ -169,6 +170,35 @@ function GameColors() {
           <option value="simples">{tx('sem cor')}</option>
         </select></label>
       <p className="muted small">{tx('A tua cor marca também o teu deck nos torneios (árvore, classificação, pódio).')} <button className="link small" onClick={() => setColors(COLORS0)}>{tx('repor as cores')}</button></p>
+    </div>
+  )
+}
+
+// Recomeçar os ratings dos meus decks ou os troféus — duas confirmações (a 2.ª obriga a escrever REPOR)
+function ResetStats() {
+  const [msg, setMsg] = useState(''), [busy, setBusy] = useState('')
+  const go = async (what, url, title, body, done) => {
+    if (!(await ask('recomecar', { title, body, ok: tx('Continuar'), force: true }))) return
+    if (!(await ask('recomecar', { title: tx('Tens a certeza? Isto não se desfaz.'), body, ok: tx('Repor'), force: true, typed: 'REPOR' }))) return
+    setBusy(what); setMsg('')
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: 'REPOR' }) })
+      const j = await r.json(); if (!r.ok) throw new Error(j.erro)
+      setMsg(done(j))
+    } catch (e) { setMsg(e.message) } finally { setBusy('') }
+  }
+  return (
+    <div className="reset-set">
+      <p className="muted small">{tx('Para começar do zero. Os jogos e os torneios ficam no registo.')}</p>
+      <div className="row-btns">
+        <button className="danger" disabled={!!busy} onClick={() => go('r', '/api/ratings/reset-all', tx('Repor os ratings de todos os teus decks?'),
+          tx('As estrelas (amarelas, azuis, vermelhas e casuais) dos teus decks voltam ao início. Os jogos antigos ficam no histórico e continuam a contar para os adversários.'),
+          j => tx('Ratings repostos em {n} decks.', { n: j.decks }))}>↺ {busy === 'r' ? tx('A repor…') : tx('Repor os ratings')}</button>
+        <button className="danger" disabled={!!busy} onClick={() => go('t', '/api/tournaments/trophies-reset', tx('Repor os troféus de todos os decks?'),
+          tx('Os troféus de agora deixam de contar (Biblioteca, hall da fama e galeria). Os torneios ficam no registo e os próximos voltam a dar troféus.'),
+          () => tx('Troféus repostos.'))}>↺ {busy === 't' ? tx('A repor…') : tx('Repor os troféus')}</button>
+      </div>
+      {msg && <p className="small">{msg}</p>}
     </div>
   )
 }

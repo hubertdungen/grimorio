@@ -415,7 +415,7 @@ class H(BaseHTTPRequestHandler):
             except ValueError as e:
                 return self.json({"erro": str(e)}, 400)
             return self.json(*reversed(tournament.route("POST", self.path, self.owner(), d)))
-        if self.path == "/api/arena":
+        if self.path in ("/api/arena", "/api/ratings/reset-all"):
             try:
                 d = self.body()
             except ValueError as e:

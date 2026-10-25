@@ -853,9 +853,9 @@ function Registry({ data, list, open, reload }) {
 function Fame({ data, list }) {
   const [f, setF] = useState('')
   const [who, setWho] = useState('todos')
-  const fmts = [...new Set(list.filter(x => x.podium && !x.casual).map(x => x.format))]
+  const fmts = [...new Set(list.filter(x => x.podium && !x.old && !x.casual).map(x => x.format))]  // old: de antes de repor os troféus
   const rows = {}
-  for (const x of list) if (x.podium && (!f || (f === 'casual' ? x.casual : !x.casual && x.format === f))) for (const p of x.podium) {
+  for (const x of list) if (x.podium && !x.old && (!f || (f === 'casual' ? x.casual : !x.casual && x.format === f))) for (const p of x.podium) {
     const r = (rows[`${p.src}:${p.ref}`] ||= { ...p, m: [0, 0, 0], med: [] })
     r.m[p.place - 1]++
     r.med.push({ tier: tierOf(p.place, x.champions), casual: !!x.casual || x.ranked === false, tid: x.id, place: p.place, kind: x.type })

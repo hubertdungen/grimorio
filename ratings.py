@@ -762,6 +762,13 @@ def route(method, path, owner, body=None):
                 return 200, {"rows": deck_info(con, table(con, fmt, owner), owner), "formats": fmts, "prov": PROV}
             if p == "/api/ratings/stars":
                 return 200, all_stars(con, owner)
+            if p == "/api/ratings/reset-all" and method == "POST":  # Definições: recomeçar os ratings de todos os meus decks
+                if (body or {}).get("confirm") != "REPOR":
+                    return 400, {"erro": "Falta a confirmação."}
+                ids = [r[0] for r in con.execute("SELECT id FROM decks WHERE owner=?", (owner,))]
+                for i in ids:
+                    reset(con, f"deck:{i}")
+                return 200, {"decks": len(ids)}
             if p == "/api/ratings/pick":
                 src = [s for s in q.get("sources", "meu,meta").split(",") if s in ("meu", "com", "meta")]
                 return 200, pick(con, fmt, owner, int(q.get("n") or 8), float(q.get("min") or 0), float(q.get("max") or TOP), src)
