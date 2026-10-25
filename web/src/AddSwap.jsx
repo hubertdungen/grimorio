@@ -7,6 +7,7 @@ import { Mana } from './ui.jsx'
 import { KIND_LABEL } from './swap.js'
 import { tx } from './i18n.js'
 import './AddSwap.css'
+import { hlProps } from './hl.js'
 
 const coarse = () => matchMedia('(pointer: coarse)').matches
 // motivos com símbolos de mana («Pede {U}{U}{U} com só 2 fontes de U») → os símbolos do Scryfall
@@ -37,7 +38,7 @@ function Menu({ anchor, c, opts, act, close }) {
     <div ref={ref} className="aos-menu" role="menu" aria-label={c.n} style={pos || { visibility: 'hidden', left: 0, top: 0 }}>
       <button role="menuitem" onClick={go(() => act.add(c))}><b>＋ {tx('Adicionar')}</b></button>
       {opts.map(o => (
-        <button key={o.out} role="menuitem" onClick={go(() => act.swap(c, o))} title={o.why.join(' · ')}>
+        <button key={o.out} role="menuitem" onClick={go(() => act.swap(c, o))} title={o.why.join(' · ')} {...hlProps([{ n: o.out, tone: 'out' }])}>
           <b>⇄ {tx('Trocar por {q}× {out}', { q: o.q, out: o.out })}</b>
           <small><i className="aos-kind">{KIND_LABEL[o.kind] || o.kind}</i> <Reason t={o.why[0] || ''} /></small>
         </button>
@@ -69,7 +70,7 @@ export default function AddOrSwap({ c, act, swaps, up = false, children }) {
       onFocus={() => !coarse() && setHot(true)} onBlur={e => { if (!box.current.contains(e.relatedTarget)) setHot(false) }}>
       {children}
       {(hot || open) && first && (
-        <button className="act aos-x" title={first.why.join(' · ')} aria-haspopup={opts.length > 1 ? 'menu' : undefined}
+        <button className="act aos-x" title={first.why.join(' · ')} aria-haspopup={opts.length > 1 ? 'menu' : undefined} {...hlProps(opts.map(o => ({ n: o.out, tone: 'out' })))}
           onClick={e => (opts.length > 1 ? setOpen(open ? null : e.currentTarget) : act.swap(c, first))}>
           ⇄ <span>{first.q > 1 ? `${first.q}× ` : ''}{first.out}</span>{opts.length > 1 ? ' ▾' : ''}
         </button>

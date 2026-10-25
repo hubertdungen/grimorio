@@ -13,6 +13,7 @@ import { tx, num, LOCALE } from './i18n.js'
 import { prepareSwaps, cutPlan, landPlan } from './swap.js'
 import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan } from './universe.js'
+import { hlProps, pin } from './hl.js'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -221,20 +222,20 @@ function CutPanel({ data, deck, fmt, ctx, act, swaps, recs, co, cmdIdx, needs, m
           {!enough ? <p className="muted small">{tx('Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).', { n: plan.games })}</p>
             : !plan.cuts.length ? <p className="muted small">{tx('Nenhuma carta merece claramente sair: as que apareceram nos jogos estão a cumprir o seu papel.')}</p>
               : <ul className="cutp-list">{plan.cuts.map(x => { const o = data.byName.get(x.out); return (
-                <li key={x.out}>
+                <li key={x.out} {...hlProps([{ n: x.out, tone: 'out' }])} onClick={e => { if (!e.target.closest('button')) pin([{ n: x.out, tone: 'out' }]) }}>
                   <div className="cutp-pair">
                     <button className="cutp-card" onClick={() => o && act.open(o)}>{o && <img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" />}<span><b>{x.q > 1 ? `${x.q}× ` : ''}{x.out}</b><small className="muted">{x.zone === 'side' ? `${tx('sideboard')} · ` : ''}{tx('vista em {n} jogos', { n: x.seen })}</small></span></button>
                     <span className="cutp-arrow">→</span>
                     <button className="cutp-card in" onClick={() => act.open(x.inc)}><img src={img(x.inc, 'art_crop')} alt="" loading="lazy" /><span><b>{x.q > 1 ? `${x.q}× ` : ''}{x.inc.n}</b><Mana cost={x.inc.mc} /></span></button>
                   </div>
                   <ul className="why">{x.why.map((w, k) => <li key={k} className="falta">{w}</li>)}</ul>
-                  <div className="row-btns"><button className="primary small" onClick={() => act.swap(x.inc, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button>{x.alts.length > 0 && <span className="muted small">{tx('ou:')} {x.alts.map((c, k) => <span key={c.n}>{k ? ', ' : ''}<button className="link plain" onClick={() => act.swap(c, x)} title={tx('Trocar por esta')}>{c.n}</button></span>)}</span>}</div>
+                  <div className="row-btns"><button className="primary small" onClick={() => act.swap(x.inc, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button>{fmt.side > 0 && x.zone !== 'side' && o && <button className="small" onClick={() => act.move(o, 'main', 'side')} title={tx('Não corta: passa para o sideboard (fica para jogos 2 e 3)')}>→ SB</button>}{x.alts.length > 0 && <span className="muted small">{tx('ou:')} {x.alts.map((c, k) => <span key={c.n}>{k ? ', ' : ''}<button className="link plain" onClick={() => act.swap(c, x)} title={tx('Trocar por esta')}>{c.n}</button></span>)}</span>}</div>
                 </li>
               ) })}</ul>}
           {byText.length > 0 && <>
             <h4>{tx('Pelo texto e pelas funções (não precisa de jogos)')}</h4>
             <ul className="cuts">{byText.map(x => (
-              <li key={x.c.i}>
+              <li key={x.c.i} {...hlProps([{ n: x.c.n, tone: 'out' }])} onClick={e => { if (!e.target.closest('button')) pin([{ n: x.c.n, tone: 'out' }]) }}>
                 <div {...hoverPeek(x.c, pidOf(deck, x.c.n))}><button className="link plain" onClick={() => act.open(x.c)}><b>{x.c.n}</b></button> <Mana cost={x.c.mc} /></div>
                 <ul className="why">{x.why.map((w, k) => <li key={k} className={w.startsWith(tx('Mas')) ? 'tema' : 'falta'}>{w}</li>)}</ul>
                 {x.swap && (
@@ -242,6 +243,7 @@ function CutPanel({ data, deck, fmt, ctx, act, swaps, recs, co, cmdIdx, needs, m
                     <span>→ <button className="link plain" onClick={() => act.open(x.swap.c)}><b>{x.swap.c.n}</b></button>{x.swap.fn.length ? <span className="muted small"> ({tx('mesma função:')} {x.swap.fn.join(', ')})</span> : null}</span>
                     {x.swap.why && <span className="muted small">{x.swap.why}</span>}
                     <button onClick={() => swapText(x.c, x.swap.c)}>{tx('Trocar')}</button>
+                    {fmt.side > 0 && <button onClick={() => act.move(x.c, 'main', 'side')} title={tx('Não corta: passa para o sideboard (fica para jogos 2 e 3)')}>→ SB</button>}
                   </div>
                 )}
               </li>
@@ -1564,7 +1566,7 @@ export function DeckGrid({ data, deck, fmt, act }) {
     return parts.map((x, k) => tile1({ c, q, zone, pid: x.pid, part: x.n, k }))
   }
   const tile1 = ({ c, q, zone, pid, part, k = 0 }) => (  // função e não componente (ver o row do DeckPanel em App.jsx)
-    <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}`}>
+    <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}`} data-card={c.n}>
       <button className="dg-img" onClick={() => act.open(c)} title={c.n}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
       {(part ?? q) > 1 && <span className="dg-q">×{part ?? q}</span>}
       <div className="dg-bar">

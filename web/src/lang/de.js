@@ -2411,4 +2411,5 @@ export default {
   "🤝 Dos amigos": "🤝 Von Freunden",
   "Não há decks de amigos neste formato.": "Keine Decks von Freunden in diesem Format.",
   "🤝 só eu e amigos": "🤝 nur ich und Freunde",
+  "Não corta: passa para o sideboard (fica para jogos 2 e 3)": "Nicht streichen: ins Sideboard verschieben (bleibt für Spiel 2 und 3)",
 }

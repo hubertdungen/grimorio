@@ -2411,4 +2411,5 @@ export default {
   "🤝 Dos amigos": "🤝 好友的",
   "Não há decks de amigos neste formato.": "此赛制中没有好友的套牌。",
   "🤝 só eu e amigos": "🤝 仅我和好友",
+  "Não corta: passa para o sideboard (fica para jogos 2 e 3)": "不剔除：移到备牌（留给第 2、3 局）",
 }

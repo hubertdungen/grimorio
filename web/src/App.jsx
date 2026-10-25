@@ -451,7 +451,7 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
   // chamada como função e não como componente: um componente definido aqui dentro seria outro a cada render e o
   // React remontava todas as linhas (perdia-se o scroll da lista ao abrir uma carta)
   const row = ({ n, q, c, zone }) => (
-    <li key={`${zone}:${n}`} className="row">
+    <li key={`${zone}:${n}`} className="row" data-card={n}>
       <span className="qty">
         <button onClick={() => c && act.remove(c, zone, 1)} aria-label={tx('Menos')}>−</button>
         <b>{q}</b>
