@@ -50,14 +50,14 @@ export function Cup({ place, casual, off, kind = 'elim' }) {
     </svg>
   )
 }
-export const PLACE = { plat: tx('Platina: campeão dos campeões'), safira: tx('Safira: 2.º no torneio dos campeões'), rubi: tx('Rubi: 3.º no torneio dos campeões'), 1: tx('1.º lugar'), 2: tx('2.º lugar'), 3: tx('3.º lugar') }
+export const PLACE = { plat: tx('Platina: campeão dos campeões'), safira: tx('Safira: 2.º no torneio dos campeões'), rubi: tx('Rubi: 3.º no torneio dos campeões'), 1: tx('Ouro: 1.º lugar'), 2: tx('Prata: 2.º lugar'), 3: tx('Bronze: 3.º lugar') }
 export const TIERS = ['plat', 'safira', 'rubi', 1, 2, 3]
 // tipo de torneio de cada troféu (para o texto ao passar por cima)
 export const KIND = { elim: tx('Eliminação simples'), dupla: tx('Dupla eliminação'), suico: tx('Suíço'), liga: tx('Liga'), mesas: tx('Mesas'), gauntlet: tx('Gauntlet'), rei: tx('Rei da colina'), grupos: tx('Grupos + eliminação'), equipas: tx('Equipas') }
 const BLUE = tx('troféu azul: casual ou não ranked')
 export const tierOf = (place, champions) => (champions ? { 1: 'plat', 2: 'safira', 3: 'rubi' }[place] : place)
 const tier = x => (x.platinum ? 'plat' : tierOf(x.place, x.champions))
-const ptsOf = x => trophyValue({ tier: tier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m })  // pontos que este troféu dá ao deck
+const ptsOf = x => trophyValue({ tier: tier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m, podiums: x.podiums })  // pontos que este troféu dá ao deck
 const ptsTxt = x => (x.valid === false ? tx('não conta (0 pontos)') : tx('+{p} pontos', { p: ptsOf(x) }))
 const label = x => [PLACE[tier(x)], KIND[x.type], `«${x.name}»`, x.casual && BLUE, ptsTxt(x)].filter(Boolean).join(' · ')
 function Trophies({ list }) {
@@ -268,7 +268,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   const setSort = v => { setSortS(v); ls('grimorio.lib.sort', v) }
   // pontos de troféus de cada deck (soma do valor dos troféus que ainda contam) e o lugar no ranking dos meus decks
   const tpts = useMemo(() => {
-    const v = mine.map(d => [d.id, (tro[d.id] || []).filter(x => x.valid).reduce((t, x) => t + trophyValue({ tier: tier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m }), 0)])
+    const v = mine.map(d => [d.id, (tro[d.id] || []).filter(x => x.valid).reduce((t, x) => t + trophyValue({ tier: tier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m, podiums: x.podiums }), 0)])
     const r = v.filter(([, p]) => p > 0).sort((a, b) => b[1] - a[1])
     return Object.fromEntries(r.map(([id, p], k) => [id, { p, rank: k + 1, of: r.length, blue: deckSplit(tro[id]).blue }]))
   }, [mine, tro])

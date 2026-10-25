@@ -630,6 +630,34 @@ def save(con, tid, st, status=None):
     settle(con, tid, st)
 
 
+# formatos que englobam outros: com «cross», decks destes formatos (legais carta a carta) entram no torneio
+CROSS = {"legacy": ("modern", "pioneer", "standard", "premodern", "pauper"), "vintage": ("legacy", "modern", "pioneer", "standard", "premodern", "pauper"),
+         "modern": ("pioneer", "standard"), "pioneer": ("standard",)}
+_LEGAL = {}
+
+
+def legal_in(deck, fmt):
+    """Todas as cartas do deck (main + side) são legais em `fmt`? Pelos bits de legalidade do cards.json."""
+    if "bits" not in _LEGAL:
+        try:
+            with open(os.path.join(DATA, "data", "meta.json")) as f:
+                _LEGAL["fmts"] = json.load(f)["formats"]
+            with open(os.path.join(DATA, "data", "cards.json")) as f:
+                cards = json.load(f)
+            bits = {}
+            for c in cards:
+                bits[c["n"]] = c["lg"]
+                for part in c["n"].split(" // "):
+                    bits.setdefault(part, c["lg"])
+            _LEGAL["bits"] = bits
+        except (OSError, ValueError, KeyError):
+            return False
+    if fmt not in _LEGAL["fmts"]:
+        return False
+    b = 1 << _LEGAL["fmts"].index(fmt)
+    return all(_LEGAL["bits"].get(n, 0) & b for sec in ("main", "side") for n in (deck.get(sec) or {}))
+
+
 def create(owner, d):
     t, fmt = d.get("type"), str(d.get("format") or "").lower()[:40]
     if t not in TYPES:
@@ -640,8 +668,10 @@ def create(owner, d):
         raise ValueError(f"Este tipo de torneio leva entre {lo} e {hi} participantes.")
     casual = bool(d.get("casual"))
     cmd = sim.GAME_TYPE.get(fmt, "Constructed") != "Constructed" and not casual
+    cross = bool(d.get("cross")) and not casual and fmt in CROSS  # decks legais de formatos «menores» (ex.: Modern num Legacy)
     meta_ok = lambda ref: re.fullmatch(r"(%s)-\d{1,10}|edhrec-[a-z0-9-]{1,120}" % "|".join(sim.META_FORMATS), ref) if casual else \
-        ref.startswith(fmt + "-") or fmt in sim.EDH_FORMATS and ref.startswith("edhrec-")  # noqa: E731
+        ref.startswith(fmt + "-") or fmt in sim.EDH_FORMATS and ref.startswith("edhrec-") or \
+        cross and any(ref.startswith(f + "-") for f in CROSS[fmt])  # noqa: E731
     diffs = {x[0] for x in sim.DIFFICULTIES}
     players, decks = [], []
     with db() as con:
@@ -653,12 +683,14 @@ def create(owner, d):
                 deck = json.loads(r[0]) if r else None
                 if deck and not casual and deck.get("casual"):
                     raise ValueError(f"«{deck.get('name')}» é um deck casual: só entra em torneios casuais.")
-                if deck and not casual and str(deck.get("format") or "").lower() != fmt:
-                    raise ValueError(f"«{deck.get('name')}» não é um deck de {fmt}: num torneio todos jogam o mesmo formato.")
+                if deck and not casual and str(deck.get("format") or "").lower() != fmt and not (cross and legal_in(deck, fmt)):
+                    raise ValueError(f"«{deck.get('name')}» não é um deck de {fmt}" + (" nem é legal nele." if cross else ": num torneio todos jogam o mesmo formato."))
                 if deck and not casual and deck.get("casual"):
                     raise ValueError(f"«{deck.get('name')}» é um deck casual: só entra em torneios casuais.")
             elif src == "meta" and meta_ok(ref):
                 deck = sim.opponent(DATA, ref)
+                if deck and not casual and not ref.startswith(fmt + "-") and not ref.startswith("edhrec-") and not legal_in(deck, fmt):
+                    raise ValueError(f"«{deck.get('name')}» não é legal em {fmt}.")
             if not deck or not isinstance(deck.get("main"), dict) or not deck["main"]:
                 raise ValueError("Um dos decks não existe ou está vazio.")
             if cmd and not deck.get("commanders"):
@@ -671,6 +703,7 @@ def create(owner, d):
                             .replace("edhrec", "commander"),
                             "cover": str(x.get("cover") or "")[:200],
                             "colors": "".join(c for c in str(x.get("colors") or "") if c in "WUBRG")[:5],
+                            **({"com": True} if src == "meus" and deck.get("community") else {}),  # da comunidade (não é meu)
                             **({"me": True} if x.get("me") and src == "meus" and not any(p.get("me") for p in players) else {})})
             decks.append({k: deck.get(k) or ({} if k in ("main", "side") else []) for k in ("commanders", "main", "side")} |
                          ({"signature": deck["signature"]} if deck.get("signature") else {}) |
@@ -694,9 +727,13 @@ def create(owner, d):
         me = next((i for i, p in enumerate(players) if p.pop("me", None)), None)
         st = build(t, n, bo, bool(d.get("third")), rounds, me if me is not None else players.index(first), team)
         st.update(format=fmt, players=players, decks=decks, **({"casual": True} if casual else {}), **({"me": me} if me is not None else {}))
-        st["ranked"] = ranked(st)
+        st["ranked"] = ranked_rule(st)
         # começo: START_WAIT s para apostar (ou, com hold, só quando o dono carregar em «Começar»)
         st.update(start_at=time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
+        if cross:
+            st["cross"] = True
+        if d.get("podiums") and not d.get("champions"):  # liga dos pódios: troféus normais que valem menos
+            st["podiums"] = True
         if d.get("champions"):  # torneio dos campeões (vencedores de torneios anteriores): o 1.º leva o troféu de platina
             st["champions"] = True
         tid = uuid.uuid4().hex[:12]
@@ -768,7 +805,7 @@ def trophies(con, owner):
             row, same = rows.get(x["i"], {}), round(similarity(st["decks"][x["i"]], cur[x["ref"]]), 3)
             out.setdefault(x["ref"], []).append({
                 "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "m": len(st["matches"]), "casual": not ranked(st),
-                "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")),
+                "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")), "podiums": bool(st.get("podiums")),
                 "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
                 "first": [y["name"] for y in pod if y["place"] == 1 and y["i"] != x["i"]],
                 "second": [y["name"] for y in pod if y["place"] == 2 and y["i"] != x["i"]], "same": same, "valid": same >= SAME})
@@ -813,10 +850,12 @@ def route(method, path, owner, body=None):
     with db() as con:
         if method == "GET" and not parts:
             rows = con.execute("SELECT id, ts, name, type, format, status, champion, n, json_extract(state, '$.casual'),"
-                               " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions'), json_extract(state, '$.ranked'), json_array_length(state, '$.matches') FROM tournaments WHERE owner=? ORDER BY ts DESC",
+                               " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions'),"
+                               " COALESCE(json_extract(state, '$.ranked'), json_extract(state, '$.casual') IS NULL AND EXISTS (SELECT 1 FROM json_each(state, '$.players') WHERE json_extract(value, '$.src') = 'meta')),"
+                               " json_array_length(state, '$.matches'), json_extract(state, '$.podiums') FROM tournaments WHERE owner=? ORDER BY ts DESC",
                                (owner,)).fetchall()
             cut = trophy_cut(con, owner)
-            out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked", "m"), r)),
+            out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked", "m", "podiums"), r)),
                     **({"old": True} if r[1] < cut else {})} for r in rows]  # old: de antes de repor os troféus
             for x in out:  # os acabados antes de haver pódio calculam-no agora
                 x["podium"] = json.loads(x["podium"]) if x["podium"] else podium(json.loads(con.execute(
@@ -1059,13 +1098,18 @@ def meta_needed(n):
     return max(1, math.ceil(RANKED_META * n - 1e-9))
 
 
+def ranked_rule(st):
+    """A regra atual (ao criar): não casual e pelo menos 20% de decks do meta."""
+    return not st.get("casual") and sum(1 for p in st["players"] if p.get("src") == "meta") >= meta_needed(len(st["players"]))
+
+
 def ranked(st):
     """Ranked = não casual e com pelo menos 20% de decks do meta (o meta é a referência das estrelas). Só estes contam para
     o rating normal (amarelo) e dão troféus normais; os outros contam no azul e no vermelho e os troféus saem casuais
-    (azuis). Fica guardado ao criar; os torneios antigos calculam-no pelos jogadores."""
+    (azuis). Fica guardado ao criar; os torneios de antes desta regra mantêm a antiga (bastava um deck do meta)."""
     if "ranked" in st:
         return bool(st["ranked"])
-    return not st.get("casual") and sum(1 for p in st["players"] if p.get("src") == "meta") >= meta_needed(len(st["players"]))
+    return not st.get("casual") and any(p.get("src") == "meta" for p in st["players"])
 
 
 def counts_yellow(st):
@@ -1423,7 +1467,11 @@ def selfcheck():
     assert trophy_cut(c0, "x") == 123.5 and trophy_cut(c0, "y") == 0
     P = lambda nm, nt: [{"src": "meta"}] * nm + [{"src": "meus"}] * nt  # noqa: E731
     assert meta_needed(4) == 1 and meta_needed(10) == 2 and meta_needed(16) == 4
-    assert ranked({"players": P(2, 8)}) and not ranked({"players": P(1, 9)}) and not ranked({"players": P(5, 5), "casual": True})
+    assert ranked_rule({"players": P(2, 8)}) and not ranked_rule({"players": P(1, 9)}) and not ranked_rule({"players": P(5, 5), "casual": True})
+    _LEGAL.update(fmts=["modern", "legacy"], bits={"Bolt": 3, "Lotus": 0, "Ragavan": 1})  # legal_in: bit 0 modern, bit 1 legacy
+    assert legal_in({"main": {"Bolt": 4}}, "legacy") and not legal_in({"main": {"Ragavan": 4}}, "legacy") and not legal_in({"main": {"Bolt": 1}, "side": {"Lotus": 1}}, "legacy")
+    _LEGAL.clear()
+    assert ranked({"players": P(1, 9)}) and not ranked({"players": P(0, 9)}) and not ranked({"players": P(1, 9), "ranked": False})  # antigos: regra antiga
     assert not ranked({"players": P(4, 0), "ranked": False}) and ranked({"players": P(0, 4), "ranked": True})  # o guardado ganha
     for _ in range(20):  # dupla: 1.º, 2.º e 3.º sem empates
         st = build("dupla", 6)

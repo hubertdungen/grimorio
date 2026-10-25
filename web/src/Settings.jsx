@@ -6,7 +6,7 @@ import { tx, num, LOCALE } from './i18n.js'
 import { LangPick, ProfileManage } from './Profiles.jsx'
 import { getStarLayers, setStarLayers, useColors, setColors, COLORS0 } from './ui.jsx'
 import { getSettings, setEnabled, setVolume, play } from './sfx.js'
-import { NextMode } from './Tournament.jsx'
+import { NextMode, HighlightMine } from './Tournament.jsx'
 import { BasicSettings } from './Basics.jsx'
 import { getBasicDefaults, setBasicDefaults } from './data.js'
 
@@ -149,7 +149,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>
       <section className="card"><h3>{tx('Terrenos básicos')}</h3><BasicSettings getDefaults={getBasicDefaults} setDefaults={setBasicDefaults} ask={ask} /></section>
       <section className="card"><h3>{tx('Confirmações')}</h3><p className="muted small">{tx('Perguntar antes de:')}</p><ConfirmSettings /></section>
-      <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
+      <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><HighlightMine /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
       <section className="card danger-zone"><h3>{tx('Recomeçar')}</h3><ResetStats /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
     </div>
