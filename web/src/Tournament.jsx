@@ -23,10 +23,12 @@ const TYPES = {
   gauntlet: [tx('Gauntlet (o meu deck contra todos)'), 3, 32, tx('O desafiante (o deck marcado com ☆ eu ou, sem ele, o 1.º da lista) joga uma partida contra cada um dos outros, pela ordem da lista. Só é campeão se ganhar pelo menos 75% das partidas; sem isso não há pódio.')],
   rei: [tx('Rei da colina'), 4, 32, tx('Dois decks jogam; quem ganha fica na colina e quem perde vai para o fim da fila, e o seguinte da fila desafia o rei. Num empate o rei fica. Ganha a série de vitórias mais longa (desempate: vitórias, depois menos derrotas).')],
   grupos: [tx('Grupos + eliminação'), 6, 16, tx('Grupos de 4 (ou de 3) em que todos jogam contra todos (vitória 3, empate 1). Os 2 primeiros de cada grupo passam a uma eliminação simples com jogo de 3.º lugar, em que os 1.ºs de grupo defrontam os 2.ºs de outros grupos.')],
+  jogo: [tx('Jogo avulso (fora de torneio)'), 2, 4, tx('Um só jogo entre 2 decks (melhor de 1, 3 ou 5) ou uma mesa de 3–4 todos contra todos. Vê-se ao vivo e pode-se apostar, mas não dá troféus nem conta para pódios.')],
   equipas: [tx('Equipas (2 ou 3 por equipa)'), 6, 24, tx('Os decks formam equipas pela ordem da lista (1.º e 2.º = equipa 1…). As equipas jogam todas contra todas: o tabuleiro 1 de uma contra o tabuleiro 1 da outra, e assim por diante; ganha a equipa com mais tabuleiros ganhos (vitória 3, empate 1). Todos os decks da equipa sobem ao pódio.')],
 }
 // ícones dos tipos de torneio (traço na cor do texto)
 const TYPE_ICO = {
+  jogo: <><path d="M4 6l6 6-6 6M20 6l-6 6 6 6" /><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" /></>,
   elim: <path d="M3 4h5v6H3M8 7h5M3 14h5v6H3M8 17h5M13 7v10M13 12h8" />,
   dupla: <><path d="M3 3h5v5H3M8 5.5h4M3 11h5v5H3M8 13.5h4M12 5.5v8M12 9.5h5" /><path d="M17.5 21.2l-3-2.9a1.8 1.8 0 0 1 3-2 1.8 1.8 0 0 1 3 2z" fill="currentColor" stroke="none" /></>,
   suico: <><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M12 7.5v9M7.5 12h9" strokeWidth="3" /></>,
@@ -603,6 +605,9 @@ function GenPeek({ data, p, r, diffs, onClose }) {
 // ---------- salas: torneios com amigos (rooms.py) ----------
 function Rooms({ guest, open }) {
   const [list, setList] = useState(null), [decks, setDecks] = useState([]), [pick, setPick] = useState({}), [err, setErr] = useState('')
+  const [base, setBase] = useState(''), [copied, setCopied] = useState('')  // endereço para o link da sala: público (túnel/domínio) ou da rede de casa
+  useEffect(() => { if (!guest) j('/api/friends').then(d => setBase(d.public || d.lan || location.origin)).catch(() => setBase(location.origin)) }, [guest])
+  const copyLink = async (r) => { const url = `${base}${r.link}`; try { await navigator.clipboard.writeText(url); setCopied(r.id); setTimeout(() => setCopied(''), 1500) } catch { window.prompt(tx('Copia o link:'), url) } }
   const load = () => j('/api/rooms').then(setList).catch(e => setErr(e.message))
   useEffect(() => { load(); j('/api/decks').then(setDecks).catch(() => {}); const t = setInterval(load, 3000); return () => clearInterval(t) }, [])
   const act = async (id, a, body) => { setErr(''); try { const r = await post(`/api/rooms/${id}/${a}`, body); if (a === 'start' && r.tid) open(r.tid); load() } catch (e) { setErr(e.message) } }
@@ -618,9 +623,10 @@ function Rooms({ guest, open }) {
         <div key={r.id} className={`room ${r.status}`}>
           <div className="room-h"><TypeIco k={r.type} /><b>{r.name}</b>
             <span className="small muted">{TYPES[r.type]?.[0]} · {r.casual ? tx('casual') : FORMAT[r.format]?.name || r.format} · {r.players.length}/{r.max} {tx('(mínimo {m})', { m: r.min })}</span>
-            {r.status === 'started' ? <button className="primary small" onClick={() => open(r.tid)}>{tx('🏆 Ver o torneio')}</button>
+            {r.status === 'started' ? <button className="primary small" onClick={() => open(r.tid)}>{r.type === 'jogo' ? tx('🎲 Ver o jogo') : tx('🏆 Ver o torneio')}</button>
               : !guest && <span className="row-btns"><button className="primary small" disabled={r.players.length < r.min} onClick={() => act(r.id, 'start')}>{tx('▶ Começar')}</button><button className="link small" onClick={() => act(r.id, 'cancel')}>{tx('cancelar')}</button></span>}
           </div>
+          {!guest && r.status === 'open' && r.link && <p className="small room-link">🔗 {tx('Link da sala (entra quem o abrir, mesmo sem estar nos amigos):')} <code>{base}{r.link}</code> <button className="small" onClick={() => copyLink(r)}>{copied === r.id ? tx('copiado ✓') : tx('copiar')}</button></p>}
           <ul className="room-pl">{r.players.map((p, k) => (
             <li key={k} className={p.by ? 'fr' : ''}>{p.by ? `🤝 ${p.by}` : '🏠'} · {p.name}{(!guest || p.mine) && r.status === 'open' && <button className="link small" onClick={() => act(r.id, 'leave', { ref: p.ref })}>{tx('tirar')}</button>}</li>))}</ul>
           {r.status === 'open' && (!guest || !mine.length) && (opts.length ? (

@@ -2749,4 +2749,8 @@ export default {
   "Este jogo já não está no servidor (acabou há mais de uma hora ou o servidor reiniciou).": "该牌局已不在服务器上（已结束超过一小时或服务器已重启）。",
   "O Forge está a arrancar o jogo…": "Forge 正在启动牌局…",
   "Ver ao vivo (teste lançado noutro separador ou dispositivo)": "实时观看（在其他标签页或设备上启动的测试）",
+  "Jogo avulso (fora de torneio)": "单场对局（非锦标赛）",
+  "Link da sala (entra quem o abrir, mesmo sem estar nos amigos):": "房间链接（打开的人即可加入，无需是好友）：",
+  "Um só jogo entre 2 decks (melhor de 1, 3 ou 5) ou uma mesa de 3–4 todos contra todos. Vê-se ao vivo e pode-se apostar, mas não dá troféus nem conta para pódios.": "2 副套牌的一场对局（三局两胜等）或 3–4 人混战一桌。可实时观看和下注，但不给奖杯也不计入领奖台。",
+  "🎲 Ver o jogo": "🎲 观看对局",
 }

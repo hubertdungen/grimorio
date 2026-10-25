@@ -38,7 +38,8 @@ except ImportError:
 
 START_WAIT = 10  # segundos entre criar o torneio e o 1.º jogo (tempo para apostar)
 TYPES = {"elim": (4, 16), "dupla": (4, 16), "suico": (4, 32), "liga": (4, 16), "mesas": (4, 16),
-         "gauntlet": (3, 32), "rei": (4, 32), "grupos": (6, 16), "equipas": (6, 24)}
+         "gauntlet": (3, 32), "rei": (4, 32), "grupos": (6, 16), "equipas": (6, 24),
+         "jogo": (2, 4)}  # jogo avulso (fora de torneio): 2 decks = uma partida, 3–4 = uma mesa; sem troféus nem pódio
 GAUNTLET_WIN = 0.75  # no gauntlet o desafiante só é campeão se ganhar pelo menos 75% das partidas
 BO_OK = (1, 2, 3, 5)  # melhor de N; ganha quem passa de metade (Bo2: 2-0 ganha, 1-1 é empate)
 BO2_OK = ("suico", "liga", "grupos", "rei", "equipas", "gauntlet")  # só onde o empate faz parte do formato
@@ -726,7 +727,13 @@ def create(owner, d):
             except (TypeError, ValueError):
                 rounds = base
         me = next((i for i, p in enumerate(players) if p.pop("me", None)), None)
-        st = build(t, n, bo, bool(d.get("third")), rounds, me if me is not None else players.index(first), team)
+        jogo = t == "jogo"
+        if jogo:  # por dentro é uma eliminação de 2 (melhor de N) ou uma ronda de mesas de 3–4
+            t, rounds = ("elim", None) if n == 2 else ("mesas", 1)
+            bo = bo if n == 2 else 1
+        st = build(t, n, bo, False if jogo else bool(d.get("third")), rounds, me if me is not None else players.index(first), team)
+        if jogo:
+            st["jogo"] = True
         st.update(format=fmt, players=players, decks=decks, **({"casual": True} if casual else {}), **({"me": me} if me is not None else {}))
         st["ranked"] = ranked_rule(st)
         # começo: START_WAIT s para apostar (ou, com hold, só quando o dono carregar em «Começar»)
@@ -742,9 +749,9 @@ def create(owner, d):
         if d.get("champions"):  # torneio dos campeões (vencedores de torneios anteriores): o 1.º leva o troféu de platina
             st["champions"] = True
         tid = uuid.uuid4().hex[:12]
-        name = str(d.get("name") or "").strip()[:120] or "Torneio"
-        con.execute("INSERT INTO tournaments VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    (tid, owner, time.time(), name, t, fmt, "running", None, n, json.dumps(st, ensure_ascii=False)))
+        name = str(d.get("name") or "").strip()[:120] or ("Jogo avulso" if st.get("jogo") else "Torneio")
+        con.execute("INSERT INTO tournaments VALUES (?,?,?,?,?,?,?,?,?,?)",  # tipo «jogo» na lista; por dentro elim/mesas
+                    (tid, owner, time.time(), name, "jogo" if st.get("jogo") else t, fmt, "running", None, n, json.dumps(st, ensure_ascii=False)))
     return tid
 
 
@@ -801,7 +808,7 @@ def trophies(con, owner):
     for tid, ts, name, typ, fmt, raw in con.execute("SELECT id, ts, name, type, format, state FROM tournaments"
                                                     " WHERE owner=? AND status='done' ORDER BY ts DESC", (owner,)):
         st = json.loads(raw)
-        if st.get("champion") is None or not st.get("decks") or ts < cut:
+        if st.get("champion") is None or not st.get("decks") or ts < cut or st.get("jogo"):  # jogos avulsos não dão troféus
             continue
         pod, rows = podium(st), {x["i"]: x for x in standings(st)}
         for x in pod:  # ouro, prata e bronze (empates no 3.º: todos bronze)
@@ -1595,6 +1602,25 @@ def selfcheck():
     lg = {"matches": [{"id": "a", "st": "ready", "p": [0, 1], "job": "j1"}, {"id": "b", "st": "ready", "p": [1, 2]}, {"id": "c", "st": "ready", "p": [2, 3]}]}
     assert next_match(lg)["id"] == "c"  # o deck 1 está a jogar: «b» espera, «c» (decks livres) avança
     assert started({"start_at": 0}) and not started({"start_at": time.time() + 9}) and not started({"start_at": 0, "hold": True})
+    # jogo avulso (salas fora de torneio): 2 decks = uma partida Bo-N, 3 = uma mesa; tipo «jogo», sem troféus
+    import tempfile
+    global DB, DATA
+    keep = (DB, DATA)
+    with tempfile.TemporaryDirectory() as tmp:
+        DB, DATA = os.path.join(tmp, "g.db"), tmp
+        with db() as c:
+            c.execute("CREATE TABLE IF NOT EXISTS decks (id TEXT PRIMARY KEY, name TEXT, format TEXT, body TEXT, updated REAL, owner TEXT, deleted REAL)")
+            for k in "abc":
+                c.execute("INSERT INTO decks VALUES (?,?,?,?,?,?,NULL)", (k, k, "modern", json.dumps({"name": f"D{k}", "format": "modern", "main": {"Island": 60}}), 0, "o"))
+        t2 = create("o", {"type": "jogo", "format": "modern", "bo": 3, "players": [{"src": "meus", "ref": "a"}, {"src": "meus", "ref": "b"}]})
+        t3 = create("o", {"type": "jogo", "format": "modern", "players": [{"src": "meus", "ref": k} for k in "abc"]})
+        with db() as c:
+            r2, r3 = (c.execute("SELECT type, name, state FROM tournaments WHERE id=?", (t,)).fetchone() for t in (t2, t3))
+            s2, s3 = json.loads(r2[2]), json.loads(r3[2])
+            assert r2[:2] == ("jogo", "Jogo avulso") and s2["jogo"] and s2["type"] == "elim" and s2["bo"] == 3 and len(s2["matches"]) == 1, r2[:2]
+            assert s3["type"] == "mesas" and s3["rounds"] == 1 and s3["matches"][0]["p"] == [0, 1, 2] or sorted(s3["matches"][0]["p"]) == [0, 1, 2]
+            assert trophies(c, "o") == {}
+    DB, DATA = keep
     print("selfcheck ok")
 
 

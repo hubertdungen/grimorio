@@ -185,6 +185,9 @@ class H(BaseHTTPRequestHandler):
 
     def _route(self, method, inner):
         p = self.path.split("?")[0]
+        if method == "GET" and p.startswith("/sala/"):  # link de uma sala: entra quem não está nos amigos (pede o nome)
+            with db() as con:
+                return guests.room_link(self, con, p[len("/sala/"):], urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("nome", [""])[0])
         if method == "GET" and p.startswith("/convite/"):
             with db() as con:
                 return guests.accept(self, con, p[len("/convite/"):])
@@ -837,6 +840,28 @@ def selfcheck():
         st, sr, _ = call("POST", f"/api/rooms/{room['id']}/start")
         assert st == 200 and sr["tid"], sr
         assert [t["id"] for t in call("GET", "/api/tournaments", cookie=G)[1]] == [sr["tid"]]  # o amigo vê o torneio da sala
+        # sala de jogo avulso com link: quem não está nos amigos pede o nome e entra como convidado
+        st, jr, _ = call("POST", "/api/rooms", {"name": "Jogo QA", "type": "jogo", "format": "modern", "casual": True, "players": [{"src": "meus", "ref": hs[0]}]})
+        assert st == 201, jr
+        rv = next(r for r in call("GET", "/api/rooms")[1] if r["id"] == jr["id"])
+        assert rv["type"] == "jogo" and rv["min"] == 2 and rv["link"].startswith("/sala/"), rv
+
+        class NoRedir(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, *a, **k):
+                return None
+        op = urllib.request.build_opener(NoRedir)
+        with op.open(base + rv["link"]) as r:
+            assert b"name=nome" in r.read()
+        try:
+            op.open(base + rv["link"] + "?nome=Bia")
+            raise AssertionError("o link da sala devia redirecionar")
+        except urllib.error.HTTPError as e:
+            assert e.code == 302 and "grimorio_guest=" in (e.headers.get("Set-Cookie") or ""), e.code
+        assert any(f["name"] == "Bia (sala)" for f in call("GET", "/api/friends")[1]["friends"])
+        try:
+            op.open(base + "/sala/naoexiste")
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
         assert call("POST", f"/api/friends/{fr['id']}/revoke")[0] == 200 and call("GET", "/api/guest/me", cookie=G)[1]["expired"] is True  # revogado
         print("selfcheck convidados ok")
     finally:

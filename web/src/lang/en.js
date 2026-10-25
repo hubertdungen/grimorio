@@ -2757,4 +2757,8 @@ export default {
   "Este jogo já não está no servidor (acabou há mais de uma hora ou o servidor reiniciou).": "This game is no longer on the server (it ended over an hour ago or the server restarted).",
   "O Forge está a arrancar o jogo…": "Forge is starting the game…",
   "Ver ao vivo (teste lançado noutro separador ou dispositivo)": "Watch live (test started in another tab or device)",
+  "Jogo avulso (fora de torneio)": "Single match (not a tournament)",
+  "Link da sala (entra quem o abrir, mesmo sem estar nos amigos):": "Room link (anyone who opens it can join, even if not in your friends):",
+  "Um só jogo entre 2 decks (melhor de 1, 3 ou 5) ou uma mesa de 3–4 todos contra todos. Vê-se ao vivo e pode-se apostar, mas não dá troféus nem conta para pódios.": "A single game between 2 decks (best of 1, 3 or 5) or a 3–4 player free-for-all table. Watch it live and bet, but it gives no trophies and doesn't count for podiums.",
+  "🎲 Ver o jogo": "🎲 Watch the game",
 }

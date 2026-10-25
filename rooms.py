@@ -1,4 +1,4 @@
-"""Salas de torneio com amigos: o anfitrião prepara o torneio (regras + os seus decks) e abre uma sala; os amigos
+"""Salas de torneio e de jogos avulsos (tipo «jogo»: 2–4 decks, uma partida ou uma mesa) com amigos: o anfitrião prepara o torneio (regras + os seus decks) e abre uma sala; os amigos
 convidados (guests.py) entram com um deck seu; o anfitrião começa e nasce um torneio normal (tournament.create),
 visível aos amigos (`friends_open`) para o verem ao vivo e apostarem.
 """
@@ -20,7 +20,8 @@ def view(con, r, who):
     lo, hi = tournament.TYPES.get(spec.get("type"), (2, 32))
     return {"id": rid, "ts": ts, "status": status, "tid": tid, "name": spec.get("name"), "type": spec.get("type"),
             "format": spec.get("format"), "casual": bool(spec.get("casual")), "bo": spec.get("bo"), "min": lo, "max": hi,
-            "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref")} for p in players]}
+            "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref")} for p in players],
+            **({"link": f"/sala/{spec['link']}"} if who == "host" and spec.get("link") else {})}
 
 
 def rows(con, owner, open_only=False):
@@ -59,6 +60,7 @@ def route(con, method, path, owner, body, guest=None):
             return 400, {"erro": "Tipo de torneio desconhecido."}
         players = [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "name")}, "by": "host"} for p in (d.get("players") or []) if isinstance(p, dict)]
         rid = secrets.token_hex(5)
+        spec["link"] = secrets.token_urlsafe(12)  # /sala/<link>: entra quem não está nos amigos (guests.room_link)
         con.execute("INSERT INTO rooms VALUES (?,?,?,?,?, 'open', NULL)", (rid, owner, time.time(), json.dumps(spec), json.dumps(players)))
         return 201, {"id": rid}
     r = con.execute("SELECT id, ts, spec, players, status, tid FROM rooms WHERE id=? AND owner=?", (rid, owner)).fetchone()

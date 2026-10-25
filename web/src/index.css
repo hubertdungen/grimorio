@@ -2224,3 +2224,4 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .dpick { display: inline-flex; align-items: center; gap: 4px; }
 .dpick-x { flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 12px; line-height: 1; }
 .dpick-x:hover { color: var(--text); border-color: var(--gold); }
+.room-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .room-link code { font-size: 11px; overflow-wrap: anywhere; }

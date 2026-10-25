@@ -2749,4 +2749,8 @@ export default {
   "Este jogo já não está no servidor (acabou há mais de uma hora ou o servidor reiniciou).": "Diese Partie ist nicht mehr auf dem Server (vor über einer Stunde beendet oder der Server wurde neu gestartet).",
   "O Forge está a arrancar o jogo…": "Forge startet die Partie…",
   "Ver ao vivo (teste lançado noutro separador ou dispositivo)": "Live ansehen (Test in einem anderen Tab oder Gerät gestartet)",
+  "Jogo avulso (fora de torneio)": "Einzelpartie (kein Turnier)",
+  "Link da sala (entra quem o abrir, mesmo sem estar nos amigos):": "Raum-Link (jeder, der ihn öffnet, kann beitreten, auch ohne Freund zu sein):",
+  "Um só jogo entre 2 decks (melhor de 1, 3 ou 5) ou uma mesa de 3–4 todos contra todos. Vê-se ao vivo e pode-se apostar, mas não dá troféus nem conta para pódios.": "Eine einzelne Partie zwischen 2 Decks (Best of 1, 3 oder 5) oder ein Tisch mit 3–4 jeder gegen jeden. Live ansehen und wetten, aber ohne Trophäen und ohne Podestwertung.",
+  "🎲 Ver o jogo": "🎲 Partie ansehen",
 }

@@ -8,7 +8,7 @@ Tudo o resto responde 403: um convidado nunca chega às rotas do dono.
 Endereços de convidados (GRIMORIO_GUEST_HOSTS, ex. o domínio público sem 2FA): sem convite válido só servem a app e
 as cartas — as APIs pedem convite.
 """
-import json, os, re, secrets, socket, time, uuid
+import html, json, os, re, secrets, socket, sqlite3, time, uuid
 
 COOKIE = "grimorio_guest"
 DECK = re.compile(r"^/api/decks/([a-z0-9-]{8,40})$")
@@ -106,6 +106,33 @@ def accept(h, con, token):
         return h.send(404, "<!doctype html><meta charset=utf-8><title>Grimório</title><p style='font:16px system-ui;padding:2em'>"
                       "Este convite já não é válido. Pede outro a quem te convidou.</p>".encode(), "text/html; charset=utf-8")
     return h.send(302, b"", "text/plain", {"Location": "/", "Set-Cookie": f"{COOKIE}={token}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly"})
+
+
+def room_link(h, con, token, name):
+    """GET /sala/<token>[?nome=…]: o link de uma sala aberta (jogo avulso ou torneio) serve a quem não está nos amigos:
+    pede um nome, fica convidado do anfitrião («Nome (sala)») e entra na app, onde vê as salas abertas e junta um deck."""
+    page = lambda body, code=200: h.send(code, ("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"  # noqa: E731
+                                              "<title>Grimório</title><body style='font:16px system-ui;padding:2em;max-width:30em;margin:auto;background:#0b0a14;color:#eee'>"
+                                              + body).encode(), "text/html; charset=utf-8")
+    try:
+        r = con.execute("SELECT owner, status, json_extract(spec, '$.name') FROM rooms WHERE json_extract(spec, '$.link')=?", (token,)).fetchone()
+    except sqlite3.OperationalError:
+        r = None
+    if not r or r[1] != "open":
+        return page("<p>Esta sala já não está aberta. Pede outro link a quem te convidou.</p>", 404)
+    owner = r[0]
+    g = by_token(con, cookie_token(h.headers))
+    if g and g["owner"] == owner:  # já é convidado deste Grimório
+        return h.send(302, b"", "text/plain", {"Location": "/"})
+    name = re.sub(r"[<>&\"']", "", str(name or "")).strip()[:30]
+    if not name:
+        return page(f"<h2>🎲 {html.escape(r[2] or 'Sala')}</h2><p>Entra com um nome para jogares nesta sala com um deck teu.</p>"
+                    "<form><input name=nome maxlength=30 autofocus required placeholder='O teu nome' style='font:inherit;padding:.5em;width:100%;box-sizing:border-box'>"
+                    "<button style='font:inherit;margin-top:1em;padding:.5em 1.2em'>Entrar</button></form>")
+    init(con)
+    fid, tok = secrets.token_hex(6), secrets.token_urlsafe(18)
+    con.execute("INSERT INTO friends VALUES (?,?,?,?,?,NULL)", (fid, owner, f"{name} (sala)", tok, time.time()))
+    return h.send(302, b"", "text/plain", {"Location": "/", "Set-Cookie": f"{COOKIE}={tok}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly"})
 
 
 def visible(con, g, tid):
