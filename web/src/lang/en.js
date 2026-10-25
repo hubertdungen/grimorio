@@ -2236,4 +2236,11 @@ export default {
   "Valor = pontos do lugar × peso do tipo × jogadores (√(decks ÷ 8), ×0,6 a ×1,6) × duração no rei da colina, suíço e mesas (partidas jogadas ÷ típicas, ×0,5 a ×1,5); os azuis (casual ou não ranked) valem metade ({w}).": "Value = place points × type weight × players (√(decks ÷ 8), ×0.6 to ×1.6) × length in king of the hill, Swiss and tables (matches played ÷ typical, ×0.5 to ×1.5); blue ones (casual or unranked) are worth half ({w}).",
   "+{p} pontos": "+{p} points",
   "não conta (0 pontos)": "doesn't count (0 points)",
+  "Ainda sem troféus que contem. Ganha um pódio num torneio (as estrelas brancas vêm dos pontos dos troféus).": "No trophies that count yet. Reach a tournament podium (white stars come from trophy points).",
+  "Estrelas brancas (dos pontos de cada deck):": "White stars (from each deck's points):",
+  "Estrelas brancas: dos pontos dos troféus (não do jogo)": "White stars: from trophy points (not from play)",
+  "Estrelas brancas: {s} — vêm dos {p} pontos de todos os troféus que contam ({k} pontos = 6★; ⓘ Valor dos troféus)": "White stars: {s} — from the {p} points of all trophies that count ({k} points = 6★; ⓘ Trophy value)",
+  "n.º {r} de {o} entre os teus decks": "#{r} of {o} among your decks",
+  "{p} pontos de troféus · {n} troféu|{p} pontos de troféus · {n} troféus": "{p} trophy points · {n} trophy|{p} trophy points · {n} trophies",
+  "{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)": "{a} normal (ranked) + {b} from blue trophies (casual or unranked, worth half)",
 }

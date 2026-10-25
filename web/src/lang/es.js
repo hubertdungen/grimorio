@@ -2228,4 +2228,11 @@ export default {
   "Valor = pontos do lugar × peso do tipo × jogadores (√(decks ÷ 8), ×0,6 a ×1,6) × duração no rei da colina, suíço e mesas (partidas jogadas ÷ típicas, ×0,5 a ×1,5); os azuis (casual ou não ranked) valem metade ({w}).": "Valor = puntos del puesto × peso del tipo × jugadores (√(mazos ÷ 8), ×0,6 a ×1,6) × duración en rey de la colina, suizo y mesas (partidas jugadas ÷ típicas, ×0,5 a ×1,5); los azules (casual o sin ranking) valen la mitad ({w}).",
   "+{p} pontos": "+{p} puntos",
   "não conta (0 pontos)": "no cuenta (0 puntos)",
+  "Ainda sem troféus que contem. Ganha um pódio num torneio (as estrelas brancas vêm dos pontos dos troféus).": "Aún sin trofeos que cuenten. Sube al podio de un torneo (las estrellas blancas vienen de los puntos de trofeos).",
+  "Estrelas brancas (dos pontos de cada deck):": "Estrellas blancas (de los puntos de cada mazo):",
+  "Estrelas brancas: dos pontos dos troféus (não do jogo)": "Estrellas blancas: de los puntos de trofeos (no del juego)",
+  "Estrelas brancas: {s} — vêm dos {p} pontos de todos os troféus que contam ({k} pontos = 6★; ⓘ Valor dos troféus)": "Estrellas blancas: {s} — vienen de los {p} puntos de todos los trofeos que cuentan ({k} puntos = 6★; ⓘ Valor de los trofeos)",
+  "n.º {r} de {o} entre os teus decks": "n.º {r} de {o} entre tus mazos",
+  "{p} pontos de troféus · {n} troféu|{p} pontos de troféus · {n} troféus": "{p} puntos de trofeos · {n} trofeo|{p} puntos de trofeos · {n} trofeos",
+  "{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)": "{a} normales (ranking) + {b} de trofeos azules (casual o sin ranking, valen la mitad)",
 }

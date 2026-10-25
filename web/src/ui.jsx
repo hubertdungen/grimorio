@@ -186,3 +186,15 @@ export function Stars({ r, v = r?.stars, prov = r?.prov, bare = false, label = '
     </span>
   )
 }
+
+// Estrelas brancas: os pontos de troféus em 0–6 estrelas (trophyvalue.js trophyStars); uma fila cinzenta por baixo e a
+// branca por cima, cortada na parte certa
+export function WhiteStars({ v, title }) {
+  return (
+    <span className="wstars" title={title} aria-label={title}>
+      <span className="ws-row" aria-hidden="true"><span className="ws-bg">★★★★★★</span>
+        <span className="ws-fg" style={{ width: `${(Math.max(0, Math.min(6, v)) / 6) * 100}%` }}>★★★★★★</span></span>
+      <b>{num(v, 1)}</b>
+    </span>
+  )
+}

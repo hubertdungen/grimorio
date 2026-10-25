@@ -2228,4 +2228,11 @@ export default {
   "Valor = pontos do lugar × peso do tipo × jogadores (√(decks ÷ 8), ×0,6 a ×1,6) × duração no rei da colina, suíço e mesas (partidas jogadas ÷ típicas, ×0,5 a ×1,5); os azuis (casual ou não ranked) valem metade ({w}).": "Wert = Platzpunkte × Gewicht der Art × Spieler (√(Decks ÷ 8), ×0,6 bis ×1,6) × Dauer bei König des Hügels, Schweizer System und Tischen (gespielte ÷ übliche Partien, ×0,5 bis ×1,5); blaue (casual oder ungewertet) zählen halb ({w}).",
   "+{p} pontos": "+{p} Punkte",
   "não conta (0 pontos)": "zählt nicht (0 Punkte)",
+  "Ainda sem troféus que contem. Ganha um pódio num torneio (as estrelas brancas vêm dos pontos dos troféus).": "Noch keine zählenden Trophäen. Erreiche ein Turnierpodium (weiße Sterne kommen von Trophäenpunkten).",
+  "Estrelas brancas (dos pontos de cada deck):": "Weiße Sterne (aus den Punkten jedes Decks):",
+  "Estrelas brancas: dos pontos dos troféus (não do jogo)": "Weiße Sterne: aus Trophäenpunkten (nicht aus dem Spiel)",
+  "Estrelas brancas: {s} — vêm dos {p} pontos de todos os troféus que contam ({k} pontos = 6★; ⓘ Valor dos troféus)": "Weiße Sterne: {s} — aus den {p} Punkten aller zählenden Trophäen ({k} Punkte = 6★; ⓘ Trophäenwert)",
+  "n.º {r} de {o} entre os teus decks": "Nr. {r} von {o} unter deinen Decks",
+  "{p} pontos de troféus · {n} troféu|{p} pontos de troféus · {n} troféus": "{p} Trophäenpunkte · {n} Trophäe|{p} Trophäenpunkte · {n} Trophäen",
+  "{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)": "{a} normale (gewertet) + {b} aus blauen Trophäen (casual oder ungewertet, zählen halb)",
 }

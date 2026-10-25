@@ -4,10 +4,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
 import { img, coverOf, colorsOf, HUE } from './data.js'
-import { Mana, Stars } from './ui.jsx'
+import { Mana, Stars, WhiteStars } from './ui.jsx'
 import Replay from './Board.jsx'
 import { Cup, PLACE, TIERS, KIND, tierOf } from './Library.jsx'
-import { trophyValue, TIER_PTS, KIND_W, BLUE_W } from './trophyvalue.js'
+import { trophyValue, TIER_PTS, KIND_W, BLUE_W, trophyStars, starPoints } from './trophyvalue.js'
 import { swapSide, nextGame, mixTake } from './game.js'
 import { DIFF_INFO } from './difficulty.js'
 import { ask } from './confirm.jsx'
@@ -870,7 +870,7 @@ function Fame({ data, list }) {
   const [gTier, setGTier] = useState(''), [gKind, setGKind] = useState(''), [gSort, setGSort] = useState('valor'), [gInfo, setGInfo] = useState(false)
   const offOf = (r, m) => r.src === 'meus' && (tro[r.ref] || []).some(t => t.tid === m.tid && t.place === m.place && !t.valid)
   const keepM = m => (!gKind || m.kind === gKind) && (!gTier || (gTier === 'azul' ? m.casual : gTier === 'normal' ? !m.casual : String(m.tier) === gTier))
-  const gal = top.map(r => { const med = r.med.filter(keepM), ok = med.filter(m => !offOf(r, m)); return { r, med, val: ok.reduce((a, m) => a + trophyValue(m), 0), n: ok.length } })
+  const gal = top.map(r => { const med = r.med.filter(keepM), ok = med.filter(m => !offOf(r, m)); return { r, med, val: ok.reduce((a, m) => a + trophyValue(m), 0), n: ok.length, all: r.med.filter(m => !offOf(r, m)).reduce((a, m) => a + trophyValue(m), 0), blue: r.med.filter(m => !offOf(r, m) && m.casual).reduce((a, m) => a + trophyValue(m), 0) } })
     .filter(x => x.med.length)
     .sort((a, b) => (gSort === 'nome' ? a.r.name.localeCompare(b.r.name) : gSort === 'quantidade' ? b.n - a.n || b.val - a.val : b.val - a.val || b.n - a.n))
   const kinds = [...new Set(top.flatMap(r => r.med.map(m => m.kind)))].filter(Boolean)
@@ -895,7 +895,8 @@ function Fame({ data, list }) {
         {gInfo && <div className="fg-info small">
           <p className="muted">{tx('Valor = pontos do lugar × peso do tipo × jogadores (√(decks ÷ 8), ×0,6 a ×1,6) × duração no rei da colina, suíço e mesas (partidas jogadas ÷ típicas, ×0,5 a ×1,5); os azuis (casual ou não ranked) valem metade ({w}).', { w: `×${BLUE_W}` })}</p>
           <div className="fg-tab"><span>{TIERS.map(t => <i key={t}><Cup place={t} /> {PLACE[t].split(':')[0]} <b>{TIER_PTS[t]}</b></i>)}</span>
-            <span>{Object.entries(KIND_W).sort((a, b) => b[1] - a[1]).map(([k, w]) => <i key={k}><Cup place={1} kind={k} /> {KIND[k]} <b>×{w}</b></i>)}</span></div>
+            <span>{Object.entries(KIND_W).sort((a, b) => b[1] - a[1]).map(([k, w]) => <i key={k}><Cup place={1} kind={k} /> {KIND[k]} <b>×{w}</b></i>)}</span>
+            <span>{tx('Estrelas brancas (dos pontos de cada deck):')} {[1, 2, 3, 4, 5, 6].map(k => <i key={k}>{k}★ <b>{starPoints(k)}</b></i>)}</span></div>
         </div>}
         <div className="row-btns fg-filt">
           <select value={gTier} onChange={e => setGTier(e.target.value)} aria-label={tx('Troféus')}>
@@ -912,12 +913,13 @@ function Fame({ data, list }) {
           <span className="muted small">{tx('{n} deck|{n} decks', { n: gal.length })}</span>
         </div>
         {!gal.length && <p className="muted small">{tx('Nenhum troféu com estes filtros.')}</p>}
-        <div className="fame-gal">{gal.slice(0, 40).map(({ r, med, val }) => {
+        <div className="fame-gal">{gal.slice(0, 40).map(({ r, med, val, all, blue }) => {
           const off = m => offOf(r, m)
           const g = {}
           for (const m of med) { const k = `${m.tier}|${m.kind}|${m.casual}|${off(m)}`; const e = (g[k] ||= { ...m, off: off(m), n: 0, names: [], pts: 0 }); e.n++; e.names.push(m.name); e.pts += off(m) ? 0 : trophyValue(m) }
           const cups = Object.values(g).sort((a, b) => a.off - b.off || TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.casual - b.casual)
           const body = <><Thumb data={data} p={r} /><b title={r.name}>{r.name}</b><small className="fg-val" title={tx('Valor dos troféus')}>{val} {tx('pts')}</small>
+            <WhiteStars v={trophyStars(all)} title={`${tx('Estrelas brancas: {s} — vêm dos {p} pontos de todos os troféus que contam ({k} pontos = 6★; ⓘ Valor dos troféus)', { s: trophyStars(all).toLocaleString(LOCALE), p: all, k: starPoints(6) })}${blue ? `\n${tx('{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)', { a: all - blue, b: blue })}` : ''}`} />
             <span className="fg-cups">{cups.map(c => <span key={`${c.tier}${c.kind}${c.casual}${c.off}`} className="fg-cup" title={`${PLACE[c.tier]} · ${KIND[c.kind] || ''}${c.casual ? ` · ${tx('troféu azul: casual ou não ranked')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''} · ${tx('+{p} pontos', { p: c.pts })}\n${c.names.slice(0, 6).map(nm => `• ${nm}`).join('\n')}${c.names.length > 6 ? `\n+${c.names.length - 6}` : ''}`}><Cup place={c.tier} casual={c.casual} off={c.off} kind={c.kind} />{c.n > 1 && <small>×{c.n}</small>}</span>)}</span></>
           return r.src === 'meus' ? <button key={`${r.src}:${r.ref}`} className="fg-card me" onClick={() => showDeck(r.ref)} title={tx('Abrir na Biblioteca')}>{body}</button>
             : <div key={`${r.src}:${r.ref}`} className="fg-card">{body}</div>

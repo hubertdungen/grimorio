@@ -3,7 +3,8 @@ import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, use
 import { search, recommend, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList } from './deck.js'
-import { CardTile, Mana, Oracle, Tags, price, Empty, Stars } from './ui.jsx'
+import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, WhiteStars } from './ui.jsx'
+import { deckPoints, deckSplit, trophyStars } from './trophyvalue.js'
 import Map3D from './Map3D.jsx'
 import { autoBuild } from './autobuild.js'
 import { deckSynergy } from './synergy.js'
@@ -1193,6 +1194,26 @@ function Fold({ children }) {
   )
 }
 
+// Análise › Troféus: estrelas brancas (dos pontos dos troféus), os pontos e o lugar entre os meus decks
+function TrophyCard({ deck }) {
+  const [all, setAll] = useState(null)
+  useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setAll).catch(() => setAll({})) }, [deck.id])
+  if (!all || !deck.id) return null
+  const pts = Object.fromEntries(Object.entries(all).map(([id, l]) => [id, deckPoints(l)]))
+  const p = pts[deck.id] || 0, n = (all[deck.id] || []).filter(x => x.valid !== false).length
+  const rank = 1 + Object.values(pts).filter(x => x > p).length, of = Object.values(pts).filter(x => x > 0).length
+  return (
+    <section className="card">
+      <h3>{tx('Troféus')}</h3>
+      {p > 0 ? <>
+        <WhiteStars v={trophyStars(p)} title={tx('Estrelas brancas: dos pontos dos troféus (não do jogo)')} />
+        <p className="small">{tx('{p} pontos de troféus · {n} troféu|{p} pontos de troféus · {n} troféus', { p, n })} · {tx('n.º {r} de {o} entre os teus decks', { r: rank, o: of })}</p>
+        {(() => { const sp = deckSplit(all[deck.id]); return sp.blue > 0 && <p className="muted small">{tx('{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)', { a: sp.normal, b: sp.blue })}</p> })()}
+      </> : <p className="muted small">{tx('Ainda sem troféus que contem. Ganha um pódio num torneio (as estrelas brancas vêm dos pontos dos troféus).')}</p>}
+    </section>
+  )
+}
+
 export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
   const s = useMemo(() => stats(deck, data), [deck, data])
   const [hand, setHand] = useState(null)
@@ -1215,6 +1236,7 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
       </section>
 
       <DeckRecord {...{ deck, data, act }} />
+      <TrophyCard deck={deck} />
 
       <section className="card">
         <h3>{tx('Terrenos')}</h3>

@@ -2228,4 +2228,11 @@ export default {
   "Valor = pontos do lugar × peso do tipo × jogadores (√(decks ÷ 8), ×0,6 a ×1,6) × duração no rei da colina, suíço e mesas (partidas jogadas ÷ típicas, ×0,5 a ×1,5); os azuis (casual ou não ranked) valem metade ({w}).": "价值 = 名次分 × 类型权重 × 玩家数（√(套牌数 ÷ 8)，×0.6 至 ×1.6）× 时长（山丘之王、瑞士轮和多人桌：实际对局 ÷ 常规对局，×0.5 至 ×1.5）；蓝色奖杯（休闲或非排位）价值减半（{w}）。",
   "+{p} pontos": "+{p} 分",
   "não conta (0 pontos)": "不计入（0 分）",
+  "Ainda sem troféus que contem. Ganha um pódio num torneio (as estrelas brancas vêm dos pontos dos troféus).": "还没有计入的奖杯。在锦标赛中登上领奖台（白星来自奖杯积分）。",
+  "Estrelas brancas (dos pontos de cada deck):": "白星（按每副套牌的积分）：",
+  "Estrelas brancas: dos pontos dos troféus (não do jogo)": "白星：来自奖杯积分（不是对局表现）",
+  "Estrelas brancas: {s} — vêm dos {p} pontos de todos os troféus que contam ({k} pontos = 6★; ⓘ Valor dos troféus)": "白星：{s} —— 来自所有计入奖杯的 {p} 分（{k} 分 = 6★；ⓘ 奖杯价值）",
+  "n.º {r} de {o} entre os teus decks": "在你的套牌中排第 {r}/{o}",
+  "{p} pontos de troféus · {n} troféu|{p} pontos de troféus · {n} troféus": "奖杯积分 {p} · {n} 个奖杯|奖杯积分 {p} · {n} 个奖杯",
+  "{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)": "{a} 分来自普通奖杯（排位）+ {b} 分来自蓝色奖杯（休闲或非排位，价值减半）",
 }

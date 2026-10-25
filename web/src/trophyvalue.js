@@ -12,3 +12,16 @@ export const playersW = n => (n ? clamp(Math.sqrt(n / 8), 0.6, 1.6) : 1)
 const TYPICAL = { rei: n => 2 * (n - 1), suico: n => Math.ceil(Math.log2(n)) * Math.floor(n / 2), mesas: n => 3 * Math.ceil(n / 4) }
 export const lengthW = (kind, n, m) => (TYPICAL[kind] && n > 1 && m ? clamp(Math.sqrt(m / TYPICAL[kind](n)), 0.5, 1.5) : 1)
 export const trophyValue = ({ tier, kind, casual, n, m }) => Math.round((TIER_PTS[tier] || 0) * (KIND_W[kind] ?? 1) * playersW(n) * lengthW(kind, n, m) * (casual ? BLUE_W : 1))
+
+// Troféus de um deck (os de /api/tournaments/trophies): o lugar de cada um e a soma dos que ainda contam (valid)
+export const trophyTier = x => (x.platinum ? 'plat' : x.champions ? { 1: 'plat', 2: 'safira', 3: 'rubi' }[x.place] : x.place)
+export const itemValue = x => trophyValue({ tier: trophyTier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m })
+export const deckPoints = list => (list || []).filter(x => x.valid !== false).reduce((t, x) => t + itemValue(x), 0)
+// Estrelas brancas (0–6) a partir dos pontos de troféus, em escala logarítmica: os primeiros troféus sobem depressa e as
+// 6★ ficam para coleções enormes (STAR_MAX pontos)
+export const STAR_MAX = 3000
+const LOG = Math.log10(1 + STAR_MAX / 20)
+export const trophyStars = p => (p > 0 ? Math.min(6, Math.round(((6 * Math.log10(1 + p / 20)) / LOG) * 10) / 10) : 0)
+export const starPoints = k => Math.round(20 * (10 ** ((k / 6) * LOG) - 1))  // pontos para k estrelas (tabela)
+// a divisão: pontos dos troféus normais (ranked) e dos azuis (casual ou não ranked)
+export const deckSplit = list => (list || []).filter(x => x.valid !== false).reduce((o, x) => { o[x.casual ? 'blue' : 'normal'] += itemValue(x); return o }, { normal: 0, blue: 0 })

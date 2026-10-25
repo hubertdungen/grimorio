@@ -432,3 +432,8 @@ console.log('selfcheck universo ok')
   assert.equal(trophyValue({ tier: 1, kind: 'elim', n: 8, casual: true }), 50)            // azul vale metade
   assert.ok(trophyValue({ tier: 'plat', kind: 'gauntlet', n: 8 }) > trophyValue({ tier: 1, kind: 'grupos', n: 16 }))
   console.log('selfcheck valor dos troféus ok') }
+{ const { trophyStars, starPoints, deckPoints } = await import('./src/trophyvalue.js')
+  assert.ok(trophyStars(0) === 0 && trophyStars(100) > 1.9 && trophyStars(100) < 2.3 && trophyStars(3000) === 6 && trophyStars(99999) === 6)
+  for (let k = 1; k <= 6; k++) assert.ok(Math.abs(trophyStars(starPoints(k)) - k) < 0.11, `estrela ${k}`)
+  assert.equal(deckPoints([{ place: 1, type: 'elim', n: 8, valid: true }, { place: 1, type: 'elim', n: 8, valid: false }]), 100)
+  console.log('selfcheck estrelas brancas ok') }

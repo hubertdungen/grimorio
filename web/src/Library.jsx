@@ -10,7 +10,7 @@ import DeckCompare, { similarity } from './DeckCompare.jsx'
 import { ask, casualAsk } from './confirm.jsx'
 import { BasicArtPicker, applyBasics } from './Basics.jsx'
 import { tx, num, LOCALE } from './i18n.js'
-import { trophyValue } from './trophyvalue.js'
+import { trophyValue, deckSplit } from './trophyvalue.js'
 import { SyncHint } from './Settings.jsx'
 
 const META_FMTS = ['commander', 'duel', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'premodern']
@@ -160,7 +160,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
       <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
         {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
         <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}{d.community && <span title={tx('Deck da comunidade (de outra pessoa)')}> · <Ico n="globe" /> {tx('Comunidade')}</span>}</span>
-      </button>{tro?.length > 0 && <span className="dbox-tro"><Trophies list={tro} />{tp && <b className="tro-pts" title={tx('{p} pontos de troféus · n.º {r} de {n} no ranking dos teus decks', { p: tp.p, r: tp.rank, n: tp.of })}>{tp.rank === 1 ? '👑 ' : `#${tp.rank} · `}{tp.p}</b>}</span>}</div>
+      </button>{tro?.length > 0 && <span className="dbox-tro"><Trophies list={tro} />{tp && <b className="tro-pts" title={`${tx('{p} pontos de troféus · n.º {r} de {n} no ranking dos teus decks', { p: tp.p, r: tp.rank, n: tp.of })}${tp.blue ? `\n${tx('{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)', { a: tp.p - tp.blue, b: tp.blue })}` : ''}`}>{tp.rank === 1 ? '👑 ' : `#${tp.rank} · `}{tp.p}</b>}</span>}</div>
       <div className="dbox-body">
         <b title={d.name}>{d.name}</b>
         <span className="dbox-l1">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}>{d.community ? '🌐' : '🧙'}</button></span>
@@ -270,7 +270,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   const tpts = useMemo(() => {
     const v = mine.map(d => [d.id, (tro[d.id] || []).filter(x => x.valid).reduce((t, x) => t + trophyValue({ tier: tier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m }), 0)])
     const r = v.filter(([, p]) => p > 0).sort((a, b) => b[1] - a[1])
-    return Object.fromEntries(r.map(([id, p], k) => [id, { p, rank: k + 1, of: r.length }]))
+    return Object.fromEntries(r.map(([id, p], k) => [id, { p, rank: k + 1, of: r.length, blue: deckSplit(tro[id]).blue }]))
   }, [mine, tro])
   const sorted = useMemo(() => {
     const W = 'WUBRG', st = (d, k) => rt[`deck:${d.id}`]?.[k] ?? -1
