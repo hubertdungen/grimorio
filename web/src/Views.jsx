@@ -107,7 +107,7 @@ function LandPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
               <li key={x.kind + x.out + i.n}>
                 <small className="muted">{LAND_KIND[x.kind]}</small>
                 <div className="cutp-pair">
-                  <button className="cutp-card" onClick={() => o && act.open(o)}>{o && <img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" />}<span><b>− {x.q > 1 ? `${x.q}× ` : ''}{x.out}</b></span></button>
+                  <button className="cutp-card" onClick={() => { pin([{ n: x.out, tone: 'out' }]); o && act.open(o) }}>{o && <img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" />}<span><b>− {x.q > 1 ? `${x.q}× ` : ''}{x.out}</b></span></button>
                   <span className="cutp-arrow">→</span>
                   <button className="cutp-card in" onClick={() => act.open(i)}><img src={img(i, 'art_crop')} alt="" loading="lazy" /><span><b>+ {x.q > 1 ? `${x.q}× ` : ''}{i.n}</b><Mana cost={i.mc} /></span></button>
                 </div>
@@ -233,7 +233,7 @@ function CutPanel({ data, deck, fmt, ctx, act, swaps, recs, co, cmdIdx, needs, m
           {!enough ? <p className="muted small">{tx('Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).', { n: plan.games })}</p>
             : !plan.cuts.length ? <p className="muted small">{tx('Nenhuma carta merece claramente sair: as que apareceram nos jogos estão a cumprir o seu papel.')}</p>
               : <ul className="cutp-list">{plan.cuts.map(x => { const o = data.byName.get(x.out); return (
-                <li key={x.out} {...hlProps([{ n: x.out, tone: 'out' }])} onClick={e => { if (!e.target.closest('button')) pin([{ n: x.out, tone: 'out' }]) }}>
+                <li key={x.out} {...hlProps([{ n: x.out, tone: 'out' }])}>
                   <div className="cutp-pair">
                     <button className="cutp-card" onClick={() => o && act.open(o)}>{o && <img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" />}<span><b>{x.q > 1 ? `${x.q}× ` : ''}{x.out}</b><small className="muted">{x.zone === 'side' ? `${tx('sideboard')} · ` : ''}{tx('vista em {n} jogos', { n: x.seen })}</small></span></button>
                     <span className="cutp-arrow">→</span>
@@ -246,17 +246,17 @@ function CutPanel({ data, deck, fmt, ctx, act, swaps, recs, co, cmdIdx, needs, m
           {byText.length > 0 && <>
             <h4>{tx('Pelo texto e pelas funções (não precisa de jogos)')}</h4>
             <ul className="cuts">{byText.map(x => (
-              <li key={x.c.i} {...hlProps([{ n: x.c.n, tone: 'out' }])} onClick={e => { if (!e.target.closest('button')) pin([{ n: x.c.n, tone: 'out' }]) }}>
-                <div {...hoverPeek(x.c, pidOf(deck, x.c.n))}><button className="link plain" onClick={() => act.open(x.c)}><b>{x.c.n}</b></button> <Mana cost={x.c.mc} /></div>
-                <ul className="why">{x.why.map((w, k) => <li key={k} className={w.startsWith(tx('Mas')) ? 'tema' : 'falta'}>{w}</li>)}</ul>
-                {x.swap && (
-                  <div className="swap">
-                    <span>→ <button className="link plain" onClick={() => act.open(x.swap.c)}><b>{x.swap.c.n}</b></button>{x.swap.fn.length ? <span className="muted small"> ({tx('mesma função:')} {x.swap.fn.join(', ')})</span> : null}</span>
-                    {x.swap.why && <span className="muted small">{x.swap.why}</span>}
-                    <button onClick={() => swapText(x.c, x.swap.c)}>{tx('Trocar')}</button>
-                    {fmt.side > 0 && <button onClick={() => act.move(x.c, 'main', 'side')} title={tx('Não corta: passa para o sideboard (fica para jogos 2 e 3)')}>→ SB</button>}
-                  </div>
-                )}
+              <li key={x.c.i} {...hlProps([{ n: x.c.n, tone: 'out' }])}>
+                <div className="cutp-pair">
+                  <button className="cutp-card" onClick={() => { pin([{ n: x.c.n, tone: 'out' }]); act.open(x.c) }} {...hoverPeek(x.c, pidOf(deck, x.c.n))}><img src={img(x.c, 'art_crop', false, pidOf(deck, x.c.n))} alt="" loading="lazy" /><span><b>{x.c.n}</b><Mana cost={x.c.mc} /></span></button>
+                  {x.swap && <><span className="cutp-arrow">→</span>
+                    <button className="cutp-card in" onClick={() => act.open(x.swap.c)}><img src={img(x.swap.c, 'art_crop')} alt="" loading="lazy" /><span><b>{x.swap.c.n}</b><Mana cost={x.swap.c.mc} />{x.swap.fn.length ? <small className="muted">{tx('mesma função:')} {x.swap.fn.join(', ')}</small> : null}</span></button></>}
+                </div>
+                <ul className="why">{x.why.map((w, k) => <li key={k} className={w.startsWith(tx('Mas')) ? 'tema' : 'falta'}>{w}</li>)}{x.swap?.why && <li className="edh">{x.swap.why}</li>}</ul>
+                <div className="row-btns">
+                  {x.swap && <button className="primary small" onClick={() => swapText(x.c, x.swap.c)}>⇄ {tx('Trocar')}</button>}
+                  {fmt.side > 0 && <button className="small" onClick={() => act.move(x.c, 'main', 'side')} title={tx('Não corta: passa para o sideboard (fica para jogos 2 e 3)')}>→ SB</button>}
+                </div>
               </li>
             ))}</ul>
           </>}

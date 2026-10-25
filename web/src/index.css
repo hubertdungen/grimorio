@@ -1933,3 +1933,5 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .cm-tilt:hover .cm-shine { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .cm-tilt { transform: none; } }
 .sug-sort { display: flex; align-items: center; gap: 8px; margin: 6px 0; } abbr[title] { text-decoration: underline dotted; cursor: help; }
+/* destaque vindo das sugestões (hl.js): entra e sai com fade */
+.row[data-card], .dg-tile[data-card] { transition: box-shadow .35s ease, background-color .35s ease; border-radius: 8px; }
