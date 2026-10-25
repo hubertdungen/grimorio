@@ -2329,4 +2329,5 @@ export default {
   "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez.": "Elige los dados arriba y pulsa «Lanzar». Después puedes agarrar un dado con el ratón o el dedo y volver a lanzarlo.",
   "Vista dos dados": "Vista de los dados",
   "a rolar…": "rodando…",
+  "d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.": "d4 a d100 y moneda en 3D: se lanzan, se agarran y se tiran con el dedo, con registro.",
 }

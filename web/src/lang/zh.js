@@ -2329,4 +2329,5 @@ export default {
   "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez.": "在上方选择骰子并点击「投掷」。之后可以用鼠标或手指抓起骰子再掷一次。",
   "Vista dos dados": "骰子视图",
   "a rolar…": "滚动中…",
+  "d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.": "3D 的 d4 到 d100 和硬币：投掷、抓起并用手指抛出，附记录。",
 }

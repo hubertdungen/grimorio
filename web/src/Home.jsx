@@ -35,7 +35,7 @@ export default function Home({ deck, decks, onGo, onNew, onTool }) {
       <div className="home-mesa">
         <span className="muted small">{tx('Para jogar à mesa')}</span>
         <button className="home-card home-tool life" onClick={() => onTool('vida')}><i>❤</i><b>{tx('Contador de vida')}</b><span>{tx('Até 6 jogadores, vida e veneno, com registo.')}</span></button>
-        <button className="home-card home-tool dice" onClick={() => onTool('dados')}><i>🎲</i><b>{tx('Dados')}</b><span>{tx('d4 a d100 e moeda, a rolar na mesa, com registo.')}</span></button>
+        <button className="home-card home-tool dice" onClick={() => onTool('dados')}><i>🎲</i><b>{tx('Dados')}</b><span>{tx('d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.')}</span></button>
       </div>
       <p className="home-foot muted small"><a href="#definicoes" className="home-set">⚙ {tx('Definições')}</a> · {tx('Cartas e imagens: Scryfall · combos: Commander Spellbook · meta: EDHREC e MTGTop8 · jogos: Forge')}</p>
     </div>

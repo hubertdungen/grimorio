@@ -2329,4 +2329,5 @@ export default {
   "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez.": "Wähle oben die Würfel und drücke «Werfen». Danach kannst du einen Würfel mit der Maus oder dem Finger greifen und erneut werfen.",
   "Vista dos dados": "Würfelansicht",
   "a rolar…": "rollt…",
+  "d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.": "d4 bis d100 und Münze in 3D: werfen, greifen und mit dem Finger schleudern, mit Protokoll.",
 }
