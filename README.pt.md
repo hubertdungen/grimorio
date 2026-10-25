@@ -148,6 +148,24 @@ computadores e servidores de um só dono.
   a fingir (nada se compra, sem dinheiro a sério) e troféus nos decks que ganham.
 - **Ratings** — 0–6 estrelas por deck (Elo por formato, mais um rating casual à parte) alimentadas por testes, torneios
   e uma Arena automática opcional.
+- **Pesquisa por palavras, em qualquer língua** — «encantamento que dê flying até 2», «terrenos que compram cartas»,
+  «lands draw», «抽牌的地» ou a sintaxe do Scryfall (`t:`, `o:`, `mv<=`); 35 funções das cartas (remoção, compra, mill,
+  dano direto, blink, stax…) para filtrar.
+- **Painel de análise** — números principais, curva de mana por criaturas e o resto, queijinhos de cores (o que os
+  custos pedem vs. o que os terrenos dão), probabilidades da mão inicial, como o deck ganha e como perde, se o
+  sideboard cobre o que o venceu, as cartas que ganham ou ficam presas na mão nos jogos, e um ⓘ a explicar cada número.
+- **📖 Biblioteca de regras** — keywords, regras ou nomes de cartas em qualquer língua (também pela câmara):
+  Comprehensive Rules, rulings oficiais e uma explicação opcional da IA.
+- **Amigos e jogo online** — links de convite (também pela internet, com um túnel num clique), os decks dos amigos
+  como fonte nos torneios e na Arena, salas de torneio.
+- **Assistente de IA (opcional)** — chaves de vários fornecedores, modelos mais recentes detetados sozinhos; trocas,
+  ajustes de quantidades e substitutos para qualquer carta.
+- **Proxies** — lista com as edições para sites de proxies, ZIP com as imagens, ou um PDF pronto como as gráficas
+  pedem: papel, margens, tamanho da carta, espaço entre cartas, bleed (preto, uma cor ou a margem da carta esticada),
+  guias de corte por carta, marca de água e frente e verso.
+- **À mesa** — contador de vida (até 6 jogadores), dados em 3D e leitura de cartas pela câmara com moldura de mira.
+- **Bots predefinidos** — o perfil da IA do Forge para o teu deck e para os adversários no Laboratório, nos torneios e
+  na Arena; uma barra mostra o que está a decorrer e leva ao visualizador em direto.
 - **Perfis** — uma instalação, vários jogadores, cada um com os seus decks.
 - **Instalável** como PWA em telemóveis e tablets; pensado para ecrãs táteis.
 
@@ -214,6 +232,8 @@ para a pasta do Forge; os pacotes fazem isto por ti. Pacotes para computador: `p
 | `backup.py` | exportar/importar cópias `.grimorio` e a sincronização opcional por pasta na nuvem (regras da junção, ratings refeitos) |
 | `sim.py`, `build/forge/` | executor do Forge (Docker ou Java local) e o lançador `GrimorioSim` (eventos exatos do jogo, ajustes à IA, dicas de IA por carta) |
 | `tournament.py`, `ratings.py` | torneios e ratings / Arena |
+| `guests.py`, `rooms.py`, `share.py` | amigos: links de convite e modo convidado, salas de torneio, o túnel público num clique |
+| `rules.py`, `artfolder.py` | pesquisa nas Comprehensive Rules; artes próprias de uma pasta (Drive, GitHub) |
 | `deck_import.py`, `ia.py`, `play.py` | importadores de sites, fornecedores de IA opcionais, jogar contra o Forge (noVNC, só com Docker) |
 | `build/` | pipeline de dados (Scryfall, embeddings, UMAP, combos, fichas, meta) |
 | `web/` | front end em React + Vite |

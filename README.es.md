@@ -155,6 +155,24 @@ en la nube es para ordenadores y servidores de un solo dueño.
   apuestas con monedas de juego (no se compra nada, sin dinero real) y trofeos en los mazos que ganan.
 - **Ratings**: de 0 a 6 estrellas por mazo (Elo por formato, más un rating casual aparte), alimentados por las
   pruebas, los torneos y una Arena automática opcional.
+- **Búsqueda con palabras, en cualquier idioma**: «encantamiento que dé volar hasta 2», «tierras que roban cartas»,
+  «lands draw», «抽牌的地» o la sintaxis de Scryfall (`t:`, `o:`, `mv<=`); 35 funciones de las cartas (eliminación, robo,
+  mill, daño directo, blink, stax…) para filtrar.
+- **Panel de análisis**: cifras principales, curva de maná por criaturas y el resto, gráficos de colores (lo que piden
+  los costes frente a lo que dan las tierras), probabilidades de la mano inicial, cómo gana y cómo pierde el mazo, si el
+  banquillo cubre lo que le ganó, las cartas que ganan o se quedan en la mano en las partidas, y una ⓘ en cada número.
+- **📖 Biblioteca de reglas**: palabras clave, reglas o nombres de cartas en cualquier idioma (también con la cámara):
+  Comprehensive Rules, rulings oficiales y una explicación opcional de la IA.
+- **Amigos y juego en línea**: enlaces de invitación (también por internet, con un túnel en un clic), los mazos de los
+  amigos como fuente en torneos y en la Arena, salas de torneo.
+- **Asistente de IA (opcional)**: claves de varios proveedores, modelos más recientes detectados solos; cambios,
+  ajustes de cantidades y sustitutos para cualquier carta.
+- **Proxies**: lista con las ediciones para webs de proxies, ZIP con las imágenes o un PDF listo como piden las
+  imprentas: papel, márgenes, tamaño de carta, espacio entre cartas, sangrado (negro, un color o el borde de la carta
+  extendido), guías de corte por carta, marca de agua y doble cara.
+- **En la mesa**: contador de vidas (hasta 6 jugadores), dados en 3D y lectura de cartas con la cámara y un marco de mira.
+- **Bots predeterminados**: el perfil de la IA de Forge para tu mazo y para los rivales en el Laboratorio, los torneos
+  y la Arena; una barra muestra lo que está en curso y lleva al visor en directo.
 - **Perfiles**: una instalación, varios jugadores, cada uno con sus propios mazos.
 - **Instalable** como PWA en móviles y tabletas; pensado para pantallas táctiles.
 
@@ -216,6 +234,8 @@ escritorio: `packaging/build.py` y `.github/workflows/release.yml`.
 | `backup.py` | exportar/importar copias `.grimorio` y la sincronización opcional por carpeta en la nube (reglas de fusión, ratings recalculados) |
 | `sim.py`, `build/forge/` | ejecutor de Forge (Docker o Java local) y el lanzador `GrimorioSim` (eventos exactos de la partida, ajustes de la IA, pistas de IA por carta) |
 | `tournament.py`, `ratings.py` | torneos y ratings / Arena |
+| `guests.py`, `rooms.py`, `share.py` | amigos: enlaces de invitación y modo invitado, salas de torneo, el túnel público en un clic |
+| `rules.py`, `artfolder.py` | búsqueda en las Comprehensive Rules; artes propias desde una carpeta (Drive, GitHub) |
 | `deck_import.py`, `ia.py`, `play.py` | importadores de webs, proveedores de IA opcionales, jugar contra Forge (noVNC, solo con Docker) |
 | `build/` | pipeline de datos (Scryfall, embeddings, UMAP, combos, fichas, meta) |
 | `web/` | front end en React + Vite |

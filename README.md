@@ -145,6 +145,24 @@ sync is for computers and single-owner servers.
   play coins (nothing to buy, no real money) and trophies on the decks that win.
 - **Ratings** — 0–6 stars per deck (Elo per format, plus a separate casual rating) fed by tests, tournaments and an
   optional automatic Arena.
+- **Search in plain words, in any language** — «enchantment that gives flying up to 2», «lands that draw cards»,
+  «terreno comprar cartas», «抽牌的地» or Scryfall syntax (`t:`, `o:`, `mv<=`); 35 card functions (removal, draw, mill,
+  burn, blink, stax…) to filter by.
+- **Analysis dashboard** — headline numbers, mana curve by creatures vs. the rest, colour pies (what the costs ask for
+  vs. what the lands make), opening-hand odds, how the deck wins and how it loses, whether the sideboard covers what
+  beat it, the cards that win or get stuck in hand in real games, and a ⓘ explanation on every number.
+- **📖 Rules library** — keywords, rules or card names in any language (camera too): Comprehensive Rules, official
+  rulings and an optional AI explanation.
+- **Friends and online play** — invite links (also over the internet with a one-click tunnel), friends' decks as a
+  source in tournaments and the Arena, tournament rooms.
+- **AI assistant (optional)** — keys for several providers, newest models detected automatically; swaps, quantity
+  changes and substitutes for any card.
+- **Proxies** — a list with printings for proxy sites, a ZIP of the images, or a print-ready PDF like the print shops
+  ask for: paper, margins, card size, gaps, bleed (black, a colour, or the card border extended), cut guides per card,
+  watermark and double-sided.
+- **At the table** — life counter (up to 6 players), 3D dice, and card reading by camera with an aiming frame.
+- **Default bots** — pick the Forge AI profile for your deck and for opponents in the Lab, tournaments and the Arena; a
+  live bar shows what is running and jumps to the live viewer.
 - **Profiles** — one install, several players, each with their own decks.
 - **Installable** as a PWA on phones and tablets; touch-friendly.
 
@@ -205,6 +223,8 @@ this. Desktop packages: `packaging/build.py` and `.github/workflows/release.yml`
 | `backup.py` | export/import `.grimorio` backups and the optional cloud-folder sync (merge rules, ratings rebuild) |
 | `sim.py`, `build/forge/` | Forge runner (Docker or local Java) and the `GrimorioSim` launcher (exact game events, AI tweaks, card AI hints) |
 | `tournament.py`, `ratings.py` | tournaments and ratings / Arena |
+| `guests.py`, `rooms.py`, `share.py` | friends: invite links and guest mode, tournament rooms, the one-click public tunnel |
+| `rules.py`, `artfolder.py` | Comprehensive Rules search; custom card art from a folder (Drive, GitHub) |
 | `deck_import.py`, `ia.py`, `play.py` | site importers, optional AI providers, play against Forge (noVNC, Docker only) |
 | `build/` | data pipeline (Scryfall, embeddings, UMAP, combos, tokens, meta) |
 | `web/` | React + Vite front end |

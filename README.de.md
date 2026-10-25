@@ -153,6 +153,24 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
   Wetten mit Spielmünzen (nichts zu kaufen, kein echtes Geld) und Trophäen für die Siegerdecks.
 - **Ratings** – 0–6 Sterne pro Deck (Elo pro Format, dazu ein eigenes Casual-Rating), gespeist aus Tests, Turnieren und
   einer optionalen automatischen Arena.
+- **Suche in Worten, in jeder Sprache** – „Verzauberung mit Flugfähigkeit höchstens 2“, „Länder, die Karten ziehen“,
+  „lands draw“, „抽牌的地“ oder Scryfall-Syntax (`t:`, `o:`, `mv<=`); 35 Kartenfunktionen (Entfernung, Ziehen, Mill,
+  Direktschaden, Blink, Stax…) zum Filtern.
+- **Analyse-Dashboard** – Kennzahlen, Manakurve nach Kreaturen und Rest, Farbdiagramme (was die Kosten verlangen vs. was
+  die Länder liefern), Starthand-Wahrscheinlichkeiten, wie das Deck gewinnt und verliert, ob das Sideboard abdeckt, was
+  es geschlagen hat, die Karten, die in echten Partien gewinnen oder auf der Hand liegen bleiben, und ein ⓘ an jeder Zahl.
+- **📖 Regelbibliothek** – Schlüsselwörter, Regeln oder Kartennamen in jeder Sprache (auch per Kamera): Comprehensive
+  Rules, offizielle Rulings und eine optionale KI-Erklärung.
+- **Freunde und Online-Spiel** – Einladungslinks (auch übers Internet mit einem Tunnel per Klick), Decks von Freunden
+  als Quelle in Turnieren und der Arena, Turnierräume.
+- **KI-Assistent (optional)** – Schlüssel mehrerer Anbieter, neueste Modelle automatisch erkannt; Tausch, Mengen und
+  Ersatz für jede Karte.
+- **Proxies** – Liste mit Editionen für Proxy-Seiten, ZIP mit den Bildern oder ein druckfertiges PDF wie Druckereien es
+  wollen: Papier, Ränder, Kartengröße, Abstände, Beschnitt (schwarz, eine Farbe oder der verlängerte Kartenrand),
+  Schnittlinien pro Karte, Wasserzeichen und beidseitig.
+- **Am Tisch** – Lebenszähler (bis 6 Spieler), 3D-Würfel und Karten lesen per Kamera mit Zielrahmen.
+- **Standard-Bots** – das KI-Profil von Forge für dein Deck und die Gegner im Labor, in Turnieren und der Arena; eine
+  Leiste zeigt, was gerade läuft, und springt zur Live-Ansicht.
 - **Profile** – eine Installation, mehrere Spieler, jeder mit seinen eigenen Decks.
 - **Installierbar** als PWA auf Handys und Tablets; touch-freundlich.
 
@@ -213,6 +231,8 @@ kopiert wurden; die Pakete erledigen das. Desktop-Pakete: `packaging/build.py` u
 | `backup.py` | `.grimorio`-Sicherungen exportieren/importieren und der optionale Cloud-Ordner-Sync (Zusammenführungsregeln, Ratings neu berechnet) |
 | `sim.py`, `build/forge/` | Forge-Runner (Docker oder lokales Java) und der Launcher `GrimorioSim` (exakte Spielereignisse, KI-Anpassungen, KI-Hinweise pro Karte) |
 | `tournament.py`, `ratings.py` | Turniere und Ratings / Arena |
+| `guests.py`, `rooms.py`, `share.py` | Freunde: Einladungslinks und Gastmodus, Turnierräume, der öffentliche Tunnel per Klick |
+| `rules.py`, `artfolder.py` | Suche in den Comprehensive Rules; eigene Kartenbilder aus einem Ordner (Drive, GitHub) |
 | `deck_import.py`, `ia.py`, `play.py` | Importer für Websites, optionale KI-Anbieter, gegen Forge spielen (noVNC, nur Docker) |
 | `build/` | Daten-Pipeline (Scryfall, Embeddings, UMAP, Combos, Spielsteine, Meta) |
 | `web/` | Frontend mit React + Vite |
