@@ -2326,4 +2326,7 @@ export default {
   "Recomeçar a carteira das apostas": "Wett-Geldbörse neu starten",
   "Sem moedas? Recomeçar com {n}": "Keine Münzen? Mit {n} neu starten",
   "Tens {c} moedas. O histórico e as estatísticas das apostas ficam; só a carteira volta ao começo (e conta como um recomeço).": "Du hast {c} Münzen. Verlauf und Statistik der Wetten bleiben; nur die Geldbörse wird zurückgesetzt (und zählt als Neustart).",
+  "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez.": "Wähle oben die Würfel und drücke «Werfen». Danach kannst du einen Würfel mit der Maus oder dem Finger greifen und erneut werfen.",
+  "Vista dos dados": "Würfelansicht",
+  "a rolar…": "rollt…",
 }

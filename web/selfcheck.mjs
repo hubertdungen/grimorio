@@ -437,3 +437,16 @@ console.log('selfcheck universo ok')
   for (let k = 1; k <= 6; k++) assert.ok(Math.abs(trophyStars(starPoints(k)) - k) < 0.11, `estrela ${k}`)
   assert.equal(deckPoints([{ place: 1, type: 'elim', n: 8, valid: true }, { place: 1, type: 'elim', n: 8, valid: false }]), 100)
   console.log('selfcheck estrelas brancas ok') }
+{ const { solid, simulate } = await import('./src/dicephys.js')  // dados 3D: faces planas, rótulos certos, assentam e o d6 é justo
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+  for (const [k, n] of [['d4', 4], ['d6', 6], ['d8', 8], ['d10', 10], ['d12', 12], ['d20', 20]]) {
+    const S = solid(k)
+    S.faces.forEach((f, i) => f.forEach(v => assert.ok(Math.abs(dot(S.verts[v].map((x, j) => x - S.info[i].c[j]), S.info[i].n)) < 1e-9, `${k} face ${i} plana`)))
+    assert.equal(new Set(S.labels).size, n, `${k} rótulos`)
+  }
+  let seed = 11; const rng = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const cnt = Array(7).fill(0)
+  for (let i = 0; i < 240; i++) { const r = simulate(['d6'], { rng }); assert.ok(r.t < 9, 'd6 assenta'); cnt[r.values[0]]++ }
+  assert.ok(cnt.slice(1).every(c => c > 20 && c < 60), `d6 justo ${cnt}`)
+  const m = simulate(['d20', 'd20', 'd10t', 'd10', 'coin'], { rng }); assert.ok(m.t < 9 && m.values.every(v => v != null))
+  console.log('selfcheck dados 3D ok') }

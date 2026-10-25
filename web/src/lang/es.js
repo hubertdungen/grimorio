@@ -2326,4 +2326,7 @@ export default {
   "Recomeçar a carteira das apostas": "Reiniciar la cartera de apuestas",
   "Sem moedas? Recomeçar com {n}": "¿Sin monedas? Reiniciar con {n}",
   "Tens {c} moedas. O histórico e as estatísticas das apostas ficam; só a carteira volta ao começo (e conta como um recomeço).": "Tienes {c} monedas. El historial y las estadísticas de apuestas se mantienen; solo la cartera vuelve al inicio (y cuenta como un reinicio).",
+  "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez.": "Elige los dados arriba y pulsa «Lanzar». Después puedes agarrar un dado con el ratón o el dedo y volver a lanzarlo.",
+  "Vista dos dados": "Vista de los dados",
+  "a rolar…": "rodando…",
 }

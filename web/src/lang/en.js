@@ -2334,4 +2334,7 @@ export default {
   "Recomeçar a carteira das apostas": "Restart the betting wallet",
   "Sem moedas? Recomeçar com {n}": "Out of coins? Restart with {n}",
   "Tens {c} moedas. O histórico e as estatísticas das apostas ficam; só a carteira volta ao começo (e conta como um recomeço).": "You have {c} coins. Bet history and statistics stay; only the wallet goes back to the start (and counts as a restart).",
+  "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez.": "Pick the dice above and press «Roll». Then you can grab a die with the mouse or your finger and throw it again.",
+  "Vista dos dados": "Dice view",
+  "a rolar…": "rolling…",
 }

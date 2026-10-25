@@ -2326,4 +2326,7 @@ export default {
   "Recomeçar a carteira das apostas": "重置下注钱包",
   "Sem moedas? Recomeçar com {n}": "没有硬币了？以 {n} 重新开始",
   "Tens {c} moedas. O histórico e as estatísticas das apostas ficam; só a carteira volta ao começo (e conta como um recomeço).": "你有 {c} 枚硬币。下注记录和统计会保留；只有钱包恢复初始（并记为一次重置）。",
+  "Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez.": "在上方选择骰子并点击「投掷」。之后可以用鼠标或手指抓起骰子再掷一次。",
+  "Vista dos dados": "骰子视图",
+  "a rolar…": "滚动中…",
 }

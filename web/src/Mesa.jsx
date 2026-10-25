@@ -196,13 +196,42 @@ function DieFace({ type, v }) {
   )
 }
 
+const COLORS3D = Object.fromEntries(Object.entries(DICE).map(([k, d]) => [k, [d.c[0], d.c[1], d.ink || '#ffffff']]))
+
 function Dice({ s, set, compact = false }) {
   const tray = useRef(null), els = useRef({}), bodies = useRef([]), raf = useRef(0)
   const [live, setLive] = useState([])  // dados na mesa: {id, type, v, done}
   const [last, setLast] = useState(null)
+  // 3D (three.js + dicephys.js), carregado só quando é preciso; sem WebGL fica o 2D
+  const [gl] = useState(() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')) } catch { return false } })
+  const d3 = gl && s.d3 !== false
+  const box = useRef(null), t3 = useRef(null), [res3, setRes3] = useState(null), [busy3, setBusy3] = useState(false)
+  useEffect(() => {
+    if (!d3) return
+    let gone = false
+    import('./Dice3D.js').then(({ createTray }) => {
+      if (gone || !box.current) return
+      t3.current = createTray(box.current, {
+        colors: COLORS3D, words: [tx('Cara'), tx('Coroa')],
+        onHit: a => play('diceHit', { amount: a }),
+        onSettle: items => {
+          setRes3(items); setBusy3(false); play('tick', { amount: 1 })
+          if (items.some(x => x.type === 'moeda')) play('coin')
+          set(x => ({ ...x, log: [{ t: Date.now(), items, sum: items.filter(i => i.type !== 'moeda').reduce((a, i) => a + i.v, 0) }, ...x.log].slice(0, 200) }))
+        },
+      })
+    })
+    return () => { gone = true; t3.current?.dispose(); t3.current = null }
+  }, [d3]) // eslint-disable-line react-hooks/exhaustive-deps
   const add = (type, d) => set(x => { const n = Math.max(0, Math.min(12, (x.pool[type] || 0) + d)); const pool = { ...x.pool, [type]: n }; if (!n) delete pool[type]; return { ...x, pool } })
   const count = Object.values(s.pool).reduce((a, b) => a + b, 0)
   const roll = pool => {
+    if (d3) {
+      const list = Object.entries(pool).flatMap(([type, n]) => Array.from({ length: n }, () => type)).slice(0, 12)
+      if (!list.length || !t3.current) return
+      setRes3(null); setBusy3(true); setLast(pool); play('dice', { amount: list.length }); t3.current.roll(list)
+      return
+    }
     const W = tray.current.clientWidth, H = tray.current.clientHeight
     const list = Object.entries(pool).flatMap(([type, n]) => Array.from({ length: n }, () => type)).slice(0, 12)
     if (!list.length) return
@@ -265,7 +294,7 @@ function Dice({ s, set, compact = false }) {
     raf.current = requestAnimationFrame(step)
   }
   useEffect(() => () => cancelAnimationFrame(raf.current), [])
-  const rolling = live.some(d => !d.done)
+  const rolling = d3 ? busy3 : live.some(d => !d.done)
   const sum = live.filter(d => d.done && d.type !== 'moeda').reduce((a, d) => a + d.v, 0)
   return (
     <div className={`dc ${compact ? 'compact' : ''}`}>
@@ -283,9 +312,12 @@ function Dice({ s, set, compact = false }) {
         <button disabled={rolling} onClick={() => roll({ d6: 2 })}>2d6</button>
         <button disabled={rolling} onClick={() => roll({ moeda: 1 })}>{tx('moeda')}</button>
         {last && <button disabled={rolling} onClick={() => roll(last)}>↻ {tx('Repetir')}</button>}
-        <button className="link" onClick={() => { cancelAnimationFrame(raf.current); setLive([]); set(x => ({ ...x, pool: {} })) }}>{tx('limpar a mesa')}</button>
+        <button className="link" onClick={() => { cancelAnimationFrame(raf.current); setLive([]); t3.current?.clear(); setRes3(null); setBusy3(false); set(x => ({ ...x, pool: {} })) }}>{tx('limpar a mesa')}</button>
+        {gl && <span className="seg small dc-mode" role="group" aria-label={tx('Vista dos dados')}>{[[true, '3D'], [false, '2D']].map(([v, l]) => <button key={l} className={d3 === v ? 'on' : ''} onClick={() => { setLive([]); setRes3(null); setBusy3(false); set(x => ({ ...x, d3: v })) }}>{l}</button>)}</span>}
       </div>
-      <div className="dc-tray" ref={tray}>
+      {d3 ? <div className="dc-tray dc-3d" ref={box}>
+        {!res3 && !busy3 && <p className="dc-hint muted">{tx('Escolhe os dados acima e carrega em «Lançar». Depois podes agarrar um dado com o rato ou o dedo e atirá-lo outra vez.')}</p>}
+      </div> : <div className="dc-tray" ref={tray}>
         {!live.length && <p className="dc-hint muted">{tx('Escolhe os dados acima e carrega em «Lançar».')}</p>}
         {live.map(d => (
           <div key={d.id} ref={el => { els.current[d.id] = el }} className={`die ${d.done ? 'done' : ''} ${d.done && d.type === 'd20' && d.v === 20 ? 'crit' : ''} ${d.done && d.type === 'd20' && d.v === 1 ? 'fumble' : ''}`} style={{ width: d.size, height: d.size }}>
@@ -293,7 +325,9 @@ function Dice({ s, set, compact = false }) {
           </div>
         ))}
         {live.length > 0 && !rolling && live.some(d => d.type !== 'moeda') && <div className="dc-sum">{live.filter(d => d.type !== 'moeda').length > 1 ? `Σ ${sum}` : sum}</div>}
-      </div>
+      </div>}
+      {d3 && <div className="dc-res3" aria-live="polite">{busy3 ? <span className="muted">{tx('a rolar…')}</span> : res3 && <>{res3.map((x, k) => <span key={k} className={`dl ${x.type === 'd20' && x.v === 20 ? 'crit' : x.type === 'd20' && x.v === 1 ? 'fumble' : ''}`}><small>{x.type === 'moeda' ? '🪙' : x.type}</small> {face(x.type, x.v)}</span>)}
+        {res3.filter(x => x.type !== 'moeda').length > 1 && <b className="dc-res3-sum">Σ {res3.filter(x => x.type !== 'moeda').reduce((a, x) => a + x.v, 0)}</b>}</>}</div>}
       <Log title={tx('Registo dos dados')} empty={tx('Cada lançamento fica aqui.')} onClear={async () => (await ask('registo', { title: tx('Limpar o registo dos dados?'), ok: tx('Limpar') })) && set(x => ({ ...x, log: [] }))} items={s.log.map((e, k) => (
         <li key={k}><time>{hhmm(e.t)}</time> {e.items.map((it, j) => <span key={j} className={`dl ${it.type === 'd20' && it.v === 20 ? 'crit' : it.type === 'd20' && it.v === 1 ? 'fumble' : ''}`}><small>{it.type === 'moeda' ? '🪙' : it.type}</small> {face(it.type, it.v)}</span>)}
           {e.items.filter(i => i.type !== 'moeda').length > 1 && <b> = {e.sum}</b>}</li>

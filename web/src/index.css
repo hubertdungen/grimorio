@@ -1778,3 +1778,12 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .bt-tiles > div.bt-broke { border-color: var(--gold); }
 .bt-tiles > div > button { justify-self: start; margin-top: 4px; }
 .bt-tiles > div > button.link { padding: 0; min-height: 0; font-size: 12px; }
+/* dados 3D */
+.dc-3d .dc-gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; touch-action: none; cursor: grab; }
+.dc-3d .dc-gl:active { cursor: grabbing; }
+.dc-3d .dc-hint { position: absolute; z-index: 2; pointer-events: none; }
+.dc-res3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 34px; margin: -2px 16px 10px; padding: 4px 14px; border-radius: 12px; background: #0006; color: var(--gold2); font-size: 22px; font-weight: 800; }
+.dc-res3 .dl small { font-size: 11px; } .dc-res3-sum { margin-left: auto; font-size: 26px; }
+.dc.compact .dc-res3, .dc-res3:empty { min-height: 0; }
+.dc-res3:empty { display: none; }
+.dc-mode { margin-left: auto; float: none; }
