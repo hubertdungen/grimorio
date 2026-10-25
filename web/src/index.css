@@ -2082,3 +2082,10 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .caveats .cav-card { font: inherit; font-style: italic; color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; padding: 0; }
 .caveats .cav-card:hover { color: var(--gold2); }
 .src-wld { margin-left: 8px; white-space: nowrap; } .src-wld .rec-wdl { margin-left: 3px; }
+/* o que está a decorrer (Laboratório, torneios, Arena) */
+.live-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 16px; background: linear-gradient(90deg, #f2b84b14, transparent); border-bottom: 1px solid var(--line); font-size: 12px; }
+.live-bar button { padding: 3px 10px; border: 1px solid var(--line); border-radius: 99px; background: var(--panel); color: var(--text); font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-bar button:hover { border-color: var(--gold); }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #e05a44; box-shadow: 0 0 0 0 #e05a4499; animation: liveP 1.6s infinite; }
+@keyframes liveP { 70% { box-shadow: 0 0 0 7px #e05a4400; } 100% { box-shadow: 0 0 0 0 #e05a4400; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }

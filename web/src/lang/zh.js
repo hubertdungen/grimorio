@@ -2666,4 +2666,7 @@ export default {
   "função": "功能",
   "ignorado: «{w}»": "已忽略：“{w}”",
   "Nome, ou uma frase em qualquer língua: «encantamento que dê flying até 2», «terrenos que compram cartas»…": "名称，或任意语言的短语：“费用最多2的飞行结界”、“抽牌的地”…",
+  "Ver a Arena ao vivo": "观看竞技场直播",
+  "Ver os testes ao vivo": "观看测试直播",
+  "Ver o torneio": "查看锦标赛",
 }

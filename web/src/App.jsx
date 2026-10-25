@@ -14,6 +14,7 @@ import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, 
 import DraftView from './Draft.jsx'
 import NewDeckWizard from './Wizard.jsx'
 import LabView from './Lab.jsx'
+import { useRun } from './labrun.js'
 import PlayView from './Play.jsx'
 import TournamentView from './Tournament.jsx'
 import RatingsView from './Ratings.jsx'
@@ -90,6 +91,31 @@ function withBasicArt(d, n, q) {
   const split = { ...(d.split || {}) }, left = l.filter(x => x.q > 0)
   if (left.length) split[n] = left; else delete split[n]
   return { ...d, split }
+}
+
+// o que está a decorrer agora (testes do Laboratório, torneios, Arena): uma barra fina por baixo do cabeçalho, só
+// quando há alguma coisa, e cada ficha leva ao visualizador em direto
+function LiveBar({ guest, go }) {
+  const [lab] = useRun('busy'), [labDeck] = useRun('deckName')
+  const [tour, setTour] = useState([]), [arena, setArena] = useState(null)
+  useEffect(() => {
+    let off = false
+    const tick = () => {
+      fetch('/api/tournaments').then(r => (r.ok ? r.json() : [])).then(l => { if (!off) setTour((Array.isArray(l) ? l : []).filter(t => t.status === 'running')) }).catch(() => {})
+      if (!guest) fetch('/api/arena').then(r => (r.ok ? r.json() : null)).then(a => { if (!off) setArena(a?.on && a.cur?.a ? a.cur : null) }).catch(() => {})
+    }
+    tick(); const t = setInterval(tick, 30000)
+    return () => { off = true; clearInterval(t) }
+  }, [guest])
+  if (!lab && !tour.length && !arena) return null
+  return (
+    <div className="live-bar" role="status">
+      <span className="live-dot" aria-hidden="true" />
+      {lab && <button onClick={() => go('bots')} title={tx('Ver os testes ao vivo')}>🧪 {tx('Laboratório')} · {labDeck ? `${labDeck} · ` : ''}{lab}</button>}
+      {tour.map(t => <button key={t.id} onClick={() => { try { localStorage.setItem('grimorio.torneio', t.id) } catch { /* sem armazenamento */ } go('torneio') }} title={tx('Ver o torneio')}>🏆 {t.name}</button>)}
+      {arena && <button onClick={() => go('ratings')} title={tx('Ver a Arena ao vivo')}>⚔ {tx('Arena')} · {arena.a} {tx('contra')} {arena.b} · {arena.wa}–{arena.wb}</button>}
+    </div>
+  )
 }
 
 export default function App() {
@@ -383,6 +409,7 @@ export default function App() {
           {TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
         </nav>}
       </header>
+      <LiveBar guest={guest} go={m => { setColMode(m); setSection('coliseu') }} />
       {guest && <p className="guest-bar">🤝 {tx('Estás aqui como convidado ({n}): os teus decks ficam guardados neste Grimório e vês os torneios em que entras.', { n: prof.current?.name })} <button className="link small" onClick={() => fetch('/api/guest/leave', { method: 'POST' }).then(() => window.location.reload())}>{tx('sair do convite')}</button></p>}
 
       {section === 'regras' && <div className="area"><Rules data={data} /></div>}

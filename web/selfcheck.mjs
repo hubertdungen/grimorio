@@ -574,7 +574,7 @@ console.log('selfcheck universo ok')
   assert.deepEqual(P('robar el control').f, { tags: ['steal'] })
   console.log('selfcheck pesquisa por frases ok') }
 { const src = readFileSync(new URL('./src/App.jsx', import.meta.url), 'utf8')  // básicos novos com arte favorita ao acaso; tirar encolhe a divisão
-  const body = src.slice(src.indexOf('function withBasicArt'), src.indexOf('export default function App'))
+  const i0 = src.indexOf('function withBasicArt'), body = src.slice(i0, src.indexOf('\n}\n', i0) + 2)
   const { setBasicDefaults } = await import('./src/data.js')
   setBasicDefaults({ Plains: [{ id: 'a' }, { id: 'b' }] })
   const BASICS = ['Plains'], basicList = n => (n === 'Plains' ? [{ id: 'a' }, { id: 'b' }] : [])

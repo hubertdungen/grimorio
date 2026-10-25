@@ -1,6 +1,6 @@
 // Laboratório: o teu deck joga contra adversários (Forge no servidor), com sideboard entre jogos,
 // aprendizagem pelo histórico, repetição animada e relatório.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { img, pidOf, recommend, sideSuggest, SIDE_CATS } from './data.js'
 import { showCardPeek, hideCardPeek } from './Views.jsx'
 import { parseList, stats } from './deck.js'
@@ -12,6 +12,7 @@ import { DIFF_INFO } from './difficulty.js'
 import { planSideboard, applySwaps } from './sideboard.js'
 import { aiCaveats } from './tests.js'
 import { ask } from './confirm.jsx'
+import { useRun, setRun, runState, stopRef } from './labrun.js'
 import { tx, num, LOCALE } from './i18n.js'
 
 // Até onde confiar nos testes: o que a IA do Forge joga mal neste deck (cada carta mostra-se ao passar e abre ao clicar)
@@ -86,15 +87,14 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
   const multi = mode !== '1v1', nSeats = MODE_N[mode] - 1
   const setSeat = (j, v) => setSeats(x => x.map((y, k) => (k === j ? { ...y, ...v } : y)))
   const [learn, setLearn] = useState(true)
-  const [runs, setRuns] = useState([])
-  const [busy, setBusy] = useState(null)
-  const [err, setErr] = useState('')
-  const [watch, setWatch] = useState(null)
-  const [played, setPlayed] = useState([])
+  const [runs, setRuns] = useRun('runs')
+  const [busy, setBusy] = useRun('busy')
+  const [err, setErr] = useRun('err')
+  const [watch, setWatch] = useRun('watch')
+  const [played, setPlayed] = useRun('played')
+  const [runDeck] = useRun('deckName')
   const [saved, setSaved] = useState([])
   const [rt, setRt] = useState({})  // estrelas dos adversários (ratings)
-  const runsRef = useRef([])
-  useEffect(() => { runsRef.current = runs }, [runs])
   const loadSaved = () => { if (deck.id) fetch(`/api/sim/runs?deck_id=${deck.id}`).then(r => r.json()).then(setSaved).catch(() => {}) }
   useEffect(loadSaved, [deck.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const openSaved = async id => {
@@ -105,12 +105,12 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
       serie: rs.slice(0, ri + 1).filter(x => x.opp === r.opp).length, series: rs.filter(x => x.opp === r.opp).length }))))
   }
   const delSaved = async id => { if (!(await ask('teste', { title: tx('Apagar este teste guardado?'), ok: tx('Apagar') }))) return; await fetch(`/api/sim/runs/${id}`, { method: 'DELETE' }); loadSaved(); act.refreshTests?.() }
-  const [cur, setCur] = useState(0)
+  const [cur, setCur] = useRun('cur')
   const [showLive, setShowLive] = useState(true)
   // pausa entre jogos (preferência deste browser)
   const [pause, setPause] = useState(() => { try { return JSON.parse(localStorage.getItem('grimorio.pausa')) || { secs: 5, auto: true } } catch { return { secs: 5, auto: true } } })
   const setPausePref = v => { setPause(v); try { localStorage.setItem('grimorio.pausa', JSON.stringify(v)) } catch { /* sem armazenamento */ } }
-  const stop = useRef(false)
+  const stop = stopRef
 
   useEffect(() => {
     j(`/api/sim/opponents?format=${casual ? metaFmt : fmt.key}`).then(setOpps).catch(() => setOpps([]))
@@ -163,7 +163,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
   }
 
   const run = async () => {
-    setErr(''); stop.current = false
+    setErr(''); stop.current = false; setRun('deckId', deck.id); setRun('deckName', deck.name)
     const t0 = Date.now()
     const list = [...sel]
     if (paste.trim()) { const p = parseList(paste, data); list.push({ id: 'colada', name: tx('Lista colada'), source: 'colada', deck: { name: tx('Lista colada'), commanders: p.commanders, main: p.main, side: p.side } }) }
@@ -202,7 +202,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
     } catch (e) { setErr(e.message) }
     // guarda a sessão no deck (séries com os jogos completos, para rever relatório e tabuleiro mais tarde)
     await sleep(80)
-    const session = runsRef.current.filter(r => +String(r.matchId).split('-')[0] >= t0)
+    const session = runState.runs.filter(r => +String(r.matchId).split('-')[0] >= t0)
     if (session.length && deck.id) {
       const gs = session.flatMap(r => r.games)
       await fetch('/api/sim/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
@@ -322,7 +322,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
               <button className="primary" onClick={run} disabled={!canRun || !!busy}>{busy ? tx('A jogar…') : tx('▶ Correr testes')}</button>
               {busy && <button onClick={() => { stop.current = true }}>{tx('Parar')}</button>}
             </div>
-            {busy && <p className="small"><span className="spin-dot" /> {busy}</p>}
+            {busy && <p className="small"><span className="spin-dot" /> {runDeck && runDeck !== deck.name ? `${runDeck} · ` : ''}{busy}</p>}
             {err && <p className="small bad-t">{err}</p>}
           </div>
         </div>

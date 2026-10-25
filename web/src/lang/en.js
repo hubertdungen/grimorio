@@ -2674,4 +2674,7 @@ export default {
   "função": "function",
   "ignorado: «{w}»": "ignored: “{w}”",
   "Nome, ou uma frase em qualquer língua: «encantamento que dê flying até 2», «terrenos que compram cartas»…": "Name, or a phrase in any language: “enchantment that gives flying up to 2”, “lands that draw cards”…",
+  "Ver a Arena ao vivo": "Watch the Arena live",
+  "Ver os testes ao vivo": "Watch the tests live",
+  "Ver o torneio": "View the tournament",
 }
