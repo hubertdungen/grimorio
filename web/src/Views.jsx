@@ -2,7 +2,7 @@ import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
-import { deckIndices, stats, sampleHand, exportList } from './deck.js'
+import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, WhiteStars } from './ui.jsx'
 import { deckPoints, deckSplit, trophyStars } from './trophyvalue.js'
 import Map3D from './Map3D.jsx'
@@ -15,6 +15,7 @@ import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 import { parseQuery } from './nlsearch.js'
+import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard } from './AnalysisDash.jsx'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -1251,7 +1252,8 @@ const Bar = ({ v, max, label, target, onClick }) => (
   </div>
 )
 
-function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
+// as peças da Análise que vêm do motor de sugestões (uma só chamada): melhorias, base de mana, plano e o atalho às sugestões
+function usePlanCuts({ data, deck, fmt, ctx, act, issues }) {
   const { recs, plan, co, cmdIdx, needs, meta, archetype } = useDeckRecs(data, deck, fmt, ctx, null, 150)
   const toSug = key => { try { localStorage.setItem(key, '1') } catch { /* sem armazenamento */ } act.suggestFor('') }
   const manaCard = (
@@ -1263,10 +1265,10 @@ function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
     </Fold>
   )
   const cuts = useMemo(() => { const rean = reanimTargets(data, deck); return deckCuts(data, deck, { ctx, co, commanders: cmdIdx, needs, recs, meta, archetype }).filter(x => !rean.has(x.c.n)) }, [data, deck, ctx, co, cmdIdx, needs, recs, meta, archetype])
-  return (
-    <>
-      <PriorityCard {...{ data, deck, fmt, ctx, act, issues, cuts, needs }} />
-      {manaCard}
+  return {
+    prio: <PriorityCard {...{ data, deck, fmt, ctx, act, issues, cuts, needs }} />,
+    mana: manaCard,
+    plan: (
       <section className="card">
         <h3>{tx('Plano do deck')}</h3>
         {archetype && <p className="small">{tx('Arquétipo provável:')} <b>{archetype.name}</b> <span className="muted">({tx('{n} cartas do núcleo, {p}% do meta de {f}', { n: archetype.got, p: Math.round(archetype.share * 100), f: fmt.name })})</span></p>}
@@ -1274,14 +1276,14 @@ function PlanAndCuts({ data, deck, fmt, ctx, act, issues }) {
           <div key={x.label} className="plan-row"><b>{x.label}</b><span className="muted small">{x.roles.length ? tx('{a} geram · {b} aproveitam', { a: x.enablers, b: x.payoffs }) : tx('{n} criatura|{n} criaturas', { n: x.n })}</span></div>
         )) : <p className="muted small">{tx('Ainda sem eixo claro. Os eixos aparecem quando há cartas que geram algo (fichas, marcadores, cemitério…) e outras que o aproveitam.')}</p>}
         {plan[0] && <p className="muted small">{tx('As sugestões dão mais peso a cartas que alimentam ou aproveitam estes eixos, e dizem com que cartas do deck interagem.')}</p>}
-      </section>
+      </section>),
+    sug: (
       <section className="card">
         <h3>{tx('Sugestões para este deck')}</h3>
         <p className="muted small">{tx('Trocas, quantidades, terrenos e sideboard estão em Sugestões.')}</p>
         <div className="row-btns"><button onClick={() => toSug('grimorio.trocar')}>✂ {tx('Trocar no deck')}{cuts.length ? ` (${cuts.length})` : ''}</button>{fmt.side > 0 && <button onClick={() => toSug('grimorio.sideboard')}>🛡 {tx('Sideboard')}</button>}</div>
-      </section>
-    </>
-  )
+      </section>),
+  }
 }
 
 // Registo do deck (Laboratório, torneios e Arena, sem contar o mesmo jogo duas vezes): contra quem ganhou e perdeu,
@@ -1382,64 +1384,47 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
   const s = useMemo(() => stats(deck, data), [deck, data])
   const [hand, setHand] = useState(null)
   const advised = landAdvice(fmt, s.avgMv || 3, s.cheapRampDraw)
-  const maxCurve = Math.max(...s.curve, 1)
   const targets = Object.entries(fmt.targets || {})
-  const pipTotal = Object.values(s.pips).reduce((a, b) => a + b, 0)
+  const total = s.lands + s.spells
+  const odds = useMemo(() => landOdds(total, s.lands), [s.lands, total])
+  const pcs = usePlanCuts({ data, deck, fmt, ctx, act, issues })
+  const valRef = useRef(null)
   return (
-    <div className="view analysis">
-      <section className="card">
-        <h3>{tx('Modo de ajuda')} · {fmt.name}</h3>
-        <ul className="tips">{fmt.tips.map((t, k) => <li key={k}>{t}</li>)}</ul>
-      </section>
-
-      <PlanAndCuts {...{ data, deck, fmt, ctx, act, issues }} />
-
-      <section className="card">
-        <h3>{tx('Validação')}</h3>
-        {issues.length ? <ul className="issues">{issues.map((i, k) => <li key={k} className={i.nivel}>{i.msg}</li>)}</ul> : <p className="ok-msg">{tx('Deck válido em {f}.', { f: fmt.name })}</p>}
-      </section>
-
-      <DeckRecord {...{ deck, data, act }} />
-      <TrophyCard deck={deck} />
-
-      <section className="card">
-        <h3>{tx('Terrenos')}</h3>
-        <Bar label={tx('Terrenos')} v={s.lands} max={Math.max(advised, s.lands) * 1.2} target={advised} />
-        <p className="muted small">{tx('Recomendado: ~{a} para custo médio {m} com {r} ramp/compra baratos (fórmula de Frank Karsten).', { a: advised, m: num(s.avgMv, 2), r: s.cheapRampDraw })}</p>
-        <h4>{tx('Cores: símbolos nos custos vs. fontes nos terrenos')}</h4>
-        {Object.entries(s.pips).filter(([k, v]) => v || s.sources[k]).map(([k, v]) => (
-          <div key={k} className="pipline"><img src={`https://svgs.scryfall.io/card-symbols/${k}.svg`} alt={k} /><span>{tx('{p}% dos símbolos', { p: pipTotal ? Math.round((v / pipTotal) * 100) : 0 })}</span><span>{tx('{n} fonte|{n} fontes', { n: s.sources[k] })}</span></div>
-        ))}
-      </section>
-
-      <section className="card">
-        <h3>{tx('Curva de mana')} <span className="muted">{tx('média {m}', { m: num(s.avgMv, 2) })}</span></h3>
-        <div className="curve">{s.curve.map((v, k) => <div key={k}><i style={{ height: `${(v / maxCurve) * 100}%` }}><b>{v || ''}</b></i><span>{k === 7 ? '7+' : k}</span></div>)}</div>
-        <h4>{tx('Tipos')}</h4>
-        <div className="types">{Object.entries(s.types).map(([t, v]) => <span key={t}>{TYPE_LABEL[t] || t} <b>{v}</b></span>)}</div>
-      </section>
-
-      {targets.length > 0 && (
-        <section className="card">
-          <h3>{tx('Funções do deck')}</h3>
-          <p className="muted small">{tx('Contagem pelas etiquetas automáticas; carrega numa linha para ver sugestões dessa função.')}</p>
-          {targets.map(([t, n]) => <Bar key={t} label={TAG_LABEL[t]} v={s.tags[t] || 0} max={n * 1.6} target={n} onClick={() => act.suggestFor(t)} />)}
-          <div className="types">{Object.entries(s.tags).filter(([t]) => !(t in fmt.targets) && t !== 'land').sort((a, b) => b[1] - a[1]).slice(0, 10).map(([t, v]) => <span key={t}>{TAG_LABEL[t]} <b>{v}</b></span>)}</div>
+    <div className="view an-dash">
+      <div className="an-head">
+        <h2>{tx('Análise')} <span className="muted">· {fmt.name}</span></h2>
+        {fmt.tips?.length > 0 && <details className="an-help">
+          <summary title={tx('Modo de ajuda')}>ⓘ {tx('Regras de {f}', { f: fmt.name })}</summary>
+          <ul className="tips">{fmt.tips.map((t, k) => <li key={k}>{t}</li>)}</ul>
+        </details>}
+      </div>
+      <Kpis {...{ s, total, fmt, advised, odds, issues }} onIssues={() => valRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />
+      <div className="an-charts">
+        <CurveChart {...{ data, deck, s }} />
+        <ColorDonuts {...{ data, deck, s }} />
+      </div>
+      <div className="analysis">
+        <HandOdds {...{ odds, hand, data, deck, act }} canDraw={Object.keys(deck.main).length > 0} onDraw={n => setHand(sampleHand(deck, n))} />
+        {pcs.mana}
+        {targets.length > 0 && (
+          <section className="card">
+            <h3>{tx('Funções do deck')}</h3>
+            <p className="muted small">{tx('Contagem pelas etiquetas automáticas; carrega numa linha para ver sugestões dessa função.')}</p>
+            {targets.map(([t, n]) => <Bar key={t} label={TAG_LABEL[t]} v={s.tags[t] || 0} max={n * 1.6} target={n} onClick={() => act.suggestFor(t)} />)}
+            <div className="types">{Object.entries(s.tags).filter(([t]) => !(t in fmt.targets) && t !== 'land').sort((a, b) => b[1] - a[1]).slice(0, 10).map(([t, v]) => <span key={t}>{TAG_LABEL[t]} <b>{v}</b></span>)}</div>
+          </section>
+        )}
+        {pcs.plan}
+        <DeckRecord {...{ deck, data, act }} />
+        <TrophyCard deck={deck} />
+        <PriceCard {...{ data, deck, s, act }} />
+        {pcs.sug}
+        <section className="card" ref={valRef}>
+          <h3>{tx('Validação')}</h3>
+          {issues.length ? <ul className="issues">{issues.map((i, k) => <li key={k} className={i.nivel}>{i.msg}</li>)}</ul> : <p className="ok-msg">{tx('Deck válido em {f}.', { f: fmt.name })}</p>}
         </section>
-      )}
-
-      <section className="card">
-        <h3>{tx('Preço')}</h3>
-        <p className="big-num">{num(s.price, 2)} €</p>
-        <p className="muted small">{tx('Preços da Cardmarket via Scryfall (versão mais barata não garantida).')}{s.missingPrice ? ` ${tx('{n} carta sem preço.|{n} cartas sem preço.', { n: s.missingPrice })}` : ''}</p>
-      </section>
-
-      <section className="card">
-        <h3>{tx('Mão inicial de teste')}</h3>
-        <div className="row-btns"><button className="primary" onClick={() => setHand(sampleHand(deck, 7))} disabled={!Object.keys(deck.main).length}>{tx('Tirar 7')}</button>{hand && <button onClick={() => setHand(sampleHand(deck, Math.max(1, hand.length - 1)))}>Mulligan ({Math.max(1, hand.length - 1)})</button>}</div>
-        {hand && <div className="hand">{hand.map((n, k) => { const c = data.byName.get(n); return c && <img key={k} src={img(c, 'normal', false, pidOf(deck, n))} alt={n} onClick={() => act.open(c)} /> })}</div>}
-        {hand && <p className="muted small">{tx('{n} terreno nesta mão.|{n} terrenos nesta mão.', { n: hand.filter(n => data.byName.get(n)?.mt === 'Land').length })}</p>}
-      </section>
+      </div>
+      {pcs.prio}
     </div>
   )
 }

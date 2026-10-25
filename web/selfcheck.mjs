@@ -581,3 +581,10 @@ console.log('selfcheck universo ok')
   assert.equal(w({ main: { Plains: 1 }, side: {}, prints: { Plains: { id: 'z' } } }, 'Plains', 1).split, undefined)
   setBasicDefaults({})
   console.log('selfcheck básicos favoritos ok') }
+{ const { landOdds } = await import('./src/deck.js')  // probabilidades de terrenos: 60 cartas com 24 terrenos
+  const o = landOdds(60, 24)
+  assert.ok(Math.abs(o.hist.reduce((a, b) => a + b, 0) - 1) < 1e-9)
+  assert.ok(Math.abs(o.hist[3] - 0.3087) < 0.001, String(o.hist[3]))  // C(24,3)·C(36,4)/C(60,7)
+  assert.ok(o.keep > 0.75 && o.keep < 0.8 && o.t3 > o.t4)
+  assert.equal(landOdds(5, 2).keep, 0)
+  console.log('selfcheck probabilidades de terrenos ok') }

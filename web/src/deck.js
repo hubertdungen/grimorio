@@ -128,3 +128,13 @@ export function proxyGroups(deck, data, { side = true } = {}) {
   if (side) for (const [n, q] of Object.entries(deck.side || {})) add(n, q)
   return out
 }
+
+// probabilidades de terrenos (hipergeométrica): N cartas, L terrenos. hist[k] = P(k terrenos na mão de 7);
+// keep = P(2 a 4 na mão inicial); t3/t4 = P(ter a 3.ª/4.ª jogada de terreno a tempo, a jogar primeiro: 9/10 cartas vistas)
+export function landOdds(N, L) {
+  const C = (n, k) => { if (k < 0 || k > n) return 0; let r = 1; for (let j = 1; j <= k; j++) r = (r * (n - k + j)) / j; return r }
+  const P = (n, k) => (N >= n ? (C(L, k) * C(N - L, n - k)) / C(N, n) : 0)
+  const atLeast = (n, k) => { let s = 0; for (let j = k; j <= Math.min(n, L); j++) s += P(n, j); return s }
+  const hist = Array.from({ length: 8 }, (_, k) => P(7, k))
+  return { hist, keep: hist[2] + hist[3] + hist[4], t3: atLeast(9, 3), t4: atLeast(10, 4) }
+}
