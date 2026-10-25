@@ -572,6 +572,8 @@ console.log('selfcheck universo ok')
   assert.deepEqual(P('费用最多2的飞行结界').f, { cmcMax: 2, oracle: ['flying'], type: 'Enchantment' })
   assert.deepEqual(P('Kreaturen mit Flugfähigkeit höchstens 3').f, { cmcMax: 3, oracle: ['flying'], type: 'Creature' })
   assert.deepEqual(P('robar el control').f, { tags: ['steal'] })
+  assert.deepEqual(P('criaturas lendárias verdes').f, { type: 'Creature', legendary: true, colors: ['G'] })
+  assert.deepEqual(P('传奇生物').f, { type: 'Creature', legendary: true })
   console.log('selfcheck pesquisa por frases ok') }
 { const src = readFileSync(new URL('./src/App.jsx', import.meta.url), 'utf8')  // básicos novos com arte favorita ao acaso; tirar encolhe a divisão
   const i0 = src.indexOf('function withBasicArt'), body = src.slice(i0, src.indexOf('\n}\n', i0) + 2)

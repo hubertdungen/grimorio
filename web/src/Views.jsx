@@ -798,7 +798,8 @@ function Filters({ f, set, compact, noTag }) {
           </select>
         )}
       </div>
-      <select value={f.type} onChange={e => up('type', e.target.value)} aria-label={tx('Tipo')}><option value="">{tx('Todos os tipos')}</option>{TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}<option value="Legendary">{tx('Lendárias')}</option></select>
+      <select value={f.type} onChange={e => up('type', e.target.value)} aria-label={tx('Tipo')}><option value="">{tx('Todos os tipos')}</option>{TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}</select>
+      <button className={`fchip lgd ${f.legendary ? 'on' : ''}`} onClick={() => up('legendary', !f.legendary)} aria-pressed={!!f.legendary} title={tx('Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)')}>♛ {tx('Lendárias')}</button>
       {!noTag && <select value={f.tag} onChange={e => up('tag', e.target.value)} aria-label={tx('Função')}><option value="">{tx('Qualquer função')}</option>{TAG_GROUPS.map(([g, ks]) => <optgroup key={g} label={g}>{ks.map(k => <option key={k} value={k}>{TAG_LABEL[k]}</option>)}</optgroup>)}</select>}
       <input value={f.sub} onChange={e => up('sub', e.target.value)} placeholder={tx('Subtipo (Elf, Dragon…)')} className="w-sub" />
       <span className="mv"><abbr title={tx('MV = valor de mana: o custo total de mana da carta (ex.: 2 genéricos + 1 vermelho = 3)')}>MV</abbr> <input type="number" min="0" value={f.cmcMin} onChange={e => up('cmcMin', e.target.value)} aria-label={tx('Custo mínimo')} />–<input type="number" min="0" value={f.cmcMax} onChange={e => up('cmcMax', e.target.value)} aria-label={tx('Custo máximo')} /></span>
@@ -808,7 +809,7 @@ function Filters({ f, set, compact, noTag }) {
   )
 }
 
-const F0 = { colors: [], colorMode: 'incl', colorless: false, type: '', tag: '', sub: '', cmcMin: '', cmcMax: '', rarity: '', priceMax: '', sort: 'pop', inText: false }
+const F0 = { colors: [], colorMode: 'incl', colorless: false, type: '', legendary: false, tag: '', sub: '', cmcMin: '', cmcMax: '', rarity: '', priceMax: '', sort: 'pop', inText: false }
 
 // terrenos básicos à mão: um botão por cor (as do deck primeiro e acesas), − tira um
 const BASIC5 = [['Plains', 'W'], ['Island', 'U'], ['Swamp', 'B'], ['Mountain', 'R'], ['Forest', 'G']]
@@ -850,7 +851,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   }, [data, dq, df, ctx, nl])
   const [showF, setShowF] = useState(false)
   const [swaps, setSwaps] = useState(null)
-  const nActive = ['type', 'tag', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].filter(k => f[k]).length + (f.colors.length ? 1 : 0) + (f.colorless ? 1 : 0)
+  const nActive = ['type', 'legendary', 'tag', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].filter(k => f[k]).length + (f.colors.length ? 1 : 0) + (f.colorless ? 1 : 0)
   return (
     <div className="view">
       <div className="searchbar">
@@ -865,7 +866,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       <div className={`filters-wrap ${showF ? 'open' : ''}`}><Filters f={f} set={setF} /></div>
       <div className="search-layout">
       <div>
-      {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.v}</b></span>)}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
+      {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => (g.k === 'legendary' ? <span key={k} className="chip">♛ <b>{tx('Lendárias')}</b></span> : <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.v}</b></span>))}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">
         {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} />)}
@@ -905,7 +906,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
   const [f, setF] = useState(() => ({ ...F0, tag: sugTag }))
   const df = useDeferredValue(f)
   const [kind, setKind] = useState('')
-  const filtering = ['type', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].some(k => df[k] !== '' && df[k] != null) || df.colors.length > 0
+  const filtering = ['type', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].some(k => df[k] !== '' && df[k] != null) || df.colors.length > 0 || !!df.legendary
   const { recs: allSug, seeds, usingDeck, needs, swaps, co, cmdIdx, meta, archetype, have } = useDeckRecs(data, deck, fmt, ctx, df, filtering ? 200 : 80)  // com filtros: mais cartas (senão as melhores pontuadas tapam o resto)
   const [sort, setSortS] = useState(() => { try { return localStorage.getItem('grimorio.sug.ordem') || 'score' } catch { return 'score' } })
   const setSort = v => { setSortS(v); try { localStorage.setItem('grimorio.sug.ordem', v) } catch { /* sem armazenamento */ } }

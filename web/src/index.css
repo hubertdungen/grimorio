@@ -2195,3 +2195,4 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .live-bar button { flex: 0 1 auto; min-width: 0; max-width: 46vw; }
 .live-bar-pad { height: 34px; }
 .app:has(.live-bar) .toast { bottom: 52px; }
+.filters .fchip.lgd { white-space: nowrap; }

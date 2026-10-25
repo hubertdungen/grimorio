@@ -12,7 +12,6 @@ const TYPES = {
   artefacto: 'Artifact', artefato: 'Artifact', artifact: 'Artifact', artefakt: 'Artifact',
   terreno: 'Land', land: 'Land', tierra: 'Land', lander: 'Land',
   planeswalker: 'Planeswalker', aura: 'Aura', equipamento: 'Equipment', equipment: 'Equipment', equipo: 'Equipment', ausrustung: 'Equipment',
-  lendaria: 'Legendary', lendario: 'Legendary', legendary: 'Legendary', legendaria: 'Legendary', legendare: 'Legendary',
   batalha: 'Battle', battle: 'Battle', batalla: 'Battle', veiculo: 'Vehicle', vehicle: 'Vehicle', vehiculo: 'Vehicle', fahrzeug: 'Vehicle',
 }
 const COLORS = {
@@ -73,7 +72,7 @@ const ZH = [
   ['警戒', { kw: 'vigilance' }], ['连击', { kw: 'double strike' }], ['先攻', { kw: 'first strike' }], ['延势', { kw: 'reach' }], ['辟邪', { kw: 'hexproof' }],
   ['不灭', { kw: 'indestructible' }], ['闪现', { kw: 'flash' }], ['威慑', { kw: 'menace' }],
   ['鹏洛客', { type: 'Planeswalker' }], ['生物', { type: 'Creature' }], ['结界', { type: 'Enchantment' }], ['法术', { type: 'Sorcery' }], ['瞬间', { type: 'Instant' }],
-  ['神器', { type: 'Artifact' }], ['传奇', { type: 'Legendary' }], ['无色', { colorless: true }], ['地', { type: 'Land' }],
+  ['神器', { type: 'Artifact' }], ['传奇', { legendary: true }], ['无色', { colorless: true }], ['地', { type: 'Land' }],
   ['白', { color: 'W' }], ['蓝', { color: 'U' }], ['黑', { color: 'B' }], ['红', { color: 'R' }], ['绿', { color: 'G' }],
 ]
 const STOP = new Set(('que de do da dos das com e um uma a o os as no na nos nas em para por carta cartas permita permitam permite deixe deixem faca facam fazer faz '
@@ -82,6 +81,8 @@ const STOP = new Set(('que de do da dos das com e um uma a o os as no na nos nas
   + 'con y la el los las un una permitan hacer den sea sean tenga tengan pero '
   + 'die der das dem des mit und ein eine einen einer fur karten karte oder aber auch '
   + 'mv cmc maximo max ate minimo pelo menos mais exatamente up most least less than hasta como al hochstens maximal mindestens bis').split(/\s+/))
+// «lendária» é um filtro à parte (junta-se ao tipo: «criatura lendária»)
+const LEGEND = new Set(['lendaria', 'lendario', 'legendary', 'legendaria', 'legendario', 'legendare', 'legendar', 'legendaren', 'legendares'])
 const CJK = /[\u3400-\u9fff]/
 
 export function parseQuery(q) {
@@ -114,6 +115,7 @@ export function parseQuery(q) {
     if (x.type) f.type ||= x.type
     if (x.color) add('colors', x.color)
     if (x.colorless) f.colorless = true
+    if (x.legendary) f.legendary = true
   }
   // funções e habilidades por frases (as compridas primeiro, para «robar el control» não ser «robar»)
   const phrases = [...Object.entries(CONCEPTS).flatMap(([t, ws]) => ws.map(w => [w, 'tags', t])), ...Object.entries(KW).flatMap(([k, ws]) => ws.map(w => [w, 'oracle', k]))]
@@ -125,7 +127,8 @@ export function parseQuery(q) {
   // tipos, cores, incolor (singular e plural: «lands», «criaturas», «tierras», «Kreaturen»)
   for (const w of s.trim().split(/\s+/)) {
     const base = [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/en$/, ''), w.replace(/n$/, '')].find(x => TYPES[x] || COLORS[x])
-    if (base && TYPES[base]) { f.type ||= TYPES[base]; s = s.replace(` ${w} `, ' ') }
+    if (LEGEND.has(w) || LEGEND.has(w.replace(/s$/, '')) || LEGEND.has(w.replace(/n$/, ''))) { f.legendary = true; s = s.replace(` ${w} `, ' ') }
+    else if (base && TYPES[base]) { f.type ||= TYPES[base]; s = s.replace(` ${w} `, ' ') }
     else if (base && COLORS[base]) { add('colors', COLORS[base]); s = s.replace(` ${w} `, ' ') }
     else if (['incolor', 'incolores', 'colorless', 'farblos', 'farblose'].includes(w)) { f.colorless = true; s = s.replace(` ${w} `, ' ') }
   }
@@ -133,6 +136,7 @@ export function parseQuery(q) {
   const rest = s.replace(/[\u3400-\u9fff]+/g, ' ').trim().split(/\s+/).filter(w => w && !STOP.has(w)).join(' ')
   const got = []
   if (f.type) got.push({ k: 'type', v: f.type })
+  if (f.legendary) got.push({ k: 'legendary', v: '' })
   for (const t of f.tags || []) got.push({ k: 'tag', v: t })
   for (const o of f.oracle || []) got.push({ k: 'oracle', v: o })
   if (f.cmcMin != null || f.cmcMax != null) got.push({ k: 'mv', v: f.cmcMin === f.cmcMax ? `= ${f.cmcMin}` : f.cmcMin != null && f.cmcMax != null ? `${f.cmcMin}–${f.cmcMax}` : f.cmcMax != null ? `≤ ${f.cmcMax}` : `≥ ${f.cmcMin}` })
