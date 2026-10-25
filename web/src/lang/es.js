@@ -2484,4 +2484,13 @@ export default {
   "Rulings oficiais": "Rulings oficiales",
   "Sem rulings para esta carta.": "Sin rulings para esta carta.",
   "Usa as regras encontradas e cita os números.": "Usa las reglas encontradas y cita los números.",
+  "Face da frente": "Cara frontal",
+  "Outra face": "Otra cara",
+  "Outra face de {c}": "Otra cara de {c}",
+  "Para ler o que está escrito ao contrário": "Para leer lo que está escrito al revés",
+  "Ver a frente": "Ver el frente",
+  "Ver o verso": "Ver el dorso",
+  "Verso da carta": "Dorso de la carta",
+  "Virar ao contrário": "Girar al revés",
+  "Clica para virar": "Haz clic para girar",
 }

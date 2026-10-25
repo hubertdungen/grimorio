@@ -2484,4 +2484,13 @@ export default {
   "Rulings oficiais": "官方裁定",
   "Sem rulings para esta carta.": "此卡没有裁定。",
   "Usa as regras encontradas e cita os números.": "使用找到的规则并引用编号。",
+  "Face da frente": "正面",
+  "Outra face": "另一面",
+  "Outra face de {c}": "{c} 的另一面",
+  "Para ler o que está escrito ao contrário": "用于阅读倒印的文字",
+  "Ver a frente": "查看正面",
+  "Ver o verso": "查看背面",
+  "Verso da carta": "卡背",
+  "Virar ao contrário": "倒转",
+  "Clica para virar": "点击翻转",
 }

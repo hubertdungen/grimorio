@@ -1334,8 +1334,10 @@ function Prints({ c, deck, act, onPreview }) {
   )
 }
 
+const CARD_BACK = 'https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg'  // o verso comum das cartas (Scryfall)
 export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
-  const [back, setBack] = useState(false)
+  const [back, setBack] = useState(false)  // flip 3D: a outra face (cartas de duas faces) ou o verso
+  const [rot, setRot] = useState(0)  // virar ao contrário (180° de cada vez, animado)
   const [subs, setSubs] = useState(false)  // 🔁 substitutos desta carta neste deck (motor + IA)
   const [preview, setPreview] = useState(null)
   const [hoverPid, setHoverPid] = useState(null)
@@ -1349,9 +1351,23 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
       <div className="modal cardmodal" onClick={e => e.stopPropagation()}>
         <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
         <div className="cm-img">
-          <img src={img(c, 'large', back, pid)} alt={c.n} />
+          <div className="cm-turn" style={{ '--rot': `${rot}deg` }}>
+            <div className="cm-tilt" onClick={() => setBack(b => !b)} title={tx('Clica para virar')}
+              onPointerMove={e => { if (e.pointerType !== 'mouse') return; const r = e.currentTarget.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5
+                e.currentTarget.style.setProperty('--tx', `${(x * 18).toFixed(1)}deg`); e.currentTarget.style.setProperty('--ty', `${(-y * 18).toFixed(1)}deg`); e.currentTarget.style.setProperty('--gx', `${(x + 0.5) * 100}%`); e.currentTarget.style.setProperty('--gy', `${(y + 0.5) * 100}%`) }}
+              onPointerLeave={e => { e.currentTarget.style.setProperty('--tx', '0deg'); e.currentTarget.style.setProperty('--ty', '0deg') }}>
+            <div className={`cm-flip ${back ? 'on' : ''}`}>
+              <img className="cm-face" src={img(c, 'large', false, pid)} alt={c.n} />
+              <img className="cm-face cm-back" src={c.df ? img(c, 'large', true, pid) : CARD_BACK} alt={c.df ? tx('Outra face de {c}', { c: c.n }) : tx('Verso da carta')} loading="lazy" />
+            </div>
+            <i className="cm-shine" aria-hidden="true" />
+            </div>
+          </div>
           {deck.art?.[c.n] ? <small className="muted">{tx('Arte própria do site de origem')}</small> : deck.prints?.[c.n] && <small className="muted">{tx('Estilo escolhido:')} {deck.prints[c.n].set} #{deck.prints[c.n].cn}{deck.prints[c.n].foil ? ' (foil)' : ''}</small>}
-          {c.df ? <button onClick={() => setBack(!back)}>↻ {tx('Virar carta')}</button> : null}
+          <div className="row-btns cm-turn-btns">
+            <button onClick={() => setRot(r => r + 180)} title={tx('Para ler o que está escrito ao contrário')}>↻ {tx('Virar ao contrário')}</button>
+            <button onClick={() => setBack(!back)}>⟲ {c.df ? (back ? tx('Face da frente') : tx('Outra face')) : back ? tx('Ver a frente') : tx('Ver o verso')}</button>
+          </div>
         </div>
         <div className="cm-info">
           <h2>{c.n} <Mana cost={c.mc} /></h2>

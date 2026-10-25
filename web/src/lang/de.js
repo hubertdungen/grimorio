@@ -2484,4 +2484,13 @@ export default {
   "Rulings oficiais": "Offizielle Rulings",
   "Sem rulings para esta carta.": "Keine Rulings für diese Karte.",
   "Usa as regras encontradas e cita os números.": "Nutzt die gefundenen Regeln und nennt die Nummern.",
+  "Face da frente": "Vorderseite",
+  "Outra face": "Andere Seite",
+  "Outra face de {c}": "Andere Seite von {c}",
+  "Para ler o que está escrito ao contrário": "Um zu lesen, was auf dem Kopf steht",
+  "Ver a frente": "Vorderseite zeigen",
+  "Ver o verso": "Rückseite zeigen",
+  "Verso da carta": "Kartenrückseite",
+  "Virar ao contrário": "Auf den Kopf drehen",
+  "Clica para virar": "Zum Umdrehen klicken",
 }
