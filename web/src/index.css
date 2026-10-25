@@ -1935,3 +1935,9 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .sug-sort { display: flex; align-items: center; gap: 8px; margin: 6px 0; } abbr[title] { text-decoration: underline dotted; cursor: help; }
 /* destaque vindo das sugestões (hl.js): entra e sai com fade */
 .row[data-card], .dg-tile[data-card] { transition: box-shadow .35s ease, background-color .35s ease; border-radius: 8px; }
+/* etiquetas das cartas da troca fora de vista na lista do deck (hl.js) */
+.hl-tip { position: fixed; z-index: 40; pointer-events: none; padding: 5px 10px; border-radius: 10px; font-size: 13px; font-weight: 700; color: #fff; background: #1b1830ee; box-shadow: 0 6px 18px #000a; animation: hlTip .25s ease-out; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hl-tip.out { box-shadow: inset 3px 0 0 #ff6b5b, 0 0 0 1px #ff6b5b88, 0 6px 18px #000a; }
+.hl-tip.in { box-shadow: inset 3px 0 0 #3dcf7a, 0 0 0 1px #3dcf7a88, 0 6px 18px #000a; }
+.hl-tip.on { box-shadow: inset 3px 0 0 #ffd98a, 0 0 0 1px #ffd98a88, 0 6px 18px #000a; }
+@keyframes hlTip { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

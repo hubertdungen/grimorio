@@ -104,7 +104,7 @@ function LandPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
           <p className="muted small">{Object.entries(plan.N.cols).map(([k, v]) => <span key={k} className={v.have < v.need ? 'bad-t' : ''}><Mana cost={`{${k}}`} /> {v.have}/{v.need} </span>)}</p>
           {!plan.acts.length ? <p className="muted small">{tx('Os terrenos estão equilibrados: quantidade, cores e qualidade sem nada claro a mudar.')}</p>
             : <ul className="cutp-list">{plan.acts.map(x => { const o = card(x.out), i = x.in; return (
-              <li key={x.kind + x.out + i.n}>
+              <li key={x.kind + x.out + i.n} {...hlProps([{ n: x.out, tone: 'out' }, { n: i.n, tone: 'in' }])}>
                 <small className="muted">{LAND_KIND[x.kind]}</small>
                 <div className="cutp-pair">
                   <button className="cutp-card" onClick={() => { pin([{ n: x.out, tone: 'out' }]); o && act.open(o) }}>{o && <img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" />}<span><b>− {x.q > 1 ? `${x.q}× ` : ''}{x.out}</b></span></button>
@@ -153,7 +153,7 @@ function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
           {fmt.copies === 1 ? null : games < 3 ? <p className="muted small">{tx('Ainda não há jogos suficientes deste deck ({n} de 3). Só se julgam cartas que já apareceram em jogo: põe-no a jogar no Coliseu (bots, torneios ou Arena).', { n: games })}</p>
             : !plan.length ? <p className="muted small">{tx('As quantidades estão equilibradas: nenhuma carta ganha claramente mais do que outra que pese.')}</p>
               : <ul className="cutp-list">{plan.map(x => (
-                <li key={x.add.c.n + x.cut.c.n}>
+                <li key={x.add.c.n + x.cut.c.n} {...hlProps([{ n: x.add.c.n, tone: 'in' }, { n: x.cut.c.n, tone: 'out' }])}>
                   <div className="cutp-pair"><Row r={x.add} sign={1} k={x.k} /><span className="cutp-arrow">⇄</span><Row r={x.cut} sign={-1} k={x.k} /></div>
                   <div className="row-btns"><button className="primary small" onClick={() => act.swap(x.add.c, { out: x.cut.c.n, q: x.k })}>✓ {tx('Aplicar: +{k} {a}, −{k} {b}', { k: x.k, a: x.add.c.n, b: x.cut.c.n })}</button></div>
                 </li>
