@@ -609,3 +609,11 @@ console.log('selfcheck universo ok')
   const xref = +txt.match(/startxref\n(\d+)/)[1]; assert.equal(txt.slice(xref, xref + 4), 'xref')
   const off = [...txt.matchAll(/(\d{10}) 00000 n/g)].map(m => +m[1]); assert.ok(off.every((v, i) => txt.slice(v).startsWith(`${i + 1} 0 obj`)))
   console.log('selfcheck proxies PDF ok') }
+{ const { winLose } = await import('./src/winlose.js')  // como ganha e como perde: regras simples, à escala de 60 cartas
+  const C = (n, t, o, extra = {}) => ({ n, t, o, mt: t.split(' ')[0], tg: [], kw: [], ci: '', cmc: 2, pt: '', i: 0, ...extra })
+  const cards = [C('Bear', 'Creature — Bear', '', { pt: '2/2' }), C('Plains', 'Land', '')]
+  const data = { byName: new Map(cards.map(c => [c.n, c])), cards, combosByCard: [[], []], combos: [] }
+  const r = winLose(data, { main: { Bear: 20, Plains: 40 }, side: {}, commanders: [] }, { side: 15 }, {})
+  assert.ok(r.wins.some(w => w.why.includes('20')) && r.risks.some(x => x.key === 'wipe') && r.risks.some(x => x.key === 'creatures'))
+  assert.equal(r.side.verdict, 'vazio')
+  console.log('selfcheck como ganha e perde ok') }

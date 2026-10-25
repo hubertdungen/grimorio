@@ -2094,3 +2094,12 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .bots-tbl thead th { color: var(--muted); font-weight: 600; font-size: 12px; }
 .bots-tbl tbody th { font-weight: 600; white-space: nowrap; }
 .bots-tbl select { width: 100%; min-width: 0; }
+.wl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; }
+.wl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.wl-list li { display: grid; gap: 2px; padding-left: 10px; border-left: 2px solid var(--line); }
+.wl-cards { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 12px; }
+.wl-card { font-size: 12px; text-decoration: underline dotted; text-underline-offset: 2px; color: var(--muted); padding: 0; }
+.wl-card:hover { color: var(--gold2); }
+.wl-side { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+.wl-side h4 { margin: 0 0 4px; } .wl-side p { margin: 2px 0; }
+.wl-side.forte { border-color: #45ad6266; } .wl-side.fraco, .wl-side.vazio { border-color: #e05a4466; }

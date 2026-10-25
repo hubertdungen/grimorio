@@ -2,10 +2,11 @@
 // (pedido nos custos vs. produzido pelos terrenos), probabilidades da mão inicial e as cartas mais caras.
 // Cores do Magic fixas por cor (nunca pela posição); ordem W R U G B C para o vermelho não encostar ao verde.
 import { useMemo, useState } from 'react'
-import { COLORS, TYPE_LABEL, img, pidOf } from './data.js'
+import { COLORS, TYPE_LABEL, img, pidOf, deckPlan } from './data.js'
 import { landInfo } from './mana.js'
 import { wrDelta } from './tests.js'
 import { WIN_LABEL } from './swap.js'
+import { winLose } from './winlose.js'
 import { tx, num } from './i18n.js'
 
 const ORDER = ['W', 'R', 'U', 'G', 'B', 'C']
@@ -204,6 +205,29 @@ export function CardsInGames({ data, deck, ev, act, peek, unpeek }) {
         <h4 title={tx('Esteve na mão 3 ou mais turnos sem ser usada')}>{tx('Fica parada na mão')}</h4>
         {list(rows.stuck, r => `${r.x.dead}/${r.x.seen}`, tx('jogos em que ficou presa / jogos em que esteve na mão'))}
       </>}
+    </section>
+  )
+}
+
+const VERDICT = { forte: tx('sólido'), razoavel: tx('razoável'), fraco: tx('fraco'), vazio: tx('vazio') }
+export function WinLoseCard({ data, deck, fmt, ctx, act, peek, unpeek, toSide }) {
+  const r = useMemo(() => winLose(data, deck, fmt, { ev: ctx.tests, ctx, plan: deckPlan(data, Object.keys(deck.main).map(n => data.byName.get(n)?.i).filter(i => i != null)) }), [data, deck, fmt, ctx])
+  const name = n => { const c = data.byName.get(n); return c ? <button key={n} className="link plain wl-card" onMouseEnter={e => peek(e, c, pidOf(deck, n))} onMouseLeave={unpeek} onClick={() => { unpeek(); act.open(c) }}>{n}</button> : <span key={n}>{n}</span> }
+  const item = (x, k) => <li key={k}><b>{x.label}</b><span className="muted small">{x.why}</span>{x.cards?.length > 0 && <span className="wl-cards">{x.cards.map(name)}</span>}</li>
+  return (
+    <section className="card wl">
+      <h3>{tx('Como ganha e como perde')}</h3>
+      <div className="wl-grid">
+        <div><h4 className="ok-t">✓ {tx('Formas de ganhar')}</h4>{r.wins.length ? <ul className="wl-list">{r.wins.map(item)}</ul> : <p className="muted small">{tx('Sem uma via clara: falta uma condição de vitória.')}</p>}</div>
+        <div><h4 className="bad-t">⚠ {tx('Formas de perder')}</h4>{r.risks.length ? <ul className="wl-list">{r.risks.map(item)}</ul> : <p className="muted small">{tx('Nada de evidente na construção nem nos testes.')}</p>}</div>
+      </div>
+      {r.side && <div className={`wl-side ${r.side.verdict}`}>
+        <h4>🛡 {tx('Sideboard')}: {VERDICT[r.side.verdict]} <span className="muted small">{tx('{n} cartas', { n: r.side.n })}</span></h4>
+        {r.side.covers.length > 0 && <p className="small">{tx('Cobre:')} {r.side.covers.map(c => `${c.label} (${c.n})`).join(' · ')}</p>}
+        {r.side.gaps.map((g, k) => <p key={k} className="small">{g.risk}: {g.has.length ? <>{tx('tem')} {g.has.map((n, j) => <span key={n}>{j ? ', ' : ''}{name(n)}</span>)}</> : <span className="bad-t">{tx('nada no sideboard para isto')}</span>}</p>)}
+        {!r.side.n && <p className="small muted">{tx('Sem sideboard: nos jogos à melhor de 3 entras sem respostas para o que te bate.')}</p>}
+        <button className="link small" onClick={toSide}>🛡 {tx('Sugestões de sideboard →')}</button>
+      </div>}
     </section>
   )
 }

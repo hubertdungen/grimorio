@@ -15,7 +15,7 @@ import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 import { parseQuery } from './nlsearch.js'
-import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames } from './AnalysisDash.jsx'
+import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard } from './AnalysisDash.jsx'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -1420,6 +1420,7 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
         )}
         {pcs.plan}
         <DeckRecord {...{ deck, data, act }} />
+        <WinLoseCard {...{ data, deck, fmt, ctx, act }} peek={showCardPeek} unpeek={hideCardPeek} toSide={() => { try { localStorage.setItem('grimorio.sideboard', '1') } catch { /* sem armazenamento */ } act.suggestFor('') }} />
         <CardsInGames {...{ data, deck, act }} ev={ctx.tests} peek={showCardPeek} unpeek={hideCardPeek} />
         <TrophyCard deck={deck} />
         <PriceCard {...{ data, deck, s, act }} />
