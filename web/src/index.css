@@ -2215,3 +2215,8 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .coliseu:-webkit-full-screen .col-bar > :not(.fs-btn) { display: none; }
 .coliseu:-webkit-full-screen .fs-btn { padding: 4px 9px; opacity: .75; } .coliseu:-webkit-full-screen .fs-btn span { display: none; }
 .coliseu:-webkit-full-screen .rodar-hint { display: none; }
+/* frases-chave na legenda da pilha */
+.stk-cap p b { font-weight: 700; }
+.stk-cap .fx-dmg { color: #ff8a7a; } .stk-cap .fx-life { color: #6fdc8c; } .stk-cap .fx-draw { color: #7cc4ff; }
+.stk-cap .fx-kill { color: #ffb35c; } .stk-cap .fx-token { color: #f5d06f; } .stk-cap .fx-grave { color: #c9a2ff; }
+.stk-cap .fx-kw { color: #8fe3e8; }

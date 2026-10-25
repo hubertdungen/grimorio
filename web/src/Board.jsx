@@ -131,6 +131,27 @@ function effectOf(c, kind) {
   return t.length > 220 ? `${t.slice(0, 217)}…` : t
 }
 const KIND_L = { cast: tx('Feitiço'), trigger: tx('Gatilho'), activate: tx('Habilidade') }
+// frases-chave do efeito a negrito e com cor (dano, vida, comprar/procurar, remover, fichas, cemitério/mão)
+const KEYS = [
+  ['dmg', /deals? (?:\d+|X|that much|twice that much|damage equal to [^.,;]+?)(?: damage)?|\d+ damage|loses? (?:\d+|X|that much|half (?:their|your) life) life|lose (?:\d+|X) life/gi],
+  ['life', /gains? (?:\d+|X|that much) life|\+1\/\+1 counters?|\+\d+\/\+\d+|\+X\/\+X/gi],
+  ['draw', /draws? (?:a|an|one|two|three|four|X|\d+|that many) cards?|search(?:es)? (?:your|their|his or her|target player's) library|scry \d+|surveil \d+|look at the top (?:\w+ )?cards?/gi],
+  ['kill', /destroy(?:s)? (?:target|all|each|it|that|up to)[^.,;]*?(?:creature|permanent|artifact|enchantment|planeswalker|land)s?|exiles? (?:target|all|each|it|that|up to)[^.,;]*?(?:creature|permanent|card|artifact|enchantment|spell|planeswalker)s?|counter target (?:\w+ )?spell|sacrifices? (?:a|an|another|target|all|each|\w+)[^.,;]*?(?:creature|permanent|artifact|land)s?|return(?:s)? (?:target|all|each|it|that)[^.,;]*? to (?:its|their) owners?'?s? hands?/gi],
+  ['token', /creates? (?:a|an|one|two|three|four|X|\d+|that many)[^.,;]*?tokens?/gi],
+  // palavras-chave do Magic (habilidades e ações), por último: as frases acima ganham quando se sobrepõem
+  ['kw', /\b(?:flying|trample|deathtouch|lifelink|haste|vigilance|first strike|double strike|reach|hexproof|shroud|indestructible|flash|menace|defender|ward(?: \{[^}]+\}| \d+)?|protection from [a-z]+|cycling|landcycling|flashback|kicker|multikicker|prowess|convoke|cascade|delve|crew \d+|equip(?: \{[^}]+\})?|enchant [a-z]+|persist|undying|storm|affinity for [a-z]+|dredge \d+|madness|morph|megamorph|evoke|infect|toxic \d+|wither|proliferate|transform(?:s|ed)?|explore(?:s)?|adapt \d+|ninjutsu|landfall|treasure|food|clue|monarch|initiative|mutate|foretell|disturb|training|connive(?:s)?|blitz|casualty \d+|bargain|craft|discover \d+|offspring|gift|fight(?:s)?|investigate|amass \w+ \d+|venture into the dungeon|ascend|surveil|scry|bushido \d+|exalted|annihilator \d+|rampage \d+|flanking|horsemanship|shadow|fear|intimidate|skulk|outlast|bolster \d+|support \d+|renown \d+|exploit|embalm|eternalize|escape|mentor|riot|spectacle|afterlife \d+|jump-start|surge|emerge|devour \d+|evolve|extort|unearth|encore|boast|ward|backup \d+|prototype|reconfigure|channel|ninjutsu|split second|suspend \d+|vanishing \d+|fading \d+|echo|cumulative upkeep|buyback|retrace|rebound|miracle|overload|bestow|dash|fabricate \d+|partner|companion|cleave|daybound|nightbound|decayed|plot|saddle \d+|spree|valiant|collect evidence \d+|disguise|cloak|manifest(?: dread)?)\b/gi],
+  ['grave', /discards? (?:a|an|one|two|X|\d+|that|their hand)[^.,;]*?(?:card|hand)s?|mills? (?:a|an|one|two|three|four|five|X|\d+) cards?|return[^.,;]*? from (?:your|their|a) graveyard[^.,;]*/gi],
+]
+function hiText(t) {  // texto → pedaços com <b class> nas frases-chave (a primeira que apanha ganha)
+  const hits = []
+  for (const [k, re] of KEYS) for (const m of t.matchAll(re)) if (!hits.some(h => m.index < h.e && m.index + m[0].length > h.s)) hits.push({ s: m.index, e: m.index + m[0].length, k })
+  hits.sort((a, b) => a.s - b.s)
+  const out = []
+  let i = 0
+  hits.forEach((h, j) => { if (h.s > i) out.push(t.slice(i, h.s)); out.push(<b key={j} className={`fx-${h.k}`}>{t.slice(h.s, h.e)}</b>); i = h.e })
+  if (i < t.length) out.push(t.slice(i))
+  return out
+}
 function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
   const [ghost, setGhost] = useState(null), [nudge, setNudge] = useState(false), n = s.stack.length, prevN = useRef(n), gT = useRef(null)
   // resolver: a carta brilha e a legenda mostra o efeito real o tempo de o ler (pelo tamanho do texto e pela velocidade
@@ -167,11 +188,11 @@ function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
           {top ? <>
             <small>{KIND_L[top.kind] || top.kind}{n > 1 ? ` · ${tx('{n} na pilha', { n })}` : ''}</small>
             <b>{short(top.card) || tx('habilidade')}{tgt ? <span className="muted"> → {tgt}</span> : null}</b>
-            {tc && <p>{effectOf(tc, top.kind)}</p>}
+            {tc && <p>{hiText(effectOf(tc, top.kind))}</p>}
           </> : <>
             <small>{tx('A resolver')}</small>
             <b>{short(ghost.card)}</b>
-            {ghost.txt && <p>{ghost.txt}</p>}
+            {ghost.txt && <p>{hiText(ghost.txt)}</p>}
           </>}
         </div>
       )}
