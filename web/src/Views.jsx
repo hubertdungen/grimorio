@@ -1,6 +1,6 @@
 import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { search, recommend, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
+import { search, recommend, termsOf, termMatch, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TYPES, TYPE_LABEL, COLORS, img, pidOf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, WhiteStars } from './ui.jsx'
@@ -283,6 +283,7 @@ export function PrefsPanel({ deck, fmt, act, compact = false }) {
       {open && (
         <div className="prefs-body">
           <label className="switch"><input type="checkbox" checked={!!pf.on} onChange={e => set({ on: e.target.checked })} /> <span>{pf.on ? tx('Personalização ligada') : tx('Ligar personalização (opcional)')}</span></label>
+          {!fmt.cmd && <label className="chk small" title={tx('Por omissão as sugestões ficam nas cores que o deck já joga (e os quase-combos também). Ligado, aparecem cartas e combos de outras cores.')}><input type="checkbox" checked={!!pf.foraCores} onChange={e => set({ foraCores: e.target.checked })} /> {tx('Sugerir cartas fora das cores do deck')}</label>}
           <fieldset disabled={!pf.on}>
             <label className="sl"><span>{tx('Nível de jogo')} <b>{LEVELS[nivel]}</b>{fmt.cmd === 'commander' ? <em> · bracket {nivel}</em> : null}</span>
               <input type="range" min="1" max="5" step="1" value={nivel} onChange={e => set({ nivel: +e.target.value })} />
@@ -329,21 +330,24 @@ export function PrefsPanel({ deck, fmt, act, compact = false }) {
 function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
   const pf = deck.prefs?.on ? deck.prefs : null
   const ctx = useMemo(() => {
-    if (fmt.cmd || ctx0.identity != null) return ctx0
+    if (fmt.cmd || ctx0.identity != null || deck.prefs?.foraCores) return ctx0  // fora das cores (preferência): não fecha às cores do deck
     const spells = Object.keys(deck.main).map(n => data.byName.get(n)).filter(c => c && c.mt !== 'Land')
     if (spells.length < 8) return ctx0 // ainda a explorar: todas as cores
     return { ...ctx0, identity: [...new Set(spells.flatMap(c => [...c.ci]))].join('') }
-  }, [ctx0, fmt, deck.main, data])
+  }, [ctx0, fmt, deck.main, deck.prefs?.foraCores, data])
   const filters = useMemo(() => (pf?.orcamento ? { ...(filters0 || {}), priceMax: pf.orcamento } : filters0), [filters0, pf?.orcamento])
   const tastes = useTastes(data, deck)
   const seedsIdx = useMemo(() => deck.seeds.map(n => data.byName.get(n)).filter(Boolean).map(c => c.i), [data, deck.seeds])
+  const seedTerms = useMemo(() => deck.seedTerms || [], [deck.seedTerms])
   const have = useMemo(() => deckIndices(deck, data), [deck, data])
   const cmdIdx = useMemo(() => deck.commanders.map(n => data.byName.get(n)?.i).filter(x => x != null), [data, deck.commanders])
   const seeds = useMemo(() => {
     if (seedsIdx.length) return seedsIdx
     const main = Object.keys(deck.main).map(n => data.byName.get(n)).filter(c => c && c.mt !== 'Land').map(c => c.i).reverse()
+    if (!cmdIdx.length && !main.length && seedTerms.length)  // só sementes-termo (Flying, Rat…): partem das cartas mais jogadas que as têm
+      return data.cards.filter(c => seedTerms.some(t => termMatch(c, t)) && passes(c, null, ctx)).sort((a, b) => (a.er || 1e9) - (b.er || 1e9)).slice(0, 8).map(c => c.i)
     return [...cmdIdx, ...main]
-  }, [seedsIdx, cmdIdx, deck.main, data])
+  }, [seedsIdx, cmdIdx, deck.main, data, seedTerms, ctx])
   const deckStats = useMemo(() => stats(deck, data), [deck, data])
   const needs = useMemo(() => {
     if (deckStats.spells + deckStats.lands < 10) return {}
@@ -354,8 +358,8 @@ function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
   const archetype = useMemo(() => detectArchetype(meta, have), [meta, have])
   const bracket = fmt.cmd === 'commander' ? (deck.bracket ? +deck.bracket : pf?.nivel && pf.nivel <= 3 ? pf.nivel : null) : null
   const gcCount = useMemo(() => have.filter(i => data.cards[i].gc).length, [have, data])
-  const recs = useMemo(() => recommend(data, { seeds, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt) }),
-    [data, seeds, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt])
+  const recs = useMemo(() => recommend(data, { seeds, seedTerms, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt) }),
+    [data, seeds, seedTerms, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt])
   const plan = useMemo(() => deckPlan(data, have), [data, have])
   // trocas: preparadas só quando um «+» as pede (o rato em cima ou o menu aberto); swap.js guarda-as por deck
   const swaps = useMemo(() => (c, o) => prepareSwaps(data, deck, fmt, ctx, { co, archetype, meta, evidence: ctx.tests })(c, o), [data, deck, fmt, ctx, co, archetype, meta])
@@ -756,14 +760,24 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   )
 }
 
+const TERM_ICO = { kw: '✦', sub: '🏷', type: '▦' }
+const TERM_L = { kw: tx('habilidade'), sub: tx('subtipo'), type: tx('tipo') }
 function SeedPicker({ data, ctx, act }) {
   const [q, setQ] = useState('')
   const hits = useMemo(() => (q.length < 2 ? [] : search(data, q, null, { ...ctx, identity: null }, 8).cards), [data, q, ctx])
+  const terms = useMemo(() => {  // keywords, subtipos e tipos que começam pelo que se escreveu («rats» → Rat)
+    const n = q.trim().toLowerCase(), base = n.replace(/(es|s)$/, '')
+    if (n.length < 2) return []
+    return termsOf(data).filter(t => { const v = t.v.toLowerCase(); return v.startsWith(n) || v === base || v.startsWith(base) }).slice(0, 6)
+  }, [data, q])
   return (
     <div className="seedpick">
-      <input value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Junta uma carta de que gostas…')} />
-      {hits.length > 0 && (
-        <ul className="ac">{hits.map(c => <li key={c.i}><button onClick={() => { act.toggleSeed(c); setQ('') }}><img src={img(c, 'small')} alt="" />{c.n}</button></li>)}</ul>
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Junta uma carta, uma habilidade (Flying…) ou um tipo (Rat, Human…)')} />
+      {(terms.length > 0 || hits.length > 0) && (
+        <ul className="ac">
+          {terms.map(t => <li key={t.k + t.v}><button className="ac-term" onClick={() => { act.toggleSeedTerm(t); setQ('') }}><i>{TERM_ICO[t.k]}</i><b>{t.v}</b><small className="muted">{TERM_L[t.k]} · {tx('{n} cartas', { n: t.n.toLocaleString(LOCALE) })}</small></button></li>)}
+          {hits.map(c => <li key={c.i}><button onClick={() => { act.toggleSeed(c); setQ('') }}><img src={img(c, 'small')} alt="" />{c.n}</button></li>)}
+        </ul>
       )}
     </div>
   )
@@ -787,7 +801,8 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
         </div>
         <div className="chips">
           {deck.seeds.map(n => { const c = data.byName.get(n); return c && <span key={n} className="chip"><button className="link" onClick={() => act.open(c)}>{n}</button><button onClick={() => act.toggleSeed(c)} aria-label={tx('Retirar')}>×</button></span> })}
-          {deck.seeds.length > 0 && <button className="link small" onClick={() => setDeck(d => ({ ...d, seeds: [] }))}>{tx('limpar')}</button>}
+          {(deck.seedTerms || []).map(t => <span key={t.k + t.v} className="chip chip-term" title={TERM_L[t.k]}>{TERM_ICO[t.k]} {t.v}<button onClick={() => act.toggleSeedTerm(t)} aria-label={tx('Retirar {t}', { t: t.v })}>×</button></span>)}
+          {(deck.seeds.length > 0 || deck.seedTerms?.length > 0) && <button className="link small" onClick={() => setDeck(d => ({ ...d, seeds: [], seedTerms: [] }))}>{tx('limpar')}</button>}
         </div>
         <SeedPicker {...{ data, ctx, act }} />
       </div>

@@ -2508,4 +2508,11 @@ export default {
   "Carta de sideboard: só serve contra {x} ({p}% do meta de {f})": "备牌：只对{x}有用（{f}环境的{p}%）",
   "Quase ninguém joga {x}: corta de vez": "几乎没人玩{x}：直接移除",
   "Cortar": "移除",
+  "Junta uma carta, uma habilidade (Flying…) ou um tipo (Rat, Human…)": "加入一张卡、一个异能（Flying…）或一个类别（Rat、Human…）",
+  "Retirar {t}": "移除 {t}",
+  "Semente: {t}": "种子：{t}",
+  "subtipo": "子类别",
+  "tipo": "类别",
+  "Por omissão as sugestões ficam nas cores que o deck já joga (e os quase-combos também). Ligado, aparecem cartas e combos de outras cores.": "默认建议只在套牌已有的颜色内（准组合也是）。开启后会出现其他颜色的卡牌与组合。",
+  "Sugerir cartas fora das cores do deck": "建议套牌颜色以外的卡牌",
 }

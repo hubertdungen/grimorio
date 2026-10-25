@@ -2508,4 +2508,11 @@ export default {
   "Carta de sideboard: só serve contra {x} ({p}% do meta de {f})": "Carta de banquillo: solo sirve contra {x} ({p}% del meta de {f})",
   "Quase ninguém joga {x}: corta de vez": "Casi nadie juega {x}: córtala del todo",
   "Cortar": "Cortar",
+  "Junta uma carta, uma habilidade (Flying…) ou um tipo (Rat, Human…)": "Añade una carta, una habilidad (Flying…) o un tipo (Rat, Human…)",
+  "Retirar {t}": "Quitar {t}",
+  "Semente: {t}": "Semilla: {t}",
+  "subtipo": "subtipo",
+  "tipo": "tipo",
+  "Por omissão as sugestões ficam nas cores que o deck já joga (e os quase-combos também). Ligado, aparecem cartas e combos de outras cores.": "Por defecto las sugerencias se quedan en los colores que ya juega el mazo (y los casi-combos también). Activado, aparecen cartas y combos de otros colores.",
+  "Sugerir cartas fora das cores do deck": "Sugerir cartas fuera de los colores del mazo",
 }

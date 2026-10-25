@@ -428,7 +428,30 @@ const subtypes = c => {
  *       + combos (completa / quase) + funções em falta no formato + tribo + palavras-chave + popularidade.
  * needs: {tag: [tem, meta]} vindo do modo de ajuda do formato.
  */
-export function recommend(data, { seeds, have, ctx, filters, limit = 60, commanders = [], needs = {}, co = null, deckStats = null, bracket = null, gcCount = 0, meta = null, archetype = null, prefs = null, tastes = [], deckSize = 99, turn = 8 }) {
+// Sementes que não são cartas: keywords (Flying, Outlast…), subtipos (Rat, Human…) e tipos (Creature, Artifact…).
+// termsOf: o índice (com quantas cartas têm cada um), feito uma vez; termMatch: a carta tem esse termo?
+const MAIN_TYPES = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Battle', 'Legendary', 'Kindred']
+const subsOf = c => (c.t.split('—')[1] || '').split('//')[0].trim().split(/\s+/).filter(Boolean)
+export function termMatch(c, t) {
+  if (t.k === 'kw') return (c.kw || []).includes(t.v)
+  if (t.k === 'sub') return subsOf(c).includes(t.v)
+  return c.t.split('—')[0].includes(t.v)
+}
+let TERMS = null
+export function termsOf(data) {
+  if (TERMS?.data === data) return TERMS.list
+  const n = new Map(), add = (k, v) => { const key = `${k}:${v}`; n.set(key, (n.get(key) || 0) + 1) }
+  for (const c of data.cards) {
+    for (const k of c.kw || []) add('kw', k)
+    for (const x of subsOf(c)) if (/^[A-Z]/.test(x)) add('sub', x)
+    for (const x of MAIN_TYPES) if (c.t.split('—')[0].includes(x)) add('type', x)
+  }
+  const list = [...n].map(([key, count]) => { const [k, ...v] = key.split(':'); return { k, v: v.join(':'), n: count } }).filter(t => t.n >= 3).sort((a, b) => b.n - a.n)
+  TERMS = { data, list }
+  return list
+}
+
+export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTerms = [], commanders = [], needs = {}, co = null, deckStats = null, bracket = null, gcCount = 0, meta = null, archetype = null, prefs = null, tastes = [], deckSize = 99, turn = 8 }) {
   const pf = prefs?.on ? prefs : null
   const nivel = pf?.nivel ?? 3
   const metaW = pf ? 0.3 + 1.4 * (pf.meta ?? 0.5) : 1
@@ -520,7 +543,8 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
   // EDHREC (rank «er») só diz algo em formatos de comandante; nos de 60 cartas manda o meta dos torneios
   const edhOk = commanders.length > 0 || deckSize >= 99
   const deckCards = [...haveSet].map(i => cards[i]), reps = deckReps(deckCards)
-  const deckCi = ctx?.identity ?? [...new Set(deckCards.filter(c => c.mt !== 'Land').flatMap(c => [...c.ci]))].join('')
+  // «Sugerir cartas fora das cores» (preferências; só sem comandante): sem cores do deck, nada se corta por cor
+  const deckCi = prefs?.foraCores && !commanders.length ? '' : ctx?.identity ?? [...new Set(deckCards.filter(c => c.mt !== 'Land').flatMap(c => [...c.ci]))].join('')
   const cSrc = deckStats ? deckStats.sources.C : Infinity
   // meta: só conta a inclusão vinda de arquétipos com cores compatíveis (Arid Mesa não vem dos decks R/W para um deck UB)
   const archOk = meta ? meta.archetypes.map(a => !deckCi || [...a.colors].every(k => deckCi.includes(k))) : []
@@ -547,6 +571,8 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     // Cada fator guarda o seu peso: é o que o «Porquê?» mostra.
     const P = {}
     P.texto = commanders.length ? 0.4 * sem + 0.35 * mx : 0.55 * sem + 0.45 * mx
+    const stm = seedTerms.length ? seedTerms.filter(t => termMatch(c, t)) : []  // sementes-termo (Flying, Rat…) que a carta tem
+    if (seedTerms.length) P.semente = stm.length ? 0.22 + 0.08 * (stm.length - 1) : 0
     P.comandante = commanders.length ? 0.25 * cmd : 0
     P.popular = edhOk && c.er ? 0.06 * Math.max(0, 1 - Math.log(c.er) / LOGR) : 0
     const hits = comboHits.get(i)
@@ -657,7 +683,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
     const score = Object.values(P).reduce((a, b) => a + b, 0)
     allSem.push(sem)
     if (commanders.length) allCmd.push(cmd)
-    res.push({ i, score, P, sem, near, cmd, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mInc, mArch, mPart, stHit, tasteBest, tasteName, tb, dead })
+    res.push({ i, score, P, sem, near, cmd, stm, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mInc, mArch, mPart, stHit, tasteBest, tasteName, tb, dead })
   }
   res.sort((a, b) => b.score - a.score)
   const name = i => cards[i].n
@@ -693,6 +719,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, command
       const names = x.who.slice(0, 2).map(name).join(', ') + (x.who.length > 2 ? ` (+${x.who.length - 2})` : '')
       why.push({ k: 'inter', txt: x.side === 'usa' ? tx('Aproveita {names}, que {role}', { names, role: ROLE_LABEL[x.role] }) : tx('Alimenta {names}, que {role}', { names, role: ROLE_LABEL[x.role] }) })
     }
+    if (r.stm?.length) why.unshift({ k: 'semente', txt: tx('Semente: {t}', { t: r.stm.map(t => t.v).join(', ') }) })
     if (r.need) why.push({ k: 'falta', txt: tx('O deck precisa de {what} ({h}/{n})', { what: r.need[0] === 'wincon' ? tx('condições de vitória') : TAG_LABEL[r.need[0]].toLowerCase(), h: r.need[1][0], n: r.need[1][1] }) })
     if (r.reanTarget) why.push({ k: 'inter', txt: tx('Alvo de reanimação (poder {p}) para {who}', { p: r.pw, who: reanimators.slice(0, 2).map(name).join(', ') }) })
     if (c.tg.includes('wincon') && !r.need) why.push({ k: 'tema', txt: tx('Condição de vitória') })

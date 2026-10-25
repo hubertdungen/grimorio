@@ -2516,4 +2516,11 @@ export default {
   "Carta de sideboard: só serve contra {x} ({p}% do meta de {f})": "Sideboard card: only good against {x} ({p}% of the {f} meta)",
   "Quase ninguém joga {x}: corta de vez": "Almost nobody plays {x}: cut it for good",
   "Cortar": "Cut",
+  "Junta uma carta, uma habilidade (Flying…) ou um tipo (Rat, Human…)": "Add a card, an ability (Flying…) or a type (Rat, Human…)",
+  "Retirar {t}": "Remove {t}",
+  "Semente: {t}": "Seed: {t}",
+  "subtipo": "subtype",
+  "tipo": "type",
+  "Por omissão as sugestões ficam nas cores que o deck já joga (e os quase-combos também). Ligado, aparecem cartas e combos de outras cores.": "By default suggestions stay in the colours the deck already plays (near-combos too). On, cards and combos from other colours appear.",
+  "Sugerir cartas fora das cores do deck": "Suggest cards outside the deck's colours",
 }

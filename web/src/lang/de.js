@@ -2508,4 +2508,11 @@ export default {
   "Carta de sideboard: só serve contra {x} ({p}% do meta de {f})": "Sideboard-Karte: taugt nur gegen {x} ({p}% des {f}-Metas)",
   "Quase ninguém joga {x}: corta de vez": "Fast niemand spielt {x}: ganz streichen",
   "Cortar": "Streichen",
+  "Junta uma carta, uma habilidade (Flying…) ou um tipo (Rat, Human…)": "Füge eine Karte, eine Fähigkeit (Flying…) oder einen Typ (Rat, Human…) hinzu",
+  "Retirar {t}": "{t} entfernen",
+  "Semente: {t}": "Saat: {t}",
+  "subtipo": "Untertyp",
+  "tipo": "Typ",
+  "Por omissão as sugestões ficam nas cores que o deck já joga (e os quase-combos também). Ligado, aparecem cartas e combos de outras cores.": "Standardmäßig bleiben Vorschläge in den Farben des Decks (auch Fast-Combos). Eingeschaltet erscheinen Karten und Combos anderer Farben.",
+  "Sugerir cartas fora das cores do deck": "Karten außerhalb der Deckfarben vorschlagen",
 }

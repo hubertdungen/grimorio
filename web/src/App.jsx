@@ -276,6 +276,7 @@ export default function App() {
   }, [fmt, setDeck, say])
 
   const toggleSeed = useCallback(c => setDeck(d => ({ ...d, seeds: d.seeds.includes(c.n) ? d.seeds.filter(n => n !== c.n) : [...d.seeds, c.n] })), [setDeck])
+  const toggleSeedTerm = useCallback(t => setDeck(d => { const l = d.seedTerms || [], has = l.some(x => x.k === t.k && x.v === t.v); return { ...d, seedTerms: has ? l.filter(x => !(x.k === t.k && x.v === t.v)) : [...l, { k: t.k, v: t.v }] } }), [setDeck])
   const setPrefs = useCallback(p => setDeck(d => ({ ...d, prefs: { ...(d.prefs || {}), ...p } })), [setDeck])
   const setSignature = useCallback(c => setDeck(d => ({ ...d, signature: d.signature === c.n ? null : c.n })), [setDeck])
   // Estilo alternativo: print = {id, set, cn, ...} ou null para voltar à predefinida.
@@ -298,11 +299,11 @@ export default function App() {
       && !(await ask('ultima', { title: tx('Tirar «{c}» do deck?', { c: c.n }), body: tx('Era a última cópia. Podes desfazer com ↶.'), ok: tx('Tirar') }))) return
     add(c, zone, -q)
   }, [add])
-  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
+  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
-  [add, remove, move, setCommander, toggleSeed, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
+  [add, remove, move, setCommander, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const openDeck = async id => {
