@@ -108,11 +108,16 @@ def _launch(data_dir, owner, difficulty, args, files, title, warnings):
             os.makedirs(os.path.dirname(p), exist_ok=True)
             with open(p, "w", encoding="utf-8") as f:
                 f.write(txt)
+        fixes = []  # as mesmas cartas corrigidas e perfis da IA que o Laboratório usa (forge-ext, build/forge/build.sh)
+        for sub, dst in (("cardsfolder", "/forge/res/cardsfolder"), ("ai", "/forge/res/ai")):
+            src = os.path.join(data_dir, "forge-ext", sub)
+            if os.path.isdir(src):
+                fixes += ["-v", f"{src}:{dst}:ro"]
         r = _docker("run", "-d", "--rm", "--name", NAME, "-m", MEM, "--memory-swap", MEM, "--cpus", "2",
                     "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home", "-e", f"XMX={XMX}",
                     "-e", f"GEOMETRY={GEOMETRY}", "-e", f"FORGE_JAR={sim.FORGE_JAR}",
                     "-v", f"{os.path.join(data_dir, 'forge')}:/forge:ro", "-v", f"{ext}:/ext:ro",
-                    "-v", f"{run}:/run", "-v", f"{home}:/run/home", IMAGE, *args)
+                    *fixes, "-v", f"{run}:/run", "-v", f"{home}:/run/home", IMAGE, *args)
         if r.returncode:
             raise RuntimeError("O contentor do Forge não arrancou: " + (r.stderr.strip()[-300:] or "erro desconhecido"))
         sid = uuid.uuid4().hex[:12]

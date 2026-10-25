@@ -2081,3 +2081,4 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .pset .chk { overflow-wrap: anywhere; }
 .caveats .cav-card { font: inherit; font-style: italic; color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; padding: 0; }
 .caveats .cav-card:hover { color: var(--gold2); }
+.src-wld { margin-left: 8px; white-space: nowrap; } .src-wld .rec-wdl { margin-left: 3px; }

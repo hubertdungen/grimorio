@@ -458,13 +458,14 @@ def deck_record(con, did, owner):
         op = "b" if me == "a" else "a"
         games.append(("arena", names.get(bk if me == "a" else ak, "?"), "d" if w == "draw" else "w" if w == me else "l",
                       sm.get(me), [sm[op]] if sm.get(op) else []))
-    opp, cards, hurt, dealt, taken, src = {}, {}, {}, [], [], {}
+    opp, cards, hurt, dealt, taken, src, wld = {}, {}, {}, [], [], {}, {}
     tot = lambda s: sum((s.get("damage_by_card") or {}).values()) + sum((s.get("poison_by_card") or {}).values())  # noqa: E731
     for so, name, r, s, os_ in games:
         o = opp.setdefault(name, {"name": name, "w": 0, "l": 0, "d": 0, "src": []})
         o[r] += 1
         o["src"] += [so] if so not in o["src"] else []
         src[so] = src.get(so, 0) + 1
+        wld.setdefault(so, {"w": 0, "l": 0, "d": 0})[r] += 1
         if s:
             dealt.append(tot(s))
             dm = s.get("damage_by_card") or {}
@@ -480,7 +481,7 @@ def deck_record(con, did, owner):
                 hurt[c] = hurt.get(c, 0) + n
     avg = lambda v: round(sum(v) / len(v), 1) if v else None  # noqa: E731
     return {"games": len(games), "w": sum(g[2] == "w" for g in games), "l": sum(g[2] == "l" for g in games),
-            "d": sum(g[2] == "d" for g in games), "by_source": src, "dealt": avg(dealt), "taken": avg(taken),
+            "d": sum(g[2] == "d" for g in games), "by_source": src, "by_source_wld": wld, "dealt": avg(dealt), "taken": avg(taken),
             "with_dmg": len(dealt), "opponents": sorted(opp.values(), key=lambda o: -(o["w"] + o["l"] + o["d"])),
             "cards": sorted(cards.values(), key=lambda x: -x["dmg"])[:12],
             "hurt": [{"card": c, "dmg": n} for c, n in sorted(hurt.items(), key=lambda x: -x[1])[:8]],
@@ -947,6 +948,7 @@ def selfcheck():
     aff = next(o for o in r["opponents"] if o["name"] == "Affinity")
     assert (r["games"], aff["w"], aff["l"], r["by_source"]) == (3, 2, 1, {"lab": 2, "arena": 1}), r
     assert r["dealt"] == round((20 + 3 + 20) / 3, 1) and r["taken"] == round((3 + 20 + 2) / 3, 1)
+    assert r["by_source_wld"] == {"lab": {"w": 1, "l": 1, "d": 0}, "arena": {"w": 1, "l": 0, "d": 0}}, r["by_source_wld"]
     assert r["cards"][0] == {"card": "Bolt", "dmg": 29, "games": 3, "top_wins": 1} and deck_record(con, "d1", "outro") is None
     # progresso rumo à vitória: o «ou» das vias, com dano a mais (overkill) e o teto
     dmg = lambda p, t, n, **k: {"k": "damage", "p": p, "target": t, "n": n, **k}  # noqa: E731

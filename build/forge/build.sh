@@ -39,7 +39,7 @@ done
 ZIP="$D/forge/res/cardsfolder/cardsfolder.zip"
 for n in faithless_looting tinder_wall orochi_leafcaller quirion_ranger marauding_raptor deftblade_elite ramosian_rally springleaf_drum \
          springjack_pasture azorius_signet boros_signet dimir_signet golgari_signet gruul_signet izzet_signet \
-         orzhov_signet rakdos_signet selesnya_signet simic_signet; do
+         orzhov_signet rakdos_signet selesnya_signet simic_signet heritage_druid birchlore_rangers; do
   [[ -f "$SRC/cards/$n.txt" ]] && continue
   mkdir -p "$OUT.new/cardsfolder/${n:0:1}"
   python3 -c 'import sys, zipfile; sys.stdout.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]).decode())' "$ZIP" "${n:0:1}/$n.txt" \
@@ -49,5 +49,9 @@ if [[ -d "$OUT.new/cardsfolder" ]]; then  # mesmo disco: ligação; senão cópi
   ln "$D/forge/res/cardsfolder/cardsfolder.zip" "$OUT.new/cardsfolder/" 2>/dev/null || cp "$D/forge/res/cardsfolder/cardsfolder.zip" "$OUT.new/cardsfolder/"
 fi
 echo "$STAMP" > "$OUT.new/stamp"
-rm -rf "$OUT"; mv "$OUT.new" "$OUT"
+# troca sem apagar: jogos a decorrer têm a pasta antiga montada no contentor e continuam a lê-la; as antigas saem
+# ao fim de 6 h, na próxima compilação
+if [[ -d "$OUT" ]]; then OLD="$OUT.old.$(date +%s)"; mv "$OUT" "$OLD"; touch "$OLD"; fi  # touch: conta 6 h a partir de agora
+mv "$OUT.new" "$OUT"
+find "$(dirname "$OUT")" -maxdepth 1 -name "$(basename "$OUT").old.*" -mmin +360 -exec rm -rf {} + 2>/dev/null || true
 echo "forge-ext compilado: $OUT"

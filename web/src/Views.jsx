@@ -15,7 +15,7 @@ import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 import { parseQuery } from './nlsearch.js'
-import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard } from './AnalysisDash.jsx'
+import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames } from './AnalysisDash.jsx'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -1323,7 +1323,7 @@ function DeckRecord({ deck, data, act }) {
   const pct = o => Math.round((100 * (o.w + o.d / 2)) / Math.max(1, o.w + o.l + o.d))
   return (
     <Fold>
-      <h3>{tx('Registo de jogos')} {rec?.games > 0 && <span className="muted small">{tx('{n} jogo|{n} jogos', { n: rec.games })} · {wdl(rec)} · {pct(rec)}% · {Object.entries(rec.by_source).map(([k, n]) => `${SRC_LABEL[k] || k} ${n}`).join(' · ')}</span>}</h3>
+      <h3>{tx('Registo de jogos')} {rec?.games > 0 && <span className="muted small">{tx('{n} jogo|{n} jogos', { n: rec.games })} · {wdl(rec)} · {pct(rec)}% · {rec.by_source_wld ? Object.entries(rec.by_source_wld).map(([k, o]) => <span key={k} className="src-wld" title={tx('{s}: vitórias-derrotas-empates', { s: SRC_LABEL[k] || k })}>{SRC_LABEL[k] || k} {wdl(o)}</span>) : Object.entries(rec.by_source).map(([k, n]) => `${SRC_LABEL[k] || k} ${n}`).join(' · ')}</span>}</h3>
       {rec?.rating && <RatingLayers r={rec.rating} />}
       {!rec?.games ? <p className="muted small">{deck.id ? tx('Ainda sem jogos: testa-o no Laboratório, põe-no num torneio ou liga a Arena automática nos Ratings.') : tx('Guarda o deck para começar a juntar o registo.')}</p> : <>
         <div className="rec-dmg">
@@ -1416,6 +1416,7 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
         )}
         {pcs.plan}
         <DeckRecord {...{ deck, data, act }} />
+        <CardsInGames {...{ data, deck, act }} ev={ctx.tests} peek={showCardPeek} unpeek={hideCardPeek} />
         <TrophyCard deck={deck} />
         <PriceCard {...{ data, deck, s, act }} />
         {pcs.sug}

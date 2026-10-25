@@ -3,8 +3,9 @@
 // Cores do Magic fixas por cor (nunca pela posição); ordem W R U G B C para o vermelho não encostar ao verde.
 import { useMemo, useState } from 'react'
 import { COLORS, TYPE_LABEL, img, pidOf } from './data.js'
-import { landOdds } from './deck.js'
 import { landInfo } from './mana.js'
+import { wrDelta } from './tests.js'
+import { WIN_LABEL } from './swap.js'
 import { tx, num } from './i18n.js'
 
 const ORDER = ['W', 'R', 'U', 'G', 'B', 'C']
@@ -174,3 +175,35 @@ export function PriceCard({ data, deck, s, act }) {
   )
 }
 
+
+// o que os jogos dizem de cada carta (gameEvidence dos jogos do Laboratório, torneios e Arena com registo completo):
+// com que cartas na mão se ganha mais ou menos, e as que ficam paradas na mão
+export function CardsInGames({ data, deck, ev, act, peek, unpeek }) {
+  const rows = useMemo(() => {
+    if (!ev?.exact) return null
+    const list = Object.entries(ev.cards || {}).filter(([n, x]) => x.seen >= 3 && data.byName.get(n)).map(([n, x]) => ({ n, x, d: wrDelta(ev, x) }))
+    return {
+      up: list.filter(r => r.d > 0.05).sort((a, b) => b.d - a.d).slice(0, 6),
+      down: list.filter(r => r.d < -0.05).sort((a, b) => a.d - b.d).slice(0, 6),
+      stuck: list.filter(r => r.x.dead >= 2 && r.x.dead / r.x.seen >= 0.4).sort((a, b) => b.x.dead / b.x.seen - a.x.dead / a.x.seen).slice(0, 6),
+    }
+  }, [ev, data])
+  const name = n => { const c = data.byName.get(n); return <button className="link plain" onMouseEnter={e => peek(e, c, pidOf(deck, n))} onMouseLeave={unpeek} onClick={() => { unpeek(); act.open(c) }}>{n}</button> }
+  const sub = x => tx('vista em {n} jogos, ganhou {w}', { n: x.seen, w: x.seenW })
+  const list = (l, val, why) => (l.length ? <ul className="rec-list">{l.map(r => <li key={r.n}><span>{name(r.n)}</span><b title={why}>{val(r)}</b><small className="muted">{sub(r.x)}</small></li>)}</ul> : <small className="muted">{tx('Nada claro ainda.')}</small>)
+  const why = tx('Diferença na percentagem de vitórias entre os jogos em que a carta esteve na mão e os outros (puxada para a média enquanto há poucos jogos).')
+  return (
+    <section className="card">
+      <h3>{tx('Cartas nos jogos')} {ev?.exact ? <span className="muted small">{tx('{n} jogos com registo completo', { n: ev.exact })}</span> : null}</h3>
+      {!rows ? <p className="muted small">{tx('Joga o deck no Laboratório (ou num torneio) para saber com que cartas ganha e quais ficam paradas na mão.')}</p> : <>
+        {ev.wincon && <p className="small" title={tx('A via mais comum nas vitórias dos testes')}>{tx('Nos testes ganha sobretudo por {v} ({n} vitórias).', { v: WIN_LABEL[ev.wincon.kind] || ev.wincon.kind, n: ev.wincon.games })}</p>}
+        <h4 title={why}>{tx('Ganha mais com ela na mão')}</h4>
+        {list(rows.up, r => `+${Math.round(r.d * 100)}%`, why)}
+        <h4 title={why}>{tx('Perde mais com ela na mão')}</h4>
+        {list(rows.down, r => `${Math.round(r.d * 100)}%`, why)}
+        <h4 title={tx('Esteve na mão 3 ou mais turnos sem ser usada')}>{tx('Fica parada na mão')}</h4>
+        {list(rows.stuck, r => `${r.x.dead}/${r.x.seen}`, tx('jogos em que ficou presa / jogos em que esteve na mão'))}
+      </>}
+    </section>
+  )
+}

@@ -117,11 +117,15 @@ def deck_games(con, did, owner, limit=40):
 
 @functools.lru_cache(1)
 def ai_flags():
-    """Nomes das cartas marcadas no Forge com AI:RemoveDeck:All (lido uma vez do cardsfolder.zip)."""
+    """Nomes das cartas marcadas no Forge com AI:RemoveDeck:All (lido uma vez do cardsfolder.zip). As que corrigimos
+    em forge-ext/cardsfolder (build/forge/build.sh: Springleaf Drum, Signets…) já não contam: é essa a que o jogo lê."""
     out = []
+    fix = os.path.join(os.path.dirname(sim.forge_dir(ARGS.data_dir)), "forge-ext", "cardsfolder")
     try:
         with zipfile.ZipFile(os.path.join(sim.forge_dir(ARGS.data_dir), "res", "cardsfolder", "cardsfolder.zip")) as z:
             for n in z.namelist():
+                if os.path.isfile(os.path.join(fix, n)):
+                    continue
                 t = z.read(n).decode("utf-8", "ignore")
                 if "AI:RemoveDeck:All" in t:
                     m = re.search(r"^Name:(.+)$", t, re.M)
