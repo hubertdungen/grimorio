@@ -38,7 +38,7 @@ except ImportError:
 
 START_WAIT = 10  # segundos entre criar o torneio e o 1.º jogo (tempo para apostar)
 TYPES = {"elim": (4, 16), "dupla": (4, 16), "suico": (4, 32), "liga": (4, 16), "mesas": (4, 16),
-         "gauntlet": (3, 32), "rei": (4, 16), "grupos": (6, 16), "equipas": (6, 24)}
+         "gauntlet": (3, 32), "rei": (4, 32), "grupos": (6, 16), "equipas": (6, 24)}
 GAUNTLET_WIN = 0.75  # no gauntlet o desafiante só é campeão se ganhar pelo menos 75% das partidas
 BO_OK = (1, 2, 3, 5)  # melhor de N; ganha quem passa de metade (Bo2: 2-0 ganha, 1-1 é empate)
 BO2_OK = ("suico", "liga", "grupos", "rei", "equipas", "gauntlet")  # só onde o empate faz parte do formato
