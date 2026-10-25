@@ -805,6 +805,31 @@ function Filters({ f, set, compact, noTag }) {
 
 const F0 = { colors: [], colorMode: 'incl', colorless: false, type: '', tag: '', sub: '', cmcMin: '', cmcMax: '', rarity: '', priceMax: '', sort: 'pop', inText: false }
 
+// terrenos básicos à mão: um botão por cor (as do deck primeiro e acesas), − tira um
+const BASIC5 = [['Plains', 'W'], ['Island', 'U'], ['Swamp', 'B'], ['Mountain', 'R'], ['Forest', 'G']]
+export function BasicBar({ data, deck, ctx, act }) {
+  const cols = useMemo(() => {
+    const s = new Set()
+    for (const n of Object.keys(deck.main)) { const c = data.byName.get(n); if (c && c.mt !== 'Land') for (const k of c.co || '') s.add(k) }
+    return s
+  }, [data, deck.main])
+  const id = ctx?.identity
+  const list = id === '' ? [['Wastes', 'C']] : BASIC5.filter(([, k]) => id == null || id.includes(k))
+  return (
+    <div className="basicbar">
+      {list.map(([n, k]) => {
+        const c = data.byName.get(n), q = deck.main[n] || 0
+        return c && (
+          <span key={n} className={`bb ${cols.has(k) || q ? 'on' : ''}`}>
+            <button onClick={() => act.add(c)} title={tx('Juntar 1 {c}', { c: n })} aria-label={tx('Juntar 1 {c}', { c: n })}><Mana cost={`{${k}}`} />{q ? <b>{q}</b> : <i>+</i>}</button>
+            {q > 0 && <button className="bb-m" onClick={() => act.remove(c, 'main', 1)} title={tx('Tirar 1 {c}', { c: n })} aria-label={tx('Tirar 1 {c}', { c: n })}>−</button>}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 const NL_L = { type: tx('tipo'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor') }
 export function SearchView({ data, deck, fmt, ctx, act }) {
   const [q, setQ] = useState('')
@@ -834,6 +859,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       <div className={`filters-wrap ${showF ? 'open' : ''}`}><Filters f={f} set={setF} /></div>
       <div className="search-layout">
       <div>
+      <div className="basic-row"><span className="muted small">{tx('Terrenos básicos')}</span><BasicBar {...{ data, deck, ctx, act }} /></div>
       {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.v}</b></span>)}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">

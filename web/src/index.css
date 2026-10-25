@@ -1957,7 +1957,11 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 /* escolher quantas cópias (1–4): abre por cima do botão de juntar */
 .qadd { position: relative; display: inline-flex; align-items: center; }
 .qmore { display: none; min-width: 22px; padding: 0 4px; border: 0; background: transparent; color: var(--muted); }
-.qadd .qpick { display: none; position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 30; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); box-shadow: 0 10px 24px #000b; animation: hlTip .15s ease-out; }
+.qadd .qpick { display: none; position: absolute; bottom: calc(100% + 4px); left: 0; z-index: 30; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); box-shadow: 0 10px 24px #000b; animation: hlTip .15s ease-out; }
+/* ponte invisível sobre o espaço entre o + e os números: o rato atravessa sem perder o hover */
+.qadd .qpick::before { content: ''; position: absolute; left: -6px; right: -6px; bottom: -10px; height: 10px; }
+.tile .qadd .qpick::before { bottom: auto; top: -10px; }
+.qpick button:first-child { border-radius: 9px 0 0 9px; } .qpick button:last-child { border-radius: 0 9px 9px 0; }
 .qadd:hover .qpick, .qadd:focus-within .qpick, .qadd.open .qpick { display: inline-flex; }
 .qpick button { min-width: 30px; min-height: 30px; padding: 0 6px; border: 0; border-radius: 0; background: transparent; font-size: 13px; font-weight: 700; color: var(--text); }
 .qpick button + button { border-left: 1px solid var(--line); }
@@ -1981,3 +1985,12 @@ select option:checked { background: #3a2f12; color: #ffd98a; }
 .mvmenu-list button:hover { background: var(--panel2); color: var(--gold2); }
 .nl-got { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 6px; }
 .nl-got .chip { font-size: 12px; padding: 2px 8px; }
+.basicbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.basicbar .bb { display: inline-flex; border: 1px solid var(--line, #444); border-radius: 99px; opacity: .55; transition: opacity .2s, border-color .2s; }
+.basicbar .bb.on { opacity: 1; border-color: var(--gold); }
+.basicbar .bb:hover { opacity: 1; }
+.basicbar button { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; padding: 3px 8px; min-height: 30px; color: var(--text); }
+.basicbar button i { font-style: normal; color: var(--muted); }
+.basicbar .bb-m { border-left: 1px solid var(--line, #444); padding: 3px 9px; color: var(--muted); }
+.basic-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 6px; }
+.basic-row .basicbar { margin: 0; }

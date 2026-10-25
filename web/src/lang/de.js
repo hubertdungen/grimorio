@@ -2549,4 +2549,6 @@ export default {
   "nome": "Name",
   "Procurar a frase só no nome das cartas": "Den Satz nur in Kartennamen suchen",
   "procurar pelo nome": "nach Name suchen",
+  "Juntar 1 {c}": "1 {c} hinzufügen",
+  "Tirar 1 {c}": "1 {c} entfernen",
 }

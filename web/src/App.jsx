@@ -10,7 +10,7 @@ import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras } from '.
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana } from './ui.jsx'
-import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, showCardPeek, hideCardPeek, flipCardPeek, peekOpen } from './Views.jsx'
+import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, showCardPeek, hideCardPeek, flipCardPeek, peekOpen, BasicBar } from './Views.jsx'
 import DraftView from './Draft.jsx'
 import NewDeckWizard from './Wizard.jsx'
 import LabView from './Lab.jsx'
@@ -388,7 +388,7 @@ export default function App() {
 
       {section === 'construir' && <div className="body">
         <aside className="deck-panel">
-          <DeckPanel {...{ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} />
+          <DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} />
         </aside>
         <main className="work">
           {tab === 'pesquisa' && <SearchView {...{ data, deck, fmt, ctx, act }} />}
@@ -402,7 +402,7 @@ export default function App() {
             <div className="view deck-tab">
               <div className="seg viewby"><button className={deckView === 'grelha' ? 'on' : ''} onClick={() => setDeckView('grelha')}><i>▦</i><span>{tx('Grelha')}</span></button><button className={deckView === 'lista' ? 'on' : ''} onClick={() => setDeckView('lista')}><i>☰</i><span>{tx('Lista')}</span></button></div>
               {deckView === 'grelha' && <UndoBtns act={act} hist={histN} />}
-              {deckView === 'grelha' ? <DeckGrid {...{ data, deck, fmt, act }} /> : <div className="deck-mobile"><DeckPanel {...{ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} /></div>}
+              {deckView === 'grelha' ? <DeckGrid {...{ data, deck, fmt, act }} /> : <div className="deck-mobile"><DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} /></div>}
             </div>
           )}
         </main>
@@ -441,7 +441,7 @@ export default function App() {
   )
 }
 
-function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist }) {
+function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist }) {
   const [viewBy, setViewBy] = useState(deck.groups?.length ? 'grupos' : 'tipo')
   const [proxies, setProxies] = useState(false)
   const bySec = viewBy === 'grupos' && deck.groups?.length
@@ -540,9 +540,11 @@ function DeckPanel({ data, deck, setDeck, fmt, act, issues, errors, total, delDe
       {order.map(t => (
         <section key={t}>
           <h4>{GROUP_L[t] || TYPE_LABEL[t] || t} <span className="muted">{groups[t].reduce((s, [, q]) => s + q, 0)}</span></h4>
+          {t === 'Land' && <BasicBar {...{ data, deck, ctx, act }} />}
           <ul>{groups[t].sort((a, b) => (a[2]?.cmc ?? 0) - (b[2]?.cmc ?? 0) || a[0].localeCompare(b[0])).map(([n, q, c]) => row({ n, q, c, zone: 'main' }))}</ul>
         </section>
       ))}
+      {order.length > 0 && !groups.Land && <section><h4>{tx('Terrenos básicos')}</h4><BasicBar {...{ data, deck, ctx, act }} /></section>}
       {!order.length && <p className="muted small hint">{tx('Deck vazio. Usa o')} <b>✦ {tx('Novo deck')}</b> {tx('(escolhe 3 a 10 cartas e o Grimório completa o resto), procura cartas, ou escolhe sementes em')} <b>{tx('Sugestões')}</b>.</p>}
 
       {count(deck.side) > 0 && (

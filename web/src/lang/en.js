@@ -2557,4 +2557,6 @@ export default {
   "nome": "name",
   "Procurar a frase só no nome das cartas": "Search the phrase in card names only",
   "procurar pelo nome": "search by name",
+  "Juntar 1 {c}": "Add 1 {c}",
+  "Tirar 1 {c}": "Remove 1 {c}",
 }

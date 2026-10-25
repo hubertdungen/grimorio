@@ -2549,4 +2549,6 @@ export default {
   "nome": "名称",
   "Procurar a frase só no nome das cartas": "仅在卡牌名称中搜索该短语",
   "procurar pelo nome": "按名称搜索",
+  "Juntar 1 {c}": "加入 1 张 {c}",
+  "Tirar 1 {c}": "移除 1 张 {c}",
 }
