@@ -6,7 +6,7 @@ import Rules from './Rules.jsx'
 import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras } from './data.js'
+import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList } from './data.js'
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana } from './ui.jsx'
@@ -73,6 +73,23 @@ function MoveMenu({ label, to, onMove }) {
       <div className="mvmenu-list" role="menu">{to.map(z => <button key={z} role="menuitem" onClick={() => { ref.current.open = false; onMove(z) }}>→ {ZONE_L[z]}</button>)}</div>
     </details>
   )
+}
+
+// básicos: cada cópia nova fica com uma das artes favoritas (Definições › Terrenos básicos) ao acaso, se o deck não
+// escolheu a sua; ao tirar, a divisão por artes encolhe para o total
+function withBasicArt(d, n, q) {
+  if (!q || !BASICS.includes(n) || d.prints?.[n] || d.art?.[n]) return d
+  const favs = basicList(n), l = (d.split?.[n] || []).map(x => ({ ...x }))
+  if (favs.length < 2 && !l.length) return d
+  for (let k = 0; k < q && favs.length > 1; k++) {
+    const id = favs[Math.floor(Math.random() * favs.length)].id, e = l.find(x => x.id === id)
+    if (e) e.q++; else l.push({ id, q: 1 })
+  }
+  let over = l.reduce((a, x) => a + x.q, 0) - ((d.main[n] || 0) + (d.side[n] || 0))
+  for (let k = l.length - 1; k >= 0 && over > 0; k--) { const t = Math.min(l[k].q, over); l[k].q -= t; over -= t }
+  const split = { ...(d.split || {}) }, left = l.filter(x => x.q > 0)
+  if (left.length) split[n] = left; else delete split[n]
+  return { ...d, split }
 }
 
 export default function App() {
@@ -269,7 +286,7 @@ export default function App() {
       const z = { ...(d[zone] || {}) }
       z[c.n] = (z[c.n] || 0) + q
       if (z[c.n] <= 0) delete z[c.n]
-      return { ...d, [zone]: z }
+      return withBasicArt({ ...d, [zone]: z }, c.n, zone === 'maybe' ? 0 : q)
     })
     say(q > 0 ? `${c.n} → ${ZONE_L[zone]}` : `${c.n} −${-q} (${ZONE_L[zone]})`, true)
   }, [data, fmt, setDeck, say])

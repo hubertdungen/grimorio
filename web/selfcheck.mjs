@@ -569,3 +569,15 @@ console.log('selfcheck universo ok')
   assert.deepEqual(P('t:enchantment o:"gain control" mv>=3').f, { type: 'Enchantment', oracle: ['gain control'], cmcMin: 3 })
   assert.equal(P('Lightning Bolt'), null)
   console.log('selfcheck pesquisa por frases ok') }
+{ const src = readFileSync(new URL('./src/App.jsx', import.meta.url), 'utf8')  // básicos novos com arte favorita ao acaso; tirar encolhe a divisão
+  const body = src.slice(src.indexOf('function withBasicArt'), src.indexOf('export default function App'))
+  const { setBasicDefaults } = await import('./src/data.js')
+  setBasicDefaults({ Plains: [{ id: 'a' }, { id: 'b' }] })
+  const BASICS = ['Plains'], basicList = n => (n === 'Plains' ? [{ id: 'a' }, { id: 'b' }] : [])
+  const w = new Function('BASICS', 'basicList', body + '; return withBasicArt')(BASICS, basicList)
+  let d = { main: { Plains: 3 }, side: {} }
+  d = w(d, 'Plains', 3); assert.equal(d.split.Plains.reduce((a, x) => a + x.q, 0), 3); assert.ok(d.split.Plains.every(x => ['a', 'b'].includes(x.id)))
+  d = w({ ...d, main: { Plains: 1 } }, 'Plains', -2); assert.equal(d.split.Plains.reduce((a, x) => a + x.q, 0), 1)
+  assert.equal(w({ main: { Plains: 1 }, side: {}, prints: { Plains: { id: 'z' } } }, 'Plains', 1).split, undefined)
+  setBasicDefaults({})
+  console.log('selfcheck básicos favoritos ok') }
