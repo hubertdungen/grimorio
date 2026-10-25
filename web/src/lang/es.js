@@ -2236,4 +2236,5 @@ export default {
   "{p} pontos de troféus · {n} troféu|{p} pontos de troféus · {n} troféus": "{p} puntos de trofeos · {n} trofeo|{p} puntos de trofeos · {n} trofeos",
   "{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)": "{a} normales (ranking) + {b} de trofeos azules (casual o sin ranking, valen la mitad)",
   "Os troféus azuis vêm de torneios casuais ou não ranked (menos de 20% de decks do meta) e valem metade dos pontos. Os pontos de cada deck somam todos os troféus que contam, e as estrelas brancas vêm desse total.": "Los trofeos azules vienen de torneos casuales o sin ranking (menos del 20% de mazos del meta) y valen la mitad de los puntos. Los puntos de cada mazo suman todos los trofeos que cuentan, y las estrellas blancas salen de ese total.",
+  "Pelo menos {m} (para todos os decks jogarem) e até 200": "Al menos {m} (para que jueguen todos los mazos) y hasta 200",
 }

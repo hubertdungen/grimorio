@@ -186,7 +186,7 @@ function Create({ data, fmt0, onCreated, deckId }) {
     setPlayers(out.slice(0, max).map(w => ({ key: `${w.src}:${w.ref}:${Math.random()}`, src: w.src, ref: w.ref, name: w.name, difficulty: allDiff, fmt: w.format, cover: w.cover || '', colors: w.colors || '' })))
     setChamps(true)
   }
-  const roundsDef = type === 'suico' ? Math.ceil(Math.log2(Math.max(n, 2))) : type === 'rei' ? 2 * Math.max(n - 1, 1) : 3  // rei: nº de partidas
+  const roundsDef = type === 'suico' ? Math.ceil(Math.log2(Math.max(n, 2))) : type === 'rei' ? 3 * Math.max(n - 1, 1) : 3  // rei: nº de partidas (por omissão 3 × (decks − 1); até 200)
   const R = +rounds || roundsDef
   const G = Math.ceil(n / 4), T = Math.floor(n / team)  // grupos: grupos de 4 ou 3 (+ chave dos 2·G apurados, com 3.º lugar)
   const matches = { elim: n - 1 + (third && n >= 4 ? 1 : 0), dupla: 2 * n - 1, suico: R * Math.ceil(n / 2), liga: (n * (n - 1)) / 2, mesas: R * Math.ceil(n / 4),
@@ -271,7 +271,7 @@ function Create({ data, fmt0, onCreated, deckId }) {
           <p className="small muted tc-info">{info}</p>
           <div className="tc-row">
             <label className="fmt"><span>{tx('Partidas')}</span><select value={boOf} onChange={e => setBo(+e.target.value)} disabled={type === 'mesas'}><option value={1}>{tx('Um jogo (Bo1)')}</option>{BO2.includes(type) && <option value={2} title={tx('Dois jogos: 2-0 ganha, 1-1 é empate')}>{tx('Dois jogos (Bo2, pode empatar)')}</option>}<option value={3}>{tx('Melhor de 3 (Bo3)')}</option><option value={5}>{tx('Melhor de 5 (Bo5)')}</option></select></label>
-            {(type === 'suico' || type === 'mesas' || type === 'rei') && <label className="fmt"><span>{type === 'rei' ? tx('N.º de partidas') : tx('Rondas')}</span><input type="number" min="1" max={type === 'rei' ? 2 * roundsDef : roundsDef + 3} value={rounds} placeholder={String(roundsDef)} onChange={e => setRounds(e.target.value)} /></label>}
+            {(type === 'suico' || type === 'mesas' || type === 'rei') && <label className="fmt"><span>{type === 'rei' ? tx('N.º de partidas') : tx('Rondas')}</span><input type="number" min={type === 'rei' ? Math.max(n - 1, 1) : 1} max={type === 'rei' ? 200 : roundsDef + 3} title={type === 'rei' ? tx('Pelo menos {m} (para todos os decks jogarem) e até 200', { m: Math.max(n - 1, 1) }) : undefined} value={rounds} placeholder={String(roundsDef)} onChange={e => setRounds(e.target.value)} /></label>}
             {type === 'equipas' && <label className="fmt"><span>{tx('Decks por equipa')}</span><select value={team} onChange={e => setTeam(+e.target.value)}><option value={2}>2</option><option value={3}>3</option></select></label>}
             <label className="fmt"><span>Seeds</span><select value={seeding} onChange={e => setSeeding(e.target.value)}><option value="aleatorio">{tx('Sorteados ao começar')}</option><option value="ordem">{tx('Pela ordem da lista')}</option></select></label>
           </div>

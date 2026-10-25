@@ -685,9 +685,9 @@ def create(owner, d):
         bo = d.get("bo") if d.get("bo") in BO_OK and t != "mesas" and (d.get("bo") != 2 or t in BO2_OK) else 1
         rounds = None
         if t in ("suico", "mesas", "rei"):  # no rei da colina `rounds` é o número de partidas
-            base = {"suico": math.ceil(math.log2(n)), "mesas": 3, "rei": 2 * (n - 1)}[t]
+            base = {"suico": math.ceil(math.log2(n)), "mesas": 3, "rei": 3 * (n - 1)}[t]
             try:
-                rounds = max(1, min(2 * base if t == "rei" else base + 3, int(d.get("rounds") or base)))
+                rounds = max(n - 1 if t == "rei" else 1, min(REI_MAX if t == "rei" else base + 3, int(d.get("rounds") or base)))  # rei: todos jogam pelo menos uma vez
             except (TypeError, ValueError):
                 rounds = base
         me = next((i for i, p in enumerate(players) if p.pop("me", None)), None)
@@ -1022,6 +1022,7 @@ def bets_view(con, owner, tid, status, st):
 
 # ---------- a thread que faz avançar os torneios ----------
 
+REI_MAX = 200  # partidas no máximo num rei da colina (por omissão 3 × (decks − 1))
 RANKED_META = 0.2  # parte mínima de decks do meta para um torneio ser «ranked»
 
 

@@ -9,7 +9,7 @@ const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x))
 export const playersW = n => (n ? clamp(Math.sqrt(n / 8), 0.6, 1.6) : 1)
 // duração, só onde as rondas se escolhem (rei da colina, suíço, mesas): partidas jogadas ÷ as típicas para esse tamanho,
 // √ e entre ×0,5 e ×1,5 (um rei da colina de 3 partidas não vale um de 30); nos outros tipos o tamanho já diz tudo
-const TYPICAL = { rei: n => 2 * (n - 1), suico: n => Math.ceil(Math.log2(n)) * Math.floor(n / 2), mesas: n => 3 * Math.ceil(n / 4) }
+const TYPICAL = { rei: n => 3 * (n - 1), suico: n => Math.ceil(Math.log2(n)) * Math.floor(n / 2), mesas: n => 3 * Math.ceil(n / 4) }
 export const lengthW = (kind, n, m) => (TYPICAL[kind] && n > 1 && m ? clamp(Math.sqrt(m / TYPICAL[kind](n)), 0.5, 1.5) : 1)
 export const trophyValue = ({ tier, kind, casual, n, m }) => Math.round((TIER_PTS[tier] || 0) * (KIND_W[kind] ?? 1) * playersW(n) * lengthW(kind, n, m) * (casual ? BLUE_W : 1))
 
