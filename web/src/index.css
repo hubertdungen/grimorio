@@ -2137,8 +2137,8 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .bmid { position: relative; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
 @media (max-width: 900px) { .bmid { grid-template-columns: minmax(0, 1fr); } }
 .stackfx { --sw: clamp(64px, calc(var(--cw) * 1.25), 160px); position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: 30; display: flex; align-items: flex-end; gap: 16px; transform: translateX(-50%); pointer-events: none; }  /* logo acima da barra das fases, sem a tapar */
-.stk-pile { position: relative; flex: none; width: calc(var(--sw) * 1.05 + (max(var(--n), 1) - 1) * 26px); height: calc(var(--sw) * 1.4 + (max(var(--n), 1) - 1) * 9px); }
-.stackfx .stk { position: absolute; left: calc(var(--j) * 26px); bottom: calc(var(--j) * 9px); width: var(--sw); aspect-ratio: 488 / 680; margin: 0; border-radius: 7%; overflow: hidden; outline: none;
+.stk-pile { position: relative; flex: none; width: calc(var(--sw) * 1.05 + (max(var(--n), 1) - 1) * var(--sg, 26px)); height: calc(var(--sw) * 1.4 + (max(var(--n), 1) - 1) * 9px); }
+.stackfx .stk { position: absolute; left: calc(var(--j) * var(--sg, 26px)); bottom: calc(var(--j) * 9px); width: var(--sw); aspect-ratio: 488 / 680; margin: 0; border-radius: 7%; overflow: hidden; outline: none;
   transform: rotate(var(--r, 0deg)); pointer-events: auto; cursor: zoom-in; --col: #ffffff66; --from: -110px;
   box-shadow: 0 12px 30px #000d, 0 0 0 2px var(--col); transition: left .35s cubic-bezier(.3, 1.4, .5, 1), bottom .35s cubic-bezier(.3, 1.4, .5, 1), box-shadow .3s; }
 .stackfx .stk.a { --col: var(--pa); --from: 110px; } .stackfx .stk.b { --col: var(--pb); } .stackfx .stk.c { --col: var(--pc); } .stackfx .stk.d { --col: var(--pd); }
@@ -2183,7 +2183,7 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .bmid .phases { grid-column: 1; grid-row: 1; } .bmid .ribbon { grid-column: 3; grid-row: 1; }
 .bmid .stackfx { position: relative; left: auto; bottom: auto; top: auto; transform: none; grid-column: 2; grid-row: 1; align-self: center; justify-self: center; height: 0; display: flex; align-items: center; justify-content: center; }
 .bmid .stk-pile { flex: none; }
-.bmid .stk-cap { position: absolute; left: calc(100% + 16px); top: 50%; transform: translateY(-50%); animation-name: capInY; }
+.bmid .stk-cap { position: absolute; left: calc(100% + 30px); top: 50%; transform: translateY(-50%); animation-name: capInY; }  /* folga para a inclinação e o aumento da carta a resolver */
 @keyframes capInY { from { opacity: 0; transform: translate(-10px, -50%); } to { opacity: 1; transform: translateY(-50%); } }
 @media (max-width: 900px) {
   .bmid { grid-template-columns: minmax(0, 1fr); }

@@ -176,7 +176,8 @@ function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
   const tgt = top?.target && (who[top.target] || short(top.target))
   return (
     <div className={`stackfx ${nudge ? 'nudge' : ''}`} aria-live="polite">
-      <div className="stk-pile" style={{ '--n': n }}>
+      {/* a carta a resolver também conta para a largura (senão ficava por cima da legenda); com muitas, o leque aperta */}
+      <div className="stk-pile" style={{ '--n': n + (ghost ? 1 : 0), '--sg': `${n + (ghost ? 1 : 0) > 4 ? Math.max(10, Math.round(104 / (n + (ghost ? 1 : 0) - 1))) : 26}px` }}>
         {s.stack.map((x, j) => (
           <In key={x.uid} quiet={quiet} className={`stk ${x.p || ''} ${x.kind} ${j === n - 1 ? 'top' : ''}`} style={{ '--j': j, '--r': `${tilt(x.uid)}deg` }} data-z={x.card ? `n:${x.card}` : undefined}>
             {pic(x.card, x.p, x.kind)}
