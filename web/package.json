@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "tesseract.js": "7.0.0",
     "three": "^0.170.0"
   },
   "devDependencies": {

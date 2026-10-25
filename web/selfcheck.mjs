@@ -455,3 +455,11 @@ console.log('selfcheck universo ok')
     assert.ok(d > 0.99999 && b.asleep, `${b.kind} torto`)
   }
   console.log('selfcheck dados 3D ok') }
+{ const { buildIndex, matchName, setInfo } = await import('./src/cardmatch.js')  // foto -> carta: nome com erros de OCR, cartas duplas, edição/número
+  const cards = ['Lightning Bolt', 'Nimble Pilferer', 'Ragavan, Nimble Pilferer', 'Start // Fire', 'Fire // Ice', 'Counterspell', 'Sol Ring'].map(n => ({ n }))
+  const idx = buildIndex(cards), top = l => cards[matchName(idx, l)[0].i].n
+  assert.equal(top(['Lightning Bo1t {R}', 'Instant']), 'Lightning Bolt')
+  assert.equal(top(['Ragavan, Nimble Pi1ferer R']), 'Ragavan, Nimble Pilferer')
+  assert.equal(top(['Fire', 'Ice']), 'Fire // Ice')
+  assert.deepEqual(setInfo('0123 R\nMH3 • EN'), { set: 'mh3', cn: '123' })
+  console.log('selfcheck foto de carta ok') }
