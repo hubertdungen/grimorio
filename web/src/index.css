@@ -2058,3 +2058,24 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .hist i b { position: absolute; bottom: 100%; left: 0; right: 0; font-size: 11px; font-weight: 600; }
 .hist span { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 3px; }
 @media (max-width: 520px) { .kpi b { font-size: 22px; } .odds b { font-size: 18px; } .scurve { gap: 4px; } }
+/* Proxies › folha em PDF: opções à esquerda, pré-visualização à direita (empilha no telemóvel) */
+.modal.proxies { width: min(980px, 96vw); }
+.px-print .pgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.pset { display: grid; gap: 8px; }
+.pset > label:not(.chk), .pnum { display: grid; grid-template-columns: minmax(110px, 40%) 1fr auto; align-items: center; gap: 8px; font-size: 13px; }
+.pset > label:not(.chk) > span, .pnum > span { color: var(--muted); }
+.pset input[type="number"] { width: 100%; min-width: 0; }
+.pset input[type="color"] { width: 48px; height: 30px; padding: 2px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); }
+.pnum small { color: var(--muted); min-width: 1.8em; }
+.pset .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pset .pair .pnum, .pset .quad .pnum { grid-template-columns: 1fr minmax(56px, 1fr) auto; }
+.pset .quad { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.padv { display: grid; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.padv summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.padv[open] { gap: 8px; } .padv[open] > *:not(summary) { margin-top: 8px; }
+.pview { position: sticky; top: 0; display: grid; gap: 8px; justify-items: center; }
+.pprev { width: 100%; max-height: 62vh; border-radius: 4px; box-shadow: 0 6px 24px #000a; background: #fff; }
+@media (max-width: 760px) { .px-print .pgrid { grid-template-columns: 1fr; } .pview { position: static; } }
+.modal.proxies, .px-opt, .px-print .pgrid > * { min-width: 0; }
+.pset select, .pset input:not([type="checkbox"]):not([type="color"]) { min-width: 0; width: 100%; max-width: 100%; }
+.pset .chk { overflow-wrap: anywhere; }

@@ -588,3 +588,20 @@ console.log('selfcheck universo ok')
   assert.ok(o.keep > 0.75 && o.keep < 0.8 && o.t3 > o.t4)
   assert.equal(landOdds(5, 2).keep, 0)
   console.log('selfcheck probabilidades de terrenos ok') }
+{ const { layout, guides, pageOps, pdf, PRINT0 } = await import('./src/printpdf.js')  // proxies em PDF: grelha, bleed, guias, verso
+  const o = { ...PRINT0, paper: 'A4', card: [63, 88], gap: [2.8, 2.8], bleed: 10, customMargins: true, margins: [10, 10, 10, 10] }
+  const L = layout(o)
+  assert.equal(L.cols, 2); assert.equal(L.rows, 3)  // 2×63+2,8 cabe em 190; 3×88+2×2,8 = 269,6 cabe em 277
+  const k = L.cells[0], k1 = L.cells[1]
+  assert.ok(Math.abs(k1.x - k.x - 65.8) < 1e-9 && Math.abs(k.clip[2] - (k.x + 63 + 1.4)) < 1e-9)  // entre cartas: metade do espaço
+  assert.ok(Math.abs(k.x - k.clip[0] - 10) < 1e-9)  // por fora: o bleed inteiro (cabe na margem)
+  assert.equal(guides(L, 'lines', true).length, 4 + 6); assert.equal(guides(L, 'lines', false).length, 3 + 4)
+  assert.ok(guides(L, 'corners').length > 0 && guides(L, 'none').length === 0)
+  assert.equal(layout({ ...PRINT0, card: [300, 400] }).per, 0)
+  const ops = pageOps(L, { ...o, duplex: true }, Array(7).fill('x'), () => 0)
+  assert.equal(ops.length, 4)  // 7 cartas, 6 por página → 2 folhas, frente e verso
+  const bytes = pdf(L.W, L.H, ops, [{ w: 1, h: 1, bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]) }]), txt = new TextDecoder('latin1').decode(bytes)
+  assert.ok(txt.startsWith('%PDF-1.4') && txt.includes('/Count 4') && txt.trim().endsWith('%%EOF'))
+  const xref = +txt.match(/startxref\n(\d+)/)[1]; assert.equal(txt.slice(xref, xref + 4), 'xref')
+  const off = [...txt.matchAll(/(\d{10}) 00000 n/g)].map(m => +m[1]); assert.ok(off.every((v, i) => txt.slice(v).startsWith(`${i + 1} 0 obj`)))
+  console.log('selfcheck proxies PDF ok') }

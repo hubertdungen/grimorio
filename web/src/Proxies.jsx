@@ -6,36 +6,107 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { img } from './data.js'
 import { exportList, proxyGroups } from './deck.js'
+import { PAPERS, UNITS, PRINT0, layout, guides, pageOps, pdf } from './printpdf.js'
 import { tx } from './i18n.js'
 
 const own = s => s && (s.startsWith('arts/') || s.startsWith('https:'))
 const urlOf = (g, size, back = false) => (back ? (g.c.df && !own(g.src) ? img(g.c, size, true, g.src) : null) : img(g.c, size, false, g.src))
 
-function printSheet(groups, paper, name) {
-  const cards = groups.flatMap(g => Array.from({ length: g.q }, () => [urlOf(g, 'large'), urlOf(g, 'large', true)]).flat()).filter(Boolean)
-  const abs = u => new URL(u, location.href).href
-  const w = window.open('', '_blank')
-  if (!w) return false
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${name.replace(/[<>&]/g, '')} – proxies</title><style>
-    @page { size: ${paper}; margin: 8mm; } * { box-sizing: border-box; } body { margin: 0; background: #fff; }
-    .sheet { display: grid; grid-template-columns: repeat(3, 63mm); grid-auto-rows: 88mm; gap: 0; justify-content: center; }
-    .sheet img { width: 63mm; height: 88mm; object-fit: cover; display: block; outline: .2mm dashed #999; outline-offset: -.1mm; break-inside: avoid; }
-    @media screen { body { background: #555; } .sheet { background: #fff; width: max-content; margin: 10px auto; padding: 8mm; } .tip { font: 14px system-ui; color: #fff; text-align: center; margin: 10px; } }
-    @media print { .tip { display: none; } .sheet img:nth-child(9n) { break-after: page; } }
-  </style></head><body><p class="tip">${tx('Imprime a 100% (sem «ajustar à página») para as cartas ficarem com 63×88 mm. Também dá para guardar em PDF.')}</p>
-  <div class="sheet">${cards.map(u => `<img src="${abs(u)}">`).join('')}</div>
-  <script>Promise.all([...document.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r }))).then(() => setTimeout(() => print(), 300))</${"script"}></body></html>`)
-  w.document.close()
-  return true
+// cada arte numa imagem com o bleed à volta (300 ppp): preto, uma cor, ou a margem da carta esticada para fora
+// (a cor de fundo é a mediana da margem, para os cantos redondos e as pontas das tiras)
+const DPI = 300
+const loadImg = url => new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = url })
+function edgeColor(im) {
+  const iw = im.naturalWidth, ih = im.naturalHeight, cv = document.createElement('canvas')
+  cv.width = iw; cv.height = ih
+  const x = cv.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0)
+  const px = [], dx = Math.round(iw * 0.012), dy = Math.round(ih * 0.012)
+  for (let t = 0.12; t <= 0.88; t += 0.04) for (const [a, b] of [[t * iw, dy], [t * iw, ih - 1 - dy], [dx, t * ih], [iw - 1 - dx, t * ih]]) px.push(x.getImageData(Math.round(a), Math.round(b), 1, 1).data)
+  const med = k => px.map(p => p[k]).sort((a, b) => a - b)[px.length >> 1]
+  return `rgb(${med(0)},${med(1)},${med(2)})`
+}
+async function renderCard(url, o, L) {
+  const im = await loadImg(url)
+  const k = DPI / 25.4, b = Math.round(L.b * k), w = Math.round(L.cw * k), h = Math.round(L.ch * k)
+  const cv = document.createElement('canvas'); cv.width = w + 2 * b; cv.height = h + 2 * b
+  const x = cv.getContext('2d')
+  x.fillStyle = o.bleedFill === 'black' ? '#000' : o.bleedFill === 'color' ? o.bleedColor : edgeColor(im)
+  x.fillRect(0, 0, cv.width, cv.height)
+  if (o.bleedFill === 'replicate' && b) {
+    const iw = im.naturalWidth, ih = im.naturalHeight, sx = Math.round(iw * 0.012), sy = Math.round(ih * 0.012)
+    x.drawImage(im, 0, sy, iw, 1, b, 0, w, b); x.drawImage(im, 0, ih - 1 - sy, iw, 1, b, b + h, w, b)
+    x.drawImage(im, sx, 0, 1, ih, 0, b, b, h); x.drawImage(im, iw - 1 - sx, 0, 1, ih, b + w, b, b, h)
+  }
+  if (!o.fillCorners) { x.fillStyle = '#fff'; x.fillRect(b, b, w, h) }  // cantos redondos ficam brancos
+  x.drawImage(im, b, b, w, h)
+  if (o.watermark && o.watermarkText) {
+    x.save(); x.translate(b + w / 2, b + h / 2); x.rotate(-Math.PI / 6); x.globalAlpha = 0.28
+    x.font = `900 ${Math.round(h * 0.11)}px system-ui, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'
+    x.lineWidth = h * 0.006; x.strokeStyle = '#000'; x.fillStyle = '#fff'; x.strokeText(o.watermarkText, 0, 0); x.fillText(o.watermarkText, 0, 0); x.restore()
+  }
+  const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92))
+  return { w: cv.width, h: cv.height, bytes: new Uint8Array(await blob.arrayBuffer()) }
+}
+const CARD_BACK = 'https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg'
+const fetchable = u => (u?.startsWith('https:') && !/^https:\/\/(cards|backs)\.scryfall\.io\//.test(u) ? `/api/arts/proxy?url=${encodeURIComponent(u)}` : u)
+const loadPrint = () => { try { return { ...PRINT0, ...JSON.parse(localStorage.getItem('grimorio.print') || '{}') } } catch { return PRINT0 } }
+
+// número numa unidade (cm, mm, polegadas); guarda sempre em mm
+function Num({ v, unit, set, label, min = 0 }) {
+  const k = UNITS[unit]
+  return <label className="pnum"><span>{label}</span><input type="number" min={min} step={unit === 'mm' ? 0.1 : 0.01} value={+(v / k).toFixed(unit === 'mm' ? 1 : 3)} onChange={e => { const n = parseFloat(e.target.value); if (!Number.isNaN(n)) set(n * k) }} /><small>{unit}</small></label>
+}
+
+// pré-visualização da 1.ª folha: cartas (com o bleed que cabe), margens e guias
+function Preview({ L, o, slots }) {
+  const g = guides(L, o.guides, o.individual !== false)
+  return (
+    <svg className="pprev" viewBox={`0 0 ${L.W} ${L.H}`} role="img" aria-label={tx('Pré-visualização da folha')}>
+      <rect width={L.W} height={L.H} fill="#fff" />
+      {L.cells.map((k, i) => { const s = slots[i]; const [l, t, r, b] = k.clip; return (
+        <g key={i}>
+          <rect x={l} y={t} width={r - l} height={b - t} fill={o.bleedFill === 'black' ? '#000' : o.bleedFill === 'color' ? o.bleedColor : '#3a3a3a'} />
+          {s ? <image href={s.thumb} x={k.x} y={k.y} width={L.cw} height={L.ch} preserveAspectRatio="none" /> : <rect x={k.x} y={k.y} width={L.cw} height={L.ch} fill="#ddd" />}
+        </g>) })}
+      {g.map(([a, b, c, d], i) => <line key={i} x1={a} y1={b} x2={c} y2={d} stroke={o.guideColor} strokeWidth={Math.max(o.guideWidth, L.W / 600)} />)}
+    </svg>
+  )
 }
 
 export default function ProxyDialog({ data, deck, onClose }) {
-  const [side, setSide] = useState(true), [perCopy, setPerCopy] = useState(false), [paper, setPaper] = useState('A4')
+  const [side, setSide] = useState(true), [perCopy, setPerCopy] = useState(false)
+  const [o, setO] = useState(loadPrint), [pdfBusy, setPdfBusy] = useState('')
+  const up = p => setO(x => { const n = { ...x, ...p }; try { localStorage.setItem('grimorio.print', JSON.stringify(n)) } catch { /* sem armazenamento */ } return n })
   const [busy, setBusy] = useState(''), [err, setErr] = useState(''), [warn, setWarn] = useState(''), [copied, setCopied] = useState(false)
   const groups = useMemo(() => proxyGroups(deck, data, { side }), [deck, data, side])
   const list = useMemo(() => exportList(side ? deck : { ...deck, side: {} }), [deck, side])
   const total = groups.reduce((a, g) => a + g.q, 0), owned = groups.filter(g => own(g.src)).reduce((a, g) => a + g.q, 0)
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
+  const L = useMemo(() => layout(o), [o])
+  const slots = useMemo(() => groups.flatMap(g => Array.from({ length: g.q }, () => ({ g, thumb: urlOf(g, 'small'), front: urlOf(g, 'png'), back: urlOf(g, 'png', true) || CARD_BACK }))), [groups])
+  const sheets = L.per ? Math.ceil(slots.length / L.per) : 0
+  const makePdf = async () => {
+    setErr(''); setWarn('')
+    const urls = [...new Set(slots.flatMap(x => (o.duplex ? [x.front, x.back] : [x.front])))], idx = new Map(), images = []
+    let missed = 0
+    try {
+      for (const u of urls) {
+        setPdfBusy(tx('A preparar as imagens… {a}/{b}', { a: images.length + 1, b: urls.length }))
+        let im
+        try { im = await renderCard(fetchable(u), o, L) } catch {
+          const sl = slots.find(x => x.front === u), fb = sl && img(sl.g.c, 'png', false, deck.prints?.[sl.g.c.n]?.id)  // imagem própria que não vem: a arte normal
+          if (!fb || fb === u) throw new Error(tx('Não consegui carregar a imagem de {c}.', { c: sl?.g.c.n || u }))
+          im = await renderCard(fb, o, L); missed++
+        }
+        idx.set(u, images.length); images.push(im)
+      }
+      setPdfBusy(tx('A montar o PDF…'))
+      const bytes = pdf(L.W, L.H, pageOps(L, o, slots, (x, side) => idx.get(side === 'back' ? x.back : x.front)), images)
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); a.download = `${deck.name.replace(/[^\w\- ]+/g, '') || 'deck'} - proxies.pdf`; a.click()
+      if (missed) setWarn(tx('{n} imagem própria não veio e ficou a arte normal.|{n} imagens próprias não vieram e ficou a arte normal.', { n: missed }))
+    } catch (e) { setErr(e.message) } finally { setPdfBusy('') }
+  }
   const zip = async () => {
     setErr(''); setBusy(tx('A juntar {n} imagens…', { n: groups.length }))
     try {
@@ -74,12 +145,46 @@ export default function ProxyDialog({ data, deck, onClose }) {
           <div className="row-btns"><button className="primary" disabled={!!busy || !groups.length} onClick={zip}>⬇ {busy || tx('Descarregar ZIP')}</button></div>
         </section>
 
-        <section className="px-opt">
-          <h4>{tx('Folha para imprimir')}</h4>
-          <p className="muted small">{tx('Tamanho real (63×88 mm), 9 por página, com linhas de corte. Abre numa janela nova pronta a imprimir ou a guardar em PDF.')}</p>
-          <div className="row-btns">
-            <select value={paper} onChange={e => setPaper(e.target.value)} aria-label={tx('Papel')}><option value="A4">A4</option><option value="letter">Letter</option></select>
-            <button disabled={!groups.length} onClick={() => { if (!printSheet(groups, paper, deck.name)) setErr(tx('O browser bloqueou a janela nova: deixa abrir pop-ups para este site.')) }}>🖨 {tx('Abrir a folha')}</button>
+        <section className="px-opt px-print">
+          <h4>{tx('Folha para imprimir (PDF)')}</h4>
+          <p className="muted small">{tx('Tamanho real, pronta para a impressora ou para uma gráfica: papel, margens, espaço entre cartas, bleed e guias de corte. Imprime a 100%.')}</p>
+          <div className="row-btns"><button className="link small" onClick={() => up({ gap: [2.8, 2.8], bleed: 10, guides: 'lines', individual: true, guideColor: '#808080', bleedFill: 'replicate', customMargins: true, margins: [10, 10, 10, 10] })}>⚙ {tx('Pré-definição de gráfica: 0,28 cm entre cartas, bleed 1 cm, corte individual')}</button></div>
+          <div className="pgrid">
+            <div className="pset">
+              <label><span>{tx('Unidade')}</span><select value={o.unit} onChange={e => up({ unit: e.target.value })}><option value="cm">{tx('Centímetros')}</option><option value="mm">{tx('Milímetros')}</option><option value="in">{tx('Polegadas')}</option></select></label>
+              <label><span>{tx('Papel')}</span><select value={o.paper} onChange={e => up({ paper: e.target.value })}>{Object.entries(PAPERS).map(([k, [w, h]]) => <option key={k} value={k}>{k} · {+(w / UNITS[o.unit]).toFixed(2)}×{+(h / UNITS[o.unit]).toFixed(2)} {o.unit}</option>)}<option value="custom">{tx('À medida')}</option></select></label>
+              {o.paper === 'custom' && <div className="pair"><Num label={tx('Largura')} v={o.custom[0]} unit={o.unit} set={v => up({ custom: [v, o.custom[1]] })} /><Num label={tx('Altura')} v={o.custom[1]} unit={o.unit} set={v => up({ custom: [o.custom[0], v] })} /></div>}
+              <label><span>{tx('Orientação')}</span><select value={o.landscape ? 'h' : 'v'} onChange={e => up({ landscape: e.target.value === 'h' })}><option value="v">{tx('Vertical')}</option><option value="h">{tx('Horizontal')}</option></select></label>
+              <label><span>{tx('Guias de corte')}</span><select value={o.guides} onChange={e => up({ guides: e.target.value })}><option value="none">{tx('Nenhuma')}</option><option value="lines">{tx('Linhas a toda a folha')}</option><option value="margins">{tx('Só nas margens da folha')}</option><option value="corners">{tx('Marcas nos cantos')}</option></select></label>
+              {o.guides !== 'none' && <div className="pair">
+                <label><span>{tx('Cor')}</span><input type="color" value={o.guideColor} onChange={e => up({ guideColor: e.target.value })} /></label>
+                <Num label={tx('Espessura')} v={o.guideWidth} unit="mm" set={v => up({ guideWidth: Math.max(0.05, v) })} />
+              </div>}
+              {(o.guides === 'lines' || o.guides === 'margins') && <label className="chk small"><input type="checkbox" checked={o.individual !== false} onChange={e => up({ individual: e.target.checked })} /> {tx('Corte individual para cada carta (linhas nos dois lados de cada espaço)')}</label>}
+              <Num label={tx('Bleed')} v={o.bleed} unit={o.unit} set={v => up({ bleed: v })} />
+              {o.bleed > 0 && <label><span>{tx('Bleed com')}</span><select value={o.bleedFill} onChange={e => up({ bleedFill: e.target.value })}><option value="replicate">{tx('A margem da carta esticada (inteligente)')}</option><option value="black">{tx('Preto')}</option><option value="color">{tx('Uma cor à escolha')}</option></select></label>}
+              {o.bleed > 0 && o.bleedFill === 'color' && <label><span>{tx('Cor do bleed')}</span><input type="color" value={o.bleedColor} onChange={e => up({ bleedColor: e.target.value })} /></label>}
+              <label className="chk small"><input type="checkbox" checked={o.fillCorners} onChange={e => up({ fillCorners: e.target.checked })} /> {tx('Preencher os cantos redondos')}</label>
+              <label className="chk small"><input type="checkbox" checked={o.watermark} onChange={e => up({ watermark: e.target.checked })} /> {tx('Marca de água')}</label>
+              {o.watermark && <label><span>{tx('Texto')}</span><input value={o.watermarkText} maxLength={24} onChange={e => up({ watermarkText: e.target.value })} /></label>}
+              <label className="chk small"><input type="checkbox" checked={o.duplex} onChange={e => up({ duplex: e.target.checked })} /> {tx('Frente e verso (o verso das cartas de duas faces ou as costas do Magic)')}</label>
+              {o.duplex && <label><span>{tx('A folha vira pela')}</span><select value={o.flip} onChange={e => up({ flip: e.target.value })}><option value="side">{tx('margem lateral')}</option><option value="top">{tx('margem de cima')}</option></select></label>}
+              <details className="padv">
+                <summary>{tx('Opções avançadas')}</summary>
+                <label className="chk small"><input type="checkbox" checked={o.customMargins} onChange={e => up({ customMargins: e.target.checked })} /> {tx('Margens da folha à medida')}</label>
+                {o.customMargins && <div className="quad">{[tx('Cima'), tx('Direita'), tx('Baixo'), tx('Esquerda')].map((l, k) => <Num key={k} label={l} v={o.margins[k]} unit={o.unit} set={v => up({ margins: o.margins.map((m, j) => (j === k ? v : m)) })} />)}</div>}
+                <label className="chk small"><input type="checkbox" checked={o.center} onChange={e => up({ center: e.target.checked })} /> {tx('Centrar as cartas na folha')}</label>
+                <div className="pair"><Num label={tx('Carta: largura')} v={o.card[0]} unit={o.unit} set={v => up({ card: [v, o.card[1]] })} /><Num label={tx('altura')} v={o.card[1]} unit={o.unit} set={v => up({ card: [o.card[0], v] })} /></div>
+                <div className="pair"><Num label={tx('Espaço entre cartas: ↔')} v={o.gap[0]} unit={o.unit} set={v => up({ gap: [v, o.gap[1]] })} /><Num label="↕" v={o.gap[1]} unit={o.unit} set={v => up({ gap: [o.gap[0], v] })} /></div>
+                <button className="link small" onClick={() => up(PRINT0)}>{tx('Repor tudo')}</button>
+              </details>
+            </div>
+            <div className="pview">
+              <Preview {...{ L, o, slots }} />
+              <p className="small">{L.per ? tx('{n} por folha ({c}×{r}) · {s} folha|{n} por folha ({c}×{r}) · {s} folhas', { n: L.per, c: L.cols, r: L.rows, s: sheets }) : <span className="bad-t">{tx('A carta não cabe na folha com estas margens.')}</span>}{o.duplex && L.per ? ` · ${tx('frente e verso')}` : ''}</p>
+              {L.warn.includes('bleed') && <p className="muted small">{tx('Entre cartas o bleed fica com metade do espaço ({v}), para não tapar a vizinha; por fora fica o bleed inteiro.', { v: `${+(Math.min(o.bleed, Math.min(o.gap[0], o.gap[1]) / 2) / UNITS[o.unit]).toFixed(3)} ${o.unit}` })}</p>}
+              <button className="primary" disabled={!!pdfBusy || !L.per || !slots.length} onClick={makePdf}>⬇ {pdfBusy || tx('Gerar PDF')}</button>
+            </div>
           </div>
         </section>
         {warn && <p className="small warn-t">{warn}</p>}
