@@ -5,6 +5,7 @@ import { Logo } from './ui.jsx'
 import { ask } from './confirm.jsx'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
+import { needsMark } from './game.js'
 
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') } } catch { return d } }
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* sem armazenamento */ } }
@@ -159,6 +160,7 @@ function DieFace({ type, v }) {
       <g fill={`url(#${id})`} stroke="#0006" strokeWidth="2">{D.shape}</g>
       {type === 'd6' ? PIPS[v]?.map(([x, y], k) => <circle key={k} cx={x} cy={y} r="8.5" fill={D.ink} />)
         : <text x="50" y={D.ty} textAnchor="middle" dominantBaseline="middle" className={`die-n ${D.small || D.coin ? 'sm' : ''}`} fill={D.ink || '#fff'}>{face(type, v)}</text>}
+      {type !== 'd6' && type !== 'moeda' && needsMark(v, D.n) && <rect x={50 - (String(v).length > 1 ? 13 : 8)} y={D.ty + (D.small ? 10 : 15)} width={String(v).length > 1 ? 26 : 16} height="3.4" rx="1.7" fill={D.ink || '#fff'} />}
     </svg>
   )
 }

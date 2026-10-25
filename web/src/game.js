@@ -496,3 +496,14 @@ export function mixTake(pool, want, w, minMeta = 0) {
   const rest = keys.sort((a, b) => w[b] - w[a]).flatMap(k => by[k].slice(tgt[k]))
   return [...out, ...rest].slice(0, want)
 }
+
+// Dados: um número leva traço por baixo se, virado ao contrário, se ler como outro número desse dado (6/9; no d100
+// também 66, 68, 86, 89, 98, 99…), como nos dados a sério.
+const TURN = { 0: '0', 1: '1', 6: '9', 8: '8', 9: '6' }
+export function needsMark(v, n) {
+  const s = String(v)
+  if (s === '6' || s === '9') return true  // mesmo onde o outro não existe (num d8, um 6 virado lê-se «9»)
+  if ([...s].some(d => !(d in TURN))) return false
+  const r = [...s].reverse().map(d => TURN[d]).join('')
+  return r[0] !== '0' && r !== s && +r >= 1 && +r <= n
+}

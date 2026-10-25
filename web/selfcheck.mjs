@@ -421,3 +421,7 @@ console.log('selfcheck universo ok')
   assert.deepEqual(kinds(mixTake([...mk('meus', 2), ...mk('meta', 10)], 8, { meu: 75, meta: 25 })), { meu: 2, meta: 6 })  // faltam meus: o meta completa
   assert.equal(mixTake(pool, 7, { meu: 1, com: 1, meta: 1 }).length, 7)
   console.log('selfcheck mistura ok') }
+{ const { needsMark } = await import('./src/game.js')
+  assert.ok(needsMark(6, 20) && needsMark(9, 20) && needsMark(6, 8) && !needsMark(16, 20) && !needsMark(10, 20) && !needsMark(8, 20) && !needsMark(11, 20))
+  assert.ok(needsMark(66, 100) && needsMark(68, 100) && needsMark(86, 100) && !needsMark(88, 100) && needsMark(61, 100) && !needsMark(1, 100) && !needsMark(50, 100))
+  console.log('selfcheck traço do 6 e do 9 ok') }
