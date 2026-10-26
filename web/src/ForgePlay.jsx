@@ -151,6 +151,23 @@ function useDrag(onDrop, onLong) {
   return { down, dragged }
 }
 
+// o registo do Forge (as últimas 40 entradas): «Ruin Crab (55)» passa a nome com o rato a mostrar a carta
+const CARD_REF = /([A-Z][^()\n]*?) \((\d+)\)/g
+function Hist({ log }) {
+  const box = useRef(null)
+  useEffect(() => { const el = box.current; if (el) el.scrollTop = el.scrollHeight }, [log?.length, log?.[log.length - 1]?.m])
+  if (!log?.length) return null
+  const line = m => {
+    const out = []; let last = 0
+    for (const x of m.matchAll(CARD_REF)) {
+      out.push(m.slice(last, x.index), <b key={x.index} className="lg-card" data-zid={x[2]} data-zn={x[1]}>{x[1]}</b>)
+      last = x.index + x[0].length
+    }
+    return [...out, m.slice(last)]
+  }
+  return <ol className="fp-hist" ref={box} aria-label={tx('Histórico do jogo')}>{log.map((e, k) => <li key={k} className={`y-${e.y}`}>{line(e.m)}</li>)}</ol>
+}
+
 // escolhas que bloqueiam o motor: sim/não, uma opção, um número ou texto, ou escolher entre cartas/jogadores
 function Ask({ a, st, data, answer, zoom }) {
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
@@ -268,7 +285,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
   }
   const onOver = e => {
     const el = e.target.closest('[data-z], [data-zid]'), z = el?.dataset.z
-    const c = z?.startsWith('k:') ? byId.get(+z.slice(2)) : el?.dataset.zid ? byId.get(+el.dataset.zid) : z?.startsWith('n:') ? { name: z.slice(2) } : null
+    const c = z?.startsWith('k:') ? byId.get(+z.slice(2)) : el?.dataset.zid ? byId.get(+el.dataset.zid) || (el.dataset.zn && { name: el.dataset.zn }) : z?.startsWith('n:') ? { name: z.slice(2) } : null
     if (c && !c.hidden) setZoom(c)
   }
   const zc = zoom && (data.byName.get(zoom.name) || data.byLower?.get(String(zoom.name).toLowerCase()))
@@ -281,8 +298,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
     el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
   }
   return (
-    <div className="fp" onMouseLeave={() => setZoom(null)}>
-      <div className="fp-table board table" onClick={onClick} onMouseOver={onOver} onMouseMove={tilt} onPointerDown={down}>
+    <div className="fp" onMouseLeave={() => setZoom(null)} onMouseOver={onOver}>
+      <div className="fp-table board table" onClick={onClick} onMouseMove={tilt} onPointerDown={down}>
         {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone}
           hand={nOpp > 0 && <Hand z={{ hand: nOpp, known: Array(nOpp).fill('?') }} data={data} exact opp hidden quiet />} />}
         <div className="fp-mid">
@@ -302,6 +319,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')}>{n}</button>))}</span>}
           <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')}</p>
+          <Hist log={st.log} />
           <div className="row-btns small">
             <button className="link small" onClick={() => send({ c: 'undo' })}>↶ {tx('desfazer')}</button>
             <button className="link small" onClick={() => send({ c: 'concede' })}>🏳 {tx('desistir')}</button>

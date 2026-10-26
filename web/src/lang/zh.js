@@ -2837,4 +2837,5 @@ export default {
   "Meta": "环境",
   "Meu": "我的",
   "Um deck teu": "你的套牌",
+  "Histórico do jogo": "对局记录",
 }

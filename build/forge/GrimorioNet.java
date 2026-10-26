@@ -261,6 +261,22 @@ public class GrimorioNet {
                 o.add("combat", ca);
             }
             if (gv.isGameOver()) { o.addProperty("over", true); o.addProperty("winner", gv.getWinningPlayerName()); }
+            // o registo do jogo (o mesmo do painel do Forge): as últimas 40 entradas, com o id da carta de cada uma
+            if (gv.getGameLog() != null) {
+                java.util.List<forge.game.GameLogEntry> es = new ArrayList<>();  // do mais antigo para o mais recente, sem as fases
+                for (forge.game.GameLogEntry e : gv.getGameLog().getAllEntries()) if (e.type() != forge.game.GameLogEntryType.PHASE) es.add(e);
+                JsonArray lg = new JsonArray();
+                for (int k = Math.max(0, es.size() - 40); k < es.size(); k++) {
+                    forge.game.GameLogEntry e = es.get(k);
+                    JsonObject le = new JsonObject();
+                    le.addProperty("m", e.message());
+                    le.addProperty("y", e.type().name());
+                    if (e.sourceCard() != null) le.addProperty("c", e.sourceCard().getId());
+                    lg.add(le);
+                }
+                o.add("log", lg);
+                o.addProperty("logN", es.size());
+            }
             send(o);
         }
 

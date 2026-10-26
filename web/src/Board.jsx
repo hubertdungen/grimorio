@@ -462,6 +462,17 @@ function ZoomCard({ info, big }) {
   )
 }
 
+// nomes de cartas dentro de um texto do registo: passar o rato (ou tocar e manter) mostra a carta (data-z, como no campo)
+const reEsc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+function Named({ text, names }) {
+  const t = String(text ?? '')
+  const full = new Map()
+  for (const n of names) if (typeof n === 'string' && n.length > 2) for (const v of [n, short(n)]) if (v && v.length > 2 && t.includes(v) && !full.has(v)) full.set(v, n)
+  if (!full.size) return t
+  const re = new RegExp(`(${[...full.keys()].sort((a, b) => b.length - a.length).map(reEsc).join('|')})`, 'g')
+  return t.split(re).map((p, k) => (full.has(p) ? <b key={k} className="lg-card" data-z={`n:${full.get(p)}`}>{p}</b> : p))
+}
+
 // ---------- linha do tempo: uma marca por evento importante, riscos nos turnos ----------
 const Timeline = memo(function Timeline({ evs, i, onSeek }) {
   const n = Math.max(1, evs.length)
@@ -738,7 +749,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
         <ol className="blog" ref={logRef}>
           {evs.slice(Math.max(0, i - 60), i).map((e, k) => {
             const j = Math.max(0, i - 60) + k
-            return <li key={j} className={`p-${e.p || ''} k-${e.k} ${j === i - 1 ? 'now' : ''}`} title={e.txt} onClick={() => { setPlaying(false); go(j + 1) }}>{describe(e, who)}</li>
+            return <li key={j} className={`p-${e.p || ''} k-${e.k} ${j === i - 1 ? 'now' : ''}`} title={e.txt} onClick={() => { setPlaying(false); go(j + 1) }}><Named text={describe(e, who)} names={[e.card, S.includes(e.target) ? null : e.target, e.to, ...(e.zn || []).map(z => z.card)]} /></li>
           })}
         </ol>
       </div>

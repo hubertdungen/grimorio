@@ -1,6 +1,6 @@
 // Torneio no Coliseu: vários decks jogam entre si no Forge. O servidor (tournament.py) agenda as partidas e guarda tudo;
 // aqui cria-se o torneio, vê-se a chave/classificação a mexer ao vivo, revêem-se os jogos e consulta-se o registo.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
 import { img, coverOf, colorsOf, HUE } from './data.js'
@@ -108,8 +108,10 @@ export default function TournamentView({ data, fmt, deckId, guest, online }) {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const open = id => { setTid(id); ls('grimorio.torneio', id); setView('ver') }
+  const [own, setOwn] = useState({})
+  useEffect(() => { j('/api/decks').then(ds => setOwn(Object.fromEntries(ds.map(d => [d.id, d.friend ? 'ami' : d.community ? 'com' : 'meu'])))).catch(() => {}) }, [])
   return (
-    <div className={`view tour ${hlOn() ? 'hl-mine' : ''}`}>
+    <OwnCtx.Provider value={own}><div className={`view tour ${hlOn() ? 'hl-mine' : ''}`}>
       {online && !guest && <NetBar />}
       <div className="tour-top"><div className="seg tour-nav">
         {!guest && <button className={view === 'criar' ? 'on' : ''} onClick={() => setView('criar')}>{online ? tx('✦ Nova sala') : tx('✦ Criar')}</button>}
@@ -126,7 +128,7 @@ export default function TournamentView({ data, fmt, deckId, guest, online }) {
       {view === 'apostas' && <BetsTab open={open} />}
       {view === 'salas' && <Rooms guest={guest} open={id => { loadList(); open(id) }} />}
       {view === 'registo' && <Registry data={data} list={list} open={open} reload={loadList} />}
-    </div>
+    </div></OwnCtx.Provider>
   )
 }
 
@@ -785,8 +787,7 @@ const roundName = (m, k) => (m.b === 'W' ? (m.r === k ? tx('Final') : m.r === k 
 
 function Live({ data, tid, onGone, slot }) {
   const [t, setT] = useState(null)
-  const [deckOwn, setDeckOwn] = useState({})  // id do deck -> meu / ami / com (a etiqueta de cada lugar no tabuleiro)
-  useEffect(() => { j('/api/decks').then(ds => setDeckOwn(Object.fromEntries(ds.map(d => [d.id, d.friend ? 'ami' : d.community ? 'com' : 'meu'])))).catch(() => {}) }, [])
+  const deckOwn = useContext(OwnCtx)  // id do deck -> meu / ami / com (a etiqueta de cada lugar no tabuleiro)
   const [err, setErr] = useState('')
   const [watch, setWatch] = useState(null)  // {gid, game, deckName, score}
   const [follow, setFollowS] = useState(() => ls('grimorio.torneio.seguir') !== '0')
@@ -875,7 +876,7 @@ function Live({ data, tid, onGone, slot }) {
         title: xs.map(x => (x.kind === 'champ' ? tx('Aposta no campeão: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }) : tx('Aposta nesta partida: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }))).join('\n'),
       }
     }
-    return <>{slot && createPortal(<button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>, slot)}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} owns={Object.fromEntries((watch.seats || []).map((i, k) => ['abcd'[k], P[i]?.src === 'meta' ? 'meta' : deckOwn[P[i]?.ref] || 'meu']))} bots={Object.fromEntries((watch.seats || []).map((i, k) => { const d = DIFF_INFO[P[i]?.difficulty]; return ['abcd'[k], d && { label: d.label, title: tx('Bot do Forge: {d} — {r}', { d: d.label, r: d.resumo }) }] }).filter(x => x[1]))} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
+    return <>{slot && createPortal(<button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>, slot)}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} owns={Object.fromEntries((watch.seats || []).map((i, k) => ['abcd'[k], ownOf(P[i], deckOwn)]))} bots={Object.fromEntries((watch.seats || []).map((i, k) => { const d = DIFF_INFO[P[i]?.difficulty]; return ['abcd'[k], d && { label: d.label, title: tx('Bot do Forge: {d} — {r}', { d: d.label, r: d.resumo }) }] }).filter(x => x[1]))} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
       live={going && follow && i >= 0 && i === fl.length - 1} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })}
       next={follow && i >= 0 ? { has: !!nx, go: () => nx && openGame(nx.x, nx.away), secs: pause.secs, auto: pause.auto } : null} /></>
   }
@@ -1019,9 +1020,18 @@ function BetsPanel({ b, won, place, P, data, num, going, type }) {
   )
 }
 
+// de onde vem cada deck: meta, meu, de um amigo ou da comunidade (id do deck -> meu/ami/com, carregado no TournamentView)
+const OwnCtx = createContext({})
+const OWN_I = { meta: ['📊', tx('Meta')], meu: ['🧙', tx('Meu')], ami: ['🤝', tx('Amigo')], com: ['🌐', tx('Comunidade')] }
+const ownOf = (p, own) => (!p ? null : p.src === 'meta' ? 'meta' : p.fr ? 'ami' : p.com ? 'com' : own[p.ref] || 'meu')
+function OwnTag({ p }) {  // a etiqueta por extenso, onde há espaço (classificação, pódio)
+  const k = ownOf(p, useContext(OwnCtx))
+  return k ? <span className={`fmt-tag own own-${k}`}>{OWN_I[k][0]} {OWN_I[k][1]}</span> : null
+}
 function Thumb({ data, p }) {
-  const c = p && data.byName.get(p.cover)
-  return <span className={`tp-thumb ${p?.src === 'meus' && !p.com ? 'mine' : ''}`} style={{ '--edge': edge(p?.colors || '') }}>{c ? <img src={img(c, 'art_crop')} alt="" loading="lazy" /> : null}</span>
+  const c = p && data.byName.get(p.cover), k = ownOf(p, useContext(OwnCtx))
+  return <span className={`tp-thumb ${p?.src === 'meus' && !p.com ? 'mine' : ''}`} style={{ '--edge': edge(p?.colors || '') }}>{c ? <img src={img(c, 'art_crop')} alt="" loading="lazy" /> : null}
+    {k && <i className={`tp-own own-${k}`} title={OWN_I[k][1]} aria-label={OWN_I[k][1]}>{OWN_I[k][0]}</i>}</span>
 }
 
 function GameChips({ m, onGame, P }) {
@@ -1121,7 +1131,7 @@ function Standings({ t, data, P, me, casual, rows = t.standings, title = tx('Cla
       <h4>{title}</h4>
       <table className="lab-table ts-table"><thead><tr><th>#</th><th>Deck</th>{rei ? <th title={tx('A série de vitórias mais longa como rei')}>{tx('Série')}</th> : <th>{tx('Pts')}</th>}{pods ? <><th>{tx('1.ºs lugares')}</th><th>{tx('Mesas')}</th></> : <><th>{tx('V-D-E')}</th><th title={tx('% de vitórias dos adversários')}>OMW%</th><th title={tx('% de jogos ganhos')}>GW%</th></>}<th>{tx('Dificuldade')}</th></tr></thead>
         <tbody>{rows.map((s, k) => (
-          <tr key={s.i} className={`${t.champion === s.i || k < cut ? 'champ-row' : ''} ${s.i === me ? 'me-row' : ''}`}><td>{k + 1}</td><td><span className="ts-name"><Thumb data={data} p={P[s.i]} /> {P[s.i]?.name}{s.i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[s.i]?.format} />}{rei && t.hill?.king === s.i && <span title={tx('Rei da colina')}> 👑</span>}</span></td><td><b>{rei ? s.best : s.pts}</b></td>
+          <tr key={s.i} className={`${t.champion === s.i || k < cut ? 'champ-row' : ''} ${s.i === me ? 'me-row' : ''}`}><td>{k + 1}</td><td><span className="ts-name"><Thumb data={data} p={P[s.i]} /> {P[s.i]?.name}<OwnTag p={P[s.i]} />{s.i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[s.i]?.format} />}{rei && t.hill?.king === s.i && <span title={tx('Rei da colina')}> 👑</span>}</span></td><td><b>{rei ? s.best : s.pts}</b></td>
             {pods ? <><td>{s.v}</td><td>{s.v + s.d + s.e}</td></> : <><td>{s.v}-{s.d}-{s.e}{s.bye ? <small className="muted"> {tx('({b} isento)', { b: s.bye })}</small> : null}</td><td>{s.opp.length ? pct(s.omw) : '—'}</td><td>{s.gw + s.gl ? pct(s.gwp) : '—'}</td></>}
             <td className="small muted">{DIFF_INFO[P[s.i]?.difficulty]?.label || P[s.i]?.difficulty}</td></tr>
         ))}</tbody></table>
@@ -1269,7 +1279,7 @@ function Podium({ data, t }) {
             {x.src === 'meus' ? <button className="pd-open" onClick={() => showDeck(x.ref)} title={tx('Abrir na Biblioteca')}>{c ? <img src={img(c, 'art_crop')} alt="" /> : <span className="pd-noart">✦</span>}</button>
               : c ? <img src={img(c, 'art_crop')} alt="" /> : <span className="pd-noart">✦</span>}
             <b>{n === 1 ? '👑 ' : ''}{x.name}</b>
-            <span className="pd-sub">{x.i === t.me && <i className="me-tag">{tx('eu')}</i>}{t.casual && <Fmt f={x.format} />}{s1 ? <small className="muted">{tx('{v}V {d}D', { v: s1.v, d: s1.d })}{s1.e ? ` ${tx('{e}E', { e: s1.e })}` : ''}</small> : null}</span>
+            <span className="pd-sub"><OwnTag p={x} />{x.i === t.me && <i className="me-tag">{tx('eu')}</i>}{t.casual && <Fmt f={x.format} />}{s1 ? <small className="muted">{tx('{v}V {d}D', { v: s1.v, d: s1.d })}{s1.e ? ` ${tx('{e}E', { e: s1.e })}` : ''}</small> : null}</span>
           </div>
         )
       })}</div>

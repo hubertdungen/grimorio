@@ -988,6 +988,7 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 @keyframes bump { 0% { transform: scale(1.8); } 100% { transform: none; } }
 .tp-thumb { flex: none; width: 34px; height: 24px; border-radius: 5px; overflow: hidden; background: var(--panel2); box-shadow: 0 0 0 2px var(--edge, transparent); }
 .tp-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tp-thumb { position: relative; } .tp-own { position: absolute; right: 0; bottom: 0; font-style: normal; font-size: 10px; line-height: 1; padding: 1px 2px; border-top-left-radius: 4px; background: #000c; }
 .tm-g { display: flex; flex-wrap: wrap; padding-top: 3px; }
 .tm-g .gchip { font-size: 11px; padding: 1px 7px; } .gchip.x { opacity: .5; text-decoration: line-through; }
 /* classificação e rondas */
@@ -2297,6 +2298,10 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .fp-toast ul { margin: 4px 0 0; padding-left: 18px; }
 .fp-wait { padding: 40px; text-align: center; }
 .fmt-tag.own-meta { color: #9ad7ff; } .fmt-tag.own-ami { color: #7cdc9b; } .fmt-tag.own-com { color: #c4b5fd; } .fmt-tag.own-meu { color: var(--gold2); }
+.lg-card { font-weight: 600; color: var(--gold2); cursor: zoom-in; text-decoration: underline dotted #ffd98a66; text-underline-offset: 2px; }
+.fp-hist { list-style: none; margin: 0; padding: 6px 8px; max-height: 26vh; overflow: auto; border-radius: 8px; background: var(--bg2); font-size: 12px; display: grid; gap: 3px; }
+.fp-hist li { color: var(--muted); } .fp-hist li.y-TURN { color: var(--text); font-weight: 600; margin-top: 4px; } .fp-hist li.y-STACK_RESOLVE, .fp-hist li.y-ZONE { color: var(--text); }
+.ts-name .fmt-tag.own, .pd-sub .fmt-tag.own { margin-left: 6px; font-size: 10px; }
 .pi-who { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 8px 0; }
 @media (prefers-reduced-motion: reduce) { .fp .pc-rot, .fp .pc .pc-f, .fp-card { animation: none !important; transition: none !important; } }
 @media (max-width: 900px) {  /* tablet ao alto e telemóvel: o painel lateral passa para baixo da mesa */

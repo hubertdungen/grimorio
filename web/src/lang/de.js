@@ -2837,4 +2837,5 @@ export default {
   "Meta": "Meta",
   "Meu": "Meins",
   "Um deck teu": "Eines deiner Decks",
+  "Histórico do jogo": "Spielverlauf",
 }
