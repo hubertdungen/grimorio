@@ -19,7 +19,7 @@ const PHASES = [  // as fases do Forge agrupadas como na mesa: a pastilha acende
   ['m2', tx('Principal 2'), ['MAIN2']],
   ['fim', tx('Fim'), ['END_OF_TURN', 'CLEANUP']],
 ]
-const BTN = { OK: tx('OK'), Cancel: tx('Cancelar'), 'End Turn': tx('Acabar o turno'), Keep: tx('Ficar com a mão'), Mulligan: 'Mulligan', Play: tx('Jogar primeiro'), Draw: tx('Comprar (ir em segundo)'), Auto: tx('Pagar sozinho'), Yes: tx('Sim'), No: tx('Não') }
+const BTN = { OK: tx('OK'), Cancel: tx('Cancelar'), 'End Turn': tx('Acabar o turno'), Keep: tx('Ficar com a mão'), Mulligan: 'Mulligan', Play: tx('Jogar primeiro'), Draw: tx('Comprar (ir em segundo)'), Auto: tx('Pagar sozinho'), Yes: tx('Sim'), No: tx('Não'), 'Alpha Strike': tx('Atacar com tudo') }
 const MANA = { W: '#f3ecd0', U: '#4a90d9', B: '#6d5b70', R: '#e0553b', G: '#3fa560', C: '#b7b2a8' }
 
 // o texto do Forge (inglês) passa a uma frase curta do Grimório; o que não se reconhece fica como vem
@@ -37,8 +37,8 @@ function promptText(msg, st, me) {
   const disc = m.match(/Select (\d+) card\(s\) to discard/i)
   if (disc) return tx('Mão cheia: clica em {n} carta(s) da mão para descartar.', { n: disc[1] })
   if (/^Select|^Choose/i.test(m) && st?.players?.some(p => [...(p.hand || []), ...(p.battlefield || [])].some(c => c.sel))) return `${tx('Clica numa das cartas assinaladas.')} (${m.split('\n')[0]})`
-  if (/Declare attackers/i.test(m)) return tx('Atacar: clica nas criaturas que atacam e depois OK.')
-  if (/Declare blockers/i.test(m)) return tx('Bloquear: clica no atacante e depois na tua criatura que bloqueia; OK no fim.')
+  if (/Declare attackers|Select creatures to attack/i.test(m)) return tx('Atacar: clica nas criaturas que atacam e depois OK.')
+  if (/Declare blockers|Select creatures to block/i.test(m)) return tx('Bloquear: clica no atacante e depois na tua criatura que bloqueia; OK no fim.')
   if (/Pay Mana Cost|Pay mana cost/i.test(m)) return `${tx('Paga: toca nos terrenos ou na mana da reserva.')} ${m.split('\n').find(l => /\{/.test(l)) || ''}`
   return m
 }
@@ -71,7 +71,7 @@ function Field({ p, data, act, zoom, combat, flip }) {  // flip: o do adversári
   const pile = c => <div key={c.id} className="fp-pile">{under(c.id).map(a => <FCard key={a.id} c={a} data={data} onClick={act} onZoom={zoom} cls="att" />)}<FCard c={c} data={data} onClick={act} onZoom={zoom} cls={role(c)} /></div>
   const lands = bf.filter(c => c.land && !att.has(c.id) && !c.creature), rest = bf.filter(c => !(c.land && !c.creature) && !att.has(c.id))
   const rows = [<div key="r" className="fp-row">{rest.map(pile)}</div>, <div key="l" className="fp-row lands">{lands.map(pile)}</div>]
-  return <div className={`fp-field ${flip ? 'opp' : ''}`}>{flip ? rows.reverse() : rows}</div>
+  return <div className={`fp-field ${flip ? 'them' : ''}`}>{flip ? rows.reverse() : rows}</div>
 }
 
 function Seat({ p, i, send, setZone, active, mine }) {
@@ -159,7 +159,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const act = c => send({ c: 'card', id: c.id })
   const idx = p => players.indexOf(p)
-  const myTurn = st.active === me?.id, atkStep = myTurn && st.phase === 'COMBAT_DECLARE_ATTACKERS'
+  const myTurn = st.active === me?.id
   const zc = zoom && (data.byName.get(zoom.name) || data.byLower?.get(String(zoom.name).toLowerCase()))
   return (
     <div className="fp" onMouseLeave={() => setZoom(null)}>
@@ -182,7 +182,6 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
           <p>{promptText(pr?.msg, st, me)}</p>
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })}>{BTN[b.label] || b.label}</button>)}</div>
           <div className="row-btns small">
-            {atkStep && <button onClick={() => send({ c: 'alpha' })}>⚔ {tx('Atacar com tudo')}</button>}
             <button className="link small" onClick={() => send({ c: 'undo' })}>↶ {tx('desfazer')}</button>
             <button className="link small" onClick={() => send({ c: 'concede' })}>🏳 {tx('desistir')}</button>
           </div>

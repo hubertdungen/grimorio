@@ -2248,7 +2248,7 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .fp-z { font-size: 13px; color: var(--muted); padding: 2px 8px; border-radius: 8px; background: transparent; border: 1px solid transparent; }
 button.fp-z:hover { border-color: var(--line); color: var(--text); }
 .fp-pool { display: flex; gap: 4px; } .fp-pool button { width: 28px; height: 28px; padding: 0; border-radius: 50%; background: var(--m); color: #111; font-weight: 700; border: 2px solid #0006; }
-.fp-field { display: grid; gap: 6px; align-content: start; } .fp-field.opp { align-content: end; }
+.fp-field { display: grid; gap: 6px; align-content: start; } .fp-field.them { align-content: end; }
 .fp-row { display: flex; flex-wrap: wrap; gap: 8px; min-height: calc(var(--cw) * 1.4); align-items: center; }
 .fp-row.lands { --cw: clamp(38px, min(4.6vw, 6.5vh), 76px); }
 .fp-pile { position: relative; display: grid; }
