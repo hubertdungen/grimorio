@@ -2968,4 +2968,5 @@ export default {
   "Sempre pelo Grimório": "Immer über Grimório",
   "Sempre diretas da Scryfall": "Immer direkt von Scryfall",
   "Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.": "Manche Netze (Arbeit, Schulen) sperren scryfall.io, dann fehlen die Kartenbilder. Über Grimório laufen die Bilder über deinen Server und werden dort gespeichert; beim ersten Mal etwas langsamer.",
+  "nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra": "keine Karte ist {t} zugleich: zeige das eine oder andere",
 }

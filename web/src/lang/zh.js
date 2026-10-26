@@ -2968,4 +2968,5 @@ export default {
   "Sempre pelo Grimório": "始终经由 Grimório",
   "Sempre diretas da Scryfall": "始终直接来自 Scryfall",
   "Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.": "有些网络（工作单位、学校）会屏蔽 scryfall.io，卡牌就没有图片。经由 Grimório 时图片通过你的服务器获取并保存在那里；第一次会慢一些。",
+  "nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra": "没有同时是 {t} 的牌：显示其中之一",
 }

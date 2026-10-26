@@ -2976,4 +2976,5 @@ export default {
   "Sempre pelo Grimório": "Always through Grimório",
   "Sempre diretas da Scryfall": "Always straight from Scryfall",
   "Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.": "Some networks (work, schools) block scryfall.io and cards show without images. Through Grimório the images go via your server and are kept there; a little slower the first time.",
+  "nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra": "no card is {t} at once: showing either",
 }

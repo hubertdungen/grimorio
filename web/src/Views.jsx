@@ -922,7 +922,14 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     const qf = unaccent(qq.toLowerCase().trim()), nameHit = byName.cards.some(c => (c.f || c.l).startsWith(qf))
     if (!nl || (byName.total && nameHit && !/[:<>=]/.test(qq))) return { ...byName, nl: null }
     const r = search(data, nl.rest, { ...dff, ...nl.f }, sctx)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
-    return r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...dff, ...nl.f }, sctx), nl: { ...nl, rest: '', skipped: nl.rest } }
+    const out = r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...dff, ...nl.f }, sctx), nl: { ...nl, rest: '', skipped: nl.rest } }
+    // vários tipos sem nenhuma carta que os tenha todos («enchantment planeswalker»): um ou outro
+    if (!out.total && nl.f.types2?.length) {
+      const any = { ...dff, ...nl.f, type: '', types2: undefined, typesAny: [nl.f.type, ...nl.f.types2] }
+      const r2 = search(data, out.nl.rest, any, sctx)
+      if (r2.total) return { ...r2, nl: { ...out.nl, orTypes: [nl.f.type, ...nl.f.types2] } }
+    }
+    return out
   }, [data, qq, dff, sctx, nl])
   // o formato do deck escondeu cartas com este nome? (ex.: Gaea's Cradle num deck de Pauper)
   const hidden = useMemo(() => (!anyFmt && dq.trim().length > 2 && (ctx.bit >= 0 || ctx.identity != null) ? Math.max(0, search(data, dq, F0, { bit: -1, allowUn: true }, 1).total - search(data, dq, F0, ctx, 1).total) : 0), [data, dq, ctx, anyFmt])
@@ -943,7 +950,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       <div className={`filters-wrap ${showF ? 'open' : ''}`}><Filters f={f} set={setF} /></div>
       <div className="search-layout">
       <div>
-      {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => (g.k === 'legendary' ? <span key={k} className="chip">♛ <b>{tx('Lendárias')}</b></span> : <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.v}</b></span>))}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
+      {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => (g.k === 'legendary' ? <span key={k} className="chip">♛ <b>{tx('Lendárias')}</b></span> : <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.v}</b></span>))}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.orTypes && <span className="muted small">{tx('nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra', { t: res.nl.orTypes.map(t => TYPE_LABEL[t] || t).join(' + ') })}</span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">
         {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} />)}
