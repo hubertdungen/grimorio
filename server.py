@@ -517,8 +517,10 @@ class H(BaseHTTPRequestHandler):
                 b = o.get("deck") or (self.own_deck(o["deck_id"]) if o.get("deck_id") else sim.opponent(ARGS.data_dir, str(o.get("id") or "")))
                 if not a or not b:
                     raise ValueError("Falta um dos decks.")
+                if d.get("casual"):  # modo casual: decks de qualquer formato, 1 contra 1; o comandante joga como carta do deck
+                    a, b = ({**x, "main": {**(x.get("main") or {}), **{c: 1 for c in x.get("commanders") or []}}, "commanders": []} for x in (a, b))
                 prof = self.profile()
-                return self.json({"id": playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or "Tu")}, 201)
+                return self.json({"id": playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or str(d.get("name") or "")[:30] or "Tu")}, 201)
             if act == "cmd":
                 playnet.cmd(sid, owner, d)
                 return self.json({"ok": True})

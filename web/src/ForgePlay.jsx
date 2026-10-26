@@ -176,8 +176,19 @@ function Ask({ a, st, data, answer, zoom }) {
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
   const all = (st?.players || []).flatMap(p => [...(p.battlefield || []), ...(p.hand || []), ...(p.graveyard || []), ...(p.exile || [])])
   const cardOf = o => (o.card != null ? all.find(c => c.id === o.card) || { id: o.card, name: o.label } : null)
+  if (a.kind === 'order') {  // ordenar: clica nas cartas pela ordem; as que ficarem por clicar mantêm a ordem do Forge
+    const n = (a.options || []).length
+    const tap = k => setPick(p => (p.includes(k) ? p.filter(x => x !== k) : [...p, k]))
+    return (
+      <div className="fp-ask"><p>{a.msg} <span className="muted small">{tx('clica pela ordem ({f} primeiro)', { f: a.first || tx('o 1.º') })}</span></p>
+        <div className="fp-opts">{a.options.map((o, k) => { const c = cardOf(o) || { id: -k, name: o.label }; return (
+          <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => tap(k)} />{pick.includes(k) && <b className="fp-ord">{pick.indexOf(k) + 1}</b>}</div>) })}</div>
+        <div className="row-btns"><button className="primary" onClick={() => answer(a, pick)}>{pick.length < n ? tx('Confirmar (o resto como está)') : tx('Confirmar')}</button>
+          {pick.length > 0 && <button className="link small" onClick={() => setPick([])}>{tx('recomeçar')}</button>}</div>
+      </div>)
+  }
   if (a.kind === 'confirm' || a.kind === 'option') return (
-    <div className="fp-ask"><p>{a.msg || a.title}</p>
+    <div className="fp-ask"><p>{a.msg || a.title}</p>{a.card != null && <div className="fp-opts"><FCard c={all.find(c => c.id === a.card) || { id: a.card, name: '' }} data={data} big /></div>}
       <div className="row-btns">{(a.options || []).map((o, k) => <button key={k} className={k ? '' : 'primary'} onClick={() => answer(a, [k])}>{BTN[o] || o}</button>)}</div></div>)
   if (a.kind === 'input') return (
     <div className="fp-ask"><p>{a.msg || a.title}</p>
@@ -227,10 +238,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
   const me = players.find(p => p.me) || players.find(p => !p.ai), opp = players.find(p => p !== me)
   const pr = s?.prompt, btns = (pr?.buttons || []).filter(b => b.label)
   const ask = s?.asks?.[0]
-  useEffect(() => {  // Espaço/Enter = o botão principal, Esc = o outro
+  useEffect(() => {  // Enter/Espaço = o botão principal (passar ao passo seguinte), Shift+Enter = acabar o turno, Esc = o outro botão
     const k = e => {
       if (ask || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return
-      const b = e.key === ' ' || e.key === 'Enter' ? btns[0] : e.key === 'Escape' ? btns[1] : null
+      const end = btns.find(b => b.label === 'End Turn')
+      const b = e.key === 'Enter' && e.shiftKey ? end : e.key === ' ' || e.key === 'Enter' ? btns[0] : e.key === 'Escape' ? btns[1] : null
       if (b?.on) { e.preventDefault(); send({ c: b.c }) }
     }
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
@@ -241,7 +253,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
     const [a, b] = lives.split('|').map(Number), pv = prevLives.current
     prevLives.current = [a, b]
     if (!pv || Number.isNaN(a)) return
-    if (a !== pv[0]) setLifeFx({ p: 'a', d: a - pv[0] }); else if (b !== pv[1]) setLifeFx({ p: 'b', d: b - pv[1] })
+    if (a === pv[0] && b === pv[1]) return
+    setLifeFx(a !== pv[0] ? { p: 'a', d: a - pv[0] } : { p: 'b', d: b - pv[1] })
+    const t = setTimeout(() => setLifeFx(null), 1200)  // só uma vez: sem isto o «−1» voltava a cada estado novo (tapar um terreno…)
+    return () => clearTimeout(t)
   }, [lives])
   const send1 = c => send(c)
   const [lay, setLayS] = useState(() => { try { return JSON.parse(localStorage.getItem(`grimorio.fp.${sid}`)) || {} } catch { return {} } })  // arrumação à mão
@@ -255,7 +270,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
       const h = target.closest('[data-h]'), l = moveBefore(keysIn(hand, '[data-h]', 'data-h'), String(id), h?.dataset.h)
       setLay(x => ({ ...x, hand: l })); return 'local'
     }
-    if (from === 'hand') { send1({ c: 'card', id }); return true }  // da mão para a mesa: jogar
+    if (from === 'hand') {  // da mão para a mesa: jogar — só se o Forge diz que dá (mana e altura certas)
+      if (!byId.get(id)?.play) { setToast({ title: tx('Agora não dá para jogar esta carta'), msg: tx('Falta mana, não é a altura (feitiço fora da tua fase principal) ou já jogaste um terreno neste turno.') }); return false }
+      send1({ c: 'card', id }); return true
+    }
     const perm = target.closest('.pc[data-z^="k:"]'), pid = perm && +perm.dataset.z.slice(2), mine = st.active === me?.id
     if (!mine && pid && st.combat?.some(x => x.att === pid)) { send1({ c: 'card', id: pid }).then(() => send1({ c: 'card', id })); return true }  // largar num atacante: bloquear
     if (mine && st.phase === 'COMBAT_DECLARE_ATTACKERS' && target.closest('.bside.top')) { send1({ c: 'card', id }); return true }  // largar no lado dele: atacar
@@ -312,13 +330,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
             <div key={k} className={`fp-si ${x.by === me?.id ? 'mine' : ''}`} data-z={x.name ? `n:${x.name}` : undefined}><b>{x.name}</b><small>{x.text}</small></div>))}</div>}
         </div>
         {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} place={lay.place} order={lay.order}
-          hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big />)}</div>} />}
+          hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big cls={c.play ? 'play' : ''} />)}</div>} />}
       </div>
       <aside className="fp-side">
         <div className="fp-zoom">{zc ? <img src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           <p>{promptText(pr?.msg, st, me)}</p>
-          <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })}>{BTN[b.label] || b.label}</button>)}</div>
+          <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')}>{n}</button>))}</span>}
           <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')}</p>

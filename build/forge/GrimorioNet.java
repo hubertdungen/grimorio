@@ -63,6 +63,8 @@ public class GrimorioNet {
         }
     }
 
+    static HostedMatch HM;  // o jogo a sério (não só as vistas): para saber que cartas se podem jogar agora
+
     public static void main(String[] a) throws Exception {
         if (System.getProperty("java.awt.headless") == null) System.setProperty("java.awt.headless", "true");
         Thread.setDefaultUncaughtExceptionHandler((t, ex) -> { System.err.println("Uncaught exception in thread " + t.getName() + ":"); ex.printStackTrace(); });
@@ -72,6 +74,9 @@ public class GrimorioNet {
         // sem placa de som no contentor: som e música desligados (senão enchem o registo de erros)
         FModel.getPreferences().setPref(forge.localinstance.properties.ForgePreferences.FPref.UI_ENABLE_SOUNDS, false);
         FModel.getPreferences().setPref(forge.localinstance.properties.ForgePreferences.FPref.UI_ENABLE_MUSIC, false);
+        // procurar na biblioteca, scry, vigiar…: com isto ligado (o padrão do desktop) o Forge mostra a zona numa janela e
+        // espera um clique lá; desligado pergunta por listas (getChoices/many/order), que o browser mostra como escolhas
+        FModel.getPreferences().setPref(forge.localinstance.properties.ForgePreferences.FPref.UI_SELECT_FROM_CARD_DISPLAYS, false);
         Deck dh = DeckSerializer.fromFile(new File(a[0])), da = DeckSerializer.fromFile(new File(a[1]));
         LobbyPlayer human = GamePlayerUtil.getGuiPlayer();
         human.setName(a.length > 2 ? a[2] : "Tu");
@@ -85,6 +90,7 @@ public class GrimorioNet {
         in.setDaemon(true);
         in.start();
         HostedMatch hm = new HostedMatch();  // sem o GuiDesktop.hostMatch (precisa da janela Swing)
+        HM = hm;
         hm.startMatch(GameType.Constructed, EnumSet.noneOf(GameType.class), players, rh, gui);
         // o jogo corre noutras threads; esta espera pelo fim (o Bridge sai do processo em finishGame/afterGameEnd)
         while (true) Thread.sleep(1000);
@@ -194,6 +200,7 @@ public class GrimorioNet {
                 o.add("counters", co);
             }
             if (selectable.contains(c.getId())) o.addProperty("sel", true);
+            if (playable.contains(c.getId())) o.addProperty("play", true);
             return o;
         }
 
@@ -203,9 +210,36 @@ public class GrimorioNet {
             return a;
         }
 
+        // cartas que o humano pode jogar já, com mana para as pagar (mão, cemitério com flashback, exílio, comando).
+        // Só com a prioridade do humano: aí a thread do jogo está parada à espera dele e o estado não muda a meio.
+        Set<Integer> playable = new HashSet<>();
+        Set<Integer> playableNow() {
+            Set<Integer> out = new HashSet<>();
+            try {
+                forge.game.Game g = HM == null ? null : HM.getGame();
+                PlayerView pv = getCurrentPlayer();
+                if (g == null || pv == null) return out;
+                forge.game.player.Player me = null;
+                for (forge.game.player.Player p : g.getPlayers()) if (p.getId() == pv.getId()) me = p;
+                if (me == null) return out;
+                // a prioridade do jogo (a da vista do jogador atualiza-se depois do pedido e chegava tarde)
+                if (g.getPhaseHandler().getPriorityPlayer() != me) return out;
+                for (ZoneType z : new ZoneType[]{ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Command})
+                    for (forge.game.card.Card c : me.getCardsIn(z))
+                        for (forge.game.spellability.SpellAbility sa : c.getAllPossibleAbilities(me, true)) {
+                            if (sa.isManaAbility()) continue;
+                            if (sa.isLandAbility() || forge.ai.ComputerUtilMana.canPayManaCost(sa, me, 0, false)) { out.add(c.getId()); break; }
+                        }
+            } catch (Exception e) {
+                System.err.println("playable: " + e);
+            }
+            return out;
+        }
+
         void sendState() {
             GameView gv = getGameView();
             if (gv == null) return;
+            playable = playableNow();
             JsonObject o = new JsonObject();
             o.addProperty("t", "state");
             o.addProperty("turn", gv.getTurn());
@@ -335,6 +369,7 @@ public class GrimorioNet {
             send(o);
         }
         @Override public void updateButtons(PlayerView p, String l1, String l2, boolean e1, boolean e2, boolean focus1) {
+            dirty = true;  // botões novos = a vez mudou: o estado (prioridade, cartas jogáveis) vai atrás
             JsonObject o = lastPrompt.deepCopy();
             o.addProperty("t", "prompt");
             JsonArray b = new JsonArray();
@@ -412,11 +447,25 @@ public class GrimorioNet {
             return out;
         }
         @Override public <T> List<T> many(String title, String top, int min, int max, List<T> source, List<T> dest, CardView ref) {
-            return getChoices(title, min, max, source, dest, null);
+            // -1 = «quantas quiseres» (scry: as que vão para o fundo; vigiar: as que vão para o cemitério)
+            if (min < 0 || max < 0) { min = 0; max = source == null ? 0 : source.size(); }
+            if (source == null || source.isEmpty()) return new ArrayList<>();
+            JsonObject p = new JsonObject(); p.addProperty("msg", top != null && !top.isEmpty() ? title + " — " + top : title); p.addProperty("min", min); p.addProperty("max", max);
+            p.add("options", options(source, null));
+            List<T> out = new ArrayList<>();
+            for (int i : idx(ask("choose", p))) if (i >= 0 && i < source.size()) out.add(source.get(i));
+            return out;
         }
         @Override public <T> IGuiGame.OrderResult<T> order(String title, String top, int remMin, int remMax, List<T> source, List<T> dest, CardView ref, boolean sideboarding, boolean remember) {
-            // ordenar (gatilhos, cartas no topo da biblioteca…): por agora, a ordem que o Forge propõe
-            return new IGuiGame.OrderResult<>(new ArrayList<>(source), false);
+            // ordenar (cartas no topo da biblioteca, gatilhos ao mesmo tempo…): o browser devolve os índices pela ordem
+            if (source == null || source.size() <= 1) return new IGuiGame.OrderResult<>(source == null ? new ArrayList<>() : new ArrayList<>(source), false);
+            JsonObject p = new JsonObject(); p.addProperty("msg", title); if (top != null) p.addProperty("first", top);
+            p.add("options", options(source, null));
+            List<Integer> r = idx(ask("order", p));
+            List<T> out = new ArrayList<>();
+            for (int i : r) if (i >= 0 && i < source.size() && !out.contains(source.get(i))) out.add(source.get(i));
+            for (T x : source) if (!out.contains(x)) out.add(x);  // o que ficou por escolher mantém a ordem do Forge
+            return new IGuiGame.OrderResult<>(out, false);
         }
         @Override public <T> List<T> insertInList(String title, T item, List<T> list) { List<T> out = new ArrayList<>(list); out.add(0, item); return out; }
         @Override public List<PaperCard> sideboard(CardPool sb, CardPool main, String msg) { return null; }
