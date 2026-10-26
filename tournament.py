@@ -31,6 +31,7 @@ rating casual, casual=True, e também os torneios sem decks meta: só azul e ver
 import itertools, json, math, os, random, re, sqlite3, sys, threading, time, uuid, zlib
 from collections import Counter
 import limited
+import playnet
 import sim
 try:
     import ratings  # Elo dos decks (outro módulo; enquanto não existir, os torneios não mexem nos ratings)
@@ -749,6 +750,8 @@ def create(owner, d):
         if jogo:
             st["jogo"] = True
         st.update(format=fmt, players=players, decks=decks, **({"casual": True} if casual else {}), **({"me": me} if me is not None else {}))
+        if d.get("play_me") and me is not None and not cmd and t not in ("mesas", "equipas"):
+            st["play_me"] = True  # os meus jogos jogo-os eu no Forge Play; os outros são bot contra bot
         st["ranked"] = ranked_rule(st)
         # começo: START_WAIT s para apostar (ou, com hold, só quando o dono carregar em «Começar»)
         st.update(start_at=time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
@@ -908,6 +911,23 @@ def route(method, path, owner, body=None, bettor=None):
             arts = lambda i: {**sim.art_map(ds[i]), **(mine.get(P[i].get("ref"), {}) if i < len(P) and P[i].get("src") == "meus" else {})}  # noqa: E731
             g["arts"] = {"abcd"[k]: m for k, i in enumerate(g.get("seats") or []) if k < 4 and isinstance(i, int) and i < len(ds) and (m := arts(i))}
             return 200, g
+        if method == "POST" and len(parts) == 2 and parts[1] == "play":  # o meu jogo seguinte no Forge Play {mid}
+            with LOCK:
+                st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
+                m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
+                if not m or not mine_to_play(st, m) or m["st"] != "ready" or row[5] != "running":
+                    return 409, {"erro": "Essa partida não está à tua espera."}
+                if m.get("play") and (r := playnet.result(m["play"])) and not r["ended"]:
+                    return 200, {"sid": m["play"]}  # já está a decorrer: volta à mesa
+                me, other = st["me"], next(i for i in m["p"] if i != st["me"])
+                mine = {**st["decks"][me], "name": st["players"][me]["name"]}
+                opp = {**st["decks"][other], "name": st["players"][other]["name"]}
+                if st.get("casual"):  # casual: o comandante joga como carta do deck (como no Forge Play)
+                    mine, opp = ({**x, "main": {**x["main"], **{c: 1 for c in x.get("commanders") or []}}, "commanders": []} for x in (mine, opp))
+                m["play"] = playnet.start(DATA, owner, mine, opp, st["players"][other].get("difficulty") or "default", (body or {}).get("name") or "Tu")
+                m["seats"] = [me, other]
+                save(con, tid, st)
+            return 200, {"sid": m["play"]}
         if method == "GET" and len(parts) == 2 and parts[1] == "bets":
             return 200, bets_view(con, bettor, tid, row[5], json.loads(row[8]))
         if method == "POST" and len(parts) == 2 and parts[1] == "bets":
@@ -1186,8 +1206,13 @@ def next_match(st):
     """A próxima partida a mandar para o Forge: pronta, sem trabalho, e sem nenhum deck que já esteja a jogar noutra mesa
     (com vários jogos ao mesmo tempo, cada deck joga uma partida de cada vez: o sideboard e a aprendizagem usam o jogo
     anterior). Os jogos da mesma partida são sempre seguidos: um trabalho = um jogo."""
-    busy = {i for x in st["matches"] if x.get("job") for i in x["p"]}
-    return next((m for m in st["matches"] if m["st"] == "ready" and not m.get("job") and not busy & set(m["p"])), None)
+    busy = {i for x in st["matches"] if x.get("job") or x.get("play") for i in x["p"]}
+    return next((m for m in st["matches"] if m["st"] == "ready" and not m.get("job") and not busy & set(m["p"]) and not mine_to_play(st, m)), None)
+
+
+def mine_to_play(st, m):
+    """Partida minha num torneio em que jogo eu (Forge Play): não vai para o simulador, espera por mim."""
+    return bool(st.get("play_me")) and st.get("me") in m["p"]
 
 
 def step():
@@ -1200,6 +1225,20 @@ def step():
         rows = con.execute("SELECT id, status, state, owner FROM tournaments WHERE status IN ('running', 'paused') ORDER BY ts").fetchall()
         tours = [(tid, status, json.loads(s), owner) for tid, status, s, owner in rows]
         for tid, status, st, owner in tours:
+            for m in [m for m in st["matches"] if m.get("play")]:  # os meus jogos no Forge Play
+                r = playnet.result(m["play"])
+                if r and not r["ended"]:
+                    continue
+                if r and r["side"]:  # acabou com vencedor: regista como um jogo do torneio
+                    g = {"winner": r["side"], "turns": r["turns"], "reason": "Jogado no Forge Play", "events": [], "human": True}
+                    gid = con.execute("INSERT INTO tournament_games (tid, ts, game) VALUES (?,?,?)", (tid, time.time(), zlib.compress(
+                        json.dumps({**g, "match": m["id"], "seats": m["seats"]}, ensure_ascii=False).encode(), 6))).lastrowid
+                    record(st, m, g, gid)  # sem ratings: medem o deck nas mãos dos bots, não as minhas
+                m.pop("play")  # parado sem vencedor (ou o servidor reiniciou): a partida volta a esperar por mim
+                m.pop("seats", None)
+                resolve(st)
+                save(con, tid, st)
+                return
             for m in [m for m in st["matches"] if m.get("job")]:
                 j, was = sim.status(m["job"]), m["st"]
                 if j and j["status"] in ("queued", "running"):
@@ -1252,7 +1291,7 @@ def launch(con, tid, st, owner):
     """Manda a próxima partida pronta deste torneio para o simulador; False se não há nenhuma (ou falhou)."""
     m = next_match(st)
     if not m:
-        if not any(x.get("job") for x in st["matches"]):
+        if not any(x.get("job") or x.get("play") or x["st"] == "ready" and mine_to_play(st, x) for x in st["matches"]):
             resolve(st)  # não devia acontecer; fecha o torneio se já tem campeão
             save(con, tid, st, None if over(st) else "error")
         return False
@@ -1623,6 +1662,8 @@ def selfcheck():
     assert similarity({"main": {"A": 4, "B": 4}, "commanders": ["C"]}, {"main": {"A": 4, "B": 3, "D": 1}, "commanders": ["C"]}) == 8 / 10
     lg = {"matches": [{"id": "a", "st": "ready", "p": [0, 1], "job": "j1"}, {"id": "b", "st": "ready", "p": [1, 2]}, {"id": "c", "st": "ready", "p": [2, 3]}]}
     assert next_match(lg)["id"] == "c"  # o deck 1 está a jogar: «b» espera, «c» (decks livres) avança
+    assert next_match({**lg, "play_me": True, "me": 2}) is None  # jogo eu as minhas: «c» espera por mim no Forge Play
+    assert mine_to_play({"play_me": True, "me": 2}, lg["matches"][2]) and not mine_to_play({"me": 2}, lg["matches"][2])
     assert started({"start_at": 0}) and not started({"start_at": time.time() + 9}) and not started({"start_at": 0, "hold": True})
     # jogo avulso (salas fora de torneio): 2 decks = uma partida Bo-N, 3 = uma mesa; tipo «jogo», sem troféus
     import tempfile

@@ -6,6 +6,7 @@ import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.j
 import { img, coverOf, colorsOf, HUE } from './data.js'
 import { Mana, Stars, WhiteStars } from './ui.jsx'
 import Replay from './Board.jsx'
+import ForgeTable from './ForgePlay.jsx'
 import { Cup, PLACE, TIERS, KIND, tierOf } from './Library.jsx'
 import { trophyValue, TIER_PTS, KIND_W, BLUE_W, trophyStars, starPoints } from './trophyvalue.js'
 import { swapSide, nextGame, mixTake } from './game.js'
@@ -790,6 +791,7 @@ function Live({ data, tid, onGone, slot }) {
   const deckOwn = useContext(OwnCtx)  // id do deck -> meu / ami / com (a etiqueta de cada lugar no tabuleiro)
   const [err, setErr] = useState('')
   const [watch, setWatch] = useState(null)  // {gid, game, deckName, score}
+  const [playing, setPlaying] = useState(null)  // sessão do Forge Play do meu jogo (torneio em que jogo eu)
   const [follow, setFollowS] = useState(() => ls('grimorio.torneio.seguir') !== '0')
   const setFollow = v => { setFollowS(v); ls('grimorio.torneio.seguir', v ? '1' : '0') }
   const [pause, setPause] = useState(() => { try { return JSON.parse(localStorage.getItem('grimorio.pausa')) || { secs: 5, auto: true } } catch { return { secs: 5, auto: true } } })
@@ -862,6 +864,12 @@ function Live({ data, tid, onGone, slot }) {
   const bets = useBets(tid, t)
   if (!t) return <section className="card">{err ? <p className="bad-t">{err}</p> : <p><span className="spin-dot" /> {tx('A abrir o torneio…')}</p>}</section>
   const act = async a => { try { await post(`/api/tournaments/${tid}/${a}`); setT(await j(`/api/tournaments/${tid}`)) } catch (e) { setErr(e.message) } }
+  const playMine = async mid => { setErr(''); try { setPlaying((await post(`/api/tournaments/${tid}/play`, { mid, name: tx('Tu') })).sid) } catch (e) { setErr(e.message) } }
+  if (playing) return <>{slot && createPortal(<button onClick={() => setPlaying(null)}>{tx('← Voltar ao torneio')}</button>, slot)}
+    <div className="view play fp-view">
+      <div className="row-btns fp-bar"><b>🏆 {t?.name}</b> <span className="muted small">{tx('o teu jogo do torneio')}</span>
+        <button className="link small" onClick={async () => { if (!(await ask('abandonar', { title: tx('Abandonar este jogo?'), body: tx('O jogo não conta: a partida volta a ficar à tua espera. Para perder o jogo, usa «desistir» na mesa.'), ok: tx('Abandonar') }))) return; await post(`/api/playnet/${playing}/stop`).catch(() => {}); setPlaying(null) }}>■ {tx('Abandonar')}</button></div>
+      <ForgeTable key={playing} sid={playing} data={data} onClose={() => setPlaying(null)} /></div></>
   const del = async () => { if (!(await ask('torneio', { title: tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: t.name }), ok: tx('Apagar') }))) return; await j(`/api/tournaments/${tid}`, { method: 'DELETE' }); onGone() }
   const nextOf = i => nextGame(fl, i, nextMode, home.current, mid => t.matches.find(m => m.id === mid)?.st === 'done')  // «Depois de um jogo»
   if (watch) {
@@ -882,6 +890,8 @@ function Live({ data, tid, onGone, slot }) {
   }
   const lives = (t.lives || (t.live ? [t.live] : [])).map(L => ({ L, lm: t.matches.find(m => m.id === L.match) })).filter(x => x.lm), lm = lives[0]?.lm
   const nameOf = i => (i == null ? '—' : P[i]?.name)
+  // torneio em que jogo eu: a minha partida pronta (ou já na mesa do Forge Play)
+  const myGame = t.play_me && t.status === 'running' && t.me != null ? t.matches.find(m => m.st === 'ready' && m.p.includes(t.me)) : null
   const k = Math.max(...t.matches.filter(m => m.b === 'W').map(m => m.r), 1)
   const num = Object.fromEntries(t.matches.map((m, i) => [m.id, i + 1]))
   const tools = { data, P, live: t.live && { ...t.live, ids: new Set(lives.map(x => x.L.match)) }, num, onGame: openGame, me: t.me, casual: t.casual, odds: bets.b?.match, bet: bets.b && { coins: bets.b.coins, place: bets.place, mine: new Set(bets.b.bets.filter(x => x.status === 'open').map(x => x.mid)) } }
@@ -924,9 +934,10 @@ function Live({ data, tid, onGone, slot }) {
           {fl.length > 0 && <button className="small" onClick={() => openGame(fl[fl.length - 1])}>{onlyMine && t.me != null ? tx('▶ último jogo meu') : tx('▶ último jogo')}</button>}
         </div>
         <StartGate t={t} onStart={() => act('start')} />
+        {myGame && <p className="tl-now me-play">🎮 {myGame.play ? tx('O teu jogo contra {o} está a decorrer', { o: nameOf(myGame.p.find(i => i !== t.me)) }) : tx('É a tua vez: jogo {g} contra {o}', { g: myGame.g.length + 1, o: nameOf(myGame.p.find(i => i !== t.me)) })} <button className="primary" onClick={() => playMine(myGame.id)}>{myGame.play ? tx('▶ Voltar à mesa') : tx('▶ Jogar no Forge Play')}</button></p>}
         {meLine && <p className={`me-line ${ms.phase}`}><Thumb data={data} p={P[t.me]} /><span><small>{tx('O meu deck · {d}', { d: P[t.me]?.name })}</small><b>{ms.phase === 'done' ? `${(t.type !== 'gauntlet' || ms.place[0] === 1) && MEDAL[ms.place[0] - 1] || '🎖'} ` : ''}{meLine}</b></span></p>}
         {lives.map(({ L, lm }) => <p key={lm.id} className="tl-now"><span className="spin-dot" /> {L.status === 'queued' ? tx('Na fila do Forge (posição {p})', { p: L.position }) : tx('A jogar')}: <b>#{num[lm.id]}</b> {(L.seats || lm.p).map(nameOf).join(' vs ')} · {tx('jogo {g}', { g: lm.g.length + 1 })}{lm.p.length === 2 && t.bo > 1 ? ` · ${lm.w[0]}–${lm.w[1]}` : ''}{Object.keys(lm.sb || {}).length > 0 && <span className="muted" title={Object.entries(lm.sb).map(([i, sw]) => `${nameOf(+i)}: ${sw.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join('\n')}> · {tx('⇄ com sideboard:')} {Object.keys(lm.sb).map(i => nameOf(+i)).join(', ')}</span>}</p>)}
-        {!lm && t.status === 'running' && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
+        {!lm && !myGame && t.status === 'running' && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
         {t.error && <p className="small bad-t">{tx(t.error)}</p>}
         {err && <p className="small bad-t">{err}</p>}
       </section>

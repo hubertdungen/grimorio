@@ -430,7 +430,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
       {toast && <div className="fp-toast" onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} {toast.msg}{toast.list && <ul>{toast.list.map((l, k) => <li key={k}>{l}</li>)}</ul>}</div>}
       {s.ended && <div className="fp-modal"><div className="fp-ask fp-end">
         <h3>{s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : tx('Jogo terminado')}</h3>
-        <div className="row-btns"><button className="primary" onClick={onAgain}>▶ {tx('Jogar outra vez')}</button><button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}
+        <div className="row-btns">{onAgain && <button className="primary" onClick={onAgain}>▶ {tx('Jogar outra vez')}</button>}<button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}
     </div>
   )
 }

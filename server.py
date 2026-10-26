@@ -581,7 +581,8 @@ class H(BaseHTTPRequestHandler):
                 ps += [{"src": "draft", "ref": f"{eid}:{i}", "difficulty": diff, "colors": limited.colors(ev, i)} for i in seats]
                 title = "Draft" if ev["kind"] == "draft" else "Selado"
                 tid = tournament.create(owner, {"type": d.get("type") or "suico", "format": "limited", "players": ps, "bo": d.get("bo") or 1,
-                                                "name": f"{title} {'/'.join(dict.fromkeys(ev['sets']))}", "rounds": d.get("rounds")})
+                                                "name": f"{title} {'/'.join(dict.fromkeys(ev['sets']))}", "rounds": d.get("rounds"),
+                                                "play_me": bool(d.get("play_me")) and ev["human"]})
                 ev.update(status="tournament", tid=tid)
                 limited.save(D, ev)
                 return self.json({"tid": tid}, 201)

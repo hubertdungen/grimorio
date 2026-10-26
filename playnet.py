@@ -39,6 +39,8 @@ def _reader(sid, p):
                 s["log"] = (s["log"] + [m])[-40:]
             elif k == "end":
                 s["ended"], s["winner"] = True, m.get("winner")
+                pl = s.get("players") or {}
+                s["side"] = next((k2 for k2, n in pl.items() if n and n == m.get("winner")), None)  # quem ganhou: a (tu) ou b
             s["seq"] += 1
             s["ts"] = time.time()
             COND.notify_all()
@@ -109,7 +111,8 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu"):
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
     with COND:
         S[sid] = {"owner": owner, "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
-                  "ended": False, "winner": None, "ts": time.time(), "names": {"a": deck.get("name"), "b": opp.get("name")}}
+                  "ended": False, "winner": None, "ts": time.time(), "names": {"a": deck.get("name"), "b": opp.get("name")},
+                  "players": {"a": str(name)[:40] or "Tu", "b": oname}}
     threading.Thread(target=_reader, args=(sid, p), daemon=True).start()
     return sid
 
@@ -146,6 +149,15 @@ def cmd(sid, owner, c):
         p.stdin.flush()
     except (BrokenPipeError, OSError):
         raise ValueError("O jogo já acabou.")
+
+
+def result(sid):
+    """Para os torneios: None se o jogo já não existe; senão {ended, side ('a' = tu, 'b' = a IA, None), turns}."""
+    with COND:
+        s = S.get(sid)
+        if not s:
+            return None
+        return {"ended": s["ended"], "side": s.get("side"), "turns": (s["state"] or {}).get("turn")}
 
 
 def stop(sid, owner):
@@ -195,7 +207,7 @@ def selfcheck():
     r = poll("t1", "o", r["seq"], 5)
     while not r["ended"]:
         r = poll("t1", "o", r["seq"], 5)
-    assert r["winner"] == "IA"
+    assert r["winner"] == "IA" and result("t1")["ended"]
     stop("t1", "o")
     print("selfcheck ok")
 

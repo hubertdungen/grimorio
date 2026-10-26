@@ -165,18 +165,19 @@ function Pack({ pack, data, sel, setSel, pick }) {
 function Built({ ev, data, openDeck, goTournament, onBack }) {
   const [deckId, setDeckId] = useState(ev.deck_id || null), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
   const [bo, setBo] = useState(() => pref('bo', 1)), [diff, setDiff] = useState(() => pref('diff', 'default'))
+  const [playMe, setPlayMe] = useState(() => pref('playMe', false))
   const name = ev.kind === 'draft' ? tx('Draft') : tx('Selado')
   const makeDeck = async () => { const r = await post(`/api/limited/${ev.id}/deck`); setDeckId(r.deck_id); return r.deck_id }
   const build = async () => { try { openDeck(deckId || await makeDeck()) } catch (e) { setErr(e.message) } }
   const start = async () => {
-    setBusy(true); setErr(''); keep('bo', bo); keep('diff', diff)
+    setBusy(true); setErr(''); keep('bo', bo); keep('diff', diff); keep('playMe', playMe)
     try {
       if (ev.human) {
         const id = deckId || await makeDeck()
         const d = await api(`/api/decks/${id}`), n = Object.values(d.main || {}).reduce((a, b) => a + b, 0)
         if (n < 40) throw new Error(tx('O teu deck tem {n} cartas: no limitado são 40 ou mais. Monta-o primeiro.', { n }))
       }
-      await post(`/api/limited/${ev.id}/tournament`, { type: 'suico', bo, difficulty: diff })
+      await post(`/api/limited/${ev.id}/tournament`, { type: 'suico', bo, difficulty: diff, play_me: ev.human && playMe })
       goTournament()
     } catch (e) { setErr(e.message); setBusy(false) }
   }
@@ -196,7 +197,8 @@ function Built({ ev, data, openDeck, goTournament, onBack }) {
       {ev.status === 'tournament' ? <section className="card"><p>{tx('O torneio já foi criado.')}</p><button className="primary" onClick={goTournament}>🏆 {tx('Ver o torneio')}</button></section> : (
         <section className="card ld-tour">
           <h3>🏆 {tx('Torneio')}</h3>
-          <p className="muted small">{tx('Suíço com os {n} decks; o Forge joga todos os jogos e vês em direto.', { n: ev.players.length })}</p>
+          <p className="muted small">{ev.human && playMe ? tx('Suíço com os {n} decks: os teus jogos jogas tu no Forge Play, os outros são bot contra bot.', { n: ev.players.length }) : tx('Suíço com os {n} decks; o Forge joga todos os jogos e vês em direto.', { n: ev.players.length })}</p>
+          {ev.human && <div className="seg"><button className={!playMe ? 'on' : ''} onClick={() => setPlayMe(false)}>🤖 {tx('O Forge joga por mim')}</button><button className={playMe ? 'on' : ''} onClick={() => setPlayMe(true)}>🎮 {tx('Jogo eu (Forge Play)')}</button></div>}
           <div className="seg">{[1, 3].map(b => <button key={b} className={bo === b ? 'on' : ''} onClick={() => setBo(b)}>{b === 1 ? tx('Jogo único') : tx('Melhor de 3')}</button>)}</div>
           <label>{tx('Bots')} <select value={diff} onChange={e => setDiff(e.target.value)}>{Object.entries(DIFF_INFO).map(([k, d]) => <option key={k} value={k}>{d.label}</option>)}</select></label>
           {err && <p className="err small">{err}</p>}
