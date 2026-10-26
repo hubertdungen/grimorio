@@ -549,18 +549,22 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
     const el = boardRef.current
     if (!el?.closest('.coliseu')) return
     // altura livre = do sítio onde o tabuleiro começa (com a página no topo, ou o ecrã inteiro no topo) até ao fundo do ecrã
+    // telemóvel: o placar e os botões ficam no topo do ecrã e a mesa ocupa o resto da altura
+    const narrow = () => innerWidth < 901
+    const tbl = () => el.querySelector('.bwrap > .table') || el
+    const size = () => narrow() ? tbl().getBoundingClientRect().height : el.offsetHeight  // com zoom, a altura que se vê
     const avail = () => {
       // dentro de uma janela (ver ao vivo, repetições do torneio) mede-se na janela; em ecrã inteiro no elemento; senão na página
       const md = el.closest('.modal'), fe = document.fullscreenElement || document.webkitFullscreenElement
       const sc = md || (fe?.contains(el) ? fe : null), vh = window.visualViewport?.height || innerHeight  // altura visível real (tablet)
+      if (narrow()) return (md ? Math.min(vh, innerHeight - 24) : vh) - (tbl().getBoundingClientRect().top - el.getBoundingClientRect().top) - 8
       const top = el.getBoundingClientRect().top + (sc ? sc.scrollTop - sc.getBoundingClientRect().top : scrollY)
       return (md ? Math.min(vh, innerHeight - 24) : vh) - top - 8
     }
     const fit = () => {
-      if (innerWidth < 901) return el.style.removeProperty('--fit')
       // a altura é fixa (barras, etiquetas) + proporcional ao --fit: com a secante acerta em 2–3 medições
       // (o f × livre/altura parava a 6–10px do alvo e o resultado dependia do caminho: janela, ecrã inteiro, zoom do sistema)
-      const a = avail(), h = f => { el.style.setProperty('--fit', f); return el.offsetHeight }
+      const a = avail(), h = f => { el.style.setProperty('--fit', f); return size() }
       let f0 = 1, h0 = h(1), f = Math.max(0.4, Math.min(1.6, a / h0))
       for (let n = 0; n < 5; n++) {
         const h1 = h(f)
@@ -576,13 +580,13 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
     zoomRef.current = d => {  // d = ±0,1 afina à mão; 0 volta a detetar a altura e repõe o ajuste automático
       try { localStorage.setItem('grimorio.zoom', d ? Math.max(0.6, Math.min(1.6, adj() + d)).toFixed(2) : '1') } catch { /* sem armazenamento */ }
       // ⤢: a altura conta-se com a página (ou a janela / o ecrã inteiro) no topo — volta lá antes de medir
-      if (!d) { const md = el.closest('.modal'), fe = document.fullscreenElement || document.webkitFullscreenElement; (md || (fe?.contains(el) ? fe : null))?.scrollTo?.(0, 0); if (!md && !fe) window.scrollTo(0, 0) }
+      if (!d) { const md = el.closest('.modal'), fe = document.fullscreenElement || document.webkitFullscreenElement; if (narrow()) el.scrollIntoView({ block: 'start' }); else { (md || (fe?.contains(el) ? fe : null))?.scrollTo?.(0, 0); if (!md && !fe) window.scrollTo(0, 0) } }
       fit()
     }
     fit()
+    if (narrow()) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }))  // ao abrir, a mesa fica à vista
     fitRef.current = () => {  // segurança: as filas têm altura fixa, mas se algo ainda fugir mais de 2% volta a medir (nos dois sentidos)
-      if (innerWidth < 901) return
-      const a = avail() * adj(), h = el.offsetHeight
+      const a = avail() * adj(), h = size()
       if (h - a > a * 0.02 + 3 || a - h > a * 0.05) fit()  // margem: pequenas variações não mexem nas cartas
     }
     // as imagens das cartas chegam depois da 1.ª medição e mudam a altura: o tabuleiro volta a medir quando o próprio tamanho muda
@@ -612,6 +616,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
   const setSpeed = v => { setSpeedS(v); onSpeed?.(v) }  // o ritmo escolhido passa para o jogo seguinte
   const [zoom, setZoom] = useState(null)
   const [zone, setZone] = useState(null)
+  const [more, setMore] = useState(false)  // telemóvel: velocidade, mãos e turno atrás do ⚙
   const logRef = useRef(null)
   const start = game.startLife || 20
   const states = useMemo(() => replayStates(evs, data, start, game.setup || null, !!game.exact), [evs, data, start, game.setup, game.exact])
@@ -694,17 +699,18 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
         {live && <span className="livepill">{tx('● a jogar')}</span>}
         {!score && ended && <span className="muted small">{tx('jogo {g} · {r} no turno {t}', { g: game.g, r: pov !== 'a' ? (lost(game.winner) || game.winner === 'a' ? tx('venceu «{d}»', { d: who[game.winner] }) : tx('empate')) : game.winner === 'a' ? tx('vitória') : lost(game.winner) ? tx('derrota') : tx('empate'), t: game.turns })}</span>}
       </div>
-      <div className="rp-ctrl">
+      <div className={`rp-ctrl ${more ? 'more' : ''}`}>
         <button onClick={() => go(0)} title={tx('Início')} aria-label={tx('Início')}>⏮</button>
         <button onClick={() => go(i - 1, false)} title={tx('Passo atrás')} aria-label={tx('Passo atrás')}>◀</button>
         <button className="primary" onClick={() => setPlaying(!playing)}>{playing ? tx('❚❚ Pausa') : tx('▶ Continuar')}</button>
         <button onClick={() => go(i + 1, false)} title={tx('Passo à frente')} aria-label={tx('Passo à frente')}>▶</button>
         <button onClick={() => go(evs.length)} title={live ? tx('Ir para o momento atual') : tx('Fim')} aria-label={tx('Fim')}>⏭</button>
         <span className="rp-zoom"><button onClick={() => zoomRef.current?.(-0.1)} title={tx('Mais pequeno')}>−</button><button onClick={() => zoomRef.current?.(0)} title={tx('Ajustar ao ecrã (volta a detetar a altura)')}>⤢</button><button onClick={() => zoomRef.current?.(0.1)} title={tx('Maior')}>+</button></span>
-        <label className="sl rp-speed"><span>{jsx(tx('Velocidade {x}'), { x: <b>{speed}×</b> })}</span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
-        {onPlayFrom && !live && !multi && <button onClick={() => { setPlaying(false); onPlayFrom(s, game) }} title={tx('Abre esta posição no Forge e jogas tu com o teu deck')}>{tx('🎮 Jogar daqui')}</button>}
-        <select value={hands} onChange={e => setHands(e.target.value)} aria-label={tx('Mãos à vista')}>{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
-        <select value={s.turn || ''} onChange={e => go(evs.findIndex(x => x.t === +e.target.value))} aria-label={tx('Ir para o turno')}>{turns.map(t => <option key={t} value={t}>{tx('Turno {t}', { t })}</option>)}</select>
+        <button className="rp-more" onClick={() => setMore(!more)} aria-expanded={more} title={tx('Velocidade, mãos e turno')}>⚙</button>
+        <label className="sl rp-speed rp-x"><span>{jsx(tx('Velocidade {x}'), { x: <b>{speed}×</b> })}</span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
+        {onPlayFrom && !live && !multi && <button className="rp-x" onClick={() => { setPlaying(false); onPlayFrom(s, game) }} title={tx('Abre esta posição no Forge e jogas tu com o teu deck')}>{tx('🎮 Jogar daqui')}</button>}
+        <select className="rp-x" value={hands} onChange={e => setHands(e.target.value)} aria-label={tx('Mãos à vista')}>{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+        <select className="rp-x" value={s.turn || ''} onChange={e => go(evs.findIndex(x => x.t === +e.target.value))} aria-label={tx('Ir para o turno')}>{turns.map(t => <option key={t} value={t}>{tx('Turno {t}', { t })}</option>)}</select>
         <div className="rp-time">
           <Timeline evs={evs} i={i} onSeek={n => { setPlaying(false); go(n) }} />
           <input type="range" className="rp-scrub" min="0" max={evs.length} value={i} onChange={e => { setPlaying(false); go(+e.target.value) }} aria-label={tx('Posição no jogo')} />

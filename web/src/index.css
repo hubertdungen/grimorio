@@ -1305,7 +1305,20 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .prof-btn { display: inline-flex; align-items: center; gap: 8px; padding: 3px 12px 3px 3px; border-radius: 999px; max-width: 180px; }
 .prof-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prof-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; width: min(340px, calc(100vw - 32px)); box-shadow: 0 20px 50px #000a; }
-.rp-zoom { display: inline-flex; gap: 2px; } .rp-zoom button { min-width: 34px; padding: 4px 8px; } @media (max-width: 900px) { .rp-zoom { display: none; } }
+.rp-zoom { display: inline-flex; gap: 2px; } .rp-zoom button { min-width: 34px; padding: 4px 8px; }
+.rp-more { display: none; }
+/* Coliseu no telemóvel: a mesa inteira escala com o --fit (zoom: cartas, nomes e pilhas por igual; a mesa ocupa a altura
+   que sobra por baixo dos botões e −/⤢/+ afinam)
+   e a velocidade, as mãos e o turno ficam atrás do ⚙ */
+@media (max-width: 900px) {
+  .coliseu .board .bwrap > .table { zoom: var(--fit, 1); }
+  .rp-more { display: inline-block; }
+  .rp-ctrl:not(.more) > .rp-x { display: none; }
+  .board .rp-ctrl { gap: 4px; } .board .rp-ctrl > button, .rp-zoom button { min-width: 36px; padding: 4px 6px; }
+  .board .rp-ctrl > button.primary { flex: 1 1 auto; }
+  .board .rp-ctrl > .muted.small { display: none; }
+}
+
 .who .lang-pick { justify-content: center; }
 /* registo do deck: as três estrelas (amarelo normal, azul todos os jogos, vermelho objetivo) e as vias do vermelho */
 .rec-rt { display: grid; gap: 6px; margin-bottom: 12px; } .rec-rt > .stars { font-size: 20px; }
