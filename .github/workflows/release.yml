@@ -107,8 +107,10 @@ jobs:
           python packaging/build.py package ${{ matrix.platform }} "$WORK" "$V" dist
       - if: matrix.platform == 'windows'  # the .exe starts, finds its files and prints the help (to the log: it has no console)
         run: |
-          LOCALAPPDATA="$RUNNER_TEMP" dist/Grimorio/Grimorio.exe --help
-          grep -q "own window" "$RUNNER_TEMP/Grimorio/logs/grimorio.log"
+          # sem consola: a ajuda vai para o terminal que o lançou (herda-o) ou, aberto com dois cliques, para o log
+          LOCALAPPDATA="$RUNNER_TEMP" dist/Grimorio/Grimorio.exe --help > help.txt 2>&1 || true
+          grep -q "own window" help.txt || grep -q "own window" "$RUNNER_TEMP/Grimorio/logs/grimorio.log"
+          test -d dist/Grimorio/_internal/webview  # a janela da app (pywebview) foi mesmo empacotada
       - uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.platform }}
