@@ -152,15 +152,18 @@ function useDrag(onDrop, onLong) {
 }
 
 // o registo do Forge (as últimas 40 entradas): «Ruin Crab (55)» passa a nome com o rato a mostrar a carta
-const CARD_REF = /([A-Z][^()\n]*?) \((\d+)\)/g
-function Hist({ log }) {
+const NAME_END = /([A-Z][\w'’,-]*(?: (?:[A-Z][\w'’,-]*|of|the|to|and|in|from|for|with|a|an|on|at))*)$/
+function Hist({ log, nameOf }) {
   const box = useRef(null)
   useEffect(() => { const el = box.current; if (el) el.scrollTop = el.scrollHeight }, [log?.length, log?.[log.length - 1]?.m])
   if (!log?.length) return null
-  const line = m => {
+  const line = m => {  // «Affinity played Razortide Bridge (12)» -> só «Razortide Bridge» fica ligado à carta 12
     const out = []; let last = 0
-    for (const x of m.matchAll(CARD_REF)) {
-      out.push(m.slice(last, x.index), <b key={x.index} className="lg-card" data-zid={x[2]} data-zn={x[1]}>{x[1]}</b>)
+    for (const x of m.matchAll(/ \((\d+)\)/g)) {
+      const nm = nameOf(+x[1]), pre = m.slice(last, x.index)
+      const name = nm && pre.endsWith(nm) ? nm : NAME_END.exec(pre)?.[1]
+      if (!name) continue
+      out.push(pre.slice(0, pre.length - name.length), <b key={x.index} className="lg-card" data-zid={x[1]} data-zn={name}>{name}</b>)
       last = x.index + x[0].length
     }
     return [...out, m.slice(last)]
@@ -319,7 +322,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')}>{n}</button>))}</span>}
           <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')}</p>
-          <Hist log={st.log} />
+          <Hist log={st.log} nameOf={id => byId.get(id)?.name} />
           <div className="row-btns small">
             <button className="link small" onClick={() => send({ c: 'undo' })}>↶ {tx('desfazer')}</button>
             <button className="link small" onClick={() => send({ c: 'concede' })}>🏳 {tx('desistir')}</button>
