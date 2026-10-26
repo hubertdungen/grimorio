@@ -2977,4 +2977,13 @@ export default {
   "Sempre diretas da Scryfall": "Always straight from Scryfall",
   "Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.": "Some networks (work, schools) block scryfall.io and cards show without images. Through Grimório the images go via your server and are kept there; a little slower the first time.",
   "nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra": "no card is {t} at once: showing either",
+  "A procurar os tokens na Scryfall…": "Looking up the tokens on Scryfall…",
+  "de {c}": "from {c}",
+  "Incluir os tokens que o deck cria": "Include the tokens the deck makes",
+  "Incluir sugestões do Grimório para testar": "Include Grimório's suggestions to try out",
+  "Nenhuma carta do deck cria tokens.": "No card in the deck makes tokens.",
+  "Quantas sugestões": "How many suggestions",
+  "Quantos de {t}": "How many {t}",
+  "Sugestões do Grimório": "Grimório's suggestions",
+  "Tokens": "Tokens",
 }

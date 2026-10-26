@@ -124,6 +124,45 @@ def ai_flags():
     return sim.ai_flags(ARGS.data_dir)
 
 
+def scryfall_tokens(data_dir, names):
+    """Os tokens (e emblemas) que as cartas criam, pela lista «all_parts» da Scryfall (/cards/collection, 75 de cada vez):
+    [{id, name, type, from: [cartas]}]. Cada carta fica 30 dias em <dados>/cache/tokens.json (o resultado não muda)."""
+    cf = os.path.join(data_dir, "cache", "tokens.json")
+    try:
+        with open(cf, encoding="utf-8") as f:
+            cache = json.load(f)
+    except (OSError, ValueError):
+        cache = {}
+    now, front = time.time(), lambda n: n.split(" // ")[0]
+    todo = [n for n in dict.fromkeys(names) if now - cache.get(n, {}).get("ts", 0) > 30 * 86400]
+    for i in range(0, len(todo), 75):
+        chunk = todo[i:i + 75]
+        req = urllib.request.Request("https://api.scryfall.com/cards/collection", method="POST",
+                                     data=json.dumps({"identifiers": [{"name": front(n)} for n in chunk]}).encode(),
+                                     headers={"User-Agent": "Grimorio/1.0 (uso pessoal)", "Content-Type": "application/json", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            got = json.load(r).get("data") or []
+        by = {front(c.get("name", "")).lower(): c for c in got}
+        for n in chunk:
+            c = by.get(front(n).lower()) or {}
+            toks = [{"id": p["id"], "name": p.get("name"), "type": p.get("type_line", "")} for p in c.get("all_parts") or []
+                    if p.get("component") == "token" and p.get("id") != c.get("id")]
+            cache[n] = {"ts": now, "t": toks}
+        time.sleep(0.1)  # a Scryfall pede 50–100 ms entre pedidos
+    if todo:
+        os.makedirs(os.path.dirname(cf), exist_ok=True)
+        with open(cf + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(cache, f)
+        os.replace(cf + ".tmp", cf)
+    out = {}
+    for n in names:
+        for t in cache.get(n, {}).get("t", []):
+            x = out.setdefault(t["id"], {**t, "from": []})
+            if n not in x["from"]:
+                x["from"].append(n)
+    return sorted(out.values(), key=lambda t: (t["type"].startswith("Emblem"), t["name"] or ""))
+
+
 def update_state(raw=False):
     """O que o launcher dos pacotes escreveu em <data>/update.json, mais a versão que está a correr."""
     try:
@@ -696,6 +735,14 @@ class H(BaseHTTPRequestHandler):
                     return self.json({"id": rid}, 201)
             except (ValueError, TypeError, AttributeError) as e:
                 return self.json({"erro": str(e) if isinstance(e, ValueError) else "pedido inválido"}, 400)
+        if self.path == "/api/tokens":  # {names} -> os tokens que estas cartas criam (Scryfall all_parts), para os proxies
+            try:
+                names = [str(n)[:150] for n in (self.body(200_000).get("names") or [])][:400]
+                return self.json(scryfall_tokens(ARGS.data_dir, names))
+            except ValueError as e:
+                return self.json({"erro": str(e)}, 400)
+            except Exception:
+                return self.json({"erro": "A Scryfall não respondeu; tenta daqui a pouco."}, 502)
         if self.path == "/api/proxies.zip":  # imagens do deck para gráficas de proxies (artfolder.proxies_zip)
             if not self.owner():
                 return self.json({"erro": "sem utilizador"}, 401)

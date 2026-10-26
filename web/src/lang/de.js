@@ -2969,4 +2969,13 @@ export default {
   "Sempre diretas da Scryfall": "Immer direkt von Scryfall",
   "Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.": "Manche Netze (Arbeit, Schulen) sperren scryfall.io, dann fehlen die Kartenbilder. Über Grimório laufen die Bilder über deinen Server und werden dort gespeichert; beim ersten Mal etwas langsamer.",
   "nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra": "keine Karte ist {t} zugleich: zeige das eine oder andere",
+  "A procurar os tokens na Scryfall…": "Spielsteine bei Scryfall suchen…",
+  "de {c}": "von {c}",
+  "Incluir os tokens que o deck cria": "Spielsteine einschließen, die das Deck erzeugt",
+  "Incluir sugestões do Grimório para testar": "Grimórios Vorschläge zum Ausprobieren einschließen",
+  "Nenhuma carta do deck cria tokens.": "Keine Karte im Deck erzeugt Spielsteine.",
+  "Quantas sugestões": "Wie viele Vorschläge",
+  "Quantos de {t}": "Wie viele {t}",
+  "Sugestões do Grimório": "Grimórios Vorschläge",
+  "Tokens": "Spielsteine",
 }

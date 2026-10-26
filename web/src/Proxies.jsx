@@ -4,7 +4,7 @@
 //  3. folha para imprimir: 63×88 mm, 9 por página A4/Letter, com linhas de corte (imprimir ou guardar em PDF).
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { img, sf } from './data.js'
+import { img, sf, recommend } from './data.js'
 import { exportList, proxyGroups } from './deck.js'
 import { PAPERS, UNITS, PRINT0, layout, guides, pageOps, pdf } from './printpdf.js'
 import { tx } from './i18n.js'
@@ -73,13 +73,39 @@ function Preview({ L, o, slots }) {
   )
 }
 
-export default function ProxyDialog({ data, deck, onClose }) {
+// quantos tokens uma carta cria de cada vez («create two …», X conta como 3)
+const NUMW = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, x: 3 }
+const madeBy = c => { const m = /\bcreates? (a|an|one|two|three|four|five|six|x|\d+)\b/i.exec(c?.o || ''); return m ? NUMW[m[1].toLowerCase()] || +m[1] || 1 : 1 }
+
+export default function ProxyDialog({ data, deck, ctx, onClose }) {
   const [side, setSide] = useState(true), [perCopy, setPerCopy] = useState(false)
+  // extras: os tokens que as cartas do deck criam (Scryfall, pelo servidor) e as sugestões do Grimório para testar
+  const [withTok, setWithTok] = useState(false), [toks, setToks] = useState(null), [tokErr, setTokErr] = useState('')
+  const [withSug, setWithSug] = useState(false), [sugN, setSugN] = useState(10)
+  useEffect(() => {
+    if (!withTok || toks) return
+    const names = [...new Set([...deck.commanders || [], ...Object.keys(deck.main || {}), ...Object.keys(side ? deck.side || {} : {})])]
+    fetch('/api/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ names }) })
+      .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.erro); return j })
+      .then(l => setToks(l.map(t => ({ ...t, q: Math.max(1, Math.min(12, t.from.reduce((a, n) => a + madeBy(data.byName.get(n)) * ((deck.main?.[n] || 0) + (deck.side?.[n] || 0) || 1), 0))) }))))
+      .catch(e => { setTokErr(e.message); setWithTok(false) })
+  }, [withTok, toks, deck, side, data])
+  const sugs = useMemo(() => {
+    if (!withSug || !ctx) return []
+    const have = [...deck.commanders || [], ...Object.keys(deck.main || {})].map(n => data.byName.get(n)?.i).filter(i => i != null)
+    const cols = new Set(have.flatMap(i => (data.cards[i].mt === 'Land' ? [] : [...data.cards[i].ci])))  // as cores do deck, sem os terrenos
+    return recommend(data, { seeds: have.filter(i => data.cards[i].mt !== 'Land'), have, ctx, filters: { noLands: true }, limit: sugN * 3 }).map(r => r.c)
+      .filter(c => !deck.main?.[c.n] && !deck.side?.[c.n] && [...c.ci].every(k => cols.has(k))).slice(0, sugN)
+  }, [withSug, sugN, data, deck, ctx])
   const [o, setO] = useState(loadPrint), [pdfBusy, setPdfBusy] = useState('')
   const up = p => setO(x => { const n = { ...x, ...p }; try { localStorage.setItem('grimorio.print', JSON.stringify(n)) } catch { /* sem armazenamento */ } return n })
   const [busy, setBusy] = useState(''), [err, setErr] = useState(''), [warn, setWarn] = useState(''), [copied, setCopied] = useState(false)
-  const groups = useMemo(() => proxyGroups(deck, data, { side }), [deck, data, side])
-  const list = useMemo(() => exportList(side ? deck : { ...deck, side: {} }), [deck, side])
+  const groups = useMemo(() => [...proxyGroups(deck, data, { side }),
+    ...(withTok && toks ? toks.filter(t => t.q > 0).map(t => ({ c: { n: t.name, id: t.id, df: false }, q: t.q, src: null, token: true })) : []),
+    ...sugs.map(c => ({ c, q: 1, src: null, sug: true }))], [deck, data, side, withTok, toks, sugs])
+  const list = useMemo(() => [exportList(side ? deck : { ...deck, side: {} }),
+    ...(withTok && toks?.some(t => t.q > 0) ? [`\n// ${tx('Tokens')}`, ...toks.filter(t => t.q > 0).map(t => `${t.q} ${t.name}`)] : []),
+    ...(sugs.length ? [`\n// ${tx('Sugestões do Grimório')}`, ...sugs.map(c => `1 ${c.n}`)] : [])].join('\n'), [deck, side, withTok, toks, sugs])
   const total = groups.reduce((a, g) => a + g.q, 0), owned = groups.filter(g => own(g.src)).reduce((a, g) => a + g.q, 0)
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   const L = useMemo(() => layout(o), [o])
@@ -127,6 +153,15 @@ export default function ProxyDialog({ data, deck, onClose }) {
         <h3>🖨 {tx('Proxies de «{name}»', { name: deck.name })}</h3>
         <p className="muted small">{tx('{n} cartas com as artes que escolheste', { n: total })}{owned ? ` · ${tx('{n} com imagem própria', { n: owned })}` : ''}</p>
         <label className="chk small"><input type="checkbox" checked={side} onChange={e => setSide(e.target.checked)} /> {tx('Incluir o sideboard')}</label>
+        <label className="chk small"><input type="checkbox" checked={withTok} onChange={e => { setWithTok(e.target.checked); setTokErr('') }} /> {tx('Incluir os tokens que o deck cria')}</label>
+        {withTok && !toks && <p className="muted small">{tx('A procurar os tokens na Scryfall…')}</p>}
+        {withTok && toks && (toks.length ? <ul className="px-toks">{toks.map((t, k) => (
+          <li key={t.id}><input type="number" min="0" max="40" value={t.q} onChange={e => setToks(l => l.map((x, j) => (j === k ? { ...x, q: Math.max(0, Math.min(40, +e.target.value || 0)) } : x)))} aria-label={tx('Quantos de {t}', { t: t.name })} />
+            <b>{t.name}</b> <small className="muted">{t.type.replace(/^Token /, '')} · {tx('de {c}', { c: t.from.join(', ') })}</small></li>))}</ul>
+          : <p className="muted small">{tx('Nenhuma carta do deck cria tokens.')}</p>)}
+        {tokErr && <p className="small bad-t">{tokErr}</p>}
+        {ctx && <label className="chk small"><input type="checkbox" checked={withSug} onChange={e => setWithSug(e.target.checked)} /> {tx('Incluir sugestões do Grimório para testar')} {withSug && <input className="px-n" type="number" min="1" max="40" value={sugN} onChange={e => setSugN(Math.max(1, Math.min(40, +e.target.value || 1)))} aria-label={tx('Quantas sugestões')} />}</label>}
+        {withSug && sugs.length > 0 && <p className="muted small">{sugs.map(c => c.n).join(' · ')}</p>}
 
         <section className="px-opt">
           <h4>{tx('Lista para sites de proxies')}</h4>

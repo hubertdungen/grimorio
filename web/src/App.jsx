@@ -637,7 +637,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
         <button onClick={copy}>{tx('Copiar lista')}</button>
         <button onClick={download}>{tx('Descarregar')}</button>
         <button onClick={() => setProxies(true)} title={tx('Lista com edições, ZIP com as imagens ou folha para imprimir')}>🖨 {tx('Proxies')}</button>
-        {proxies && <ProxyDialog data={data} deck={deck} onClose={() => setProxies(false)} />}
+        {proxies && <ProxyDialog data={data} deck={deck} ctx={ctx} onClose={() => setProxies(false)} />}
         {deck.id && <button className="danger" onClick={delDeck}>{tx('Eliminar')}</button>}
       </div>
       <textarea className="notes" placeholder={tx('Notas do deck…')} value={deck.notes} onChange={e => setDeck(d => ({ ...d, notes: e.target.value }))} />

@@ -2969,4 +2969,13 @@ export default {
   "Sempre diretas da Scryfall": "始终直接来自 Scryfall",
   "Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.": "有些网络（工作单位、学校）会屏蔽 scryfall.io，卡牌就没有图片。经由 Grimório 时图片通过你的服务器获取并保存在那里；第一次会慢一些。",
   "nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra": "没有同时是 {t} 的牌：显示其中之一",
+  "A procurar os tokens na Scryfall…": "正在 Scryfall 查找衍生物…",
+  "de {c}": "来自 {c}",
+  "Incluir os tokens que o deck cria": "包含套牌会产生的衍生物",
+  "Incluir sugestões do Grimório para testar": "包含 Grimório 推荐的牌以供测试",
+  "Nenhuma carta do deck cria tokens.": "套牌中没有会产生衍生物的牌。",
+  "Quantas sugestões": "推荐数量",
+  "Quantos de {t}": "{t} 的数量",
+  "Sugestões do Grimório": "Grimório 的推荐",
+  "Tokens": "衍生物",
 }

@@ -2444,3 +2444,5 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .rt-l { font-weight: 600; } .rt-y .rt-l { color: #f2b84b; } .rt-b .rt-l { color: #6aa8ff; } .rt-r .rt-l { color: #ff6b6b; } .rt-w .rt-l { color: #e8ecf3; }
 @media (max-width: 600px) { .rt-list li { grid-template-columns: 7em minmax(0, 1fr); } .rt-list li small { grid-column: 1 / -1; } }
 .wstars.prov { opacity: .7; }
+.px-toks { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; gap: 4px; }
+.px-toks li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .px-toks input, .px-n { width: 56px; }
