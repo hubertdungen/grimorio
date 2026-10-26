@@ -2953,4 +2953,10 @@ export default {
   "Abre sozinho o próximo jogo desta partida quando acabar": "Opens the next game of this match by itself when it ends",
   "À espera do jogo seguinte…": "Waiting for the next game…",
   "Ver o jogo seguinte desta partida": "Watch the next game of this match",
+  "Contra o que perdes: {c}": "What you lose to: {c}",
+  "perdeste {a} de {n} jogos nos testes{top}": "you lost {a} of {n} games in testing{top}",
+  "É um encantamento: alimenta o deck": "It's an enchantment: it feeds the deck",
+  "No sideboard, mas a IA não a lança": "In the sideboard, but the AI never casts it",
+  "{c}: a IA do Forge nunca a joga — nos testes e torneios fica parada na mão. Troca-a por uma das de cima.": "{c}: the Forge AI never plays it — in tests and tournaments it just sits in hand. Swap it for one of the cards above.",
+  "perdes contra {c}": "you lose to {c}",
 }

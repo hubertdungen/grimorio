@@ -1,5 +1,6 @@
 import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { HATE, CAT_LABEL } from './tests.js'
 import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
@@ -203,8 +204,39 @@ function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
   )
 }
 
+// cartas que a IA do Forge nunca lança (AI:RemoveDeck:All), pedidas uma vez ao servidor
+let aiFlagsP = null
+const useAiFlags = () => {
+  const [f, setF] = useState(null)
+  useEffect(() => { (aiFlagsP ||= fetch('/api/sim/aiflags').then(r => (r.ok ? r.json() : [])).catch(() => [])).then(l => setF(new Set(l))) }, [])
+  return f
+}
+
+// Contra o que perdes nos testes (Coliseu): as categorias em que perdeste 2+ jogos e 40%+ das vezes, com respostas nas
+// tuas cores que a IA sabe lançar; num deck de encantamentos, as respostas que são encantamentos primeiro (alimentam-no)
+function lossAnswers(data, deck, ctx, noAi, per = 4) {
+  const T = ctx.tests, out = []
+  if (!T?.cats) return out
+  const cols = new Set([...deck.commanders, ...Object.keys(deck.main)].flatMap(n => [...(data.byName.get(n)?.ci || '')]))
+  const ench = Object.keys(deck.main).filter(n => /Enchantment/.test(data.byName.get(n)?.t || '')).reduce((a, n) => a + deck.main[n], 0) >= 8
+  for (const [k, re, label] of HATE) {
+    const x = T.cats[k]
+    if (!x || x.lost < 2 || x.lost / x.games < 0.4) continue
+    const cards = data.cards.filter(c => c.mt !== 'Land' && c.cmc <= 5 && !deck.main[c.n] && !deck.side[c.n] && !noAi?.has(c.n) && re.test(c.o)
+      && passes(c, null, ctx) && [...c.ci].every(q => cols.has(q)))
+      .map(c => ({ c, v: (ench && /Enchantment/.test(c.t) ? 2 : 0) + (c.tg.includes('removal') || c.tg.includes('wipe') ? 0.5 : 0) - Math.log10((c.er ?? 1e6) + 10) / 3 }))
+      .sort((a, b) => b.v - a.v).slice(0, per).map(y => y.c)
+    const top = Object.entries(x.cards).sort((p, q) => q[1] - p[1]).slice(0, 3).map(([n]) => n)
+    if (cards.length) out.push({ k, label, lost: x.lost, games: x.games, top, cards, ench })
+  }
+  return out.sort((a, b) => b.lost - a.lost)
+}
+
 // 🛡 Sideboard: o que as listas do meta levam no sideboard nas tuas cores; sem meta, respostas por tipo de ameaça
 function SidePanel({ data, deck, fmt, ctx, act, meta, have }) {
+  const noAi = useAiFlags()
+  const losses = useMemo(() => (fmt.side > 0 && noAi ? lossAnswers(data, deck, ctx, noAi) : []), [fmt.side, data, deck, ctx, noAi])
+  const dud = useMemo(() => (noAi ? Object.keys(deck.side).filter(n => noAi.has(n)) : []), [deck.side, noAi])
   const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.sideboard') === '1' } catch { return false } })
   const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.sideboard', v ? '1' : '0') } catch { /* sem armazenamento */ } }
   const side = useMemo(() => {
@@ -233,10 +265,16 @@ function SidePanel({ data, deck, fmt, ctx, act, meta, have }) {
   return (
     <div className={`prefs cutp ${open ? 'on' : ''}`}>
       <button className="prefs-head" onClick={() => setOpen(!open)}>
-        <span>🛡 {tx('Sideboard')}</span><small className="muted">{toSide.length > 0 && <b className="bad-t">{tx('{n} do deck para o sideboard', { n: toSide.length })} · </b>}{sideCount}/{fmt.side} · {side.length ? tx('{n} listas de {f}', { n: meta.decks, f: fmt.name }) : tx('respostas por tipo de ameaça, nas tuas cores')}</small><span className="chev">{open ? '▾' : '▸'}</span>
+        <span>🛡 {tx('Sideboard')}</span><small className="muted">{losses.length > 0 && <b className="bad-t">{tx('perdes contra {c}', { c: losses.map(g => CAT_LABEL[g.k]).join(', ') })} · </b>}{toSide.length > 0 && <b className="bad-t">{tx('{n} do deck para o sideboard', { n: toSide.length })} · </b>}{sideCount}/{fmt.side} · {side.length ? tx('{n} listas de {f}', { n: meta.decks, f: fmt.name }) : tx('respostas por tipo de ameaça, nas tuas cores')}</small><span className="chev">{open ? '▾' : '▸'}</span>
       </button>
       {open && (
         <div className="cutp-body">
+          {losses.map(g => <div key={g.k}>
+            <h4>{tx('Contra o que perdes: {c}', { c: CAT_LABEL[g.k] })} <span className="muted small">{tx('perdeste {a} de {n} jogos nos testes{top}', { a: g.lost, n: g.games, top: g.top.length ? ` (${g.top.join(', ')})` : '' })}</span></h4>
+            <ul className="land-list">{g.cards.map(c => row(c, <ul className="why"><li className="falta">{g.label}</li>{g.ench && /Enchantment/.test(c.t) && <li className="inter">{tx('É um encantamento: alimenta o deck')}</li>}{c.tg.includes('wipe') && <li className="tema">{TAG_LABEL.wipe}</li>}</ul>, 2))}</ul>
+          </div>)}
+          {dud.length > 0 && <div className="to-side"><h4>{tx('No sideboard, mas a IA não a lança')}</h4>
+            <ul className="why">{dud.map(n => <li key={n} className="falta">{tx('{c}: a IA do Forge nunca a joga — nos testes e torneios fica parada na mão. Troca-a por uma das de cima.', { c: n })}</li>)}</ul></div>}
           {toSide.length > 0 && <div className="to-side">
             <h4>{tx('Do deck para o sideboard')}</h4>
             <ul className="land-list">{toSide.map(c => { const h = narrowHate(c); return (

@@ -2945,4 +2945,10 @@ export default {
   "Abre sozinho o próximo jogo desta partida quando acabar": "Abre sola la siguiente partida de este enfrentamiento cuando termine",
   "À espera do jogo seguinte…": "Esperando la siguiente partida…",
   "Ver o jogo seguinte desta partida": "Ver la siguiente partida de este enfrentamiento",
+  "Contra o que perdes: {c}": "Contra lo que pierdes: {c}",
+  "perdeste {a} de {n} jogos nos testes{top}": "perdiste {a} de {n} partidas en las pruebas{top}",
+  "É um encantamento: alimenta o deck": "Es un encantamiento: alimenta el mazo",
+  "No sideboard, mas a IA não a lança": "En el banquillo, pero la IA no la lanza",
+  "{c}: a IA do Forge nunca a joga — nos testes e torneios fica parada na mão. Troca-a por uma das de cima.": "{c}: la IA de Forge nunca la juega — en pruebas y torneos se queda en la mano. Cámbiala por una de las de arriba.",
+  "perdes contra {c}": "pierdes contra {c}",
 }

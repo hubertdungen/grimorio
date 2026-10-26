@@ -32,7 +32,7 @@ export function winLose(data, deck, fmt, { ev, plan = [], ctx } = {}) {
 
   // --- como perde: o que o venceu nos testes
   for (const [c, x] of Object.entries(ev?.cats || {})) {
-    if (x.lost >= 2 && x.lost / x.games >= 0.5) risks.push({ key: c, label: tx('Contra {c}', { c: CAT_LABEL[c] || c }), why: tx('Perdeu {l} de {g} jogos em que o adversário jogou isto.', { l: x.lost, g: x.games }), cards: Object.entries(x.cards).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n), test: true })
+    if (x.lost >= 2 && x.lost / x.games >= 0.4) risks.push({ key: c, label: tx('Contra {c}', { c: CAT_LABEL[c] || c }), why: tx('Perdeu {l} de {g} jogos em que o adversário jogou isto.', { l: x.lost, g: x.games }), cards: Object.entries(x.cards).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n), test: true })
   }
   // --- fraquezas da construção (à escala de 60 cartas)
   const rem = cnt(tag('removal')) + cnt(tag('wipe')) + cnt(tag('counter'))

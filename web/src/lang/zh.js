@@ -2945,4 +2945,10 @@ export default {
   "Abre sozinho o próximo jogo desta partida quando acabar": "本场对决的下一局结束时自动打开",
   "À espera do jogo seguinte…": "等待下一局…",
   "Ver o jogo seguinte desta partida": "观看本场对决的下一局",
+  "Contra o que perdes: {c}": "你输给的对象：{c}",
+  "perdeste {a} de {n} jogos nos testes{top}": "测试中 {n} 局输了 {a} 局{top}",
+  "É um encantamento: alimenta o deck": "这是结界：能推动套牌",
+  "No sideboard, mas a IA não a lança": "在备牌中，但 AI 从不施放",
+  "{c}: a IA do Forge nunca a joga — nos testes e torneios fica parada na mão. Troca-a por uma das de cima.": "{c}：Forge AI 从不打出这张牌——测试和锦标赛中只会留在手上。换成上面的某张。",
+  "perdes contra {c}": "你输给 {c}",
 }
