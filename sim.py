@@ -1142,7 +1142,7 @@ def run_forge(jid, a):
     jvm = ["-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
     if RUNTIME == "local":  # o mesmo jogo sem contentor: cwd = Forge (lê res/ relativo), home própria por trabalho
         return _play(jid, a, [JAVA, *jvm, f"-Duser.home={os.path.join(a['dir'], 'home')}",
-                                   *(["-cp", os.pathsep.join([os.path.join(a["forge"], FORGE_JAR), ext]), "GrimorioSim"]
+                                   *(["-cp", os.pathsep.join([ext, os.path.join(a["forge"], FORGE_JAR)]), "GrimorioSim"]
                                      if use_ext else ["-jar", os.path.join(a["forge"], FORGE_JAR)])],
                           os.path.join(a["dir"], "decks"), use_ext)
     cmd = ["docker", "run", "--rm", "--name", name, "-m", "3g", "--cpus", "2",
@@ -1152,7 +1152,7 @@ def run_forge(jid, a):
         cmd += ["-v", f"{os.path.join(ext, 'ai')}:/forge/res/ai:ro"]  # os nossos perfis (chances 10%–90%)
     if use_ext and os.path.isdir(os.path.join(ext, "cardsfolder")):  # zip do Forge + as nossas cartas (build/forge/cards)
         cmd += ["-v", f"{os.path.join(ext, 'cardsfolder')}:/forge/res/cardsfolder:ro"]
-    cmd += ["-v", f"{ext}:/ext:ro", IMAGE, "java", *jvm, "-cp", f"{FORGE_JAR}:/ext", "GrimorioSim"] if use_ext else \
+    cmd += ["-v", f"{ext}:/ext:ro", IMAGE, "java", *jvm, "-cp", f"/ext:{FORGE_JAR}", "GrimorioSim"] if use_ext else \
         [IMAGE, "java", *jvm, "-jar", FORGE_JAR]
     return _play(jid, a, cmd, "/run/decks", use_ext, name)
 

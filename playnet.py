@@ -93,7 +93,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu"):
     jvm = ["-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
     container = None
     if sim.RUNTIME == "local":
-        cmd = [sim.JAVA, *jvm, f"-Duser.home={os.path.join(jdir, 'home')}", "-cp", os.pathsep.join([os.path.join(fdir, sim.FORGE_JAR), ext]),
+        cmd = [sim.JAVA, *jvm, f"-Duser.home={os.path.join(jdir, 'home')}", "-cp", os.pathsep.join([ext, os.path.join(fdir, sim.FORGE_JAR)]),
                "GrimorioNet", os.path.join(jdir, "a.dck"), os.path.join(jdir, "b.dck"), str(name)[:40] or "Tu", prof, oname]
         p = subprocess.Popen(cmd, cwd=fdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
     else:
@@ -104,7 +104,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu"):
         for sub, dst in (("ai", "/forge/res/ai"), ("cardsfolder", "/forge/res/cardsfolder")):
             if os.path.isdir(os.path.join(ext, sub)):
                 cmd += ["-v", f"{os.path.join(ext, sub)}:{dst}:ro"]
-        cmd += ["-v", f"{ext}:/ext:ro", sim.IMAGE, "java", *jvm, "-cp", f"{sim.FORGE_JAR}:/ext", "GrimorioNet",
+        cmd += ["-v", f"{ext}:/ext:ro", sim.IMAGE, "java", *jvm, "-cp", f"/ext:{sim.FORGE_JAR}", "GrimorioNet",
                 "/run/a.dck", "/run/b.dck", str(name)[:40] or "Tu", prof, oname]
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
     with COND:

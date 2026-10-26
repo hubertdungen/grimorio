@@ -181,6 +181,25 @@ export function applyEvent(s0, ev, data) {
   }
   // mudança de zona exata do Forge: sai de onde estava (campo, cemitério, exílio, comando) e entra onde vai;
   // a mão e a biblioteca vêm inteiras em ev.hd / ev.lib
+  // uma terra que entra virada: o Forge não regista o «tap» de quem entra já virada (os jogos novos trazem-no à parte, do
+  // GrimorioSim). Nos já gravados deduz-se pelo texto da carta: sempre viradas, fast/slow/check lands pelas terras que o
+  // jogador já tem, e as shock lands ficam desviradas só se o jogador perdeu 2 de vida mesmo antes (pagou)
+  const etbTapped = (k, c) => {
+    const o = c?.o?.split('\n//\n')[0] || ''
+    if (!/enters(?: the battlefield)? tapped/.test(o)) return false
+    const lands = s[k]?.perms.filter(p => p.land && !p.dying) || []
+    let m
+    if (/you may pay 2 life\. If you don't, it enters tapped/.test(o)) {  // a perda de 2 paga uma terra só
+      const paid = !!(s.loss && s.loss.p === k && s.loss.n === 2 && s.i - s.loss.i <= 4)
+      if (paid) s.loss = null
+      return !paid
+    }
+    if ((m = /tapped unless you control (two|three) or fewer other lands/.exec(o))) return lands.length > (m[1] === 'two' ? 2 : 3)
+    if ((m = /tapped unless you control (two|three) or more other lands/.exec(o))) return lands.length < (m[1] === 'two' ? 2 : 3)
+    if ((m = /tapped unless you control an? (\w+) or an? (\w+)/.exec(o))) return !lands.some(p => new RegExp(`\\b(${m[1]}|${m[2]})\\b`).test(typeOf(data, p)))
+    if (/tapped unless|you may|If you don't|if you control/i.test(o)) return false  // outras condições: na dúvida, desvirada
+    return true
+  }
   const moveExact = z => {
     if (z.from === 'battlefield') { const f = find(z.id, null); if (f) leave(f[0], f[1], null, z.to) }
     else if ((z.from === 'graveyard' || z.from === 'exile') && s[z.fp]) {
@@ -189,7 +208,8 @@ export function applyEvent(s0, ev, data) {
     }
     if (z.to === 'battlefield' && s[z.tp] && !find(z.id, null)) {
       const c = look(z.card), host = z.att != null ? find(z.att, null) : null
-      make(z.tp, z.card, { src: z.tok ? ev.card || s.stack.at(-1)?.card : undefined, fid: z.id, token: !!z.tok, pt: z.pt || null, kw: z.kw || null, counters: { ...z.ctr }, land: !!(c && /\bLand\b/.test(c.t.split(' // ')[0])), attachedTo: host ? host[1].key : null })
+      const land = !!(c && /\bLand\b/.test(c.t.split(' // ')[0]))
+      make(z.tp, z.card, { src: z.tok ? ev.card || s.stack.at(-1)?.card : undefined, fid: z.id, token: !!z.tok, pt: z.pt || null, kw: z.kw || null, counters: { ...z.ctr }, land, tapped: land && etbTapped(z.tp, c), attachedTo: host ? host[1].key : null })
     } else if ((z.to === 'graveyard' || z.to === 'exile') && s[z.tp] && !z.tok) s[z.tp][z.to] = [...s[z.tp][z.to], z.card]
     for (const [k, out] of [[z.fp, false], [z.tp, true]]) {
       const zone = out ? z.to : z.from
@@ -238,7 +258,7 @@ export function applyEvent(s0, ev, data) {
     case 'land': if (me && !X) {
       handOut(me, ev.card)
       const f = ev.id != null && find(ev.id, null)
-      if (!f) make(me, ev.card, { fid: ev.id ?? null, land: true, tapped: !!ev.tapped, flipped: !!ev.bk })
+      if (!f) make(me, ev.card, { fid: ev.id ?? null, land: true, tapped: !!ev.tapped || etbTapped(me, look(ev.card)), flipped: !!ev.bk })
       break
     } break
     case 'tap': case 'untap': {
@@ -355,7 +375,7 @@ export function applyEvent(s0, ev, data) {
       break
     }
     case 'poison': if (S.includes(ev.target)) { s[ev.target].poison += ev.n || 0; fx.player = { p: ev.target, n: ev.n, psn: true } } break
-    case 'life': if (me && ev.n != null) { const z = s[me]; fx.life = { p: me, d: ev.n - z.life }; z.life = ev.n } break
+    case 'life': if (me && ev.n != null) { const z = s[me]; fx.life = { p: me, d: ev.n - z.life }; if (ev.n < z.life) s.loss = { p: me, n: z.life - ev.n, i: s.i }; z.life = ev.n } break
     case 'destroy': case 'exile': case 'bounce': case 'other': {
       const m = !ev.x && /^battlefield>(\w+)$/.exec(ev.target || '')
       if (!m) break

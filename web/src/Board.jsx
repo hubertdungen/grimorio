@@ -287,7 +287,7 @@ function Row({ perms, data, fx, att, cls, groupable, empty, quiet, who }) {  // 
 }
 
 // ---------- vida (o número conta até ao valor novo; o anel pisca vermelho/verde) ----------
-function Orb({ life, d, step, hit, fast, start }) {
+function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit }) {  // poison: o veneno ao lado da vida (10 = derrota)
   const ref = useRef(null), prev = useRef(life)
   useEffect(() => {
     const el = ref.current, from = prev.current
@@ -311,6 +311,7 @@ function Orb({ life, d, step, hit, fast, start }) {
       {d && !fast ? <i key={step} className={`orb-flash ${d < 0 ? 'loss' : 'gain'}`} /> : null}
       {d && !fast ? <i key={`f${step}`} className={`float ${d < 0 ? 'loss' : 'gain'}`}>{d > 0 ? '+' : '−'}{Math.abs(d)}</i> : null}
       {hit && !fast ? <i key={`h${step}`} className="orb-hit" /> : null}
+      {poison > 0 && <i key={psnHit && !fast ? `p${step}` : 'p'} className={`orb-psn ${poison >= 7 ? 'crit' : ''} ${psnHit && !fast ? 'up' : ''}`} title={tx('{n} marcadores de veneno (10 = derrota)', { n: poison })}>☠ {poison}</i>}
     </div>
   )
 }
@@ -333,7 +334,7 @@ function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, b
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg()
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
-      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} />
+      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} />
       <div className="bname">
         <b title={name}>{name}</b>
         <span className="chips">

@@ -677,3 +677,17 @@ import { search as searchCards } from './src/data.js'
   assert.equal(exact.at(-1).a.perms.length, 0, 'jogo exato: o terreno vem pelas zonas, não se inventa')
   console.log('selfcheck Path to Exile em jogos antigos ok')
 }
+
+// terras que entram viradas: sempre (texto), fast land com mais de 2 terras, shock land paga (perdeu 2 de vida) desvirada
+{
+  const { replayStates: rs } = await import('./src/game.js')
+  const L = (n, o) => ({ n, l: n.toLowerCase(), t: 'Land', o, tg: [] })
+  const cs = [L('Tap Land', 'This land enters tapped.\n{T}: Add {W}.'), L('Fast Land', 'This land enters tapped unless you control two or fewer other lands.'),
+    L('Shock Land', "As this land enters, you may pay 2 life. If you don't, it enters tapped."), L('Plains', '')]
+  const d = { byName: new Map(cs.map(c => [c.n, c])), byLower: new Map(cs.map(c => [c.l, c])) }
+  const z = (id, card) => ({ t: 1, k: 'land', p: 'a', card, id, zn: [{ id, card, from: 'hand', to: 'battlefield', fp: 'a', tp: 'a' }] })
+  const ev = [z(1, 'Tap Land'), z(2, 'Plains'), z(3, 'Plains'), z(4, 'Fast Land'), { t: 1, k: 'life', p: 'a', n: 18 }, z(5, 'Shock Land'), z(6, 'Shock Land')]
+  const st = rs(ev, d, 20, null, true).at(-1).a.perms, tp = id => st.find(p => p.fid === id)?.tapped
+  assert.deepEqual([tp(1), tp(2), tp(4), tp(5), tp(6)], [true, false, true, false, true], 'terras que entram viradas')
+  console.log('selfcheck terras que entram viradas ok')
+}

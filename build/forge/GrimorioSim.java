@@ -1036,6 +1036,11 @@ public class GrimorioSim {
             emit("Z|" + c.getId() + "|" + (f == null ? 0 : seat(f.player())) + "|" + (t == null ? 0 : seat(t.player())) + "|"
                     + (f == null ? "" : f.zoneType()) + "|" + (t == null ? "" : t.zoneType()) + "|" + (c.isToken() ? 1 : 0) + "|"
                     + pt + "|" + kw + "|" + name(c));
+            // entrar virada (terras «enters tapped», fast/check/shock lands sem pagar…) não dispara GameEventCardTapped:
+            // vê-se no jogo real e manda-se o T logo a seguir, para o tabuleiro a mostrar virada
+            if (t != null && t.zoneType() == ZoneType.Battlefield)
+                for (Card rc : g.getCardsIn(ZoneType.Battlefield))
+                    if (rc.getId() == c.getId()) { if (rc.isTapped()) emit("T|" + c.getId() + "|1|" + name(c)); break; }
         }
 
         // eliminações em multijogador: o Forge não tem evento próprio; cada evento do bus vê se alguém saiu do jogo

@@ -148,8 +148,10 @@ def package(platform, work, version, out):
     shutil.copytree(os.path.join(work, "forge"), os.path.join(root, "forge"))
     apply_ext(os.path.join(root, "forge"), os.path.join(work, "forge-ext"))
     os.makedirs(os.path.join(root, "forge-ext"))
-    for f in glob.glob(os.path.join(work, "forge-ext", "*.class")):
-        shutil.copy(f, os.path.join(root, "forge-ext"))
+    for f in glob.glob(os.path.join(work, "forge-ext", "**", "*.class"), recursive=True):  # também as classes do Forge corrigidas (patches/)
+        dst = os.path.join(root, "forge-ext", os.path.relpath(f, os.path.join(work, "forge-ext")))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy(f, dst)
     jre(platform, work, os.path.join(root, "jre"))
     shutil.copy(os.path.join(ROOT, "LICENSE"), root)
     with open(os.path.join(root, "THIRD-PARTY-NOTICES.txt"), "w", encoding="utf-8") as f:

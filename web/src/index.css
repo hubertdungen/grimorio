@@ -516,6 +516,10 @@ h2 .mana img { width: 20px; height: 20px; }
 /* vida */
 .orb { position: relative; flex: none; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; align-content: center; background: radial-gradient(circle at 35% 30%, #4ade80, #166534); box-shadow: 0 0 12px #22c55e55; transition: background .5s, box-shadow .5s; }
 .orb b { font-size: 20px; line-height: 1; font-variant-numeric: tabular-nums; } .orb small { font-size: 9px; opacity: .8; }
+.orb-psn { position: absolute; right: -14px; bottom: -6px; z-index: 2; font-style: normal; font-size: 12px; font-weight: 800; line-height: 1; padding: 3px 6px; border-radius: 999px;
+  background: #1f5c2e; color: #b8ffcb; border: 1px solid #7cff9b88; box-shadow: 0 2px 6px #000a; white-space: nowrap; }  /* veneno: 10 = derrota */
+.orb-psn.crit { background: #6b1d3a; color: #ffc2d1; border-color: #ff8fb0; } .orb-psn.up { animation: psnUp .7s ease-out; }
+@keyframes psnUp { 0% { transform: scale(1.8); } 60% { transform: scale(.9); } }
 .orb.low { background: radial-gradient(circle at 35% 30%, #fb7185, #9f1239); box-shadow: 0 0 14px #f43f5e88; }
 .orb-flash { position: absolute; inset: -3px; border-radius: 50%; border: 3px solid; animation: ring .8s ease-out forwards; pointer-events: none; }
 .orb-flash.loss { border-color: #ff5a5a; } .orb-flash.gain { border-color: #7cff9b; }
