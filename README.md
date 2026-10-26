@@ -4,12 +4,15 @@
 
 <h1 align="center">Grimório</h1>
 
-**Build, test and battle your Magic: The Gathering decks — with explained suggestions and real AI-vs-AI games.**
+**Build, test and battle your Magic: The Gathering decks — with explained suggestions, real AI-vs-AI games and games you play yourself against Forge.**
 
 Grimório is a free deck builder for every format (Commander, Modern, Pauper, Standard, Legacy, …) that runs on your
 own computer. It crosses card text, real tournament decks, EDHREC data and Commander Spellbook combos to suggest cards
 *and explain why*, and it plays your deck against other decks with the open-source [Forge](https://github.com/Card-Forge/forge)
 rules engine so you can watch the games, read a report and improve the list.
+
+You can also sit at the table yourself: play against Forge on Grimório's own table, run tournaments, leagues and
+championships with a ranking, and open online rooms for your friends.
 
 The interface is available in **English** (default), **Português**, **Español**, **Deutsch** and **简体中文**
 (Settings › Language).
@@ -17,17 +20,24 @@ The interface is available in **English** (default), **Português**, **Español*
 ## Screenshots
 
 <table>
-<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="Home"></a><br><sub>Home</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="Build: deck list, search and explained suggestions"></a><br><sub>Build: deck list, search and explained suggestions</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="Suggestions by role, combos and real decks"></a><br><sub>Suggestions by role, combos and real decks</sub></td><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="Universe: the 3D map of every card"></a><br><sub>Universe: the 3D map of every card</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseum: watch Forge play your deck"></a><br><sub>Coliseum: watch Forge play your deck</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Tournaments with standings and a live bracket"></a><br><sub>Tournaments with standings and a live bracket</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: stars per deck and the automatic Arena"></a><br><sub>Ratings: stars per deck and the automatic Arena</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="Library with covers, stars and comparison"></a><br><sub>Library with covers, stars and comparison</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="Home"></a><br><sub>Home</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="Build: plain-word search in any language, deck list and suggestions"></a><br><sub>Build: plain-word search in any language, deck list and suggestions</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="Suggestions by role, combos and real decks"></a><br><sub>Suggestions by role, combos and real decks</sub></td><td width="50%"><a href="docs/img/analysis.jpg"><img src="docs/img/analysis.jpg" alt="Analysis: curve, colours, opening-hand odds and how the deck wins"></a><br><sub>Analysis: curve, colours, opening-hand odds and how the deck wins</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="Universe: the 3D map of every card"></a><br><sub>Universe: the 3D map of every card</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="Library with covers, stars, trophies and comparison"></a><br><sub>Library with covers, stars, trophies and comparison</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseum: watch Forge play your deck, with the live stack"></a><br><sub>Coliseum: watch Forge play your deck, with the live stack</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="Play against Forge yourself on Grimório's table"></a><br><sub>Play against Forge yourself on Grimório's table</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Tournaments: live podium, standings and deck origin tags"></a><br><sub>Tournaments: live podium, standings and deck origin tags</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Online rooms: single games or tournaments by a public link"></a><br><sub>Online rooms: single games or tournaments by a public link</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: stars per deck and the automatic Arena"></a><br><sub>Ratings: stars per deck and the automatic Arena</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="At the table: life counter, 3D dice and card scanner"></a><br><sub>At the table: life counter, 3D dice and card scanner</sub></td></tr>
 </table>
 
 ## Install
 
-**Windows and Linux, no Docker, no server setup:** download the package from
-[Releases](https://github.com/hubertdungen/grimorio/releases), unzip it and start `Grimorio.exe` (Windows) or
-`./grimorio` (Linux). Your browser opens Grimório. Step-by-step guide for everyone: **[docs/INSTALL.md](docs/INSTALL.md)**.
+**Windows and Linux:** download the package from [Releases](https://github.com/hubertdungen/grimorio/releases),
+unzip it and start `Grimorio.exe` (Windows) or `./grimorio` (Linux). On Windows Grimório opens in its own app window; on
+Linux it opens in your browser. Step-by-step guide for everyone: **[docs/INSTALL.md](docs/INSTALL.md)**.
+
+**Updates:** the packages update themselves. A new version downloads in the background (checked against its sha256)
+and starts the next time you open Grimório; Settings › Updates turns this off. Your decks, games, tournaments and
+ratings live outside the app folder and carry over to every new version, and before a new version opens the database a
+copy goes to `backups/`.
 
 On the first start Grimório asks *who's playing*: each person creates a profile with their name, and their decks,
 tests, tournaments and ratings stay separate. Several people can share one install.
@@ -133,34 +143,42 @@ sync is for computers and single-owner servers.
 - **Deck building for every format** — legality, format-specific targets, mana base advice, curve, budget, brackets.
 - **Smart, explained suggestions** — text embeddings + EDHREC + real decks + combos + your own taste; live while you build.
 - **Start your way** — pick 3–10 cards (or a commander) and let it complete the deck, build by hand, import, or describe an idea.
-- **Import** from TappedOut, Moxfield, Archidekt, MTGGoldfish, Deckstats, MTGTop8 and Scryfall — whole profiles,
-  custom card art and covers, sideboard and maybeboard. Search public Archidekt decks with filters.
-- **3D card universe** — role regions that show what your deck is missing, each card's performance in real games with
-  suggested swaps, meta archetype constellations and a lasso to find the best cards of any area.
-- **Combos and synergy packages**, deck comparison and duplicate detection.
-- **Coliseum (Forge AI)** — AI vs AI with real rules (Bo1/Bo3, smart sideboarding, learning), 3–4 player free-for-all
-  and Commander pods, an animated board you can watch live, reports and suggested improvements, and play against
-  Forge yourself in the browser (server install with Docker).
-- **Tournaments** — single/double elimination, Swiss, league and pods, live bracket, podium and history; bets with
-  play coins (nothing to buy, no real money) and trophies on the decks that win.
-- **Ratings** — 0–6 stars per deck (Elo per format, plus a separate casual rating) fed by tests, tournaments and an
-  optional automatic Arena.
-- **Search in plain words, in any language** — «enchantment that gives flying up to 2», «lands that draw cards»,
-  «terreno comprar cartas», «抽牌的地» or Scryfall syntax (`t:`, `o:`, `mv<=`); 35 card functions (removal, draw, mill,
-  burn, blink, stax…) to filter by.
+- **Import** from TappedOut, Moxfield, Archidekt, MTGGoldfish, Deckstats, MTGTop8 and Scryfall — whole profiles (as
+  your decks, the community's or a friend's), custom card art and covers, sideboard and maybeboard. Search public
+  Archidekt decks with filters.
+- **Search in plain words, in any language** — «legendary human creatures with +1/+1 counters», «lands that draw
+  cards», «terrenos que compram cartas», «抽牌的地» or Scryfall syntax (`t:`, `o:`, `mv<=`); accents optional; 35+ card
+  roles (removal, draw, mill, burn, blink, stax…) to filter by.
 - **Analysis dashboard** — headline numbers, mana curve by creatures vs. the rest, colour pies (what the costs ask for
   vs. what the lands make), opening-hand odds, how the deck wins and how it loses, whether the sideboard covers what
   beat it, the cards that win or get stuck in hand in real games, and a ⓘ explanation on every number.
+- **3D card universe** — role regions that show what your deck is missing, each card's performance in real games with
+  suggested swaps, meta archetype constellations and a lasso to find the best cards of any area.
+- **Combos and synergy packages**, deck comparison and duplicate detection.
+- **AI assistant (optional)** — keys for several providers, newest models detected automatically; it changes your deck
+  directly (swaps, quantities, substitutes for any card) with one click.
+- **Coliseum (Forge AI)** — AI vs AI with real rules (Bo1/Bo3, smart sideboarding, learning), 3–4 player free-for-all
+  and Commander pods, an animated board with the live stack, reports and suggested improvements.
+- **Play against Forge yourself** — Grimório's own table: drag a card to play it (only what you can pay for lights up),
+  drag creatures to attack and block, arrange your side freely, the stack, choices, scry and library searches right in
+  the page, Enter to pass and Shift+Enter to end the turn. Works on a server and in the desktop packages (no Docker);
+  Commander uses the classic Forge window (server with Docker).
+- **Tournaments, leagues and championships** — single and double elimination, Swiss, league, pods, gauntlet, king of
+  the hill, groups + knockout and teams; a tournament generator, live bracket, podium and history, champions' and
+  podium leagues, gold/silver/bronze and platinum trophies on the winning decks, ranked or casual; bets with play coins
+  (nothing to buy, no real money).
+- **Ratings and ranking** — 0–6 stars per deck (Elo per format, plus a separate casual rating), hall of fame and trophy
+  gallery, fed by tests, tournaments and an optional automatic Arena.
+- **Online and friends** — an Online tab for single games or tournaments with a public link (a free Cloudflare tunnel
+  in one click, or your own domain): whoever opens it joins with a deck of their own, no account. Friend invites,
+  friends' decks as a source in tournaments and the Arena, and tags for where each deck comes from (meta, mine, friend,
+  community).
 - **📖 Rules library** — keywords, rules or card names in any language (camera too): Comprehensive Rules, official
   rulings and an optional AI explanation.
-- **Friends and online play** — invite links (also over the internet with a one-click tunnel), friends' decks as a
-  source in tournaments and the Arena, tournament rooms.
-- **AI assistant (optional)** — keys for several providers, newest models detected automatically; swaps, quantity
-  changes and substitutes for any card.
 - **Proxies** — a list with printings for proxy sites, a ZIP of the images, or a print-ready PDF like the print shops
   ask for: paper, margins, card size, gaps, bleed (black, a colour, or the card border extended), cut guides per card,
   watermark and double-sided.
-- **At the table** — life counter (up to 6 players), 3D dice, and card reading by camera with an aiming frame.
+- **At the table** — life counter (up to 6 players), 3D dice, and a card scanner (camera) with an aiming frame.
 - **Default bots** — pick the Forge AI profile for your deck and for opponents in the Lab, tournaments and the Arena; a
   live bar shows what is running and jumps to the live viewer.
 - **Profiles** — one install, several players, each with their own decks.
@@ -223,17 +241,22 @@ this. Desktop packages: `packaging/build.py` and `.github/workflows/release.yml`
 | `backup.py` | export/import `.grimorio` backups and the optional cloud-folder sync (merge rules, ratings rebuild) |
 | `sim.py`, `build/forge/` | Forge runner (Docker or local Java) and the `GrimorioSim` launcher (exact game events, AI tweaks, card AI hints) |
 | `tournament.py`, `ratings.py` | tournaments and ratings / Arena |
-| `guests.py`, `rooms.py`, `share.py` | friends: invite links and guest mode, tournament rooms, the one-click public tunnel |
+| `guests.py`, `rooms.py`, `share.py` | friends and online: invite links and guest mode, online rooms (games and tournaments), the one-click public tunnel |
+| `playnet.py`, `build/forge/GrimorioNet.java` | Forge Play: the Forge bridge for your own games on Grimório's table (state, prompts and choices as JSON) |
 | `rules.py`, `artfolder.py` | Comprehensive Rules search; custom card art from a folder (Drive, GitHub) |
 | `deck_import.py`, `ia.py`, `play.py` | site importers, optional AI providers, play against Forge (noVNC, Docker only) |
 | `build/` | data pipeline (Scryfall, embeddings, UMAP, combos, tokens, meta) |
 | `web/` | React + Vite front end |
-| `packaging/` | Windows/Linux desktop packages: launcher, package and data builder |
+| `packaging/` | Windows/Linux desktop packages: launcher (app window, automatic updates, database backups), package and data builder |
 
 ## Roadmap
 
-- Android app — see [docs/ROADMAP.md](docs/ROADMAP.md).
-- Play against Forge yourself without Docker (desktop packages).
+- Android app (APK) — see [docs/ROADMAP.md](docs/ROADMAP.md).
+- Two editions: **Grimório Full** (with Forge Play and online play) and **Grimório Lite** (everything else, a lighter download).
+- Draft tournaments.
+- Online games between people on Grimório's table, with tournaments for you and your friends (with or against bots).
+- Crossplay between the server, the desktop app and phones, an «open to the home network» switch in the desktop app
+  and «join a friend's Grimório».
 
 ## Credits and legal
 

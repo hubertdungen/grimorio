@@ -2,8 +2,8 @@
 
 # Installing Grimório
 
-Grimório runs on your own computer: a small program starts it and your web browser shows it. You don't need to
-install Docker, Java or anything else, and you don't need a server. Everything it needs is in the download.
+Grimório runs on your own computer. On Windows it opens in its own app window; on Linux your web browser shows it.
+Everything it needs, Java and the Forge engine included, comes in the download, and it keeps itself up to date.
 
 ## What you need
 
@@ -22,8 +22,13 @@ install Docker, Java or anything else, and you don't need a server. Everything i
 3. Open the extracted **Grimorio** folder and double-click **`Grimorio.exe`**.
 4. If Windows shows *"Windows protected your PC"*: click **More info › Run anyway**. Grimório is free and isn't
    signed with a paid certificate, so Windows doesn't know it yet (see [Troubleshooting](#troubleshooting)).
-5. A black window opens. The first time it downloads the card data (see [The first start](#the-first-start)), then your
-   browser opens Grimório by itself.
+5. Grimório opens in its own window. The first time, it downloads the card data before the window appears, usually in
+   under a minute, so give it a moment (see [The first start](#the-first-start)).
+
+The window uses Microsoft Edge WebView2, which comes with Windows 10 and 11. If a computer doesn't have it, Grimório
+opens in your browser instead and shows a small box *"Grimório is running in your browser"*: leave it there while you
+play, and press **OK** when you want to close Grimório. To use the browser on purpose, start it with
+`Grimorio.exe --browser` (from a command prompt in the folder).
 
 ## Linux
 
@@ -45,36 +50,39 @@ install Docker, Java or anything else, and you don't need a server. Everything i
    ./grimorio
    ```
 
-4. Your browser opens Grimório by itself. Keep the terminal open while you use it.
+4. Your browser opens Grimório by itself. The terminal keeps it running while you use it. If the Python package
+   `pywebview` is installed (`pip install pywebview`), Grimório opens in its own window instead of the browser.
 
 ## The first start
 
 - Grimório downloads the **card data** once: about **11 MB** (every card, combos, tournament decks), usually under a
-  minute. You see the progress in the window. After that it starts without downloading anything.
-- The browser opens at **http://127.0.0.1:8107** (if that port is busy, the next free one: the window shows the
-  address).
+  minute. On Linux you see the progress in the terminal; on Windows the window appears when it's done. After that it
+  starts without downloading anything.
+- Grimório runs at **http://127.0.0.1:8107** (if that port is busy, the next free one: the terminal on Linux and the
+  log on Windows show the address).
 - Grimório asks **who's playing?** Type your name to create your profile. Each person who uses this computer can
   create their own profile, with their own decks, tests, tournaments and ratings, and pick it on the next start.
 - Choose the language in **Settings › Language**: English, Português, Español, Deutsch or 简体中文.
 
 ## Opening it again
 
-Start `Grimorio.exe` (Windows) or `./grimorio` (Linux) again. If Grimório is already running, it simply opens the
-browser on it again.
+Start `Grimorio.exe` (Windows) or `./grimorio` (Linux) again. If Grimório is already running, it simply shows it
+again. On Windows, a shortcut on the desktop makes this easy: right-click `Grimorio.exe` › *Send to › Desktop (create
+shortcut)* (on Windows 11 it's under *Show more options*).
 
 Tips:
 
-- Bookmark **http://127.0.0.1:8107** in your browser.
-- In Chrome or Edge you can install it as an app (the *Install* icon in the address bar): it gets its own window and
-  an icon. Grimório itself still has to be running (step above).
+- Linux: bookmark **http://127.0.0.1:8107** in your browser. In Chrome or Edge you can also install it as an app (the
+  *Install* icon in the address bar) to give it its own window and an icon; Grimório itself still has to be running.
 - To use it from a phone or tablet on the same Wi-Fi, start it with `Grimorio.exe --host 0.0.0.0` (Windows, from a
   command prompt in the folder) or `./grimorio --host 0.0.0.0` (Linux) and open `http://<your computer's IP>:8107`
   on the phone. Anyone on your network can then open it, so do this only at home.
 
 ## Stopping it
 
-**Close the black window** (Windows) or press **Ctrl+C** in the terminal (Linux; closing the terminal also stops it).
-Games that are being played stop too. Your decks are saved as you go: nothing is lost.
+**Close the Grimório window** (Windows; if it opened in the browser, press **OK** in the small box) or press **Ctrl+C**
+in the terminal (Linux; closing the terminal also stops it). Forge games that are being played stop too. Your decks
+are saved as you go: nothing is lost.
 
 ## Where your data lives
 
@@ -84,16 +92,30 @@ Games that are being played stop too. Your decks are saved as you go: nothing is
 | Linux | `~/.local/share/grimorio` |
 
 Your decks, profiles, tests, tournaments and ratings are in **`grimorio.db`** in that folder, and your own deck covers
-are in `covers`. To make a backup, use **Settings › Data & backups › Export everything** (one `.grimorio` file you can
-keep anywhere); to keep two computers in step, or to keep a copy in Google Drive, OneDrive, Dropbox or Syncthing, tick
+are in `covers`. This folder is separate from the program folder, so every new version finds your data as you left
+it. To make a backup, use **Settings › Data & backups › Export everything** (one `.grimorio` file you can keep
+anywhere); to keep two computers in step, or to keep a copy in Google Drive, OneDrive, Dropbox or Syncthing, tick
 *Sync with a cloud folder* there. Free options and 3-step guides: [Backups and cloud sync](../README.md#backups-and-cloud-sync).
 
-## Updating
+## Updates
 
-1. Download the new version from [Releases](https://github.com/hubertdungen/grimorio/releases) as above.
-2. Stop Grimório, delete the old program folder and extract the new one in its place.
-3. Start it. Your data stays (it's in the data folder, not in the program folder); on the first start the new version
-   downloads its updated card data (about 11 MB).
+Grimório updates itself. Each time it starts, it checks the newest release on GitHub. When there's a newer version, it
+downloads it in the background into the `versions` folder inside the data folder, checks its sha256 checksum, and
+starts it the next time you open Grimório. Your shortcut and the `Grimorio.exe` (or `./grimorio`) you extracted keep
+working: they hand over to the newest version you have. On its first start a new version also downloads its updated card data (about 11 MB).
+
+**Settings › Updates** shows the installed and the latest version. Untick **Update automatically** there to stop the
+automatic updates.
+
+To update by hand: download the new version from [Releases](https://github.com/hubertdungen/grimorio/releases) as
+above, stop Grimório, delete the old program folder and extract the new one in its place.
+
+### Moving to a new version
+
+Your data stays in the data folder (see [Where your data lives](#where-your-data-lives)), so every version uses the
+same decks, games, tournaments and ratings. A new version only adds to the database (new tables or columns) and keeps
+everything that's already there. Before a new version opens the database for the first time, it saves a copy in the
+`backups` folder inside the data folder; the last 3 copies are kept.
 
 ## Troubleshooting
 
@@ -103,8 +125,9 @@ about it, especially right after a new version is published. Click **More info �
 moved a file to quarantine (often `jre\bin\java.exe`), restore it and add the Grimorio folder as an exception, or
 extract the zip again. The source code is public and the packages are built by GitHub from it.
 
-**The window says the ports are busy / Grimório opens on a different address.**
-Grimório uses port 8107, or the next free one up to 8126, and prints the address it chose. To pick one yourself:
+**Grimório says the ports are busy / it opens on a different address.**
+Grimório uses port 8107, or the next free one up to 8126, and writes the address it chose in the terminal (Linux) or
+the log (Windows, see below). To pick one yourself:
 `Grimorio.exe --port 9000` (Windows command prompt) or `./grimorio --port 9000` (Linux).
 
 **The tests in the Coliseum fail with an error about Java or Forge.**
@@ -115,9 +138,9 @@ The `jre` and `forge` folders must be next to the program. Extract the whole zip
 Each Forge game uses about 1 GB of RAM. Go to **Settings** and set **Forge games at the same time** to **1**, and
 close other heavy programs. With 4 GB of RAM, use 1.
 
-**"Play" (taking a seat yourself against Forge) isn't available.**
-That mode needs the server install with Docker (see the [README](../README.md#developer-setup)). Everything else in the
-Coliseum — tests, tournaments, the automatic Arena — works in the desktop packages.
+**"Play against Forge" with a Commander deck isn't available.**
+Playing against Forge yourself on Grimório's table works in the desktop packages. Commander uses the classic Forge
+window, which needs the server install with Docker (see the [README](../README.md#your-own-linux-server-docker)).
 
 **The card data download failed.**
 Check your internet connection (and any proxy or firewall) and start Grimório again: it retries. You can also download
@@ -133,7 +156,12 @@ Install Python: `sudo apt install python3` (Ubuntu, Debian, Mint), `sudo dnf ins
 Run `chmod +x grimorio` in the folder (some tools lose the permission when extracting) and try again.
 
 **The browser didn't open.**
-Open the address shown in the window (for example http://127.0.0.1:8107) yourself.
+Open the address shown in the terminal or in the small Grimório box (for example http://127.0.0.1:8107) yourself.
+
+**Windows: Grimório doesn't open, or something goes wrong.**
+The Windows app writes everything it reports to **`%LOCALAPPDATA%\Grimorio\logs\grimorio.log`** (paste the folder
+part in the File Explorer address bar); the run before that is kept as `grimorio.log.1`. It shows the version and
+the address Grimório is using. Attach this file when you ask for help or report a problem.
 
 ## Uninstalling
 

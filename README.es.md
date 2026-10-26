@@ -4,7 +4,7 @@
 
 <h1 align="center">Grimório</h1>
 
-**Construye, prueba y pon a combatir tus mazos de Magic: The Gathering, con sugerencias explicadas y partidas reales de IA contra IA.**
+**Construye, prueba y pon a combatir tus mazos de Magic: The Gathering, con sugerencias explicadas, partidas reales de IA contra IA y partidas que juegas tú contra Forge.**
 
 Grimório es un constructor de mazos gratuito para todos los formatos (Commander, Modern, Pauper, Standard, Legacy, …)
 que funciona en tu propio ordenador. Cruza el texto de las cartas, mazos reales de torneo, datos de EDHREC y combos de
@@ -12,24 +12,34 @@ Commander Spellbook para sugerirte cartas *y explicarte por qué*, y enfrenta tu
 reglas de código abierto [Forge](https://github.com/Card-Forge/forge), para que puedas ver las partidas, leer un
 informe y mejorar la lista.
 
+También puedes sentarte tú a la mesa: juega contra Forge en la mesa propia de Grimório, organiza torneos, ligas y
+campeonatos con clasificación, y abre salas en línea para tus amigos.
+
 La interfaz está disponible en **English** (predeterminado), **Português**, **Español**, **Deutsch** y **简体中文**
 (Ajustes › Idioma).
 
 ## Capturas de pantalla
 
 <table>
-<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="Inicio"></a><br><sub>Inicio</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="Construir: lista, búsqueda y sugerencias explicadas"></a><br><sub>Construir: lista, búsqueda y sugerencias explicadas</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="Sugerencias por función, combos y mazos reales"></a><br><sub>Sugerencias por función, combos y mazos reales</sub></td><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="Universo: el mapa 3D de todas las cartas"></a><br><sub>Universo: el mapa 3D de todas las cartas</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseo: mira a Forge jugar tu mazo"></a><br><sub>Coliseo: mira a Forge jugar tu mazo</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Torneos con clasificación y cuadro en directo"></a><br><sub>Torneos con clasificación y cuadro en directo</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: estrellas por mazo y la Arena automática"></a><br><sub>Ratings: estrellas por mazo y la Arena automática</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="Biblioteca con portadas, estrellas y comparación"></a><br><sub>Biblioteca con portadas, estrellas y comparación</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="Inicio"></a><br><sub>Inicio</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="Construir: búsqueda con palabras en cualquier idioma, lista y sugerencias"></a><br><sub>Construir: búsqueda con palabras en cualquier idioma, lista y sugerencias</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="Sugerencias por función, combos y mazos reales"></a><br><sub>Sugerencias por función, combos y mazos reales</sub></td><td width="50%"><a href="docs/img/analysis.jpg"><img src="docs/img/analysis.jpg" alt="Análisis: curva, colores, probabilidades de la mano inicial y cómo gana el mazo"></a><br><sub>Análisis: curva, colores, probabilidades de la mano inicial y cómo gana el mazo</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="Universo: el mapa 3D de todas las cartas"></a><br><sub>Universo: el mapa 3D de todas las cartas</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="Biblioteca con portadas, estrellas, trofeos y comparación"></a><br><sub>Biblioteca con portadas, estrellas, trofeos y comparación</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseo: mira a Forge jugar tu mazo, con la pila en directo"></a><br><sub>Coliseo: mira a Forge jugar tu mazo, con la pila en directo</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="Juega tú contra Forge en la mesa de Grimório"></a><br><sub>Juega tú contra Forge en la mesa de Grimório</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Torneos: podio en directo, clasificación y etiquetas de origen de los mazos"></a><br><sub>Torneos: podio en directo, clasificación y etiquetas de origen de los mazos</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Salas en línea: partidas sueltas o torneos con un enlace público"></a><br><sub>Salas en línea: partidas sueltas o torneos con un enlace público</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: estrellas por mazo y la Arena automática"></a><br><sub>Ratings: estrellas por mazo y la Arena automática</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="En la mesa: contador de vidas, dados en 3D y escáner de cartas"></a><br><sub>En la mesa: contador de vidas, dados en 3D y escáner de cartas</sub></td></tr>
 </table>
 
 ## Instalación
 
-**Windows y Linux, sin Docker y sin configurar ningún servidor:** descarga el paquete desde
-[Releases](https://github.com/hubertdungen/grimorio/releases), descomprímelo y abre `Grimorio.exe` (Windows) o
-`./grimorio` (Linux). Grimório se abre en tu navegador. Guía paso a paso para todo el mundo:
+**Windows y Linux:** descarga el paquete desde [Releases](https://github.com/hubertdungen/grimorio/releases),
+descomprímelo y abre `Grimorio.exe` (Windows) o `./grimorio` (Linux). En Windows, Grimório se abre en su propia ventana
+de aplicación; en Linux, en tu navegador. Guía paso a paso para todo el mundo:
 **[docs/INSTALL.es.md](docs/INSTALL.es.md)**.
+
+**Actualizaciones:** los paquetes se actualizan solos. Una versión nueva se descarga en segundo plano (comprobada con su
+sha256) y arranca la próxima vez que abras Grimório; puedes desactivarlo en Ajustes › Actualizaciones. Tus mazos,
+partidas, torneos y ratings viven fuera de la carpeta de la app y pasan a cada versión nueva, y antes de que una versión
+nueva abra la base de datos se guarda una copia en `backups/`.
 
 En el primer arranque, Grimório pregunta *¿Quién va a jugar?*: cada persona crea un perfil con su nombre, y sus mazos,
 pruebas, torneos y ratings se guardan por separado. Varias personas pueden compartir la misma instalación.
@@ -142,35 +152,45 @@ en la nube es para ordenadores y servidores de un solo dueño.
   en directo mientras construyes.
 - **Empieza a tu manera**: elige de 3 a 10 cartas (o un comandante) y deja que complete el mazo, constrúyelo a mano,
   impórtalo o describe una idea.
-- **Importa** desde TappedOut, Moxfield, Archidekt, MTGGoldfish, Deckstats, MTGTop8 y Scryfall: perfiles enteros,
-  ilustraciones y portadas personalizadas, sideboard y maybeboard. Busca mazos públicos de Archidekt con filtros.
+- **Importa** desde TappedOut, Moxfield, Archidekt, MTGGoldfish, Deckstats, MTGTop8 y Scryfall: perfiles enteros (como
+  tus mazos, de la comunidad o de un amigo), ilustraciones y portadas personalizadas, sideboard y maybeboard. Busca
+  mazos públicos de Archidekt con filtros.
+- **Búsqueda con palabras, en cualquier idioma**: «criaturas humanas legendarias con contadores +1/+1», «tierras que
+  roban cartas», «terrenos que compram cartas», «抽牌的地» o la sintaxis de Scryfall (`t:`, `o:`, `mv<=`); las tildes son
+  opcionales; más de 35 funciones de las cartas (eliminación, robo, mill, daño directo, blink, stax…) para filtrar.
+- **Panel de análisis**: cifras principales, curva de maná por criaturas y el resto, gráficos de colores (lo que piden
+  los costes frente a lo que dan las tierras), probabilidades de la mano inicial, cómo gana y cómo pierde el mazo, si el
+  banquillo cubre lo que le ganó, las cartas que ganan o se quedan en la mano en las partidas, y una ⓘ en cada número.
 - **Universo 3D de cartas**: regiones por función que muestran lo que le falta a tu mazo, el rendimiento de cada carta
   en partidas reales con cambios sugeridos, constelaciones de los arquetipos del meta y un lazo para encontrar las mejores
   cartas de cualquier zona.
 - **Combos y paquetes de sinergia**, comparación de mazos y detección de duplicados.
+- **Asistente de IA (opcional)**: claves de varios proveedores, modelos más recientes detectados solos; cambia tu mazo
+  directamente (cambios, cantidades, sustitutos para cualquier carta) con un clic.
 - **Coliseo (IA de Forge)**: IA contra IA con reglas reales (Bo1/Bo3, sideboard inteligente, aprendizaje), todos
-  contra todos de 3–4 jugadores y mesas de Commander, un tablero animado que puedes seguir en directo, informes y
-  mejoras sugeridas, y la opción de jugar tú contra Forge en el navegador (instalación de servidor con Docker).
-- **Torneos**: eliminación directa y doble eliminación, suizo, liga y mesas, cuadro en directo, podio e historial;
-  apuestas con monedas de juego (no se compra nada, sin dinero real) y trofeos en los mazos que ganan.
-- **Ratings**: de 0 a 6 estrellas por mazo (Elo por formato, más un rating casual aparte), alimentados por las
-  pruebas, los torneos y una Arena automática opcional.
-- **Búsqueda con palabras, en cualquier idioma**: «encantamiento que dé volar hasta 2», «tierras que roban cartas»,
-  «lands draw», «抽牌的地» o la sintaxis de Scryfall (`t:`, `o:`, `mv<=`); 35 funciones de las cartas (eliminación, robo,
-  mill, daño directo, blink, stax…) para filtrar.
-- **Panel de análisis**: cifras principales, curva de maná por criaturas y el resto, gráficos de colores (lo que piden
-  los costes frente a lo que dan las tierras), probabilidades de la mano inicial, cómo gana y cómo pierde el mazo, si el
-  banquillo cubre lo que le ganó, las cartas que ganan o se quedan en la mano en las partidas, y una ⓘ en cada número.
+  contra todos de 3–4 jugadores y mesas de Commander, un tablero animado con la pila en directo, informes y mejoras
+  sugeridas.
+- **Juega tú contra Forge**: la mesa propia de Grimório. Arrastra una carta para jugarla (solo se ilumina lo que puedes
+  pagar), arrastra criaturas para atacar y bloquear, ordena tu lado como quieras; la pila, las elecciones, el adivinar y
+  las búsquedas en la biblioteca aparecen en la misma página; Enter para pasar y Shift+Enter para terminar el turno.
+  Funciona en un servidor y en los paquetes de escritorio (sin Docker); Commander usa la ventana clásica de Forge
+  (servidor con Docker).
+- **Torneos, ligas y campeonatos**: eliminación directa y doble eliminación, suizo, liga, mesas, gauntlet, rey de la
+  colina, grupos + eliminatorias y equipos; un generador de torneos, cuadro en directo, podio e historial, ligas de
+  campeones y de podios, trofeos de oro/plata/bronce y platino en los mazos que ganan, con ranking o casual; apuestas
+  con monedas de juego (no se compra nada, sin dinero real).
+- **Ratings y ranking**: de 0 a 6 estrellas por mazo (Elo por formato, más un rating casual aparte), salón de la fama y
+  galería de trofeos, alimentados por las pruebas, los torneos y una Arena automática opcional.
+- **En línea y amigos**: una pestaña En línea para partidas sueltas o torneos con un enlace público (un túnel gratuito
+  de Cloudflare en un clic, o tu propio dominio): quien lo abre entra con un mazo suyo, sin cuenta. Invitaciones de
+  amigos, los mazos de los amigos como fuente en torneos y en la Arena, y etiquetas con el origen de cada mazo (meta,
+  míos, de un amigo, de la comunidad).
 - **📖 Biblioteca de reglas**: palabras clave, reglas o nombres de cartas en cualquier idioma (también con la cámara):
   Comprehensive Rules, rulings oficiales y una explicación opcional de la IA.
-- **Amigos y juego en línea**: enlaces de invitación (también por internet, con un túnel en un clic), los mazos de los
-  amigos como fuente en torneos y en la Arena, salas de torneo.
-- **Asistente de IA (opcional)**: claves de varios proveedores, modelos más recientes detectados solos; cambios,
-  ajustes de cantidades y sustitutos para cualquier carta.
 - **Proxies**: lista con las ediciones para webs de proxies, ZIP con las imágenes o un PDF listo como piden las
   imprentas: papel, márgenes, tamaño de carta, espacio entre cartas, sangrado (negro, un color o el borde de la carta
   extendido), guías de corte por carta, marca de agua y doble cara.
-- **En la mesa**: contador de vidas (hasta 6 jugadores), dados en 3D y lectura de cartas con la cámara y un marco de mira.
+- **En la mesa**: contador de vidas (hasta 6 jugadores), dados en 3D y un escáner de cartas (cámara) con un marco de mira.
 - **Bots predeterminados**: el perfil de la IA de Forge para tu mazo y para los rivales en el Laboratorio, los torneos
   y la Arena; una barra muestra lo que está en curso y lleva al visor en directo.
 - **Perfiles**: una instalación, varios jugadores, cada uno con sus propios mazos.
@@ -234,17 +254,22 @@ escritorio: `packaging/build.py` y `.github/workflows/release.yml`.
 | `backup.py` | exportar/importar copias `.grimorio` y la sincronización opcional por carpeta en la nube (reglas de fusión, ratings recalculados) |
 | `sim.py`, `build/forge/` | ejecutor de Forge (Docker o Java local) y el lanzador `GrimorioSim` (eventos exactos de la partida, ajustes de la IA, pistas de IA por carta) |
 | `tournament.py`, `ratings.py` | torneos y ratings / Arena |
-| `guests.py`, `rooms.py`, `share.py` | amigos: enlaces de invitación y modo invitado, salas de torneo, el túnel público en un clic |
+| `guests.py`, `rooms.py`, `share.py` | amigos y juego en línea: enlaces de invitación y modo invitado, salas en línea (partidas y torneos), el túnel público en un clic |
+| `playnet.py`, `build/forge/GrimorioNet.java` | Forge Play: el puente con Forge para tus propias partidas en la mesa de Grimório (estado, preguntas y elecciones en JSON) |
 | `rules.py`, `artfolder.py` | búsqueda en las Comprehensive Rules; artes propias desde una carpeta (Drive, GitHub) |
 | `deck_import.py`, `ia.py`, `play.py` | importadores de webs, proveedores de IA opcionales, jugar contra Forge (noVNC, solo con Docker) |
 | `build/` | pipeline de datos (Scryfall, embeddings, UMAP, combos, fichas, meta) |
 | `web/` | front end en React + Vite |
-| `packaging/` | paquetes de escritorio para Windows/Linux: lanzador, paquete y generador de datos |
+| `packaging/` | paquetes de escritorio para Windows/Linux: lanzador (ventana de la app, actualizaciones automáticas, copias de la base de datos), paquete y generador de datos |
 
 ## Hoja de ruta
 
-- App para Android: consulta [docs/ROADMAP.md](docs/ROADMAP.md) (en inglés).
-- Jugar tú contra Forge sin Docker (paquetes de escritorio).
+- App para Android (APK): consulta [docs/ROADMAP.md](docs/ROADMAP.md) (en inglés).
+- Dos ediciones: **Grimório Full** (con Forge Play y juego en línea) y **Grimório Lite** (todo lo demás, una descarga más ligera).
+- Torneos de draft.
+- Partidas en línea entre personas en la mesa de Grimório, con torneos para ti y tus amigos (con bots o contra ellos).
+- Crossplay entre el servidor, la app de escritorio y los móviles, un interruptor «abrir a la red de casa» en la app de
+  escritorio y «unirse al Grimório de un amigo».
 
 ## Créditos y aviso legal
 

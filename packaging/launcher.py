@@ -385,8 +385,8 @@ def main():
 
     url = f"http://127.0.0.1:{port}"
     say("", "=" * 64, f"  Grimório {ver} is running at  {url}",
-        "  Keep this window open while you use it.",
-        "  To stop Grimório, close this window (or press Ctrl+C).", "=" * 64, "", sep="\n")
+        *(["  Close the Grimório window to stop it."] if sys.stdout is not None and not sys.stdout.isatty() and os.name == "nt" else
+          ["  Keep this terminal open while you use it.", "  To stop Grimório, press Ctrl+C (or close this terminal)."]), "=" * 64, "", sep="\n")
 
     sys.path.insert(0, APP)
     sys.argv = [os.path.join(APP, "server.py"), "--host", args.host, "--port", str(port), "--data-dir", d]

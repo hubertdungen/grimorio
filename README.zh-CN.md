@@ -4,29 +4,36 @@
 
 <h1 align="center">Grimório</h1>
 
-**构筑、测试你的万智牌（Magic: The Gathering）套牌，再让它们上场一较高下——建议都附带理由，还有真正的 AI 对 AI 对局。**
+**构筑、测试你的万智牌（Magic: The Gathering）套牌，再让它们上场一较高下——建议都附带理由，有真正的 AI 对 AI 对局，你也可以亲自和 Forge 对战。**
 
 Grimório 是一款免费的套牌构筑工具，支持所有赛制（指挥官 Commander、摩登 Modern、纯铁 Pauper、标准 Standard、薪传 Legacy……），直接在你自己的电脑上运行。
 它综合牌张文字、真实赛事套牌、EDHREC 数据和 Commander Spellbook 的组合技来推荐卡牌，*并告诉你为什么推荐*；
 它还会用开源的 [Forge](https://github.com/Card-Forge/forge) 规则引擎让你的套牌和其他套牌对战，
 你可以观看对局、阅读报告，然后把套牌调得更好。
 
+你也可以亲自上桌：在 Grimório 自己的牌桌上和 Forge 对战，举办带排名的赛事、联赛和锦标赛，还能为好友开设在线房间。
+
 界面支持 **English**（默认）、**Português**、**Español**、**Deutsch** 和 **简体中文**（设置 › 语言）。
 
 ## 截图
 
 <table>
-<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="首页"></a><br><sub>首页</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="构筑：牌表、搜索与带解释的建议"></a><br><sub>构筑：牌表、搜索与带解释的建议</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="按作用分类的建议、组合技与真实套牌"></a><br><sub>按作用分类的建议、组合技与真实套牌</sub></td><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="宇宙：所有卡牌的 3D 地图"></a><br><sub>宇宙：所有卡牌的 3D 地图</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="竞技场：观看 Forge 用你的套牌对战"></a><br><sub>竞技场：观看 Forge 用你的套牌对战</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="赛事：排名与实时对阵图"></a><br><sub>赛事：排名与实时对阵图</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="评分：每副套牌的星级与自动 Arena"></a><br><sub>评分：每副套牌的星级与自动 Arena</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="牌库：封面、星级与对比"></a><br><sub>牌库：封面、星级与对比</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="首页"></a><br><sub>首页</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="构筑：任意语言的自然搜索、牌表与建议"></a><br><sub>构筑：任意语言的自然搜索、牌表与建议</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="按作用分类的建议、组合技与真实套牌"></a><br><sub>按作用分类的建议、组合技与真实套牌</sub></td><td width="50%"><a href="docs/img/analysis.jpg"><img src="docs/img/analysis.jpg" alt="分析：法术力曲线、颜色、起手概率与套牌如何获胜"></a><br><sub>分析：法术力曲线、颜色、起手概率与套牌如何获胜</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="宇宙：所有卡牌的 3D 地图"></a><br><sub>宇宙：所有卡牌的 3D 地图</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="牌库：封面、星级、奖杯与对比"></a><br><sub>牌库：封面、星级、奖杯与对比</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="竞技场：观看 Forge 用你的套牌对战，堆叠实时显示"></a><br><sub>竞技场：观看 Forge 用你的套牌对战，堆叠实时显示</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="在 Grimório 的牌桌上亲自对战 Forge"></a><br><sub>在 Grimório 的牌桌上亲自对战 Forge</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="赛事：实时领奖台、排名与套牌来源标签"></a><br><sub>赛事：实时领奖台、排名与套牌来源标签</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="在线房间：通过公开链接进行单局或赛事"></a><br><sub>在线房间：通过公开链接进行单局或赛事</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="评分：每副套牌的星级与自动 Arena"></a><br><sub>评分：每副套牌的星级与自动 Arena</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="牌桌工具：生命计数器、3D 骰子与识卡扫描"></a><br><sub>牌桌工具：生命计数器、3D 骰子与识卡扫描</sub></td></tr>
 </table>
 
 ## 安装
 
-**Windows 和 Linux，无需 Docker，也不用架设服务器：** 从
-[Releases](https://github.com/hubertdungen/grimorio/releases) 下载安装包，解压后运行 `Grimorio.exe`（Windows）或
-`./grimorio`（Linux），浏览器就会自动打开 Grimório。面向所有人的分步指南：**[docs/INSTALL.zh-CN.md](docs/INSTALL.zh-CN.md)**。
+**Windows 和 Linux：** 从 [Releases](https://github.com/hubertdungen/grimorio/releases) 下载安装包，
+解压后运行 `Grimorio.exe`（Windows）或 `./grimorio`（Linux）。在 Windows 上，Grimório 会在自己的应用窗口中打开；
+在 Linux 上则在浏览器中打开。面向所有人的分步指南：**[docs/INSTALL.zh-CN.md](docs/INSTALL.zh-CN.md)**。
+
+**更新：** 安装包会自动更新。新版本在后台下载（并用 sha256 校验），下次打开 Grimório 时启用；在设置 › 更新中可以关闭。
+你的套牌、对局、赛事和评分保存在应用文件夹之外，每个新版本都会沿用；新版本打开数据库之前，会先把一份副本存到 `backups/`。
 
 第一次启动时，Grimório 会问你“谁来玩？”：每个人用自己的名字创建一个档案，各自的套牌、测试、赛事和评分互不干扰。
 一台电脑上的同一份安装可以多人共用。
@@ -127,26 +134,33 @@ Android：*Syncthing-Fork*）。2）互相添加设备并共享一个文件夹�
 - **全赛制套牌构筑**——合法性检查、各赛制专属目标、法术力基础建议、法术力曲线、预算、分级（bracket）。
 - **聪明且有理由的建议**——文本向量（embedding）+ EDHREC + 真实套牌 + 组合技 + 你自己的偏好；边构筑边实时给出。
 - **想怎么开始都行**——选 3–10 张牌（或一个指挥官）让它补完整副套牌，也可以手动构筑、导入，或者描述一个思路。
-- **导入**：支持 TappedOut、Moxfield、Archidekt、MTGGoldfish、Deckstats、MTGTop8 和 Scryfall——可导入整个用户主页的套牌、
-  自定义卡图和封面、备牌和候选区。还能带筛选条件搜索 Archidekt 上的公开套牌。
+- **导入**：支持 TappedOut、Moxfield、Archidekt、MTGGoldfish、Deckstats、MTGTop8 和 Scryfall——可导入整个用户主页的套牌
+  （作为你的套牌、社区套牌或好友套牌）、自定义卡图和封面、备牌和候选区。还能带筛选条件搜索 Archidekt 上的公开套牌。
+- **用任意语言自然搜索**——“带 +1/+1 指示物的传奇人类生物”“抽牌的地”“lands that draw cards”“terrenos que compram cartas”，
+  或 Scryfall 语法（`t:`、`o:`、`mv<=`）；重音符号可有可无；35 种以上卡牌作用（移除、抽牌、磨牌、直伤、闪烁、stax…）可供筛选。
+- **分析面板**——关键数字、按生物与其他牌拆分的法术力曲线、颜色饼图（费用需要 vs. 地产出）、起手概率、套牌如何获胜与如何
+  落败、备牌能否应对击败你的牌、实战中带来胜利或卡手的牌，每个数字都有 ⓘ 说明。
 - **3D 卡牌宇宙**——按作用划分的区域显示你的套牌缺什么，每张牌在实战中的表现及替换建议，环境原型星座，
   以及用套索圈出任意区域找出其中最好的牌。
 - **组合技与协同组件**、套牌对比和重复检测。
+- **AI 助手（可选）**——支持多家服务商的密钥，自动识别最新模型；一键直接修改你的套牌（换牌、调整数量、任意卡牌的替代品）。
 - **竞技场（Forge AI）**——按真实规则进行 AI 对 AI 对局（Bo1/Bo3、局间智能换备牌、会学习），3–4 人混战和指挥官牌桌，
-  可以实时观看的动画牌桌，对局报告和改进建议；还可以在浏览器里亲自对战 Forge（需要用 Docker 的服务器部署）。
-- **赛事**——单淘汰、双败淘汰、瑞士轮、联赛和牌桌，实时对阵图、领奖台和历史记录；用游戏金币投注
-  （无需购买，不涉及真钱），获胜套牌会得到奖杯。
-- **评分**——每副套牌 0–6 星（每个赛制单独计算 Elo，另有独立的休闲评分），数据来自测试、赛事和可选的自动 Arena。
-- **用任意语言自然搜索**——“费用最多2的飞行结界”“抽牌的地”“lands draw”“terreno comprar cartas”，或 Scryfall 语法
-  （`t:`、`o:`、`mv<=`）；35 种卡牌功能（移除、抽牌、磨牌、直伤、闪烁、stax…）可供筛选。
-- **分析面板**——关键数字、按生物与其他牌拆分的法术力曲线、颜色饼图（费用需要 vs. 地产出）、起手概率、套牌如何获胜与如何
-  落败、备牌能否应对击败你的牌、实战中带来胜利或卡手的牌，每个数字都有 ⓘ 说明。
+  实时显示堆叠的动画牌桌，对局报告和改进建议。
+- **亲自对战 Forge**——Grimório 自己的牌桌：把牌拖出来即可使用（只有付得起的牌会亮起），拖动生物来攻击和阻挡，
+  自由摆放你这一侧，堆叠、选择、占卜和牌库搜寻都直接在页面中完成，Enter 让过、Shift+Enter 结束回合。
+  可在服务器和桌面安装包中使用（无需 Docker）；指挥官使用经典的 Forge 窗口（需要用 Docker 的服务器）。
+- **赛事、联赛和锦标赛**——单淘汰、双败淘汰、瑞士轮、联赛、牌桌、挑战赛（gauntlet）、擂台赛（king of the hill）、
+  小组赛 + 淘汰赛以及团队赛；赛事生成器、实时对阵图、领奖台和历史记录，冠军联赛和领奖台联赛，获胜套牌可得金/银/铜和白金奖杯，
+  可选排名或休闲；用游戏金币投注（无需购买，不涉及真钱）。
+- **评分与排名**——每副套牌 0–6 星（每个赛制单独计算 Elo，另有独立的休闲评分），名人堂和奖杯陈列馆，数据来自测试、赛事和
+  可选的自动 Arena。
+- **在线与好友**——“在线”标签页可通过公开链接进行单局或赛事（一键免费 Cloudflare 隧道，或使用你自己的域名）：
+  打开链接的人带上自己的套牌即可加入，无需账号。好友邀请，好友套牌可作为赛事和 Arena 的来源，并用标签标明每副套牌的来源
+  （环境、我的、好友、社区）。
 - **📖 规则库**——任意语言的关键词、规则或卡名（也可用相机）：完整规则、官方裁定和可选的 AI 解释。
-- **好友与在线对战**——邀请链接（一键隧道，也可通过互联网），好友套牌可作为赛事和 Arena 的来源，赛事房间。
-- **AI 助手（可选）**——支持多家服务商的密钥，自动识别最新模型；换牌、调整数量以及任意卡牌的替代品。
 - **代理卡**——带版本的列表（用于代理卡网站）、图片 ZIP，或按印刷厂要求的可打印 PDF：纸张、边距、卡牌尺寸、间距、出血
   （黑色、指定颜色或延伸卡牌边框）、逐张裁切线、水印和双面。
-- **牌桌工具**——生命计数器（最多 6 人）、3D 骰子，以及带瞄准框的相机识卡。
+- **牌桌工具**——生命计数器（最多 6 人）、3D 骰子，以及带瞄准框的识卡扫描（相机）。
 - **默认机器人**——为你的套牌和对手分别选择实验室、赛事和 Arena 中的 Forge AI 配置；顶部栏显示正在进行的内容并可跳转到直播。
 - **档案**——一份安装，多名玩家，每人有自己的套牌。
 - **可安装**为手机和平板上的 PWA；触屏友好。
@@ -205,17 +219,21 @@ AI 配置和卡牌脚本（`forge-ext/ai`、`forge-ext/cardsfolder`）复制到 
 | `backup.py` | 导出/导入 `.grimorio` 备份，以及可选的云端文件夹同步（合并规则、评分重算） |
 | `sim.py`、`build/forge/` | Forge 运行器（Docker 或本地 Java）和 `GrimorioSim` 启动器（精确的对局事件、AI 调整、卡牌 AI 提示） |
 | `tournament.py`、`ratings.py` | 赛事和评分 / Arena |
-| `guests.py`、`rooms.py`、`share.py` | 好友：邀请链接与访客模式、赛事房间、一键公共隧道 |
+| `guests.py`、`rooms.py`、`share.py` | 好友与在线：邀请链接与访客模式、在线房间（对局和赛事）、一键公共隧道 |
+| `playnet.py`、`build/forge/GrimorioNet.java` | Forge Play：在 Grimório 牌桌上进行你自己的对局所用的 Forge 桥接（状态、提示和选择以 JSON 传递） |
 | `rules.py`、`artfolder.py` | 完整规则搜索；来自文件夹（Drive、GitHub）的自定义卡图 |
 | `deck_import.py`、`ia.py`、`play.py` | 各网站导入器、可选的 AI 服务商、对战 Forge（noVNC，仅限 Docker） |
 | `build/` | 数据流水线（Scryfall、向量、UMAP、组合技、衍生物、环境） |
 | `web/` | React + Vite 前端 |
-| `packaging/` | Windows/Linux 桌面安装包：启动器、打包和数据构建工具 |
+| `packaging/` | Windows/Linux 桌面安装包：启动器（应用窗口、自动更新、数据库备份）、打包和数据构建工具 |
 
 ## 路线图
 
-- Android 应用——见 [docs/ROADMAP.md](docs/ROADMAP.md)（英文）。
-- 不用 Docker 也能亲自对战 Forge（桌面安装包）。
+- Android 应用（APK）——见 [docs/ROADMAP.md](docs/ROADMAP.md)（英文）。
+- 两个版本：**Grimório Full**（含 Forge Play 和在线对战）和 **Grimório Lite**（其余全部功能，下载更小）。
+- 轮抽（Draft）赛事。
+- 在 Grimório 的牌桌上进行玩家之间的在线对局，并为你和好友举办赛事（与机器人同场或对战机器人）。
+- 服务器、桌面应用和手机之间的跨平台互通，桌面应用中的“向家庭网络开放”开关，以及“加入好友的 Grimório”。
 
 ## 致谢与法律声明
 
