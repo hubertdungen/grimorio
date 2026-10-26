@@ -178,7 +178,7 @@ sync is for computers and single-owner servers.
   rulings and an optional AI explanation.
 - **Proxies** — a list with printings for proxy sites, a ZIP of the images, or a print-ready PDF like the print shops
   ask for: paper, margins, card size, gaps, bleed (black, a colour, or the card border extended), cut guides per card,
-  watermark and double-sided.
+  watermark and double-sided. The tokens your deck makes (detected, with how many of each) and Grimório's suggestions to try out can go in too.
 - **At the table** — life counter (up to 6 players), 3D dice, and a card scanner (camera) with an aiming frame.
 - **Default bots** — pick the Forge AI profile for your deck and for opponents in the Lab, tournaments and the Arena; a
   live bar shows what is running and jumps to the live viewer.
@@ -197,7 +197,7 @@ sync is for computers and single-owner servers.
   on your side of the table.
 - **Profiles** — one install, several players, each with their own decks.
 - **Installable** as a PWA on phones and tablets; touch-friendly. On a phone the live board zooms (− / + / fit),
-  the screen stays on while Grimório is open (Settings › Screen) and fullscreen stays upright.
+  the screen stays on while Grimório is open (Settings › Screen) and fullscreen stays upright. If a network blocks scryfall.io (work, school), card images come through your own server instead (automatic, or Settings › Card images).
 
 ### How Grimório learns
 

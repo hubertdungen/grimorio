@@ -190,7 +190,7 @@ en la nube es para ordenadores y servidores de un solo dueño.
   Comprehensive Rules, rulings oficiales y una explicación opcional de la IA.
 - **Proxies**: lista con las ediciones para webs de proxies, ZIP con las imágenes o un PDF listo como piden las
   imprentas: papel, márgenes, tamaño de carta, espacio entre cartas, sangrado (negro, un color o el borde de la carta
-  extendido), guías de corte por carta, marca de agua y doble cara.
+  extendido), guías de corte por carta, marca de agua y doble cara. También entran las fichas que crea el mazo (detectadas, con cuántas de cada una) y las sugerencias de Grimório para probar.
 - **En la mesa**: contador de vidas (hasta 6 jugadores), dados en 3D y un escáner de cartas (cámara) con un marco de mira.
 - **Bots predeterminados**: el perfil de la IA de Forge para tu mazo y para los rivales en el Laboratorio, los torneos
   y la Arena; una barra muestra lo que está en curso y lleva al visor en directo.
@@ -212,7 +212,7 @@ en la nube es para ordenadores y servidores de un solo dueño.
 - **Perfiles**: una instalación, varios jugadores, cada uno con sus propios mazos.
 - **Instalable** como PWA en móviles y tabletas; pensado para pantallas táctiles. En el móvil la mesa en directo
   tiene zoom (− / + / ajustar), la pantalla no se apaga con Grimório abierto (Ajustes › Pantalla) y la pantalla completa
-  queda en vertical.
+  queda en vertical. Si una red bloquea scryfall.io (trabajo, escuela), las imágenes de las cartas pasan por tu servidor (automático, o Ajustes › Imágenes de las cartas).
 
 ### Cómo aprende Grimório
 

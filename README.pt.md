@@ -180,7 +180,7 @@ computadores e servidores de um só dono.
   Comprehensive Rules, rulings oficiais e uma explicação opcional da IA.
 - **Proxies** — lista com as edições para sites de proxies, ZIP com as imagens, ou um PDF pronto como as gráficas
   pedem: papel, margens, tamanho da carta, espaço entre cartas, bleed (preto, uma cor ou a margem da carta esticada),
-  guias de corte por carta, marca de água e frente e verso.
+  guias de corte por carta, marca de água e frente e verso. Também entram os tokens que o deck cria (detetados, com quantos de cada) e as sugestões do Grimório para testar.
 - **À mesa** — contador de vida (até 6 jogadores), dados em 3D e leitor de cartas pela câmara com moldura de mira.
 - **Bots predefinidos** — o perfil da IA do Forge para o teu deck e para os adversários no Laboratório, nos torneios e
   na Arena; uma barra mostra o que está a decorrer e leva ao visualizador em direto.
@@ -200,7 +200,7 @@ computadores e servidores de um só dono.
   do teu lado da mesa.
 - **Perfis** — uma instalação, vários jogadores, cada um com os seus decks.
 - **Instalável** como PWA em telemóveis e tablets; pensado para ecrãs táteis. No telemóvel a mesa ao vivo tem zoom
-  (− / + / ajustar), o ecrã não se apaga com o Grimório aberto (Definições › Ecrã) e o ecrã inteiro fica ao alto.
+  (− / + / ajustar), o ecrã não se apaga com o Grimório aberto (Definições › Ecrã) e o ecrã inteiro fica ao alto. Se uma rede bloquear scryfall.io (trabalho, escola), as imagens das cartas passam pelo teu servidor (automático, ou Definições › Imagens das cartas).
 
 ### Como o Grimório aprende
 

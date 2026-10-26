@@ -188,7 +188,7 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
   Rules, offizielle Rulings und eine optionale KI-Erklärung.
 - **Proxies** – Liste mit Editionen für Proxy-Seiten, ZIP mit den Bildern oder ein druckfertiges PDF wie Druckereien es
   wollen: Papier, Ränder, Kartengröße, Abstände, Beschnitt (schwarz, eine Farbe oder der verlängerte Kartenrand),
-  Schnittlinien pro Karte, Wasserzeichen und beidseitig.
+  Schnittlinien pro Karte, Wasserzeichen und beidseitig. Auch die Spielsteine, die das Deck erzeugt (erkannt, mit Anzahl), und Grimórios Vorschläge zum Ausprobieren können mit.
 - **Am Tisch** – Lebenszähler (bis 6 Spieler), 3D-Würfel und ein Kartenscanner (Kamera) mit Zielrahmen.
 - **Standard-Bots** – das KI-Profil von Forge für dein Deck und die Gegner im Labor, in Turnieren und der Arena; eine
   Leiste zeigt, was gerade läuft, und springt zur Live-Ansicht.
@@ -210,7 +210,7 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
 - **Profile** – eine Installation, mehrere Spieler, jeder mit seinen eigenen Decks.
 - **Installierbar** als PWA auf Handys und Tablets; touch-freundlich. Auf dem Handy lässt sich der Live-Tisch zoomen
   (− / + / einpassen), der Bildschirm bleibt an, solange Grimório offen ist (Einstellungen › Bildschirm), und das
-  Vollbild bleibt hochkant.
+  Vollbild bleibt hochkant. Sperrt ein Netz scryfall.io (Arbeit, Schule), kommen die Kartenbilder über deinen eigenen Server (automatisch oder Einstellungen › Kartenbilder).
 
 ### Wie Grimório lernt
 
