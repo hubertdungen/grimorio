@@ -2961,4 +2961,5 @@ export default {
   "{n} troféus · {p} pontos": "{n} 个奖杯 · {p} 分",
   "{p} pontos de troféus": "{p} 奖杯分",
   "Ratings do deck": "套牌评分",
+  "Em {p}% dos sideboards do meta": "{p}% 的环境备牌中有",
 }

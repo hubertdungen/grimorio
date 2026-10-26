@@ -213,21 +213,37 @@ const useAiFlags = () => {
 }
 
 // Contra o que perdes nos testes (Coliseu): as categorias em que perdeste 2+ jogos e 40%+ das vezes, com respostas nas
-// tuas cores que a IA sabe lançar; num deck de encantamentos, as respostas que são encantamentos primeiro (alimentam-no)
-function lossAnswers(data, deck, ctx, noAi, per = 4) {
+// tuas cores que a IA sabe lançar. Em vez de palpites pelo texto: regras exatas por categoria (remoção a sério, não
+// condicional; ódio ao cemitério que apanha o cemitério todo vale mais) e o que as listas do meta levam no sideboard
+// pesa mais do que tudo. Num deck de encantamentos, as respostas que são encantamentos sobem (alimentam-no).
+const front = c => c.o.split(/\n?\/\/\n?/)[0]  // só a frente (o verso de uma carta dupla não se lança de início)
+const ANSWER = {
+  creatures: c0 => { const c = { o: front(c0) }; return (/\b(destroy|exile) (another )?target (creature|nonland permanent|permanent|artifact or creature|creature or planeswalker|creature or enchantment)/i.test(c.o)
+    && !/dealt damage to you|target attacking|target blocking|target tapped|with (power|mana value|toughness) \d or (less|greater)|you control\b(?! can't)/i.test(c.o.split('.').find(x => /target (creature|nonland|permanent|artifact or creature)/i.test(x)) || ''))
+    || /enchanted creature (loses all abilities|becomes|can't attack or block|has base power)/i.test(c.o)
+    || /(destroy|exile) all (creatures|nonland permanents)|each creature gets -|damage to each creature/i.test(c.o) },
+  graveyard: c => /exile (all|each)[^.]*graveyards?|exile target player's graveyard|cards in graveyards can't|graveyard,? exile it instead|would be put into (a|an opponent's|your opponents') graveyard[^.]*exile|exile (up to \w+ )?target cards? from (a|an opponent's|target player's) graveyard/i.test(front(c)),
+}
+const MASS = /\ball\b|\beach\b|target player's graveyard|can't|instead/i
+function lossAnswers(data, deck, ctx, noAi, meta, per = 4) {
   const T = ctx.tests, out = []
   if (!T?.cats) return out
-  const cols = new Set([...deck.commanders, ...Object.keys(deck.main)].flatMap(n => [...(data.byName.get(n)?.ci || '')]))
+  // as cores das cartas que não são terrenos (os terrenos duplos de outras cores traziam azul para um deck verde e branco)
+  const cols = new Set([...deck.commanders, ...Object.keys(deck.main)].flatMap(n => { const c = data.byName.get(n); return c && c.mt !== 'Land' ? [...c.ci] : [] }))
   const ench = Object.keys(deck.main).filter(n => /Enchantment/.test(data.byName.get(n)?.t || '')).reduce((a, n) => a + deck.main[n], 0) >= 8
   for (const [k, re, label] of HATE) {
     const x = T.cats[k]
     if (!x || x.lost < 2 || x.lost / x.games < 0.4) continue
-    const cards = data.cards.filter(c => c.mt !== 'Land' && c.cmc <= 5 && !deck.main[c.n] && !deck.side[c.n] && !noAi?.has(c.n) && re.test(c.o)
+    const ok = ANSWER[k] || (c => re.test(c.o))
+    const cards = data.cards.filter(c => c.mt !== 'Land' && c.cmc <= 5 && !deck.main[c.n] && !deck.side[c.n] && !noAi?.has(c.n) && !/\{C\}/.test(c.mc || '') && ok(c)  // {C}: pede mana incolor
       && passes(c, null, ctx) && [...c.ci].every(q => cols.has(q)))
-      .map(c => ({ c, v: (ench && /Enchantment/.test(c.t) ? 2 : 0) + (c.tg.includes('removal') || c.tg.includes('wipe') ? 0.5 : 0) - Math.log10((c.er ?? 1e6) + 10) / 3 }))
-      .sort((a, b) => b.v - a.v).slice(0, per).map(y => y.c)
+      .map(c => ({ c, side: meta?.byCard.get(c.i)?.side || 0, incl: meta?.byCard.get(c.i)?.incl || 0 }))
+      // o meta do formato manda (sideboards e mains das listas reais); a popularidade do EDHREC é do Commander: pesa pouco
+      .map(y => ({ ...y, v: 6 * y.side + 3 * y.incl + (y.side + y.incl > 0 ? 1 : 0) + (MASS.test(front(y.c)) ? 0.6 : 0) + (ench && /Enchantment/.test(y.c.t) ? 1 : 0) - 0.3 * y.c.cmc - Math.log10((y.c.er ?? 1e6) + 10) / 4
+        + (k === 'creatures' ? (/\b(destroy|exile) (another )?target|(destroy|exile) all/i.test(front(y.c)) ? 0.9 : /loses all abilities/i.test(front(y.c)) ? 0.3 : 0) : 0) }))  // exilar/destruir a sério > neutralizar
+      .sort((a, b) => b.v - a.v).slice(0, per)
     const top = Object.entries(x.cards).sort((p, q) => q[1] - p[1]).slice(0, 3).map(([n]) => n)
-    if (cards.length) out.push({ k, label, lost: x.lost, games: x.games, top, cards, ench })
+    if (cards.length) out.push({ k, label, lost: x.lost, games: x.games, top, cards: cards.map(y => y.c), side: Object.fromEntries(cards.map(y => [y.c.n, y.side])), ench })
   }
   return out.sort((a, b) => b.lost - a.lost)
 }
@@ -235,7 +251,7 @@ function lossAnswers(data, deck, ctx, noAi, per = 4) {
 // 🛡 Sideboard: o que as listas do meta levam no sideboard nas tuas cores; sem meta, respostas por tipo de ameaça
 function SidePanel({ data, deck, fmt, ctx, act, meta, have }) {
   const noAi = useAiFlags()
-  const losses = useMemo(() => (fmt.side > 0 && noAi ? lossAnswers(data, deck, ctx, noAi) : []), [fmt.side, data, deck, ctx, noAi])
+  const losses = useMemo(() => (fmt.side > 0 && noAi ? lossAnswers(data, deck, ctx, noAi, meta) : []), [fmt.side, data, deck, ctx, noAi, meta])
   const dud = useMemo(() => (noAi ? Object.keys(deck.side).filter(n => noAi.has(n)) : []), [deck.side, noAi])
   const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.sideboard') === '1' } catch { return false } })
   const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.sideboard', v ? '1' : '0') } catch { /* sem armazenamento */ } }
@@ -271,7 +287,7 @@ function SidePanel({ data, deck, fmt, ctx, act, meta, have }) {
         <div className="cutp-body">
           {losses.map(g => <div key={g.k}>
             <h4>{tx('Contra o que perdes: {c}', { c: CAT_LABEL[g.k] })} <span className="muted small">{tx('perdeste {a} de {n} jogos nos testes{top}', { a: g.lost, n: g.games, top: g.top.length ? ` (${g.top.join(', ')})` : '' })}</span></h4>
-            <ul className="land-list">{g.cards.map(c => row(c, <ul className="why"><li className="falta">{g.label}</li>{g.ench && /Enchantment/.test(c.t) && <li className="inter">{tx('É um encantamento: alimenta o deck')}</li>}{c.tg.includes('wipe') && <li className="tema">{TAG_LABEL.wipe}</li>}</ul>, 2))}</ul>
+            <ul className="land-list">{g.cards.map(c => row(c, <ul className="why"><li className="falta">{g.label}</li>{g.side[c.n] >= 0.05 && <li className="edh">{tx('Em {p}% dos sideboards do meta', { p: Math.round(g.side[c.n] * 100) })}</li>}{g.ench && /Enchantment/.test(c.t) && <li className="inter">{tx('É um encantamento: alimenta o deck')}</li>}</ul>, 2))}</ul>
           </div>)}
           {dud.length > 0 && <div className="to-side"><h4>{tx('No sideboard, mas a IA não a lança')}</h4>
             <ul className="why">{dud.map(n => <li key={n} className="falta">{tx('{c}: a IA do Forge nunca a joga — nos testes e torneios fica parada na mão. Troca-a por uma das de cima.', { c: n })}</li>)}</ul></div>}

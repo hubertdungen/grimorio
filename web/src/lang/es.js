@@ -2961,4 +2961,5 @@ export default {
   "{n} troféus · {p} pontos": "{n} trofeos · {p} puntos",
   "{p} pontos de troféus": "{p} puntos de trofeos",
   "Ratings do deck": "Ratings del mazo",
+  "Em {p}% dos sideboards do meta": "En el {p}% de los banquillos del meta",
 }
