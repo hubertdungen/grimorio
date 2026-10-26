@@ -654,3 +654,13 @@ console.log('selfcheck universo ok')
   const ok = markDormant(data, [P('Thassa, God of the Sea'), P('Tide'), P('Hybrid')])
   assert.ok(isCreature(data, ok[0]) && !ok[0].dormant)  // 1 + 2 + 2 (híbridos contam) = 5
   console.log('selfcheck deuses e devoção ok') }
+
+// pesquisa sem acentos: «lorien» encontra «Lórien Revealed»
+import { search as searchCards } from './src/data.js'
+{
+  const mk = n => ({ n, l: n.toLowerCase(), f: n.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''), o: '', t: 'Sorcery', tg: [], cmc: 5 })
+  const d = { cards: [mk('Lórien Revealed'), mk('Lightning Bolt')] }
+  assert.deepEqual(searchCards(d, 'Lorien rev', {}, { bit: -1 }).cards.map(c => c.n), ['Lórien Revealed'])
+  assert.deepEqual(searchCards(d, 'lórien', {}, { bit: -1 }).cards.map(c => c.n), ['Lórien Revealed'])
+  console.log('selfcheck pesquisa sem acentos ok')
+}

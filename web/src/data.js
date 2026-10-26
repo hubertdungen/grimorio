@@ -281,6 +281,7 @@ export function prepData(meta, cards, combos, emb, pos) {
   cards.forEach((c, i) => {
     c.i = i
     c.l = c.n.toLowerCase()
+    c.f = unaccent(c.l)  // para procurar sem acentos: «lorien» encontra «Lórien Revealed»
     c.mt = mainType(c)
     c.ro = rolesOf(c)
     // Estrutura do deck: criaturas, condições de vitória, respostas de sideboard, reanimação.
@@ -297,6 +298,7 @@ export function prepData(meta, cards, combos, emb, pos) {
     if (/return target creature card from (a|your|any|an opponent's) graveyard to the battlefield|put target creature card from a graveyard onto the battlefield|return up to (one|two) target creature cards? from (your|a) graveyard to the battlefield|target creature cards? in your graveyard[^.]*\.[^.]*return (the chosen cards|them|it) to the battlefield|return the chosen cards? to the battlefield/.test(o)) c.tg.push('reanimate')
     byName.set(c.n, c)
     byLower.set(c.l, c)
+    if (c.f !== c.l && !byLower.has(c.f)) byLower.set(c.f, c)
     for (const part of c.n.split(' // ')) { if (!byLower.has(part.toLowerCase())) byLower.set(part.toLowerCase(), c) }
   })
   const combosByCard = cards.map(() => [])
@@ -412,12 +414,13 @@ export function passes(c, f, ctx) {
   return true
 }
 
+export const unaccent = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 export function search(data, q, f, ctx, limit = 150) {
-  const words = q.toLowerCase().trim().split(/\s+/).filter(Boolean)
+  const words = unaccent(q.toLowerCase()).trim().split(/\s+/).filter(Boolean)
   const out = []
   for (const c of data.cards) {
     if (words.length) {
-      const hay = f?.inText ? c.l + '\n' + c.o.toLowerCase() + '\n' + c.t.toLowerCase() : c.l
+      const hay = f?.inText ? c.f + '\n' + unaccent(c.o.toLowerCase()) + '\n' + c.t.toLowerCase() : c.f
       if (!words.every(w => hay.includes(w))) continue
     }
     if (!passes(c, f, ctx)) continue
@@ -429,7 +432,7 @@ export function search(data, q, f, ctx, limit = 150) {
   }[sort]
   out.sort((a, b) => {
     if (words.length && sort === 'pop') {
-      const pa = a.l.startsWith(words.join(' ')) ? 0 : 1, pb = b.l.startsWith(words.join(' ')) ? 0 : 1
+      const pa = a.f.startsWith(words.join(' ')) ? 0 : 1, pb = b.f.startsWith(words.join(' ')) ? 0 : 1
       if (pa !== pb) return pa - pb
     }
     const ka = key(a), kb = key(b)
