@@ -2860,4 +2860,9 @@ export default {
   "{n} marcadores de veneno (10 = derrota)": "{n} 个中毒指示物（10 个即落败）",
   "Fechar as opções": "关闭选项",
   "Opções": "选项",
+  "A mostrar cartas de todos os formatos.": "正在显示所有赛制的卡牌。",
+  "mostrar mesmo assim": "仍然显示",
+  "na identidade do comandante": "在指挥官的颜色标识内",
+  "{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}": "有 {n} 张同名卡牌在 {f} 中不合法|有 {n} 张同名卡牌在 {f} 中不合法",
+  "só as legais": "只看合法的",
 }

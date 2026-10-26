@@ -846,15 +846,20 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   const dq = useDeferredValue(q), df = useDeferredValue(f)
   const [raw, setRaw] = useState('')  // frase que o utilizador quis pelo nome (✕ no «Entendido como»)
   const nl = useMemo(() => (raw === dq ? null : parseQuery(dq, { types: CREATURE_TYPES })), [dq, raw])
+  const [anyFmt, setAnyFmt] = useState(false)  // mostrar também cartas que o formato do deck esconde (só para esta pesquisa)
+  useEffect(() => setAnyFmt(false), [dq])
+  const sctx = useMemo(() => (anyFmt ? { ...ctx, bit: -1, identity: null, allowUn: true } : ctx), [anyFmt, ctx])
   const res = useMemo(() => {  // frase: só se a sintaxe é explícita ou se pelo nome não há nada (assim «Black Lotus» continua a ser a carta)
-    const byName = search(data, dq, df, ctx)
+    const byName = search(data, dq, df, sctx)
     // o nome ganha só se alguma carta começa pelo que se escreveu («Black Lotus», «Lightning»); «removal» com a Seal of
     // Removal a bater no meio do nome é a função Remoção, não essa carta
     const qf = unaccent(dq.toLowerCase().trim()), nameHit = byName.cards.some(c => (c.f || c.l).startsWith(qf))
     if (!nl || (byName.total && nameHit && !/[:<>=]/.test(dq))) return { ...byName, nl: null }
-    const r = search(data, nl.rest, { ...df, ...nl.f }, ctx)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
-    return r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...df, ...nl.f }, ctx), nl: { ...nl, rest: '', skipped: nl.rest } }
-  }, [data, dq, df, ctx, nl])
+    const r = search(data, nl.rest, { ...df, ...nl.f }, sctx)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
+    return r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...df, ...nl.f }, sctx), nl: { ...nl, rest: '', skipped: nl.rest } }
+  }, [data, dq, df, sctx, nl])
+  // o formato do deck escondeu cartas com este nome? (ex.: Gaea's Cradle num deck de Pauper)
+  const hidden = useMemo(() => (!anyFmt && dq.trim().length > 2 && (ctx.bit >= 0 || ctx.identity != null) ? Math.max(0, search(data, dq, F0, { bit: -1, allowUn: true }, 1).total - search(data, dq, F0, ctx, 1).total) : 0), [data, dq, ctx, anyFmt])
   const [showF, setShowF] = useState(false)
   const [swaps, setSwaps] = useState(null)
   const nActive = ['type', 'legendary', 'tag', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].filter(k => f[k]).length + (f.colors.length ? 1 : 0) + (f.colorless ? 1 : 0)
@@ -877,6 +882,8 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       <div className="grid">
         {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} />)}
       </div>
+      {hidden > 0 && <p className="small fmt-hidden">{tx('{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}', { n: hidden, f: ctx.identity != null && ctx.bit < 0 ? tx('na identidade do comandante') : fmt.name })} <button className="link small" onClick={() => setAnyFmt(true)}>{tx('mostrar mesmo assim')}</button></p>}
+      {anyFmt && <p className="small fmt-hidden">{tx('A mostrar cartas de todos os formatos.')} <button className="link small" onClick={() => setAnyFmt(false)}>{tx('só as legais')}</button></p>}
       {!res.total && <Empty>{tx('Nenhuma carta com estes filtros.')}</Empty>}
       </div>
       <LivePanel {...{ data, deck, fmt, ctx, act }} onSwaps={setSwaps} />

@@ -2860,4 +2860,9 @@ export default {
   "{n} marcadores de veneno (10 = derrota)": "{n} contadores de veneno (10 = derrota)",
   "Fechar as opções": "Cerrar las opciones",
   "Opções": "Opciones",
+  "A mostrar cartas de todos os formatos.": "Mostrando cartas de todos los formatos.",
+  "mostrar mesmo assim": "mostrar igualmente",
+  "na identidade do comandante": "en la identidad del comandante",
+  "{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}": "{n} carta con este nombre no es legal en {f}|{n} cartas con este nombre no son legales en {f}",
+  "só as legais": "solo las legales",
 }

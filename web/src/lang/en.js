@@ -2868,4 +2868,9 @@ export default {
   "{n} marcadores de veneno (10 = derrota)": "{n} poison counters (10 = loss)",
   "Fechar as opções": "Close the options",
   "Opções": "Options",
+  "A mostrar cartas de todos os formatos.": "Showing cards from every format.",
+  "mostrar mesmo assim": "show anyway",
+  "na identidade do comandante": "within the commander's color identity",
+  "{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}": "{n} card with this name isn't legal in {f}|{n} cards with this name aren't legal in {f}",
+  "só as legais": "legal ones only",
 }
