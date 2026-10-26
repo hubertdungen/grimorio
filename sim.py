@@ -1022,8 +1022,18 @@ def docker_kill_all():
         subprocess.run(["docker", "kill", *ids], capture_output=True)
 
 
+def draining(data_dir):
+    """Pausa para atualizar (~/scripts/grimorio-deploy.sh): com <dados>/drain nenhum jogo novo do Forge arranca; os que
+    estão a correr acabam e os pedidos ficam na fila. O torneio retoma sozinho depois do reinício (a partida volta à fila)."""
+    return os.path.exists(os.path.join(data_dir, "drain"))
+
+
 def worker(data_dir):
     docker_kill_all()  # sobras de um servidor anterior que morreu a meio
+    try:
+        os.remove(os.path.join(data_dir, "drain"))  # um servidor novo nunca começa em pausa (o deploy já acabou)
+    except OSError:
+        pass
     jobs_root = os.path.join(data_dir, "forge-run", "jobs")
     with LOCK:
         live = set(PENDING)
@@ -1034,7 +1044,7 @@ def worker(data_dir):
     PAR["n"] = PAR["sched"]["parallel"]
     while True:
         with LOCK:  # até PAR["n"] jogos ao mesmo tempo; um jogo extra só arranca com RAM livre (MEM_MIN)
-            while not PENDING or len(RUNNING) >= PAR["n"] or (RUNNING and mem_free() < MEM_MIN):
+            while not PENDING or len(RUNNING) >= PAR["n"] or (RUNNING and mem_free() < MEM_MIN) or draining(data_dir):
                 LOCK.wait(timeout=5)
             jid = PENDING.pop(0)
             job = JOBS[jid]
