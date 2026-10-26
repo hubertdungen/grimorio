@@ -1,6 +1,6 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
-import { wakeOn, setWake, wakeSupported } from './wakelock.js'
+import { wakeOn, setWake, wakeSupported, fsOrientPref, setFsOrientPref } from './wakelock.js'
 import { useEffect, useRef, useState } from 'react'
 import { ask, ConfirmSettings } from './confirm.jsx'
 import { tx, num, LOCALE } from './i18n.js'
@@ -86,11 +86,20 @@ function ForgeGames() {
 }
 
 function ScreenAwake() {
-  const [on, setOn] = useState(wakeOn)
+  const [on, setOn] = useState(wakeOn), [orient, setOrient] = useState(fsOrientPref)
   return (
     <>
       <label className="chk"><input type="checkbox" checked={on} onChange={e => { setOn(e.target.checked); setWake(e.target.checked) }} /> {tx('Não deixar o ecrã apagar-se com o Grimório aberto')}</label>
       <p className="muted small">{wakeSupported() ? tx('Ligado por omissão no telemóvel e no tablet. Gasta um pouco mais de bateria.') : tx('Este browser (ou o endereço sem HTTPS) não deixa: abre o Grimório pelo endereço https para funcionar.')}</p>
+      <label className="fmt"><span>{tx('Orientação em ecrã inteiro (Coliseu)')}</span>
+        <select value={orient} onChange={e => { setOrient(e.target.value); setFsOrientPref(e.target.value) }}>
+          <option value="auto">{tx('Automática: telemóvel ao alto, tablet deitado')}</option>
+          <option value="portrait">{tx('Sempre ao alto')}</option>
+          <option value="landscape">{tx('Sempre deitado')}</option>
+          <option value="free">{tx('Livre (roda com o aparelho)')}</option>
+        </select>
+      </label>
+      <p className="muted small">{tx('Só no Android: o iPhone e o iPad não deixam fixar a orientação.')}</p>
     </>
   )
 }

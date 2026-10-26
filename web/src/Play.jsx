@@ -9,6 +9,7 @@ import { FORMAT, CASUAL_META } from './formats.js'
 import { img, coverOf, colorsOf } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import ForgeTable from './ForgePlay.jsx'
+import { lockFsOrientation } from './wakelock.js'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -115,7 +116,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   const stopNet = async () => { if (net) await j(`/api/playnet/${net}/stop`, {}).catch(() => {}); setNet(null) }
   const resume = () => go(tx('A preparar a posição…'), '/api/play/from-state', { ...fromState, difficulty: diff, format: fromState.format || fmt.key })
   const stop = async () => { setBusy(tx('A parar…')); await j('/api/play/stop', {}).catch(() => {}); setSess(null); setSt({ running: false }); setBusy('') }
-  const full = () => frame.current?.requestFullscreen?.()
+  const full = () => Promise.resolve(frame.current?.requestFullscreen?.()).then(lockFsOrientation).catch(() => {})
 
   const count = Object.values(deck.main || {}).reduce((a, b) => a + b, 0)
   const running = st?.running

@@ -17,6 +17,7 @@ import LabView from './Lab.jsx'
 import { useRun } from './labrun.js'
 import LiveJob from './LiveJob.jsx'
 import LimitedView from './Limited.jsx'
+import { lockFsOrientation } from './wakelock.js'
 import PlayView from './Play.jsx'
 import TournamentView from './Tournament.jsx'
 import RatingsView from './Ratings.jsx'
@@ -163,13 +164,14 @@ export default function App() {
   const setColMode = m => { setColModeS(m); store.set('grimorio.colMode', m) }
   const [fromState, setFromState] = useState(null)
   const playFrom = st => { setFromState(st); setColMode('jogar'); setSection('coliseu') }
-  // ecrã inteiro: API normal ou a do Safari (iPad); no Android prende a rotação em paisagem enquanto durar
+  // ecrã inteiro: API normal ou a do Safari (iPad); no Android prende a rotação enquanto durar (Definições › Ecrã:
+  // telemóvel ao alto e tablet deitado por omissão)
   const fullscreen = () => {
     const el = coliseuRef.current, d = document
     if (!el) return
     if (d.fullscreenElement || d.webkitFullscreenElement) return (d.exitFullscreen || d.webkitExitFullscreen).call(d)
     Promise.resolve((el.requestFullscreen || el.webkitRequestFullscreen)?.call(el))
-      .then(() => { el.scrollTop = 0; return screen.orientation?.lock?.('landscape') }).catch(() => {})
+      .then(() => { el.scrollTop = 0; return lockFsOrientation() }).catch(() => {})
   }
   // da Biblioteca/Teste para outra área
   const goTab = t => { if (t === 'teste' || t === 'coliseu') return setSection('coliseu'); setSection('construir'); setTab(t) }

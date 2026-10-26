@@ -2935,4 +2935,10 @@ export default {
   "Não deixar o ecrã apagar-se com o Grimório aberto": "Bildschirm eingeschaltet lassen, solange Grimório offen ist",
   "Ligado por omissão no telemóvel e no tablet. Gasta um pouco mais de bateria.": "Auf Handy und Tablet standardmäßig an. Braucht etwas mehr Akku.",
   "Este browser (ou o endereço sem HTTPS) não deixa: abre o Grimório pelo endereço https para funcionar.": "Dieser Browser (oder eine Adresse ohne HTTPS) erlaubt es nicht: öffne Grimório über die https-Adresse.",
+  "Orientação em ecrã inteiro (Coliseu)": "Ausrichtung im Vollbild (Kolosseum)",
+  "Automática: telemóvel ao alto, tablet deitado": "Automatisch: Handy hochkant, Tablet quer",
+  "Sempre ao alto": "Immer hochkant",
+  "Sempre deitado": "Immer quer",
+  "Livre (roda com o aparelho)": "Frei (dreht mit dem Gerät)",
+  "Só no Android: o iPhone e o iPad não deixam fixar a orientação.": "Nur Android: iPhone und iPad erlauben kein Festlegen der Ausrichtung.",
 }

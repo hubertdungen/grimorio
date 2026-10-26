@@ -2943,4 +2943,10 @@ export default {
   "Não deixar o ecrã apagar-se com o Grimório aberto": "Keep the screen on while Grimório is open",
   "Ligado por omissão no telemóvel e no tablet. Gasta um pouco mais de bateria.": "On by default on phones and tablets. Uses a little more battery.",
   "Este browser (ou o endereço sem HTTPS) não deixa: abre o Grimório pelo endereço https para funcionar.": "This browser (or an address without HTTPS) doesn't allow it: open Grimório through its https address for it to work.",
+  "Orientação em ecrã inteiro (Coliseu)": "Fullscreen orientation (Colosseum)",
+  "Automática: telemóvel ao alto, tablet deitado": "Automatic: phone upright, tablet sideways",
+  "Sempre ao alto": "Always upright",
+  "Sempre deitado": "Always sideways",
+  "Livre (roda com o aparelho)": "Free (rotates with the device)",
+  "Só no Android: o iPhone e o iPad não deixam fixar a orientação.": "Android only: iPhone and iPad don't allow locking the orientation.",
 }

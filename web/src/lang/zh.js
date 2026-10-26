@@ -2935,4 +2935,10 @@ export default {
   "Não deixar o ecrã apagar-se com o Grimório aberto": "打开 Grimório 时保持屏幕常亮",
   "Ligado por omissão no telemóvel e no tablet. Gasta um pouco mais de bateria.": "手机和平板默认开启。会多耗一点电。",
   "Este browser (ou o endereço sem HTTPS) não deixa: abre o Grimório pelo endereço https para funcionar.": "此浏览器（或非 HTTPS 地址）不支持：请通过 https 地址打开 Grimório。",
+  "Orientação em ecrã inteiro (Coliseu)": "全屏方向（斗技场）",
+  "Automática: telemóvel ao alto, tablet deitado": "自动：手机竖屏，平板横屏",
+  "Sempre ao alto": "始终竖屏",
+  "Sempre deitado": "始终横屏",
+  "Livre (roda com o aparelho)": "自由（随设备旋转）",
+  "Só no Android: o iPhone e o iPad não deixam fixar a orientação.": "仅限 Android：iPhone 和 iPad 不允许锁定方向。",
 }

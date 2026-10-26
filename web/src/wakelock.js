@@ -25,3 +25,15 @@ export function initWake() {
   document.addEventListener('visibilitychange', grab)
   addEventListener('pointerdown', grab, { passive: true })  // alguns browsers só dão o pedido depois de um toque
 }
+
+// Orientação em ecrã inteiro (Coliseu): «auto» = telemóvel ao alto (deitado não se vê nada), tablet deitado.
+// screen.orientation.lock só funciona em ecrã inteiro e no Android; no iPhone/iPad fica como o aparelho estiver.
+const KO = 'grimorio.fsOrient'
+export const fsOrientPref = () => { try { return localStorage.getItem(KO) || 'auto' } catch { return 'auto' } }
+export const setFsOrientPref = v => { try { localStorage.setItem(KO, v) } catch { /* sem armazenamento */ } }
+export function lockFsOrientation() {
+  const p = fsOrientPref()
+  const phone = Math.min(screen.width, screen.height) < 600
+  const o = p === 'free' ? null : p === 'auto' ? (phone ? 'portrait' : 'landscape') : p
+  return o ? screen.orientation?.lock?.(o) : undefined
+}
