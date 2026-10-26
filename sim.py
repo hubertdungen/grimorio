@@ -15,7 +15,7 @@ Com o nosso lançador (build/forge/GrimorioSim.java) o registo chega ao vivo e v
 "GRIMORIO|…" tiradas do bus de eventos do Forge: mudanças de zona exatas (compras com o nome da carta, mortes,
 fichas, moer, procurar…), a mão no início de cada turno, viradas, marcadores e anexos. O jogo fica `exact`.
 """
-import json, os, re, shutil, subprocess, sys, threading, time, unicodedata, urllib.request, uuid, zipfile
+import functools, json, os, re, shutil, subprocess, sys, threading, time, unicodedata, urllib.request, uuid, zipfile
 
 FORGE_JAR = "forge-gui-desktop-2.0.15-jar-with-dependencies.jar"
 IMAGE = "eclipse-temurin:17-jre"
@@ -49,6 +49,28 @@ EDH_FORMATS = ("commander", "duel")
 # modo casual (formatos misturados): as regras base (formato escolhido) dão o tipo de jogo e a vida de todos; cada deck
 # com comandante leva-o à mesma (zona de comando, imposto, 21 de dano de comandante) — GrimorioSim -C/-L
 BASE_LIFE = {"commander": 40, "predh": 40, "paupercommander": 30, "brawl": 25, "standardbrawl": 25}
+
+
+@functools.lru_cache(4)
+def ai_flags(data_dir):
+    """Nomes das cartas marcadas no Forge com AI:RemoveDeck:All (lido uma vez do cardsfolder.zip): a IA nunca as lança.
+    As que corrigimos em forge-ext/cardsfolder (build/forge/build.sh: Springleaf Drum, Signets…) já não contam: é essa a
+    que o jogo lê."""
+    out = []
+    fix = os.path.join(os.path.dirname(forge_dir(data_dir)), "forge-ext", "cardsfolder")
+    try:
+        with zipfile.ZipFile(os.path.join(forge_dir(data_dir), "res", "cardsfolder", "cardsfolder.zip")) as z:
+            for n in z.namelist():
+                if os.path.isfile(os.path.join(fix, n)):
+                    continue
+                t = z.read(n).decode("utf-8", "ignore")
+                if "AI:RemoveDeck:All" in t:
+                    m = re.search(r"^Name:(.+)$", t, re.M)
+                    if m:
+                        out.append(m.group(1).strip())
+    except (OSError, zipfile.BadZipFile):
+        pass
+    return sorted(out)
 
 
 def art_map(deck):

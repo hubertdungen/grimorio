@@ -499,8 +499,9 @@ def stuck_in(g, s, mn=2):
     return [n for n, t in held.items() if t >= mn and n not in used]
 
 
-def plan_side(C, deck, opp, games, lost=(), mx=5):
-    """games: [(jogo, o meu lado, o lado dele)] desta partida -> trocas [{in, out, q, why, outWhy}]."""
+def plan_side(C, deck, opp, games, lost=(), mx=5, noai=()):
+    """games: [(jogo, o meu lado, o lado dele)] desta partida -> trocas [{in, out, q, why, outWhy}].
+    noai: cartas que a IA do Forge nunca lança (AI:RemoveDeck:All) — não entram, ficavam paradas na mão."""
     S = lambda g, s: (g.get("summary") or {}).get(s) or {}  # noqa: E731
     exact = [x for x in games if x[0].get("exact")]
     pl = profile(C, opp.get("main") or {})
@@ -515,6 +516,8 @@ def plan_side(C, deck, opp, games, lost=(), mx=5):
     cand = []
     for n, q in (deck.get("side") or {}).items():
         c = C.get(n)
+        if n in noai:
+            continue
         best = c and max(((share(k), label, k) for k, rx, label in HATE if rx.search(c["o"])), default=None, key=lambda x: x[0])
         if not best or best[0] < 0.12:
             continue
@@ -537,13 +540,14 @@ def plan_side(C, deck, opp, games, lost=(), mx=5):
         if c and c["mt"] != "Land":
             v = 0.4 + 0.1 * stuck[n] if stuck[n] else 0.3 if idle(n) else 0
             v += 0.15 * (c["cmc"] >= 5) + 0.3 * ("removal" in c["tg"] and share("creatures") < 0.25) + 0.2 * ("counter" in c["tg"] and share("spells") < 0.2)
-            outs.append((v, n, q, c))
+            if v > 0:  # só sai com uma razão (presa, parada, cara, remoção/contra-feitiço sem alvos); o resto é o plano do deck
+                outs.append((v, n, q, c))
     outs.sort(key=lambda x: -x[0])
     swaps = []
     for (_, n, q, why), (_, o, oq, c) in zip(cand[:mx], outs):
         swaps.append({"in": n, "out": o, "q": min(q, oq, 2), "why": why,
                       "outWhy": (f"ficou presa na mão{f' em {stuck[o]} jogos' if stuck[o] > 1 else ''}" if stuck[o] else "não chegou a ser jogada"
-                                 if idle(o) else "cara para este confronto" if c["cmc"] >= 5 else "pouco útil contra este deck")})
+                                 if idle(o) else "cara para este confronto" if c["cmc"] >= 5 else "sem alvos neste confronto")})
     return swaps
 
 
@@ -604,7 +608,7 @@ def sideboard(con, tid, owner, st, m, i):
     deck, opp = st["decks"][i], st["decks"][j]
     names = [*deck["main"], *deck.get("side", {}), *opp["main"], *opp.get("side", {})] + \
         [n for g, _, op in games for _, n in ((g.get("summary") or {}).get(op) or {}).get("cast") or ()]
-    return plan_side(cards(names), deck, opp, games, lost_with(con, tid, owner, st, i, j))
+    return plan_side(cards(names), deck, opp, games, lost_with(con, tid, owner, st, i, j), noai=set(sim.ai_flags(DATA)))
 
 
 # ---------- base de dados ----------
@@ -1611,6 +1615,7 @@ def selfcheck():
     assert sw[0]["outWhy"] == "ficou presa na mão" and stuck_in(g, "a") == ["Dragon"]
     assert "vale menos" in plan_side(C, deck, opp, [(g, "a", "b")], lost={"Shatter"})[0]["why"]
     assert not plan_side(C, deck, {"main": {"Bear": 20}}, [])  # nada a responder: fica a lista base
+    assert not plan_side(C, deck, opp, [(g, "a", "b")], noai={"Shatter"})  # a IA nunca a lança: não entra
     d2 = apply_swaps(deck, sw)
     assert d2["main"] == {"Bear": 4, "Shatter": 2} and d2["side"] == {"Shatter": 1, "Fog": 2, "Dragon": 2} and deck["main"]["Dragon"] == 2
     bets_selfcheck(rng)

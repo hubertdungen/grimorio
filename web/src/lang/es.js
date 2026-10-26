@@ -2919,4 +2919,5 @@ export default {
   "tu + bots": "tú + bots",
   "Um momento…": "Un momento…",
   "← Voltar": "← Volver",
+  "sem alvos neste confronto": "sin objetivos en este enfrentamiento",
 }

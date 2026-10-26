@@ -278,9 +278,11 @@ import { planSideboard } from './src/sideboard.js'
   assert.deepEqual(sw.map(s => [s.in, s.out, s.q]), [['Plummet', 'Brick', 2]])
   assert.match(sw[0].why, /trava voadores \(lançou 2 criaturas voadoras; tiraram-te 6 de vida\)/)
   assert.equal(sw[0].outWhy, 'ficou presa na mão')
-  // nunca comprada (nem lançada) nos jogos exatos: não conta como «não chegou a ser jogada»
+  // nunca comprada (nem lançada) nos jogos exatos: sem razão para sair, fica (é o plano do deck)
   const sw3 = planSideboard(D, { main: { Drake: 2, Mountain: 20 }, side: { Plummet: 2 } }, { main: { Drake: 4, Shock: 4 } }, [g], [])
-  assert.equal(sw3[0].outWhy, 'pouco útil contra este deck')
+  assert.deepEqual(sw3, [])
+  // a IA do Forge nunca lança a carta (AI:RemoveDeck:All): não entra
+  assert.deepEqual(planSideboard(D, { main: { Brick: 2, Bolt: 4, Mountain: 20 }, side: { Plummet: 2 } }, { main: { Drake: 4, Shock: 4 } }, [g], [], 5, ['Plummet']), [])
   console.log('selfcheck testes/sideboard ok')
 }
 

@@ -2927,4 +2927,5 @@ export default {
   "tu + bots": "you + bots",
   "Um momento…": "One moment…",
   "← Voltar": "← Back",
+  "sem alvos neste confronto": "no targets in this matchup",
 }

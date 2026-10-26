@@ -215,7 +215,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
             game.winner === 'a' ? wa++ : game.winner === 'b' ? wb++ : null
             j('/api/sim/record', { deck_id: deck.id, deck_name: deck.name, format: fmt.key, opp_name: B.name, opp_archetype: o.archetype || '', game_no: g, match_id: matchId, winner: game.winner, turns: game.turns, a_side_in: JSON.stringify(swaps.map(s => s.in)), a_side_out: JSON.stringify(swaps.map(s => s.out)), summary: game.summary, job, start_life: life, bo, casual, opp_key: o.source === 'meus' ? `deck:${o.id}` : ['espelho', 'colada'].includes(o.source) ? '' : `meta:${o.id}` }).catch(() => {})
             if (smartSide && bo > 1 && !SIDE_FORMATS_NO.has(fmt.key) && Object.keys(deck.side).length) {
-              swaps = planSideboard(data, deckA, B, games, history)
+              swaps = planSideboard(data, deckA, B, games, history, 5, aiFlags)
               cur = applySwaps(deckA, swaps)
             }
             setRuns(r => [...r.filter(x => x.matchId !== matchId), { matchId, opp: B.name, archetype: o.archetype, games: [...games], wa, wb }])

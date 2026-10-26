@@ -2919,4 +2919,5 @@ export default {
   "tu + bots": "你 + 机器人",
   "Um momento…": "请稍候…",
   "← Voltar": "← 返回",
+  "sem alvos neste confronto": "本对局中没有目标",
 }
