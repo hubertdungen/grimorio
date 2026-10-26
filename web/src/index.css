@@ -146,6 +146,11 @@ h2 .mana img { width: 20px; height: 20px; }
 .map-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .map-ui { position: absolute; top: 14px; left: 14px; width: min(380px, calc(100% - 28px)); display: grid; gap: 8px; padding: 12px; background: rgba(19, 17, 31, .82); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(8px); }
 .map-ui p { margin: 0; }
+.map-ui-tg { justify-self: start; }
+@media (max-width: 900px) {  /* fechado: só «voar até uma carta» e o botão das opções, o resto do ecrã é o mapa */
+  .map-ui.closed { padding: 8px; grid-template-columns: auto minmax(0, 1fr); align-items: center; background: rgba(19, 17, 31, .7); }
+  .map-ui:not(.closed) { max-height: calc(100% - 90px); overflow-y: auto; }
+}
 .map-hint { position: relative; display: grid; gap: 4px; padding: 9px 30px 9px 11px; border-radius: 10px; border: 1px solid rgba(110, 231, 249, .35); background: rgba(110, 231, 249, .06); font-size: 12.5px; line-height: 1.4; }
 .map-hint b { font-size: 13px; color: var(--cyan); }
 .map-hint p { color: var(--muted); }
@@ -755,6 +760,7 @@ h2 .mana img { width: 20px; height: 20px; }
   .map-card { width: 150px; top: auto; bottom: 40px; }
   .map-recs { left: 14px; right: 14px; width: auto; top: auto; bottom: 34px; max-height: 38%; }
   .map-recs.with-card { right: 14px; bottom: 34px; }
+  .map-recs.closed { top: auto; bottom: 34px; }  /* fechada: só a barra, em baixo (no topo tapava o «voar até» e as opções) */
   .map-ui { width: calc(100% - 28px); }
   .combo { flex-direction: column; }
   .analysis { grid-template-columns: 1fr; }

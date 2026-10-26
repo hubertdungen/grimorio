@@ -967,7 +967,9 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
   const [hov, setHov] = useState(null)
   const [kind, setKind] = useState('')
   const [tag, setTag] = useState('')
-  const [panel, setPanel] = useState(true)
+  // telemóvel e tablet ao alto: o mapa ocupa o ecrã; opções e sugestões começam fechadas (abrem-se por botão/barra)
+  const narrow = typeof window !== 'undefined' && window.innerWidth < 900
+  const [panel, setPanel] = useState(!narrow), [uiOpen, setUiOpen] = useState(!narrow)
   const [hint, setHint] = useState(() => { try { return localStorage.getItem('grimorio.hint.universo') !== '0' } catch { return true } })
   const showHint = v => { setHint(v); try { localStorage.setItem('grimorio.hint.universo', v ? '1' : '0') } catch { /* sem armazenamento */ } }
   const { recs: allRecs, seeds, seedsIdx, have, plan, needs, tastes, swaps, meta } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
@@ -1061,19 +1063,21 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
     <div className="view mapview">
       <Map3D data={data} marks={marks} dim={dim} links={links} focus={focus} onPick={pick} onAdd={addI} frame={frame} follow={follow} tips={tips}
         overlays={overlays} onOverlay={onOverlay} perf={perf} goto={goto} lasso={lasso} onLasso={onLasso} />
-      <div className="map-ui">
-        {hint ? (
+      <div className={`map-ui ${uiOpen ? '' : 'closed'}`}>
+        {narrow && <button className="small map-ui-tg" onClick={() => setUiOpen(v => !v)} aria-expanded={uiOpen}>{uiOpen ? `× ${tx('Fechar as opções')}` : `⚙ ${tx('Opções')}`}</button>}
+        {uiOpen && (hint ? (
           <div className="map-hint" role="note">
             <button className="map-hint-x" onClick={() => showHint(false)} aria-label={tx('Fechar')}>✕</button>
             <b>{tx('O que é o Universo?')}</b>
             <p>{tx('Cada ponto é uma carta. Cartas com texto e funções parecidas ficam perto umas das outras; o teu deck brilha como uma constelação.')}</p>
             <p>{tx('Serve para descobrir cartas à volta das tuas: as sugestões pulsam ligadas à carta com que combinam. Clique para ver, duplo clique para juntar ao deck; arrasta para rodar e usa a roda para aproximar.')}</p>
           </div>
-        ) : <button className="link plain small map-hint-open" onClick={() => showHint(true)}>{tx('? O que é o Universo')}</button>}
+        ) : <button className="link plain small map-hint-open" onClick={() => showHint(true)}>{tx('? O que é o Universo')}</button>)}
         <div className="seedpick">
           <input value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Voar até uma carta…')} />
           {hits.length > 0 && <ul className="ac">{hits.map(c => <li key={c.i}><button onClick={() => { pick(c.i); setQ('') }}><img src={img(c, 'small')} alt="" />{c.n}</button></li>)}</ul>}
         </div>
+        {uiOpen && <>
         <div className="map-toggles">
           <label className="chk"><input type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /> {tx('seguir o deck')}</label>
           <label className="chk"><input type="checkbox" checked={foco} onChange={e => setFoco(e.target.checked)} /> {tx('só deck e sugestões')}</label>
@@ -1090,6 +1094,7 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
           : <p className="small muted">{tx('Sem jogos deste deck no Coliseu: põe-no a jogar para ver o desempenho de cada carta.')}</p>)}
         {plan.length > 0 && <p className="small"><span className="muted">{tx('Plano:')}</span> {plan.map(x => <span key={x.label} className="plan-chip">{x.label} <b>{x.n}</b></span>)}</p>}
         <p className="muted small">{have.length ? `${tx('{n} cartas no deck', { n: have.length })} · ${deckL.filter(l => l.kind === 'combo').length ? `${tx('linhas douradas = combos')} · ` : ''}${tx('tracejado = quem alimenta quem')}` : tx('Clica numa carta para a ver; duplo clique junta-a ao deck.')}</p>
+        </>}
       </div>
 
       {sel && (

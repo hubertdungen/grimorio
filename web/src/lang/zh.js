@@ -2858,4 +2858,6 @@ export default {
   "O Forge recusou essa jogada": "Forge 拒绝了这次操作",
   "Não há alvos válidos, falta mana ou não é a altura. Uma aura como Hardlight Containment precisa de um artefacto teu em jogo.": "没有合法目标、法术力不足或时机不对。像 Hardlight Containment 这样的灵气需要你场上有一个神器。",
   "{n} marcadores de veneno (10 = derrota)": "{n} 个中毒指示物（10 个即落败）",
+  "Fechar as opções": "关闭选项",
+  "Opções": "选项",
 }

@@ -2866,4 +2866,6 @@ export default {
   "O Forge recusou essa jogada": "Forge refused that play",
   "Não há alvos válidos, falta mana ou não é a altura. Uma aura como Hardlight Containment precisa de um artefacto teu em jogo.": "There are no valid targets, not enough mana, or it's not the right time. An aura like Hardlight Containment needs an artifact of yours on the battlefield.",
   "{n} marcadores de veneno (10 = derrota)": "{n} poison counters (10 = loss)",
+  "Fechar as opções": "Close the options",
+  "Opções": "Options",
 }
