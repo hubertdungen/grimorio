@@ -1124,7 +1124,11 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .tp-body .dbox-meta { flex-wrap: wrap; gap: 3px 8px; } .tp-body .dbox-meta .small { font-size: 11px; }
 .arena-grid .seg, .arena-grid select { justify-self: start; } .arena-grid > label > select { min-width: 150px; } .arena-grid .row-btns { align-items: center; flex-wrap: nowrap; }
 .tour .tour-nav { float: none; margin: 0; }
-.tour-reg > li { display: grid; grid-template-columns: 110px minmax(0, 2fr) minmax(0, 1.4fr) auto; } .tour-reg .tl-status { justify-self: start; } @media (max-width: 700px) { .tour-reg > li { grid-template-columns: minmax(0, 1fr) auto; } }
+.tour-reg > li { display: grid; grid-template-columns: 110px minmax(0, 2fr) minmax(0, 1.4fr) auto; } .tour-reg .tl-status { justify-self: start; } @media (max-width: 700px) {  /* telemóvel: título em cima, estado e botões numa linha, o pódio inteiro por baixo */
+  .tour-reg > li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title title" "status btns" "pod pod"; align-items: center; }
+  .tour-reg > li > :nth-child(1) { grid-area: status; } .tour-reg > li > :nth-child(2) { grid-area: title; min-width: 0; overflow-wrap: anywhere; }
+  .tour-reg > li > :nth-child(3) { grid-area: pod; } .tour-reg > li > .row-btns { grid-area: btns; }
+}
 /* capa própria: link ou imagem carregada (Biblioteca › 🖼) */
 .dbox-own { display: grid; gap: 6px; padding-top: 6px; }
 .dbox-own form { display: flex; gap: 4px; } .dbox-own input { flex: 1; min-width: 0; padding: 4px 6px; font-size: 12px; }
