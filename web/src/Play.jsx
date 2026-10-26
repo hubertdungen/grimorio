@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { tx } from './i18n.js'
 import { DIFF_INFO } from './difficulty.js'
+import ForgeTable from './ForgePlay.jsx'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -23,7 +24,7 @@ const TIPS = [
   [tx('Fim'), tx('pára sozinho ao fim de 20 min sem mexeres no jogo. No fim de cada partida o Forge volta ao menu, com os dois decks nas listas do Constructed.')],
 ]
 
-export default function PlayView({ deck, fmt, fromState = null }) {
+export default function PlayView({ data, deck, fmt, fromState = null }) {
   const [opps, setOpps] = useState([])
   const [mine, setMine] = useState([])
   const [diffs, setDiffs] = useState([])
@@ -35,6 +36,13 @@ export default function PlayView({ deck, fmt, fromState = null }) {
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
   const frame = useRef(null)
+  // «grimorio» = a mesa do Grimório (Forge Play nativo, playnet.py); «classico» = o Forge desktop por noVNC. Commander só no clássico.
+  const native = !fmt.cmd
+  const [modo, setModoS] = useState(() => { try { return localStorage.getItem('grimorio.jogar.modo') || 'grimorio' } catch { return 'grimorio' } })
+  const setModo = v => { setModoS(v); try { localStorage.setItem('grimorio.jogar.modo', v) } catch { /* sem armazenamento */ } }
+  const useNative = native && modo === 'grimorio'
+  const [net, setNet] = useState(null), [netOn, setNetOn] = useState(null)  // id do jogo na mesa do Grimório; jogo meu ainda aberto
+  useEffect(() => { j('/api/playnet').then(l => setNetOn(l.find(x => !x.ended)?.id || null)).catch(() => {}) }, [net])
 
   useEffect(() => {
     j(`/api/sim/opponents?format=${fmt.key}`).then(setOpps).catch(() => setOpps([]))
@@ -59,14 +67,24 @@ export default function PlayView({ deck, fmt, fromState = null }) {
   const start = () => {
     const [kind, id] = [opp.slice(0, opp.indexOf(':')), opp.slice(opp.indexOf(':') + 1)]
     const opponent = kind === 'meta' ? { id } : kind === 'meu' ? { deck_id: id } : { deck: { ...mineDeck, name: `${deck.name} (${tx('espelho')})` } }
-    go(tx('A arrancar o Forge…'), '/api/play/start', { format: fmt.key, difficulty: diff, deck: mineDeck, opponent })
+    if (!useNative) return go(tx('A arrancar o Forge…'), '/api/play/start', { format: fmt.key, difficulty: diff, deck: mineDeck, opponent })
+    setErr(''); setBusy(tx('A arrancar o Forge…'))
+    j('/api/playnet', { difficulty: diff, deck: mineDeck, opponent }).then(r => setNet(r.id)).catch(e => setErr(e.message)).finally(() => setBusy(''))
   }
+  const stopNet = async () => { if (net) await j(`/api/playnet/${net}/stop`, {}).catch(() => {}); setNet(null) }
   const resume = () => go(tx('A preparar a posição…'), '/api/play/from-state', { ...fromState, difficulty: diff, format: fromState.format || fmt.key })
   const stop = async () => { setBusy(tx('A parar…')); await j('/api/play/stop', {}).catch(() => {}); setSess(null); setSt({ running: false }); setBusy('') }
   const full = () => frame.current?.requestFullscreen?.()
 
   const count = Object.values(deck.main || {}).reduce((a, b) => a + b, 0)
   const running = st?.running
+  if (net) return (
+    <div className="view play">
+      <div className="row-btns fp-bar"><b>⚔ {deck.name}</b> <span className="muted small">{tx('contra a IA do Forge · {f}', { f: fmt.name })}</span>
+        <button className="link small" onClick={stopNet}>■ {tx('Parar o jogo')}</button></div>
+      <ForgeTable key={net} sid={net} data={data} onClose={stopNet} onAgain={() => { setNet(null); start() }} />
+    </div>
+  )
   return (
     <div className="view play">
       <section className="card">
@@ -74,6 +92,11 @@ export default function PlayView({ deck, fmt, fromState = null }) {
         <p className="small">
           <b>{deck.name || tx('O teu deck')}</b> <span className="muted">· {tx('{n} carta|{n} cartas', { n: count })}{deck.commanders?.length ? ` · ${tx('comandante: {c}', { c: deck.commanders.join(' + ') })}` : ''}</span>
         </p>
+        <div className="seg play-modo" role="group" aria-label={tx('Como jogar')}>
+          <button className={useNative ? 'on' : ''} disabled={!native} onClick={() => setModo('grimorio')} title={native ? undefined : tx('O Commander joga-se só no Forge clássico.')}>✦ {tx('Mesa do Grimório')}</button>
+          <button className={useNative ? '' : 'on'} onClick={() => setModo('classico')}>🖥 {tx('Forge clássico')}</button>
+        </div>
+        <p className="small muted">{useNative ? tx('A mesa do Grimório: as cartas, a pilha e as escolhas aqui mesmo, no PC ou no tablet. O Forge decide as regras e joga pela IA.') : tx('O Forge desktop dentro do browser (noVNC), com todos os menus do Forge. Serve para Commander e para retomar posições de repetições.')}</p>
         <div className="row-btns" style={{ flexWrap: 'wrap', alignItems: 'end' }}>
           <label className="fmt"><span>{tx('Adversário')}</span>
             <select value={opp} onChange={e => setOpp(e.target.value)}>
@@ -89,10 +112,11 @@ export default function PlayView({ deck, fmt, fromState = null }) {
               {(diffs.length ? diffs : [{ id: 'default', label: 'Normal' }]).map(d => <option key={d.id} value={d.id}>{DIFF_INFO[d.id]?.label || d.label}</option>)}
             </select>
           </label>
-          <label className="chk small"><input type="checkbox" checked={fit} onChange={e => setFitPref(e.target.checked)} /> {tx('resolução ajustada à janela (sem escalar)')}</label>
+          {!useNative && <label className="chk small"><input type="checkbox" checked={fit} onChange={e => setFitPref(e.target.checked)} /> {tx('resolução ajustada à janela (sem escalar)')}</label>}
         </div>
         <div className="row-btns" style={{ marginTop: 10, flexWrap: 'wrap' }}>
           <button className="primary" onClick={start} disabled={!opp || !count || !!busy}>▶ {tx('Jogar contra o Forge')}</button>
+          {useNative && netOn && <button onClick={() => setNet(netOn)}>{tx('Voltar ao jogo em curso')}</button>}
           {fromState && <button onClick={resume} disabled={!!busy}>▶ {tx('Retomar esta posição (controlas o lado {s})', { s: fromState.control === 'a' ? 'A' : 'B' })}</button>}
           {running && !sess && <button onClick={() => setSess({ session: st.id, title: st.title, warnings: st.warnings || [] })}>{tx('Voltar ao jogo em curso')}</button>}
           {running && <button onClick={stop} disabled={busy === tx('A parar…')}>■ {tx('Parar')}</button>}
@@ -120,10 +144,10 @@ export default function PlayView({ deck, fmt, fromState = null }) {
         </section>
       )}
 
-      <section className="card">
+      {!useNative && <section className="card">
         <h4>{tx('Como se joga no Forge')}</h4>
         <ul className="small">{TIPS.map(([k, v]) => <li key={k}><b>{k}:</b> {v}</li>)}</ul>
-      </section>
+      </section>}
     </div>
   )
 }

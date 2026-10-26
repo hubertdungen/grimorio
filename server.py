@@ -8,6 +8,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
 import play
+import playnet
 import backup
 import ratings
 import sim
@@ -239,6 +240,8 @@ class H(BaseHTTPRequestHandler):
             return self.file(f, "no-cache") if f.startswith(root + os.sep) else self.send(404, b"nao existe", "text/plain")
         if p == "/api/play/status":
             return self.json(play.status())
+        if p.startswith("/api/playnet"):
+            return self.playnet_route("GET")
         m = EDHREC_PATH.match(p)
         if m:
             return self.edhrec(m.group(1), m.group(2))
@@ -473,6 +476,44 @@ class H(BaseHTTPRequestHandler):
         except RuntimeError as e:
             return self.json({"erro": str(e)}, 409)
 
+    def playnet_route(self, method):
+        """Forge Play nativo (playnet.py). POST /api/playnet {deck_id|deck, opponent: {id}|{deck_id}|{deck}, difficulty} -> {id};
+        GET /api/playnet -> jogos meus; GET /api/playnet/<id>?since=N (espera até 20 s por novidades);
+        POST /api/playnet/<id>/cmd {c, …}; POST /api/playnet/<id>/stop."""
+        u = urllib.parse.urlsplit(self.path)
+        m = re.fullmatch(r"/api/playnet(?:/([a-f0-9]{12})(?:/(cmd|stop))?)?", u.path)
+        if not m:
+            return self.json({"erro": "rota desconhecida"}, 404)
+        sid, act, owner = m.group(1), m.group(2), self.owner()
+        try:
+            if method == "GET" and not sid:
+                return self.json(playnet.active(owner))
+            if method == "GET" and not act:
+                since = int((urllib.parse.parse_qs(u.query).get("since") or ["0"])[0] or 0)
+                return self.json(playnet.poll(sid, owner, since))
+            if method != "POST":
+                return self.json({"erro": "rota desconhecida"}, 404)
+            d = self.body() or {}
+            if not sid:
+                a = self.own_deck(d["deck_id"]) if d.get("deck_id") else d.get("deck")
+                o = d.get("opponent") or {}
+                b = o.get("deck") or (self.own_deck(o["deck_id"]) if o.get("deck_id") else sim.opponent(ARGS.data_dir, str(o.get("id") or "")))
+                if not a or not b:
+                    raise ValueError("Falta um dos decks.")
+                prof = self.profile()
+                return self.json({"id": playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or "Tu")}, 201)
+            if act == "cmd":
+                playnet.cmd(sid, owner, d)
+                return self.json({"ok": True})
+            if act == "stop":
+                playnet.stop(sid, owner)
+                return self.json({"ok": True})
+            return self.json({"erro": "rota desconhecida"}, 404)
+        except KeyError:
+            return self.json({"erro": "Esse jogo já não existe."}, 404)
+        except (ValueError, TypeError, AttributeError) as e:
+            return self.json({"erro": str(e) if isinstance(e, ValueError) else "pedido inválido"}, 400)
+
     def _post(self):
         if self.path.startswith("/api/profiles"):
             return self.profiles_route("POST")
@@ -494,6 +535,8 @@ class H(BaseHTTPRequestHandler):
             return self.json(*reversed(ratings.route("POST", self.path, self.owner(), d)))
         if self.path in ("/api/play/start", "/api/play/from-state", "/api/play/stop"):
             return self.play_route()
+        if self.path.startswith("/api/playnet"):
+            return self.playnet_route("POST")
         if self.path in ("/api/ia/config", "/api/ia/ask"):
             try:
                 d = self.body()
@@ -688,7 +731,7 @@ class H(BaseHTTPRequestHandler):
         return r and {"id": r[0], "name": r[1], "color": r[2]}
 
     # rotas que precisam de saber de quem são os dados: sem perfil escolhido respondem 401 com code "profile"
-    OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state")
+    OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state", "/api/playnet")
 
     def no_profile(self):
         if self.path.startswith(self.OWNED) and self.mode() == "profiles" and not self.profile():

@@ -75,7 +75,7 @@ public class GrimorioNet {
         Deck dh = DeckSerializer.fromFile(new File(a[0])), da = DeckSerializer.fromFile(new File(a[1]));
         LobbyPlayer human = GamePlayerUtil.getGuiPlayer();
         human.setName(a.length > 2 ? a[2] : "Tu");
-        LobbyPlayer ai = GamePlayerUtil.createAiPlayer(a.length > 3 ? a[3] : "Default");
+        LobbyPlayer ai = GamePlayerUtil.createAiPlayer(a.length > 4 ? a[4] : "Forge", a.length > 3 ? a[3] : "Default");  // nome (o deck dele), perfil
         RegisteredPlayer rh = new RegisteredPlayer(dh), ra = new RegisteredPlayer(da);
         List<RegisteredPlayer> players = new ArrayList<>();
         players.add(rh.setPlayer(human));
@@ -124,7 +124,7 @@ public class GrimorioNet {
                             case "cancel": ctl().selectButtonCancel(); break;
                             case "card": { CardView cv = findCard(c.get("id").getAsInt()); if (cv != null) ctl().selectCard(cv, null, null); break; }
                             case "player": { PlayerView pv = getGameView().getPlayers().get(c.get("i").getAsInt()); ctl().selectPlayer(pv, null); break; }
-                            case "mana": ctl().useMana((byte) c.get("color").getAsInt()); break;
+                            case "mana": { int mc = "WUBRGC".indexOf(c.get("color").getAsString()); if (mc >= 0) ctl().useMana(forge.card.MagicColor.WUBRGC[mc]); break; }
                             case "alpha": ctl().alphaStrike(); break;
                             case "undo": ctl().undoLastAction(); break;
                             case "concede": ctl().concede(); break;
@@ -224,6 +224,9 @@ public class GrimorioNet {
                 po.addProperty("library", p.getLibrary() == null ? 0 : p.getLibrary().size());
                 boolean mine = me != null && p.getId() == me.getId();
                 po.add("hand", cards(p.getHand(), !mine));
+                JsonObject mp = new JsonObject();  // reserva de mana: {"W": 1, "C": 2}
+                for (int k = 0; k < 6; k++) { int n = p.getMana(forge.card.MagicColor.WUBRGC[k]); if (n > 0) mp.addProperty(String.valueOf("WUBRGC".charAt(k)), n); }
+                if (mp.size() > 0) po.add("mana", mp);
                 po.add("battlefield", cards(p.getBattlefield(), false));
                 po.add("graveyard", cards(p.getGraveyard(), false));
                 po.add("exile", cards(p.getExile(), false));

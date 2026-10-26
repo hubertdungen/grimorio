@@ -76,7 +76,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu"):
         for sid in [k for k, s in S.items() if s["owner"] == owner]:
             _kill(S.pop(sid))
     fdir = sim.forge_dir(data_dir)
-    ext = os.path.join(os.path.dirname(fdir), "forge-ext")
+    ext = os.path.join(os.path.dirname(os.path.realpath(fdir)), "forge-ext")  # ao lado do Forge (o build.sh põe-no lá)
     if not os.path.isfile(os.path.join(ext, "GrimorioNet.class")):
         raise ValueError("Falta compilar o GrimorioNet (build/forge/build.sh).")
     sid = uuid.uuid4().hex[:12]
@@ -89,11 +89,12 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu"):
             f.write(txt)
     profs = {i: p for i, p, *_ in sim.DIFFICULTIES}
     prof = profs.get(difficulty) or "Default"
+    oname = str(opp.get("name") or "Forge")[:40]
     jvm = ["-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
     container = None
     if sim.RUNTIME == "local":
         cmd = [sim.JAVA, *jvm, f"-Duser.home={os.path.join(jdir, 'home')}", "-cp", os.pathsep.join([os.path.join(fdir, sim.FORGE_JAR), ext]),
-               "GrimorioNet", os.path.join(jdir, "a.dck"), os.path.join(jdir, "b.dck"), str(name)[:40] or "Tu", prof]
+               "GrimorioNet", os.path.join(jdir, "a.dck"), os.path.join(jdir, "b.dck"), str(name)[:40] or "Tu", prof, oname]
         p = subprocess.Popen(cmd, cwd=fdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
     else:
         container = f"{sim.PREFIX}net-{sid}"
@@ -104,7 +105,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu"):
             if os.path.isdir(os.path.join(ext, sub)):
                 cmd += ["-v", f"{os.path.join(ext, sub)}:{dst}:ro"]
         cmd += ["-v", f"{ext}:/ext:ro", sim.IMAGE, "java", *jvm, "-cp", f"{sim.FORGE_JAR}:/ext", "GrimorioNet",
-                "/run/a.dck", "/run/b.dck", str(name)[:40] or "Tu", prof]
+                "/run/a.dck", "/run/b.dck", str(name)[:40] or "Tu", prof, oname]
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
     with COND:
         S[sid] = {"owner": owner, "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
