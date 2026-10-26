@@ -131,11 +131,11 @@ def package(platform, work, version, out):
     root = os.path.join(out, "Grimorio" if win else "grimorio")
     shutil.rmtree(root, ignore_errors=True)
     app = os.path.join(root, "app")
-    if win:  # Grimorio.exe + _internal/ (Python 3 runtime); console window = "close it to stop"
+    if win:  # Grimorio.exe + _internal/ (Python 3 runtime): an app with its own window (pywebview + WebView2), no console
         icon = os.path.join(work, "icon.ico")
         subprocess.run([sys.executable, "-c", "from PIL import Image; Image.open(r'%s').save(r'%s', sizes=[(s, s) for s in "
                         "(16, 24, 32, 48, 64, 128, 256)])" % (os.path.join(ROOT, "web", "public", "icon-512.png"), icon)], check=True)
-        subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--onedir", "--console", "--name", "Grimorio",
+        subprocess.run([sys.executable, "-m", "PyInstaller", "--noconfirm", "--onedir", "--windowed", "--name", "Grimorio",
                         "--icon", icon, "--python-option", "X utf8", "--distpath", out,
                         "--workpath", os.path.join(work, "pyi"), "--specpath", work,
                         *[x for m in hidden_imports() for x in ("--hidden-import", m)],

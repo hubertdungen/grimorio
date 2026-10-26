@@ -299,11 +299,54 @@ def check_update(d, ver):
         jwrite(p, {**jread(p), "err": str(e)[:200], "downloading": None})
 
 
+# ---------- the app window ----------
+def log_to_file():
+    """Windowed app (no console): stdout/stderr are None; send them to <data>/logs/grimorio.log (last run kept as .1)."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    logs = os.path.join(data_dir(), "logs")
+    os.makedirs(logs, exist_ok=True)
+    f = os.path.join(logs, "grimorio.log")
+    if os.path.isfile(f):
+        os.replace(f, f + ".1")
+    sys.stdout = sys.stderr = open(f, "a", encoding="utf-8", buffering=1)
+
+
+def window(url, d):
+    """Grimório in its own window (pywebview: Edge WebView2 on Windows). Blocks until the window is closed; False if
+    there is no window toolkit here (then the caller opens the browser)."""
+    try:
+        import webview
+    except Exception:
+        return False
+    try:
+        webview.settings["ALLOW_DOWNLOADS"] = True  # exports, proxy PDFs, backups
+        webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
+        webview.create_window("Grimório", url, width=1440, height=900, min_size=(960, 640), text_select=True, background_color="#0b0a14")
+        # the browser storage (language, open deck, preferences) stays between runs, next to the data
+        webview.start(private_mode=False, storage_path=os.path.join(d, "webview"))
+        return True
+    except Exception as e:
+        say(f"No app window ({e}); opening the browser instead.")
+        return False
+
+
+def stop_box(url):
+    """Windows app without a console: a message box keeps Grimório running in the browser until OK."""
+    if os.name != "nt" or sys.stdin is not None and sys.stdin.isatty():
+        return False
+    import ctypes
+    ctypes.windll.user32.MessageBoxW(None, f"Grimório is running in your browser:\n{url}\n\nPress OK to close Grimório.", "Grimório", 0x40)
+    return True
+
+
 def main():
-    ap = argparse.ArgumentParser(description="Start Grimório on this computer and open it in the browser.")
+    ap = argparse.ArgumentParser(description="Start Grimório on this computer and open it in its own window (or the browser).")
     ap.add_argument("--port", type=int, help="port (default: 8107, or the next free one)")
     ap.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to open it to phones/tablets on your network")
-    ap.add_argument("--no-browser", action="store_true", help="do not open the browser")
+    ap.add_argument("--no-browser", action="store_true", help="do not open a window or the browser (server only)")
+    ap.add_argument("--browser", action="store_true", help="open in the browser instead of Grimório's own window")
+    log_to_file()  # the Windows app has no console: what it says goes to <data>/logs/grimorio.log
     args = ap.parse_args()
     utf8_files()
     ca_bundle()
@@ -317,7 +360,8 @@ def main():
         last = None
     if not args.port and last and running(last):  # already open: just show it again
         say(f"Grimório is already running: http://127.0.0.1:{last}")
-        args.no_browser or webbrowser.open(f"http://127.0.0.1:{last}")
+        if not args.no_browser and not (not args.browser and window(f"http://127.0.0.1:{last}", d)):
+            webbrowser.open(f"http://127.0.0.1:{last}")
         return
     port = args.port or next((p for p in ([last] if last else []) + list(PORTS) if free(args.host, p)), None)
     if not port:
@@ -344,24 +388,33 @@ def main():
         "  Keep this window open while you use it.",
         "  To stop Grimório, close this window (or press Ctrl+C).", "=" * 64, "", sep="\n")
 
-    def open_when_ready():
-        for _ in range(120):
-            if running(port):
-                return args.no_browser or webbrowser.open(url)
-            time.sleep(0.5)
-    threading.Thread(target=open_when_ready, daemon=True).start()
     sys.path.insert(0, APP)
     sys.argv = [os.path.join(APP, "server.py"), "--host", args.host, "--port", str(port), "--data-dir", d]
     for sig in ("SIGTERM", "SIGHUP"):  # kill / closed terminal: stop cleanly, with the Forge games
         if hasattr(signal, sig):
             signal.signal(getattr(signal, sig), lambda *_: sys.exit(0))
+    server = threading.Thread(target=lambda: runpy.run_path(sys.argv[0], run_name="__main__"), daemon=True)
     try:
-        runpy.run_path(sys.argv[0], run_name="__main__")
+        server.start()
+        ready = any(running(port) or time.sleep(0.5) for _ in range(240))
+        if not ready:
+            say("The server did not start; see the log above.")
+        elif args.no_browser:
+            server.join()
+        elif args.browser or not window(url, d):  # no window (Linux without pywebview, Windows without WebView2): the browser
+            webbrowser.open(url)
+            if not stop_box(url):  # Windows app without a console: a small dialog is the way to stop it
+                server.join()
     except KeyboardInterrupt:
         pass
     finally:
         for p in list(getattr(sys.modules.get("sim"), "PROCS", {}).values()):
             p.kill()
+        for x in list(getattr(sys.modules.get("playnet"), "S", {}).values()):  # Forge Play games still open
+            try:
+                x["p"].kill()
+            except Exception:
+                pass
         say("Grimório stopped.")
 
 
