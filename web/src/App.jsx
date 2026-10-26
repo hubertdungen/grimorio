@@ -439,7 +439,7 @@ export default function App() {
             <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>
           <div hidden={guest || colMode !== 'bots'}>{!guest && <LabView {...{ data, deck, fmt, act, ctx, playFrom }} />}</div>
-          {colMode === 'jogar' && !guest && <div className="view"><PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} /></div>}
+          {colMode === 'jogar' && !guest && <PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} />}
           {cm === 'torneio' && <TournamentView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
           {cm === 'online' && <TournamentView key="online" data={data} fmt={fmt} deckId={deck.id} guest={guest} online />}
           {cm === 'ratings' && <RatingsView data={data} fmt={fmt} />}

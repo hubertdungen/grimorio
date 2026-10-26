@@ -2239,9 +2239,14 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 /* ---------- Forge Play nativo (ForgePlay.jsx): a mesa da arena (Board.jsx Side) jogável, com arrastar e física ---------- */
 .play-modo { margin: 6px 0 4px; }
 .fp-bar { align-items: center; margin-bottom: 8px; }
-.fp { display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 21vw, 310px); gap: 10px; position: relative; height: calc(100dvh - 178px); min-height: 520px; }
-.coliseu:fullscreen .fp { height: calc(100dvh - 90px); }
-.fp-table.board { --cw: clamp(46px, min(5.6vw, 7.8vh), 104px); --ow: calc(var(--cw) * .8); --lw: calc(var(--cw) * .58); --hw: clamp(50px, min(6vw, 9vh), 112px); }
+.view.play.fp-view { padding-bottom: 0; margin-bottom: 0; }  /* a mesa vai até ao fundo do ecrã: sem espaço que faça rolar a página */
+.fp { display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 21vw, 310px); gap: 10px; position: relative; height: calc(100dvh - 178px); min-height: 420px; }  /* a altura certa vem do useTableFit (ForgePlay.jsx) */
+/* mais específico do que as regras do tabuleiro em ecrã inteiro (.coliseu:fullscreen .board), que punham o seu próprio
+   tamanho e anulavam o --k: era por isso que a mesa não acertava em ecrã inteiro */
+.fp-table.board, .coliseu .fp-table.board, .coliseu:fullscreen .fp-table.board, .coliseu:-webkit-full-screen .fp-table.board {
+  --cw: calc(clamp(46px, min(5.6vw, 7.8vh), 104px) * var(--k, 1)); --ow: calc(var(--cw) * .8); --lw: calc(var(--cw) * .58);
+  --hw: calc(clamp(50px, min(6vw, 9vh), 112px) * var(--k, 1)); --ohw: calc(var(--cw) * .62); }
+.fp-table .myhand.opp .hc { width: var(--ohw); } .fp-table .myhand.opp .fan { min-height: calc(var(--ohw) * 1.4); }
 .fp-table { min-width: 0; min-height: 0; overflow: auto; display: grid; grid-template-rows: auto auto auto; align-content: space-between; gap: 4px; }
 .fp-table .bhud { flex-wrap: nowrap; } .fp-table .bhud > .fp-hand, .fp-table .bhud > .myhand { flex: 1 1 auto; min-width: 0; }
 /* cartas: tap com mola (passa um pouco e assenta), a subir enquanto roda; inclinação 3D e brilho que seguem o rato */
@@ -2275,7 +2280,8 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .fp-table .bside.fp-over { border-color: #6ee7f9aa; background: #6ee7f90d; box-shadow: inset 0 0 30px #6ee7f922; }
 .fp-table .pc.fp-over .pc-f { box-shadow: 0 0 0 3px #ffd98a, 0 0 18px #ffd98a; }
 .fp-mid.fp-over { background: #6ee7f90d; }
-.fp-mid { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px; padding: 4px 0; border-block: 1px dashed #ffffff1a; }
+.fp-mid .stackfx { gap: 34px; }  /* a carta inclinada não tapa o início da legenda */
+.fp-mid { position: relative; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px; padding: 4px 0; border-block: 1px dashed #ffffff1a; }  /* relative: a pilha (StackFx) flutua por cima */
 .fp-turn { font-weight: 600; } .fp-phases { display: flex; gap: 4px; flex-wrap: wrap; }
 .fp-phases i { font-style: normal; font-size: 12px; padding: 2px 9px; border-radius: 999px; color: var(--muted); border: 1px solid var(--line); transition: background .3s, color .3s; }
 .fp-phases i.on { color: #111; background: var(--gold); border-color: var(--gold); }
@@ -2284,9 +2290,11 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .fp-si.mine { background: #6ee7f91a; border-color: #6ee7f966; } .fp-si small { color: var(--muted); font-size: 11px; }
 @keyframes fp-in { from { transform: translateY(-14px) scale(.85) rotate(-3deg); opacity: 0; } }
 .fp-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; }
-.fp-zoom img { width: 100%; border-radius: 4.5%; display: block; } .fp-zoom p { padding: 10px; }
+.fp-zoom { flex: none; aspect-ratio: 488 / 680; max-height: 46vh; display: grid; place-items: center; border-radius: 4.5%; background: #ffffff08; }  /* reserva sempre o espaço: o OK não sobe nem desce */
+.fp-zoom img { width: 100%; height: 100%; object-fit: contain; border-radius: 4.5%; display: block; } .fp-zoom p { padding: 10px; text-align: center; }
 .fp-prompt { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); display: grid; gap: 8px; }
 .fp-prompt.mine { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; } .fp-prompt p { margin: 0; white-space: pre-line; }
+.fp-prompt > p:first-child { min-height: 4.2em; font-size: 15px; } .fp-prompt > .row-btns:first-of-type button { min-height: 40px; font-size: 15px; }
 .fp-tip { font-size: 11px; }
 .fp-pool { display: flex; gap: 4px; } .fp-pool button { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: var(--m); color: #111; font-weight: 700; border: 2px solid #0006; animation: fp-in .4s cubic-bezier(.34, 1.56, .64, 1); }
 .fp-modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: #05040bcc; animation: fp-fade .2s ease-out; }

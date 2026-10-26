@@ -152,7 +152,7 @@ function hiText(t) {  // texto → pedaços com <b class> nas frases-chave (a pr
   if (i < t.length) out.push(t.slice(i))
   return out
 }
-function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
+export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
   const [ghost, setGhost] = useState(null), [nudge, setNudge] = useState(false), n = s.stack.length, prevN = useRef(n), gT = useRef(null)
   // resolver: a carta brilha e a legenda mostra o efeito real o tempo de o ler (pelo tamanho do texto e pela velocidade
   // escolhida); o temporizador é só dele, por isso o evento seguinte já não o cancela (a legenda ficava lá para sempre)

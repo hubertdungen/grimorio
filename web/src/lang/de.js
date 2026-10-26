@@ -2855,4 +2855,6 @@ export default {
   "o 1.º": "die 1.",
   "recomeçar": "neu beginnen",
   "Tu": "Du",
+  "O Forge recusou essa jogada": "Forge hat diesen Zug abgelehnt",
+  "Não há alvos válidos, falta mana ou não é a altura. Uma aura como Hardlight Containment precisa de um artefacto teu em jogo.": "Keine gültigen Ziele, zu wenig Mana oder nicht der richtige Zeitpunkt. Eine Aura wie Hardlight Containment braucht ein eigenes Artefakt im Spiel.",
 }

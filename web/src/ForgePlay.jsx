@@ -1,9 +1,9 @@
 // Forge Play nativo: jogas contra a IA do Forge com a mesa do Grimório. O motor corre no servidor (playnet.py +
 // build/forge/GrimorioNet.java) e manda o estado do jogo, o pedido atual (o que o motor espera de ti) e as escolhas
 // pendentes; aqui desenha-se a mesa e cada clique volta como comando (carta, jogador, OK/cancelar, mana, responder).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand } from './Board.jsx'
+import { Side, Hand, StackFx } from './Board.jsx'
 import { tx } from './i18n.js'
 
 async function j(url, body) {
@@ -171,6 +171,51 @@ function Hist({ log, nameOf }) {
   return <ol className="fp-hist" ref={box} aria-label={tx('Histórico do jogo')}>{log.map((e, k) => <li key={k} className={`y-${e.y}`}>{line(e.m)}</li>)}</ol>
 }
 
+// a mesa cabe no ecrã (normal e ecrã inteiro): a caixa vai do sítio onde começa até ao fundo do ecrã e o tamanho das
+// cartas (--k) acerta-se pela secante até o conteúdo encher essa altura, como o --fit do tabuleiro (Board.jsx).
+// Com cartas novas só volta a medir se deixar de caber ou se sobrar mais de 15%: as cartas não saltam a cada jogada.
+function useTableFit(boxRef, tableRef, ready) {
+  useLayoutEffect(() => {
+    const box = boxRef.current, t = tableRef.current
+    if (!box || !t) return
+    const content = () => {  // altura do que está dentro da mesa (as filas, sem o espaço que o space-between espalha)
+      const cs = getComputedStyle(t), kids = [...t.children]
+      return kids.reduce((a, k) => a + k.offsetHeight, 0) + (kids.length - 1) * (parseFloat(cs.rowGap) || 0) + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
+    }
+    const fit = () => {
+      const vh = window.visualViewport?.height || innerHeight, top = box.getBoundingClientRect().top
+      const fe = document.fullscreenElement || document.webkitFullscreenElement
+      box.style.height = `${Math.max(420, Math.floor(vh - Math.max(0, top) - (fe ? 6 : 10)))}px`
+      if (innerWidth < 901) return t.style.removeProperty('--k')
+      const a = t.clientHeight, h = k => { t.style.setProperty('--k', k); return content() }
+      let k0 = 1, h0 = h(1), k = Math.max(0.45, Math.min(1.8, k0 * a / h0))
+      for (let n = 0; n < 6; n++) {
+        const h1 = h(k)
+        if (Math.abs(h1 - a) < 3 || h1 === h0) break
+        const g = Math.max(0.45, Math.min(1.8, k + (a - h1) * (k - k0) / (h1 - h0)))
+        k0 = k; h0 = h1
+        if (Math.abs(g - k) < 0.005) break
+        k = g
+      }
+      while (content() > a + 1 && k > 0.46) { k -= 0.02; t.style.setProperty('--k', k) }  // nunca a passar: um pouco abaixo
+    }
+    const check = () => { const a = t.clientHeight, c = content(); if (c > a + 2 || c < a * 0.85) fit() }
+    let tm = [], raf = 0
+    const later = () => { fit(); tm.forEach(clearTimeout); tm = [120, 400, 900].map(x => setTimeout(fit, x)) }
+    later()
+    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(check) })
+    for (const k of t.children) ro.observe(k)
+    const mo = new MutationObserver(() => { for (const k of t.children) ro.observe(k) })  // filas novas também contam
+    mo.observe(t, { childList: true })
+    const evs = ['fullscreenchange', 'webkitfullscreenchange']
+    addEventListener('resize', later); window.visualViewport?.addEventListener('resize', later); evs.forEach(e => document.addEventListener(e, later))
+    return () => {
+      ro.disconnect(); mo.disconnect(); cancelAnimationFrame(raf); tm.forEach(clearTimeout)
+      removeEventListener('resize', later); window.visualViewport?.removeEventListener('resize', later); evs.forEach(e => document.removeEventListener(e, later))
+    }
+  }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 // escolhas que bloqueiam o motor: sim/não, uma opção, um número ou texto, ou escolher entre cartas/jogadores
 function Ask({ a, st, data, answer, zoom }) {
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
@@ -229,8 +274,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
     if (!n || seen.current === n) return
     seen.current = n
     const m = log[n - 1]
-    if (m.t === 'flash' || /^AI can't play/.test(m.title || '')) return  // o aviso do Forge sobre cartas que a IA joga mal não interessa a quem joga
-    setToast(m); const t = setTimeout(() => setToast(null), 6000); return () => clearTimeout(t)
+    if (/^AI can't play/.test(m.title || '')) return  // o aviso do Forge sobre cartas que a IA joga mal não interessa a quem joga
+    // flash = o Forge recusou o clique (sem alvos válidos, sem mana, fora de tempo): sem isto parecia que nada acontecia
+    setToast(m.t === 'flash' ? { title: tx('O Forge recusou essa jogada'), msg: tx('Não há alvos válidos, falta mana ou não é a altura. Uma aura como Hardlight Containment precisa de um artefacto teu em jogo.') } : m)
+    const t = setTimeout(() => setToast(null), m.t === 'flash' ? 3500 : 6000); return () => clearTimeout(t)
   }, [s?.log])
   const send = c => j(`/api/playnet/${sid}/cmd`, c).catch(e => setErr(e.message))
   const answer = (a, v) => { setS(x => ({ ...x, asks: x.asks.filter(y => y.id !== a.id) })); send({ c: 'answer', id: a.id, v }) }
@@ -287,13 +334,42 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
     return 'local'
   }
   const { down, dragged } = useDrag(drop, id => setZoom(byId.get(id)))
+  // animações como no tabuleiro dos bots: a pilha (StackFx) com «A resolver», números de dano/marcadores nas cartas e as
+  // cartas que saem do campo a desaparecer (dying) — tudo a partir da diferença entre um estado do Forge e o seguinte
+  const anim = useRef({ perms: new Map(), stack: [] }), [fxs, setFxs] = useState({ pops: new Map(), gone: [], rev: null, ri: 0 })
+  const seqKey = s?.seq
+  useEffect(() => {
+    if (!st) return
+    const a = anim.current, now = new Map(), pops = new Map(), gone = []
+    for (const p of st.players || []) for (const c of p.battlefield || []) now.set(c.id, { c, side: p.id === me?.id ? 'a' : 'b' })
+    for (const [id, { c }] of now) {
+      const o = a.perms.get(id)?.c
+      if (!o) continue
+      if ((c.dmg || 0) > (o.dmg || 0)) pops.set(String(id), { i: seqKey, kind: 'dmg', n: -((c.dmg || 0) - (o.dmg || 0)) })
+      const dc = (ctrs(c.counters)['+1/+1'] || 0) - (ctrs(o.counters)['+1/+1'] || 0)
+      if (dc) pops.set(String(id), { i: seqKey, kind: 'ctr', n: dc })
+    }
+    for (const [id, x] of a.perms) if (!now.has(id) && !x.c.hidden) gone.push({ ...x, until: Date.now() + 700 })
+    // a pilha do Forge vem do topo para baixo; o que saiu dela resolveu (ou foi contrariado): fantasma «A resolver»
+    const items = [...(st.stack || [])].reverse(), keyOf = x => `${x.card ?? ''}|${x.text}`
+    const left = a.stack.find(x => !items.some(y => keyOf(y) === keyOf(x)))
+    a.perms = now; a.stack = items
+    setFxs(f => ({ pops, gone: [...f.gone.filter(g => g.until > Date.now()), ...gone], rev: left ? { k: 'resolve', card: left.name, p: left.by === me?.id ? 'a' : 'b', txt: left.text } : f.rev, ri: left ? f.ri + 1 : f.ri }))
+  }, [seqKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!fxs.gone.length && !fxs.pops.size) return; const t = setTimeout(() => setFxs(f => ({ ...f, pops: new Map(), gone: f.gone.filter(g => g.until > Date.now()) })), 1200); return () => clearTimeout(t) }, [fxs.gone.length, fxs.pops])
+  const fitBox = useRef(null), fitTable = useRef(null)
+  useTableFit(fitBox, fitTable, !!st)
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const myTurn = st.active === me?.id
   const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true }
+  for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.push({ ...toPerm(g.c), dying: true })
+  const hashN = t => [...String(t)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
+  bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name,
+    kind: !x.ability ? 'cast' : /^(When|Whenever|At)\b/.test(x.text || '') ? 'trigger' : 'activate' }))
   const att = new Map()
   for (const p of [...bs.a.perms, ...bs.b.perms]) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
   const sel = new Set([...byId.values()].filter(c => c.sel).map(c => String(c.id)))
-  const fx = { hl: sel, par: 'sel', pops: new Map(), life: lifeFx, player: null }
+  const fx = { hl: sel, par: 'sel', pops: fxs.pops, life: lifeFx, player: null }
   const openZone = (k, z) => setZone({ p: k === 'a' ? me : opp, k: z })
   const onClick = e => {  // um clique numa carta da mesa ou da mão = o mesmo que no Forge; no orbe = escolher o jogador
     if (dragged.current) return
@@ -319,15 +395,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
     el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
   }
   return (
-    <div className="fp" onMouseLeave={() => setZoom(null)} onMouseOver={onOver}>
-      <div className="fp-table board table" onClick={onClick} onMouseMove={tilt} onPointerDown={down}>
+    <div className="fp" ref={fitBox} onMouseLeave={() => setZoom(null)} onMouseOver={onOver}>
+      <div className="fp-table board table" ref={fitTable} onClick={onClick} onMouseMove={tilt} onPointerDown={down}>
         {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone}
           hand={nOpp > 0 && <Hand z={{ hand: nOpp, known: Array(nOpp).fill('?') }} data={data} exact opp hidden quiet />} />}
         <div className="fp-mid">
           <span className="fp-turn">{tx('Turno {n}', { n: st.turn })} · {myTurn ? tx('teu') : opp?.name}</span>
           <span className="fp-phases">{PHASES.map(([k, l, ps]) => <i key={k} className={ps.includes(st.phase) ? 'on' : ''}>{l}</i>)}</span>
-          {st.stack?.length > 0 && <div className="fp-stack">{st.stack.map((x, k) => (
-            <div key={k} className={`fp-si ${x.by === me?.id ? 'mine' : ''}`} data-z={x.name ? `n:${x.name}` : undefined}><b>{x.name}</b><small>{x.text}</small></div>))}</div>}
+          <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={null} who={{ a: me?.name, b: opp?.name }} speed={1} />
         </div>
         {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} place={lay.place} order={lay.order}
           hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big cls={c.play ? 'play' : ''} />)}</div>} />}

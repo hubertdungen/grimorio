@@ -120,7 +120,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   const count = Object.values(deck.main || {}).reduce((a, b) => a + b, 0)
   const running = st?.running
   if (net) return (
-    <div className="view play">
+    <div className="view play fp-view">
       <div className="row-btns fp-bar"><b>⚔ {deck.name}</b> <span className="muted small">{tx('contra a IA do Forge · {f}', { f: fmt.name })}</span>
         <button className="link small" onClick={stopNet}>■ {tx('Parar o jogo')}</button></div>
       <ForgeTable key={net} sid={net} data={data} onClose={stopNet} onAgain={() => { setNet(null); start() }} />
