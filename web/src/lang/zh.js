@@ -2941,4 +2941,8 @@ export default {
   "Sempre deitado": "始终横屏",
   "Livre (roda com o aparelho)": "自由（随设备旋转）",
   "Só no Android: o iPhone e o iPad não deixam fixar a orientação.": "仅限 Android：iPhone 和 iPad 不允许锁定方向。",
+  "Jogo seguinte desta partida": "本场对决的下一局",
+  "Abre sozinho o próximo jogo desta partida quando acabar": "本场对决的下一局结束时自动打开",
+  "À espera do jogo seguinte…": "等待下一局…",
+  "Ver o jogo seguinte desta partida": "观看本场对决的下一局",
 }

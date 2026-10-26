@@ -792,6 +792,7 @@ function Live({ data, tid, onGone, slot }) {
   const [err, setErr] = useState('')
   const [watch, setWatch] = useState(null)  // {gid, game, deckName, score}
   const [playing, setPlaying] = useState(null)  // sessão do Forge Play do meu jogo (torneio em que jogo eu)
+  const [stick, setStick] = useState(null)  // {mid, gid}: à espera do jogo seguinte desta partida
   const [follow, setFollowS] = useState(() => ls('grimorio.torneio.seguir') !== '0')
   const setFollow = v => { setFollowS(v); ls('grimorio.torneio.seguir', v ? '1' : '0') }
   const [pause, setPause] = useState(() => { try { return JSON.parse(localStorage.getItem('grimorio.pausa')) || { secs: 5, auto: true } } catch { return { secs: 5, auto: true } } })
@@ -831,12 +832,15 @@ function Live({ data, tid, onGone, slot }) {
     else if (x.m.id === home.current.mid) home.current.gid = x.id
     try {
       let g = await j(`/api/tournaments/${tid}/games/${x.id}`)
-      const me0 = t.me == null ? -1 : g.seats.indexOf(t.me)
+      // em baixo («o nosso lado»): o meu deck; se não joga, o deck em que apostei (nesta partida, senão o campeão)
+      const bet = k => (bets.b?.bets || []).filter(b => b.status !== 'refund' && (k === 'champ' ? b.kind === 'champ' : b.mid === x.m.id)).map(b => b.pick)
+      const side0 = t.me != null && g.seats.includes(t.me) ? t.me : g.seats.find(i => bet('match').includes(i)) ?? g.seats.find(i => bet('champ').includes(i))
+      const me0 = side0 == null ? -1 : g.seats.indexOf(side0)
       if (me0 > 0) { const sv = [...g.seats]; [sv[0], sv[me0]] = [sv[me0], sv[0]]; g = { ...swapSide(g, 'abcd'[me0]), seats: sv } }  // o meu deck fica em baixo, no lugar do jogador
       const names = g.seats.map(i => (i === t.me && who ? `${who} - ${P[i]?.name || '?'}` : P[i]?.name || '?')), m = x.m
       const prev = m.g.slice(0, x.k).filter(y => !y.x)
       const score = names.length === 2 ? { a: prev.filter(y => y.w === g.seats[0]).length, b: prev.filter(y => y.w === g.seats[1]).length, g: prev.length + 1, bo: t.bo, serie: 1, series: 1, sw: 0, sl: 0, k: 1, total: 1 } : null
-      const mk = t.me == null ? -1 : g.seats.indexOf(t.me)
+      const mk = side0 == null ? -1 : g.seats.indexOf(side0)  // o fim do jogo conta como vitória/derrota do meu lado
       setWatch({ gid: x.id, mid: m.id, seats: g.seats, deckName: names[0], pov: mk >= 0 ? 'abcd'[mk] : null, score, formats: t.casual ? Object.fromEntries(g.seats.map((i, k) => ['abcd'[k], FORMAT[P[i]?.format]?.name || P[i]?.format])) : null, game: { ...g, g: x.k + 1, opp: names[1], ...(names.length > 2 && { opps: Object.fromEntries(names.slice(1).map((nm, k) => ['bcd'[k], nm])) }), startLife: t.casual ? baseLife(t.format, names.length) : fmt.cmd ? 40 : 20 } })
     } catch (e) { setErr(e.message) }
   }
@@ -860,6 +864,8 @@ function Live({ data, tid, onGone, slot }) {
     const top = fl.length ? fl[fl.length - 1].id : 0
     if (lastSeen.current !== null && top > lastSeen.current && follow && !watch) openGame(fl[fl.length - 1])
     lastSeen.current = top
+    // «esperar o seguinte desta partida»: abre-o assim que acaba
+    if (stick) { const nx = fl.find(x => x.m.id === stick.mid && x.id > stick.gid); if (nx) { setStick(null); openGame(nx) } }
   }, [fl]) // eslint-disable-line react-hooks/exhaustive-deps
   const bets = useBets(tid, t)
   if (!t) return <section className="card">{err ? <p className="bad-t">{err}</p> : <p><span className="spin-dot" /> {tx('A abrir o torneio…')}</p>}</section>
@@ -884,7 +890,13 @@ function Live({ data, tid, onGone, slot }) {
         title: xs.map(x => (x.kind === 'champ' ? tx('Aposta no campeão: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }) : tx('Aposta nesta partida: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }))).join('\n'),
       }
     }
-    return <>{slot && createPortal(<button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>, slot)}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} owns={Object.fromEntries((watch.seats || []).map((i, k) => ['abcd'[k], ownOf(P[i], deckOwn)]))} bots={Object.fromEntries((watch.seats || []).map((i, k) => { const d = DIFF_INFO[P[i]?.difficulty]; return ['abcd'[k], d && { label: d.label, title: tx('Bot do Forge: {d} — {r}', { d: d.label, r: d.resumo }) }] }).filter(x => x[1]))} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
+    // o jogo seguinte desta partida (mesma mesa): abre já se acabou; se a partida ainda decorre, espera por ele
+    const sameNext = fl.find(x => x.m.id === watch.mid && x.id > watch.gid)
+    const matchOn = t.matches.find(m => m.id === watch.mid)?.st !== 'done' && t.status === 'running'
+    const waiting = stick?.mid === watch.mid
+    const nextBtn = sameNext ? <button onClick={() => { setStick(null); openGame(sameNext) }}>⏭ {tx('Jogo seguinte desta partida')}</button>
+      : matchOn ? <button className={waiting ? 'on' : ''} onClick={() => setStick(waiting ? null : { mid: watch.mid, gid: watch.gid })} title={tx('Abre sozinho o próximo jogo desta partida quando acabar')}>{waiting ? `⏳ ${tx('À espera do jogo seguinte…')}` : `⏭ ${tx('Ver o jogo seguinte desta partida')}`}</button> : null
+    return <>{slot ? createPortal(<><button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>{nextBtn}</>, slot) : nextBtn && <div className="row-btns">{nextBtn}</div>}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} owns={Object.fromEntries((watch.seats || []).map((i, k) => ['abcd'[k], ownOf(P[i], deckOwn)]))} bots={Object.fromEntries((watch.seats || []).map((i, k) => { const d = DIFF_INFO[P[i]?.difficulty]; return ['abcd'[k], d && { label: d.label, title: tx('Bot do Forge: {d} — {r}', { d: d.label, r: d.resumo }) }] }).filter(x => x[1]))} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
       live={going && follow && i >= 0 && i === fl.length - 1} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })}
       next={follow && i >= 0 ? { has: !!nx, go: () => nx && openGame(nx.x, nx.away), secs: pause.secs, auto: pause.auto } : null} /></>
   }

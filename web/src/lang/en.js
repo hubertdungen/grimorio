@@ -2949,4 +2949,8 @@ export default {
   "Sempre deitado": "Always sideways",
   "Livre (roda com o aparelho)": "Free (rotates with the device)",
   "Só no Android: o iPhone e o iPad não deixam fixar a orientação.": "Android only: iPhone and iPad don't allow locking the orientation.",
+  "Jogo seguinte desta partida": "Next game of this match",
+  "Abre sozinho o próximo jogo desta partida quando acabar": "Opens the next game of this match by itself when it ends",
+  "À espera do jogo seguinte…": "Waiting for the next game…",
+  "Ver o jogo seguinte desta partida": "Watch the next game of this match",
 }

@@ -2941,4 +2941,8 @@ export default {
   "Sempre deitado": "Siempre en horizontal",
   "Livre (roda com o aparelho)": "Libre (gira con el aparato)",
   "Só no Android: o iPhone e o iPad não deixam fixar a orientação.": "Solo en Android: el iPhone y el iPad no permiten fijar la orientación.",
+  "Jogo seguinte desta partida": "Siguiente partida de este enfrentamiento",
+  "Abre sozinho o próximo jogo desta partida quando acabar": "Abre sola la siguiente partida de este enfrentamiento cuando termine",
+  "À espera do jogo seguinte…": "Esperando la siguiente partida…",
+  "Ver o jogo seguinte desta partida": "Ver la siguiente partida de este enfrentamiento",
 }

@@ -2941,4 +2941,8 @@ export default {
   "Sempre deitado": "Immer quer",
   "Livre (roda com o aparelho)": "Frei (dreht mit dem Gerät)",
   "Só no Android: o iPhone e o iPad não deixam fixar a orientação.": "Nur Android: iPhone und iPad erlauben kein Festlegen der Ausrichtung.",
+  "Jogo seguinte desta partida": "Nächstes Spiel dieser Partie",
+  "Abre sozinho o próximo jogo desta partida quando acabar": "Öffnet das nächste Spiel dieser Partie von selbst, wenn es endet",
+  "À espera do jogo seguinte…": "Warte auf das nächste Spiel…",
+  "Ver o jogo seguinte desta partida": "Nächstes Spiel dieser Partie ansehen",
 }
