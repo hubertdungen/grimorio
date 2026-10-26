@@ -460,7 +460,10 @@ export default function App() {
           {tab === 'analise' && <AnalysisView {...{ data, deck, fmt, ctx, act, issues }} />}
           {tab === 'deck' && (
             <div className="view deck-tab">
+              <div className="deck-top">
+              <label className="dt-name"><span aria-hidden="true">✎</span><input className="deck-name" value={deck.name} onChange={e => setDeck(d => ({ ...d, name: e.target.value }))} aria-label={tx('Nome do deck')} placeholder={tx('Nome do deck')} enterKeyHint="done" onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} /></label>
               <div className="seg viewby"><button className={deckView === 'grelha' ? 'on' : ''} onClick={() => setDeckView('grelha')}><i>▦</i><span>{tx('Grelha')}</span></button><button className={deckView === 'lista' ? 'on' : ''} onClick={() => setDeckView('lista')}><i>☰</i><span>{tx('Lista')}</span></button></div>
+              </div>
               {deckView === 'grelha' && <UndoBtns act={act} hist={histN} />}
               {deckView === 'grelha' ? <DeckGrid {...{ data, deck, fmt, act, ctx }} /> : <div className="deck-mobile"><DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} /></div>}
             </div>
@@ -536,9 +539,12 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
         <b>{q}</b>
         <button onClick={() => c && act.add(c, zone, 1)} aria-label={tx('Mais')}>+</button>
       </span>
+      {c && <img className="row-art" src={img(c, 'art_crop', false, pidOf(deck, n))} alt="" loading="lazy" onClick={() => act.open(c)} />}
+      <span className="row-main">
       <button className="row-name" onClick={() => c && act.open(c)} onMouseEnter={e => c && showCardPeek(e, c, pidOf(deck, n))} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.peek-flip')) hideCardPeek() }}>{n}</button>
       {c?.df ? <button className="peek-flip" title={tx('Ver a outra face (ou tecla F com o rato na carta)')} aria-label={tx('Outra face de {c}', { c: n })} onMouseEnter={e => { if (!peekOpen()) showCardPeek(e, c, pidOf(deck, n)) }} onClick={e => { if (!peekOpen()) showCardPeek(e, c, pidOf(deck, n)); flipCardPeek() }} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.row-name')) hideCardPeek() }}>⟲</button> : null}
       {c && <Mana cost={c.mc} />}
+      </span>
       {c && <MoveMenu label={tx('Mover {card}', { card: n })} to={zones.filter(z => z !== zone)} onMove={z => act.move(c, zone, z)} />}
     </li>
   )

@@ -2362,3 +2362,30 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
   .fp-table.board { --cw: clamp(40px, min(11vw, 7vh), 80px); --hw: clamp(46px, 12vw, 80px); }
   .fp-side { flex-direction: row; overflow: visible; } .fp-zoom, .fp-tip { display: none; } .fp-prompt { flex: 1; }
 }
+
+/* Separador Deck: nome editável no topo (Grelha e Lista); a cópia do painel fica escondida */
+.deck-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+.deck-top .seg.viewby { margin: 0 0 0 auto; }
+.dt-name { flex: 1 1 220px; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg2); }
+.dt-name:focus-within { border-color: var(--gold); }
+.dt-name span { color: var(--muted); }
+.dt-name .deck-name { flex: 1; min-width: 0; margin: 0; padding: 8px 0; border: none; background: none; }
+.deck-tab .deck-mobile .deck > .deck-name { display: none; }
+/* linhas da lista: a arte só aparece no separador Deck (no painel lateral o espaço é curto) */
+.row-art { display: none; }
+.row-main { display: contents; }
+.deck-tab .deck-mobile .row { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
+.deck-tab .deck-mobile .row-art { display: block; grid-column: 1; grid-row: 1; width: 52px; height: 38px; object-fit: cover; border-radius: 6px; cursor: pointer; background: var(--bg2); }
+.deck-tab .deck-mobile .row-main { grid-column: 2; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-width: 0; }
+.deck-tab .deck-mobile .row-main .row-name { flex: 1 1 100%; min-height: 0; padding: 0; font-size: 15px; }
+.deck-tab .deck-mobile .row-main .peek-flip { order: 3; }
+.deck-tab .deck-mobile .qty { grid-column: 3; grid-row: 1; border: 1px solid var(--line); border-radius: 99px; background: var(--bg2); }
+.deck-tab .deck-mobile .qty button { opacity: 1; border: none; min-width: 32px; min-height: 32px; line-height: 30px; padding: 0; color: var(--muted); }
+.deck-tab .deck-mobile .qty b { min-width: 16px; font-size: 14px; color: var(--gold2); }
+.deck-tab .deck-mobile .mvmenu { grid-column: 4; grid-row: 1; }
+.deck-tab .deck-mobile .row .mv { border-color: transparent; }
+@media (max-width: 560px) {
+  .deck-top .seg.viewby { margin: 0; flex: 1 1 100%; } .deck-top .seg.viewby button { flex: 1; }
+  .deck-tab .deck-mobile .row { grid-template-columns: 44px minmax(0, 1fr) auto auto; gap: 8px; }
+  .deck-tab .deck-mobile .row-art { width: 44px; height: 32px; }
+}
