@@ -2869,4 +2869,5 @@ export default {
   "Edição": "Edición",
   "Melhor de 5 (Bo5, sem sideboard neste formato)": "Al mejor de 5 (Bo5, sin banquillo en este formato)",
   "Melhor de 5 (Bo5, com sideboard)": "Al mejor de 5 (Bo5, con banquillo)",
+  "Velocidade, mãos e turno": "Velocidad, manos y turno",
 }
