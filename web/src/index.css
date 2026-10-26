@@ -232,6 +232,8 @@ h2 .mana img { width: 20px; height: 20px; }
 .modal-bg { position: fixed; inset: 0; z-index: 60; background: rgba(5, 4, 10, .72); backdrop-filter: blur(4px); display: grid; place-items: center; padding: 16px; }
 .modal { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 30px 80px #000c; max-height: calc(100vh - 32px); overflow-y: auto; }
 .close { position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 22px; color: var(--muted); }
+.modal .close { z-index: 20; }  /* acima da carta do detalhe (as transformações 3D dela pintavam por cima da cruz) */
+@media (max-width: 900px) { .modal .close { width: 40px; height: 40px; top: 6px; right: 6px; border-radius: 50%; background: #000a; color: var(--text); display: grid; place-items: center; } }
 .import { width: min(620px, 100%); padding: 20px; display: grid; gap: 10px; }
 .import textarea { min-height: 260px; font-family: ui-monospace, monospace; font-size: 13px; }
 .cardmodal { width: min(980px, 100%); display: grid; grid-template-columns: 340px 1fr; gap: 22px; padding: 22px; }

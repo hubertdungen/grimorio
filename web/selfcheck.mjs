@@ -691,3 +691,13 @@ import { search as searchCards } from './src/data.js'
   assert.deepEqual([tp(1), tp(2), tp(4), tp(5), tp(6)], [true, false, true, false, true], 'terras que entram viradas')
   console.log('selfcheck terras que entram viradas ok')
 }
+
+// alcunhas dos ciclos de terrenos e básicos como cor dentro de uma frase
+{
+  const { parseQuery: pq } = await import('./src/nlsearch.js')
+  const T = new Set()
+  assert.deepEqual(pq('fetch land', { types: T }).f, { type: 'Land', oracle: ['pay 1 life, sacrifice', 'search your library'] })
+  assert.deepEqual(pq('terrenos de choque', { types: T }).f.oracle, ['you may pay 2 life', 'enters tapped'])
+  assert.deepEqual(pq('removal forest', { types: T }).f, { tags: ['removal'], colors: ['G'] })
+  console.log('selfcheck ciclos de terrenos ok')
+}

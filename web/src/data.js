@@ -384,7 +384,15 @@ export const fmtBit = (data, fmt) => (fmt?.lg ? data.meta.formats.indexOf(fmt.lg
 const subset = (a, b) => { for (const ch of a) if (!b.includes(ch)) return false; return true }
 
 // Filtros comuns à pesquisa e às sugestões.
-const landCols = c => (c._lp ??= (() => { const L = landInfo(c, true); return L.any || L.colors.has('*') ? 'WUBRG' : 'WUBRG'.split('').filter(k => L.colors.has(k)).join('') })())
+// fetch lands não fazem mana: a cor é a dos tipos básicos que vão buscar («a Forest or Island card» = verde e azul)
+const FETCH_T = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' }
+const landCols = c => (c._lp ??= (() => {
+  const L = landInfo(c, true)
+  if (L.any || L.colors.has('*')) return 'WUBRG'
+  const m = /search your library for an? ((?:(?:Plains|Island|Swamp|Mountain|Forest)(?:,? or an? |, )?)+) card/.exec(c.o || '')
+  if (m) for (const t of m[1].match(/Plains|Island|Swamp|Mountain|Forest/g)) L.colors.add(FETCH_T[t])
+  return 'WUBRG'.split('').filter(k => L.colors.has(k)).join('')
+})())
 export function passes(c, f, ctx) {
   if (ctx.bit >= 0 && !(c.lg & (1 << ctx.bit))) return false
   if (ctx.bit < 0 && c.un && !ctx.allowUn) return false

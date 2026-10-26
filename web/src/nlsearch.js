@@ -20,6 +20,12 @@ const COLORS = {
   preto: 'B', preta: 'B', black: 'B', negro: 'B', negra: 'B', schwarz: 'B', schwarze: 'B',
   vermelho: 'R', vermelha: 'R', red: 'R', rojo: 'R', roja: 'R', rot: 'R', rote: 'R',
   verde: 'G', green: 'G', grun: 'G', grune: 'G',
+  // os básicos dentro de uma frase também são a cor («removal forest» = remoção verde); sozinhos («Forest») ganha o nome
+  plains: 'W', planicie: 'W', planicies: 'W', llanura: 'W', llanuras: 'W', ebene: 'W',
+  island: 'U', islands: 'U', ilha: 'U', ilhas: 'U', isla: 'U', islas: 'U', insel: 'U',
+  swamp: 'B', swamps: 'B', pantano: 'B', pantanos: 'B', sumpf: 'B',
+  mountain: 'R', mountains: 'R', montanha: 'R', montanhas: 'R', montana: 'R', montanas: 'R', gebirge: 'R',
+  forest: 'G', forests: 'G', floresta: 'G', florestas: 'G', bosque: 'G', bosques: 'G', wald: 'G',
 }
 // habilidades com nome (o texto em inglês a procurar), nas várias línguas
 const KW = {
@@ -127,12 +133,28 @@ const subOf = (w, types) => {
   return null
 }
 
+// ciclos de terrenos pelas alcunhas (en e as usadas cá): tipo Land + pedaços do texto que todos têm (sem o nome da carta)
+const LAND_CYCLES = [
+  [/\b(?:fetch ?lands?|fetches|terrenos? de busca|tierras? de busqueda|suchlander)\b/, ['pay 1 life, sacrifice', 'search your library']],
+  [/\b(?:shock ?lands?|terrenos? de choque|tierras? de choque|schocklander)\b/, ['you may pay 2 life', 'enters tapped']],
+  [/\b(?:check ?lands?)\b/, ['enters tapped unless you control a']],
+  [/\b(?:fast ?lands?)\b/, ['two or fewer other lands']],
+  [/\b(?:slow ?lands?)\b/, ['two or more other lands']],
+  [/\b(?:pain ?lands?|terrenos? de dor|tierras? de dolor)\b/, ['deals 1 damage to you']],
+  [/\b(?:bounce ?lands?|karoos?)\b/, ['return a land you control to its owner']],
+  [/\b(?:gain ?lands?|life ?lands?)\b/, ['enters tapped', 'you gain 1 life']],
+  [/\b(?:scry ?lands?)\b/, ['enters tapped', 'scry 1']],
+  [/\b(?:surveil ?lands?)\b/, ['surveil 1']],
+  [/\b(?:triomes?|tri ?lands?)\b/, ['cycling {3}']],
+  [/\b(?:man ?lands?|creature ?lands?|terrenos? criatura)\b/, ['becomes a', 'creature']],
+]
 export function parseQuery(q, opts = {}) {
   let s = ' ' + strip(q).replace(/[.,;!?¿¡()]/g, ' ').replace(/\b1\s*\+\s*\/\s*1\s*\+/g, '+1/+1').replace(/\+\s*1\s*\/\s*\+\s*1/g, '+1/+1') + ' '
   const f = {}
   const take = re => { const m = s.match(re); if (m) s = s.replace(m[0], ' '); return m }
   const add = (k, v) => { if (!(f[k] ||= []).includes(v)) f[k].push(v) }
   let m
+  for (const [re, txt] of LAND_CYCLES) if ((m = take(re))) { f.type = 'Land'; for (const t of txt) add('oracle', t) }
   // sintaxe do Scryfall
   while ((m = take(/\s(?:t|type):("[^"]+"|\S+)/))) { const v = m[1].replace(/"/g, ''); f.type = TYPES[v] || v[0].toUpperCase() + v.slice(1) }
   while ((m = take(/\s(?:o|oracle|kw|keyword):("[^"]+"|\S+)/))) add('oracle', m[1].replace(/"/g, ''))
