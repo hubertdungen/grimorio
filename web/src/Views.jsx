@@ -257,7 +257,7 @@ function SidePanel({ data, deck, fmt, ctx, act, meta, have }) {
   const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.sideboard', v ? '1' : '0') } catch { /* sem armazenamento */ } }
   const side = useMemo(() => {
     if (!open || !meta || !fmt.side) return []
-    const cols = new Set(have.flatMap(i => [...data.cards[i].ci]))
+    const cols = new Set(have.flatMap(i => (data.cards[i].mt === 'Land' ? [] : [...data.cards[i].ci])))  // sem as cores dos terrenos duplos
     return [...meta.byCard.entries()].filter(([i, m]) => m.side >= 0.08 && !deck.main[data.cards[i].n] && !deck.side[data.cards[i].n] && passes(data.cards[i], null, ctx) && [...data.cards[i].ci].every(k => cols.has(k)))
       .sort((a, b) => b[1].side - a[1].side).slice(0, 10).map(([i, m]) => ({ c: data.cards[i], m }))
   }, [open, meta, fmt, have, data, deck, ctx])

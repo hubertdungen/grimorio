@@ -27,6 +27,7 @@ La interfaz está disponible en **English** (predeterminado), **Português**, **
 <tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseo: mira a Forge jugar tu mazo, con la pila en directo"></a><br><sub>Coliseo: mira a Forge jugar tu mazo, con la pila en directo</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="Juega tú contra Forge en la mesa de Grimório"></a><br><sub>Juega tú contra Forge en la mesa de Grimório</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Torneos: podio en directo, clasificación y etiquetas de origen de los mazos"></a><br><sub>Torneos: podio en directo, clasificación y etiquetas de origen de los mazos</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Salas en línea: partidas sueltas o torneos con un enlace público"></a><br><sub>Salas en línea: partidas sueltas o torneos con un enlace público</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: estrellas por mazo y la Arena automática"></a><br><sub>Ratings: estrellas por mazo y la Arena automática</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="En la mesa: contador de vidas, dados en 3D y escáner de cartas"></a><br><sub>En la mesa: contador de vidas, dados en 3D y escáner de cartas</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft y Sellado: sobres reales, bots de Forge y un torneo al final"></a><br><sub>Draft y Sellado: sobres reales, bots de Forge y un torneo al final</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Banquillo: respuestas a lo que te gana en las pruebas"></a><br><sub>Banquillo: respuestas a lo que te gana en las pruebas</sub></td></tr>
 </table>
 
 ## Instalación
@@ -193,8 +194,25 @@ en la nube es para ordenadores y servidores de un solo dueño.
 - **En la mesa**: contador de vidas (hasta 6 jugadores), dados en 3D y un escáner de cartas (cámara) con un marco de mira.
 - **Bots predeterminados**: el perfil de la IA de Forge para tu mazo y para los rivales en el Laboratorio, los torneos
   y la Arena; una barra muestra lo que está en curso y lleva al visor en directo.
+- **Draft y Sellado**: abre sobres reales de cualquiera de 160 ediciones (los sobres del propio Forge): haz el draft
+  en una mesa de 8 con bots de Forge, mira a 8 bots hacerlo, o abre 6 sobres para sellado. Los bots montan sus mazos de
+  40, tu pool se convierte en un mazo Limitado en Construir y sigue un torneo suizo; Forge juega tus partidas o las
+  juegas tú en Forge Play.
+- **Contra lo que pierdes**: las sugerencias de banquillo leen tus pruebas: los tipos de cartas que te ganan
+  (criaturas, cementerio, artefactos…) y respuestas en tus colores que la IA sabe lanzar, primero las que llevan los
+  banquillos del meta. Las cartas que la IA de Forge nunca lanza quedan señaladas.
+- **Ratings del mazo en el Análisis**: estrellas normal, todas las partidas, objetivo y casual, con Elo y partidas, y
+  las estrellas de los trofeos.
+- **IA de Forge más lista**: Grimório corrige Forge donde jugaba mal mazos reales: tierras según el color que pide la
+  mano (fetchlands incluidas), Urza's Saga, el combo Heliod + Spike Feeder, Food en el momento justo, victoria con
+  Maze's End, mazos de storm (Wish, Manamorphose), Wrath of the Skies, objetivos de Path to Exile y auras apiladas. El
+  banquillo automático nunca mete cartas que la IA no lanza ni saca un 4-of.
+- **Torneo en directo**: salta a la siguiente partida del mismo enfrentamiento (o espérala), y el mazo por el que
+  apostaste queda de tu lado de la mesa.
 - **Perfiles**: una instalación, varios jugadores, cada uno con sus propios mazos.
-- **Instalable** como PWA en móviles y tabletas; pensado para pantallas táctiles.
+- **Instalable** como PWA en móviles y tabletas; pensado para pantallas táctiles. En el móvil la mesa en directo
+  tiene zoom (− / + / ajustar), la pantalla no se apaga con Grimório abierto (Ajustes › Pantalla) y la pantalla completa
+  queda en vertical.
 
 ### Cómo aprende Grimório
 
@@ -266,7 +284,6 @@ escritorio: `packaging/build.py` y `.github/workflows/release.yml`.
 
 - App para Android (APK): consulta [docs/ROADMAP.md](docs/ROADMAP.md) (en inglés).
 - Dos ediciones: **Grimório Full** (con Forge Play y juego en línea) y **Grimório Lite** (todo lo demás, una descarga más ligera).
-- Torneos de draft.
 - Partidas en línea entre personas en la mesa de Grimório, con torneos para ti y tus amigos (con bots o contra ellos).
 - Crossplay entre el servidor, la app de escritorio y los móviles, un interruptor «abrir a la red de casa» en la app de
   escritorio y «unirse al Grimório de un amigo».

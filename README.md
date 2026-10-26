@@ -26,6 +26,7 @@ The interface is available in **English** (default), **Português**, **Español*
 <tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseum: watch Forge play your deck, with the live stack"></a><br><sub>Coliseum: watch Forge play your deck, with the live stack</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="Play against Forge yourself on Grimório's table"></a><br><sub>Play against Forge yourself on Grimório's table</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Tournaments: live podium, standings and deck origin tags"></a><br><sub>Tournaments: live podium, standings and deck origin tags</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Online rooms: single games or tournaments by a public link"></a><br><sub>Online rooms: single games or tournaments by a public link</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: stars per deck and the automatic Arena"></a><br><sub>Ratings: stars per deck and the automatic Arena</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="At the table: life counter, 3D dice and card scanner"></a><br><sub>At the table: life counter, 3D dice and card scanner</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft and Sealed: real packs, Forge bots and a tournament afterwards"></a><br><sub>Draft and Sealed: real packs, Forge bots and a tournament afterwards</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Sideboard: answers to what you lose to in your tests"></a><br><sub>Sideboard: answers to what you lose to in your tests</sub></td></tr>
 </table>
 
 ## Install
@@ -181,8 +182,22 @@ sync is for computers and single-owner servers.
 - **At the table** — life counter (up to 6 players), 3D dice, and a card scanner (camera) with an aiming frame.
 - **Default bots** — pick the Forge AI profile for your deck and for opponents in the Lab, tournaments and the Arena; a
   live bar shows what is running and jumps to the live viewer.
+- **Draft and Sealed** — open real packs of any of 160 sets (Forge's own boosters): draft at a table of 8 with Forge
+  bots, or watch 8 bots draft, or open 6 packs for sealed. The bots build their 40-card decks, your pool becomes a
+  Limited deck in Build, and a Swiss tournament follows — Forge plays your games, or you play them yourself in Forge Play.
+- **What you lose to** — the sideboard suggestions read your test games: the kinds of cards you keep losing to
+  (creatures, graveyard, artifacts…) and answers in your colours that the AI can cast, the ones in real meta sideboards
+  first. Cards the Forge AI never casts are flagged.
+- **Deck ratings in the Analysis** — normal, all-games, objective and casual stars with Elo and games, plus trophy stars.
+- **Smarter Forge AI** — Grimório patches Forge where it misplayed real decks: land drops by the colours your hand needs
+  (fetchlands included), Urza's Saga, the Heliod + Spike Feeder combo, Food at the right time, Maze's End wins, storm
+  decks (Wish, Manamorphose), Wrath of the Skies, Path to Exile targets and aura stacking. The automatic sideboarding
+  never adds cards the AI can't cast and never takes out a 4-of.
+- **Live tournament viewer** — jump to the next game of the same match (or wait for it), and the deck you bet on sits
+  on your side of the table.
 - **Profiles** — one install, several players, each with their own decks.
-- **Installable** as a PWA on phones and tablets; touch-friendly.
+- **Installable** as a PWA on phones and tablets; touch-friendly. On a phone the live board zooms (− / + / fit),
+  the screen stays on while Grimório is open (Settings › Screen) and fullscreen stays upright.
 
 ### How Grimório learns
 
@@ -253,7 +268,6 @@ this. Desktop packages: `packaging/build.py` and `.github/workflows/release.yml`
 
 - Android app (APK) — see [docs/ROADMAP.md](docs/ROADMAP.md).
 - Two editions: **Grimório Full** (with Forge Play and online play) and **Grimório Lite** (everything else, a lighter download).
-- Draft tournaments.
 - Online games between people on Grimório's table, with tournaments for you and your friends (with or against bots).
 - Crossplay between the server, the desktop app and phones, an «open to the home network» switch in the desktop app
   and «join a friend's Grimório».

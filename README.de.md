@@ -27,6 +27,7 @@ Die Oberfläche gibt es auf **English** (Standard), **Português**, **Español**
 <tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Kolosseum: sieh Forge dein Deck spielen, mit dem Stapel live"></a><br><sub>Kolosseum: sieh Forge dein Deck spielen, mit dem Stapel live</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="Spiel selbst auf Grimórios Spieltisch gegen Forge"></a><br><sub>Spiel selbst auf Grimórios Spieltisch gegen Forge</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Turniere: Live-Podium, Tabelle und Herkunfts-Tags der Decks"></a><br><sub>Turniere: Live-Podium, Tabelle und Herkunfts-Tags der Decks</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Online-Räume: einzelne Partien oder Turniere über einen öffentlichen Link"></a><br><sub>Online-Räume: einzelne Partien oder Turniere über einen öffentlichen Link</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: Sterne pro Deck und die automatische Arena"></a><br><sub>Ratings: Sterne pro Deck und die automatische Arena</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="Am Tisch: Lebenszähler, 3D-Würfel und Kartenscanner"></a><br><sub>Am Tisch: Lebenszähler, 3D-Würfel und Kartenscanner</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft und Sealed: echte Packs, Forge-Bots und danach ein Turnier"></a><br><sub>Draft und Sealed: echte Packs, Forge-Bots und danach ein Turnier</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Sideboard: Antworten auf das, wogegen du in Tests verlierst"></a><br><sub>Sideboard: Antworten auf das, wogegen du in Tests verlierst</sub></td></tr>
 </table>
 
 ## Installation
@@ -191,8 +192,25 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
 - **Am Tisch** – Lebenszähler (bis 6 Spieler), 3D-Würfel und ein Kartenscanner (Kamera) mit Zielrahmen.
 - **Standard-Bots** – das KI-Profil von Forge für dein Deck und die Gegner im Labor, in Turnieren und der Arena; eine
   Leiste zeigt, was gerade läuft, und springt zur Live-Ansicht.
+- **Draft und Sealed** – öffne echte Packs aus 160 Sets (die Booster von Forge selbst): drafte an einem Tisch mit 8
+  Plätzen gegen Forge-Bots, schau 8 Bots beim Draften zu oder öffne 6 Packs für Sealed. Die Bots bauen ihre 40-Karten-
+  Decks, dein Pool wird ein Limited-Deck im Bauen, danach folgt ein Turnier im Schweizer System – Forge spielt deine
+  Spiele, oder du spielst sie selbst in Forge Play.
+- **Wogegen du verlierst** – die Sideboard-Vorschläge lesen deine Testspiele: die Kartenarten, gegen die du immer wieder
+  verlierst (Kreaturen, Friedhof, Artefakte…), und Antworten in deinen Farben, die die KI wirken kann, zuerst die aus
+  echten Meta-Sideboards. Karten, die die Forge-KI nie wirkt, werden markiert.
+- **Deck-Ratings in der Analyse** – Sterne für normal, alle Spiele, Ziel und Casual, mit Elo und Spielen, dazu die
+  Trophäensterne.
+- **Klügere Forge-KI** – Grimório korrigiert Forge dort, wo es echte Decks schlecht spielte: Länder nach den Farben,
+  die die Hand braucht (Fetchländer eingeschlossen), Urza's Saga, die Combo Heliod + Spike Feeder, Food zur richtigen
+  Zeit, Siege mit Maze's End, Storm-Decks (Wish, Manamorphose), Wrath of the Skies, Ziele für Path to Exile und
+  gestapelte Auren. Das automatische Sideboarding nimmt nie Karten, die die KI nicht wirkt, und nimmt nie ein 4-of raus.
+- **Turnier live** – spring zum nächsten Spiel derselben Partie (oder warte darauf), und das Deck, auf das du gewettet
+  hast, sitzt auf deiner Seite des Tischs.
 - **Profile** – eine Installation, mehrere Spieler, jeder mit seinen eigenen Decks.
-- **Installierbar** als PWA auf Handys und Tablets; touch-freundlich.
+- **Installierbar** als PWA auf Handys und Tablets; touch-freundlich. Auf dem Handy lässt sich der Live-Tisch zoomen
+  (− / + / einpassen), der Bildschirm bleibt an, solange Grimório offen ist (Einstellungen › Bildschirm), und das
+  Vollbild bleibt hochkant.
 
 ### Wie Grimório lernt
 
@@ -263,7 +281,6 @@ kopiert wurden; die Pakete erledigen das. Desktop-Pakete: `packaging/build.py` u
 
 - Android-App (APK) – siehe [docs/ROADMAP.md](docs/ROADMAP.md) (auf Englisch).
 - Zwei Editionen: **Grimório Full** (mit Forge Play und Online-Spiel) und **Grimório Lite** (alles andere, ein kleinerer Download).
-- Draft-Turniere.
 - Online-Partien zwischen Menschen auf Grimórios Spieltisch, mit Turnieren für dich und deine Freunde (mit oder gegen Bots).
 - Crossplay zwischen Server, Desktop-App und Handys, ein Schalter „Fürs Heimnetz öffnen“ in der Desktop-App und
   „Dem Grimório eines Freundes beitreten“.

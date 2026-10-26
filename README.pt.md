@@ -26,6 +26,7 @@ A interface está disponível em **English** (predefinição), **Português**, *
 <tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseu: vê o Forge jogar o teu deck, com a pilha ao vivo"></a><br><sub>Coliseu: vê o Forge jogar o teu deck, com a pilha ao vivo</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="Joga tu contra o Forge na mesa do Grimório"></a><br><sub>Joga tu contra o Forge na mesa do Grimório</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Torneios: pódio ao vivo, classificação e a origem de cada deck"></a><br><sub>Torneios: pódio ao vivo, classificação e a origem de cada deck</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Salas online: jogos avulsos ou torneios por um link público"></a><br><sub>Salas online: jogos avulsos ou torneios por um link público</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: estrelas por deck e a Arena automática"></a><br><sub>Ratings: estrelas por deck e a Arena automática</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="À mesa: contador de vida, dados 3D e leitor de cartas"></a><br><sub>À mesa: contador de vida, dados 3D e leitor de cartas</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft e Selado: packs reais, bots do Forge e um torneio no fim"></a><br><sub>Draft e Selado: packs reais, bots do Forge e um torneio no fim</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Sideboard: respostas ao que te vence nos testes"></a><br><sub>Sideboard: respostas ao que te vence nos testes</sub></td></tr>
 </table>
 
 ## Instalar
@@ -183,8 +184,23 @@ computadores e servidores de um só dono.
 - **À mesa** — contador de vida (até 6 jogadores), dados em 3D e leitor de cartas pela câmara com moldura de mira.
 - **Bots predefinidos** — o perfil da IA do Forge para o teu deck e para os adversários no Laboratório, nos torneios e
   na Arena; uma barra mostra o que está a decorrer e leva ao visualizador em direto.
+- **Draft e Selado** — abre packs reais de qualquer um de 160 sets (os boosters do próprio Forge): faz o draft numa
+  mesa de 8 com bots do Forge, vê 8 bots a fazê-lo, ou abre 6 packs para selado. Os bots montam os decks de 40, o teu
+  pool vira um deck Limitado no Construir e segue-se um torneio suíço — o Forge joga os teus jogos ou jogas tu no Forge Play.
+- **Contra o que perdes** — as sugestões de sideboard leem os teus testes: os tipos de cartas que te vencem
+  (criaturas, cemitério, artefactos…) e respostas nas tuas cores que a IA sabe lançar, primeiro as que os sideboards
+  do meta levam. As cartas que a IA do Forge nunca lança ficam assinaladas.
+- **Ratings do deck na Análise** — estrelas normal, todos os jogos, objetivo e casual, com Elo e jogos, e as estrelas
+  dos troféus.
+- **IA do Forge mais esperta** — o Grimório corrige o Forge onde jogava mal decks reais: terrenos pela cor que a mão
+  precisa (fetchlands incluídos), Urza's Saga, o combo Heliod + Spike Feeder, Food na altura certa, vitória pelo Maze's
+  End, decks de storm (Wish, Manamorphose), Wrath of the Skies, alvos do Path to Exile e auras empilhadas. O sideboard
+  automático nunca mete cartas que a IA não lança nem tira um 4-of.
+- **Torneio ao vivo** — salta para o jogo seguinte da mesma partida (ou espera por ele), e o deck em que apostaste fica
+  do teu lado da mesa.
 - **Perfis** — uma instalação, vários jogadores, cada um com os seus decks.
-- **Instalável** como PWA em telemóveis e tablets; pensado para ecrãs táteis.
+- **Instalável** como PWA em telemóveis e tablets; pensado para ecrãs táteis. No telemóvel a mesa ao vivo tem zoom
+  (− / + / ajustar), o ecrã não se apaga com o Grimório aberto (Definições › Ecrã) e o ecrã inteiro fica ao alto.
 
 ### Como o Grimório aprende
 
@@ -261,7 +277,6 @@ para a pasta do Forge; os pacotes fazem isto por ti. Pacotes para computador: `p
 
 - App para Android (APK) — vê [docs/ROADMAP.md](docs/ROADMAP.md) (em inglês).
 - Duas edições: **Grimório Full** (com o Forge Play e o jogo online) e **Grimório Lite** (o resto, um download mais leve).
-- Torneios de draft.
 - Jogos online entre pessoas na mesa do Grimório, com torneios para ti e para os teus amigos (com ou contra bots).
 - Crossplay entre o servidor, a aplicação para computador e os telemóveis, um interruptor «abrir à rede de casa» na
   aplicação para computador e «entrar no Grimório de um amigo».

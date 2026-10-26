@@ -24,6 +24,7 @@ Grimório 是一款免费的套牌构筑工具，支持所有赛制（指挥官 
 <tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="竞技场：观看 Forge 用你的套牌对战，堆叠实时显示"></a><br><sub>竞技场：观看 Forge 用你的套牌对战，堆叠实时显示</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="在 Grimório 的牌桌上亲自对战 Forge"></a><br><sub>在 Grimório 的牌桌上亲自对战 Forge</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="赛事：实时领奖台、排名与套牌来源标签"></a><br><sub>赛事：实时领奖台、排名与套牌来源标签</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="在线房间：通过公开链接进行单局或赛事"></a><br><sub>在线房间：通过公开链接进行单局或赛事</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="评分：每副套牌的星级与自动 Arena"></a><br><sub>评分：每副套牌的星级与自动 Arena</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="牌桌工具：生命计数器、3D 骰子与识卡扫描"></a><br><sub>牌桌工具：生命计数器、3D 骰子与识卡扫描</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="轮抽与现开：真实补充包、Forge 机器人，最后打一场锦标赛"></a><br><sub>轮抽与现开：真实补充包、Forge 机器人，最后打一场锦标赛</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="备牌：针对测试中输给的对象的应对牌"></a><br><sub>备牌：针对测试中输给的对象的应对牌</sub></td></tr>
 </table>
 
 ## 安装
@@ -162,8 +163,19 @@ Android：*Syncthing-Fork*）。2）互相添加设备并共享一个文件夹�
   （黑色、指定颜色或延伸卡牌边框）、逐张裁切线、水印和双面。
 - **牌桌工具**——生命计数器（最多 6 人）、3D 骰子，以及带瞄准框的识卡扫描（相机）。
 - **默认机器人**——为你的套牌和对手分别选择实验室、赛事和 Arena 中的 Forge AI 配置；顶部栏显示正在进行的内容并可跳转到直播。
+- **轮抽与现开**——拆开 160 个系列中任意一个的真实补充包（Forge 自带的补充包）：与 Forge 机器人坐满 8 人一桌轮抽，
+  或观看 8 个机器人轮抽，或拆 6 包打现开。机器人各自组好 40 张套牌，你的卡池会变成「构筑」中的限制赛套牌，随后进行
+  瑞士轮锦标赛——由 Forge 替你打，或你在 Forge Play 中亲自打。
+- **你输给什么**——备牌建议会读取你的测试对局：你总是输给的牌类（生物、坟场、神器……），以及你颜色中 AI 会施放的
+  应对牌，环境备牌中常见的排在前面。Forge AI 从不施放的牌会被标出。
+- **分析中的套牌评分**——常规、全部对局、目标和休闲星级，附 Elo 和对局数，以及奖杯星级。
+- **更聪明的 Forge AI**——Grimório 修正了 Forge 在真实套牌上的失误：按手牌所需颜色出地（包括 fetch 地）、Urza's Saga、
+  Heliod + Spike Feeder 组合技、在合适时机使用食物、Maze's End 取胜、风暴套牌（Wish、Manamorphose）、Wrath of the
+  Skies、Path to Exile 的目标以及叠加灵气。自动换备牌不会放入 AI 不会施放的牌，也不会换掉 4 张的核心牌。
+- **锦标赛直播**——跳到同一对决的下一局（或等待它），你下注的套牌会坐在你这一侧。
 - **档案**——一份安装，多名玩家，每人有自己的套牌。
-- **可安装**为手机和平板上的 PWA；触屏友好。
+- **可安装**为手机和平板上的 PWA；触屏友好。手机上的直播牌桌可缩放（− / + / 适配），打开 Grimório 时屏幕常亮
+  （设置 › 屏幕），全屏保持竖屏。
 
 ### Grimório 如何学习
 
@@ -231,7 +243,6 @@ AI 配置和卡牌脚本（`forge-ext/ai`、`forge-ext/cardsfolder`）复制到 
 
 - Android 应用（APK）——见 [docs/ROADMAP.md](docs/ROADMAP.md)（英文）。
 - 两个版本：**Grimório Full**（含 Forge Play 和在线对战）和 **Grimório Lite**（其余全部功能，下载更小）。
-- 轮抽（Draft）赛事。
 - 在 Grimório 的牌桌上进行玩家之间的在线对局，并为你和好友举办赛事（与机器人同场或对战机器人）。
 - 服务器、桌面应用和手机之间的跨平台互通，桌面应用中的“向家庭网络开放”开关，以及“加入好友的 Grimório”。
 
