@@ -176,6 +176,12 @@ def package(platform, work, version, out):
         name = os.path.join(out, f"grimorio-{version}-linux-x64.tar.gz")
         with tarfile.open(name, "w:gz", compresslevel=9) as t:
             t.add(root, "grimorio")
+    h = hashlib.sha256()  # the launcher's automatic update only installs a package whose checksum matches
+    with open(name, "rb") as f:
+        while chunk := f.read(1 << 20):
+            h.update(chunk)
+    with open(name + ".sha256", "w", encoding="utf-8") as f:
+        f.write(f"{h.hexdigest()}  {os.path.basename(name)}\n")
     print("package:", name, f"{os.path.getsize(name) / 1e6:.0f} MB", "unpacked", du(root), flush=True)
 
 

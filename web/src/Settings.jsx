@@ -211,7 +211,28 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><HighlightMine /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
       <section className="card danger-zone"><h3>{tx('Recomeçar')}</h3><ResetStats /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
+      <section className="card"><h3>{tx('Atualizações')}</h3><Updates /></section>
       </div>
+    </div>
+  )
+}
+
+// pacotes (exe/Linux): o launcher descarrega a versão nova em segundo plano e passa para ela no arranque seguinte
+function Updates() {
+  const [u, setU] = useState(null)
+  useEffect(() => { fetch('/api/update').then(r => r.json()).then(setU).catch(() => setU({})) }, [])
+  const setAuto = v => fetch('/api/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auto: v }) }).then(r => r.json()).then(setU).catch(() => {})
+  if (!u) return null
+  if (!u.packaged) return <p className="muted small">{tx('Num servidor ou a partir do código, atualiza-se com git pull e ./deploy.sh. A atualização automática é para os pacotes de Windows e Linux.')}</p>
+  return (
+    <div className="upd">
+      <p>{tx('Versão instalada: {v}', { v: u.version })}{u.latest ? ` · ${tx('mais recente: {v}', { v: u.latest })}` : ''}</p>
+      {u.ready ? <p className="ok-t">✓ {tx('A versão {v} já está descarregada: começa quando voltares a abrir o Grimório. Os teus decks e jogos passam para ela tal como estão (e fica uma cópia da base de dados em backups).', { v: u.ready })}</p>
+        : u.downloading ? <p className="muted">{tx('A descarregar a versão {v}…', { v: u.downloading })}</p>
+          : u.latest && u.latest === u.version ? <p className="muted small">{tx('Estás na versão mais recente.')}</p> : null}
+      {u.err && <p className="small bad-t">{tx('Não deu para verificar ou descarregar: {e}', { e: u.err })}</p>}
+      <label className="chk"><input type="checkbox" checked={u.auto} onChange={e => setAuto(e.target.checked)} /> {tx('Atualizar sozinho (descarrega em segundo plano e verifica a soma sha256)')}</label>
+      {u.url && <a className="small" href={u.url} target="_blank" rel="noreferrer">{tx('Notas da versão')}</a>}
     </div>
   )
 }

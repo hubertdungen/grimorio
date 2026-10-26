@@ -3,6 +3,7 @@
 // pendentes; aqui desenha-se a mesa e cada clique volta como comando (carta, jogador, OK/cancelar, mana, responder).
 import { useEffect, useRef, useState } from 'react'
 import { img } from './data.js'
+import { Side, Hand } from './Board.jsx'
 import { tx } from './i18n.js'
 
 async function j(url, body) {
@@ -43,53 +44,111 @@ function promptText(msg, st, me) {
   return m
 }
 
-// uma carta da mesa: imagem da Scryfall, virada se está tapada, com força/resistência, marcadores e dano por cima
-function FCard({ c, data, onClick, onZoom, cls = '', big }) {
-  const press = useRef(null)
+// uma carta solta (mão, escolhas, cemitério): imagem da Scryfall com força/resistência por cima. h = id da carta na mão:
+// a mesa trata do clique e do arrastar pelo data-h
+function FCard({ c, data, onClick, h, cls = '', big }) {
   if (!c || c.hidden) return <div className={`fp-card back ${cls}`} />
   const card = data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase())
   const src = card ? img(card, big ? 'normal' : 'small') : null
-  const touchStart = () => { press.current = setTimeout(() => { press.current = 'z'; onZoom?.(c) }, 450) }  // tocar e manter = ver em grande
-  const touchEnd = e => { if (press.current === 'z') e.preventDefault(); clearTimeout(press.current); press.current = null }
   return (
-    <button type="button" className={`fp-card ${c.tapped ? 'tapped' : ''} ${c.sel ? 'sel' : ''} ${c.sick ? 'sick' : ''} ${cls}`} title={c.name}
-      onClick={() => onClick?.(c)} onMouseEnter={() => onZoom?.(c)} onTouchStart={touchStart} onTouchEnd={touchEnd} onContextMenu={e => e.preventDefault()}>
+    <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${cls}`} title={c.name} data-h={h} data-zid={c.id}
+      onClick={onClick && (() => onClick(c))} onContextMenu={e => e.preventDefault()}>
       {src ? <img src={src} alt={c.name} loading="lazy" draggable="false" /> : <span className="fp-name">{c.name}</span>}
-      {c.pt && <i className={`fp-pt ${c.dmg ? 'hurt' : ''}`}>{c.pt[0]}/{c.pt[1] - (c.dmg || 0)}</i>}
-      {c.loyalty != null && <i className="fp-loy">{c.loyalty}</i>}
-      {c.counters && <i className="fp-ctr">{Object.entries(c.counters).map(([k, n]) => `${n}× ${k}`).join(' · ')}</i>}
-      {c.token && <i className="fp-tok">{tx('ficha')}</i>}
+      {c.pt && <i className="fp-pt">{c.pt[0]}/{c.pt[1]}</i>}
     </button>
   )
 }
 
-// o campo de um jogador: terrenos numa fila, o resto noutra; o que está anexado (auras, equipamentos) fica por baixo do dono
-function Field({ p, data, act, zoom, combat, flip }) {  // flip: o do adversário, terrenos para fora e criaturas para o meio
-  const bf = p.battlefield || [], att = new Set(bf.filter(c => c.attachedTo).map(c => c.id))
-  const under = id => bf.filter(c => c.attachedTo === id)
-  const role = c => (combat?.some(x => x.att === c.id) ? 'atk' : combat?.some(x => x.blockers?.includes(c.id)) ? 'blk' : '')
-  const pile = c => <div key={c.id} className="fp-pile">{under(c.id).map(a => <FCard key={a.id} c={a} data={data} onClick={act} onZoom={zoom} cls="att" />)}<FCard c={c} data={data} onClick={act} onZoom={zoom} cls={role(c)} /></div>
-  const lands = bf.filter(c => c.land && !att.has(c.id) && !c.creature), rest = bf.filter(c => !(c.land && !c.creature) && !att.has(c.id))
-  const rows = [<div key="r" className="fp-row">{rest.map(pile)}</div>, <div key="l" className="fp-row lands">{lands.map(pile)}</div>]
-  return <div className={`fp-field ${flip ? 'them' : ''}`}>{flip ? rows.reverse() : rows}</div>
+// estado do Forge -> o formato do tabuleiro das repetições (Board.jsx), para a mesa ser igual à da arena: criaturas à
+// frente, terrenos (agrupados) e artefactos/encantamentos atrás, a vida no orbe, cemitério e exílio nas pilhas
+const CTR = { P1P1: '+1/+1', M1M1: '-1/-1', LOYALTY: 'loyalty', POISON: 'poison', ENERGY: 'energy' }
+const ctrs = o => Object.fromEntries(Object.entries(o || {}).map(([k, n]) => [CTR[k] || CTR[String(k).toUpperCase()] || k, n]))
+function toPerm(c, combat) {
+  const counters = ctrs(c.counters)
+  if (c.loyalty != null) counters.loyalty = c.loyalty
+  const plus = (counters['+1/+1'] || 0) - (counters['-1/-1'] || 0)  // o Forge já soma os marcadores ao P/R; o tabuleiro volta a somá-los
+  return {
+    key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped,
+    land: !!c.land, crewed: !!c.creature, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, damage: c.dmg || 0, counters,
+    pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined,
+    attacking: combat?.some(x => x.att === c.id) ? 'x' : undefined, blocking: combat?.some(x => x.blockers?.includes(c.id)) || undefined,
+  }
+}
+function zoneOf(p, combat) {
+  const pc = ctrs(p.counters)
+  return {
+    life: p.life, library: p.library, hand: p.hand?.length || 0, known: [], graveyard: (p.graveyard || []).map(c => c.name), exile: (p.exile || []).map(c => c.name),
+    command: [], cmdDmg: {}, poison: pc.poison || 0, energy: pc.energy || 0, emblems: [], out: false, perms: (p.battlefield || []).map(c => toPerm(c, combat)),
+  }
 }
 
-function Seat({ p, i, send, setZone, active, mine }) {
-  const mana = Object.entries(p.mana || {})
-  return (
-    <div className={`fp-seat ${p.priority ? 'prio' : ''} ${active ? 'active' : ''}`}>
-      <button type="button" className="fp-life" onClick={() => send({ c: 'player', i })} title={tx('Clica para escolher este jogador como alvo')}>
-        <b>{p.life}</b><span>{p.name}</span>
-      </button>
-      <span className="fp-z" title={tx('Biblioteca')}>📚 {p.library}</span>
-      {!mine && <span className="fp-z fp-ohand" title={tx('Mão')}>{(p.hand || []).map((c, k) => <i key={k} className="fp-card back mini" />)} {p.hand?.length || 0}</span>}
-      <button type="button" className="fp-z" onClick={() => setZone({ p, k: 'graveyard' })} title={tx('Cemitério')}>🪦 {p.graveyard?.length || 0}</button>
-      <button type="button" className="fp-z" onClick={() => setZone({ p, k: 'exile' })} title={tx('Exílio')}>🌀 {p.exile?.length || 0}</button>
-      {p.counters && <span className="fp-z">{Object.entries(p.counters).map(([k, n]) => `${n}× ${k}`).join(' · ')}</span>}
-      {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => (
-        <button type="button" key={k} style={{ '--m': MANA[k] }} disabled={!mine} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')}>{n}</button>))}</span>}
-    </div>
-  )
+// arrastar com física: a carta segue o ponteiro com um pouco de atraso, inclina-se com a velocidade e, se não puder
+// ficar onde a largaste, volta ao sítio com mola. onDrop({id, from, target}) diz se a jogada foi aceite.
+function useDrag(onDrop, onLong) {
+  const dragged = useRef(false)
+  const down = e => {
+    if (e.button > 0) return
+    const el = e.target.closest('[data-h], .bside.bottom .pc[data-z^="k:"]')
+    if (!el) return
+    const id = +(el.dataset.h || el.dataset.z.slice(2)), from = el.dataset.h ? 'hand' : 'field'
+    const r = el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY
+    let ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, over = null
+    const long = e.pointerType !== 'mouse' && setTimeout(() => onLong?.(id), 450)  // tocar e manter = ver em grande
+    const mark = t => { if (over) over.classList.remove('fp-over'); over = t; if (t) t.classList.add('fp-over') }
+    const targetAt = (px, py) => document.elementFromPoint(px, py)
+    const zoneAt = t => t?.closest('.pc[data-z^="k:"]') || t?.closest('.bside') || t?.closest('.fp-mid')
+    const tick = () => {
+      x += (tx0 - x) * 0.32; y += (ty0 - y) * 0.32
+      const want = Math.max(-26, Math.min(26, (tx0 - x) * 0.45))
+      rot += (want - rot) * 0.22
+      ghost.style.transform = `translate(${x - r.width / 2}px, ${y - r.height / 2}px) rotate(${rot}deg) scale(1.12)`
+      raf = requestAnimationFrame(tick)
+    }
+    const move = ev => {
+      tx0 = ev.clientX; ty0 = ev.clientY
+      if (!ghost) {
+        if (Math.hypot(tx0 - x0, ty0 - y0) < 8) return
+        clearTimeout(long)
+        ghost = el.cloneNode(true)
+        ghost.classList.add('fp-ghost')
+        Object.assign(ghost.style, { width: `${r.width}px`, height: `${r.height}px` })
+        document.body.appendChild(ghost)
+        el.style.visibility = 'hidden'
+        raf = requestAnimationFrame(tick)
+      }
+      mark(zoneAt(targetAt(tx0, ty0)))
+    }
+    const up = ev => {
+      clearTimeout(long)
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up)
+      if (!ghost) return
+      cancelAnimationFrame(raf); mark(null)
+      dragged.current = true; setTimeout(() => { dragged.current = false }, 0)  // o clique que vem a seguir ao largar não conta
+      const res = ev.type === 'pointerup' && onDrop({ id, from, target: targetAt(ev.clientX, ev.clientY) }), g = ghost
+      if (res === 'local') {  // arrumação: a carta voa com mola para o sítio novo e só então aparece lá
+        setTimeout(() => {
+          const n = document.querySelector(from === 'hand' ? `[data-h="${id}"]` : `.pc[data-z="k:${id}"]`)
+          el.style.visibility = ''
+          if (!n) { g.remove(); return }
+          const q = n.getBoundingClientRect()
+          n.style.visibility = 'hidden'
+          g.style.transition = 'transform .5s cubic-bezier(.2, 1.5, .4, 1), width .5s, height .5s'
+          Object.assign(g.style, { transform: `translate(${q.left}px, ${q.top}px) rotate(0deg) scale(1)`, width: `${q.width}px`, height: `${q.height}px` })
+          setTimeout(() => { n.style.visibility = ''; g.remove() }, 520)
+        }, 40)
+        return
+      }
+      const ok = !!res
+      g.style.transition = ok ? 'transform .25s ease-out, opacity .25s ease-out' : 'transform .55s cubic-bezier(.2, 1.6, .4, 1)'
+      requestAnimationFrame(() => {
+        g.style.transform = ok ? `translate(${ev.clientX - r.width / 2}px, ${ev.clientY - r.height / 2}px) scale(.9)` : `translate(${r.left}px, ${r.top}px) rotate(0deg) scale(1)`
+        if (ok) g.style.opacity = '0'
+      })
+      setTimeout(() => { g.remove(); el.style.visibility = '' }, ok ? 700 : 560)
+    }
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up)
+  }
+  return { down, dragged }
 }
 
 // escolhas que bloqueiam o motor: sim/não, uma opção, um número ou texto, ou escolher entre cartas/jogadores
@@ -156,31 +215,93 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
     }
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
   })
+  const byId = new Map(players.flatMap(p => ['battlefield', 'hand', 'graveyard', 'exile'].flatMap(z => (p[z] || []).map(c => [c.id, c]))))
+  const lives = `${me?.life}|${opp?.life}`, prevLives = useRef(null), [lifeFx, setLifeFx] = useState(null)
+  useEffect(() => {  // a vida mudou: o orbe pisca e mostra o +N/−N, como na arena
+    const [a, b] = lives.split('|').map(Number), pv = prevLives.current
+    prevLives.current = [a, b]
+    if (!pv || Number.isNaN(a)) return
+    if (a !== pv[0]) setLifeFx({ p: 'a', d: a - pv[0] }); else if (b !== pv[1]) setLifeFx({ p: 'b', d: b - pv[1] })
+  }, [lives])
+  const send1 = c => send(c)
+  const [lay, setLayS] = useState(() => { try { return JSON.parse(localStorage.getItem(`grimorio.fp.${sid}`)) || {} } catch { return {} } })  // arrumação à mão
+  const setLay = f => setLayS(x => { const y = f(x); try { localStorage.setItem(`grimorio.fp.${sid}`, JSON.stringify(y)) } catch { /* sem armazenamento */ } return y })
+  const keysIn = (box, sel, attr) => [...box.querySelectorAll(sel)].map(e => e.getAttribute(attr).replace(/^k:/, ''))
+  const moveBefore = (keys, k, before) => { const l = keys.filter(x => x !== k), i = before == null ? -1 : l.indexOf(before); l.splice(i < 0 ? l.length : i, 0, k); return l }
+  const drop = ({ id, from, target }) => {
+    if (!target?.closest('.fp-table')) return false
+    const hand = target.closest('.fp-hand')
+    if (from === 'hand' && hand) {  // dentro da mão: mudar a ordem
+      const h = target.closest('[data-h]'), l = moveBefore(keysIn(hand, '[data-h]', 'data-h'), String(id), h?.dataset.h)
+      setLay(x => ({ ...x, hand: l })); return 'local'
+    }
+    if (from === 'hand') { send1({ c: 'card', id }); return true }  // da mão para a mesa: jogar
+    const perm = target.closest('.pc[data-z^="k:"]'), pid = perm && +perm.dataset.z.slice(2), mine = st.active === me?.id
+    if (!mine && pid && st.combat?.some(x => x.att === pid)) { send1({ c: 'card', id: pid }).then(() => send1({ c: 'card', id })); return true }  // largar num atacante: bloquear
+    if (mine && st.phase === 'COMBAT_DECLARE_ATTACKERS' && target.closest('.bside.top')) { send1({ c: 'card', id }); return true }  // largar no lado dele: atacar
+    const row = target.closest('.bside.bottom') && target.closest('.brow')
+    if (!row) return false
+    // no teu lado: arrumar à vontade (por cima de uma carta = fica no lugar dela; numa fila vazia = vai para o fim dessa fila)
+    const r = row.classList.contains('front') ? 'front' : row.classList.contains('lands') ? 'lands' : 'others'
+    const box = row.classList.contains('rear') ? row.querySelector('.brow.others') || row : row
+    const l = moveBefore(keysIn(box, '.pc[data-z^="k:"]', 'data-z'), String(id), pid != null && pid !== id ? String(pid) : null)
+    setLay(x => ({ ...x, place: { ...x.place, [id]: r }, order: { ...x.order, ...Object.fromEntries(l.map((k, i) => [k, i])) } }))
+    return 'local'
+  }
+  const { down, dragged } = useDrag(drop, id => setZoom(byId.get(id)))
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
-  const act = c => send({ c: 'card', id: c.id })
-  const idx = p => players.indexOf(p)
   const myTurn = st.active === me?.id
+  const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true }
+  const att = new Map()
+  for (const p of [...bs.a.perms, ...bs.b.perms]) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
+  const sel = new Set([...byId.values()].filter(c => c.sel).map(c => String(c.id)))
+  const fx = { hl: sel, par: 'sel', pops: new Map(), life: lifeFx, player: null }
+  const openZone = (k, z) => setZone({ p: k === 'a' ? me : opp, k: z })
+  const onClick = e => {  // um clique numa carta da mesa ou da mão = o mesmo que no Forge; no orbe = escolher o jogador
+    if (dragged.current) return
+    const h = e.target.closest('[data-h]')
+    if (h) return send({ c: 'card', id: +h.dataset.h })
+    const z = e.target.closest('[data-z]')?.dataset.z
+    if (z?.startsWith('k:')) return send({ c: 'card', id: +z.slice(2) })
+    const orb = e.target.closest('.orb')
+    if (orb) send({ c: 'player', i: players.indexOf(orb.closest('.bside')?.classList.contains('top') ? opp : me) })
+  }
+  const onOver = e => {
+    const el = e.target.closest('[data-z], [data-zid]'), z = el?.dataset.z
+    const c = z?.startsWith('k:') ? byId.get(+z.slice(2)) : el?.dataset.zid ? byId.get(+el.dataset.zid) : z?.startsWith('n:') ? { name: z.slice(2) } : null
+    if (c && !c.hidden) setZoom(c)
+  }
   const zc = zoom && (data.byName.get(zoom.name) || data.byLower?.get(String(zoom.name).toLowerCase()))
+  const nOpp = opp?.hand?.length || 0, mana = Object.entries(me?.mana || {})
+  const handIn = cs => (lay.hand ? [...cs].sort((x, y) => { const i = lay.hand.indexOf(String(x.id)), k = lay.hand.indexOf(String(y.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : cs)
+  const tilt = e => {  // inclinação 3D da carta debaixo do rato (e o brilho a segui-lo)
+    const el = e.target.closest('.pc, .fp-card')
+    if (!el) return
+    const q = el.getBoundingClientRect()
+    el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
+  }
   return (
     <div className="fp" onMouseLeave={() => setZoom(null)}>
-      <div className="fp-table">
-        {opp && <><Seat p={opp} i={idx(opp)} send={send} setZone={setZone} active={st.active === opp.id} />
-          <Field p={opp} data={data} act={act} zoom={setZoom} combat={st.combat} flip /></>}
+      <div className="fp-table board table" onClick={onClick} onMouseOver={onOver} onMouseMove={tilt} onPointerDown={down}>
+        {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone}
+          hand={nOpp > 0 && <Hand z={{ hand: nOpp, known: Array(nOpp).fill('?') }} data={data} exact opp hidden quiet />} />}
         <div className="fp-mid">
           <span className="fp-turn">{tx('Turno {n}', { n: st.turn })} · {myTurn ? tx('teu') : opp?.name}</span>
           <span className="fp-phases">{PHASES.map(([k, l, ps]) => <i key={k} className={ps.includes(st.phase) ? 'on' : ''}>{l}</i>)}</span>
           {st.stack?.length > 0 && <div className="fp-stack">{st.stack.map((x, k) => (
-            <div key={k} className={`fp-si ${x.by === me?.id ? 'mine' : ''}`} onMouseEnter={() => x.name && setZoom({ name: x.name })}><b>{x.name}</b><small>{x.text}</small></div>))}</div>}
+            <div key={k} className={`fp-si ${x.by === me?.id ? 'mine' : ''}`} data-z={x.name ? `n:${x.name}` : undefined}><b>{x.name}</b><small>{x.text}</small></div>))}</div>}
         </div>
-        {me && <><Field p={me} data={data} act={act} zoom={setZoom} combat={st.combat} />
-          <Seat p={me} i={idx(me)} send={send} setZone={setZone} active={myTurn} mine />
-          <div className="fp-hand">{(me.hand || []).map(c => <FCard key={c.id} c={c} data={data} onClick={act} onZoom={setZoom} big />)}</div></>}
+        {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} place={lay.place} order={lay.order}
+          hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big />)}</div>} />}
       </div>
       <aside className="fp-side">
         <div className="fp-zoom">{zc ? <img src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           <p>{promptText(pr?.msg, st, me)}</p>
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })}>{BTN[b.label] || b.label}</button>)}</div>
+          {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
+            <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')}>{n}</button>))}</span>}
+          <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')}</p>
           <div className="row-btns small">
             <button className="link small" onClick={() => send({ c: 'undo' })}>↶ {tx('desfazer')}</button>
             <button className="link small" onClick={() => send({ c: 'concede' })}>🏳 {tx('desistir')}</button>
@@ -191,7 +312,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
       {ask && <div className="fp-modal"><Ask key={ask.id} a={ask} st={st} data={data} answer={answer} zoom={setZoom} /></div>}
       {zone && <div className="fp-modal" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
         <p><b>{zone.k === 'graveyard' ? tx('Cemitério de {n}', { n: zone.p.name }) : tx('Exílio de {n}', { n: zone.p.name })}</b> <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
-        <div className="fp-opts">{(players.find(p => p.id === zone.p.id)?.[zone.k] || []).map(c => <FCard key={c.id} c={c} data={data} big onClick={x => { act(x); setZone(null) }} onZoom={setZoom} />)}</div></div></div>}
+        <div className="fp-opts">{(players.find(p => p.id === zone.p.id)?.[zone.k] || []).map(c => <FCard key={c.id} c={c} data={data} big onClick={x => { send({ c: 'card', id: x.id }); setZone(null) }} />)}</div></div></div>}
       {toast && <div className="fp-toast" onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} {toast.msg}{toast.list && <ul>{toast.list.map((l, k) => <li key={k}>{l}</li>)}</ul>}</div>}
       {s.ended && <div className="fp-modal"><div className="fp-ask fp-end">
         <h3>{s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : tx('Jogo terminado')}</h3>

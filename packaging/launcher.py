@@ -11,7 +11,7 @@ Package layout (built by packaging/build.py):
     forge/  forge-ext/  jre/     Forge 2.0.15 (with Grimório's AI profiles applied), GrimorioSim classes, Temurin JRE
     VERSION
 """
-import argparse, hashlib, json, os, runpy, shutil, signal, socket, sys, threading, time, urllib.error, urllib.request, webbrowser, zipfile
+import argparse, hashlib, json, os, runpy, shutil, signal, socket, sqlite3, subprocess, sys, tarfile, threading, time, urllib.error, urllib.request, webbrowser, zipfile
 
 REPO = "hubertdungen/grimorio"
 FROZEN = getattr(sys, "frozen", False)
@@ -87,8 +87,8 @@ def free(host, port):
             return False
 
 
-def download(url, dest):
-    """url (https or a local path) -> dest, with progress."""
+def download(url, dest, quiet=False):
+    """url (https or a local path) -> dest, with progress (quiet: no progress, for the background update)."""
     if os.path.exists(url):
         shutil.copyfile(url, dest)
         return
@@ -98,11 +98,11 @@ def download(url, dest):
         while chunk := r.read(1 << 16):
             f.write(chunk)
             done += len(chunk)
-            if time.time() - last > 0.5:
+            if not quiet and time.time() - last > 0.5:
                 last = time.time()
                 print(f"\r  {done >> 20} MB" + (f" of {total >> 20} MB ({100 * done // total}%)" if total else ""),
                       end="", flush=True)
-    print()
+    quiet or print()
     os.replace(dest + ".part", dest)
 
 
@@ -155,6 +155,150 @@ def install_data(d, ver):
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+# ---------- versions: database backups, automatic updates ----------
+# Updates go to <data>/versions/<v>/ (checked against the release's .sha256) and start from the next launch: the
+# launcher you open (shortcut, original folder) hands over to the newest complete version there. Your data stays in
+# <data> and every version reads it (the database only ever gains tables and columns).
+UPD = "update.json"
+ASSET = "Grimorio-{v}-windows-x64.zip" if os.name == "nt" else "grimorio-{v}-linux-x64.tar.gz"
+
+
+def vkey(v):
+    """'1.8.0' -> (1, 8, 0); 'dev' or anything odd -> () (a source checkout never updates itself)."""
+    try:
+        return tuple(int(x) for x in str(v).split("-")[0].split("."))
+    except ValueError:
+        return ()
+
+
+def jread(p):
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def jwrite(p, o):
+    with open(p + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(o, f)
+    os.replace(p + ".tmp", p)
+
+
+def backup_db(d, ver, keep=3):
+    """A new version is about to open the database: keep a copy made by the one that ran before (last `keep`)."""
+    st = jread(os.path.join(d, UPD))
+    db, last = os.path.join(d, "grimorio.db"), st.get("ran")
+    if last and last != ver and os.path.isfile(db):
+        bdir = os.path.join(d, "backups")
+        os.makedirs(bdir, exist_ok=True)
+        dest = os.path.join(bdir, f"grimorio-{last}-{time.strftime('%Y%m%d-%H%M%S')}.db")
+        src, out = sqlite3.connect(db), sqlite3.connect(dest)
+        with out:
+            src.backup(out)  # consistent copy, WAL included
+        src.close(); out.close()
+        old = sorted((os.path.join(bdir, f) for f in os.listdir(bdir) if f.startswith("grimorio-") and f.endswith(".db")), key=os.path.getmtime)
+        for f in old[:-keep]:
+            os.remove(f)
+        say(f"Database backed up before {ver}: {dest}")
+    if last != ver:
+        jwrite(os.path.join(d, UPD), {**jread(os.path.join(d, UPD)), "ran": ver})
+
+
+def newest_installed(d, ver):
+    """A downloaded and checked version newer than this one -> (version, its launcher), else None."""
+    root, best = os.path.join(d, "versions"), None
+    for v in os.listdir(root) if os.path.isdir(root) else []:
+        exe = os.path.join(root, v, "Grimorio", "Grimorio.exe") if os.name == "nt" else os.path.join(root, v, "grimorio", "app", "launcher.py")
+        if os.path.isfile(os.path.join(root, v, ".complete")) and os.path.isfile(exe) and vkey(v) > vkey(ver) and (not best or vkey(v) > vkey(best[0])):
+            best = (v, exe)
+    return best
+
+
+def hand_over(d, ver):
+    """Start the newest downloaded version instead of this one (and wait for it, so this window stays its console)."""
+    if not vkey(ver) or os.environ.get("GRIMORIO_NO_REDIRECT"):
+        return
+    n = newest_installed(d, ver)
+    if not n:
+        return
+    say(f"Starting Grimório {n[0]} (updated automatically)…")
+    cmd = [n[1]] if os.name == "nt" else [sys.executable, n[1]]
+    raise SystemExit(subprocess.call(cmd + sys.argv[1:], env={**os.environ, "GRIMORIO_NO_REDIRECT": "1"}))
+
+
+def prune_versions(d, ver):
+    """Versions older than the one running are no longer needed."""
+    root = os.path.join(d, "versions")
+    for v in os.listdir(root) if os.path.isdir(root) else []:
+        if vkey(v) and vkey(v) < vkey(ver) or v.endswith(".part"):
+            shutil.rmtree(os.path.join(root, v), ignore_errors=True)
+
+
+def safe_extract(archive, dest):
+    if archive.endswith(".zip"):
+        with zipfile.ZipFile(archive) as z:
+            z.extractall(dest)  # zipfile drops absolute paths and «..»
+        return
+    with tarfile.open(archive) as t:
+        try:
+            t.extractall(dest, filter="data")
+        except TypeError:  # Python without extraction filters: check the paths by hand
+            root = os.path.realpath(dest)
+            for m in t.getmembers():
+                if not os.path.realpath(os.path.join(dest, m.name)).startswith(root + os.sep) or m.issym() or m.islnk():
+                    raise RuntimeError(f"unsafe path in the update: {m.name}")
+            t.extractall(dest)
+
+
+def check_update(d, ver):
+    """Background: is there a newer release? Download it, check its sha256 and unpack it into versions/ (unless the
+    person turned automatic updates off in Settings). The state goes to update.json for the Settings page."""
+    p = os.path.join(d, UPD)
+    if not vkey(ver) or jread(p).get("auto") is False:
+        return
+    st = {}
+    try:
+        req = urllib.request.Request(f"https://api.github.com/repos/{REPO}/releases/latest",
+                                     headers={"User-Agent": "Grimorio-launcher", "Accept": "application/vnd.github+json"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            rel = json.load(r)
+        latest = str(rel.get("tag_name", "")).lstrip("v")
+        st = {"latest": latest, "checked": time.time(), "url": rel.get("html_url"), "err": None}
+        jwrite(p, {**jread(p), **st})
+        if vkey(latest) <= vkey(ver):
+            return
+        dest = os.path.join(d, "versions", latest)
+        if not os.path.isfile(os.path.join(dest, ".complete")):
+            assets = {a["name"]: a["browser_download_url"] for a in rel.get("assets", [])}
+            name = ASSET.format(v=latest)
+            if name not in assets or name + ".sha256" not in assets:
+                raise RuntimeError(f"the release has no {name} with its .sha256")
+            tmp = dest + ".part"
+            shutil.rmtree(tmp, ignore_errors=True)
+            os.makedirs(tmp)
+            jwrite(p, {**jread(p), "downloading": latest})
+            f = os.path.join(tmp, name)
+            download(assets[name], f, quiet=True)
+            download(assets[name + ".sha256"], f + ".sha256", quiet=True)
+            want = open(f + ".sha256", encoding="utf-8").read().split()[0].lower()
+            h = hashlib.sha256()
+            with open(f, "rb") as fh:
+                while chunk := fh.read(1 << 20):
+                    h.update(chunk)
+            if h.hexdigest() != want:
+                raise RuntimeError("the update download is corrupted (checksum mismatch)")
+            safe_extract(f, tmp)
+            os.remove(f); os.remove(f + ".sha256")
+            open(os.path.join(tmp, ".complete"), "w").close()
+            shutil.rmtree(dest, ignore_errors=True)
+            os.replace(tmp, dest)
+        jwrite(p, {**jread(p), "ready": latest, "downloading": None})
+        say(f"Grimório {latest} is downloaded: it starts the next time you open Grimório.")
+    except Exception as e:  # no internet, GitHub rate limit, disk full: try again next time
+        jwrite(p, {**jread(p), "err": str(e)[:200], "downloading": None})
+
+
 def main():
     ap = argparse.ArgumentParser(description="Start Grimório on this computer and open it in the browser.")
     ap.add_argument("--port", type=int, help="port (default: 8107, or the next free one)")
@@ -180,7 +324,12 @@ def main():
         raise SystemExit(f"Ports {PORTS.start}–{PORTS.stop - 1} are all busy. Start it with --port <number>.")
     with open(state, "w", encoding="utf-8") as f:
         json.dump({"port": port}, f)
+    hand_over(d, ver)  # a newer version was downloaded: it runs instead of this one
+    backup_db(d, ver)
+    prune_versions(d, ver)
     install_data(d, ver)
+    os.environ["GRIMORIO_VERSION"] = ver
+    threading.Thread(target=check_update, args=(d, ver), daemon=True).start()
 
     # Forge without Docker: bundled Java and Forge (sim.py reads these)
     java = os.path.join(BASE, "jre", "bin", "java.exe" if os.name == "nt" else "java")
@@ -216,5 +365,26 @@ def main():
         say("Grimório stopped.")
 
 
+def selfcheck():
+    import tempfile
+    assert vkey("1.10.0") > vkey("1.9.3") > vkey("1.9") and vkey("dev") == () and vkey("0.0.0-abc1234") == (0, 0, 0)
+    with tempfile.TemporaryDirectory() as d:
+        ex = ("Grimorio", "Grimorio.exe") if os.name == "nt" else ("grimorio", "app", "launcher.py")
+        for v, done in (("1.8.0", True), ("1.9.0", True), ("2.0.0", False)):
+            os.makedirs(os.path.join(d, "versions", v, *ex[:-1]))
+            open(os.path.join(d, "versions", v, *ex), "w").close()
+            done and open(os.path.join(d, "versions", v, ".complete"), "w").close()
+        assert newest_installed(d, "1.8.0")[0] == "1.9.0" and newest_installed(d, "1.9.0") is None  # 2.0.0 is half-downloaded
+        prune_versions(d, "1.9.0")
+        assert sorted(os.listdir(os.path.join(d, "versions"))) == ["1.9.0", "2.0.0"]
+        con = sqlite3.connect(os.path.join(d, "grimorio.db")); con.execute("CREATE TABLE t (x)"); con.commit(); con.close()
+        backup_db(d, "1.8.0"); backup_db(d, "1.9.0")
+        assert len(os.listdir(os.path.join(d, "backups"))) == 1 and jread(os.path.join(d, UPD))["ran"] == "1.9.0"
+    print("selfcheck ok")
+
+
 if __name__ == "__main__":
-    main()
+    if sys.argv[1:] == ["--selfcheck"]:
+        selfcheck()
+    else:
+        main()

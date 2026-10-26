@@ -368,12 +368,13 @@ function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, b
   )
 }
 
-function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots }) {  // hand: a mão vai ao centro da faixa dos terrenos
+export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order }) {  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
   const z = s[k]  // compact: um de 3–4 jogadores (cartas mais pequenas); hit: está a ser atacado
   const all = s.sides.flatMap(x => s[x].perms)
   const live = markDormant(data, z.perms).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
   const creatures = [], lands = [], others = []
-  for (const p of live) (isCreature(data, p) ? creatures : isLand(data, p) ? lands : others).push(p)
+  for (const p of live) { const r = place?.[p.key] || (isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'); (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
+  if (order) for (const xs of [creatures, lands, others]) xs.sort((x, y) => (order[x.key] ?? 1e9) - (order[y.key] ?? 1e9))
   const front = <Row perms={creatures} data={data} fx={fx} att={att} cls="front" groupable={p => p.token} empty={tx('sem criaturas')} quiet={fast} who={who} />
   const back = (
     <div className="brow rear">
@@ -392,7 +393,7 @@ function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, com
 
 // a nossa mão, virada para cima: num jogo exato, a mão verdadeira (o Forge diz cada compra); num jogo antigo,
 // as cartas que sabemos que lá estavam + o resto de costas
-function Hand({ z, data, quiet, exact, opp, hidden, label }) {  // opp: mão do adversário (jogos exatos; num teste entre bots não há nada a esconder)
+export function Hand({ z, data, quiet, exact, opp, hidden, label }) {  // opp: mão do adversário (jogos exatos; num teste entre bots não há nada a esconder)
   const seen = {}, im = useImg(), set = useImgSet()
   const unknown = Math.max(0, z.hand - z.known.length)
   const n = z.known.length + Math.min(unknown, 10)

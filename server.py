@@ -137,6 +137,21 @@ def ai_flags():
     return sorted(out)
 
 
+def update_state(raw=False):
+    """O que o launcher dos pacotes escreveu em <data>/update.json, mais a versão que está a correr."""
+    try:
+        with open(os.path.join(ARGS.data_dir, "update.json"), encoding="utf-8") as f:
+            st = json.load(f)
+    except (OSError, ValueError):
+        st = {}
+    if raw:
+        return st
+    ver = os.environ.get("GRIMORIO_VERSION")
+    return {"version": ver, "packaged": bool(ver and ver != "dev"), "auto": st.get("auto") is not False, "latest": st.get("latest"),
+            "ready": st.get("ready") if st.get("ready") and st.get("ready") != ver else None, "downloading": st.get("downloading"),
+            "err": st.get("err"), "checked": st.get("checked"), "url": st.get("url")}
+
+
 class H(BaseHTTPRequestHandler):
     server_version = "Grimorio/1.0"
 
@@ -242,6 +257,8 @@ class H(BaseHTTPRequestHandler):
             return self.json(play.status())
         if p.startswith("/api/playnet"):
             return self.playnet_route("GET")
+        if p == "/api/update":  # pacotes (exe/Linux): versão, a nova e o estado da atualização automática (launcher.py)
+            return self.json(update_state())
         m = EDHREC_PATH.match(p)
         if m:
             return self.edhrec(m.group(1), m.group(2))
@@ -537,6 +554,18 @@ class H(BaseHTTPRequestHandler):
             return self.play_route()
         if self.path.startswith("/api/playnet"):
             return self.playnet_route("POST")
+        if self.path == "/api/update":  # {auto: true|false}: atualizar sozinho (o launcher lê-o ao arrancar)
+            try:
+                auto = bool((self.body() or {}).get("auto"))
+            except ValueError as e:
+                return self.json({"erro": str(e)}, 400)
+            p = os.path.join(ARGS.data_dir, "update.json")
+            st = update_state(raw=True)
+            st["auto"] = auto
+            with open(p + ".tmp", "w", encoding="utf-8") as f:
+                json.dump(st, f)
+            os.replace(p + ".tmp", p)
+            return self.json(update_state())
         if self.path in ("/api/ia/config", "/api/ia/ask"):
             try:
                 d = self.body()

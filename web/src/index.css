@@ -463,8 +463,8 @@ h2 .mana img { width: 20px; height: 20px; }
 .lab-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; }
 .lab textarea { width: 100%; min-height: 90px; }
 .opp-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 180px; overflow-y: auto; }
-.opp { display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); font-size: 13px; cursor: pointer; }
-.opp.on { border-color: var(--gold); background: rgba(242, 184, 75, .1); }
+:is(button, label).opp { display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+:is(button, label).opp.on { border-color: var(--gold); background: rgba(242, 184, 75, .1); }
 .opp input, .opp input[type=checkbox] { display: none; }
 .lab-opts { display: grid; gap: 12px; align-content: start; }
 .spin-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--gold); border-top-color: transparent; animation: spin .8s linear infinite; vertical-align: -1px; }
@@ -1093,6 +1093,8 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .arena-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 16px; margin: 8px 0; }
 .arena-grid label { display: grid; align-content: start; gap: 4px; font-size: 13px; color: var(--muted); }
 .arena-grid .seg { margin-left: 0; float: none; }
+.arena-grid .ag-wide { grid-column: span 2; }  /* as 4 fontes de decks não cabem numa coluna de 230 px (passavam por cima das estrelas) */
+@media (max-width: 600px) { .arena-grid .ag-wide { grid-column: auto; } .arena-grid .ag-wide .seg { flex-wrap: wrap; } }
 .arena-fmts { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .arena-fmts label { display: inline-flex; gap: 4px; align-items: center; color: var(--text); }
 .arena-live { display: grid; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--bg2); font-size: 13px; }
@@ -2233,65 +2235,70 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .nr-kind button .tc-ico { grid-row: span 2; width: 34px; height: 34px; } .nr-kind button small { color: var(--muted); font-size: 11px; }
 .nr-kind button.on { border-color: var(--gold); background: rgba(242, 184, 75, .12); box-shadow: inset 0 0 0 1px var(--gold); }
 
-/* ---------- Forge Play nativo (ForgePlay.jsx): a mesa do Grimório contra a IA do Forge ---------- */
+/* ---------- Forge Play nativo (ForgePlay.jsx): a mesa da arena (Board.jsx Side) jogável, com arrastar e física ---------- */
 .play-modo { margin: 6px 0 4px; }
 .fp-bar { align-items: center; margin-bottom: 8px; }
-.fp { --cw: clamp(44px, min(6vw, 8.5vh), 96px); display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 22vw, 320px); gap: 10px; position: relative;
-  height: calc(100dvh - 165px); min-height: 520px; }  /* a mesa inteira cabe no ecrã: o tamanho das cartas vem da largura e da altura */
+.fp { display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 21vw, 310px); gap: 10px; position: relative; height: calc(100dvh - 165px); min-height: 520px; }
 .coliseu:fullscreen .fp { height: calc(100dvh - 90px); }
-.fp-table { min-width: 0; min-height: 0; overflow: auto; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr) auto auto; gap: 6px; padding: 10px; border-radius: 14px; border: 1px solid var(--line);
-  background: radial-gradient(ellipse at 50% 50%, #241d3d 0%, #120f1f 75%); }
-.fp-seat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 6px; border-radius: 10px; }
-.fp-seat.active { background: #f2b84b14; } .fp-seat.prio .fp-life { box-shadow: 0 0 0 2px var(--gold); }
-.fp-life { display: flex; align-items: baseline; gap: 8px; padding: 4px 12px; border-radius: 999px; }
-.fp-life b { font-size: 22px; color: var(--gold2); } .fp-life span { font-weight: 600; }
-.fp-z { font-size: 13px; color: var(--muted); padding: 2px 8px; border-radius: 8px; background: transparent; border: 1px solid transparent; }
-button.fp-z:hover { border-color: var(--line); color: var(--text); }
-.fp-pool { display: flex; gap: 4px; } .fp-pool button { width: 28px; height: 28px; padding: 0; border-radius: 50%; background: var(--m); color: #111; font-weight: 700; border: 2px solid #0006; }
-.fp-field { display: grid; gap: 6px; align-content: start; } .fp-field.them { align-content: end; }
-.fp-row { display: flex; flex-wrap: wrap; gap: 8px; min-height: calc(var(--cw) * 1.4); align-items: center; }
-.fp-row.lands { --cw: clamp(38px, min(4.6vw, 6.5vh), 76px); }
-.fp-pile { position: relative; display: grid; }
-.fp-pile > .fp-card { grid-area: 1 / 1; } .fp-pile > .fp-card.att { transform: translate(10px, -14px) scale(.92); filter: brightness(.85); }
-.fp-card { position: relative; width: var(--cw); aspect-ratio: 488 / 680; padding: 0; border-radius: calc(var(--cw) * .05); overflow: hidden; border: 0; background: #2a2440;
-  transition: transform .18s ease, box-shadow .18s ease; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+.fp-table.board { --cw: clamp(50px, min(6vw, 8.6vh), 108px); --ow: calc(var(--cw) * .8); --lw: calc(var(--cw) * .6); --hw: clamp(54px, min(6.4vw, 9.6vh), 116px); }
+.fp-table { min-width: 0; min-height: 0; overflow: auto; display: grid; grid-template-rows: auto auto auto; align-content: space-between; gap: 4px; }
+.fp-table .bhud { flex-wrap: nowrap; } .fp-table .bhud > .fp-hand, .fp-table .bhud > .myhand { flex: 1 1 auto; min-width: 0; }
+/* cartas: tap com mola (passa um pouco e assenta), a subir enquanto roda; inclinação 3D e brilho que seguem o rato */
+.fp .pc-rot { transition: transform .55s cubic-bezier(.34, 1.56, .64, 1); }
+.fp .pc.tapped .pc-rot { animation: fp-tap .55s ease-out; } .fp .pc:not(.tapped) .pc-rot { animation: fp-untap .45s ease-out; }
+@keyframes fp-tap { 40% { translate: 0 -6px; scale: 1.06; } } @keyframes fp-untap { 40% { translate: 0 -4px; scale: 1.04; } }
+.fp .pc .pc-f, .fp .fp-card { --tx: 0; --ty: 0; transition: transform .18s ease-out, box-shadow .2s; }
+.fp .pc:hover .pc-f { transform: perspective(520px) rotateX(calc(var(--ty) * -14deg)) rotateY(calc(var(--tx) * 16deg)) scale(1.05); box-shadow: 0 10px 22px #000a; }
+.fp .pc:hover .pc-f::after, .fp .fp-card:hover::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(circle at calc(50% + var(--tx) * 100%) calc(50% + var(--ty) * 100%), #ffffff40, transparent 55%); }
+.fp .bside.bottom .pc, .fp [data-h] { cursor: grab; touch-action: none; }
+.pc.hlsel .pc-f, .fp-card.sel { box-shadow: 0 0 0 3px var(--cyan), 0 0 16px var(--cyan) !important; animation: fp-sel 1.2s ease-in-out infinite alternate; }
+@keyframes fp-sel { to { box-shadow: 0 0 0 3px var(--cyan), 0 0 26px var(--cyan); } }
+.fp .orb { cursor: crosshair; }
+/* a mão: em leque, cada carta sobe ao passar */
+.fp-hand { display: flex; justify-content: center; align-items: flex-end; padding: 6px 4px 0; min-height: calc(var(--hw) * 1.4 * .7); }
+.fp-hand .fp-card { --cw: var(--hw); margin-left: calc(var(--hw) * -.18); }
+.fp-hand .fp-card:hover { transform: perspective(520px) translateY(-16%) rotateX(calc(var(--ty) * -12deg)) rotateY(calc(var(--tx) * 14deg)) scale(1.08); z-index: 3; }
+.fp-card { position: relative; width: var(--cw, 96px); aspect-ratio: 488 / 680; padding: 0; border-radius: 4.5%; overflow: hidden; border: 0; background: #2a2440; flex: none;
+  -webkit-user-select: none; user-select: none; box-shadow: 0 3px 8px #0009; }
 .fp-card img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-.fp-card:hover { transform: translateY(-4px); z-index: 2; }
-.fp-card.tapped { transform: rotate(90deg) scale(.86); filter: brightness(.8); } .fp-card.tapped:hover { transform: rotate(90deg) scale(.9); }
-.fp-card.sick { filter: saturate(.7); }
-.fp-card.sel { box-shadow: 0 0 0 3px var(--cyan), 0 0 16px var(--cyan); }
-.fp-card.atk { box-shadow: 0 0 0 3px #ff5a5a, 0 0 18px #ff5a5a99; } .fp-card.blk { box-shadow: 0 0 0 3px #6aa8ff, 0 0 18px #6aa8ff99; }
-.fp-card.back { background: repeating-linear-gradient(45deg, #3b2f66, #3b2f66 6px, #2c2350 6px, #2c2350 12px); border: 2px solid #5b4a9a; }
-.fp-card.mini { --cw: 22px; border-width: 1px; }
+.fp-card.back { background: repeating-linear-gradient(45deg, #3b2614 0 4px, #2b1a0c 4px 8px); border: 1px solid #a07040; }
 .fp-name { display: grid; place-items: center; height: 100%; padding: 4px; font-size: 10px; text-align: center; }
-.fp-card i { position: absolute; font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: #000c; color: #fff; }
-.fp-pt { right: 3px; bottom: 3px; } .fp-pt.hurt { color: #ff8a8a; } .fp-loy { right: 3px; bottom: 3px; background: #2b5a9c !important; }
-.fp-ctr { left: 3px; top: 3px; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fp-tok { left: 3px; bottom: 3px; color: var(--gold2) !important; }
-.fp-ohand { display: flex; gap: 3px; }
-.fp-mid { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px; padding: 6px 0; border-block: 1px dashed #ffffff1a; }
+.fp-pt { position: absolute; right: 3px; bottom: 3px; font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: #000c; color: #fff; }
+/* a carta a ser arrastada e o sítio onde vai cair */
+.fp-ghost { position: fixed !important; left: 0; top: 0; z-index: 90; margin: 0 !important; pointer-events: none; will-change: transform;
+  filter: drop-shadow(0 18px 22px #000c); transform-origin: 50% 60%; }
+.fp-ghost .pc-f { transform: none !important; }
+.fp-table .bside.fp-over { border-color: #6ee7f9aa; background: #6ee7f90d; box-shadow: inset 0 0 30px #6ee7f922; }
+.fp-table .pc.fp-over .pc-f { box-shadow: 0 0 0 3px #ffd98a, 0 0 18px #ffd98a; }
+.fp-mid.fp-over { background: #6ee7f90d; }
+.fp-mid { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px; padding: 4px 0; border-block: 1px dashed #ffffff1a; }
 .fp-turn { font-weight: 600; } .fp-phases { display: flex; gap: 4px; flex-wrap: wrap; }
-.fp-phases i { font-style: normal; font-size: 12px; padding: 2px 9px; border-radius: 999px; color: var(--muted); border: 1px solid var(--line); }
+.fp-phases i { font-style: normal; font-size: 12px; padding: 2px 9px; border-radius: 999px; color: var(--muted); border: 1px solid var(--line); transition: background .3s, color .3s; }
 .fp-phases i.on { color: #111; background: var(--gold); border-color: var(--gold); }
 .fp-stack { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; width: 100%; }
-.fp-si { display: grid; max-width: 260px; padding: 6px 10px; border-radius: 10px; background: #ff5a5a1f; border: 1px solid #ff5a5a66; animation: fp-in .3s ease; }
+.fp-si { display: grid; max-width: 260px; padding: 6px 10px; border-radius: 10px; background: #ff5a5a1f; border: 1px solid #ff5a5a66; animation: fp-in .45s cubic-bezier(.34, 1.56, .64, 1); }
 .fp-si.mine { background: #6ee7f91a; border-color: #6ee7f966; } .fp-si small { color: var(--muted); font-size: 11px; }
-@keyframes fp-in { from { transform: translateY(-10px) scale(.9); opacity: 0; } }
-.fp-hand { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; padding-top: 4px; --cw: clamp(54px, min(7.4vw, 11vh), 118px); }
-.fp-hand .fp-card:hover { transform: translateY(-14px) scale(1.06); }
+@keyframes fp-in { from { transform: translateY(-14px) scale(.85) rotate(-3deg); opacity: 0; } }
 .fp-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; }
 .fp-zoom img { width: 100%; border-radius: 4.5%; display: block; } .fp-zoom p { padding: 10px; }
 .fp-prompt { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); display: grid; gap: 8px; }
 .fp-prompt.mine { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; } .fp-prompt p { margin: 0; white-space: pre-line; }
-.fp-modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: #05040bcc; }
-.fp-ask { max-width: min(900px, 100%); max-height: 90vh; overflow: auto; padding: 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--gold); display: grid; gap: 10px; }
+.fp-tip { font-size: 11px; }
+.fp-pool { display: flex; gap: 4px; } .fp-pool button { width: 30px; height: 30px; padding: 0; border-radius: 50%; background: var(--m); color: #111; font-weight: 700; border: 2px solid #0006; animation: fp-in .4s cubic-bezier(.34, 1.56, .64, 1); }
+.fp-modal { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: #05040bcc; animation: fp-fade .2s ease-out; }
+@keyframes fp-fade { from { opacity: 0; } }
+.fp-ask { max-width: min(900px, 100%); max-height: 90vh; overflow: auto; padding: 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--gold); display: grid; gap: 10px; animation: fp-in .35s cubic-bezier(.34, 1.56, .64, 1); }
 .fp-ask p { margin: 0; white-space: pre-line; }
 .fp-opts { display: flex; flex-wrap: wrap; gap: 10px; --cw: 120px; }
 .fp-opt.on .fp-card { box-shadow: 0 0 0 3px var(--gold); } .fp-optl { text-align: left; } .fp-optl.on { border-color: var(--gold); background: #f2b84b1f; }
 .fp-end { text-align: center; justify-items: center; } .fp-end h3 { margin: 0; font-size: 26px; }
-.fp-toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 55; max-width: min(560px, 92vw); padding: 10px 14px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); box-shadow: 0 8px 30px #0008; }
+.fp-toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 55; max-width: min(560px, 92vw); padding: 10px 14px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); box-shadow: 0 8px 30px #0008; animation: fp-fade .25s ease-out; }
 .fp-toast ul { margin: 4px 0 0; padding-left: 18px; }
 .fp-wait { padding: 40px; text-align: center; }
+@media (prefers-reduced-motion: reduce) { .fp .pc-rot, .fp .pc .pc-f, .fp-card { animation: none !important; transition: none !important; } }
 @media (max-width: 900px) {  /* tablet ao alto e telemóvel: o painel lateral passa para baixo da mesa */
-  .fp { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; --cw: clamp(40px, min(11vw, 7vh), 80px); }
-  .fp-side { flex-direction: row; overflow: visible; } .fp-zoom { display: none; } .fp-prompt { flex: 1; }
+  .fp { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .fp-table.board { --cw: clamp(40px, min(11vw, 7vh), 80px); --hw: clamp(46px, 12vw, 80px); }
+  .fp-side { flex-direction: row; overflow: visible; } .fp-zoom, .fp-tip { display: none; } .fp-prompt { flex: 1; }
 }
