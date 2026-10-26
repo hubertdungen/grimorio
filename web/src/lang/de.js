@@ -2867,4 +2867,6 @@ export default {
   "só as legais": "nur legale",
   "a carregar as cartas da edição…": "Karten der Edition werden geladen…",
   "Edição": "Edition",
+  "Melhor de 5 (Bo5, sem sideboard neste formato)": "Best of 5 (Bo5, ohne Sideboard in diesem Format)",
+  "Melhor de 5 (Bo5, com sideboard)": "Best of 5 (Bo5, mit Sideboard)",
 }

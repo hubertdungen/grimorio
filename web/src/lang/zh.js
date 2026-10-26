@@ -2867,4 +2867,6 @@ export default {
   "só as legais": "只看合法的",
   "a carregar as cartas da edição…": "正在加载该系列的卡牌…",
   "Edição": "系列",
+  "Melhor de 5 (Bo5, sem sideboard neste formato)": "五局三胜（Bo5，本赛制无备牌）",
+  "Melhor de 5 (Bo5, com sideboard)": "五局三胜（Bo5，含备牌）",
 }

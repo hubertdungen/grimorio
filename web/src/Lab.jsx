@@ -313,7 +313,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
               {multi && mode !== 'equipas' && <small className="muted">{tx('Cada um por si; quem fica sem vida sai e o jogo continua até sobrar um. Ganhar = 1.º lugar.')}{fmt.cmd ? ` ${tx('Com 40 de vida e dano de comandante por adversário.')}` : ''}</small>}
             </label>
             <label className="fmt"><span>{tx('Formato do jogo')}</span>
-              <select value={multi ? 1 : bo} onChange={e => setBo(+e.target.value)} disabled={multi}><option value={1}>{tx('Um jogo (Bo1)')}</option><option value={3}>{SIDE_FORMATS_NO.has(fmt.key) ? tx('Melhor de 3 (Bo3, sem sideboard neste formato)') : tx('Melhor de 3 (Bo3, com sideboard)')}</option></select>
+              <select value={multi ? 1 : bo} onChange={e => setBo(+e.target.value)} disabled={multi}><option value={1}>{tx('Um jogo (Bo1)')}</option><option value={3}>{SIDE_FORMATS_NO.has(fmt.key) ? tx('Melhor de 3 (Bo3, sem sideboard neste formato)') : tx('Melhor de 3 (Bo3, com sideboard)')}</option><option value={5}>{SIDE_FORMATS_NO.has(fmt.key) ? tx('Melhor de 5 (Bo5, sem sideboard neste formato)') : tx('Melhor de 5 (Bo5, com sideboard)')}</option></select>
             </label>
             <label className="sl"><span>{multi ? tx('Jogos com esta mesa') : tx('Séries por adversário')} <b>{matches}</b></span><input type="range" min="1" max="5" value={matches} onChange={e => setMatches(+e.target.value)} /></label>
             <label className="fmt"><span>{tx('Dificuldade do bot com o teu deck')}</span>
