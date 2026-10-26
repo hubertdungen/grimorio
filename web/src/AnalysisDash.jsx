@@ -1,13 +1,18 @@
 // Análise: o painel de números e gráficos — cartões de topo, curva de mana (criaturas vs. resto), queijinhos de cores
 // (pedido nos custos vs. produzido pelos terrenos), probabilidades da mão inicial e as cartas mais caras.
 // Cores do Magic fixas por cor (nunca pela posição); ordem W R U G B C para o vermelho não encostar ao verde.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { COLORS, TYPE_LABEL, img, pidOf, deckPlan } from './data.js'
 import { landInfo } from './mana.js'
 import { wrDelta } from './tests.js'
 import { WIN_LABEL } from './swap.js'
 import { winLose } from './winlose.js'
 import { tx, num } from './i18n.js'
+import { WhiteStars } from './ui.jsx'
+import { Trophies, tierOf } from './Library.jsx'
+import { trophyStars, trophyValue } from './trophyvalue.js'
+
+const ptsOf = x => trophyValue({ tier: x.platinum ? 'plat' : tierOf(x.place, x.champions), kind: x.type, casual: x.casual, n: x.n, m: x.m, podiums: x.podiums })  // como na Biblioteca
 
 const ORDER = ['W', 'R', 'U', 'G', 'B', 'C']
 const COL = { W: '#ecd795', R: '#e05a44', U: '#4f8fe0', G: '#45ad62', B: '#9a72c8', C: '#c5cad3' }
@@ -235,6 +240,49 @@ export function WinLoseCard({ data, deck, fmt, ctx, act, peek, unpeek, toSide })
         {!r.side.n && <p className="small muted">{tx('Sem sideboard: nos jogos à melhor de 3 entras sem respostas para o que te bate.')}</p>}
         <button className="link small" onClick={toSide}>🛡 {tx('Sugestões de sideboard →')}</button>
       </div>}
+    </section>
+  )
+}
+
+// ⭐ Ratings do deck: as estrelas que aparecem na Biblioteca, explicadas — normal (amarelo: Elo do formato), todos os jogos
+// (azul: inclui casuais e cruzados), objetivo (vermelho: ganha pela via do deck), casual e troféus (estrelas brancas)
+const ROUTE = { dmg: tx('dano'), psn: tx('veneno'), cmd: tx('dano de comandante'), mill: tx('moer'), alt: tx('vitória alternativa') }
+// estrelas de uma cor só (0–6), com o número; a fila cinzenta por baixo e a cor por cima, cortada (como as WhiteStars)
+function ColorStars({ v, color, prov }) {
+  return (
+    <span className={`wstars${prov ? ' prov' : ''}`} aria-label={num(v, 1)}>
+      <span className="ws-row" aria-hidden="true"><span className="ws-bg">★★★★★★</span>
+        <span className="ws-fg" style={{ width: `${(Math.max(0, Math.min(6, v)) / 6) * 100}%`, color }}>★★★★★★</span></span>
+      <b style={{ color }}>{num(v, 1)}</b>
+    </span>
+  )
+}
+
+export function RatingsCard({ deck }) {
+  const [rt, setRt] = useState(null), [tro, setTro] = useState(null)
+  useEffect(() => {
+    if (!deck.id) return
+    fetch('/api/ratings/stars').then(r => r.json()).then(setRt).catch(() => setRt({}))
+    fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => setTro({}))
+  }, [deck.id])
+  if (!deck.id || !rt) return null
+  const n = rt[`deck:${deck.id}`], c = rt[`deck:${deck.id}|casual`], list = tro?.[deck.id] || []
+  const pts = list.filter(x => x.valid).reduce((a, x) => a + ptsOf(x), 0)
+  const games = (x, k = 'games') => tx('{n} jogos', { n: x?.[k] || 0 })
+  const row = (label, stars, txt, cls) => <li className={cls}><span className="rt-l">{label}</span><span className="rt-s">{stars}</span><small className="muted">{txt}</small></li>
+  const routes = n?.routes ? Object.entries(n.routes).filter(([, v]) => v >= 0.05).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${ROUTE[k] || k} ${Math.round(v * 100)}%`).join(' · ') : ''
+  return (
+    <section className="card rt-card">
+      <h3>⭐ {tx('Ratings do deck')}</h3>
+      {!n && !c && !list.length ? <p className="muted small">{tx('Ainda sem rating: joga o deck no Laboratório, em torneios ou na Arena.')}</p> : (
+        <ul className="rt-list">
+          {n && row(tx('Normal'), <ColorStars v={n.stars} color="#f2b84b" prov={n.prov} />, `Elo ${n.elo} · ${games(n)}${n.prov ? ` · ${tx('provisório')}` : ''}`, 'rt-y')}
+          {n?.blue != null && row(tx('Todos os jogos'), <ColorStars v={n.blue} color="#6aa8ff" />, `Elo ${n.blue_elo} · ${games(n, 'blue_games')} (${tx('com casuais e cruzados')})`, 'rt-b')}
+          {n?.red != null && row(tx('Objetivo'), <ColorStars v={n.red} color="#ff6b6b" />, `${tx('ganha pela via do deck {p}% das vezes', { p: Math.round((n.goal || 0) * 100) })}${routes ? ` · ${routes}` : ''}`, 'rt-r')}
+          {c && row(tx('Casual'), <ColorStars v={c.stars} color="#c9a35a" prov={c.prov} />, `Elo ${c.elo} · ${games(c)}${c.prov ? ` · ${tx('provisório')}` : ''}`, 'rt-c')}
+          {row(tx('Troféus'), <WhiteStars v={trophyStars(pts)} title={tx('{p} pontos de troféus', { p: pts })} />, list.length ? <>{tx('{n} troféus · {p} pontos', { n: list.length, p: pts })} <Trophies list={list} /></> : tx('ainda sem pódios em torneios'), 'rt-w')}
+        </ul>
+      )}
     </section>
   )
 }

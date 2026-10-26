@@ -16,7 +16,7 @@ import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 import { parseQuery } from './nlsearch.js'
-import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint } from './AnalysisDash.jsx'
+import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -1473,6 +1473,7 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
         </details>}
       </div>
       <Kpis {...{ s, total, fmt, advised, odds, issues }} onIssues={() => valRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />
+      <RatingsCard deck={deck} />
       <div className="an-charts">
         <CurveChart {...{ data, deck, s }} />
         <ColorDonuts {...{ data, deck, s }} />
