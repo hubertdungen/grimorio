@@ -2931,4 +2931,8 @@ export default {
   "Abandonar este jogo?": "放弃这局？",
   "O jogo não conta: a partida volta a ficar à tua espera. Para perder o jogo, usa «desistir» na mesa.": "本局不计：这场对决会重新等你。要判负，请在牌桌上点「认输」。",
   "Abandonar": "放弃",
+  "Ecrã": "屏幕",
+  "Não deixar o ecrã apagar-se com o Grimório aberto": "打开 Grimório 时保持屏幕常亮",
+  "Ligado por omissão no telemóvel e no tablet. Gasta um pouco mais de bateria.": "手机和平板默认开启。会多耗一点电。",
+  "Este browser (ou o endereço sem HTTPS) não deixa: abre o Grimório pelo endereço https para funcionar.": "此浏览器（或非 HTTPS 地址）不支持：请通过 https 地址打开 Grimório。",
 }

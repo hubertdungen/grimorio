@@ -2939,4 +2939,8 @@ export default {
   "Abandonar este jogo?": "Abandon this game?",
   "O jogo não conta: a partida volta a ficar à tua espera. Para perder o jogo, usa «desistir» na mesa.": "The game doesn't count: the match waits for you again. To lose the game, use “concede” at the table.",
   "Abandonar": "Abandon",
+  "Ecrã": "Screen",
+  "Não deixar o ecrã apagar-se com o Grimório aberto": "Keep the screen on while Grimório is open",
+  "Ligado por omissão no telemóvel e no tablet. Gasta um pouco mais de bateria.": "On by default on phones and tablets. Uses a little more battery.",
+  "Este browser (ou o endereço sem HTTPS) não deixa: abre o Grimório pelo endereço https para funcionar.": "This browser (or an address without HTTPS) doesn't allow it: open Grimório through its https address for it to work.",
 }

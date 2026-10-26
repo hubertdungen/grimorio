@@ -2931,4 +2931,8 @@ export default {
   "Abandonar este jogo?": "Dieses Spiel abbrechen?",
   "O jogo não conta: a partida volta a ficar à tua espera. Para perder o jogo, usa «desistir» na mesa.": "Das Spiel zählt nicht: die Partie wartet wieder auf dich. Um das Spiel zu verlieren, nutze „aufgeben“ am Tisch.",
   "Abandonar": "Abbrechen",
+  "Ecrã": "Bildschirm",
+  "Não deixar o ecrã apagar-se com o Grimório aberto": "Bildschirm eingeschaltet lassen, solange Grimório offen ist",
+  "Ligado por omissão no telemóvel e no tablet. Gasta um pouco mais de bateria.": "Auf Handy und Tablet standardmäßig an. Braucht etwas mehr Akku.",
+  "Este browser (ou o endereço sem HTTPS) não deixa: abre o Grimório pelo endereço https para funcionar.": "Dieser Browser (oder eine Adresse ohne HTTPS) erlaubt es nicht: öffne Grimório über die https-Adresse.",
 }

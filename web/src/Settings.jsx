@@ -1,5 +1,6 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
+import { wakeOn, setWake, wakeSupported } from './wakelock.js'
 import { useEffect, useRef, useState } from 'react'
 import { ask, ConfirmSettings } from './confirm.jsx'
 import { tx, num, LOCALE } from './i18n.js'
@@ -80,6 +81,16 @@ function ForgeGames() {
       </div>
       <label className="chk small"><input type="checkbox" checked={!!st.arena} disabled={st.parallel < 2} onChange={e => save({ arena: e.target.checked })} /> {tx('A Arena joga durante os torneios (fica com um dos lugares)')}</label>
       <p className="muted small">{st.quota ? tx('Cada torneio joga até {q} ao mesmo tempo, começando pelo {o}; os lugares que sobram vão para quem ainda tiver partidas.', { q: st.quota, o: st.dist === 'recente' ? tx('mais recente') : tx('mais antigo') }) : tx('O {o} usa todos os lugares que conseguir; os outros só jogam com o que sobrar.', { o: st.dist === 'recente' ? tx('mais recente') : tx('mais antigo') })}{' '}{st.arena && st.parallel > 1 ? tx('A Arena fica sempre com um lugar.') : tx('A Arena só joga quando não há torneios.')}</p>
+    </>
+  )
+}
+
+function ScreenAwake() {
+  const [on, setOn] = useState(wakeOn)
+  return (
+    <>
+      <label className="chk"><input type="checkbox" checked={on} onChange={e => { setOn(e.target.checked); setWake(e.target.checked) }} /> {tx('Não deixar o ecrã apagar-se com o Grimório aberto')}</label>
+      <p className="muted small">{wakeSupported() ? tx('Ligado por omissão no telemóvel e no tablet. Gasta um pouco mais de bateria.') : tx('Este browser (ou o endereço sem HTTPS) não deixa: abre o Grimório pelo endereço https para funcionar.')}</p>
     </>
   )
 }
@@ -202,6 +213,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Jogos do Forge ao mesmo tempo')}</h3><ForgeGames /></section>
       <section className="card"><h3>{tx('🤖 Bots predefinidos')}</h3><DefaultBots /></section>
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
+      <section className="card"><h3>{tx('Ecrã')}</h3><ScreenAwake /></section>
       <section className="card"><h3>{tx('Estrelas dos decks')}</h3><StarLayers /></section>
       <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>
       <section className="card"><h3>{tx('Terrenos básicos')}</h3><BasicSettings getDefaults={getBasicDefaults} setDefaults={setBasicDefaults} ask={ask} /></section>
