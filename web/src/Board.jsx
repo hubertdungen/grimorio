@@ -564,7 +564,9 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
       const top = el.getBoundingClientRect().top + (sc ? sc.scrollTop - sc.getBoundingClientRect().top : scrollY)
       return (md ? Math.min(vh, innerHeight - 24) : vh) - top - 8
     }
-    const fit = () => {
+    const fit = (force = false) => {
+      // telemóvel: tamanho normal (ou o zoom escolhido em −/+); o ajuste ao ecrã só com ⤢ (encolhia tudo até ficar ilegível)
+      if (narrow() && !force) return el.style.setProperty('--fit', adjM())
       // a altura é fixa (barras, etiquetas) + proporcional ao --fit: com a secante acerta em 2–3 medições
       // (o f × livre/altura parava a 6–10px do alvo e o resultado dependia do caminho: janela, ecrã inteiro, zoom do sistema)
       const a = avail(), h = f => { el.style.setProperty('--fit', f); return size() }
@@ -577,18 +579,27 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
         if (g === f) break
         f = g
       }
+      if (narrow()) { setM(f); return el.style.setProperty('--fit', f) }
       el.style.setProperty('--fit', Math.max(0.35, Math.min(1.9, f * adj())))
     }
+    const KM = 'grimorio.zoomMob'
+    const adjM = () => { try { return Math.max(0.4, Math.min(1.6, +localStorage.getItem(KM) || 1)) } catch { return 1 } }
+    const setM = v => { try { localStorage.setItem(KM, Math.max(0.4, Math.min(1.6, v)).toFixed(2)) } catch { /* sem armazenamento */ } }
     const adj = () => { try { return Math.max(0.6, Math.min(1.6, +localStorage.getItem('grimorio.zoom') || 1)) } catch { return 1 } }
     zoomRef.current = d => {  // d = ±0,1 afina à mão; 0 volta a detetar a altura e repõe o ajuste automático
+      if (narrow()) {  // telemóvel: −/+ mudam o zoom guardado; ⤢ ajusta a mesa ao ecrã (e só aí faz scroll até ela)
+        if (d) { setM(adjM() + d); return fit() }
+        el.scrollIntoView({ block: 'start' })
+        return requestAnimationFrame(() => fit(true))
+      }
       try { localStorage.setItem('grimorio.zoom', d ? Math.max(0.6, Math.min(1.6, adj() + d)).toFixed(2) : '1') } catch { /* sem armazenamento */ }
       // ⤢: a altura conta-se com a página (ou a janela / o ecrã inteiro) no topo — volta lá antes de medir
-      if (!d) { const md = el.closest('.modal'), fe = document.fullscreenElement || document.webkitFullscreenElement; if (narrow()) el.scrollIntoView({ block: 'start' }); else { (md || (fe?.contains(el) ? fe : null))?.scrollTo?.(0, 0); if (!md && !fe) window.scrollTo(0, 0) } }
+      if (!d) { const md = el.closest('.modal'), fe = document.fullscreenElement || document.webkitFullscreenElement; (md || (fe?.contains(el) ? fe : null))?.scrollTo?.(0, 0); if (!md && !fe) window.scrollTo(0, 0) }
       fit()
     }
     fit()
-    if (narrow()) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }))  // ao abrir, a mesa fica à vista
     fitRef.current = () => {  // segurança: as filas têm altura fixa, mas se algo ainda fugir mais de 2% volta a medir (nos dois sentidos)
+      if (narrow()) return  // no telemóvel o tamanho é o escolhido: nada de medir a cada jogada
       const a = avail() * adj(), h = size()
       if (h - a > a * 0.02 + 3 || a - h > a * 0.05) fit()  // margem: pequenas variações não mexem nas cartas
     }
