@@ -327,7 +327,9 @@ function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet }) {  
   )
 }
 
-function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, bet, bot }) {  // bet: as minhas apostas neste deck (torneios)  // hand: a mão fica nesta linha, ao centro (em baixo a nossa, em cima a do adversário)
+// de onde vem o deck de cada lugar: meta, meu, de um amigo ou da comunidade (ao lado da etiqueta do bot)
+const OWN = { meta: ['📊', tx('Meta'), tx('Deck do meta (torneios reais)')], meu: ['🧙', tx('Meu'), tx('Um deck teu')], ami: ['🤝', tx('Amigo'), tx('Deck de um amigo')], com: ['🌐', tx('Comunidade'), tx('Deck da comunidade (de outra pessoa)')] }
+function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, bet, bot, own }) {  // bet: as minhas apostas neste deck (torneios)  // hand: a mão fica nesta linha, ao centro (em baixo a nossa, em cima a do adversário)
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg()
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
@@ -337,6 +339,7 @@ function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, b
         <span className="chips">
           {fmt && <span className="fmt-tag">{fmt}</span>}
           {bot && <span className="fmt-tag bot" title={bot.title}>🤖 {bot.label}</span>}
+          {OWN[own] && <span className={`fmt-tag own own-${own}`} title={OWN[own][2]}>{OWN[own][0]} {OWN[own][1]}</span>}
           {bet && <span className={`chip bet ${bet.st}`} title={bet.title}>🪙 {bet.txt}</span>}
           {s.active === k && !z.out && <span className="turnpill">{tx('a jogar')}</span>}
           {z.poison > 0 && <span className="chip psn" title={tx('Marcadores de veneno (10 = derrota)')}>☠ {z.poison}</span>}
@@ -368,7 +371,7 @@ function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, b
   )
 }
 
-export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order }) {  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
+export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order, owns }) {  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
   const z = s[k]  // compact: um de 3–4 jogadores (cartas mais pequenas); hit: está a ser atacado
   const all = s.sides.flatMap(x => s[x].perms)
   const live = markDormant(data, z.perms).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
@@ -382,7 +385,7 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
       {others.length > 0 && <Row perms={others} data={data} fx={fx} att={att} cls="others" groupable={p => p.token} quiet={fast} />}
     </div>
   )
-  const hud = <Hud k={k} z={z} name={name} fmt={formats?.[k]} s={s} data={data} fx={fx} fast={fast} start={start} openZone={openZone} top={top} hand={hand} bet={bets?.[k]} bot={bots?.[k]} />
+  const hud = <Hud k={k} z={z} name={name} fmt={formats?.[k]} s={s} data={data} fx={fx} fast={fast} start={start} openZone={openZone} top={top} hand={hand} bet={bets?.[k]} bot={bots?.[k]} own={owns?.[k]} />
   const { arts } = useContext(Arts), art = useMemo(() => ({ arts, k }), [arts, k])
   return (
     <Arts.Provider value={art}><div className={`bside ${top ? 'top' : 'bottom'} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`}>
@@ -525,7 +528,7 @@ function ScoreN({ sc, ended, game, who, fm }) {
 
 export const HANDS = [['ambas', tx('Mãos: ambas visíveis')], ['minha', tx('Mãos: só a minha')], ['nenhuma', tx('Mãos: ambas escondidas')]]
 
-export default function Replay({ data, game, onBack, backLabel = tx('← Relatório'), deckName, pov = 'a', track = false, bets, bots, live = false, next, speed0, onSpeed, hands: hands0, onHands, onPlayFrom, score, arts: arts0, formats }) {  // arts: {a: {nome: link}, b: …} arte própria de cada deck (torneio: game.arts; Laboratório: game.decks); formats: {a: 'Pauper', b: …} (modo casual)
+export default function Replay({ data, game, onBack, backLabel = tx('← Relatório'), deckName, pov = 'a', track = false, bets, bots, live = false, next, speed0, onSpeed, hands: hands0, onHands, onPlayFrom, score, arts: arts0, formats, owns }) {  // arts: {a: {nome: link}, b: …} arte própria de cada deck (torneio: game.arts; Laboratório: game.decks); formats: {a: 'Pauper', b: …} (modo casual)
   const art = useMemo(() => ({ arts: arts0 || game.arts || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, artMapOf(d)]))), k: null }), [arts0, game]), arts = art.arts
   const [hands, setHandsS] = useState(hands0 || 'ambas')
   // No Coliseu o tabuleiro escala as cartas (--fit) para caber na altura do ecrã: ao abrir, ao redimensionar e em ecrã inteiro
@@ -664,7 +667,9 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
   const tops = S.filter(k => k !== 'a' && !mates.includes(k))
   const hit = new Set(multi ? S.flatMap(k => s[k].perms.map(p => p.attacking)).filter(x => S.includes(x)) : [])
   const fm = k => (formats?.[k] ? <span className="fmt-tag">{formats[k]}</span> : null)
-  const sp = { formats, s, data, fx, att, fast: fast || pos.jump, start, openZone, bets, bots }
+  const ownOf = d => (!d ? null : d.friend ? 'ami' : d.community ? 'com' : d.source === 'MTGTop8' || d.source === 'EDHREC' || 'archetype' in d ? 'meta' : 'meu')
+  const own = owns || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, ownOf(d)])))  // Laboratório: dos decks do jogo
+  const sp = { formats, s, data, fx, att, fast: fast || pos.jump, start, openZone, bets, bots, owns: own }
   const oppHand = k => game.exact && <Hand z={s[k]} data={data} quiet={fast || pos.jump} exact opp hidden={hands !== 'ambas'} label={mates.includes(k) ? tx('Mão do parceiro') : null} />
   return (
     <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''}`} style={sideVars}

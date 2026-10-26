@@ -785,6 +785,8 @@ const roundName = (m, k) => (m.b === 'W' ? (m.r === k ? tx('Final') : m.r === k 
 
 function Live({ data, tid, onGone, slot }) {
   const [t, setT] = useState(null)
+  const [deckOwn, setDeckOwn] = useState({})  // id do deck -> meu / ami / com (a etiqueta de cada lugar no tabuleiro)
+  useEffect(() => { j('/api/decks').then(ds => setDeckOwn(Object.fromEntries(ds.map(d => [d.id, d.friend ? 'ami' : d.community ? 'com' : 'meu'])))).catch(() => {}) }, [])
   const [err, setErr] = useState('')
   const [watch, setWatch] = useState(null)  // {gid, game, deckName, score}
   const [follow, setFollowS] = useState(() => ls('grimorio.torneio.seguir') !== '0')
@@ -873,7 +875,7 @@ function Live({ data, tid, onGone, slot }) {
         title: xs.map(x => (x.kind === 'champ' ? tx('Aposta no campeão: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }) : tx('Aposta nesta partida: {s} moedas a {o}', { s: x.stake, o: od(x.odds) }))).join('\n'),
       }
     }
-    return <>{slot && createPortal(<button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>, slot)}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} bots={Object.fromEntries((watch.seats || []).map((i, k) => { const d = DIFF_INFO[P[i]?.difficulty]; return ['abcd'[k], d && { label: d.label, title: tx('Bot do Forge: {d} — {r}', { d: d.label, r: d.resumo }) }] }).filter(x => x[1]))} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
+    return <>{slot && createPortal(<button onClick={() => setWatch(null)}>{tx('← Voltar ao torneio')}</button>, slot)}<Replay key={watch.gid} data={data} game={watch.game} deckName={watch.deckName} pov={watch.pov} track bets={myBets} owns={Object.fromEntries((watch.seats || []).map((i, k) => ['abcd'[k], P[i]?.src === 'meta' ? 'meta' : deckOwn[P[i]?.ref] || 'meu']))} bots={Object.fromEntries((watch.seats || []).map((i, k) => { const d = DIFF_INFO[P[i]?.difficulty]; return ['abcd'[k], d && { label: d.label, title: tx('Bot do Forge: {d} — {r}', { d: d.label, r: d.resumo }) }] }).filter(x => x[1]))} score={watch.score} formats={watch.formats} onBack={slot ? null : () => setWatch(null)} backLabel={tx('← Voltar ao torneio')}
       live={going && follow && i >= 0 && i === fl.length - 1} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })}
       next={follow && i >= 0 ? { has: !!nx, go: () => nx && openGame(nx.x, nx.away), secs: pause.secs, auto: pause.auto } : null} /></>
   }

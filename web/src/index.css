@@ -2238,9 +2238,9 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 /* ---------- Forge Play nativo (ForgePlay.jsx): a mesa da arena (Board.jsx Side) jogável, com arrastar e física ---------- */
 .play-modo { margin: 6px 0 4px; }
 .fp-bar { align-items: center; margin-bottom: 8px; }
-.fp { display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 21vw, 310px); gap: 10px; position: relative; height: calc(100dvh - 165px); min-height: 520px; }
+.fp { display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 21vw, 310px); gap: 10px; position: relative; height: calc(100dvh - 178px); min-height: 520px; }
 .coliseu:fullscreen .fp { height: calc(100dvh - 90px); }
-.fp-table.board { --cw: clamp(50px, min(6vw, 8.6vh), 108px); --ow: calc(var(--cw) * .8); --lw: calc(var(--cw) * .6); --hw: clamp(54px, min(6.4vw, 9.6vh), 116px); }
+.fp-table.board { --cw: clamp(46px, min(5.6vw, 7.8vh), 104px); --ow: calc(var(--cw) * .8); --lw: calc(var(--cw) * .58); --hw: clamp(50px, min(6vw, 9vh), 112px); }
 .fp-table { min-width: 0; min-height: 0; overflow: auto; display: grid; grid-template-rows: auto auto auto; align-content: space-between; gap: 4px; }
 .fp-table .bhud { flex-wrap: nowrap; } .fp-table .bhud > .fp-hand, .fp-table .bhud > .myhand { flex: 1 1 auto; min-width: 0; }
 /* cartas: tap com mola (passa um pouco e assenta), a subir enquanto roda; inclinação 3D e brilho que seguem o rato */
@@ -2296,6 +2296,8 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .fp-toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 55; max-width: min(560px, 92vw); padding: 10px 14px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); box-shadow: 0 8px 30px #0008; animation: fp-fade .25s ease-out; }
 .fp-toast ul { margin: 4px 0 0; padding-left: 18px; }
 .fp-wait { padding: 40px; text-align: center; }
+.fmt-tag.own-meta { color: #9ad7ff; } .fmt-tag.own-ami { color: #7cdc9b; } .fmt-tag.own-com { color: #c4b5fd; } .fmt-tag.own-meu { color: var(--gold2); }
+.pi-who { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 8px 0; }
 @media (prefers-reduced-motion: reduce) { .fp .pc-rot, .fp .pc .pc-f, .fp-card { animation: none !important; transition: none !important; } }
 @media (max-width: 900px) {  /* tablet ao alto e telemóvel: o painel lateral passa para baixo da mesa */
   .fp { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }

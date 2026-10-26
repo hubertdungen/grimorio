@@ -584,7 +584,8 @@ def pairing(con, cfg, rng=random):
     rest = [x for x in c if x["key"] != a["key"]]
     same = [x for x in rest if x["tier"] == a["tier"]]
     b = rng.choice(same if same and rng.random() < SAME_TIER else rest)
-    side = lambda x: {k: x[k] for k in ("key", "kind", "src", "ref", "name", "owner", "stars")}  # noqa: E731
+    side = lambda x: {**{k: x[k] for k in ("key", "kind", "src", "ref", "name", "owner", "stars")},  # noqa: E731
+                      "own": "meta" if x["kind"] == "meta" else "ami" if x.get("friend") else "com" if x.get("com") else "meu"}  # de onde vem o deck (etiqueta no tabuleiro)
     return {"format": fmt, "base": a["format"], "a": side(a), "b": side(b), "games": [], "errors": 0, "bo": cfg["bo"],
             "round_id": "arena:" + uuid.uuid4().hex[:12], "started": time.time()}
 
@@ -720,7 +721,7 @@ def arena_status(con, owner):
     return {**{k: cfg[k] for k in ARENA}, "mine": cfg["owner"] in ("", owner), "state": ST["state"], "error": ST["error"],
             "played": kv(con, "arena_played") or 0, "today": today, "last": last,
             "avg_secs": round(sum(ST["secs"]) / len(ST["secs"])) if ST["secs"] else None,
-            "cur": cur and {"format": cur["format"], "a": cur["a"]["name"], "b": cur["b"]["name"], "a_stars": cur["a"].get("stars"),
+            "cur": cur and {"format": cur["format"], "a": cur["a"]["name"], "b": cur["b"]["name"], "a_stars": cur["a"].get("stars"), "a_own": cur["a"].get("own"), "b_own": cur["b"].get("own"),
                             "b_stars": cur["b"].get("stars"), "wa": cur["games"].count("a"), "wb": cur["games"].count("b"),
                             "bo": cur["bo"], "base": cur.get("base"), "arts": arts, "job": j and {"id": ST["job"], "status": j["status"], "position": j.get("position"),
                                                            "secs": round(time.time() - ST["since"])}}}

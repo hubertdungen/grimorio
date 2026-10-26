@@ -664,3 +664,16 @@ import { search as searchCards } from './src/data.js'
   assert.deepEqual(searchCards(d, 'lórien', {}, { bit: -1 }).cards.map(c => c.n), ['Lórien Revealed'])
   console.log('selfcheck pesquisa sem acentos ok')
 }
+
+// Path to Exile num jogo antigo (sem zonas do Forge): fica um terreno estimado do lado de quem perdeu a criatura
+{
+  const { replayStates: rs } = await import('./src/game.js')
+  const d = { byName: new Map(), byLower: new Map() }
+  const txt = 'Path to Exile (107) - Exile Fallaji Archaeologist (14). Ai(1)-A may search their library for a basic land card, put that card onto the battlefield tapped, then shuffle.'
+  const old = rs([{ t: 3, k: 'resolve', p: 'b', card: 'Path to Exile', txt }], d)
+  const land = old.at(-1).a.perms.find(x => x.land)
+  assert.ok(land && land.est && land.hidden && land.tapped, 'terreno estimado do Path')
+  const exact = rs([{ t: 3, k: 'resolve', p: 'b', card: 'Path to Exile', txt }], d, 20, null, true)
+  assert.equal(exact.at(-1).a.perms.length, 0, 'jogo exato: o terreno vem pelas zonas, não se inventa')
+  console.log('selfcheck Path to Exile em jogos antigos ok')
+}

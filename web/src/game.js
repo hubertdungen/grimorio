@@ -455,6 +455,14 @@ export function applyEvent(s0, ev, data) {
     }
     s.ent = []
   }
+  // jogos antigos (sem as mudanças de zona do Forge): «Ai(1)-A may search their library for a basic land card, put that
+  // card onto the battlefield» (Path to Exile e afins) — o registo não diz se foi buscar; a IA do Forge vai quase sempre
+  // (169 em 187 nos jogos exatos), por isso fica um terreno estimado (≈) do lado de quem perdeu a criatura
+  if (!X && ev.k === 'resolve') {
+    const m = /Ai\(\d\)-([A-D]) may search (?:their|his or her) library for a basic land card, put (?:that card|it) onto the battlefield( tapped)?/.exec(ev.txt || '')
+    const k = m && m[1].toLowerCase()
+    if (k && s[k]) { if (s[k].library != null) s[k].library = Math.max(0, s[k].library - 1); make(k, null, { hidden: true, land: true, est: true, tapped: !!m[2] }) }
+  }
   // marcadores com que a carta entra, ditos pelo Forge ("enters with three loyalty counters")
   if (ev.ctr) {
     const f = find(ev.id, ev.card, me)

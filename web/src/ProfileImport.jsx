@@ -32,6 +32,11 @@ export default function ProfileImport({ data, initial = '', onDone, say }) {
   const [err, setErr] = useState('')
   const [mine, setMine] = useState([])
   useEffect(() => { fetch('/api/decks').then(r => r.json()).then(setMine).catch(() => {}) }, [])
+  // de quem são os decks importados: meus, da comunidade (de outra pessoa) ou de um amigo (fica com o nome dele)
+  const [who, setWho] = useState('meus'), [friends, setFriends] = useState([])
+  useEffect(() => { fetch('/api/friends').then(r => (r.ok ? r.json() : { friends: [] })).then(d => setFriends(d.friends || [])).catch(() => {}) }, [])
+  const fr = who.startsWith('f:') && friends.find(f => f.id === who.slice(2))
+  const owner = who === 'com' ? { community: true } : fr ? { friend: fr.id, friendName: fr.name } : {}
   useEffect(() => { if (initial) listDecks(initial) }, [initial, mine.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const withMine = ds => ds.map(d => { const ex = mine.find(m => norm(m.name) === norm(d.name)); return { ...d, ex, capa: !!ex, on: true } })
@@ -98,6 +103,7 @@ export default function ProfileImport({ data, initial = '', onDone, say }) {
         await fetch('/api/decks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
           name: j.name || d.name, format: fmt, commanders: p.commanders, main: p.main, side: p.side, maybe: p.maybe, seeds: [], prints, art, source: d.url, groups: [],
           notes: tx('Importado de {src}: {url}', { src: j.source, url: d.url }), cover: d.pick || undefined, coverImg: d.pick ? null : cover, count: Object.values(p.main).reduce((a, b) => a + b, 0) + p.commanders.length,
+          ...owner,
         }) })
         ok++
       } catch (e) { fails.push(`${d.name}: ${e.message}`) }
@@ -117,6 +123,11 @@ export default function ProfileImport({ data, initial = '', onDone, say }) {
       {err && <p className="small bad-t">{err}</p>}
       {list.length > 0 && (
         <>
+          <div className="row-btns pi-who"><span className="small">{tx('De quem são estes decks:')}</span>
+            <span className="seg small">{[['meus', tx('🧙 Meus')], ['com', tx('🌐 Comunidade')]].map(([k, l]) => <button key={k} className={who === k ? 'on' : ''} onClick={() => setWho(k)}>{l}</button>)}
+              <button className={fr ? 'on' : ''} disabled={!friends.length} onClick={() => setWho(`f:${friends[0].id}`)} title={friends.length ? undefined : tx('Ainda não tens amigos (Definições › Amigos).')}>{tx('🤝 De um amigo')}</button></span>
+            {fr && <select className="small" value={who} onChange={e => setWho(e.target.value)} aria-label={tx('Amigo')}>{friends.map(f => <option key={f.id} value={`f:${f.id}`}>{f.name}</option>)}</select>}
+            <span className="muted small">{who === 'com' ? tx('Decks de outra pessoa: entram nos torneios e na Arena como «comunidade».') : fr ? tx('Ficam marcados como decks de {n}.', { n: fr.name }) : tx('Ficam como decks teus.')}</span></div>
           <div className="row-btns small"><button className="link" onClick={() => setList(l => l.map(d => ({ ...d, on: true })))}>{tx('todos')}</button><button className="link" onClick={() => setList(l => l.map(d => ({ ...d, on: false })))}>{tx('nenhum')}</button><span className="muted">{tx('{k} de {n} escolhidos', { k: list.filter(d => d.on).length, n: list.length })}</span></div>
           <ul className="lib-list pi-list">{list.map((d, k) => (
             <li key={d.url}>
