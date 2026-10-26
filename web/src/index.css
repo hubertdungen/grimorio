@@ -1317,6 +1317,9 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
   .board .rp-ctrl { gap: 4px; } .board .rp-ctrl > button, .rp-zoom button { min-width: 36px; padding: 4px 6px; }
   .board .rp-ctrl > button.primary { flex: 1 1 auto; }
   .board .rp-ctrl > .muted.small { display: none; }
+  .board .rp-ctrl > .rp-speed { flex: 1 1 120px; min-width: 110px; display: flex; align-items: center; gap: 6px; }  /* a velocidade fica sempre à vista */
+  .board .rp-ctrl > .rp-speed > span { font-size: 0; } .board .rp-ctrl > .rp-speed > span b { font-size: 14px; }
+  .board .rp-ctrl > .rp-speed input { flex: 1; min-width: 0; }
 }
 
 .who .lang-pick { justify-content: center; }

@@ -721,7 +721,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
         <button onClick={() => go(evs.length)} title={live ? tx('Ir para o momento atual') : tx('Fim')} aria-label={tx('Fim')}>⏭</button>
         <span className="rp-zoom"><button onClick={() => zoomRef.current?.(-0.1)} title={tx('Mais pequeno')}>−</button><button onClick={() => zoomRef.current?.(0)} title={tx('Ajustar ao ecrã (volta a detetar a altura)')}>⤢</button><button onClick={() => zoomRef.current?.(0.1)} title={tx('Maior')}>+</button></span>
         <button className="rp-more" onClick={() => setMore(!more)} aria-expanded={more} title={tx('Velocidade, mãos e turno')}>⚙</button>
-        <label className="sl rp-speed rp-x"><span>{jsx(tx('Velocidade {x}'), { x: <b>{speed}×</b> })}</span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
+        <label className="sl rp-speed"><span>{jsx(tx('Velocidade {x}'), { x: <b>{speed}×</b> })}</span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
         {onPlayFrom && !live && !multi && <button className="rp-x" onClick={() => { setPlaying(false); onPlayFrom(s, game) }} title={tx('Abre esta posição no Forge e jogas tu com o teu deck')}>{tx('🎮 Jogar daqui')}</button>}
         <select className="rp-x" value={hands} onChange={e => setHands(e.target.value)} aria-label={tx('Mãos à vista')}>{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
         <select className="rp-x" value={s.turn || ''} onChange={e => go(evs.findIndex(x => x.t === +e.target.value))} aria-label={tx('Ir para o turno')}>{turns.map(t => <option key={t} value={t}>{tx('Turno {t}', { t })}</option>)}</select>
