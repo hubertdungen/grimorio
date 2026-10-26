@@ -16,6 +16,7 @@ import NewDeckWizard from './Wizard.jsx'
 import LabView from './Lab.jsx'
 import { useRun } from './labrun.js'
 import LiveJob from './LiveJob.jsx'
+import LimitedView from './Limited.jsx'
 import PlayView from './Play.jsx'
 import TournamentView from './Tournament.jsx'
 import RatingsView from './Ratings.jsx'
@@ -434,13 +435,14 @@ export default function App() {
           <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>
           <div className="col-bar">
             <b>⚔ {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
-            <span className="seg">{[['bots', `🤖 ${tx('Bots a testar')}`], ['jogar', `🎮 ${tx('Jogar contra o Forge')}`], ['torneio', `🏆 ${tx('Torneio')}`], ['online', `🌍 ${tx('Online')}`], ['ratings', `📊 ${tx('Ratings')}`]].filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
+            <span className="seg">{[['bots', `🤖 ${tx('Bots a testar')}`], ['jogar', `🎮 ${tx('Jogar contra o Forge')}`], ['torneio', `🏆 ${tx('Torneio')}`], ['draft', `🎴 ${tx('Draft')}`], ['online', `🌍 ${tx('Online')}`], ['ratings', `📊 ${tx('Ratings')}`]].filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
             <button className="fs-btn" onClick={fullscreen} title={tx('Ecrã inteiro (sair: este botão ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
             <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>
           <div hidden={guest || colMode !== 'bots'}>{!guest && <LabView {...{ data, deck, fmt, act, ctx, playFrom }} />}</div>
           {colMode === 'jogar' && !guest && <PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} />}
           {cm === 'torneio' && <TournamentView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
+          {cm === 'draft' && !guest && <LimitedView data={data} openDeck={id => openDeck(id).then(() => { goTab('deck'); api('/api/decks').then(setDecks).catch(() => {}) })} goTournament={() => setColMode('torneio')} />}
           {cm === 'online' && <TournamentView key="online" data={data} fmt={fmt} deckId={deck.id} guest={guest} online />}
           {cm === 'ratings' && <RatingsView data={data} fmt={fmt} />}
         </div>

@@ -2402,3 +2402,34 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
   .deck-tab .deck-mobile .row { grid-template-columns: 44px minmax(0, 1fr) auto auto; gap: 8px; }
   .deck-tab .deck-mobile .row-art { width: 44px; height: 32px; }
 }
+
+/* Coliseu › Draft (Limited.jsx) */
+.limited { display: grid; gap: 12px; }
+.ld-setup { display: grid; gap: 10px; max-width: 720px; }
+.ld-set { display: grid; gap: 6px; } .ld-set select { width: 100%; }
+.ld-n input { width: 70px; margin-left: 8px; }
+.ld-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ld-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.ld-list li button { margin-left: auto; }
+.ld-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ld-bar .danger { margin-left: auto; color: var(--bad); }
+.ld-wait { padding: 30px; text-align: center; }
+.ld-draft { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; align-items: start; }
+.ld-pack { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ld-card { position: relative; padding: 0; border: 2px solid transparent; border-radius: 10px; background: none; overflow: hidden; cursor: pointer; transition: transform .12s, border-color .12s; }
+.ld-card img { display: block; width: 100%; aspect-ratio: 488 / 680; object-fit: cover; border-radius: 8px; }
+.ld-card:hover { transform: translateY(-3px); }
+.ld-card.on { border-color: var(--gold); transform: translateY(-4px); box-shadow: 0 6px 18px #0008; }
+.ld-gih { position: absolute; top: 6px; right: 6px; padding: 1px 7px; border-radius: 99px; background: #000c; color: var(--muted); font-size: 12px; }
+.ld-gih.best { color: var(--gold2); border: 1px solid var(--gold); }
+.ld-take { position: absolute; left: 6px; right: 6px; bottom: 6px; padding: 4px; border-radius: 7px; background: #000d; color: var(--gold2); font-size: 12px; text-align: center; }
+.ld-pool { position: sticky; top: 8px; display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r); background: var(--bg2); max-height: calc(100vh - 24px); overflow: auto; }
+.ld-pool h4 { margin: 0; }
+.ld-grp { display: grid; gap: 2px; } .ld-grp span { color: var(--muted); }
+.ld-bots { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ld-tour { display: grid; gap: 10px; max-width: 520px; }
+@media (max-width: 900px) {
+  .ld-draft { grid-template-columns: minmax(0, 1fr); }
+  .ld-pack { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .ld-pool { position: static; max-height: none; order: -1; }
+}

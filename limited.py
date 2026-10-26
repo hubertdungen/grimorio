@@ -11,7 +11,7 @@ import sim
 
 S = {}                      # sessão -> {owner, p, container, seq, pack, ended, error, ts, ev}
 COND = threading.Condition()
-IDLE = 3 * 3600             # um draft parado há mais de 3 h fecha-se
+IDLE = 3600                 # um draft parado há mais de 1 h fecha-se (cada um prende um Forge com 2 GB)
 CODE = re.compile(r"[A-Z0-9]{2,6}")
 SETS_LOCK = threading.Lock()
 
@@ -104,6 +104,7 @@ def save(data_dir, ev):
 
 def events(data_dir, owner, n=12):
     """Os meus eventos mais recentes (sem os pools, que são grandes)."""
+    _cleanup()
     d = os.path.join(data_dir, "limited")
     out = []
     for fn in os.listdir(d) if os.path.isdir(d) else []:
@@ -114,6 +115,8 @@ def events(data_dir, owner, n=12):
             except (OSError, ValueError):
                 continue
             if ev.get("owner") == owner:
+                if ev.get("status") == "drafting" and ev.get("id") not in S:  # o servidor reiniciou a meio: o draft perdeu-se
+                    ev.update(status="error", error="O draft foi interrompido.")
                 out.append({k: ev.get(k) for k in ("id", "kind", "sets", "human", "ts", "status", "deck_id", "tid", "error")})
     return sorted(out, key=lambda e: -(e["ts"] or 0))[:n]
 
@@ -181,7 +184,7 @@ def start(data_dir, owner, kind, codes, human=True, players=8):
     save(data_dir, ev)
     with COND:
         S[eid] = {"owner": owner, "p": p, "container": container, "seq": 0, "pack": None, "ended": False, "error": None,
-                  "ts": time.time(), "ev": ev}
+                  "ts": time.time(), "ev": ev, "dir": data_dir}
     threading.Thread(target=_reader, args=(data_dir, eid, p), daemon=True).start()
     return eid
 
@@ -222,6 +225,8 @@ def stop(eid, owner):
         S.pop(eid, None)
         if not s["ended"]:
             s["ev"].update(status="error", error="Desististe do draft.")
+            if s.get("dir"):
+                save(s["dir"], s["ev"])
     _kill(s)
 
 

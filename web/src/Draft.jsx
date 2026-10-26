@@ -7,7 +7,7 @@ import { Mana, Empty } from './ui.jsx'
 import { tx, num } from './i18n.js'
 
 const ratingsCache = new Map()
-async function loadSet(code) {
+export async function loadSet(code) {
   if (!ratingsCache.has(code)) {
     ratingsCache.set(code, fetch(`/api/l17/ratings/${code}`).then(r => r.json()).catch(() => []))
   }
