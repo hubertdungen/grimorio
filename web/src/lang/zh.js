@@ -2978,4 +2978,6 @@ export default {
   "Quantos de {t}": "{t} 的数量",
   "Sugestões do Grimório": "Grimório 的推荐",
   "Tokens": "衍生物",
+  "A sessão terminou (o login expira com o tempo ou ao fechar o browser).": "会话已结束（登录会随时间或关闭浏览器而过期）。",
+  "Entrar outra vez": "重新登录",
 }

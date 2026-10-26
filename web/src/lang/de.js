@@ -2978,4 +2978,6 @@ export default {
   "Quantos de {t}": "Wie viele {t}",
   "Sugestões do Grimório": "Grimórios Vorschläge",
   "Tokens": "Spielsteine",
+  "A sessão terminou (o login expira com o tempo ou ao fechar o browser).": "Die Sitzung ist abgelaufen (die Anmeldung läuft nach einer Weile oder beim Schließen des Browsers ab).",
+  "Entrar outra vez": "Erneut anmelden",
 }

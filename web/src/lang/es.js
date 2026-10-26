@@ -2978,4 +2978,6 @@ export default {
   "Quantos de {t}": "Cuántas {t}",
   "Sugestões do Grimório": "Sugerencias de Grimório",
   "Tokens": "Fichas",
+  "A sessão terminou (o login expira com o tempo ou ao fechar o browser).": "La sesión terminó (el inicio de sesión caduca con el tiempo o al cerrar el navegador).",
+  "Entrar outra vez": "Entrar de nuevo",
 }

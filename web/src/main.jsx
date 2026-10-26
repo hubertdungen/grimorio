@@ -10,9 +10,28 @@ import { probeScryfall } from './data.js'
 // code "profile" (401) = não há perfil escolhido: a app mostra «Quem vai jogar?».
 // ponytail: só textos exatos; os que levam valores no meio (f-strings do Python) ficam em pt
 const _fetch = window.fetch.bind(window), MEDIO = '(deck médio)'
+// Sessão do login (Authelia, no endereço público) que expirou: os pedidos à API são reencaminhados para o login e falham
+// em silêncio (decks e adversários vazios). Pergunta-se /api/me sem seguir o reencaminhamento; se for o login, uma barra
+// pede para entrar outra vez (recarregar passa pelo login e volta aqui).
+let sessT = 0
+const checkSession = () => {
+  if (Date.now() - sessT < 10000 || document.getElementById('sess-bar')) return
+  sessT = Date.now()
+  _fetch('./api/me', { redirect: 'manual', cache: 'no-store' }).then(r => {
+    if (r.type !== 'opaqueredirect' && r.status !== 401) return
+    const b = document.createElement('div')
+    b.id = 'sess-bar'; b.className = 'sess-bar'; b.setAttribute('role', 'alert')
+    b.innerHTML = `<span>${tx('A sessão terminou (o login expira com o tempo ou ao fechar o browser).')}</span>`
+    const go = document.createElement('button'); go.className = 'primary'; go.textContent = tx('Entrar outra vez'); go.onclick = () => location.reload()
+    b.append(go); document.body.append(b)
+  }).catch(() => {})
+}
+const isApi = a => String(a[0]?.url || a[0]).includes('/api/')
 window.fetch = async (...a) => {
-  const r = await _fetch(...a)
-  if (!(r.headers.get('content-type') || '').includes('json')) return r
+  let r
+  try { r = await _fetch(...a) } catch (e) { if (isApi(a) && navigator.onLine !== false) checkSession(); throw e }
+  if (isApi(a) && r.redirected && !r.url.startsWith(location.origin)) checkSession()
+  if (!(r.headers.get('content-type') || '').includes('json')) { if (isApi(a) && r.ok && /html/.test(r.headers.get('content-type') || '')) checkSession(); return r }
   if (r.ok) {  // nomes gerados no servidor em pt (decks médios do EDHREC) traduzem-se só à vista
     if (LANG === 'pt' || !String(a[0]?.url || a[0]).includes('/api/')) return r
     const s = await r.clone().text()

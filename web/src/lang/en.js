@@ -2986,4 +2986,6 @@ export default {
   "Quantos de {t}": "How many {t}",
   "Sugestões do Grimório": "Grimório's suggestions",
   "Tokens": "Tokens",
+  "A sessão terminou (o login expira com o tempo ou ao fechar o browser).": "Your session ended (the login expires after a while or when the browser closes).",
+  "Entrar outra vez": "Sign in again",
 }
