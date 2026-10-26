@@ -2865,4 +2865,6 @@ export default {
   "na identidade do comandante": "在指挥官的颜色标识内",
   "{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}": "有 {n} 张同名卡牌在 {f} 中不合法|有 {n} 张同名卡牌在 {f} 中不合法",
   "só as legais": "只看合法的",
+  "a carregar as cartas da edição…": "正在加载该系列的卡牌…",
+  "Edição": "系列",
 }

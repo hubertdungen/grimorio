@@ -1,6 +1,6 @@
 import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { unaccent, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES } from './data.js'
+import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, WhiteStars } from './ui.jsx'
@@ -845,19 +845,31 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   const [f, setF] = useState(F0)
   const dq = useDeferredValue(q), df = useDeferredValue(f)
   const [raw, setRaw] = useState('')  // frase que o utilizador quis pelo nome (✕ no «Entendido como»)
-  const nl = useMemo(() => (raw === dq ? null : parseQuery(dq, { types: CREATURE_TYPES })), [dq, raw])
+  // edição na pesquisa («Assassin's Creed», «MH3», «e:ltr»): a lista de edições e as cartas de cada uma vêm da Scryfall
+  // quando são precisas; só conta se nenhuma carta começa pelo que se escreveu (assim «Zendikar's Roil» é a carta)
+  const [sets, setSets] = useState(null), [setNames, setSetNames] = useState({})
+  useEffect(() => { if (!sets && dq.trim().length >= 3) fetchSets().then(setSets) }, [dq, sets])
+  const setHit = useMemo(() => {
+    const h = sets && findSet(dq, sets), qf = unaccent(dq.toLowerCase().trim())
+    return h && !data.cards.some(c => (c.f || c.l).startsWith(qf)) ? h : null
+  }, [dq, sets, data])
+  useEffect(() => { const k = setHit?.set.code; if (k && !setNames[k]) fetchSetCards(k).then(n => setSetNames(x => ({ ...x, [k]: n }))) }, [setHit]) // eslint-disable-line react-hooks/exhaustive-deps
+  const setList = setHit && setNames[setHit.set.code]
+  const qq = setHit ? setHit.rest : dq
+  const dff = useMemo(() => (setHit ? { ...df, names: setList || new Set() } : df), [df, setHit, setList])
+  const nl = useMemo(() => (raw === qq ? null : parseQuery(qq, { types: CREATURE_TYPES })), [qq, raw])
   const [anyFmt, setAnyFmt] = useState(false)  // mostrar também cartas que o formato do deck esconde (só para esta pesquisa)
   useEffect(() => setAnyFmt(false), [dq])
   const sctx = useMemo(() => (anyFmt ? { ...ctx, bit: -1, identity: null, allowUn: true } : ctx), [anyFmt, ctx])
   const res = useMemo(() => {  // frase: só se a sintaxe é explícita ou se pelo nome não há nada (assim «Black Lotus» continua a ser a carta)
-    const byName = search(data, dq, df, sctx)
+    const byName = search(data, qq, dff, sctx)
     // o nome ganha só se alguma carta começa pelo que se escreveu («Black Lotus», «Lightning»); «removal» com a Seal of
     // Removal a bater no meio do nome é a função Remoção, não essa carta
-    const qf = unaccent(dq.toLowerCase().trim()), nameHit = byName.cards.some(c => (c.f || c.l).startsWith(qf))
-    if (!nl || (byName.total && nameHit && !/[:<>=]/.test(dq))) return { ...byName, nl: null }
-    const r = search(data, nl.rest, { ...df, ...nl.f }, sctx)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
-    return r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...df, ...nl.f }, sctx), nl: { ...nl, rest: '', skipped: nl.rest } }
-  }, [data, dq, df, sctx, nl])
+    const qf = unaccent(qq.toLowerCase().trim()), nameHit = byName.cards.some(c => (c.f || c.l).startsWith(qf))
+    if (!nl || (byName.total && nameHit && !/[:<>=]/.test(qq))) return { ...byName, nl: null }
+    const r = search(data, nl.rest, { ...dff, ...nl.f }, sctx)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
+    return r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...dff, ...nl.f }, sctx), nl: { ...nl, rest: '', skipped: nl.rest } }
+  }, [data, qq, dff, sctx, nl])
   // o formato do deck escondeu cartas com este nome? (ex.: Gaea's Cradle num deck de Pauper)
   const hidden = useMemo(() => (!anyFmt && dq.trim().length > 2 && (ctx.bit >= 0 || ctx.identity != null) ? Math.max(0, search(data, dq, F0, { bit: -1, allowUn: true }, 1).total - search(data, dq, F0, ctx, 1).total) : 0), [data, dq, ctx, anyFmt])
   const [showF, setShowF] = useState(false)
@@ -882,6 +894,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       <div className="grid">
         {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} />)}
       </div>
+      {setHit && <p className="small set-hit">📦 {tx('Edição')}: <b>{setHit.set.name}</b> <span className="muted">({setHit.set.code.toUpperCase()}{setHit.set.y ? ` · ${setHit.set.y}` : ''})</span>{!setList && <span className="muted"> · {tx('a carregar as cartas da edição…')}</span>}</p>}
       {hidden > 0 && <p className="small fmt-hidden">{tx('{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}', { n: hidden, f: ctx.identity != null && ctx.bit < 0 ? tx('na identidade do comandante') : fmt.name })} <button className="link small" onClick={() => setAnyFmt(true)}>{tx('mostrar mesmo assim')}</button></p>}
       {anyFmt && <p className="small fmt-hidden">{tx('A mostrar cartas de todos os formatos.')} <button className="link small" onClick={() => setAnyFmt(false)}>{tx('só as legais')}</button></p>}
       {!res.total && <Empty>{tx('Nenhuma carta com estes filtros.')}</Empty>}

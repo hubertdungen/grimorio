@@ -185,6 +185,48 @@ const toPrint = p => ({
   digital: p.digital, artist: p.artist,
 })
 
+// --- Edições: a lista vem da Scryfall (guardada 7 dias) e as cartas de uma edição pedem-se quando a pesquisa a nomeia ---
+const SET_TYPES = new Set(['core', 'expansion', 'masters', 'draft_innovation', 'commander', 'funny', 'starter', 'box', 'duel_deck', 'from_the_vault', 'premium_deck', 'planechase', 'archenemy', 'spellbook', 'arsenal'])
+let setsP = null
+export function fetchSets() {
+  if (setsP) return setsP
+  try { const c = JSON.parse(localStorage.getItem('grimorio.sets') || 'null'); if (c && Date.now() - c.t < 7 * 864e5) return (setsP = Promise.resolve(c.l)) } catch { /* sem armazenamento */ }
+  setsP = fetch(`${SF}/sets`, { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : { data: [] }))
+    .then(j => (j.data || []).filter(x => SET_TYPES.has(x.set_type) && !x.digital).map(x => ({ code: x.code, name: x.name, y: (x.released_at || '').slice(0, 4) })))
+    .then(l => { try { localStorage.setItem('grimorio.sets', JSON.stringify({ t: Date.now(), l })) } catch { /* sem armazenamento */ } return l })
+    .catch(() => { setsP = null; return [] })
+  return setsP
+}
+const setCards = new Map()
+export async function fetchSetCards(code) {  // nomes das cartas de uma edição (as Oracle, sem repetidos)
+  if (setCards.has(code)) return setCards.get(code)
+  const out = new Set()
+  let url = `${SF}/cards/search?q=${encodeURIComponent(`e:${code} game:paper`)}&unique=cards`
+  for (let page = 0; url && page < 8; page++) {
+    const r = await fetch(url, { headers: { Accept: 'application/json' } })
+    if (!r.ok) break
+    const j = await r.json()
+    for (const c of j.data || []) out.add(c.name)
+    url = j.has_more ? j.next_page : null
+    if (url) await new Promise(ok => setTimeout(ok, 80))  // a Scryfall pede ~10 pedidos por segundo no máximo
+  }
+  setCards.set(code, out)
+  return out
+}
+// «e:mh3», «set:ltr», o nome da edição («Assassin's Creed») ou o código em maiúsculas («MH3») dentro da pesquisa
+export function findSet(q, sets) {
+  if (!sets?.length || !q.trim()) return null
+  const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  let m = /(?:^|\s)(?:e|set|s|edition|edicao|edição|edicion|edición):("[^"]+"|\S+)/i.exec(q)
+  if (m) { const v = m[1].replace(/"/g, '').toLowerCase(); const st = sets.find(x => x.code === v) || sets.find(x => x.name.toLowerCase() === v); if (st) return { set: st, rest: q.replace(m[0], ' ').trim() } }
+  const ql = q.toLowerCase()
+  let best = null
+  for (const x of sets) { const n = x.name.toLowerCase(); if (n.length >= 5 && ql.includes(n) && (!best || n.length > best.name.length)) best = x }
+  if (best) return { set: best, rest: q.replace(new RegExp(esc(best.name), 'i'), ' ').trim() }
+  for (const t of q.split(/\s+/)) if (/^[A-Za-z0-9]{3,5}$/.test(t) && /[A-Z0-9]/.test(t) && /[A-Za-z]/.test(t) && (/[A-Z]/.test(t) || /\d/.test(t))) { const st = sets.find(x => x.code === t.toLowerCase()); if (st) return { set: st, rest: q.replace(t, ' ').trim() } }
+  return null
+}
+
 export async function fetchPrints(name) {
   if (printsCache.has(name)) return printsCache.get(name)
   const q = encodeURIComponent(`!"${name.split(' // ')[0]}" include:extras`)
@@ -411,6 +453,7 @@ export function passes(c, f, ctx) {
   if (f.types2?.length && !c.t.split(' // ').some(fc => [f.type, ...f.types2, f.sub].every(t => !t || fc.toLowerCase().includes(t.toLowerCase())))) return false  // «criatura encantamento humano»: tipos e subtipo na mesma face
   if (f.sub && !c.t.toLowerCase().includes(f.sub.toLowerCase())) return false
   if (f.tag && !c.tg.includes(f.tag)) return false
+  if (f.names && !f.names.has(c.n)) return false  // cartas de uma edição (fetchSetCards)
   if (f.rarity && c.r !== f.rarity) return false
   if (f.cmcMin != null && f.cmcMin !== '' && c.cmc < +f.cmcMin) return false
   if (f.cmcMax != null && f.cmcMax !== '' && c.cmc > +f.cmcMax) return false

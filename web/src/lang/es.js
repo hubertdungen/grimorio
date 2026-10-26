@@ -2865,4 +2865,6 @@ export default {
   "na identidade do comandante": "en la identidad del comandante",
   "{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}": "{n} carta con este nombre no es legal en {f}|{n} cartas con este nombre no son legales en {f}",
   "só as legais": "solo las legales",
+  "a carregar as cartas da edição…": "cargando las cartas de la edición…",
+  "Edição": "Edición",
 }
