@@ -1,0 +1,8 @@
+# Grimório: o guião do Forge 2.0.15 sem «AI:RemoveDeck:All» e com AILogic$ Always: a IA nunca o lançava. Dá 2 de mana
+# e compra uma carta, por isso lançá-lo sempre que puder não perde nada (e conta para o storm). As regras ficam iguais.
+Name:Manamorphose
+ManaCost:1 RG
+Types:Instant
+A:SP$ Mana | Produced$ Combo Any | Amount$ 2 | AILogic$ Always | SubAbility$ DBDraw | SpellDescription$ Add two mana in any combination of colors. Draw a card.
+SVar:DBDraw:DB$ Draw | Defined$ You | NumCards$ 1
+Oracle:Add two mana in any combination of colors.\nDraw a card.

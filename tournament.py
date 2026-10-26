@@ -538,7 +538,7 @@ def plan_side(C, deck, opp, games, lost=(), mx=5, noai=()):
     outs = []
     for n, q in deck["main"].items():
         c = C.get(n)
-        if c and c["mt"] != "Land":
+        if c and c["mt"] != "Land" and q < 4:  # um 4-of é o plano do deck (rituais e Medallion do Storm): não sai
             v = 0.4 + 0.1 * stuck[n] if stuck[n] else 0.3 if idle(n) else 0
             v += 0.15 * (c["cmc"] >= 5) + 0.3 * ("removal" in c["tg"] and share("creatures") < 0.25) + 0.2 * ("counter" in c["tg"] and share("spells") < 0.2)
             if v > 0:  # só sai com uma razão (presa, parada, cara, remoção/contra-feitiço sem alvos); o resto é o plano do deck

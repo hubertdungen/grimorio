@@ -159,8 +159,33 @@ def to_forge(name, names):
     return names.get(fold(name)) or names.get(fold(name.split(" // ")[0]))
 
 
-def to_dck(deck, label, game_type, names):
-    """deck {commanders, signature?, main, side} -> (texto .dck, [cartas desconhecidas])."""
+# A IA do Forge nunca lança o Wish (sem lógica e sem olhar para o sideboard): num deck jogado pela IA cada Wish passa a ser
+# a carta que iria buscar ao sideboard — os finalizadores de storm primeiro (Ruby Storm não tinha como ganhar)
+WISH = {"Wish", "Burning Wish"}
+WISH_PICK = ("Grapeshot", "Empty the Warrens", "Galvanic Relay", "Past in Flames")
+
+
+def ai_wishes(deck):
+    """Troca os Wish do main pelas cartas do sideboard que iriam buscar (só para a IA)."""
+    main, side = dict(deck.get("main") or {}), dict(deck.get("side") or {})
+    for w in [n for n in main if n in WISH]:
+        for _ in range(int(main[w])):
+            got = next((n for n in WISH_PICK if side.get(n)), None)
+            if not got:
+                break
+            main[w] -= 1
+            side[got] -= 1
+            main[got] = main.get(got, 0) + 1
+            side[w] = side.get(w, 0) + 1
+        main = {n: q for n, q in main.items() if q > 0}
+        side = {n: q for n, q in side.items() if q > 0}
+    return {**deck, "main": main, "side": side}
+
+
+def to_dck(deck, label, game_type, names, ai=True):
+    """deck {commanders, signature?, main, side} -> (texto .dck, [cartas desconhecidas]). ai: o deck vai ser jogado pela IA."""
+    if ai and any(n in WISH for n in deck.get("main") or {}):
+        deck = ai_wishes(deck)
     unknown, out = [], {"Commander": [], "Main": [], "Sideboard": []}
     cmd = list(deck.get("commanders") or []) + ([deck["signature"]] if deck.get("signature") else [])
     rows = [("Commander", n, 1) for n in cmd] if game_type != "Constructed" else []
@@ -1416,6 +1441,9 @@ def selfcheck():
     assert clean_sched({"parallel": "4", "quota": 1, "dist": "recente", "arena": 1}) == {"parallel": 4, "dist": "recente", "quota": 1, "arena": True}
     d = {"prints": {"Island": {"id": "p1"}, "Forest": {"id": "p2"}}, "art": {"Forest": "arts/x.webp"}, "split": {"Island": [{"id": "p1", "q": 4}, {"id": "p3", "q": 4}]}}
     assert art_map(d) == {"Island": [{"id": "p1", "q": 4}, {"id": "p3", "q": 4}], "Forest": "arts/x.webp"} and art_map(None) == {}, "art_map"
+    w = ai_wishes({"main": {"Wish": 2, "Pyretic Ritual": 4}, "side": {"Grapeshot": 1, "Empty the Warrens": 1, "Fatal Push": 2}})
+    assert w["main"] == {"Pyretic Ritual": 4, "Grapeshot": 1, "Empty the Warrens": 1} and w["side"] == {"Fatal Push": 2, "Wish": 2}, w
+    assert ai_wishes({"main": {"Wish": 1}, "side": {}})["main"] == {"Wish": 1}  # nada para ir buscar: fica
     names = {fold(n): n for n in ("Fire // Ice", "Delver of Secrets", "Lightning Bolt", "Lim-Dûl's Vault", "Mountain")}
     deck = {"commanders": ["Lightning Bolt"], "main": {"Fire // Ice": 2, "Delver of Secrets // Insectile Aberration": 4,
                                                        "Lim-Dul's Vault": 1, "Carta Inventada": 1, "Mountain": 20},

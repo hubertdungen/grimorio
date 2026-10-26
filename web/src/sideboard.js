@@ -33,7 +33,7 @@ export function planSideboard(data, deck, opp, lastGames, history, max = 5, noAi
   const drawn = new Set(exact.flatMap(g => (g.events || []).flatMap(e => e.hd?.a || [])))
   const idle = n => !cast.has(n) && (!exact.length || drawn.has(n))
   const stuck = tally(exact.flatMap(g => stuckIn(g, 2).map(n => [n, 1])))
-  const outs = Object.entries(deck.main).map(([n, q]) => ({ n, q, c: data.byName.get(n) })).filter(x => x.c && x.c.mt !== 'Land')
+  const outs = Object.entries(deck.main).map(([n, q]) => ({ n, q, c: data.byName.get(n) })).filter(x => x.c && x.c.mt !== 'Land' && x.q < 4)  // um 4-of é o plano do deck: não sai
     .map(x => {
       let v = stuck[x.n] ? 0.4 + 0.1 * stuck[x.n] : idle(x.n) ? 0.3 : 0
       if (x.c.cmc >= 5) v += 0.15

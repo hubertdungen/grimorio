@@ -86,7 +86,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu"):
     os.makedirs(os.path.join(jdir, "home"), exist_ok=True)
     names = sim.forge_names(fdir, os.path.join(data_dir, "forge-run"))
     for side, d in (("a", deck), ("b", opp)):
-        txt, _ = sim.to_dck(d, side.upper(), "Constructed", names)
+        txt, _ = sim.to_dck(d, side.upper(), "Constructed", names, ai=side == "b")  # o meu deck (a) fica como está
         with open(os.path.join(jdir, f"{side}.dck"), "w", encoding="utf-8") as f:
             f.write(txt)
     profs = {i: p for i, p, *_ in sim.DIFFICULTIES}
