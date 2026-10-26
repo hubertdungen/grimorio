@@ -2962,4 +2962,10 @@ export default {
   "{p} pontos de troféus": "{p} Trophäenpunkte",
   "Ratings do deck": "Deck-Ratings",
   "Em {p}% dos sideboards do meta": "In {p}% der Meta-Sideboards",
+  "Imagens das cartas": "Kartenbilder",
+  "De onde vêm as imagens": "Woher die Bilder kommen",
+  "Automático: da Scryfall; pelo Grimório se a rede a bloquear": "Automatisch: von Scryfall; über Grimório, wenn das Netz es sperrt",
+  "Sempre pelo Grimório": "Immer über Grimório",
+  "Sempre diretas da Scryfall": "Immer direkt von Scryfall",
+  "Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.": "Manche Netze (Arbeit, Schulen) sperren scryfall.io, dann fehlen die Kartenbilder. Über Grimório laufen die Bilder über deinen Server und werden dort gespeichert; beim ersten Mal etwas langsamer.",
 }

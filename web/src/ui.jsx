@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { img, TAG_LABEL } from './data.js'
+import { img, TAG_LABEL, sf } from './data.js'
 import { tx, num } from './i18n.js'
 
-const sym = s => `https://svgs.scryfall.io/card-symbols/${s.replace(/\//g, '')}.svg`
+const sym = s => sf(`https://svgs.scryfall.io/card-symbols/${s.replace(/\//g, '')}.svg`)
 
 export function Mana({ cost }) {
   if (!cost) return null

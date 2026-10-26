@@ -1,7 +1,7 @@
 import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
-import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES } from './data.js'
+import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, WhiteStars } from './ui.jsx'
@@ -575,7 +575,7 @@ function ManaBlock({ data, deck, fmt, ctx, act, co, swaps, limit = 4, full = fal
       <div className="srcs">
         {Object.entries(need.cols).map(([k, x]) => (
           <span key={k} className={`src ${x.have < x.need ? 'low' : ''}`} title={tx('{p} símbolos de {k}; o custo mais exigente tem {m}. Recomendado ~{f} fontes com a base de mana completa.', { p: x.pips, k, m: x.maxPips, f: x.full })}>
-            <img src={`https://svgs.scryfall.io/card-symbols/${k}.svg`} alt={k} /> {x.have}/{x.need}
+            <img src={sf(`https://svgs.scryfall.io/card-symbols/${k}.svg`)} alt={k} /> {x.have}/{x.need}
           </span>
         ))}
       </div>
@@ -845,10 +845,10 @@ function Filters({ f, set, compact, noTag }) {
       <div className="colors">
         {Object.keys(COLORS).map(k => (
           <button key={k} className={`pip ${f.colors.includes(k) ? 'on' : ''}`} onClick={() => togColor(k)} title={COLORS[k]}>
-            <img src={`https://svgs.scryfall.io/card-symbols/${k}.svg`} alt={k} />
+            <img src={sf(`https://svgs.scryfall.io/card-symbols/${k}.svg`)} alt={k} />
           </button>
         ))}
-        <button className={`pip ${f.colorless ? 'on' : ''}`} onClick={() => up('colorless', !f.colorless)} title={tx('Incolor')}><img src="https://svgs.scryfall.io/card-symbols/C.svg" alt="C" /></button>
+        <button className={`pip ${f.colorless ? 'on' : ''}`} onClick={() => up('colorless', !f.colorless)} title={tx('Incolor')}><img src={sf('https://svgs.scryfall.io/card-symbols/C.svg')} alt="C" /></button>
         {f.colors.length > 0 && (
           <select value={f.colorMode} onChange={e => up('colorMode', e.target.value)} aria-label={tx('Modo de cor')}>
             <option value="incl">{tx('inclui')}</option><option value="within">{tx('no máximo')}</option><option value="exact">{tx('exatamente')}</option>
@@ -1557,7 +1557,7 @@ function Prints({ c, deck, act, onPreview }) {
   )
 }
 
-const CARD_BACK = 'https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg'  // o verso comum das cartas (Scryfall)
+const CARD_BACK = sf('https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg')  // o verso comum das cartas (Scryfall)
 export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
   const [back, setBack] = useState(false)  // flip 3D: a outra face (cartas de duas faces) ou o verso
   const [rot, setRot] = useState(0)  // virar ao contrário (180° de cada vez, animado)

@@ -2962,4 +2962,10 @@ export default {
   "{p} pontos de troféus": "{p} 奖杯分",
   "Ratings do deck": "套牌评分",
   "Em {p}% dos sideboards do meta": "{p}% 的环境备牌中有",
+  "Imagens das cartas": "卡牌图片",
+  "De onde vêm as imagens": "图片来源",
+  "Automático: da Scryfall; pelo Grimório se a rede a bloquear": "自动：来自 Scryfall；网络屏蔽时经由 Grimório",
+  "Sempre pelo Grimório": "始终经由 Grimório",
+  "Sempre diretas da Scryfall": "始终直接来自 Scryfall",
+  "Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.": "有些网络（工作单位、学校）会屏蔽 scryfall.io，卡牌就没有图片。经由 Grimório 时图片通过你的服务器获取并保存在那里；第一次会慢一些。",
 }

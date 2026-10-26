@@ -151,10 +151,36 @@ export const basicSplit = n => { const l = basicList(n); return l.length > 1 ? l
 const shown = {}
 const basicShown = n => { const l = basicList(n); if (!l.length) return null; if (!l.some(p => p.id === shown[n])) shown[n] = l[Math.floor(Math.random() * l.length)].id; return shown[n] }
 export function setBasicDefaults(v) { basicDef = v || {}; try { localStorage.setItem(BK, JSON.stringify(basicDef)) } catch { /* sem armazenamento */ } }
+// Imagens da Scryfall diretas ou pelo Grimório (/sf/…, server.py scryfall_img) quando a rede bloqueia scryfall.io (PCs
+// de trabalho). Definições › Imagens: auto (testa ao abrir), sempre pelo Grimório, ou sempre diretas.
+const SFK = 'grimorio.imgProxy', SFB = 'grimorio.sfBlocked'
+const lsGet = k => { try { return localStorage.getItem(k) } catch { return null } }
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v) } catch { /* sem armazenamento */ } }
+export const sfMode = () => lsGet(SFK) || 'auto'
+export const setSfMode = m => { lsSet(SFK, m === 'auto' ? null : m); location.reload() }
+const viaProxy = () => sfMode() === 'on' || (sfMode() === 'auto' && lsGet(SFB) === '1')
+export const sf = u => (viaProxy() ? u.replace(/^https:\/\/(cards|svgs|backs)\.scryfall\.io\//, '/sf/$1/') : u)
+// no modo auto: um símbolo de mana da Scryfall; se não chega em 6 s fica marcado neste aparelho (e recarrega já pelo
+// Grimório); se volta a chegar, a marca sai
+export function probeScryfall() {
+  if (sfMode() !== 'auto') return
+  const blocked = lsGet(SFB) === '1', im = new Image()
+  let done = false
+  const end = ok => {
+    if (done) return
+    done = true
+    if (ok && blocked) lsSet(SFB, null)
+    if (!ok && !blocked) { lsSet(SFB, '1'); location.reload() }
+  }
+  setTimeout(() => end(false), 6000)
+  im.onload = () => end(true)
+  im.onerror = () => end(false)
+  im.src = `https://svgs.scryfall.io/card-symbols/W.svg?t=${Date.now()}`
+}
 export const img = (c, size = 'normal', back = false, pid = null) => {
   if (pid?.startsWith('https:') || pid?.startsWith('arts/')) { if (!back) return pid; pid = null }  // imagem própria (site de origem ou carregada)
   const id = pid || basicShown(c.n) || c.id
-  return `https://cards.scryfall.io/${size}/${back ? 'back' : 'front'}/${id[0]}/${id[1]}/${id}.${size === 'png' ? 'png' : 'jpg'}`
+  return sf(`https://cards.scryfall.io/${size}/${back ? 'back' : 'front'}/${id[0]}/${id[1]}/${id}.${size === 'png' ? 'png' : 'jpg'}`)
 }
 
 // --- Estilos alternativos (impressões), pedidos à API da Scryfall a pedido ---

@@ -29,6 +29,8 @@ DECK_ID = re.compile(r"^[a-z0-9-]{8,40}$")
 META_PATH = re.compile(r"^/api/meta/(standard|pioneer|modern|legacy|vintage|pauper|premodern)$")
 L17_PATH = re.compile(r"^/api/l17/(expansions|ratings/[A-Z0-9]{2,6})$")
 EDHREC_PATH = re.compile(r"^/api/edhrec/(commanders|cards)/([a-z0-9-]{1,120})$")
+# imagens da Scryfall servidas pelo Grimório (redes que bloqueiam scryfall.io, ex.: PCs de trabalho): /sf/<host>/<caminho>
+SF_PATH = re.compile(r"^/sf/(cards|svgs|backs)/([A-Za-z0-9][A-Za-z0-9/_.-]{0,200}\.(?:jpg|png|svg))$")
 SIM_OPP = re.compile(r"^/api/sim/opponents/([a-z0-9-]{1,130})$")
 SIM_JOB = re.compile(r"^/api/sim/jobs/([0-9a-f]{12})$")
 
@@ -156,6 +158,24 @@ class H(BaseHTTPRequestHandler):
     def json(self, obj, code=200):
         self.send(code, json.dumps(obj, ensure_ascii=False).encode())
 
+    def scryfall_img(self, host, path):
+        """Uma imagem de cards/svgs/backs.scryfall.io, guardada em <dados>/cache/sf (as imagens de uma carta não mudam).
+        ponytail: cache sem limite de tamanho; limpar as mais antigas se um dia passar de alguns GB."""
+        f = os.path.join(ARGS.data_dir, "cache", "sf", host, path)
+        if not os.path.isfile(f):
+            try:
+                req = urllib.request.Request(f"https://{host}.scryfall.io/{path}", headers={"User-Agent": "Grimorio/1.0 (uso pessoal)"})
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    body = r.read()
+            except Exception:
+                return self.send(502, b"scryfall indisponivel", "text/plain")
+            os.makedirs(os.path.dirname(f), exist_ok=True)
+            tmp = f + ".tmp"
+            with open(tmp, "wb") as out:
+                out.write(body)
+            os.replace(tmp, f)
+        return self.file(f, "public, max-age=2592000, immutable")
+
     def file(self, path, cache):
         if not os.path.isfile(path):
             return self.send(404, b"nao existe", "text/plain")
@@ -246,6 +266,9 @@ class H(BaseHTTPRequestHandler):
             return self.limited_route("GET")
         if p == "/api/update":  # pacotes (exe/Linux): versão, a nova e o estado da atualização automática (launcher.py)
             return self.json(update_state())
+        msf = SF_PATH.match(p)
+        if msf and ".." not in msf.group(2):
+            return self.scryfall_img(msf.group(1), msf.group(2))
         m = EDHREC_PATH.match(p)
         if m:
             return self.edhrec(m.group(1), m.group(2))

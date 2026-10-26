@@ -2,7 +2,7 @@
 // (game.js) e anima só o que mudou em cada passo (a carta que entrou/virou/atacou/morreu, a vida que mudou).
 // Controlos: pausa, velocidade, passo, salto de turno, linha do tempo com marcas por tipo de evento.
 import { createContext, Fragment, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { img, artPick, artMapOf, basicSplit } from './data.js'
+import { img, artPick, artMapOf, basicSplit, sf } from './data.js'
 import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors } from './ui.jsx'
@@ -233,7 +233,7 @@ const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // 
   const title = [short(p.face || p.name), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
   return (
     <div className={cls} data-z={`k:${p.key}`} title={title}>
-      {p.dormant && <span className="pc-dev" aria-hidden="true">{p.dormant.cols.map(k => <img key={k} src={`https://svgs.scryfall.io/card-symbols/${k}.svg`} alt="" />)}{p.dormant.d}/{p.dormant.need}</span>}
+      {p.dormant && <span className="pc-dev" aria-hidden="true">{p.dormant.cols.map(k => <img key={k} src={sf(`https://svgs.scryfall.io/card-symbols/${k}.svg`)} alt="" />)}{p.dormant.d}/{p.dormant.need}</span>}
       {att?.length > 0 && <div className="pc-att">{att.map(a => <div key={a.key} className="pc-attc" data-z={`k:${a.key}`}><Face p={a} c={lookup(data, a.name)} /></div>)}</div>}
       <div className="pc-rot">
         <div className={`pc-flip ${p.flipped ? 'on' : ''}`}>

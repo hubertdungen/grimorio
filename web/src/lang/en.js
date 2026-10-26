@@ -2970,4 +2970,10 @@ export default {
   "{p} pontos de troféus": "{p} trophy points",
   "Ratings do deck": "Deck ratings",
   "Em {p}% dos sideboards do meta": "In {p}% of meta sideboards",
+  "Imagens das cartas": "Card images",
+  "De onde vêm as imagens": "Where images come from",
+  "Automático: da Scryfall; pelo Grimório se a rede a bloquear": "Automatic: from Scryfall; through Grimório if the network blocks it",
+  "Sempre pelo Grimório": "Always through Grimório",
+  "Sempre diretas da Scryfall": "Always straight from Scryfall",
+  "Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.": "Some networks (work, schools) block scryfall.io and cards show without images. Through Grimório the images go via your server and are kept there; a little slower the first time.",
 }

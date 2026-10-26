@@ -2,7 +2,7 @@
 // nos outros». Serve as Definições (arte por omissão) e a Biblioteca (vários decks de uma vez).
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BASICS, fetchPrints, img } from './data.js'
+import { BASICS, fetchPrints, img, sf } from './data.js'
 import { tx } from './i18n.js'
 
 const MANA = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G', Wastes: 'C' }
@@ -39,7 +39,7 @@ export function BasicArtPicker({ title, value = {}, only = BASICS, applyLabel, o
         <div className="bp-tabs">{only.map(n => (
           <button key={n} className={tab === n ? 'on' : ''} onClick={() => { setTab(n); setStyle('') }}>
             <span className="bp-cur">{sel[n]?.length ? <img src={img({ id: sel[n][0].id }, 'art_crop', false, sel[n][0].id)} alt="" /> : <i>{tx('padrão')}</i>}{sel[n]?.length > 1 && <em>{sel[n].length}</em>}</span>
-            <b><img className="bp-mana" src={`https://svgs.scryfall.io/card-symbols/${MANA[n]}.svg`} alt="" /> {n}</b>
+            <b><img className="bp-mana" src={sf(`https://svgs.scryfall.io/card-symbols/${MANA[n]}.svg`)} alt="" /> {n}</b>
           </button>
         ))}</div>
         <div className="row-btns">

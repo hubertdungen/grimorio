@@ -2,7 +2,7 @@
 // (pedido nos custos vs. produzido pelos terrenos), probabilidades da mão inicial e as cartas mais caras.
 // Cores do Magic fixas por cor (nunca pela posição); ordem W R U G B C para o vermelho não encostar ao verde.
 import { useEffect, useMemo, useState } from 'react'
-import { COLORS, TYPE_LABEL, img, pidOf, deckPlan } from './data.js'
+import { COLORS, TYPE_LABEL, img, pidOf, deckPlan, sf } from './data.js'
 import { landInfo } from './mana.js'
 import { wrDelta } from './tests.js'
 import { WIN_LABEL } from './swap.js'
@@ -17,7 +17,7 @@ const ptsOf = x => trophyValue({ tier: x.platinum ? 'plat' : tierOf(x.place, x.c
 const ORDER = ['W', 'R', 'U', 'G', 'B', 'C']
 const COL = { W: '#ecd795', R: '#e05a44', U: '#4f8fe0', G: '#45ad62', B: '#9a72c8', C: '#c5cad3' }
 const NAME = { ...COLORS, C: tx('Incolor') }
-const sym = k => `https://svgs.scryfall.io/card-symbols/${k}.svg`
+const sym = k => sf(`https://svgs.scryfall.io/card-symbols/${k}.svg`)
 const pc = x => Math.round(x * 100)
 
 // ⓘ com a explicação: aparece ao passar o rato e ao tocar (foco), também no tátil

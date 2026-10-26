@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { ready, tx, LANG } from './i18n.js'
 import { initWake } from './wakelock.js'
+import { probeScryfall } from './data.js'
 
 // Erros do servidor: chegam em pt ({"erro": ...}); os textos fixos traduzem-se aqui para todos os pedidos da app.
 // Os nomes «X (deck médio)» que o servidor gera também.
@@ -26,7 +27,7 @@ window.fetch = async (...a) => {
 
 // a app só carrega depois do dicionário da língua: as tabelas fixas dos módulos já nascem traduzidas
 ready.catch(() => {}).then(() => Promise.all([import('./App.jsx'), import('./confirm.jsx')]))
-  .then(([m, c]) => initWake() || createRoot(document.getElementById('root')).render(createElement(StrictMode, null, createElement(m.default), createElement(c.ConfirmHost))))
+  .then(([m, c]) => initWake() || probeScryfall() || createRoot(document.getElementById('root')).render(createElement(StrictMode, null, createElement(m.default), createElement(c.ConfirmHost))))
 
 // Sliders: a parte preenchida do trilho segue o valor (--p); o Firefox tem ::-moz-range-progress, o Chrome precisa disto
 const fill = el => { const lo = +el.min || 0, hi = +el.max || 100; el.style.setProperty('--p', `${((el.value - lo) / (hi - lo || 1)) * 100}%`) }

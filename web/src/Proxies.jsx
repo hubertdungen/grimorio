@@ -4,7 +4,7 @@
 //  3. folha para imprimir: 63×88 mm, 9 por página A4/Letter, com linhas de corte (imprimir ou guardar em PDF).
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { img } from './data.js'
+import { img, sf } from './data.js'
 import { exportList, proxyGroups } from './deck.js'
 import { PAPERS, UNITS, PRINT0, layout, guides, pageOps, pdf } from './printpdf.js'
 import { tx } from './i18n.js'
@@ -47,7 +47,7 @@ async function renderCard(url, o, L) {
   const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92))
   return { w: cv.width, h: cv.height, bytes: new Uint8Array(await blob.arrayBuffer()) }
 }
-const CARD_BACK = 'https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg'
+const CARD_BACK = sf('https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg')
 const fetchable = u => (u?.startsWith('https:') && !/^https:\/\/(cards|backs)\.scryfall\.io\//.test(u) ? `/api/arts/proxy?url=${encodeURIComponent(u)}` : u)
 const loadPrint = () => { try { return { ...PRINT0, ...JSON.parse(localStorage.getItem('grimorio.print') || '{}') } } catch { return PRINT0 } }
 
