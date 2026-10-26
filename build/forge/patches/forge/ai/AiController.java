@@ -955,6 +955,17 @@ public class AiController {
             return AiPlayDecision.TimingRestrictions;
         }
 
+        // Grimório: Wrath of the Skies — só se o melhor valor de energia destrói mais ao adversário do que a nós
+        if (sa.isSpell() && sa.getHostCard() != null && "Wrath of the Skies".equals(sa.getHostCard().getName())) {
+            int[] plan = wrathOfTheSkiesPlan(sa);
+            if (plan == null || plan[1] < 150) {
+                return AiPlayDecision.CantPlayAi;
+            }
+            int energy = player.getCounters(forge.game.card.CounterEnumType.ENERGY);
+            sa.setXManaCostPaid(Math.max(0, plan[0] - energy));
+            return AiPlayDecision.WillPlay;
+        }
+
         final Card card = sa.getHostCard();
 
         // Trying to play a card that has Buyback without a Buyback cost, look for possible additional considerations
@@ -1922,8 +1933,35 @@ public class AiController {
         return result;
     }
 
+    // Grimório: Wrath of the Skies — {melhor energia a pagar, valor destruído ao adversário menos o nosso}; null sem alvo.
+    // Pode pagar a energia que já tem mais o X que a mana deixar (o custo é X W W).
+    private int[] wrathOfTheSkiesPlan(SpellAbility sa) {
+        int energy = player.getCounters(forge.game.card.CounterEnumType.ENERGY);
+        int maxY = energy + Math.max(0, getAvailableManaEstimate(player) - 2);
+        int bestY = -1, bestGain = Integer.MIN_VALUE;
+        for (int y = 0; y <= Math.min(maxY, 16); y++) {
+            int gain = 0;
+            for (Card c : player.getGame().getCardsIn(ZoneType.Battlefield)) {
+                if (c.getCMC() > y || !(c.isCreature() || c.isArtifact() || c.isEnchantment())) {
+                    continue;
+                }
+                int v = c.isCreature() ? ComputerUtilCard.evaluateCreature(c) : 100 + 30 * c.getCMC();
+                gain += c.getController().equals(player) ? -v : (player.getOpponents().contains(c.getController()) ? v : 0);
+            }
+            if (gain > bestGain) {
+                bestGain = gain;
+                bestY = y;
+            }
+        }
+        return bestY < 0 ? null : new int[] {bestY, bestGain};
+    }
+
     public int chooseNumber(SpellAbility sa, String title, int min, int max) {
         final Card source = sa.getHostCard();
+        if (source != null && "Wrath of the Skies".equals(source.getName())) {  // Grimório: o mesmo melhor valor
+            int[] plan = wrathOfTheSkiesPlan(sa);
+            return plan == null ? min : Math.max(min, Math.min(max, plan[0]));
+        }
         final String logic = sa.getParamOrDefault("AILogic", "Max");
         if ("GainLife".equals(logic)) {
             if (player.getLife() < 5 || player.getCardsIn(ZoneType.Hand).size() >= player.getMaxHandSize()) {
