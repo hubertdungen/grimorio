@@ -2878,4 +2878,5 @@ export default {
   "Melhor de 5 (Bo5, sem sideboard neste formato)": "Best of 5 (Bo5, no sideboard in this format)",
   "Melhor de 5 (Bo5, com sideboard)": "Best of 5 (Bo5, with sideboard)",
   "Velocidade, mãos e turno": "Speed, hands and turn",
+  "{c} fica sem efeito: o alvo já não está lá": "{c} does nothing: its target is gone",
 }

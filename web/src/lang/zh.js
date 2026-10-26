@@ -2870,4 +2870,5 @@ export default {
   "Melhor de 5 (Bo5, sem sideboard neste formato)": "五局三胜（Bo5，本赛制无备牌）",
   "Melhor de 5 (Bo5, com sideboard)": "五局三胜（Bo5，含备牌）",
   "Velocidade, mãos e turno": "速度、手牌和回合",
+  "{c} fica sem efeito: o alvo já não está lá": "{c} 失效：目标已不在",
 }

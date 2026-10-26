@@ -200,7 +200,11 @@ export function applyEvent(s0, ev, data) {
     if (/tapped unless|you may|If you don't|if you control/i.test(o)) return false  // outras condições: na dúvida, desvirada
     return true
   }
+  const offStack = name => {  // sai da pilha sem «resolve» (anulado ou sem alvo): a carta deixa o meio da mesa
+    for (let x = s.stack.length - 1; x >= 0; x--) if (s.stack[x].card === name) { s.stack = s.stack.filter((_, y) => y !== x); return }
+  }
   const moveExact = z => {
+    if (z.from === 'stack') offStack(z.card)
     if (z.from === 'battlefield') { const f = find(z.id, null); if (f) leave(f[0], f[1], null, z.to) }
     else if ((z.from === 'graveyard' || z.from === 'exile') && s[z.fp]) {
       const pile = s[z.fp][z.from], j = pile.lastIndexOf(z.card)
@@ -377,6 +381,8 @@ export function applyEvent(s0, ev, data) {
     case 'poison': if (S.includes(ev.target)) { s[ev.target].poison += ev.n || 0; fx.player = { p: ev.target, n: ev.n, psn: true } } break
     case 'life': if (me && ev.n != null) { const z = s[me]; fx.life = { p: me, d: ev.n - z.life }; if (ev.n < z.life) s.loss = { p: me, n: z.life - ev.n, i: s.i }; z.life = ev.n } break
     case 'destroy': case 'exile': case 'bounce': case 'other': {
+      const fz = ev.k === 'other' && /^(.+?) (?:ability )?fizzles/.exec(ev.txt || '')
+      if (fz) { offStack(ev.card || fz[1]); break }
       const m = !ev.x && /^battlefield>(\w+)$/.exec(ev.target || '')
       if (!m) break
       const zone = m[1]

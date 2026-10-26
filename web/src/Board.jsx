@@ -23,6 +23,8 @@ const PACE = { turn: 2, phase: 0.45, tap: 0.3, untap: 0.3, land: 0.9, cast: 1.2,
 // cor da marca na linha do tempo
 const MARK = { cast: 'm-cast', land: 'm-land', attack: 'm-atk', block: 'm-atk', damage: 'm-dmg', poison: 'm-dmg', destroy: 'm-die', exile: 'm-die', token: 'm-new', counters: 'm-new', transform: 'm-new', outcome: 'm-end' }
 const QUIET = new Set(['other', 'phase'])
+const FIZZLE = /^(.+?) (?:ability )?fizzles/  // o alvo saiu antes de resolver (ex.: sacrificado em resposta)
+const quiet = e => QUIET.has(e.k) && !FIZZLE.test(e.txt || '')
 const ZN = { hand: tx('mão'), library: tx('biblioteca'), graveyard: tx('cemitério'), exile: tx('exílio'), battlefield: tx('campo'), stack: tx('pilha'), command: tx('zona de comando'), none: tx('fora do jogo') }
 const EST = tx('Estimativa: este jogo foi gravado antes de o Forge dar as zonas exatas, por isso a posição desta carta foi deduzida do registo.')
 const short = n => String(n || '').split(' // ')[0]
@@ -86,6 +88,7 @@ function describe(ev, who) {
       }
       // linhas informativas do Forge (em inglês): traduz as mais comuns
       const t = ev.txt || ''
+      if (FIZZLE.test(t)) return tx('{c} fica sem efeito: o alvo já não está lá', { c: c || t.match(FIZZLE)[1] })
       let m = t.match(/^.+? (scried|surveiled) (\d+) card\(s\) to the (top|bottom) of the library(?: and (\d+) card\(s\) to the (bottom of the library|graveyard))?/)
       if (m) return `${P}: ${m[1] === 'scried' ? tx('vidência') : tx('vigiar')} — ${toWhere(m[2], m[3])}${m[4] ? `, ${toWhere(m[4], m[5])}` : ''}`
       m = t.match(/^.+? (scried|surveiled) (\d+) card\(s\) to the (bottom of the library|graveyard)/)
@@ -675,7 +678,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
   })() : null
   const zoneCards = zone ? s[zone.k][zone.which] : []
   let ri = i
-  while (ri > 0 && QUIET.has(evs[ri - 1].k)) ri--
+  while (ri > 0 && quiet(evs[ri - 1])) ri--
   const rev = evs[ri - 1]
   const actor = s.sides.includes(rev?.p) ? rev.p : null
   // 3–4 jogadores: adversários em colunas em cima; o parceiro de equipa (game.teams) ao lado do teu deck, em baixo

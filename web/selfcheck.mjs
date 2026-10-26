@@ -691,6 +691,18 @@ import { search as searchCards } from './src/data.js'
   assert.deepEqual([tp(1), tp(2), tp(4), tp(5), tp(6)], [true, false, true, false, true], 'terras que entram viradas')
   console.log('selfcheck terras que entram viradas ok')
 }
+// feitiço sem alvo («fizzles»: o alvo foi sacrificado em resposta): sai da pilha logo e vai para o cemitério
+{
+  const { replayStates: rs } = await import('./src/game.js')
+  const d = { byName: new Map([['Path to Exile', { n: 'Path to Exile', t: 'Instant', o: '' }]]), byLower: new Map() }
+  const ev = [{ t: 1, k: 'cast', p: 'a', card: 'Path to Exile', zn: [{ id: 9, card: 'Path to Exile', from: 'hand', to: 'stack', fp: 'a', tp: null }] },
+    { t: 1, k: 'other', card: 'Path to Exile', txt: 'Path to Exile ability fizzles.' },
+    { t: 1, k: 'zone', p: 'a', card: 'Path to Exile', id: 9, x: 1, zn: [{ id: 9, card: 'Path to Exile', from: 'stack', to: 'graveyard', fp: null, tp: 'a' }] }]
+  const st = rs(ev, d, 20, null, true)
+  assert.equal(st[2].stack.length, 0, 'sem alvo: sai da pilha')
+  assert.deepEqual(st.at(-1).a.graveyard, ['Path to Exile'])
+  console.log('selfcheck feitiço sem alvo ok')
+}
 
 // alcunhas dos ciclos de terrenos e básicos como cor dentro de uma frase
 {

@@ -2870,4 +2870,5 @@ export default {
   "Melhor de 5 (Bo5, sem sideboard neste formato)": "Best of 5 (Bo5, ohne Sideboard in diesem Format)",
   "Melhor de 5 (Bo5, com sideboard)": "Best of 5 (Bo5, mit Sideboard)",
   "Velocidade, mãos e turno": "Tempo, Hände und Zug",
+  "{c} fica sem efeito: o alvo já não está lá": "{c} verpufft: das Ziel ist weg",
 }
