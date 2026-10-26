@@ -1775,7 +1775,7 @@ export function PriorityCard({ data, deck, fmt, ctx, act, issues, cuts, needs })
 
 const ZONE_T = { main: tx('Mover para o deck'), side: tx('Mover para o sideboard'), maybe: tx('Mover para o maybeboard') }, ZONE_S = { main: 'D', side: 'SB', maybe: 'MB' }
 // Deck em grelha: imagens com quantidade, + / − / × (retirar tudo), por tipo ou pelas secções da IA.
-export function DeckGrid({ data, deck, fmt, act }) {
+export function DeckGrid({ data, deck, fmt, act, ctx }) {
   const [bySec, setBySec] = useState(false)
   const secOf = new Map()
   if (bySec) for (const g of deck.groups || []) for (const n of g.cartas) if (!secOf.has(n)) secOf.set(n, g.nome)
@@ -1831,6 +1831,7 @@ export function DeckGrid({ data, deck, fmt, act }) {
           <div className="dg-row">{groups[g].sort((a, b) => a[0].cmc - b[0].cmc || a[0].n.localeCompare(b[0].n)).map(([c, q]) => tile({ c, q, zone: 'main' }))}</div>
         </section>
       ))}
+      <section className="dg-basics"><h4>{tx('Terrenos básicos')}</h4><BasicBar {...{ data, deck, ctx, act }} /></section>
       {sum(zones[1][1]) > 0 && (
         <section><h4>Sideboard <span className="muted">{sum(deck.side)}</span></h4><div className="dg-row">
           {Object.keys(deck.side).map(n => data.byName.get(n)).filter(Boolean).map(c => tile({ c, q: deck.side[c.n], zone: 'side' }))}
