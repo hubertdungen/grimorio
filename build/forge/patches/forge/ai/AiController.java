@@ -1,8 +1,9 @@
 // Copied from Forge 2.0.15 (https://github.com/Card-Forge/forge, GPL-3.0), forge-ai/src/main/java/forge/ai/AiController.java,
-// with two changes by Grimório (marked «Grimório» below) to land play: a land that is a Saga (Urza's Saga) is played
-// first, since in hand it has no mana ability and always scored last; and the AI only holds its last land for a discard
+// with three changes by Grimório (marked «Grimório» below) to land play: a land that is a Saga (Urza's Saga) is played
+// first, since in hand it has no mana ability and always scored last; the AI only holds its last land for a discard
 // cost when that ability can be activated from where its card is (Boseiju's channel on the battlefield kept Urza's Saga
-// in hand forever). It is compiled into forge-ext and comes before the Forge jar in the classpath, so it replaces the
+// in hand forever); and when the hand needs a colour the battlefield doesn't make yet, a land that gives or fetches it
+// comes first, even if it enters tapped. It is compiled into forge-ext and comes before the Forge jar in the classpath, so it replaces the
 // original class (build/forge/build.sh).
 /*
  * Forge: Play Magic: the Gathering.
@@ -478,6 +479,38 @@ public class AiController {
         return landList;
     }
 
+    // Grimório: as cores (máscara WUBRG do MagicColor) que um permanente dá pelas habilidades de mana, ou que um fetchland
+    // vai buscar à biblioteca (ChangeZone com tipos básicos; «Land.Basic» = qualquer cor)
+    private static int landColors(Card land) {
+        int m = 0;
+        for (SpellAbility sa : land.getManaAbilities()) {
+            for (byte c : MagicColor.WUBRG) {
+                if (sa.canProduce(MagicColor.toShortString(c))) {
+                    m |= c;
+                }
+            }
+        }
+        if (land.isLand()) {
+            for (SpellAbility sa : land.getSpellAbilities()) {
+                if (sa.getApi() != ApiType.ChangeZone || !"Library".equals(sa.getParam("Origin"))) {
+                    continue;
+                }
+                String t = String.valueOf(sa.getParam("ChangeType"));
+                if (t.contains("Land.Basic") && !t.contains("Plains") && !t.contains("Island") && !t.contains("Swamp") && !t.contains("Mountain") && !t.contains("Forest")) {
+                    m |= MagicColor.ALL_COLORS;
+                }
+                String[] basics = {"Plains", "Island", "Swamp", "Mountain", "Forest"};
+                byte[] cols = {MagicColor.WHITE, MagicColor.BLUE, MagicColor.BLACK, MagicColor.RED, MagicColor.GREEN};
+                for (int i = 0; i < 5; i++) {
+                    if (t.contains(basics[i])) {
+                        m |= cols[i];
+                    }
+                }
+            }
+        }
+        return m;
+    }
+
     private Card chooseBestLandToPlay(CardCollection landList) {
         if (landList.isEmpty()) {
             return null;
@@ -521,6 +554,30 @@ public class AiController {
         }
         if (!unreflectedLands.isEmpty()) {
             landList = unreflectedLands;
+        }
+
+        // Grimório: a cor primeiro. Se as cartas da mão pedem uma cor que ainda não temos em campo, joga-se um terreno que a
+        // dá (ou que a vai buscar, fetchland), mesmo que entre virado: a seguir o Forge preferia uma Forest desvirada a um
+        // Minas Tirith virado com a mão toda branca, porque só via o custo total (e não contava os fetchlands).
+        int have = 0;
+        for (Card c : player.getCardsIn(ZoneType.Battlefield)) {
+            have |= landColors(c);
+        }
+        int need = 0;
+        for (Card c : nonLandsInHand) {
+            need |= c.getManaCost().getColorProfile();
+        }
+        final int missing = need & ~have & 0x1F;
+        if (missing != 0) {
+            // os que cobrem mais cores em falta (Temple Garden ou Windswept Heath antes de uma Forest com a mão branca e verde)
+            int best = 0;
+            for (Card l : landList) {
+                best = Math.max(best, Integer.bitCount(landColors(l) & missing));
+            }
+            final int top = best;
+            if (top > 0) {
+                landList = CardLists.filter(landList, l -> Integer.bitCount(landColors(l) & missing) == top);
+            }
         }
 
         // try to skip lands that enter the battlefield tapped if we might want to play something this turn

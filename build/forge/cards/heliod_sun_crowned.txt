@@ -1,0 +1,17 @@
+# Grimório: o guião do Forge 2.0.15 com uma dica só para a IA; as regras da carta ficam iguais.
+# AITgts: o marcador do gatilho vai para o Spike Feeder ou o Walking Ballista quando estão em campo (o combo: o Feeder
+# tira um marcador para ganhar 2 de vida e o Heliod devolve-o — patch no LifeGainAi); sem eles, escolhe como sempre.
+Name:Heliod, Sun-Crowned
+ManaCost:2 W
+Types:Legendary Enchantment Creature God
+PT:5/5
+K:Indestructible
+S:Mode$ Continuous | AffectedDefined$ Self | RemoveType$ Creature | CheckSVar$ X | SVarCompare$ LT5 | Description$ As long as your devotion to white is less than five, NICKNAME isn't a creature.
+SVar:X:Count$Devotion.White
+SVar:BuffedBy:Permanent.White
+T:Mode$ LifeGained | ValidPlayer$ You | TriggerZones$ Battlefield | Execute$ TrigPutCounter | TriggerDescription$ Whenever you gain life, put a +1/+1 counter on target creature or enchantment you control.
+SVar:TrigPutCounter:DB$ PutCounter | ValidTgts$ Creature.YouCtrl,Enchantment.YouCtrl | TgtPrompt$ Select target creature or enchantment | CounterType$ P1P1 | CounterNum$ 1 | AITgts$ Creature.namedSpike Feeder+YouCtrl,Creature.namedWalking Ballista+YouCtrl
+A:AB$ Pump | Cost$ 1 W | ValidTgts$ Creature.Other | KW$ Lifelink | TgtPrompt$ Select another target creature | SpellDescription$ Another target creature gains lifelink until end of turn.
+DeckHints:Ability$LifeGain
+DeckHas:Ability$Counters
+Oracle:Indestructible\nAs long as your devotion to white is less than five, Heliod isn't a creature.\nWhenever you gain life, put a +1/+1 counter on target creature or enchantment you control.\n{1}{W}: Another target creature gains lifelink until end of turn.
