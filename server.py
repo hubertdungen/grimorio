@@ -832,6 +832,7 @@ def selfcheck():
         st, room, _ = call("POST", "/api/rooms", {"name": "Sala QA", "type": "elim", "format": "modern", "casual": True, "players": [{"src": "meus", "ref": h} for h in hs]})
         assert st == 201
         assert call("POST", "/api/rooms", {"type": "elim", "format": "modern"}, G)[0] == 403  # convidado não abre salas
+        assert call("POST", "/api/rooms", {"type": "mesas", "format": "commander"})[0] == 400  # sem Commander online
         assert call("POST", f"/api/rooms/{room['id']}/join", {"deck": hs[0]}, G)[0] == 400  # deck do anfitrião: não
         st, rv, _ = call("POST", f"/api/rooms/{room['id']}/join", {"deck": dk["id"]}, G)
         assert st == 200 and len(rv["players"]) == 4 and rv["players"][3]["mine"], rv

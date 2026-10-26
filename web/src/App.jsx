@@ -29,6 +29,8 @@ import Settings from './Settings.jsx'
 import { WhoPlays, ProfileChip } from './Profiles.jsx'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
+const FROM_ROOM = window.location.hash === '#online'  // veio pelo link de uma sala (guests.room_link): vai direto ao Online
+const GUEST_MODES = ['online', 'torneio', 'ratings']  // o que um convidado vê no Coliseu
 const SECTIONS = [['construir', '✎', tx('Construir')], ['biblioteca', '▤', tx('Biblioteca')], ['coliseu', '⚔', tx('Coliseu')], ['regras', '📖', tx('Regras')]]
 const ZONE_L = { main: tx('deck'), side: tx('sideboard'), maybe: tx('maybeboard') }
 // Desfazer: só o conteúdo do deck (nome, notas, formato, preferências e sementes ficam de fora)
@@ -146,16 +148,17 @@ export default function App() {
   const [showAI, setShowAI] = useState(false)
   const [showWizard, setShowWizard] = useState(false)
   // página inicial só na 1.ª abertura da sessão do browser: um F5 volta ao sítio onde se estava
-  const [home, setHome] = useState(() => { try { return !window.location.hash.startsWith('#importar=') && !sessionStorage.getItem('grimorio.dentro') } catch { return true } })
+  const [home, setHome] = useState(() => { try { return !FROM_ROOM && !window.location.hash.startsWith('#importar=') && !sessionStorage.getItem('grimorio.dentro') } catch { return true } })
+  useEffect(() => { if (FROM_ROOM) window.history.replaceState(null, '', window.location.pathname) }, [])
   useEffect(() => { if (!home) try { sessionStorage.setItem('grimorio.dentro', '1') } catch { /* sem armazenamento */ } }, [home])
   // contador de vida e dados (ecrã próprio, aberto do início); o F5 volta a ele
   const [tool, setToolS] = useState(() => { try { return sessionStorage.getItem('grimorio.mesa') || null } catch { return null } })
   const setTool = t => { setToolS(t); try { if (t) sessionStorage.setItem('grimorio.mesa', t); else sessionStorage.removeItem('grimorio.mesa') } catch { /* sem armazenamento */ } }
   const [showRefresh, setShowRefresh] = useState(false)
-  const [section, setSectionRaw] = useState(() => store.get('grimorio.section') || 'construir')
+  const [section, setSectionRaw] = useState(() => (FROM_ROOM ? 'coliseu' : store.get('grimorio.section') || 'construir'))
   const setSection = x => { setSectionRaw(x); store.set('grimorio.section', x) }
   const coliseuRef = useRef(null)
-  const [colMode, setColModeS] = useState(() => store.get('grimorio.colMode') || 'bots')  // bots a testar | jogar contra o Forge | torneio | ratings
+  const [colMode, setColModeS] = useState(() => (FROM_ROOM ? 'online' : store.get('grimorio.colMode') || 'bots'))  // bots a testar | jogar contra o Forge | torneio | ratings
   const setColMode = m => { setColModeS(m); store.set('grimorio.colMode', m) }
   const [fromState, setFromState] = useState(null)
   const playFrom = st => { setFromState(st); setColMode('jogar'); setSection('coliseu') }
@@ -193,6 +196,7 @@ export default function App() {
   const [prof, setProf] = useState(null)
   const [who, setWho] = useState('')  // '' | 'switch' | 'new': «Quem vai jogar?» por cima da app
   const guest = prof?.mode === 'guest'  // entrou por um convite (guests.py): só os decks dele, torneios e ratings
+  const cm = guest && !GUEST_MODES.includes(colMode) ? 'online' : colMode  // o separador do Coliseu que se vê
   useEffect(() => {
     fetch('/api/profiles').then(r => r.json()).then(setProf).catch(() => {})
     const lost = () => setProf(p => (p?.mode === 'profiles' ? { ...p, current: null } : p))  // um pedido respondeu 401 «profile»
@@ -430,14 +434,15 @@ export default function App() {
           <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>
           <div className="col-bar">
             <b>⚔ {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
-            <span className="seg">{[['bots', `🤖 ${tx('Bots a testar')}`], ['jogar', `🎮 ${tx('Jogar contra o Forge')}`], ['torneio', `🏆 ${tx('Torneio')}`], ['ratings', `📊 ${tx('Ratings')}`]].filter(([k]) => !guest || k === 'torneio' || k === 'ratings').map(([k, l]) => <button key={k} className={colMode === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
+            <span className="seg">{[['bots', `🤖 ${tx('Bots a testar')}`], ['jogar', `🎮 ${tx('Jogar contra o Forge')}`], ['torneio', `🏆 ${tx('Torneio')}`], ['online', `🌍 ${tx('Online')}`], ['ratings', `📊 ${tx('Ratings')}`]].filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
             <button className="fs-btn" onClick={fullscreen} title={tx('Ecrã inteiro (sair: este botão ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
             <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>
           <div hidden={guest || colMode !== 'bots'}>{!guest && <LabView {...{ data, deck, fmt, act, ctx, playFrom }} />}</div>
           {colMode === 'jogar' && !guest && <div className="view"><PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} /></div>}
-          {(colMode === 'torneio' || (guest && colMode !== 'ratings')) && <TournamentView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
-          {colMode === 'ratings' && <RatingsView data={data} fmt={fmt} />}
+          {cm === 'torneio' && <TournamentView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
+          {cm === 'online' && <TournamentView key="online" data={data} fmt={fmt} deckId={deck.id} guest={guest} online />}
+          {cm === 'ratings' && <RatingsView data={data} fmt={fmt} />}
         </div>
       )}
 

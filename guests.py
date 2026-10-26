@@ -123,7 +123,7 @@ def room_link(h, con, token, name):
     owner = r[0]
     g = by_token(con, cookie_token(h.headers))
     if g and g["owner"] == owner:  # já é convidado deste Grimório
-        return h.send(302, b"", "text/plain", {"Location": "/"})
+        return h.send(302, b"", "text/plain", {"Location": "/#online"})
     name = re.sub(r"[<>&\"']", "", str(name or "")).strip()[:30]
     if not name:
         return page(f"<h2>🎲 {html.escape(r[2] or 'Sala')}</h2><p>Entra com um nome para jogares nesta sala com um deck teu.</p>"
@@ -132,7 +132,7 @@ def room_link(h, con, token, name):
     init(con)
     fid, tok = secrets.token_hex(6), secrets.token_urlsafe(18)
     con.execute("INSERT INTO friends VALUES (?,?,?,?,?,NULL)", (fid, owner, f"{name} (sala)", tok, time.time()))
-    return h.send(302, b"", "text/plain", {"Location": "/", "Set-Cookie": f"{COOKIE}={tok}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly"})
+    return h.send(302, b"", "text/plain", {"Location": "/#online", "Set-Cookie": f"{COOKIE}={tok}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly"})
 
 
 def visible(con, g, tid):

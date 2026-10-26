@@ -4,6 +4,7 @@ visível aos amigos (`friends_open`) para o verem ao vivo e apostarem.
 """
 import json, re, secrets, time
 
+import sim
 import tournament
 
 ROOM = re.compile(r"^/api/rooms(?:/([a-f0-9]{10})(?:/(join|leave|start|cancel))?)?$")
@@ -58,6 +59,8 @@ def route(con, method, path, owner, body, guest=None):
         spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold")}
         if spec["type"] not in tournament.TYPES:
             return 400, {"erro": "Tipo de torneio desconhecido."}
+        if spec["format"] in sim.GAME_TYPE:  # sem Commander online: o EDH com amigos fica para outra app
+            return 400, {"erro": "As salas online não têm formatos Commander."}
         players = [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "name")}, "by": "host"} for p in (d.get("players") or []) if isinstance(p, dict)]
         rid = secrets.token_hex(5)
         spec["link"] = secrets.token_urlsafe(12)  # /sala/<link>: entra quem não está nos amigos (guests.room_link)

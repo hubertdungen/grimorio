@@ -2224,4 +2224,11 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .dpick { display: inline-flex; align-items: center; gap: 4px; }
 .dpick-x { flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 12px; line-height: 1; }
 .dpick-x:hover { color: var(--text); border-color: var(--gold); }
-.room-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .room-link code { font-size: 11px; overflow-wrap: anywhere; }
+.room-link { display: grid; gap: 2px; } .room-link p { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .room-link code { font-size: 11px; overflow-wrap: anywhere; }
+/* Online: endereço público por cima das salas, e a escolha jogo avulso / torneio antes do formulário */
+.net-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px; margin-bottom: 10px; border-radius: 10px; border: 1px dashed var(--line); }
+.net-bar.up { border-style: solid; border-color: #4ec9a066; background: #4ec9a00f; } .net-bar code { font-size: 12px; overflow-wrap: anywhere; }
+.nr-kind { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.nr-kind button { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; text-align: left; padding: 10px 12px; border-radius: 12px; }
+.nr-kind button .tc-ico { grid-row: span 2; width: 34px; height: 34px; } .nr-kind button small { color: var(--muted); font-size: 11px; }
+.nr-kind button.on { border-color: var(--gold); background: rgba(242, 184, 75, .12); box-shadow: inset 0 0 0 1px var(--gold); }

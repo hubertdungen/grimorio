@@ -91,10 +91,11 @@ export function HighlightMine() {
   return <label className="chk" title={tx('Os meus decks (não os da comunidade) ficam com contorno azul nas chaves, classificações, jogos e pódios.')}><input type="checkbox" checked={v} onChange={e => { setV(e.target.checked); ls(HL_K, e.target.checked ? '1' : '0') }} /> {tx('Destacar os meus decks em todos os torneios')}</label>
 }
 
-export default function TournamentView({ data, fmt, deckId, guest }) {
-  // o separador fica guardado (F5 volta ao mesmo sítio)
-  const [view, setViewS] = useState(() => { const v = ls('grimorio.torneio.vista') || 'criar'; return guest && (v === 'criar' || v === 'gerar') ? 'registo' : v })
-  const setView = v => { setViewS(v); ls('grimorio.torneio.vista', v) }
+export default function TournamentView({ data, fmt, deckId, guest, online }) {
+  // dois modos: offline (os bots jogam os teus torneios) e online (salas onde entram amigos por link); cada um guarda o seu separador
+  const VK = online ? 'grimorio.online.vista' : 'grimorio.torneio.vista', TABS = online ? ['criar', 'salas', 'ver', 'apostas'] : ['criar', 'gerar', 'ver', 'registo', 'apostas']
+  const [view, setViewS] = useState(() => { const v = TABS.includes(ls(VK)) ? ls(VK) : online ? 'salas' : 'criar'; return guest && (v === 'criar' || v === 'gerar') ? (online ? 'salas' : 'registo') : v })
+  const setView = v => { setViewS(v); ls(VK, v) }
   const [tid, setTid] = useState(null)
   const [slot, setSlot] = useState(null)  // ao lado das abas: o «← Voltar ao torneio» de um jogo aberto vai para aqui
   const [list, setList] = useState([])
@@ -102,24 +103,26 @@ export default function TournamentView({ data, fmt, deckId, guest }) {
   useEffect(() => {  // ao entrar: volta ao torneio que estava aberto, ou ao que está a decorrer
     loadList().then(l => {
       const last = ls('grimorio.torneio'), on = l.find(x => x.id === last) || l.find(x => x.status === 'running')
-      if (on) { setTid(on.id); if (!['criar', 'registo', 'gerar', 'apostas', 'salas'].includes(ls('grimorio.torneio.vista'))) setView('ver') }
-      else if (view === 'ver') setView('criar')
+      if (on) { setTid(on.id); if (ls(VK) === 'ver' || !ls(VK)) setView('ver') }
+      else if (view === 'ver') setView(online ? 'salas' : 'criar')
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const open = id => { setTid(id); ls('grimorio.torneio', id); setView('ver') }
   return (
     <div className={`view tour ${hlOn() ? 'hl-mine' : ''}`}>
+      {online && !guest && <NetBar />}
       <div className="tour-top"><div className="seg tour-nav">
-        {!guest && <button className={view === 'criar' ? 'on' : ''} onClick={() => setView('criar')}>{tx('✦ Criar')}</button>}
-        {!guest && <button className={view === 'gerar' ? 'on' : ''} onClick={() => setView('gerar')}>{tx('🎲 Gerador')}</button>}
+        {!guest && <button className={view === 'criar' ? 'on' : ''} onClick={() => setView('criar')}>{online ? tx('✦ Nova sala') : tx('✦ Criar')}</button>}
+        {!guest && !online && <button className={view === 'gerar' ? 'on' : ''} onClick={() => setView('gerar')}>{tx('🎲 Gerador')}</button>}
+        {online && <button className={view === 'salas' ? 'on' : ''} onClick={() => setView('salas')}>{tx('🚪 Salas')}</button>}
         <button className={view === 'ver' ? 'on' : ''} onClick={() => setView('ver')} disabled={!tid}>{tx('🏆 Ao vivo')}</button>
-        <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}>{tx('📜 Registo')} <b>{list.length}</b></button>
-        <button className={view === 'salas' ? 'on' : ''} onClick={() => setView('salas')}>{tx('🚪 Salas')}</button>
+        {!online && <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}>{tx('📜 Registo')} <b>{list.length}</b></button>}
         <button className={view === 'apostas' ? 'on' : ''} onClick={() => setView('apostas')}>{tx('🪙 Apostas')}</button>
       </div><span className="tour-slot" ref={setSlot} /></div>
-      {view === 'criar' && !guest && <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} onRoom={() => setView('salas')} />}
+      {view === 'criar' && !guest && (online ? <NewRoom data={data} fmt={fmt} deckId={deckId} onRoom={() => setView('salas')} />
+        : <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} />)}
       {view === 'gerar' && !guest && <Generator data={data} onCreated={() => { loadList(); setView('registo') }} />}
-      {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} onGone={() => { loadList(); setView('registo') }} />}
+      {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} onGone={() => { loadList(); setView(online ? 'salas' : 'registo') }} />}
       {view === 'apostas' && <BetsTab open={open} />}
       {view === 'salas' && <Rooms guest={guest} open={id => { loadList(); open(id) }} />}
       {view === 'registo' && <Registry data={data} list={list} open={open} reload={loadList} />}
@@ -127,12 +130,54 @@ export default function TournamentView({ data, fmt, deckId, guest }) {
   )
 }
 
+// ---------- online: o endereço público e a escolha do tipo de sala ----------
+
+// O endereço público: domínio próprio (GRIMORIO_PUBLIC_URL) ou o túnel gratuito da Cloudflare (share.py), que se abre daqui.
+function useNet(on = true) {
+  const [net, setNet] = useState(null)
+  const load = () => Promise.all([j('/api/friends'), j('/api/share')]).then(([f, s]) => setNet({ public: f.public, lan: f.lan, share: s })).catch(() => {})
+  useEffect(() => { if (!on) return; load(); const t = setInterval(load, 4000); return () => clearInterval(t) }, [on]) // eslint-disable-line react-hooks/exhaustive-deps
+  return [net, load]
+}
+
+function NetBar() {
+  const [net, load] = useNet()
+  const [busy, setBusy] = useState(false)
+  const sh = async a => { setBusy(true); try { await post(`/api/share/${a}`) } catch { /* o estado mostra o erro */ } finally { setBusy(false); load() } }
+  if (!net) return null
+  const tunnel = net.share?.running, own = net.public && net.public !== net.share?.url
+  return (
+    <div className={`net-bar ${net.public ? 'up' : ''}`}>
+      {net.public ? <span>🌍 {tx('Online em')} <code>{net.public}</code></span>
+        : tunnel ? <span>🌍 {tx('a abrir o túnel…')}</span>
+          : <span>📴 {tx('Este Grimório ainda não está na internet: os links das salas só funcionam depois de o abrires.')}</span>}
+      {!own && (tunnel ? <button className="link small" onClick={() => sh('stop')} disabled={busy}>{tx('fechar à internet')}</button>
+        : <button className="primary small" onClick={() => sh('start')} disabled={busy}>🌍 {tx('Abrir à internet')}</button>)}
+      {!own && <span className="small muted">{tx('Túnel gratuito da Cloudflare: dá um endereço público sem abrir portas no router. Sem convite ninguém vê nada.')}</span>}
+      {net.share?.err && <span className="small bad-t">{net.share.err}</span>}
+    </div>
+  )
+}
+
+function NewRoom({ data, fmt, deckId, onRoom }) {
+  const [kind, setKindS] = useState(() => (ls('grimorio.online.tipo') === 'torneio' ? 'torneio' : 'jogo'))
+  const setKind = k => { setKindS(k); ls('grimorio.online.tipo', k) }
+  return <div className="new-room">
+    <div className="nr-kind" role="group" aria-label={tx('Tipo de sala')}>
+      <button className={kind === 'jogo' ? 'on' : ''} onClick={() => setKind('jogo')}><TypeIco k="jogo" /> <b>{tx('Jogo avulso')}</b> <small>{tx('1 contra 1 ou todos contra todos, sem torneio')}</small></button>
+      <button className={kind === 'torneio' ? 'on' : ''} onClick={() => setKind('torneio')}><TypeIco k="elim" /> <b>{tx('Torneio')}</b> <small>{tx('eliminação, suíço, liga, grupos…')}</small></button>
+    </div>
+    <Create key={kind} data={data} fmt0={fmt} deckId={deckId} room={kind} onRoom={onRoom} />
+  </div>
+}
+
 // ---------- criar ----------
 
-function Create({ data, fmt0, onCreated, deckId, onRoom }) {
-  const [format, setFormat] = useState(fmt0.key === 'casual' ? 'modern' : fmt0.key)
+function Create({ data, fmt0, onCreated, deckId, room, onRoom }) {  // room = 'jogo' | 'torneio': abre uma sala online em vez de começar já
+  const [format, setFormat] = useState(fmt0.key === 'casual' || (room && fmt0.cmd) ? 'modern' : fmt0.key)  // online sem Commander (rooms.py)
   const F = FORMAT[format]
-  const [type, setType] = useState(F.cmd === 'commander' && format !== 'duel' ? 'mesas' : 'elim')
+  const defType = f => (room === 'jogo' ? 'jogo' : FORMAT[f].cmd === 'commander' && f !== 'duel' ? 'mesas' : 'elim')
+  const [type, setType] = useState(defType(format))
   const [bo, setBo] = useState(1)
   const [third, setThird] = useState(true)
   const [rounds, setRounds] = useState('')
@@ -279,7 +324,7 @@ function Create({ data, fmt0, onCreated, deckId, onRoom }) {
   }
   const dragEnd = () => { drag.current = null; setDragK(null) }
   const randomDiffs = () => { const ids = diffs.map(d => d.id).filter(x => x !== 'random'); setPlayers(p => p.map(x => ({ ...x, difficulty: ids[Math.floor(Math.random() * ids.length)] }))) }
-  const [asRoom, setAsRoom] = useState(false)  // abrir como sala: os amigos convidados entram com os seus decks antes de começar
+  const asRoom = !!room  // sala online: os convidados entram com os seus decks antes de começar
   const openRoom = async () => {
     setBusy(true); setErr('')
     try {
@@ -299,7 +344,7 @@ function Create({ data, fmt0, onCreated, deckId, onRoom }) {
   const has = (s, id) => players.some(p => p.src === s && p.ref === id)
   return (
     <section className="card tour-create">
-      <h3>{tx('Novo torneio')} <span className="muted small">{tx('os bots do Forge jogam tudo sozinhos no servidor — podes fechar o browser e voltar mais tarde')}</span></h3>
+      <h3>{room === 'jogo' ? tx('Novo jogo online') : room ? tx('Novo torneio online') : tx('Novo torneio')} <span className="muted small">{room ? tx('abre a sala e partilha o link: quem entra junta um deck seu, e os lugares que juntares aqui jogam com os bots do Forge') : tx('os bots do Forge jogam tudo sozinhos no servidor — podes fechar o browser e voltar mais tarde')}</span></h3>
       <div className="tc-grid">
         <div className="lab-step">
           <h4 className="step-h"><i>1</i> {tx('Regras')}</h4>
@@ -307,11 +352,11 @@ function Create({ data, fmt0, onCreated, deckId, onRoom }) {
           <label className="chk"><input type="checkbox" checked={casual} onChange={e => setCasual(e.target.checked)} /> {tx('Modo casual (formatos misturados)')}</label>
           {casual && <p className="small muted tc-info">{CASUAL_INFO} {tx('Os torneios casuais não contam para os ratings.')}</p>}
           <label className="fmt"><span>{casual ? tx('Regras base (vida e tipo de jogo de todos)') : tx('Formato (todos os decks jogam este)')}</span>
-            <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(FORMAT[f].cmd === 'commander' && f !== 'duel' ? 'mesas' : 'elim') }}>{FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited').map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</select></label>
+            <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(defType(f)) }}>{FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited' && !(room && f.cmd)).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</select></label>
           {!casual && CROSS[format] && <label className="chk small" title={tx('Os decks têm de ser legais carta a carta neste formato (o servidor confirma).')}><input type="checkbox" checked={crossOn} onChange={e => { setCrossOn(e.target.checked); ls('grimorio.torneio.cross', e.target.checked ? '1' : '0') }} /> {tx('Aceitar decks legais de outros formatos ({l})', { l: CROSS[format].map(f => FORMAT[f]?.name || f).join(', ') })}</label>}
-          <div className="tc-types">{Object.entries(TYPES).map(([k, [l, lo, hi]]) => (
+          {room !== 'jogo' && <div className="tc-types">{Object.entries(TYPES).filter(([k]) => k !== 'jogo').map(([k, [l, lo, hi]]) => (
             <button key={k} className={type === k ? 'on' : ''} onClick={() => setType(k)}><TypeIco k={k} /><b>{l}</b><small>{lo}–{hi} decks</small></button>
-          ))}</div>
+          ))}</div>}
           <p className="small muted tc-info">{info}</p>
           <div className="tc-row">
             <label className="fmt"><span>{tx('Partidas')}</span><select value={boOf} onChange={e => setBo(+e.target.value)} disabled={type === 'mesas'}><option value={1}>{tx('Um jogo (Bo1)')}</option>{BO2.includes(type) && <option value={2} title={tx('Dois jogos: 2-0 ganha, 1-1 é empate')}>{tx('Dois jogos (Bo2, pode empatar)')}</option>}<option value={3}>{tx('Melhor de 3 (Bo3)')}</option><option value={5}>{tx('Melhor de 5 (Bo5)')}</option></select></label>
@@ -389,7 +434,6 @@ function Create({ data, fmt0, onCreated, deckId, onRoom }) {
       <div className="row-btns tc-go">
         {asRoom ? <button className="primary" onClick={openRoom} disabled={busy || n > max}>{tx('🚪 Abrir a sala')}</button>
           : <button className="primary" onClick={start} disabled={busy || n < lo || n > max || teamBad}>{tx('🏆 Começar o torneio')}</button>}
-        <label className="chk small" title={tx('Os amigos convidados (Definições › Amigos) entram com um deck seu; começas quando estiverem todos.')}><input type="checkbox" checked={asRoom} onChange={e => setAsRoom(e.target.checked)} /> 🚪 {tx('Abrir como sala para amigos')}</label>
         <label className="chk small" title={tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}><input type="checkbox" checked={hold} onChange={e => { setHold(e.target.checked); ls('grimorio.torneio.hold', e.target.checked ? '1' : '0') }} /> {tx('Só começar quando eu der OK')}</label>
         {n > 0 && (casual ? <span className="rk rk-cas" title={tx('Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.')}>{tx('Casual')}</span>
           : isRanked ? <span className="rk rk-ok" title={tx('Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).')}>🏅 {tx('Ranked')}</span>
@@ -605,9 +649,8 @@ function GenPeek({ data, p, r, diffs, onClose }) {
 // ---------- salas: torneios com amigos (rooms.py) ----------
 function Rooms({ guest, open }) {
   const [list, setList] = useState(null), [decks, setDecks] = useState([]), [pick, setPick] = useState({}), [err, setErr] = useState('')
-  const [base, setBase] = useState(''), [copied, setCopied] = useState('')  // endereço para o link da sala: público (túnel/domínio) ou da rede de casa
-  useEffect(() => { if (!guest) j('/api/friends').then(d => setBase(d.public || d.lan || location.origin)).catch(() => setBase(location.origin)) }, [guest])
-  const copyLink = async (r) => { const url = `${base}${r.link}`; try { await navigator.clipboard.writeText(url); setCopied(r.id); setTimeout(() => setCopied(''), 1500) } catch { window.prompt(tx('Copia o link:'), url) } }
+  const [net] = useNet(!guest), [copied, setCopied] = useState('')  // o link da sala é o endereço público (túnel ou domínio próprio)
+  const copyLink = async (url, k) => { try { await navigator.clipboard.writeText(url); setCopied(k); setTimeout(() => setCopied(''), 1500) } catch { window.prompt(tx('Copia o link:'), url) } }
   const load = () => j('/api/rooms').then(setList).catch(e => setErr(e.message))
   useEffect(() => { load(); j('/api/decks').then(setDecks).catch(() => {}); const t = setInterval(load, 3000); return () => clearInterval(t) }, [])
   const act = async (id, a, body) => { setErr(''); try { const r = await post(`/api/rooms/${id}/${a}`, body); if (a === 'start' && r.tid) open(r.tid); load() } catch (e) { setErr(e.message) } }
@@ -616,7 +659,7 @@ function Rooms({ guest, open }) {
   const shown = list.filter(r => r.status !== 'cancelled')
   return (
     <section className="card rooms">
-      <h3>🚪 {tx('Salas')} <span className="muted small">{guest ? tx('Entra numa sala com um deck teu; quem aloja começa o torneio quando estiverem todos.') : tx('Abre uma sala no «✦ Criar» (opção «Abrir como sala para amigos»): os convidados entram com um deck seu e tu começas.')}</span></h3>
+      <h3>🚪 {tx('Salas')} <span className="muted small">{guest ? tx('Entra numa sala com um deck teu; quem aloja começa o torneio quando estiverem todos.') : tx('Abre uma sala em «✦ Nova sala» e partilha o link: quem o abre entra com um deck seu e tu começas quando estiverem todos.')}</span></h3>
       {err && <p className="small bad-t">{err}</p>}
       {!shown.length && <p className="muted small">{tx('Não há salas abertas.')}</p>}
       {shown.map(r => { const mine = r.players.filter(p => p.mine), opts = myDecks(r), sel = pick[r.id] || opts[0]?.id || ''; return (
@@ -626,7 +669,11 @@ function Rooms({ guest, open }) {
             {r.status === 'started' ? <button className="primary small" onClick={() => open(r.tid)}>{r.type === 'jogo' ? tx('🎲 Ver o jogo') : tx('🏆 Ver o torneio')}</button>
               : !guest && <span className="row-btns"><button className="primary small" disabled={r.players.length < r.min} onClick={() => act(r.id, 'start')}>{tx('▶ Começar')}</button><button className="link small" onClick={() => act(r.id, 'cancel')}>{tx('cancelar')}</button></span>}
           </div>
-          {!guest && r.status === 'open' && r.link && <p className="small room-link">🔗 {tx('Link da sala (entra quem o abrir, mesmo sem estar nos amigos):')} <code>{base}{r.link}</code> <button className="small" onClick={() => copyLink(r)}>{copied === r.id ? tx('copiado ✓') : tx('copiar')}</button></p>}
+          {!guest && r.status === 'open' && r.link && <div className="small room-link">
+            {net?.public ? <p>🔗 {tx('Link da sala (entra quem o abrir, mesmo sem estar nos amigos):')} <code>{net.public}{r.link}</code> <button className="small" onClick={() => copyLink(net.public + r.link, r.id)}>{copied === r.id ? tx('copiado ✓') : tx('copiar')}</button></p>
+              : <p className="muted">🔗 {tx('O link da sala aparece quando abrires este Grimório à internet (em cima).')}</p>}
+            {net?.lan && <p className="muted">🏠 {tx('Sem internet, na mesma rede:')} <code>{net.lan}{r.link}</code> <button className="link small" onClick={() => copyLink(net.lan + r.link, r.id + 'l')}>{copied === r.id + 'l' ? tx('copiado ✓') : tx('copiar')}</button></p>}
+          </div>}
           <ul className="room-pl">{r.players.map((p, k) => (
             <li key={k} className={p.by ? 'fr' : ''}>{p.by ? `🤝 ${p.by}` : '🏠'} · {p.name}{(!guest || p.mine) && r.status === 'open' && <button className="link small" onClick={() => act(r.id, 'leave', { ref: p.ref })}>{tx('tirar')}</button>}</li>))}</ul>
           {r.status === 'open' && (!guest || !mine.length) && (opts.length ? (
