@@ -30,6 +30,7 @@ rating casual, casual=True, e também os torneios sem decks meta: só azul e ver
 """
 import itertools, json, math, os, random, re, sqlite3, sys, threading, time, uuid, zlib
 from collections import Counter
+import limited
 import sim
 try:
     import ratings  # Elo dos decks (outro módulo; enquanto não existir, os torneios não mexem nos ratings)
@@ -688,6 +689,12 @@ def create(owner, d):
                     raise ValueError(f"«{deck.get('name')}» não é um deck de {fmt}" + (" nem é legal nele." if cross else ": num torneio todos jogam o mesmo formato."))
                 if deck and not casual and deck.get("casual"):
                     raise ValueError(f"«{deck.get('name')}» é um deck casual: só entra em torneios casuais.")
+            elif src == "draft" and fmt == "limited":  # um bot de um draft/selado meu (limited.py): «<evento>:<lugar>»
+                try:
+                    eid, seat = ref.split(":")
+                    deck = limited.deck_of(limited.load(DATA, eid, owner), int(seat))
+                except (KeyError, ValueError, IndexError):
+                    deck = None
             elif src == "meta" and meta_ok(ref):
                 deck = sim.opponent(DATA, ref)
                 if deck and not casual and not ref.startswith(fmt + "-") and not ref.startswith("edhrec-") and not legal_in(deck, fmt):
@@ -709,7 +716,10 @@ def create(owner, d):
                             **({"me": True} if x.get("me") and src == "meus" and not any(p.get("me") for p in players) else {})})
             decks.append({k: deck.get(k) or ({} if k in ("main", "side") else []) for k in ("commanders", "main", "side")} |
                          ({"signature": deck["signature"]} if deck.get("signature") else {}) |
-                         ({"art": deck["art"]} if isinstance(deck.get("art"), dict) and deck["art"] else {}))  # artes próprias para o tabuleiro
+                         ({"art": deck["art"]} if isinstance(deck.get("art"), dict) and deck["art"] else {}) |  # artes próprias para o tabuleiro
+                         ({"split": deck["split"]} if isinstance(deck.get("split"), dict) and deck["split"] else {}) |  # básicos divididos por artes
+                         ({"prints": {n: {"id": p["id"]} for n, p in deck["prints"].items() if isinstance(p, dict) and p.get("id")}}
+                          if isinstance(deck.get("prints"), dict) and deck["prints"] else {}))  # edições escolhidas
         first = players[0]  # gauntlet sem «o meu deck»: o desafiante é o 1.º da lista (antes do sorteio)
         if d.get("seeding") != "ordem":
             order = random.sample(range(len(players)), len(players))
@@ -885,7 +895,14 @@ def route(method, path, owner, body=None, bettor=None):
             if not r:
                 return 404, {"erro": "Esse jogo não existe."}
             g, ds = json.loads(zlib.decompress(r[0])), json.loads(row[8]).get("decks") or []
-            g["arts"] = {"abcd"[k]: m for k, i in enumerate(g.get("seats") or []) if k < 4 and isinstance(i, int) and i < len(ds) and (m := sim.art_map(ds[i]))}
+            st, mine = json.loads(row[8]), {}
+            for p in st.get("players") or []:  # os meus decks: as artes de agora (edições e básicos divididos escolhidos no Construir)
+                if p.get("src") == "meus" and p.get("ref") not in mine:
+                    r2 = con.execute("SELECT body FROM decks WHERE id=? AND owner=?", (p.get("ref"), owner)).fetchone()
+                    mine[p.get("ref")] = sim.art_map(json.loads(r2[0])) if r2 else {}
+            P = st.get("players") or []
+            arts = lambda i: {**sim.art_map(ds[i]), **(mine.get(P[i].get("ref"), {}) if i < len(P) and P[i].get("src") == "meus" else {})}  # noqa: E731
+            g["arts"] = {"abcd"[k]: m for k, i in enumerate(g.get("seats") or []) if k < 4 and isinstance(i, int) and i < len(ds) and (m := arts(i))}
             return 200, g
         if method == "GET" and len(parts) == 2 and parts[1] == "bets":
             return 200, bets_view(con, bettor, tid, row[5], json.loads(row[8]))

@@ -12,7 +12,7 @@ D="${GRIMORIO_DATA_DIR:-$HOME/.local/share/grimorio}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 JAR=$(ls "$D"/forge/forge-gui-desktop-*-jar-with-dependencies.jar | head -1)
 OUT="$D/forge-ext"
-STAMP="$(cat "$SRC/GrimorioSim.java" "$SRC/GrimorioNet.java" "$0" "$SRC"/cards/*.txt $(find "$SRC/patches" -name '*.java') | sha256sum | cut -c1-16) $(basename "$JAR") $(stat -c %s.%Y "$JAR")"
+STAMP="$(cat "$SRC/GrimorioSim.java" "$SRC/GrimorioNet.java" "$SRC/GrimorioDraft.java" "$0" "$SRC"/cards/*.txt $(find "$SRC/patches" -name '*.java') | sha256sum | cut -c1-16) $(basename "$JAR") $(stat -c %s.%Y "$JAR")"
 if [[ -f "$OUT/GrimorioSim.class" && "$(cat "$OUT/stamp" 2>/dev/null)" == "$STAMP" ]]; then
   echo "forge-ext em dia"; exit 0
 fi
@@ -20,10 +20,10 @@ rm -rf "$OUT.new"; mkdir -p "$OUT.new"
 # javac do sistema (JDK 17+, ou JAVAC=/caminho/javac) quando existe — CI e pacotes sem Docker; senão num contentor
 JAVAC="${JAVAC:-$(command -v javac || true)}"
 if [[ -n "$JAVAC" ]]; then
-  "$JAVAC" --release 17 -nowarn -encoding UTF-8 -cp "$JAR" -d "$OUT.new" "$SRC/GrimorioSim.java" "$SRC/GrimorioNet.java" $(find "$SRC/patches" -name '*.java')
+  "$JAVAC" --release 17 -nowarn -encoding UTF-8 -cp "$JAR" -d "$OUT.new" "$SRC/GrimorioSim.java" "$SRC/GrimorioNet.java" "$SRC/GrimorioDraft.java" $(find "$SRC/patches" -name '*.java')
 else
   docker run --rm --user "$(id -u):$(id -g)" -v "$JAR:/forge.jar:ro" -v "$SRC:/src:ro" -v "$OUT.new:/out" \
-    eclipse-temurin:17-jdk sh -c 'javac -nowarn -encoding UTF-8 -cp /forge.jar -d /out /src/GrimorioSim.java /src/GrimorioNet.java $(find /src/patches -name "*.java")'
+    eclipse-temurin:17-jdk sh -c 'javac -nowarn -encoding UTF-8 -cp /forge.jar -d /out /src/GrimorioSim.java /src/GrimorioNet.java /src/GrimorioDraft.java $(find /src/patches -name "*.java")'
 fi
 mkdir -p "$OUT.new/ai"
 for f in "$D"/forge/res/ai/*.ai; do

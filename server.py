@@ -9,6 +9,7 @@ from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
 import play
 import playnet
+import limited
 import backup
 import ratings
 import sim
@@ -257,6 +258,8 @@ class H(BaseHTTPRequestHandler):
             return self.json(play.status())
         if p.startswith("/api/playnet"):
             return self.playnet_route("GET")
+        if p.startswith("/api/limited"):
+            return self.limited_route("GET")
         if p == "/api/update":  # pacotes (exe/Linux): versão, a nova e o estado da atualização automática (launcher.py)
             return self.json(update_state())
         m = EDHREC_PATH.match(p)
@@ -533,6 +536,77 @@ class H(BaseHTTPRequestHandler):
         except (ValueError, TypeError, AttributeError) as e:
             return self.json({"erro": str(e) if isinstance(e, ValueError) else "pedido inválido"}, 400)
 
+    def limited_route(self, method):
+        """Limitado (limited.py). GET /api/limited -> eventos meus; GET /api/limited/sets; POST /api/limited {kind, sets, human,
+        players} -> {id}; GET /api/limited/<id>?since=N (espera até 20 s pelo pack seguinte); GET /api/limited/<id>/event;
+        POST /api/limited/<id>/pick {i} | /stop | /deck (o teu pool vira um deck Limitado) | /tournament {type, bo, difficulty}."""
+        u = urllib.parse.urlsplit(self.path)
+        m = re.fullmatch(r"/api/limited(?:/(sets|[a-f0-9]{12})(?:/(pick|stop|deck|tournament|event))?)?", u.path)
+        if not m:
+            return self.json({"erro": "rota desconhecida"}, 404)
+        eid, act, owner, D = m.group(1), m.group(2), self.owner(), ARGS.data_dir
+        try:
+            if method == "GET":
+                if not eid:
+                    return self.json(limited.events(D, owner))
+                if eid == "sets":
+                    return self.json(limited.sets(D))
+                if act == "event":
+                    return self.json(limited.load(D, eid, owner))
+                if not act:
+                    since = int((urllib.parse.parse_qs(u.query).get("since") or ["0"])[0] or 0)
+                    try:
+                        return self.json(limited.poll(eid, owner, since))
+                    except KeyError:  # já não está em memória (acabou ou o servidor reiniciou): o que ficou gravado
+                        ev = limited.load(D, eid, owner)
+                        return self.json({"seq": since + 1, "pack": None, "ended": True, "status": ev["status"], "error": ev.get("error")})
+                return self.json({"erro": "rota desconhecida"}, 404)
+            d = self.body() or {}
+            if not eid:
+                return self.json({"id": limited.start(D, owner, d.get("kind"), d.get("sets") or [], d.get("human", True) is not False, d.get("players") or 8)}, 201)
+            if act == "pick":
+                limited.pick(eid, owner, int(d.get("i")))
+                return self.json({"ok": True})
+            if act == "stop":
+                limited.stop(eid, owner)
+                return self.json({"ok": True})
+            ev = limited.load(D, eid, owner)
+            if ev["status"] not in ("built", "tournament"):
+                raise ValueError("O draft ainda não acabou.")
+            if act == "deck":  # o teu pool num deck Limitado (o deck sugerido pelo Forge no main, o resto no sideboard)
+                if ev.get("deck_id"):
+                    with db() as con:
+                        if con.execute("SELECT 1 FROM decks WHERE id=? AND owner=? AND deleted IS NULL", (ev["deck_id"], owner)).fetchone():
+                            return self.json({"deck_id": ev["deck_id"]})
+                title = "Draft" if ev["kind"] == "draft" else "Selado"
+                dk = limited.deck_of(ev, 0, f"{title} {'/'.join(dict.fromkeys(ev['sets']))} · {time.strftime('%d/%m')}")
+                now = time.time()
+                dk.update(id=uuid.uuid4().hex, created=now, updated=now, notes="", limited=eid)
+                with db() as con:
+                    con.execute("INSERT INTO decks (id, name, format, body, updated, owner, deleted) VALUES (?,?,?,?,?,?,NULL)",
+                                (dk["id"], dk["name"][:200], "limited", json.dumps(dk, ensure_ascii=False), now, owner))
+                ev["deck_id"] = dk["id"]
+                limited.save(D, ev)
+                return self.json({"deck_id": dk["id"]}, 201)
+            if act == "tournament":
+                seats = range(1 if ev["human"] else 0, len(ev["players"]))
+                ps = [{"src": "meus", "ref": ev["deck_id"], "me": True}] if ev["human"] else []
+                if ev["human"] and not ev.get("deck_id"):
+                    raise ValueError("Primeiro guarda o teu deck.")
+                diff = str(d.get("difficulty") or "default")
+                ps += [{"src": "draft", "ref": f"{eid}:{i}", "difficulty": diff, "colors": limited.colors(ev, i)} for i in seats]
+                title = "Draft" if ev["kind"] == "draft" else "Selado"
+                tid = tournament.create(owner, {"type": d.get("type") or "suico", "format": "limited", "players": ps, "bo": d.get("bo") or 1,
+                                                "name": f"{title} {'/'.join(dict.fromkeys(ev['sets']))}", "rounds": d.get("rounds")})
+                ev.update(status="tournament", tid=tid)
+                limited.save(D, ev)
+                return self.json({"tid": tid}, 201)
+            return self.json({"erro": "rota desconhecida"}, 404)
+        except KeyError:
+            return self.json({"erro": "Esse draft já não existe."}, 404)
+        except (ValueError, TypeError, AttributeError) as e:
+            return self.json({"erro": str(e) if isinstance(e, ValueError) else "pedido inválido"}, 400)
+
     def _post(self):
         if self.path.startswith("/api/profiles"):
             return self.profiles_route("POST")
@@ -556,6 +630,8 @@ class H(BaseHTTPRequestHandler):
             return self.play_route()
         if self.path.startswith("/api/playnet"):
             return self.playnet_route("POST")
+        if self.path.startswith("/api/limited"):
+            return self.limited_route("POST")
         if self.path == "/api/update":  # {auto: true|false}: atualizar sozinho (o launcher lê-o ao arrancar)
             try:
                 auto = bool((self.body() or {}).get("auto"))
@@ -762,7 +838,7 @@ class H(BaseHTTPRequestHandler):
         return r and {"id": r[0], "name": r[1], "color": r[2]}
 
     # rotas que precisam de saber de quem são os dados: sem perfil escolhido respondem 401 com code "profile"
-    OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state", "/api/playnet")
+    OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state", "/api/playnet", "/api/limited")
 
     def no_profile(self):
         if self.path.startswith(self.OWNED) and self.mode() == "profiles" and not self.profile():
