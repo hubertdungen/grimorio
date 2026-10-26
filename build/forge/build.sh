@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compila o lançador GrimorioSim (observa os eventos do Forge) para ~/.local/share/grimorio/forge-ext/ e gera
+# Compila o lançador GrimorioSim (observa os eventos do Forge) e o GrimorioNet (Forge Play nativo: o ecrã do humano em JSON) para ~/.local/share/grimorio/forge-ext/ e gera
 # os nossos perfis de IA em forge-ext/ai/: cópias dos res/ai/*.ai do Forge em que cada CHANCE a 0 ou 100 passa a
 # 10 ou 90 (há sempre situações em que não compensa); limiares, contagens e booleanos ficam iguais. As chances de
 # contrariar (CHANCE_TO_COUNTER_*) ficam como o Forge as tem: com 90% o bot deixava passar 1 em 10 feitiços de 3+.
@@ -12,7 +12,7 @@ D="${GRIMORIO_DATA_DIR:-$HOME/.local/share/grimorio}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 JAR=$(ls "$D"/forge/forge-gui-desktop-*-jar-with-dependencies.jar | head -1)
 OUT="$D/forge-ext"
-STAMP="$(cat "$SRC/GrimorioSim.java" "$0" "$SRC"/cards/*.txt | sha256sum | cut -c1-16) $(basename "$JAR") $(stat -c %s.%Y "$JAR")"
+STAMP="$(cat "$SRC/GrimorioSim.java" "$SRC/GrimorioNet.java" "$0" "$SRC"/cards/*.txt | sha256sum | cut -c1-16) $(basename "$JAR") $(stat -c %s.%Y "$JAR")"
 if [[ -f "$OUT/GrimorioSim.class" && "$(cat "$OUT/stamp" 2>/dev/null)" == "$STAMP" ]]; then
   echo "forge-ext em dia"; exit 0
 fi
@@ -20,10 +20,10 @@ rm -rf "$OUT.new"; mkdir -p "$OUT.new"
 # javac do sistema (JDK 17+, ou JAVAC=/caminho/javac) quando existe — CI e pacotes sem Docker; senão num contentor
 JAVAC="${JAVAC:-$(command -v javac || true)}"
 if [[ -n "$JAVAC" ]]; then
-  "$JAVAC" --release 17 -nowarn -encoding UTF-8 -cp "$JAR" -d "$OUT.new" "$SRC/GrimorioSim.java"
+  "$JAVAC" --release 17 -nowarn -encoding UTF-8 -cp "$JAR" -d "$OUT.new" "$SRC/GrimorioSim.java" "$SRC/GrimorioNet.java"
 else
   docker run --rm --user "$(id -u):$(id -g)" -v "$JAR:/forge.jar:ro" -v "$SRC:/src:ro" -v "$OUT.new:/out" \
-    eclipse-temurin:17-jdk javac -nowarn -encoding UTF-8 -cp /forge.jar -d /out /src/GrimorioSim.java
+    eclipse-temurin:17-jdk javac -nowarn -encoding UTF-8 -cp /forge.jar -d /out /src/GrimorioSim.java /src/GrimorioNet.java
 fi
 mkdir -p "$OUT.new/ai"
 for f in "$D"/forge/res/ai/*.ai; do
