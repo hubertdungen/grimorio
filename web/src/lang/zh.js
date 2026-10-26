@@ -2871,4 +2871,8 @@ export default {
   "Melhor de 5 (Bo5, com sideboard)": "五局三胜（Bo5，含备牌）",
   "Velocidade, mãos e turno": "速度、手牌和回合",
   "{c} fica sem efeito: o alvo já não está lá": "{c} 失效：目标已不在",
+  "jogada em {n} jogos, ganhou {w}": "在 {n} 局中打出，赢了 {w} 局",
+  "Diferença na percentagem de vitórias entre os jogos em que a carta foi jogada (lançada ou posta em campo) e os outros (puxada para a média enquanto há poucos jogos).": "打出这张牌（施放或放进战场）的对局与其他对局之间的胜率差（对局少时向平均值收拢）。",
+  "Ganha mais quando a joga": "打出时胜率更高",
+  "Perde mais quando a joga": "打出时败率更高",
 }

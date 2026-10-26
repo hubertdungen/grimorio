@@ -703,6 +703,19 @@ import { search as searchCards } from './src/data.js'
   assert.deepEqual(st.at(-1).a.graveyard, ['Path to Exile'])
   console.log('selfcheck feitiço sem alvo ok')
 }
+// Análise › Cartas nos jogos: «jogada» = lançada ou posta em campo; ficar só na mão não conta
+{
+  const { gameEvidence } = await import('./src/swap.js')
+  const cs = [{ n: 'Bolt', mt: 'Instant', t: 'Instant', o: '', cmc: 1, l: 'bolt', f: 'bolt' }, { n: 'Big', mt: 'Creature', t: 'Creature', o: '', cmc: 6, l: 'big', f: 'big' },
+    { n: 'Plains', mt: 'Land', t: 'Basic Land — Plains', o: '', cmc: 0, l: 'plains', f: 'plains' }]
+  const d = { byName: new Map(cs.map(c => [c.n, c])), byLower: new Map(cs.map(c => [c.l, c])) }
+  const g = { winner: 'a', exact: true, events: [{ t: 1, k: 'turn', p: 'a', hd: { a: ['Bolt', 'Big', 'Plains'] } },
+    { t: 1, k: 'land', p: 'a', card: 'Plains', zn: [{ id: 1, card: 'Plains', from: 'hand', to: 'battlefield', fp: 'a', tp: 'a' }] },
+    { t: 1, k: 'cast', p: 'a', card: 'Bolt' }] }
+  const ev = gameEvidence(d, [g])
+  assert.deepEqual(['Bolt', 'Big', 'Plains'].map(n => [ev.cards[n].seen, ev.cards[n].played, ev.cards[n].playedW]), [[1, 1, 1], [1, 0, 0], [1, 1, 1]])
+  console.log('selfcheck cartas jogadas ok')
+}
 
 // alcunhas dos ciclos de terrenos e básicos como cor dentro de uma frase
 {

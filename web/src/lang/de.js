@@ -2871,4 +2871,8 @@ export default {
   "Melhor de 5 (Bo5, com sideboard)": "Best of 5 (Bo5, mit Sideboard)",
   "Velocidade, mãos e turno": "Tempo, Hände und Zug",
   "{c} fica sem efeito: o alvo já não está lá": "{c} verpufft: das Ziel ist weg",
+  "jogada em {n} jogos, ganhou {w}": "in {n} Spielen gespielt, {w} gewonnen",
+  "Diferença na percentagem de vitórias entre os jogos em que a carta foi jogada (lançada ou posta em campo) e os outros (puxada para a média enquanto há poucos jogos).": "Unterschied der Siegquote zwischen Spielen, in denen die Karte gespielt wurde (gewirkt oder ins Spiel gebracht), und den übrigen (bei wenigen Spielen zum Durchschnitt gezogen).",
+  "Ganha mais quando a joga": "Gewinnt öfter, wenn gespielt",
+  "Perde mais quando a joga": "Verliert öfter, wenn gespielt",
 }

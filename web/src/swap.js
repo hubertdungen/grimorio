@@ -50,7 +50,7 @@ function atLeast(N, K, n, k) {
 
 // --- Provas dos jogos ---------------------------------------------------------------------------------
 const lossKind = t => (/life total/i.test(t) ? 'damage' : /poison/i.test(t) ? 'poison' : /library|draw/i.test(t) ? 'mill' : 'alt')
-const blank = () => ({ seen: 0, seenW: 0, seenL: 0, cast: 0, castW: 0, castN: 0, lateSum: 0, lateN: 0, dead: 0, deadL: 0,
+const blank = () => ({ seen: 0, seenW: 0, seenL: 0, played: 0, playedW: 0, cast: 0, castW: 0, castN: 0, lateSum: 0, lateN: 0, dead: 0, deadL: 0,
   dmg: 0, drain: 0, mill: 0, poison: 0, presentW: 0, remW: 0, drawW: 0, blockW: 0, gainW: 0, rem: 0, draw: 0, block: 0 })
 
 /**
@@ -81,14 +81,14 @@ export function gameEvidence(data, games) {
       exactN++
       if (won) winsExact++
       let myTurn = 0, src = null, phase = '', prevDmg = false, hand = []
-      const life = { a: g.startLife || 20, b: g.startLife || 20 }, bf = new Map(), seen = new Set()
+      const life = { a: g.startLife || 20, b: g.startLife || 20 }, bf = new Map(), seen = new Set(), played = new Set()  // played: lançada ou posta em campo
       for (const e of g.events) {
         if (e.hd?.a) { hand = e.hd.a; for (const n of hand) seen.add(n) }
         const ours = e.p === 'a'
         switch (e.k) {
           case 'turn': if (ours) myTurn++; src = null; break
           case 'phase': phase = e.ph || ''; src = null; break
-          case 'cast': if (e.card) { src = ours ? e.card : null; if (ours) { seen.add(e.card); P(e.card).castN++; (castT[e.card] ||= myTurn) } } break
+          case 'cast': if (e.card) { src = ours ? e.card : null; if (ours) { seen.add(e.card); played.add(e.card); P(e.card).castN++; (castT[e.card] ||= myTurn) } } break
           case 'activate': case 'trigger': case 'resolve': if (e.card) src = ours ? e.card : null; break
           case 'life':
             if (e.p === 'b' && e.n < life.b && !prevDmg && src) P(src).drain += life.b - e.n
@@ -105,7 +105,7 @@ export function gameEvidence(data, games) {
             break
         }
         for (const z of e.zn || []) {
-          if (z.to === 'battlefield' && z.tp === 'a') bf.set(z.id, z.card)
+          if (z.to === 'battlefield' && z.tp === 'a') { bf.set(z.id, z.card); if (!z.tok) played.add(z.card) }
           else if (z.from === 'battlefield') bf.delete(z.id)
         }
         prevDmg = e.k === 'damage'
@@ -116,6 +116,7 @@ export function gameEvidence(data, games) {
         x.seen = 1
         if ((held[n] || 0) >= 3 && !castT[n] && !usedSet.has(n)) x.dead = 1
       }
+      for (const n of played) P(n).played = 1
       if (won) for (const n of new Set(bf.values())) P(n).presentW = 1
       for (const [n, t] of Object.entries(castT)) { const c = data.byName.get(n); if (c && c.mt !== 'Land') { P(n).lateSum = t - Math.max(1, Math.ceil(c.cmc)); P(n).lateN = 1 } }
     } else for (const [, n] of a.cast || []) { P(n).castN++; castT[n] = 1 }
@@ -127,9 +128,9 @@ export function gameEvidence(data, games) {
     if (won) kinds[kind] = (kinds[kind] || 0) + 1
     for (const [n, x] of Object.entries(per)) {
       const y = C(n)
-      y.seen += x.seen; y.dead += x.dead; y.castN += x.castN; y.lateSum += x.lateSum; y.lateN += x.lateN
+      y.seen += x.seen; y.played += x.played; y.dead += x.dead; y.castN += x.castN; y.lateSum += x.lateSum; y.lateN += x.lateN
       if (castT[n]) y.cast++
-      if (won) { y.seenW += x.seen; if (castT[n]) y.castW++; y.dmg += x.dmg; y.drain += x.drain; y.mill += x.mill; y.poison += x.poison; y.presentW += x.presentW; y.remW += x.rem; y.drawW += x.draw; y.blockW += x.block; y.gainW += x.gainW }
+      if (won) { y.seenW += x.seen; y.playedW += x.played; if (castT[n]) y.castW++; y.dmg += x.dmg; y.drain += x.drain; y.mill += x.mill; y.poison += x.poison; y.presentW += x.presentW; y.remW += x.rem; y.drawW += x.draw; y.blockW += x.block; y.gainW += x.gainW }
       if (lost) { y.seenL += x.seen; y.deadL += x.dead }
       y.rem += x.rem; y.draw += x.draw; y.block += x.block
     }

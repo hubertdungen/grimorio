@@ -2879,4 +2879,8 @@ export default {
   "Melhor de 5 (Bo5, com sideboard)": "Best of 5 (Bo5, with sideboard)",
   "Velocidade, mãos e turno": "Speed, hands and turn",
   "{c} fica sem efeito: o alvo já não está lá": "{c} does nothing: its target is gone",
+  "jogada em {n} jogos, ganhou {w}": "played in {n} games, won {w}",
+  "Diferença na percentagem de vitórias entre os jogos em que a carta foi jogada (lançada ou posta em campo) e os outros (puxada para a média enquanto há poucos jogos).": "Difference in win rate between games where the card was played (cast or put onto the battlefield) and the rest (pulled towards the average while there are few games).",
+  "Ganha mais quando a joga": "Wins more when played",
+  "Perde mais quando a joga": "Loses more when played",
 }

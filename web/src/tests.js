@@ -73,9 +73,9 @@ export function testEvidence(data, games) {
 }
 
 // gameEvidence: diferença de % de vitórias com a carta vista e sem ela, encolhida para 3 jogos «médios» de cada lado
-export function wrDelta(ev, x) {
-  const p0 = ev.exact ? ev.winsExact / ev.exact : 0.5
-  return (x.seenW + 3 * p0) / (x.seen + 3) - (ev.winsExact - x.seenW + 3 * p0) / (ev.exact - x.seen + 3)
+export function wrDelta(ev, x, k = 'seen') {  // k = 'seen' (passou pela mão) ou 'played' (lançada ou posta em campo)
+  const p0 = ev.exact ? ev.winsExact / ev.exact : 0.5, n = x[k] || 0, w = x[`${k}W`] || 0
+  return (w + 3 * p0) / (n + 3) - (ev.winsExact - w + 3 * p0) / (ev.exact - n + 3)
 }
 
 // Fator «testes» de uma candidata: responde a uma categoria com que perdemos 2+ jogos e metade ou mais.
