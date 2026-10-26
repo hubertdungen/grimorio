@@ -731,6 +731,7 @@ h2 .mana img { width: 20px; height: 20px; }
 .coliseu:fullscreen::-webkit-scrollbar { display: none; }
 .coliseu .bc.m { width: 96px; }
 .coliseu .blog { max-height: none; contain: size; align-self: stretch; }  /* o registo acompanha a altura do tabuleiro e não a empurra */
+@media (max-width: 900px) { .coliseu .blog { contain: none; max-height: 260px; align-self: auto; } }  /* telemóvel: fica por baixo da mesa, com altura própria (com contain ficava espalmado a 0) */
 .to-coliseu { display: flex; gap: 8px; align-items: center; justify-content: flex-end; padding: 10px 20px 0; }
 @media (max-width: 900px) { .sections { width: 100%; } .sections button { flex: 1; justify-content: center; padding: 6px 4px; } .coliseu .bc.m { width: 58px; } }
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 80; padding: 9px 16px; border-radius: 10px; background: var(--panel2); border: 1px solid var(--gold); box-shadow: 0 10px 30px #000a; font-size: 14px; max-width: calc(100% - 32px); }
