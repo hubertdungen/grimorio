@@ -200,7 +200,7 @@ export function WhiteStars({ v, title }) {
 }
 
 // De quem é um deck (para filtrar Ratings, Hall da fama e Galeria): meu, de um amigo, da comunidade ou do meta
-export const SRC_KINDS = [['meu', tx('🧙 Meus')], ['ami', tx('🤝 Amigos')], ['com', tx('🌐 Comunidade')], ['meta', tx('📊 Meta')]]
+const SRC_KINDS = [['meu', tx('🧙 Meus')], ['ami', tx('🤝 Amigos')], ['com', tx('🌐 Comunidade')], ['meta', tx('📊 Meta')]]
 // botões que se ligam e desligam (fica sempre pelo menos um ligado)
 export function SrcFilter({ on, set, has }) {
   return (

@@ -252,7 +252,7 @@ function Ask({ a, st, data, answer, zoom }) {
   )
 }
 
-export default function ForgeTable({ sid, data, onClose, onAgain }) {
+export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd }) {
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [toast, setToast] = useState(null)
   const seen = useRef(0)
   useEffect(() => {  // espera longa: o servidor responde quando há novidades (ou ao fim de 20 s)
@@ -294,6 +294,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
     }
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
   })
+  const ended = !!s?.ended, iWon = !!s?.winner && s.winner === me?.name
+  useEffect(() => { if (ended) onEnd?.(s.winner ? iWon : null) }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
   const byId = new Map(players.flatMap(p => ['battlefield', 'hand', 'graveyard', 'exile'].flatMap(z => (p[z] || []).map(c => [c.id, c]))))
   const lives = `${me?.life}|${opp?.life}`, prevLives = useRef(null), [lifeFx, setLifeFx] = useState(null)
   useEffect(() => {  // a vida mudou: o orbe pisca e mostra o +N/−N, como na arena
@@ -430,7 +432,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain }) {
       {toast && <div className="fp-toast" onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} {toast.msg}{toast.list && <ul>{toast.list.map((l, k) => <li key={k}>{l}</li>)}</ul>}</div>}
       {s.ended && <div className="fp-modal"><div className="fp-ask fp-end">
         <h3>{s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : tx('Jogo terminado')}</h3>
-        <div className="row-btns">{onAgain && <button className="primary" onClick={onAgain}>▶ {tx('Jogar outra vez')}</button>}<button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}
+        {series && <p className="fp-series">{series.done ? (series.w[0] > series.w[1] ? tx('🏆 Ganhaste a série {a}–{b}', { a: series.w[0], b: series.w[1] }) : tx('Perdeste a série {a}–{b}', { a: series.w[0], b: series.w[1] })) : tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })}</p>}
+        <div className="row-btns">{onAgain && <button className="primary" onClick={onAgain}>▶ {series && !series.done ? tx('Jogo seguinte (sideboard)') : series ? tx('Nova série') : tx('Jogar outra vez')}</button>}<button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}
     </div>
   )
 }

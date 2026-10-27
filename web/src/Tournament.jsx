@@ -113,7 +113,7 @@ export default function TournamentView({ data, fmt, deckId, guest, online }) {
     if (view !== 'ver') return
     const t = setInterval(loadList, 15000)
     return () => clearInterval(t)
-  }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [view])
   const [own, setOwn] = useState({})
   useEffect(() => { j('/api/decks').then(ds => setOwn(Object.fromEntries(ds.map(d => [d.id, d.friend ? 'ami' : d.community ? 'com' : 'meu'])))).catch(() => {}) }, [])
   return (
@@ -192,17 +192,18 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom }) {  // room = 'j
   const [seeding, setSeeding] = useState('aleatorio')
   const [name, setName] = useState('')
   const [players, setPlayers] = useState([])
-  const [casual, setCasual] = useState(false)  // não conta para os ratings; com `mix`, `format` passa a ser o das regras base
+  const [casual, setCasual] = useState(false)  // não conta para os ratings; com `mixF`, `format` passa a ser o das regras base
   const [mixOn, setMixOn] = useState(true)
-  const mix = casual && mixOn  // formatos misturados (só em casual)
-  const [hold, setHold] = useState(() => ls('grimorio.torneio.hold') === '1')  // só começa com o OK (escolha guardada, também nas Definições)
+  const mixF = casual && mixOn  // formatos misturados (só em casual)
+  const [hold, setHold] = useState(() => ls('grimorio.torneio.hold') === '1')
+  const [playMe, setPlayMe] = useState(() => ls('grimorio.torneio.playme') === '1')  // os jogos do meu deck jogo-os eu (Forge Play)  // só começa com o OK (escolha guardada, também nas Definições)
   const [metaFmt, setMetaFmt] = useState('')
-  const mf = mix ? metaFmt || format : format
+  const mf = mixF ? metaFmt || format : format
   const [allMine, setAllMine] = useState([])
   const [crossOn, setCrossOn] = useState(() => ls('grimorio.torneio.cross') === '1')
-  const cross = !mix && crossOn && !!CROSS[format]
+  const cross = !mixF && crossOn && !!CROSS[format]
   // os decks casuais só entram nos casuais; com «outros formatos», também os teus de formatos englobados que sejam legais aqui
-  const mine = mix ? allMine : allMine.filter(d => !d.casual && (d.format === format || (cross && CROSS[format].includes(d.format) && legalDeck(d, format, data))))
+  const mine = mixF ? allMine : allMine.filter(d => !d.casual && (d.format === format || (cross && CROSS[format].includes(d.format) && legalDeck(d, format, data))))
   const [meta, setMeta] = useState([])
   const [diffs, setDiffs] = useState([])
   const [fillN, setFillN] = useState(8)
@@ -232,7 +233,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom }) {  // room = 'j
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   useEffect(() => { j('/api/sim/difficulties').then(setDiffs).catch(() => {}); j('/api/decks').then(setAllMine).catch(() => {}) }, [])
-  useEffect(() => { if (!mix) setPlayers([]) }, [format, mix])
+  useEffect(() => { if (!mixF) setPlayers([]) }, [format, mixF])
   useEffect(() => {
     setMeta([])
     const fs = [mf, ...(cross ? CROSS[format].filter(f => CASUAL_META.includes(f)) : [])]
@@ -262,7 +263,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom }) {  // room = 'j
   const loadChampions = async (places = [1]) => {
     const l = await j('/api/tournaments').catch(() => []), seen = new Set(), out = []
     for (const t of l) {
-      if (t.status !== 'done' || t.old || (!mix && (t.format !== format || (t.casual && !casual)))) continue  // old: antes de repor os troféus
+      if (t.status !== 'done' || t.old || (!mixF && (t.format !== format || (t.casual && !casual)))) continue  // old: antes de repor os troféus
       if (champFrom === 'campeoes' ? !t.champions : champFrom && t.type !== champFrom) continue
       for (const w of (t.podium || []).filter(x => places.includes(x.place))) {
         if (seen.has(`${w.src}:${w.ref}`) || (w.src === 'meus' && !allMine.some(d => d.id === w.ref))) continue
@@ -289,7 +290,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom }) {  // room = 'j
   const deckOf = async (src, o) => (src === 'meus' ? o : j(`/api/sim/opponents/${encodeURIComponent(o.id)}`))
   const entry = async (src, o, difficulty) => {
     const d = await deckOf(src, o), c = coverOf(d, data)
-    if (src === 'meta' && o.of && o.of !== format && !mix && !legalDeck(d, format, data)) return null  // deck do meta de outro formato com cartas ilegais aqui
+    if (src === 'meta' && o.of && o.of !== format && !mixF && !legalDeck(d, format, data)) return null  // deck do meta de outro formato com cartas ilegais aqui
     return { key: `${src}:${o.id}:${Math.random()}`, src, ref: o.id, name: o.name, fr: o.friendName || '', difficulty: (src === 'meus' && myDiff) || difficulty, fmt: src === 'meus' ? o.format : mf, cover: c?.n || '', colors: colorsOf(d, data).join('') }
   }
   const add = async (src, o) => {
@@ -346,12 +347,13 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom }) {  // room = 'j
   const start = async () => {
     setBusy(true); setErr('')
     try {
-      const { id } = await post('/api/tournaments', { name: name.trim() || suggested, type, format, casual, hold, cross, champions: champs, podiums: pods, bo: boOf, third, rounds: R, seeding, team,
+      const { id } = await post('/api/tournaments', { name: name.trim() || suggested, type, format, casual, hold, cross, play_me: canPlayMe && playMe, champions: champs, podiums: pods, bo: boOf, third, rounds: R, seeding, team,
         players: players.map(({ src, ref, difficulty, cover, colors, me }) => ({ src, ref, difficulty, cover, colors, me })) })
       onCreated(id)
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
   const has = (s, id) => players.some(p => p.src === s && p.ref === id)
+  const canPlayMe = !room && players.some(p => p.me) && !F.cmd && type !== 'mesas' && type !== 'equipas'  // como tournament.py
   return (
     <section className="card tour-create">
       <h3>{room === 'jogo' ? tx('Novo jogo online') : room ? tx('Novo torneio online') : tx('Novo torneio')} <span className="muted small">{room ? tx('abre a sala e partilha o link: quem entra junta um deck seu, e os lugares que juntares aqui jogam com os bots do Forge') : tx('os bots do Forge jogam tudo sozinhos no servidor — podes fechar o browser e voltar mais tarde')}</span></h3>
@@ -361,10 +363,10 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom }) {  // room = 'j
           <label className="fmt"><span>{tx('Nome')}</span><input value={name} onChange={e => setName(e.target.value)} placeholder={suggested} /></label>
           <label className="chk"><input type="checkbox" checked={casual} onChange={e => setCasual(e.target.checked)} /> {tx('Modo casual (não conta para os ratings)')}</label>
           {casual && <label className="chk" title={tx('Desligado: todos os decks são do formato escolhido, só que o torneio não conta para os ratings.')}><input type="checkbox" checked={mixOn} onChange={e => setMixOn(e.target.checked)} /> {tx('Misturar formatos')}</label>}
-          {casual && <p className="small muted tc-info">{mix ? CASUAL_INFO : tx('Casual sem misturar: decks só deste formato.')} {tx('Os torneios casuais não contam para os ratings.')}</p>}
-          <label className="fmt"><span>{mix ? tx('Regras base (vida e tipo de jogo de todos)') : tx('Formato (todos os decks jogam este)')}</span>
+          {casual && <p className="small muted tc-info">{mixF ? CASUAL_INFO : tx('Casual sem misturar: decks só deste formato.')} {tx('Os torneios casuais não contam para os ratings.')}</p>}
+          <label className="fmt"><span>{mixF ? tx('Regras base (vida e tipo de jogo de todos)') : tx('Formato (todos os decks jogam este)')}</span>
             <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(defType(f)) }}>{FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited' && !(room && f.cmd)).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</select></label>
-          {!mix && CROSS[format] && <label className="chk small" title={tx('Os decks têm de ser legais carta a carta neste formato (o servidor confirma).')}><input type="checkbox" checked={crossOn} onChange={e => { setCrossOn(e.target.checked); ls('grimorio.torneio.cross', e.target.checked ? '1' : '0') }} /> {tx('Aceitar decks legais de outros formatos ({l})', { l: CROSS[format].map(f => FORMAT[f]?.name || f).join(', ') })}</label>}
+          {!mixF && CROSS[format] && <label className="chk small" title={tx('Os decks têm de ser legais carta a carta neste formato (o servidor confirma).')}><input type="checkbox" checked={crossOn} onChange={e => { setCrossOn(e.target.checked); ls('grimorio.torneio.cross', e.target.checked ? '1' : '0') }} /> {tx('Aceitar decks legais de outros formatos ({l})', { l: CROSS[format].map(f => FORMAT[f]?.name || f).join(', ') })}</label>}
           {room !== 'jogo' && <div className="tc-types">{Object.entries(TYPES).filter(([k]) => k !== 'jogo').map(([k, [l, lo, hi]]) => (
             <button key={k} className={type === k ? 'on' : ''} onClick={() => setType(k)}><TypeIco k={k} /><b>{l}</b><small>{lo}–{hi} decks</small></button>
           ))}</div>}
@@ -406,13 +408,13 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom }) {  // room = 'j
             <button className={champs ? 'on' : ''} onClick={champs ? () => setChamps(false) : () => loadChampions([1])} title={tx('Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.')}>🏆 {champs ? tx('Torneio dos campeões ✓') : tx('Campeões')}</button>
             {n > 0 && <button className="link small" onClick={() => setPlayers([])}>{tx('limpar')}</button>}
           </div>
-          <h4>{mix ? tx('Os meus decks') : tx('Os meus decks de {f}', { f: F.name })} <span className="muted">({mine.filter(o => kindOf(o) === 'meu').length})</span></h4>
-          <div className="opp-list">{mine.filter(o => kindOf(o) === 'meu').map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name}{mix && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}{!mine.length && <span className="muted small">{tx('Nenhum deck teu neste formato.')}</span>}</div>
+          <h4>{mixF ? tx('Os meus decks') : tx('Os meus decks de {f}', { f: F.name })} <span className="muted">({mine.filter(o => kindOf(o) === 'meu').length})</span></h4>
+          <div className="opp-list">{mine.filter(o => kindOf(o) === 'meu').map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name}{mixF && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}{!mine.length && <span className="muted small">{tx('Nenhum deck teu neste formato.')}</span>}</div>
           {mine.some(o => kindOf(o) === 'ami') && <><h4>{tx('🤝 Dos amigos')} <span className="muted">({mine.filter(o => kindOf(o) === 'ami').length})</span></h4>
           <div className="opp-list">{mine.filter(o => kindOf(o) === 'ami').map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name} <span className="muted">· 🤝 {o.friendName}</span> {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}</div></>}
           {mine.some(o => o.community) && <><h4>{tx('🌐 Da comunidade')} <span className="muted">({mine.filter(o => o.community).length})</span></h4>
-          <div className="opp-list">{mine.filter(o => o.community).map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name}{mix && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}{!mine.length && <span className="muted small">{tx('Nenhum deck teu neste formato.')}</span>}</div></>}
-          <h4>{tx('Do meta')} {mix ? <select className="tc-mf" value={mf} onChange={e => setMetaFmt(e.target.value)} aria-label={tx('Decks do meta de')}>{CASUAL_META.map(k => <option key={k} value={k}>{tx('de {f}', { f: FORMAT[k]?.name || k })}</option>)}</select> : null} <span className="muted">({meta.length})</span></h4>
+          <div className="opp-list">{mine.filter(o => o.community).map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name}{mixF && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}{!mine.length && <span className="muted small">{tx('Nenhum deck teu neste formato.')}</span>}</div></>}
+          <h4>{tx('Do meta')} {mixF ? <select className="tc-mf" value={mf} onChange={e => setMetaFmt(e.target.value)} aria-label={tx('Decks do meta de')}>{CASUAL_META.map(k => <option key={k} value={k}>{tx('de {f}', { f: FORMAT[k]?.name || k })}</option>)}</select> : null} <span className="muted">({meta.length})</span></h4>
           <div className="opp-list">{meta.map(o => <button key={o.id} className={`opp ${has('meta', o.id) ? 'on' : ''}`} onClick={() => add('meta', o)}>+ {o.name}{o.of && o.of !== mf && <span className="muted"> · {FORMAT[o.of]?.name}</span>} {o.share ? <span className="muted">{Math.round(o.share * 100)}%</span> : null} <Stars r={stars[rkey('meta', o.id)]} /></button>)}{!meta.length && <span className="muted small">{tx('Sem decks do meta para este formato.')}</span>}</div>
           <div className="tc-diff">
             <span className="small">{tx('Dificuldade:')}</span>
@@ -446,6 +448,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom }) {  // room = 'j
         {asRoom ? <button className="primary" onClick={openRoom} disabled={busy || n > max}>{tx('🚪 Abrir a sala')}</button>
           : <button className="primary" onClick={start} disabled={busy || n < lo || n > max || teamBad}>{tx('🏆 Começar o torneio')}</button>}
         <label className="chk small" title={tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}><input type="checkbox" checked={hold} onChange={e => { setHold(e.target.checked); ls('grimorio.torneio.hold', e.target.checked ? '1' : '0') }} /> {tx('Só começar quando eu der OK')}</label>
+        {!asRoom && <label className="chk small" title={canPlayMe ? tx('As partidas do teu deck esperam por ti e jogas tu, na mesa do Grimório; as outras jogam-nas os bots.') : tx('Escolhe «o meu deck» na lista (fora do Commander, das mesas e das equipas).')}><input type="checkbox" checked={canPlayMe && playMe} disabled={!canPlayMe} onChange={e => { setPlayMe(e.target.checked); ls('grimorio.torneio.playme', e.target.checked ? '1' : '0') }} /> 🎮 {tx('Jogo eu os jogos do meu deck (Forge Play)')}</label>}
         {n > 0 && (casual ? <span className="rk rk-cas" title={tx('Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.')}>{tx('Casual')}</span>
           : isRanked ? <span className="rk rk-ok" title={tx('Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).')}>🏅 {tx('Ranked')}</span>
             : <span className="rk rk-warn">⚠ {tx('Não ranked: {m} de {n} decks do meta (precisa de {k}). Conta só para as estrelas azuis e vermelhas e os troféus saem azuis.', { m: nMeta, n, k: metaNeed })}</span>)}

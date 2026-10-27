@@ -2471,3 +2471,10 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
   .run-tours ul { display: flex; overflow-x: auto; overflow-y: hidden; max-height: none; scroll-snap-type: x mandatory; padding-bottom: 4px; }
   .run-tours li { flex: 0 0 min(72vw, 260px); scroll-snap-align: start; }
 }
+.app:has(.live-bar) .pv-go { bottom: 34px; }  /* a barra «a decorrer» fica por baixo */
+/* Jogar contra o Forge: série (Bo3/Bo5) e sideboard entre jogos */
+.pv-series { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.pv-sb { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.pv-sb ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; max-height: 340px; overflow-y: auto; }
+.pv-sb li { display: flex; align-items: center; gap: 8px; font-size: 13px; } .pv-sb li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-sb li button { padding: 1px 9px; } .pv-sb .chg { color: var(--gold2); font-weight: 700; }

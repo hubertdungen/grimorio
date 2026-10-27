@@ -58,6 +58,10 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   const [modo, setModoS] = useState(() => ls('grimorio.jogar.modo') || 'grimorio')
   const setModo = v => { setModoS(v); ls('grimorio.jogar.modo', v) }
   const useNative = native && modo === 'grimorio'
+  // série: Bo1/Bo3/Bo5 na mesa do Grimório; entre jogos dá para trocar cartas com o sideboard
+  const [bo, setBoS] = useState(() => +ls('grimorio.jogar.bo') || 1)
+  const setBo = v => { setBoS(v); ls('grimorio.jogar.bo', String(v)) }
+  const [series, setSeries] = useState(null), [between, setBetween] = useState(false)  // {bo, w: [eu, ele], d: deck do jogo, done}
   const [net, setNet] = useState(null), [netOn, setNetOn] = useState(null)  // id do jogo na mesa do Grimório; jogo meu ainda aberto
   useEffect(() => { j('/api/playnet').then(l => setNetOn(l.find(x => !x.ended)?.id || null)).catch(() => {}) }, [net])
   useEffect(() => { j('/api/sim/difficulties').then(setDiffs).catch(() => setDiffs([])); j('/api/decks').then(setMine).catch(() => setMine([])) }, [])
@@ -106,12 +110,16 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
     try { setSess(await j(url, body)); setSt(s => ({ ...s, running: true })) } catch (e) { setErr(e.message) } finally { setBusy('') }
   }
   const mineDeck = { name: deck.name, commanders: deck.commanders || [], main: deck.main, side: deck.side || {} }
-  const start = () => {
+  const start = (cur = series) => {
     if (!opp) return
-    const opponent = opp.kind === 'meta' ? { id: opp.id } : opp.kind === 'meu' ? { deck_id: opp.id } : { deck: { ...mineDeck, name: opp.name } }
+    let ser = cur
+    if (useNative && bo > 1 && (!ser || ser.done)) { ser = { bo, w: [0, 0], d: mineDeck, d0: mineDeck, done: false }; setSeries(ser) }
+    else if (bo === 1 || !useNative) { ser = null; setSeries(null) }
+    const myDeck = ser?.d || mineDeck
+    const opponent = opp.kind === 'meta' ? { id: opp.id } : opp.kind === 'meu' ? { deck_id: opp.id } : { deck: { ...mineDeck, name: opp.name } }  // espelho: sempre a lista original
     if (!useNative) return go(tx('A arrancar o Forge…'), '/api/play/start', { format: fmt.key, difficulty: diff, deck: mineDeck, opponent })
     setErr(''); setBusy(tx('A arrancar o Forge…'))
-    j('/api/playnet', { difficulty: diff, deck: mineDeck, opponent, casual, name: tx('Tu') }).then(r => setNet(r.id)).catch(e => setErr(e.message)).finally(() => setBusy(''))
+    j('/api/playnet', { difficulty: diff, deck: myDeck, opponent, casual, name: tx('Tu') }).then(r => setNet(r.id)).catch(e => setErr(e.message)).finally(() => setBusy(''))
   }
   const stopNet = async () => { if (net) await j(`/api/playnet/${net}/stop`, {}).catch(() => {}); setNet(null) }
   const resume = () => go(tx('A preparar a posição…'), '/api/play/from-state', { ...fromState, difficulty: diff, format: fromState.format || fmt.key })
@@ -124,7 +132,23 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
     <div className="view play fp-view">
       <div className="row-btns fp-bar"><b>⚔ {deck.name}</b> <span className="muted small">{tx('contra a IA do Forge · {f}', { f: fmt.name })}</span>
         <button className="link small" onClick={stopNet}>■ {tx('Parar o jogo')}</button></div>
-      <ForgeTable key={net} sid={net} data={data} onClose={stopNet} onAgain={() => { setNet(null); start() }} />
+      <ForgeTable key={net} sid={net} data={data} onClose={() => { stopNet(); setSeries(null) }} series={series}
+        onEnd={won => setSeries(x => { if (!x || won == null) return x; const w = won ? [x.w[0] + 1, x.w[1]] : [x.w[0], x.w[1] + 1]; return { ...x, w, done: Math.max(...w) > x.bo / 2 } })}
+        onAgain={() => { setNet(null); if (series && !series.done) setBetween(true); else start(null) }} />
+    </div>
+  )
+  if (between && series) return (
+    <div className="view play pv">
+      <section className="card">
+        <h3>{tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })} <span className="muted small">{deck.name} {tx('contra')} {opp?.name}</span></h3>
+        <p className="small muted">{tx('Entre jogos podes trocar cartas entre o deck e o sideboard. As trocas valem até ao fim da série.')}</p>
+        <SideSwap d={series.d} d0={series.d0} set={d => setSeries(x => ({ ...x, d }))} />
+        <div className="row-btns" style={{ marginTop: 10 }}>
+          <button className="primary" onClick={() => { setBetween(false); start(series) }} disabled={!!busy}>▶ {tx('Jogo {g}', { g: series.w[0] + series.w[1] + 1 })}</button>
+          <button onClick={() => { setBetween(false); setSeries(null) }}>{tx('Acabar a série')}</button>
+          {busy && <span className="muted small">{busy}</span>}{err && <span className="small bad-t">{err}</span>}
+        </div>
+      </section>
     </div>
   )
   const dl = (diffs.length ? diffs : [{ id: 'default', label: 'Normal' }]).filter(d => d.id !== 'random')
@@ -161,6 +185,10 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
           <button className={useNative ? '' : 'on'} onClick={() => setModo('classico')}>
             <b>🖥 {tx('Forge clássico')}</b><small>{tx('O Forge desktop dentro do browser (noVNC), com todos os menus do Forge. Serve para Commander e para retomar posições de repetições.')}</small></button>
         </div>
+        <div className="pv-series" style={{ marginTop: 10 }}>
+          {useNative && <label className="small">{tx('Partida')} <span className="seg">{[1, 3, 5].map(b => <button key={b} className={bo === b ? 'on' : ''} onClick={() => setBo(b)} title={b > 1 ? tx('Série: ganha quem chegar primeiro a {k} jogos; entre jogos trocas cartas com o sideboard', { k: Math.ceil(b / 2) }) : undefined}>Bo{b}</button>)}</span></label>}
+          <button onClick={() => { ls('grimorio.torneio.playme', '1'); ls('grimorio.torneio.vista', 'criar'); window.dispatchEvent(new CustomEvent('grimorio:col', { detail: 'torneio' })) }} title={tx('Cria um torneio em que jogas tu os jogos do teu deck, na mesa do Grimório; os outros jogam-nos os bots')}>🏆 {tx('Jogar um torneio')}</button>
+        </div>
       </section>
 
       <section className="card">
@@ -191,10 +219,10 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
       </section>
 
       <div className="pv-go">
-        <span className="pv-sum"><b>{deck.name}</b> <span className="muted">vs</span> <b>{opp?.name || '—'}</b> <span className="muted small">· {DIFF_INFO[diff]?.label || diff}{casual ? ` · ${tx('casual')}` : ''} · {useNative ? tx('Mesa do Grimório') : tx('Forge clássico')}</span></span>
+        <span className="pv-sum"><b>{deck.name}</b> <span className="muted">vs</span> <b>{opp?.name || '—'}</b> <span className="muted small">· {DIFF_INFO[diff]?.label || diff}{useNative && bo > 1 ? ` · Bo${bo}` : ''}{casual ? ` · ${tx('casual')}` : ''} · {useNative ? tx('Mesa do Grimório') : tx('Forge clássico')}</span></span>
         {!useNative && <label className="chk small"><input type="checkbox" checked={fit} onChange={e => setFitPref(e.target.checked)} /> {tx('resolução ajustada à janela (sem escalar)')}</label>}
         {fromState && <button onClick={resume} disabled={!!busy}>▶ {tx('Retomar esta posição (controlas o lado {s})', { s: fromState.control === 'a' ? 'A' : 'B' })}</button>}
-        <button className="primary" onClick={start} disabled={!opp || !count || !!busy}>▶ {tx('Jogar contra o Forge')}</button>
+        <button className="primary" onClick={() => start(null)} disabled={!opp || !count || !!busy}>▶ {tx('Jogar contra o Forge')}</button>
         {busy && <span className="muted small">{busy}</span>}
         {err && <span className="small bad-t">{err}</span>}
       </div>
@@ -219,6 +247,30 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
         <summary><b>{tx('Como se joga no Forge')}</b></summary>
         <ul className="small">{TIPS.map(([k, v]) => <li key={k}><b>{k}:</b> {v}</li>)}</ul>
       </details>}
+    </div>
+  )
+}
+
+// sideboard entre jogos de uma série: uma carta de cada vez, do deck para o sideboard e ao contrário
+function SideSwap({ d, d0, set }) {
+  const mv = (from, to, n) => {
+    const a = { ...d[from] }, b = { ...d[to] }
+    if (!a[n]) return
+    a[n]--; if (!a[n]) delete a[n]; b[n] = (b[n] || 0) + 1
+    set({ ...d, [from]: a, [to]: b })
+  }
+  const diff = (k, n) => (d[k][n] || 0) - (d0[k]?.[n] || 0)
+  const list = (k, to, arrow) => (
+    <ul>{Object.entries(d[k] || {}).sort((x, y) => x[0].localeCompare(y[0])).map(([n, q]) => (
+      <li key={n}><b>{q}</b><span title={n}>{n}</span>{diff(k, n) !== 0 && <small className="chg">{diff(k, n) > 0 ? `+${diff(k, n)}` : diff(k, n)}</small>}<button className="small" onClick={() => mv(k, to, n)} title={to === 'side' ? tx('Tirar um para o sideboard') : tx('Pôr um no deck')}>{arrow}</button></li>
+    ))}</ul>
+  )
+  const cnt = k => Object.values(d[k] || {}).reduce((a, b) => a + b, 0)
+  return (
+    <div className="pv-sb">
+      <div><h4>{tx('Deck')} <span className="muted small">{cnt('main')}</span></h4>{list('main', 'side', '→')}</div>
+      <div><h4>{tx('Sideboard')} <span className="muted small">{cnt('side')}</span> {d !== d0 && <button className="link small" onClick={() => set(d0)}>{tx('repor')}</button>}</h4>
+        {cnt('side') ? list('side', 'main', '←') : <p className="muted small">{tx('Este deck não tem sideboard.')}</p>}</div>
     </div>
   )
 }

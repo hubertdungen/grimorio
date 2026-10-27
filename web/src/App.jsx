@@ -187,6 +187,10 @@ export default function App() {
   useEffect(() => { if (importLinks) setSection('biblioteca') }, [importLinks]) // eslint-disable-line react-hooks/exhaustive-deps
   // um deck clicado noutro sítio (pódio dos torneios, hall da fama) abre-se na Biblioteca, com o cartão em destaque
   const [libFocus, setLibFocus] = useState(null)
+  useEffect(() => {  // outro ecrã pede um modo do Coliseu (ex.: Jogar contra o Forge › Torneio)
+    const h = e => { setColMode(e.detail); setSection('coliseu') }
+    window.addEventListener('grimorio:col', h); return () => window.removeEventListener('grimorio:col', h)
+  }, [])
   useEffect(() => {
     const h = e => { setHome(false); setSection('biblioteca'); setLibFocus({ id: e.detail, n: Date.now() }) }
     window.addEventListener('grimorio:deck', h)
