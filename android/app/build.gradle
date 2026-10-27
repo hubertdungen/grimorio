@@ -12,7 +12,7 @@ android {
         minSdk 24
         targetSdk 34
         versionName ver
-        versionCode p[0] * 10000 + p[1] * 100 + p[2]
+        versionCode Math.max(1, p[0] * 10000 + p[1] * 100 + p[2])  // 1.10.0 -> 11000; builds de teste (0.0.0) -> 1
     }
     signingConfigs {
         release {
