@@ -5,7 +5,7 @@ import { createContext, Fragment, memo, useContext, useEffect, useLayoutEffect, 
 import { img, artPick, artMapOf, basicSplit, sf } from './data.js'
 import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
-import { useColors, sideColors } from './ui.jsx'
+import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { PHASES, replayStates, lookup, isCreature, isLand, powTough, typeOf, markDormant } from './game.js'
 
@@ -461,7 +461,7 @@ function ZoomCard({ info, big }) {
   return (
     <div className={`zoomcard ${big ? 'big' : ''}`}>
       {info.c ? <img src={im(info.c, 'normal', info.back, info.side)} alt={info.name} /> : <div className="pc-token zt"><b>{info.name}</b>{info.p?.pt && <i>{info.p.pt}</i>}</div>}
-      <div className="zinfo"><b>{info.name}</b>{info.lines.map((l, j) => <span key={j}>{l}</span>)}</div>
+      <div className="zinfo"><b>{info.name}</b>{info.lines.map((l, j) => <span key={j}><Syms text={l} /></span>)}</div>
     </div>
   )
 }

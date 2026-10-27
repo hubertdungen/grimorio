@@ -3,17 +3,16 @@
 // (Scryfall) e, se quiseres, a explicação da IA em português.
 import { useEffect, useMemo, useState } from 'react'
 import { img } from './data.js'
-import { Mana } from './ui.jsx'
+import { Mana, Syms } from './ui.jsx'
 import CardScan from './CardScan.jsx'
 import { tx } from './i18n.js'
+import { KW } from './keywords.js'
 
 async function j(url, opts) {
   const r = await fetch(url, opts), d = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(tx(d.erro || d.details || `HTTP ${r.status}`))
   return d
 }
-// keywords que aparecem no texto de uma carta (as do glossário/regras), para as ligar
-const KW = /\b(Flying|Trample|Deathtouch|Lifelink|Haste|Vigilance|First strike|Double strike|Reach|Hexproof|Indestructible|Flash|Menace|Defender|Ward|Protection|Equip|Enchant|Scry|Mill|Cycling|Flashback|Kicker|Prowess|Convoke|Cascade|Delve|Crew|Surveil|Shroud|Persist|Undying|Storm|Affinity|Dredge|Madness|Morph|Evoke|Infect|Proliferate|Transform|Explore|Adapt|Ninjutsu|Toxic|Landfall|Treasure|Food|Clue|Monarch|Initiative|Mutate|Foretell|Disturb|Training|Connive|Blitz|Casualty|Bargain|Craft|Discover|Offspring|Gift)\b/g
 
 export default function Rules({ data, initial = '' }) {
   const [q, setQ] = useState(initial), [res, setRes] = useState(null), [busy, setBusy] = useState(false), [err, setErr] = useState('')
@@ -55,7 +54,7 @@ export default function Rules({ data, initial = '' }) {
     } catch (e) { setErr(e.message) } finally { setAiBusy(false) }
   }
   useEffect(() => { if (initial) go(initial) }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const linkKw = text => String(text || '').split(KW).map((part, k) => (k % 2 ? <button key={k} className="link plain kw" onClick={() => go(part)}>{part}</button> : part))
+  const linkKw = text => String(text || '').split(KW).map((part, k) => (k % 2 ? <button key={k} className="link plain kw" onClick={() => go(part)}>{part}</button> : <Syms key={k} text={part} />))
   return (
     <div className="view rules-v">
       <section className="card">
@@ -85,9 +84,9 @@ export default function Rules({ data, initial = '' }) {
         {!res.results.length && !res.cards?.length && <p className="muted">{tx('Não encontrei nada com «{q}». Experimenta outra palavra ou pergunta à IA.', { q })}</p>}
         <ul className="rules-list">{res.results.map((x, k) => (
           <li key={k}>
-            {x.kind === 'gloss' ? <><b>{x.term}</b> <span className="muted small">{tx('glossário')}</span><p>{x.text}</p>{x.refs.map(n => <button key={n} className="link small" onClick={() => go(n)}>→ {n}</button>)}</>
+            {x.kind === 'gloss' ? <><b>{x.term}</b> <span className="muted small">{tx('glossário')}</span><p><Syms text={x.text} /></p>{x.refs.map(n => <button key={n} className="link small" onClick={() => go(n)}>→ {n}</button>)}</>
               : x.kind === 'rule' ? <><b>{x.num} {x.title}</b><ul className="rules-sub">{x.rules.map(([n, t]) => <li key={n}><code>{n}</code> {t}</li>)}</ul></>
-                : <><code>{x.num}</code> {x.text}</>}
+                : <><code>{x.num}</code> <Syms text={x.text} /></>}
           </li>))}</ul>
         <div className="row-btns"><button onClick={askAI} disabled={aiBusy}>{aiBusy ? tx('A pensar…') : `✦ ${tx('Explicar com a IA')}`}</button><span className="small muted">{tx('Usa as regras encontradas e cita os números.')}</span></div>
         {ai?.resumo && <div className="rules-ai">{ai.resumo.split(/\n+/).map((p, k) => <p key={k}>{p}</p>)}<small className="muted">{ai.modelo}</small></div>}

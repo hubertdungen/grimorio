@@ -1,4 +1,5 @@
 import Home from './Home.jsx'
+import KwPeek from './KwPeek.jsx'
 import Mesa from './Mesa.jsx'
 import ProxyDialog from './Proxies.jsx'
 import CardScan from './CardScan.jsx'
@@ -508,6 +509,7 @@ export default function App() {
         </div>
       )}
       {toast && <div className="toast">{toast.msg}{toast.undo && histN[0] > 0 && <button className="link toast-undo" onClick={undo}>↶ {tx('Desfazer')}</button>}</div>}
+      {data && <KwPeek data={data} />}
       <LiveBar guest={guest} data={data} go={m => { setColMode(m); setSection('coliseu') }} />
     </div>
   )

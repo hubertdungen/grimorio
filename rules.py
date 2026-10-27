@@ -138,7 +138,10 @@ def search(db, q, limit=12):
 
 def route(path, data_dir):
     """GET /api/rules?q=… -> {version, results}."""
-    q = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query).get("q", [""])[0][:120]
+    qs = urllib.parse.parse_qs(urllib.parse.urlsplit(path).query)
+    if qs.get("terms"):  # nomes em português que o browser reconhece (mecânicas a negrito abrem as regras)
+        return 200, {"pt": sorted(PT)}
+    q = qs.get("q", [""])[0][:120]
     db = load(data_dir)
     if not db:
         return 503, {"erro": "Ainda não tenho as regras (sem internet para as descarregar)."}

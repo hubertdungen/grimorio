@@ -2485,3 +2485,10 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .fp-hand .fp-card.fp-gap { margin-left: calc(var(--hw) * .55); }
 .fp-card.upside img { transform: rotate(180deg); }
 @media (hover: none) { .fp-hand .fp-card:hover { transform: none; box-shadow: none; } }
+.sym { width: 1.05em; height: 1.05em; vertical-align: -.16em; margin: 0 1px; }
+/* mecânica a negrito: cartão com a regra */
+.kw-peek { position: fixed; z-index: 200; width: min(320px, calc(100vw - 16px)); padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--gold); box-shadow: 0 12px 30px #000b; font-size: 13px; animation: kwIn .16s ease-out; }
+.kw-peek p { margin: 6px 0; color: var(--text); line-height: 1.4; } .kw-peek code { color: var(--muted); font-size: 11px; }
+@keyframes kwIn { from { opacity: 0; transform: translateY(-4px); } }
+.kw-rules { width: min(980px, calc(100vw - 24px)); max-height: 88vh; overflow-y: auto; position: relative; }
+.kw-x { position: absolute; top: 8px; right: 10px; z-index: 2; font-size: 20px; padding: 0 10px; }

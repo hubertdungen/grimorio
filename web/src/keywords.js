@@ -1,0 +1,4 @@
+// keywords das regras (em inglês) que aparecem em textos de cartas e explicações: ligam às Regras
+export const KW = /\b(Flying|Trample|Deathtouch|Lifelink|Haste|Vigilance|First strike|Double strike|Reach|Hexproof|Indestructible|Flash|Menace|Defender|Ward|Protection|Equip|Enchant|Scry|Mill|Cycling|Flashback|Kicker|Prowess|Convoke|Cascade|Delve|Crew|Surveil|Shroud|Persist|Undying|Storm|Affinity|Dredge|Madness|Morph|Evoke|Infect|Proliferate|Transform|Explore|Adapt|Ninjutsu|Toxic|Landfall|Treasure|Food|Clue|Monarch|Initiative|Mutate|Foretell|Disturb|Training|Connive|Blitz|Casualty|Bargain|Craft|Discover|Offspring|Gift)\b/g
+// como o rules.py: minúsculas, sem acentos nem pontuação
+export const normKw = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9.\s]/g, ' ').replace(/\s+/g, ' ').trim()

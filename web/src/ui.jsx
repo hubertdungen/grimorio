@@ -26,6 +26,15 @@ export function Oracle({ text }) {
   )
 }
 
+// símbolos de mana e de jogo no meio de um texto ({T}, {R}, {2/W}…) como imagens; o resto fica texto (só símbolos a sério:
+// outras chavetas ficam como estão)
+const SYM = /(\{(?:[WUBRGCSXYZTQEP]|\d{1,2}|[WUBRGC2]\/[WUBRGCP](?:\/P)?|½|∞|CHAOS|PW|TK|A|H[WUBRG])\})/
+export function Syms({ text }) {
+  const t = String(text ?? '')
+  if (!t.includes('{')) return t
+  return t.split(SYM).map((p, k) => (k % 2 ? <img key={k} className="sym" src={sym(p.slice(1, -1))} alt={p} /> : p))
+}
+
 export const price = c => (c.eur != null ? `${num(c.eur, 2)} €` : c.usd != null ? `$${num(c.usd, 2)}` : '—')
 
 export function Tags({ c, onTag }) {

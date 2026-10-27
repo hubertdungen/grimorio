@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Side, Hand, StackFx } from './Board.jsx'
 import { tx } from './i18n.js'
+import { Syms } from './ui.jsx'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -170,7 +171,7 @@ function Hist({ log, nameOf }) {
       out.push(pre.slice(0, pre.length - name.length), <b key={x.index} className="lg-card" data-zid={x[1]} data-zn={name}>{name}</b>)
       last = x.index + x[0].length
     }
-    return [...out, m.slice(last)]
+    return [...out, m.slice(last)].map((x, i) => (typeof x === 'string' ? <Syms key={`s${i}`} text={x} /> : x))
   }
   return <ol className="fp-hist" ref={box} aria-label={tx('Histórico do jogo')}>{log.map((e, k) => <li key={k} className={`y-${e.y}`}>{line(e.m)}</li>)}</ol>
 }
@@ -249,7 +250,7 @@ function Ask({ a, st, data, answer, zoom }) {
     <div className="fp-ask"><p>{a.msg} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
       <div className="fp-opts">{(a.options || []).map((o, k) => { const c = cardOf(o); return c
         ? <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => toggle(k)} onZoom={zoom} /></div>
-        : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}>{o.label}</button> })}</div>
+        : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={o.label} /></button> })}</div>
       <div className="row-btns">{!one && <button className="primary" disabled={pick.length < min} onClick={() => answer(a, pick)}>{tx('Confirmar ({n})', { n: pick.length })}</button>}
         {min === 0 && <button onClick={() => answer(a, [])}>{tx('Nenhum')}</button>}</div>
     </div>
@@ -294,6 +295,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     const k = e => {
       if (ask || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return
       const P = fpPrefs()
+      if (e.key.toLowerCase() === P.tap && hoverId.current != null && !e.ctrlKey && !e.metaKey && document.querySelector(`.bside.bottom .pc[data-z="k:${hoverId.current}"]`)) { e.preventDefault(); send({ c: 'card', id: hoverId.current }); return }  // rato por cima de uma carta tua na mesa + T = virá-la (tap) / ativá-la, como o clique
       if (e.key.toLowerCase() === P.flip && hoverId.current != null && !e.ctrlKey && !e.metaKey) { e.preventDefault(); const k = hoverId.current; setFlipped(f => { const n = new Set(f); n.has(k) ? n.delete(k) : n.add(k); return n }); return }
       const end = btns.find(b => b.label === 'End Turn')
       const b = e.key === 'Enter' && e.shiftKey ? end : (e.key === ' ' && P.space) || e.key === 'Enter' ? btns[0] : e.key === 'Escape' ? btns[1] : null
@@ -432,7 +434,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       <aside className="fp-side">
         <div className="fp-zoom">{zc ? <img src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
-          <p>{promptText(pr?.msg, st, me)}</p>
+          <p><Syms text={promptText(pr?.msg, st, me)} /></p>
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')}>{n}</button>))}</span>}
@@ -449,7 +451,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       {zone && <div className="fp-modal" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
         <p><b>{zone.k === 'graveyard' ? tx('Cemitério de {n}', { n: zone.p.name }) : tx('Exílio de {n}', { n: zone.p.name })}</b> <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
         <div className="fp-opts">{(players.find(p => p.id === zone.p.id)?.[zone.k] || []).map(c => <FCard key={c.id} c={c} data={data} big onClick={x => { send({ c: 'card', id: x.id }); setZone(null) }} />)}</div></div></div>}
-      {toast && <div className="fp-toast" onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} {toast.msg}{toast.list && <ul>{toast.list.map((l, k) => <li key={k}>{l}</li>)}</ul>}</div>}
+      {toast && <div className="fp-toast" onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} <Syms text={toast.msg} />{toast.list && <ul>{toast.list.map((l, k) => <li key={k}><Syms text={l} /></li>)}</ul>}</div>}
       {s.ended && <div className="fp-modal"><div className="fp-ask fp-end">
         <h3>{s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : tx('Jogo terminado')}</h3>
         {series && <p className="fp-series">{series.done ? (series.w[0] > series.w[1] ? tx('🏆 Ganhaste a série {a}–{b}', { a: series.w[0], b: series.w[1] }) : tx('Perdeste a série {a}–{b}', { a: series.w[0], b: series.w[1] })) : tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })}</p>}

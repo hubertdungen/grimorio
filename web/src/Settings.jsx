@@ -110,7 +110,9 @@ function TableKeys() {
     <>
       <label className="chk"><input type="checkbox" checked={p.space} onChange={e => save({ space: e.target.checked })} /> {tx('Espaço faz o mesmo que Enter (OK / passar)')}</label>
       <label className="fmt"><span>{tx('Tecla para virar a carta debaixo do rato (a outra face, ou de pernas para o ar; só no teu ecrã)')}</span>
-        <input value={p.flip.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (/^[a-z0-9]$/.test(k)) save({ flip: k }) }} /></label>
+        <input value={p.flip.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (/^[a-z0-9]$/.test(k) && k !== p.tap) save({ flip: k }) }} /></label>
+      <label className="fmt"><span>{tx('Tecla para virar (tap) a carta tua na mesa debaixo do rato — o mesmo que clicar nela')}</span>
+        <input value={p.tap.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (/^[a-z0-9]$/.test(k) && k !== p.flip) save({ tap: k }) }} /></label>
       <p className="muted small">{tx('Na mão: um clique levanta a carta e mostra-a; para a jogar, arrasta-a para a mesa (ou duplo clique). Se a largares de volta na mão, fica no sítio onde a largaste.')}</p>
     </>
   )
