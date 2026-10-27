@@ -2504,3 +2504,19 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .modal.scan.full .scan-res { position: absolute; left: 10px; right: 10px; bottom: calc(80px + env(safe-area-inset-bottom)); background: var(--panel); border-radius: 12px; padding: 10px; box-shadow: 0 -8px 30px #000b; max-height: 55dvh; overflow-y: auto; }
 body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra «a decorrer» não tapa os botões */
 .modal.scan.full .scan-cam { height: 100%; }
+.fp .pc.fp-hit { animation: fpHit .7s ease-out; }  /* alvo escolhido ao largar uma carta em cima */
+@keyframes fpHit { 0% { filter: drop-shadow(0 0 0 #ffd36a); } 35% { filter: drop-shadow(0 0 14px #ffd36a) brightness(1.25); } 100% { filter: none; } }
+/* scry / vigiar: dois montes; procurar na biblioteca: grelha com filtro */
+.fp-piles { width: min(900px, 94vw); }
+.fp-pile-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fp-pile { border: 2px dashed var(--line); border-radius: 14px; padding: 8px; min-height: 180px; display: grid; align-content: start; gap: 6px; transition: border-color .2s, background .2s; }
+.fp-pile.out { border-color: #b4535388; background: #b4535312; } .fp-pile.top { border-color: #4ade8066; }
+.fp-pile-c { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.fp-pile .fp-opt { touch-action: none; cursor: grab; } .fp-pile .fp-card { --cw: clamp(78px, 13vw, 128px); }
+.fp-grid-ask { width: min(1100px, 96vw); } .fp-grid-ask input { width: 100%; margin: 4px 0 8px; }
+.fp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; max-height: 58vh; overflow-y: auto; padding: 4px; }
+.fp-grid .fp-card { --cw: 100%; width: 100%; }
+.fp-opt.deal { animation: fpDeal .38s cubic-bezier(.2, 1.3, .4, 1) both; animation-delay: calc(var(--i) * 22ms); }
+@keyframes fpDeal { from { opacity: 0; transform: translateY(-30px) rotate(-6deg) scale(.85); } }
+@media (max-width: 600px) { .fp-pile-row { grid-template-columns: minmax(0, 1fr); } }
+.fp-grid .fp-opt { position: relative; } .fp-many { position: absolute; right: 6px; bottom: 6px; padding: 1px 7px; border-radius: 99px; background: #000c; color: var(--gold2); font-size: 12px; }

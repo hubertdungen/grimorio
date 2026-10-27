@@ -144,6 +144,7 @@ function useDrag(onDrop, onLong) {
         return
       }
       const ok = !!res
+      if (ok) flipFrom.set(String(id), g.getBoundingClientRect())
       g.style.transition = ok ? 'transform .25s ease-out, opacity .25s ease-out' : 'transform .55s cubic-bezier(.2, 1.6, .4, 1)'
       requestAnimationFrame(() => {
         g.style.transform = ok ? `translate(${ev.clientX - r.width / 2}px, ${ev.clientY - r.height / 2}px) scale(.9)` : `translate(${r.left}px, ${r.top}px) rotate(0deg) scale(1)`
@@ -221,6 +222,110 @@ function useTableFit(boxRef, tableRef, ready) {
   }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
+// cartas que mudam de sítio entre um estado do Forge e o seguinte (da mão para a mesa, presas a uma criatura, outra fila)
+// deslizam com mola do sítio antigo para o novo (FLIP: mede antes e depois e anima a diferença). A mesma carta tem o
+// mesmo id na mão e na mesa, por isso uma carta jogada voa da mão para o lugar dela.
+const flipFrom = new Map()  // carta largada na mesa: o voo parte de onde a largaste (não da mão)
+function useFlip(box, seq) {
+  const last = useRef(new Map())
+  useLayoutEffect(() => {
+    const t = box.current
+    if (!t) return
+    const now = new Map(), reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    for (const el of t.querySelectorAll('.pc[data-z^="k:"], .fp-hand [data-h]')) {
+      const id = el.dataset.h || el.dataset.z.slice(2), r = el.getBoundingClientRect()
+      if (!r.width) continue
+      now.set(id, r)
+      const o = flipFrom.get(id) || last.current.get(id)
+      flipFrom.delete(id)
+      if (!o || reduce) continue
+      const dx = o.left - r.left, dy = o.top - r.top, k = o.width / r.width
+      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue
+      el.style.transition = 'none'
+      el.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`
+      el.style.zIndex = '6'
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.style.transition = 'transform .5s cubic-bezier(.2, 1.25, .35, 1)'
+        el.style.transform = ''
+        setTimeout(() => { el.style.transition = ''; el.style.zIndex = '' }, 520)
+      }))
+    }
+    last.current = now
+  }, [seq])  // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+// FLIP dentro de uma caixa: depois de cada mudança de `dep`, as cartas (data-k) deslizam do sítio antigo para o novo
+function useBoxFlip(box, dep) {
+  const last = useRef(new Map())
+  useLayoutEffect(() => {
+    const now = new Map()
+    for (const el of box.current?.querySelectorAll('[data-k]') || []) {
+      const k = el.dataset.k, r = el.getBoundingClientRect(), o = last.current.get(k)
+      now.set(k, r)
+      if (!o || (Math.abs(o.left - r.left) < 2 && Math.abs(o.top - r.top) < 2)) continue
+      el.style.transition = 'none'; el.style.transform = `translate(${o.left - r.left}px, ${o.top - r.top}px)`
+      requestAnimationFrame(() => requestAnimationFrame(() => { el.style.transition = 'transform .42s cubic-bezier(.2, 1.3, .35, 1)'; el.style.transform = '' }))
+    }
+    last.current = now
+  }, [dep])  // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+// scry / vigiar: as cartas do topo abertas na mesa, em dois montes; um toque (ou arrastar) muda a carta de monte
+function PileAsk({ a, data, answer, zoom, dest }) {
+  const [out, setOut] = useState([]), box = useRef(null), drag = useRef(null)
+  useBoxFlip(box, out.join())
+  const move = (k, to) => setOut(o => (to === 'out' ? (o.includes(k) ? o : [...o, k]) : o.filter(x => x !== k)))
+  const down = (e, k) => {  // arrastar com o dedo/rato: larga-se no outro monte
+    const el = e.currentTarget, x0 = e.clientX, y0 = e.clientY
+    drag.current = { k, moved: false }
+    const mv = ev => { const dx = ev.clientX - x0, dy = ev.clientY - y0; if (Math.hypot(dx, dy) > 6) drag.current.moved = true; el.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx / 30}deg) scale(1.06)`; el.style.zIndex = 9 }
+    const up = ev => {
+      removeEventListener('pointermove', mv); removeEventListener('pointerup', up)
+      el.style.transform = ''; el.style.zIndex = ''
+      const pile = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-pile]')?.dataset.pile
+      if (drag.current.moved && pile) move(k, pile)
+      else if (!drag.current.moved) move(k, out.includes(k) ? 'top' : 'out')
+    }
+    addEventListener('pointermove', mv); addEventListener('pointerup', up)
+  }
+  const pile = (key, title, list) => (
+    <div className={`fp-pile ${key}`} data-pile={key}><small>{title} <b>{list.length}</b></small>
+      <div className="fp-pile-c">{list.map(k => { const o = a.options[k]; return (
+        <div key={k} data-k={k} className="fp-opt" onPointerDown={e => down(e, k)} onMouseEnter={() => zoom?.({ name: o.label })}>
+          <FCard c={{ id: o.card ?? -k, name: o.label }} data={data} big /></div>) })}</div></div>)
+  const all = a.options.map((_, k) => k)
+  return (
+    <div className="fp-ask fp-piles" ref={box}><p>{dest === 'gy' ? tx('Vigiar: arrasta (ou toca) as cartas que vão para o cemitério') : tx('Scry: arrasta (ou toca) as cartas que vão para o fundo da biblioteca')}</p>
+      <div className="fp-pile-row">{pile('top', tx('Ficam no topo'), all.filter(k => !out.includes(k)))}{pile('out', dest === 'gy' ? tx('Cemitério') : tx('Fundo da biblioteca'), out)}</div>
+      <div className="row-btns"><button className="primary" onClick={() => answer(a, out)}>{tx('Confirmar')}</button></div>
+    </div>)
+}
+
+// escolher entre muitas cartas (procurar na biblioteca, tutores…): grelha com filtro, as cartas entram uma a uma
+function GridAsk({ a, data, answer, zoom }) {
+  const [q, setQ] = useState(''), [pick, setPick] = useState([])
+  const min = a.min ?? 1, max = a.max ?? 1, one = max === 1
+  const card = o => data.byName.get(o.label) || data.byLower?.get(String(o.label).toLowerCase())
+  const n = q.trim().toLowerCase()
+  // cartas iguais (7 Islands) num só monte com «×7»: um toque escolhe a próxima desse nome
+  const groups = [...a.options.reduce((m, o, k) => m.set(o.label, [...(m.get(o.label) || []), k]), new Map())]
+  const shown = groups.map(([label, ks]) => [{ ...a.options[ks[0]], label }, ks]).filter(([o]) => !n || o.label.toLowerCase().includes(n) || (card(o)?.t || '').toLowerCase().includes(n))
+  const tap = ks => {
+    if (one) return answer(a, [ks[0]])
+    setPick(p => { const free = ks.find(k => !p.includes(k)); return free != null && p.length < max ? [...p, free] : p.filter(k => !ks.includes(k)) })
+  }
+  return (
+    <div className="fp-ask fp-grid-ask"><p>{a.msg} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
+      <input type="search" autoFocus placeholder={tx('Filtrar por nome ou tipo…')} value={q} onChange={e => setQ(e.target.value)} />
+      <div className="fp-grid">{shown.map(([o, ks], i) => { const got = ks.filter(k => pick.includes(k)).length; return (
+        <div key={ks[0]} className={`fp-opt deal ${got ? 'on' : ''}`} style={{ '--i': Math.min(i, 30) }} onMouseEnter={() => zoom?.({ name: o.label })}>
+          <FCard c={{ id: o.card ?? -ks[0], name: o.label }} data={data} big onClick={() => tap(ks)} />
+          {ks.length > 1 && <b className="fp-many">{got ? `${got}/` : '×'}{ks.length}</b>}</div>) })}</div>
+      <div className="row-btns">{!one && <button className="primary" disabled={pick.length < min} onClick={() => answer(a, pick)}>{tx('Confirmar ({n})', { n: pick.length })}</button>}
+        {min === 0 && <button onClick={() => answer(a, [])}>{one ? tx('Nenhuma') : tx('Nenhum')}</button>}</div>
+    </div>)
+}
+
 // escolhas que bloqueiam o motor: sim/não, uma opção, um número ou texto, ou escolher entre cartas/jogadores
 function Ask({ a, st, data, answer, zoom }) {
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
@@ -244,6 +349,12 @@ function Ask({ a, st, data, answer, zoom }) {
     <div className="fp-ask"><p>{a.msg || a.title}</p>
       {a.options ? <div className="row-btns">{a.options.map((o, k) => <button key={k} onClick={() => answer(a, o)}>{o}</button>)}</div>
         : <form className="row-btns" onSubmit={e => { e.preventDefault(); answer(a, txt) }}><input autoFocus type={a.numeric ? 'number' : 'text'} value={txt} onChange={e => setTxt(e.target.value)} /><button className="primary">{tx('OK')}</button></form>}</div>)
+  if (a.kind === 'choose' && (a.options || []).every(o => o.card != null)) {  // só cartas: scry, vigiar ou uma lista grande
+    const m = a.msg || ''
+    if (/bottom of (your )?library/i.test(m)) return <PileAsk a={a} data={data} answer={answer} zoom={zoom} dest="bottom" />
+    if (/into (your |the )?graveyard|put in the graveyard/i.test(m) && (a.min ?? 0) === 0) return <PileAsk a={a} data={data} answer={answer} zoom={zoom} dest="gy" />
+    if (a.options.length >= 7) return <GridAsk a={a} data={data} answer={answer} zoom={zoom} />
+  }
   const min = a.min ?? 1, max = a.max ?? 1, one = max === 1
   const toggle = k => (one ? answer(a, [k]) : setPick(p => (p.includes(k) ? p.filter(x => x !== k) : p.length < max ? [...p, k] : p)))
   return (
@@ -328,11 +439,17 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       const h = target.closest('[data-h]'), l = moveBefore(keysIn(hand, '[data-h]', 'data-h'), String(id), h?.dataset.h)
       setLay(x => ({ ...x, hand: l })); return 'local'
     }
+    const perm = target.closest('.pc[data-z^="k:"]'), pid = perm && +perm.dataset.z.slice(2), mine = st.active === me?.id
     if (from === 'hand') {  // da mão para a mesa: jogar — só se o Forge diz que dá (mana e altura certas)
       if (!byId.get(id)?.play) { setToast({ title: tx('Agora não dá para jogar esta carta'), msg: tx('Falta mana, não é a altura (feitiço fora da tua fase principal) ou já jogaste um terreno neste turno.') }); return false }
+      // largada em cima de uma permanente (aura, remoção, reforço…): esse é o alvo — a mesa responde ao Forge por ti
+      if (pid != null) { aim(pid, perm) }
       send1({ c: 'card', id }); return true
     }
-    const perm = target.closest('.pc[data-z^="k:"]'), pid = perm && +perm.dataset.z.slice(2), mine = st.active === me?.id
+    // equipamento teu largado numa criatura tua, no teu turno: equipar essa criatura
+    if (pid != null && pid !== id && mine && /Equipment/.test(typeOf(id)) && /Creature/.test(typeOf(pid)) && target.closest('.bside.bottom')) {
+      aim(pid, perm, /^Equip/i); send1({ c: 'card', id }); return true
+    }
     if (!mine && pid && st.combat?.some(x => x.att === pid)) { send1({ c: 'card', id: pid }).then(() => send1({ c: 'card', id })); return true }  // largar num atacante: bloquear
     if (mine && st.phase === 'COMBAT_DECLARE_ATTACKERS' && target.closest('.bside.top')) { send1({ c: 'card', id }); return true }  // largar no lado dele: atacar
     const row = target.closest('.bside.bottom') && target.closest('.brow')
@@ -345,6 +462,27 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     return 'local'
   }
   const { down, dragged } = useDrag(drop, id => setZoom(byId.get(id)))
+  // intenção do gesto (alvo largado em cima): quando o Forge pergunta a habilidade ou o alvo, responde-se sozinho
+  const intent = useRef(null)
+  const typeOf = id => { const c = byId.get(id); return (c && (data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase()))?.t) || '' }
+  const aim = (pid, el, ability = null) => {
+    intent.current = { target: pid, ability, until: Date.now() + 20000 }
+    el?.classList.add('fp-hit'); setTimeout(() => el?.classList.remove('fp-hit'), 700)
+  }
+  useEffect(() => {
+    const it = intent.current
+    if (!it || !s) return
+    if (Date.now() > it.until || s.ended) { intent.current = null; return }
+    const a = s.asks?.[0]
+    if (a) {
+      const opts = a.options || []
+      if (it.ability) { const k = opts.findIndex(o => it.ability.test(o.label || '')); if (k >= 0) { it.ability = null; answer(a, [k]); return } }
+      const k = a.kind === 'choose' ? opts.findIndex(o => o.card === it.target) : -1
+      if (k >= 0) { intent.current = null; answer(a, [k]) }
+      return
+    }
+    if (byId.get(it.target)?.sel) { intent.current = null; send({ c: 'card', id: it.target }) }  // o Forge pede o alvo: é este
+  }, [s?.seq, s?.asks?.length])  // eslint-disable-line react-hooks/exhaustive-deps
   // animações como no tabuleiro dos bots: a pilha (StackFx) com «A resolver», números de dano/marcadores nas cartas e as
   // cartas que saem do campo a desaparecer (dying) — tudo a partir da diferença entre um estado do Forge e o seguinte
   const anim = useRef({ perms: new Map(), stack: [] }), [fxs, setFxs] = useState({ pops: new Map(), gone: [], rev: null, ri: 0 })
@@ -370,6 +508,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   useEffect(() => { if (!fxs.gone.length && !fxs.pops.size) return; const t = setTimeout(() => setFxs(f => ({ ...f, pops: new Map(), gone: f.gone.filter(g => g.until > Date.now()) })), 1200); return () => clearTimeout(t) }, [fxs.gone.length, fxs.pops])
   const fitBox = useRef(null), fitTable = useRef(null)
   useTableFit(fitBox, fitTable, !!st)
+  useFlip(fitTable, seqKey)
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const myTurn = st.active === me?.id
   const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true }
