@@ -160,26 +160,31 @@ sync is for computers and single-owner servers.
   directly (swaps, quantities, substitutes for any card) with one click.
 - **Coliseum (Forge AI)** — AI vs AI with real rules (Bo1/Bo3, smart sideboarding, learning), 3–4 player free-for-all
   and Commander pods, an animated board with the live stack, reports and suggested improvements.
-- **Play against Forge yourself** — Grimório's own table: drag a card to play it (only what you can pay for lights up),
-  drag creatures to attack and block, arrange your side freely, the stack, choices, scry and library searches right in
-  the page, Enter to pass and Shift+Enter to end the turn. Works on a server and in the desktop packages (no Docker);
-  Commander uses the classic Forge window (server with Docker).
+- **Play against Forge yourself** — Grimório's own table: one click lifts a card and dragging it onto the table plays it
+  (or double-click; only what you can pay for lights up), the rest of your hand makes room as you hover over it, T taps
+  the card under the mouse and F flips it over; Bo3/Bo5 series with sideboarding between games, and tournaments where
+  you play your own deck's games; drag creatures to attack and block, arrange your side freely, the stack, choices, scry
+  and library searches right in the page, Enter to pass and Shift+Enter to end the turn. Works on a server and in the
+  desktop packages (no Docker); Commander uses the classic Forge window (server with Docker).
 - **Tournaments, leagues and championships** — single and double elimination, Swiss, league, pods, gauntlet, king of
-  the hill, groups + knockout and teams; a tournament generator, live bracket, podium and history, champions' and
-  podium leagues, gold/silver/bronze and platinum trophies on the winning decks, ranked or casual; bets with play coins
-  (nothing to buy, no real money).
-- **Ratings and ranking** — 0–6 stars per deck (Elo per format, plus a separate casual rating), hall of fame and trophy
-  gallery, fed by tests, tournaments and an optional automatic Arena.
+  the hill, groups + knockout and teams; casual with or without mixed formats; a tournament generator, live bracket,
+  podium and history, champions' and podium leagues, gold/silver/bronze and platinum trophies on the winning decks,
+  ranked or casual; bets with play coins (nothing to buy, no real money).
+- **Ratings and ranking** — 0–6 stars per deck (Elo per format, plus a separate casual rating), white stars and trophy
+  count, mine / friends / community / meta filters, hall of fame and trophy gallery, fed by tests, tournaments and an
+  optional automatic Arena.
 - **Online and friends** — an Online tab for single games or tournaments with a public link (a free Cloudflare tunnel
   in one click, or your own domain): whoever opens it joins with a deck of their own, no account. Friend invites,
   friends' decks as a source in tournaments and the Arena, and tags for where each deck comes from (meta, mine, friend,
   community).
 - **📖 Rules library** — keywords, rules or card names in any language (camera too): Comprehensive Rules, official
-  rulings and an optional AI explanation.
+  rulings and an optional AI explanation. On any screen, a mechanic in bold shows its rule on hover and opens the Rules
+  in a window; mana symbols show up as symbols, not as {T}.
 - **Proxies** — a list with printings for proxy sites, a ZIP of the images, or a print-ready PDF like the print shops
   ask for: paper, margins, card size, gaps, bleed (black, a colour, or the card border extended), cut guides per card,
   watermark and double-sided. The tokens your deck makes (detected, with how many of each) and Grimório's suggestions to try out can go in too.
-- **At the table** — life counter (up to 6 players), 3D dice, and a card scanner (camera) with an aiming frame.
+- **At the table** — life counter (up to 6 players), 3D dice, and a card scanner (camera) with an aiming frame (on
+  phones and tablets the camera opens fullscreen).
 - **Default bots** — pick the Forge AI profile for your deck and for opponents in the Lab, tournaments and the Arena; a
   live bar shows what is running and jumps to the live viewer.
 - **Draft and Sealed** — open real packs of any of 160 sets (Forge's own boosters): draft at a table of 8 with Forge
@@ -188,16 +193,17 @@ sync is for computers and single-owner servers.
 - **What you lose to** — the sideboard suggestions read your test games: the kinds of cards you keep losing to
   (creatures, graveyard, artifacts…) and answers in your colours that the AI can cast, the ones in real meta sideboards
   first. Cards the Forge AI never casts are flagged.
-- **Deck ratings in the Analysis** — normal, all-games, objective and casual stars with Elo and games, plus trophy stars.
+- **Deck ratings in the Analysis** — normal, all-games, objective and casual stars with Elo and games, plus trophy stars
+  and every trophy won (opens the tournament).
 - **Smarter Forge AI** — Grimório patches Forge where it misplayed real decks: land drops by the colours your hand needs
   (fetchlands included), Urza's Saga, the Heliod + Spike Feeder combo, Food at the right time, Maze's End wins, storm
   decks (Wish, Manamorphose), Wrath of the Skies, Path to Exile targets and aura stacking. The automatic sideboarding
   never adds cards the AI can't cast and never takes out a 4-of.
-- **Live tournament viewer** — jump to the next game of the same match (or wait for it), and the deck you bet on sits
-  on your side of the table.
+- **Live tournament viewer** — jump to the next game of the same match (or wait for it), the deck you bet on sits on
+  your side of the table, and the other tournaments in progress show up next to the bets, one click away.
 - **Profiles** — one install, several players, each with their own decks.
 - **Installable** as a PWA on phones and tablets; touch-friendly. On a phone the live board zooms (− / + / fit),
-  the screen stays on while Grimório is open (Settings › Screen) and fullscreen stays upright. If a network blocks scryfall.io (work, school), card images come through your own server instead (automatic, or Settings › Card images).
+  the screen stays on while Grimório is open (Settings › Screen) and fullscreen stays upright. If a network blocks scryfall.io (work, school), card images come through your own server instead (automatic, or Settings › Card images); so do imported decks' own images (TappedOut, Archidekt).
 
 ### How Grimório learns
 

@@ -268,6 +268,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card danger-zone"><h3>{tx('Recomeçar')}</h3><ResetStats /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
       <section className="card"><h3>{tx('Atualizações')}</h3><Updates /></section>
+      {window.GrimorioApp && <section className="card"><h3>{tx('App Android')}</h3><p className="muted small">{tx('Versão {v}. A app abre o teu servidor do Grimório.', { v: window.GrimorioApp.version?.() || '?' })}</p><button onClick={() => window.GrimorioApp.changeServer()}>{tx('Mudar de servidor')}</button></section>}
       </div>
     </div>
   )

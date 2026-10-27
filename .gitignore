@@ -27,3 +27,9 @@ web/dist/
 __pycache__/
 # packaging/build.py (CI): Forge download, forge-ext, packages
 /work/
+
+# app Android (gradle)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

@@ -51,6 +51,17 @@ document.addEventListener('error', e => {
   if (el.tagName === 'IMG' && EXT.test(el.src) && !el.dataset.ext) { el.dataset.ext = '1'; el.src = el.src.replace(EXT, './ext/$1/') }
 }, true)
 
+// App Android (android/): os ficheiros feitos aqui (PDF/ZIP dos proxies, cópias) não passam pelo gestor de transferências
+// do Android; vão em base64 para a app, que os guarda nas Transferências
+if (window.GrimorioApp?.saveFile) {
+  const click = HTMLAnchorElement.prototype.click
+  const save = a => fetch(a.href).then(r => r.blob()).then(b => new Promise(ok => { const f = new FileReader(); f.onload = () => ok([b.type, String(f.result).split(',')[1]]); f.readAsDataURL(b) }))
+    .then(([type, b64]) => window.GrimorioApp.saveFile(a.download || 'grimorio', type || 'application/octet-stream', b64)).catch(() => {})
+  const mine = a => a.download != null && a.hasAttribute('download') && /^(blob|data):/.test(a.href)
+  HTMLAnchorElement.prototype.click = function () { if (mine(this)) return void save(this); return click.call(this) }
+  document.addEventListener('click', e => { const a = e.target.closest?.('a[download]'); if (a && mine(a)) { e.preventDefault(); save(a) } }, true)
+}
+
 // a app só carrega depois do dicionário da língua: as tabelas fixas dos módulos já nascem traduzidas
 // (o data.js também só aqui: as tabelas dele — tipos, cores — traduzem-se ao carregar o módulo)
 ready.catch(() => {}).then(() => Promise.all([import('./App.jsx'), import('./confirm.jsx'), import('./data.js')]))

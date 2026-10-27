@@ -1,0 +1,33 @@
+// A app Android do Grimório: uma janela (WebView) para o teu servidor do Grimório, com câmara, fotos e transferências.
+plugins { id 'com.android.application' }
+
+def ver = System.getenv('GRIMORIO_VERSION') ?: '0.0.0'
+def p = ver.tokenize('.-').findAll { it.isInteger() }.collect { it as int } + [0, 0, 0]
+
+android {
+    namespace 'com.hubertdungen.grimorio'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.hubertdungen.grimorio'
+        minSdk 24
+        targetSdk 34
+        versionName ver
+        versionCode p[0] * 10000 + p[1] * 100 + p[2]
+    }
+    signingConfigs {
+        release {
+            // chave fixa (segredos do GitHub) para as atualizações instalarem por cima; sem ela, a chave de debug
+            def ks = System.getenv('ANDROID_KEYSTORE_FILE')
+            if (ks) { storeFile file(ks); storePassword System.getenv('ANDROID_KEY_PASS'); keyAlias 'grimorio'; keyPassword System.getenv('ANDROID_KEY_PASS') }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig System.getenv('ANDROID_KEYSTORE_FILE') ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+
+dependencies { implementation 'androidx.core:core:1.13.1' }

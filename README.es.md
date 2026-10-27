@@ -171,27 +171,33 @@ en la nube es para ordenadores y servidores de un solo dueño.
 - **Coliseo (IA de Forge)**: IA contra IA con reglas reales (Bo1/Bo3, sideboard inteligente, aprendizaje), todos
   contra todos de 3–4 jugadores y mesas de Commander, un tablero animado con la pila en directo, informes y mejoras
   sugeridas.
-- **Juega tú contra Forge**: la mesa propia de Grimório. Arrastra una carta para jugarla (solo se ilumina lo que puedes
-  pagar), arrastra criaturas para atacar y bloquear, ordena tu lado como quieras; la pila, las elecciones, el adivinar y
-  las búsquedas en la biblioteca aparecen en la misma página; Enter para pasar y Shift+Enter para terminar el turno.
-  Funciona en un servidor y en los paquetes de escritorio (sin Docker); Commander usa la ventana clásica de Forge
-  (servidor con Docker).
+- **Juega tú contra Forge**: la mesa propia de Grimório. Un clic levanta la carta y arrastrarla a la mesa la juega (o
+  doble clic; solo se ilumina lo que puedes pagar), al pasar por encima de la mano las demás cartas hacen sitio, T gira
+  (tap) la carta bajo el ratón y F le da la vuelta; series Bo3/Bo5 con banquillo entre partidas y torneos en los que
+  juegas tú las partidas de tu mazo; arrastra criaturas para atacar y bloquear, ordena tu lado como quieras; la pila,
+  las elecciones, el adivinar y las búsquedas en la biblioteca aparecen en la misma página; Enter para pasar y
+  Shift+Enter para terminar el turno. Funciona en un servidor y en los paquetes de escritorio (sin Docker); Commander
+  usa la ventana clásica de Forge (servidor con Docker).
 - **Torneos, ligas y campeonatos**: eliminación directa y doble eliminación, suizo, liga, mesas, gauntlet, rey de la
-  colina, grupos + eliminatorias y equipos; un generador de torneos, cuadro en directo, podio e historial, ligas de
-  campeones y de podios, trofeos de oro/plata/bronce y platino en los mazos que ganan, con ranking o casual; apuestas
-  con monedas de juego (no se compra nada, sin dinero real).
-- **Ratings y ranking**: de 0 a 6 estrellas por mazo (Elo por formato, más un rating casual aparte), salón de la fama y
-  galería de trofeos, alimentados por las pruebas, los torneos y una Arena automática opcional.
+  colina, grupos + eliminatorias y equipos; casual con o sin formatos mezclados; un generador de torneos, cuadro en
+  directo, podio e historial, ligas de campeones y de podios, trofeos de oro/plata/bronce y platino en los mazos que
+  ganan, con ranking o casual; apuestas con monedas de juego (no se compra nada, sin dinero real).
+- **Ratings y ranking**: de 0 a 6 estrellas por mazo (Elo por formato, más un rating casual aparte), estrellas blancas
+  y número de trofeos, filtros míos / amigos / comunidad / meta, salón de la fama y galería de trofeos, alimentados por
+  las pruebas, los torneos y una Arena automática opcional.
 - **En línea y amigos**: una pestaña En línea para partidas sueltas o torneos con un enlace público (un túnel gratuito
   de Cloudflare en un clic, o tu propio dominio): quien lo abre entra con un mazo suyo, sin cuenta. Invitaciones de
   amigos, los mazos de los amigos como fuente en torneos y en la Arena, y etiquetas con el origen de cada mazo (meta,
   míos, de un amigo, de la comunidad).
 - **📖 Biblioteca de reglas**: palabras clave, reglas o nombres de cartas en cualquier idioma (también con la cámara):
-  Comprehensive Rules, rulings oficiales y una explicación opcional de la IA.
+  Comprehensive Rules, rulings oficiales y una explicación opcional de la IA. En cualquier pantalla, una mecánica en
+  negrita muestra la regla al pasar el ratón y abre las Reglas en una ventana; los símbolos de maná aparecen como
+  símbolos, no como {T}.
 - **Proxies**: lista con las ediciones para webs de proxies, ZIP con las imágenes o un PDF listo como piden las
   imprentas: papel, márgenes, tamaño de carta, espacio entre cartas, sangrado (negro, un color o el borde de la carta
   extendido), guías de corte por carta, marca de agua y doble cara. También entran las fichas que crea el mazo (detectadas, con cuántas de cada una) y las sugerencias de Grimório para probar.
-- **En la mesa**: contador de vidas (hasta 6 jugadores), dados en 3D y un escáner de cartas (cámara) con un marco de mira.
+- **En la mesa**: contador de vidas (hasta 6 jugadores), dados en 3D y un escáner de cartas (cámara) con un marco de
+  mira (en el móvil y la tableta la cámara se abre a pantalla completa).
 - **Bots predeterminados**: el perfil de la IA de Forge para tu mazo y para los rivales en el Laboratorio, los torneos
   y la Arena; una barra muestra lo que está en curso y lleva al visor en directo.
 - **Draft y Sellado**: abre sobres reales de cualquiera de 160 ediciones (los sobres del propio Forge): haz el draft
@@ -201,18 +207,18 @@ en la nube es para ordenadores y servidores de un solo dueño.
 - **Contra lo que pierdes**: las sugerencias de banquillo leen tus pruebas: los tipos de cartas que te ganan
   (criaturas, cementerio, artefactos…) y respuestas en tus colores que la IA sabe lanzar, primero las que llevan los
   banquillos del meta. Las cartas que la IA de Forge nunca lanza quedan señaladas.
-- **Ratings del mazo en el Análisis**: estrellas normal, todas las partidas, objetivo y casual, con Elo y partidas, y
-  las estrellas de los trofeos.
+- **Ratings del mazo en el Análisis**: estrellas normal, todas las partidas, objetivo y casual, con Elo y partidas, las
+  estrellas de los trofeos y cada trofeo ganado (abre el torneo).
 - **IA de Forge más lista**: Grimório corrige Forge donde jugaba mal mazos reales: tierras según el color que pide la
   mano (fetchlands incluidas), Urza's Saga, el combo Heliod + Spike Feeder, Food en el momento justo, victoria con
   Maze's End, mazos de storm (Wish, Manamorphose), Wrath of the Skies, objetivos de Path to Exile y auras apiladas. El
   banquillo automático nunca mete cartas que la IA no lanza ni saca un 4-of.
-- **Torneo en directo**: salta a la siguiente partida del mismo enfrentamiento (o espérala), y el mazo por el que
-  apostaste queda de tu lado de la mesa.
+- **Torneo en directo**: salta a la siguiente partida del mismo enfrentamiento (o espérala), el mazo por el que
+  apostaste queda de tu lado de la mesa y los demás torneos en curso aparecen junto a las apuestas, a un clic.
 - **Perfiles**: una instalación, varios jugadores, cada uno con sus propios mazos.
 - **Instalable** como PWA en móviles y tabletas; pensado para pantallas táctiles. En el móvil la mesa en directo
   tiene zoom (− / + / ajustar), la pantalla no se apaga con Grimório abierto (Ajustes › Pantalla) y la pantalla completa
-  queda en vertical. Si una red bloquea scryfall.io (trabajo, escuela), las imágenes de las cartas pasan por tu servidor (automático, o Ajustes › Imágenes de las cartas).
+  queda en vertical. Si una red bloquea scryfall.io (trabajo, escuela), las imágenes de las cartas pasan por tu servidor (automático, o Ajustes › Imágenes de las cartas); también las imágenes propias de los mazos importados (TappedOut, Archidekt).
 
 ### Cómo aprende Grimório
 

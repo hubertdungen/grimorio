@@ -169,27 +169,33 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
 - **Kolosseum (Forge-KI)** – KI gegen KI mit echten Regeln (Bo1/Bo3, cleveres Sideboarding, lernend), Jeder gegen jeden
   mit 3–4 Spielern und Commander-Tische, ein animiertes Spielfeld mit dem Stapel live, Berichte und
   Verbesserungsvorschläge.
-- **Selbst gegen Forge spielen** – Grimórios eigener Spieltisch: Zieh eine Karte, um sie zu spielen (nur was du bezahlen
-  kannst, leuchtet auf), zieh Kreaturen zum Angreifen und Blocken, ordne deine Seite frei an; Stapel, Entscheidungen,
-  Hellsicht und Bibliothekssuchen direkt auf der Seite, Enter zum Passen und Umschalt+Enter zum Beenden des Zugs. Läuft
-  auf einem Server und in den Desktop-Paketen (ohne Docker); Commander nutzt das klassische Forge-Fenster (Server mit
-  Docker).
+- **Selbst gegen Forge spielen** – Grimórios eigener Spieltisch: Ein Klick hebt eine Karte an, und wenn du sie auf den
+  Tisch ziehst, wird sie gespielt (oder per Doppelklick; nur was du bezahlen kannst, leuchtet auf), beim Überfahren der
+  Hand machen die anderen Karten Platz, T tappt die Karte unter der Maus und F dreht sie um; Bo3/Bo5-Serien mit
+  Sideboarding zwischen den Spielen und Turniere, in denen du die Spiele deines Decks selbst spielst; zieh Kreaturen zum
+  Angreifen und Blocken, ordne deine Seite frei an; Stapel, Entscheidungen, Hellsicht und Bibliothekssuchen direkt auf
+  der Seite, Enter zum Passen und Umschalt+Enter zum Beenden des Zugs. Läuft auf einem Server und in den Desktop-Paketen
+  (ohne Docker); Commander nutzt das klassische Forge-Fenster (Server mit Docker).
 - **Turniere, Ligen und Meisterschaften** – K.-o.-System, Doppel-K.-o., Schweizer System, Liga, Tische, Gauntlet, King of
-  the Hill, Gruppen + K.-o.-Runde und Teams; ein Turniergenerator, Live-Turnierbaum, Podium und Verlauf, Champions- und
-  Podiumsligen, Gold-, Silber-, Bronze- und Platin-Trophäen für die Siegerdecks, gewertet oder casual; Wetten mit
-  Spielmünzen (nichts zu kaufen, kein echtes Geld).
-- **Ratings und Rangliste** – 0–6 Sterne pro Deck (Elo pro Format, dazu ein eigenes Casual-Rating), Ruhmeshalle und
-  Trophäengalerie, gespeist aus Tests, Turnieren und einer optionalen automatischen Arena.
+  the Hill, Gruppen + K.-o.-Runde und Teams; casual mit oder ohne gemischte Formate; ein Turniergenerator,
+  Live-Turnierbaum, Podium und Verlauf, Champions- und Podiumsligen, Gold-, Silber-, Bronze- und Platin-Trophäen für die
+  Siegerdecks, gewertet oder casual; Wetten mit Spielmünzen (nichts zu kaufen, kein echtes Geld).
+- **Ratings und Rangliste** – 0–6 Sterne pro Deck (Elo pro Format, dazu ein eigenes Casual-Rating), weiße Sterne und
+  Anzahl der Trophäen, Filter meine / Freunde / Community / Meta, Ruhmeshalle und Trophäengalerie, gespeist aus Tests,
+  Turnieren und einer optionalen automatischen Arena.
 - **Online und Freunde** – ein Online-Tab für einzelne Partien oder Turniere mit einem öffentlichen Link (ein kostenloser
   Cloudflare-Tunnel per Klick oder deine eigene Domain): Wer ihn öffnet, macht mit einem eigenen Deck mit, ohne Konto.
   Einladungen für Freunde, Decks von Freunden als Quelle in Turnieren und der Arena und Tags, woher jedes Deck kommt
   (Meta, meins, Freund, Community).
 - **📖 Regelbibliothek** – Schlüsselwörter, Regeln oder Kartennamen in jeder Sprache (auch per Kamera): Comprehensive
-  Rules, offizielle Rulings und eine optionale KI-Erklärung.
+  Rules, offizielle Rulings und eine optionale KI-Erklärung. Auf jedem Bildschirm zeigt eine fett gedruckte Mechanik
+  ihre Regel, wenn die Maus darüber fährt, und öffnet die Regeln in einem Fenster; Manasymbole erscheinen als Symbole,
+  nicht als {T}.
 - **Proxies** – Liste mit Editionen für Proxy-Seiten, ZIP mit den Bildern oder ein druckfertiges PDF wie Druckereien es
   wollen: Papier, Ränder, Kartengröße, Abstände, Beschnitt (schwarz, eine Farbe oder der verlängerte Kartenrand),
   Schnittlinien pro Karte, Wasserzeichen und beidseitig. Auch die Spielsteine, die das Deck erzeugt (erkannt, mit Anzahl), und Grimórios Vorschläge zum Ausprobieren können mit.
-- **Am Tisch** – Lebenszähler (bis 6 Spieler), 3D-Würfel und ein Kartenscanner (Kamera) mit Zielrahmen.
+- **Am Tisch** – Lebenszähler (bis 6 Spieler), 3D-Würfel und ein Kartenscanner (Kamera) mit Zielrahmen (auf Handy und
+  Tablet öffnet sich die Kamera im Vollbild).
 - **Standard-Bots** – das KI-Profil von Forge für dein Deck und die Gegner im Labor, in Turnieren und der Arena; eine
   Leiste zeigt, was gerade läuft, und springt zur Live-Ansicht.
 - **Draft und Sealed** – öffne echte Packs aus 160 Sets (die Booster von Forge selbst): drafte an einem Tisch mit 8
@@ -200,17 +206,18 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
   verlierst (Kreaturen, Friedhof, Artefakte…), und Antworten in deinen Farben, die die KI wirken kann, zuerst die aus
   echten Meta-Sideboards. Karten, die die Forge-KI nie wirkt, werden markiert.
 - **Deck-Ratings in der Analyse** – Sterne für normal, alle Spiele, Ziel und Casual, mit Elo und Spielen, dazu die
-  Trophäensterne.
+  Trophäensterne und jede gewonnene Trophäe (öffnet das Turnier).
 - **Klügere Forge-KI** – Grimório korrigiert Forge dort, wo es echte Decks schlecht spielte: Länder nach den Farben,
   die die Hand braucht (Fetchländer eingeschlossen), Urza's Saga, die Combo Heliod + Spike Feeder, Food zur richtigen
   Zeit, Siege mit Maze's End, Storm-Decks (Wish, Manamorphose), Wrath of the Skies, Ziele für Path to Exile und
   gestapelte Auren. Das automatische Sideboarding nimmt nie Karten, die die KI nicht wirkt, und nimmt nie ein 4-of raus.
-- **Turnier live** – spring zum nächsten Spiel derselben Partie (oder warte darauf), und das Deck, auf das du gewettet
-  hast, sitzt auf deiner Seite des Tischs.
+- **Turnier live** – spring zum nächsten Spiel derselben Partie (oder warte darauf), das Deck, auf das du gewettet
+  hast, sitzt auf deiner Seite des Tischs, und die anderen laufenden Turniere erscheinen neben den Wetten, einen Klick
+  entfernt.
 - **Profile** – eine Installation, mehrere Spieler, jeder mit seinen eigenen Decks.
 - **Installierbar** als PWA auf Handys und Tablets; touch-freundlich. Auf dem Handy lässt sich der Live-Tisch zoomen
   (− / + / einpassen), der Bildschirm bleibt an, solange Grimório offen ist (Einstellungen › Bildschirm), und das
-  Vollbild bleibt hochkant. Sperrt ein Netz scryfall.io (Arbeit, Schule), kommen die Kartenbilder über deinen eigenen Server (automatisch oder Einstellungen › Kartenbilder).
+  Vollbild bleibt hochkant. Sperrt ein Netz scryfall.io (Arbeit, Schule), kommen die Kartenbilder über deinen eigenen Server (automatisch oder Einstellungen › Kartenbilder); ebenso die eigenen Bilder importierter Decks (TappedOut, Archidekt).
 
 ### Wie Grimório lernt
 

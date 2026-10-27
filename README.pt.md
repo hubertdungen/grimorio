@@ -163,25 +163,29 @@ computadores e servidores de um só dono.
   deck diretamente (trocas, quantidades, substitutos para qualquer carta) com um clique.
 - **Coliseu (IA do Forge)** — IA contra IA com regras reais (Bo1/Bo3, sideboard inteligente, aprendizagem), todos contra
   todos a 3–4 jogadores e mesas de Commander, um tabuleiro animado com a pilha ao vivo, relatórios e melhorias sugeridas.
-- **Joga tu contra o Forge** — a mesa do próprio Grimório: arrastas uma carta para a jogar (só acende o que podes
-  pagar), arrastas criaturas para atacar e bloquear, arrumas o teu lado à vontade, a pilha, as escolhas, scry e procurar
+- **Joga tu contra o Forge** — a mesa do próprio Grimório: um clique levanta a carta e arrastá-la para a mesa joga-a
+  (ou duplo clique; só acende o que podes pagar), ao passar por cima da mão as outras abrem espaço, T vira (tap) a carta
+  debaixo do rato e F vira-a ao contrário; séries Bo3/Bo5 com sideboard entre jogos e torneios em que jogas tu os jogos do
+  teu deck; arrastas criaturas para atacar e bloquear, arrumas o teu lado à vontade, a pilha, as escolhas, scry e procurar
   na biblioteca na própria página, Enter para passar e Shift+Enter para acabar o turno. Funciona num servidor e nos
   pacotes para computador (sem Docker); o Commander usa a janela clássica do Forge (servidor com Docker).
 - **Torneios, ligas e campeonatos** — eliminação simples e dupla, suíço, liga, mesas, gauntlet, rei da colina, grupos +
-  eliminação e equipas; gerador de torneios, árvore ao vivo, pódio e histórico, liga dos campeões e dos pódios, troféus
+  eliminação e equipas; casual com ou sem formatos misturados; gerador de torneios, árvore ao vivo, pódio e histórico, liga dos campeões e dos pódios, troféus
   de ouro, prata, bronze e platina nos decks que ganham, ranked ou casual; apostas com moedas a fingir (nada se compra,
   sem dinheiro a sério).
-- **Ratings e ranking** — 0–6 estrelas por deck (Elo por formato, mais um rating casual à parte), hall da fama e
-  galeria de troféus, alimentados por testes, torneios e uma Arena automática opcional.
+- **Ratings e ranking** — 0–6 estrelas por deck (Elo por formato, mais um rating casual à parte), estrelas brancas e
+  número de troféus, filtros meus / amigos / comunidade / meta, hall da fama e galeria de troféus, alimentados por testes, torneios e uma Arena automática opcional.
 - **Online e amigos** — um separador Online para jogos avulsos ou torneios com um link público (um túnel gratuito da
   Cloudflare num clique, ou o teu domínio): quem o abre entra com um deck seu, sem conta. Convites de amigos, os decks
   dos amigos como fonte nos torneios e na Arena, e etiquetas com a origem de cada deck (meta, meu, amigo, comunidade).
 - **📖 Biblioteca de regras** — keywords, regras ou nomes de cartas em qualquer língua (também pela câmara):
-  Comprehensive Rules, rulings oficiais e uma explicação opcional da IA.
+  Comprehensive Rules, rulings oficiais e uma explicação opcional da IA. Em qualquer ecrã, uma mecânica a negrito mostra a
+  regra com o rato por cima e abre as Regras numa janela; os símbolos de mana aparecem como símbolos, não como {T}.
 - **Proxies** — lista com as edições para sites de proxies, ZIP com as imagens, ou um PDF pronto como as gráficas
   pedem: papel, margens, tamanho da carta, espaço entre cartas, bleed (preto, uma cor ou a margem da carta esticada),
   guias de corte por carta, marca de água e frente e verso. Também entram os tokens que o deck cria (detetados, com quantos de cada) e as sugestões do Grimório para testar.
-- **À mesa** — contador de vida (até 6 jogadores), dados em 3D e leitor de cartas pela câmara com moldura de mira.
+- **À mesa** — contador de vida (até 6 jogadores), dados em 3D e leitor de cartas pela câmara com moldura de mira (no
+  telemóvel e no tablet abre a câmara em ecrã inteiro).
 - **Bots predefinidos** — o perfil da IA do Forge para o teu deck e para os adversários no Laboratório, nos torneios e
   na Arena; uma barra mostra o que está a decorrer e leva ao visualizador em direto.
 - **Draft e Selado** — abre packs reais de qualquer um de 160 sets (os boosters do próprio Forge): faz o draft numa
@@ -190,17 +194,17 @@ computadores e servidores de um só dono.
 - **Contra o que perdes** — as sugestões de sideboard leem os teus testes: os tipos de cartas que te vencem
   (criaturas, cemitério, artefactos…) e respostas nas tuas cores que a IA sabe lançar, primeiro as que os sideboards
   do meta levam. As cartas que a IA do Forge nunca lança ficam assinaladas.
-- **Ratings do deck na Análise** — estrelas normal, todos os jogos, objetivo e casual, com Elo e jogos, e as estrelas
-  dos troféus.
+- **Ratings do deck na Análise** — estrelas normal, todos os jogos, objetivo e casual, com Elo e jogos, as estrelas
+  dos troféus e cada troféu ganho (abre o torneio).
 - **IA do Forge mais esperta** — o Grimório corrige o Forge onde jogava mal decks reais: terrenos pela cor que a mão
   precisa (fetchlands incluídos), Urza's Saga, o combo Heliod + Spike Feeder, Food na altura certa, vitória pelo Maze's
   End, decks de storm (Wish, Manamorphose), Wrath of the Skies, alvos do Path to Exile e auras empilhadas. O sideboard
   automático nunca mete cartas que a IA não lança nem tira um 4-of.
-- **Torneio ao vivo** — salta para o jogo seguinte da mesma partida (ou espera por ele), e o deck em que apostaste fica
-  do teu lado da mesa.
+- **Torneio ao vivo** — salta para o jogo seguinte da mesma partida (ou espera por ele), o deck em que apostaste fica
+  do teu lado da mesa e os outros torneios a decorrer aparecem ao lado das apostas, a um clique.
 - **Perfis** — uma instalação, vários jogadores, cada um com os seus decks.
 - **Instalável** como PWA em telemóveis e tablets; pensado para ecrãs táteis. No telemóvel a mesa ao vivo tem zoom
-  (− / + / ajustar), o ecrã não se apaga com o Grimório aberto (Definições › Ecrã) e o ecrã inteiro fica ao alto. Se uma rede bloquear scryfall.io (trabalho, escola), as imagens das cartas passam pelo teu servidor (automático, ou Definições › Imagens das cartas).
+  (− / + / ajustar), o ecrã não se apaga com o Grimório aberto (Definições › Ecrã) e o ecrã inteiro fica ao alto. Se uma rede bloquear scryfall.io (trabalho, escola), as imagens das cartas passam pelo teu servidor (automático, ou Definições › Imagens das cartas); as imagens próprias de decks importados (TappedOut, Archidekt) também.
 
 ### Como o Grimório aprende
 

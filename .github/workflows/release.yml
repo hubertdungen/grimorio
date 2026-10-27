@@ -117,10 +117,39 @@ jobs:
           path: dist/*.*
           retention-days: 7
 
+  android:
+    name: Android (APK)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Build
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}  # chave fixa: as versões seguintes instalam por cima
+          ANDROID_KEY_PASS: ${{ secrets.ANDROID_KEY_PASS }}
+        run: |
+          V="${GITHUB_REF_NAME#v}"; [[ "$GITHUB_REF_TYPE" == tag ]] || V="0.0.0-${GITHUB_SHA::7}"
+          export GRIMORIO_VERSION="$V"
+          if [ -n "$ANDROID_KEYSTORE_B64" ]; then echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/k.jks"; export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/k.jks"; else echo "::warning::sem ANDROID_KEYSTORE_B64: APK assinado com a chave de debug"; fi
+          gradle -p android assembleRelease --no-daemon --stacktrace
+          mkdir -p dist && cp android/app/build/outputs/apk/release/app-release.apk "dist/Grimorio-$V-android.apk"
+          (cd dist && sha256sum "Grimorio-$V-android.apk" > "Grimorio-$V-android.apk.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-android
+          path: dist/*.*
+          retention-days: 7
+
   release:
     name: Attach to the release
     if: github.ref_type == 'tag'
-    needs: [package, data]
+    needs: [package, data, android]
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- servidores em casa costumam ser http (http://192.168.1.10:8107): deixa-se -->
+<network-security-config><base-config cleartextTrafficPermitted="true" /></network-security-config>

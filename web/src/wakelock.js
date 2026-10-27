@@ -3,10 +3,12 @@
 // quando a página fica escondida: volta a pedir-se ao regressar.
 const K = 'grimorio.ecraLigado'
 const touch = () => { try { return matchMedia('(pointer: coarse)').matches } catch { return false } }
-export const wakeSupported = () => 'wakeLock' in navigator && window.isSecureContext
+const app = () => window.GrimorioApp?.keepScreenOn  // app Android: o ecrã fica ligado pela própria app
+export const wakeSupported = () => !!app() || ('wakeLock' in navigator && window.isSecureContext)
 export const wakeOn = () => { try { const v = localStorage.getItem(K); return v == null ? touch() : v === '1' } catch { return touch() } }
 let lock = null
 async function grab() {
+  if (app()) return window.GrimorioApp.keepScreenOn(wakeOn())
   if (lock || !wakeOn() || document.visibilityState !== 'visible' || !wakeSupported()) return
   try {
     lock = await navigator.wakeLock.request('screen')
@@ -15,6 +17,7 @@ async function grab() {
 }
 export function setWake(on) {
   try { localStorage.setItem(K, on ? '1' : '0') } catch { /* sem armazenamento */ }
+  if (app()) return window.GrimorioApp.keepScreenOn(on)
   if (on) grab(); else { lock?.release().catch(() => {}); lock = null }
 }
 let started = false
