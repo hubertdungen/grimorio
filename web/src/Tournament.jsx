@@ -109,6 +109,11 @@ export default function TournamentView({ data, fmt, deckId, guest, online }) {
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const open = id => { setTid(id); ls('grimorio.torneio', id); setView('ver') }
+  useEffect(() => {  // no Ao vivo: os outros torneios a decorrer ao lado das apostas
+    if (view !== 'ver') return
+    const t = setInterval(loadList, 15000)
+    return () => clearInterval(t)
+  }, [view]) // eslint-disable-line react-hooks/exhaustive-deps
   const [own, setOwn] = useState({})
   useEffect(() => { j('/api/decks').then(ds => setOwn(Object.fromEntries(ds.map(d => [d.id, d.friend ? 'ami' : d.community ? 'com' : 'meu'])))).catch(() => {}) }, [])
   return (
@@ -125,7 +130,7 @@ export default function TournamentView({ data, fmt, deckId, guest, online }) {
       {view === 'criar' && !guest && (online ? <NewRoom data={data} fmt={fmt} deckId={deckId} onRoom={() => setView('salas')} />
         : <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} />)}
       {view === 'gerar' && !guest && <Generator data={data} onCreated={() => { loadList(); setView('registo') }} />}
-      {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} onGone={() => { loadList(); setView(online ? 'salas' : 'registo') }} />}
+      {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} running={list.filter(x => x.status === 'running')} open={open} onGone={() => { loadList(); setView(online ? 'salas' : 'registo') }} />}
       {view === 'apostas' && <BetsTab open={open} />}
       {view === 'salas' && <Rooms guest={guest} open={id => { loadList(); open(id) }} />}
       {view === 'registo' && <Registry data={data} list={list} open={open} reload={loadList} />}
@@ -786,7 +791,7 @@ const Fmt = ({ f }) => (f ? <span className="fmt-tag">{FORMAT[f]?.name || f}</sp
 const roundName = (m, k) => (m.b === 'W' ? (m.r === k ? tx('Final') : m.r === k - 1 ? tx('Meias-finais') : m.r === k - 2 ? tx('Quartos de final') : tx('Ronda {r}', { r: m.r }))
   : m.b === 'L' ? tx('Vencidos · ronda {r}', { r: m.r }) : m.b === '3' ? tx('3.º lugar') : m.r === 1 ? tx('Grande final') : tx('2.ª final'))
 
-function Live({ data, tid, onGone, slot }) {
+function Live({ data, tid, onGone, slot, running = [], open }) {
   const [t, setT] = useState(null)
   const deckOwn = useContext(OwnCtx)  // id do deck -> meu / ami / com (a etiqueta de cada lugar no tabuleiro)
   const [err, setErr] = useState('')
@@ -954,7 +959,10 @@ function Live({ data, tid, onGone, slot }) {
         {err && <p className="small bad-t">{err}</p>}
       </section>
       {ms?.phase === 'out' && going && <section className="me-out" role="status"><b>{ms.groups ? tx('💀 Ficaste pela fase de grupos') : tx('💀 Foste eliminado {w}', { w: where(mm, k) })}</b><span>{ms.groups ? '' : mm?.g.length ? tx('{o} ganhou-te a partida por {s}.', { o: nameOf(ms.by), s: `${mm.w[mm.p.indexOf(ms.by)]}–${mm.w[mm.p.indexOf(t.me)]}` }) : tx('{o} ganhou-te a partida.', { o: nameOf(ms.by) })} {tx('O torneio continua sem ti — vê quem fica com o título.')}</span></section>}
-      <BetsPanel {...bets} P={P} data={data} num={num} going={going} type={t.type} />
+      <div className={`live-duo ${running.some(x => x.id !== tid) ? 'two' : ''}`}>
+        <BetsPanel {...bets} P={P} data={data} num={num} going={going} type={t.type} />
+        {running.some(x => x.id !== tid) && <RunningTours list={running} cur={tid} open={open} />}
+      </div>
       {t.podium?.length > 0 && <Podium data={data} t={t} />}
       {bracket ? <Bracket t={t} k={k} {...tools} />
         : t.type === 'gauntlet' ? <Gauntlet t={t} {...tools} />
@@ -963,6 +971,21 @@ function Live({ data, tid, onGone, slot }) {
               : t.type === 'equipas' ? <Teams t={t} {...tools} />
                 : <div className="tl-grid"><Standings t={t} {...tools} /><Rounds t={t} {...tools} /></div>}
     </div>
+  )
+}
+
+// torneios a decorrer ao mesmo tempo: um clique salta para o Ao vivo de cada um
+function RunningTours({ list, cur, open }) {
+  return (
+    <section className="card run-tours">
+      <h4>🏆 {tx('A decorrer')} <span className="muted small">{list.length}</span></h4>
+      <ul>{list.map(x => (
+        <li key={x.id}><button className={x.id === cur ? 'on' : ''} aria-current={x.id === cur || undefined} onClick={() => x.id !== cur && open(x.id)} title={x.id === cur ? tx('Estás a ver este') : tx('Ver o torneio')}>
+          <b><TypeIco k={x.type} /> {x.name}</b>
+          <small className="muted">{x.casual ? tx('casual') : FORMAT[x.format]?.name || x.format} · {x.n} decks{x.me != null ? ` · ${tx('o meu deck')}` : ''}</small>
+        </button></li>
+      ))}</ul>
+    </section>
   )
 }
 
