@@ -25,6 +25,63 @@ const pct = x => `${Math.round(x * 100)}%`
 const qty = (d, n) => (d.main?.[n] || 0) + ((d.commanders || []).includes(n) ? 1 : 0)
 const colorsOf = (data, d) => 'WUBRG'.split('').filter(x => [...(d.commanders || []), ...Object.keys(d.main || {})].some(n => { const c = data.byName.get(n); return c && c.mt !== 'Land' && (c.ci || '').includes(x) }))
 
+// semelhança de «mecânicas»: as funções das cartas (remoção, compra, fichas, cemitério…) como vetor, cosseno 0–1
+const TAGW = s => s.tags || {}
+function mechSim(sa, sb) {
+  const A = TAGW(sa), B = TAGW(sb), ks = new Set([...Object.keys(A), ...Object.keys(B)])
+  let ab = 0, aa = 0, bb = 0
+  for (const k of ks) { ab += (A[k] || 0) * (B[k] || 0); aa += (A[k] || 0) ** 2; bb += (B[k] || 0) ** 2 }
+  return aa && bb ? ab / Math.sqrt(aa * bb) : 0
+}
+const INTER = ['removal', 'counter', 'wipe'], ENGINE = ['draw', 'tutor']
+const cnt = (s, ks) => ks.reduce((a, k) => a + (s.tags?.[k] || 0), 0)
+
+// Porquê? Em decks parecidos (cartas ou mecânicas), o que o melhor tem que o outro não: interação, motor, curva,
+// terrenos, staples, via de vitória e se a diferença é fiável (jogos suficientes). Heurísticas, não certezas.
+function Why({ data, decks, st, rt }) {
+  const r = d => rt[`deck:${d.id}`]
+  const rated = decks.map((d, k) => ({ d, k, s: st[k], r: r(d) })).filter(x => x.r?.stars != null)
+  if (rated.length < 2) return null
+  const best = rated.reduce((a, b) => (b.r.stars > a.r.stars ? b : a))
+  const out = rated.filter(x => x !== best).map(o => {
+    const simC = similarity(data, best.d, o.d, false), simM = mechSim(best.s, o.s)
+    if (simC < 0.2 && simM < 0.85) return { o, simC, simM, far: true }
+    const why = [], B = best.s, O = o.s, gap = best.r.stars - o.r.stars
+    const iB = cnt(B, INTER), iO = cnt(O, INTER), eB = cnt(B, ENGINE), eO = cnt(O, ENGINE)
+    if (iB - iO >= 2) why.push(tx('mais interação: {a} remoções/contra-feitiços contra {b}', { a: iB, b: iO }))
+    else if (iO - iB >= 2) why.push(tx('tem menos interação ({a} contra {b}) e mesmo assim ganha mais: a força vem de outro lado', { a: iB, b: iO }))
+    if (eB - eO >= 2) why.push(tx('mais motor de cartas (compra e tutores): {a} contra {b}', { a: eB, b: eO }))
+    if (O.avgMv - B.avgMv >= 0.25) why.push(tx('é mais baixo (custo médio {a} contra {b}): joga mais cedo e tropeça menos', { a: num(B.avgMv, 2), b: num(O.avgMv, 2) }))
+    else if (B.avgMv - O.avgMv >= 0.25) why.push(tx('é mais alto (custo médio {a} contra {b}): as cartas mais caras pesam mais quando chegam', { a: num(B.avgMv, 2), b: num(O.avgMv, 2) }))
+    const per = s => (s.lands ? s.lands / Math.max(1, s.lands + s.spells) : 0), want = s => 0.33 + 0.05 * Math.max(0, s.avgMv - 2)  // terrenos «certos» sobem com o custo médio
+    const off = s => Math.abs(per(s) - want(s))
+    if (off(O) - off(B) > 0.03) why.push(tx('terrenos mais acertados à curva ({a} contra {b})', { a: B.lands, b: O.lands }))
+    // staples: cartas (sem terrenos) que o melhor tem a mais, as mais jogadas no EDHREC primeiro
+    const more = Object.entries(best.d.main || {}).filter(([n, q]) => q > (o.d.main?.[n] || 0) && data.byName.get(n)?.mt !== 'Land')
+      .map(([n]) => data.byName.get(n)).filter(c => c?.er).sort((a, b) => a.er - b.er).slice(0, 4).map(c => c.n)
+    if (more.length) why.push(tx('cartas que só ele tem (ou tem mais): {l}', { l: more.join(', ') }))
+    if (best.r.goal != null && o.r.goal != null && best.r.goal - o.r.goal >= 0.08) why.push(tx('chega mais vezes ao objetivo do deck ({a} contra {b})', { a: pct(Math.min(1, best.r.goal)), b: pct(Math.min(1, o.r.goal)) }))
+    const few = [best, o].filter(x => (x.r.games || 0) < 10)
+    const note = few.length ? tx('Atenção: {l} com menos de 10 jogos — a diferença pode ser sorte.', { l: few.map(x => L[x.k]).join(' e ') })
+      : gap < 0.3 ? tx('A diferença é pequena ({g}★): pode ser só variância.', { g: num(gap, 1) }) : ''
+    return { o, simC, simM, why, note, gap }
+  })
+  return (
+    <section className="cmp-why">
+      <h4>🔍 {tx('Porquê?')} <span className="muted small">{tx('o que o deck mais bem cotado ({l}) tem a mais, nos decks parecidos', { l: L[best.k] })}</span></h4>
+      {out.map(x => (
+        <div key={x.o.d.id} className="cmp-why-p">
+          <b><span className={`cmp-l l${best.k}`}>{L[best.k]}</span> {num(best.r.stars, 1)}★ {tx('contra')} <span className={`cmp-l l${x.o.k}`}>{L[x.o.k]}</span> {num(x.o.r.stars, 1)}★</b>
+          <small className="muted"> · {tx('cartas {c} · mecânicas {m}', { c: pct(x.simC), m: pct(x.simM) })}</small>
+          {x.far ? <p className="small muted">{tx('Pouco parecidos (cartas e mecânicas diferentes): a comparação diz pouco.')}</p>
+            : <>{x.why.length ? <ul className="small">{x.why.map((w, i) => <li key={i}>{w}</li>)}</ul> : <p className="small muted">{tx('Nada salta à vista nas listas: a diferença deve estar nas interações entre cartas ou nos adversários que calharam.')}</p>}
+              {x.note && <p className="small muted">⚠ {x.note}</p>}</>}
+        </div>
+      ))}
+    </section>
+  )
+}
+
 export default function DeckCompare({ data, decks, onClose, onOpen, onFav, onDelete, rt = {}, trophies = null }) {  // rt: estrelas por chave; trophies(d): os troféus do deck
   const [show, setShow] = useState('dif')  // dif | comum | todas
   const [lands, setLands] = useState(false)
@@ -70,6 +127,7 @@ export default function DeckCompare({ data, decks, onClose, onOpen, onFav, onDel
             <span key={o.id} title={tx('Sem terrenos: {p}', { p: pct(similarity(data, d, o, false)) })}>{tx('com')} <span className={`cmp-l l${j}`}>{L[j]}</span> <b>{pct(similarity(data, d, o))}</b> <small>{tx('({p} sem terrenos)', { p: pct(similarity(data, d, o, false)) })}</small></span>))}</span>)}
           {line('', d => <span className="row-btns"><button onClick={() => onOpen(d.id)}>{tx('Abrir')}</button><button className={d.fav ? 'on' : ''} onClick={() => onFav(d)} title={tx('Favorito')}>{d.fav ? '★' : '☆'}</button><button onClick={() => onDelete(d)} title={tx('Apagar')}>🗑</button></span>)}
         </tbody></table>
+        <Why data={data} decks={decks} st={st} rt={rt} />
         <div className="row-btns small cmp-filt">
           {[['dif', tx('Diferenças')], ['comum', tx('Em comum')], ['todas', tx('Todas')]].map(([k, l]) => <button key={k} className={show === k ? 'on' : ''} onClick={() => setShow(k)}>{l}</button>)}
           <label className="chk"><input type="checkbox" checked={lands} onChange={e => setLands(e.target.checked)} /> {tx('incluir terrenos')}</label>

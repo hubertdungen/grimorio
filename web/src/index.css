@@ -2539,3 +2539,6 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .fp-stage .fp-hand { flex-wrap: nowrap; min-width: 0; }
 .fp-stage .fp-hand .fp-card + .fp-card { margin-left: calc(var(--hw) * -.18 + var(--ov, 0px)); }
 .fp-stage .fp-hand .fp-card.fp-gap { margin-left: calc(var(--hw) * .55); }
+/* Comparar decks › Porquê? */
+.cmp-why { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: var(--bg2); border: 1px solid var(--line); display: grid; gap: 8px; }
+.cmp-why h4 { margin: 0; } .cmp-why ul { margin: 4px 0 0; padding-left: 18px; } .cmp-why p { margin: 4px 0 0; }
