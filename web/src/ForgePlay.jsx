@@ -418,6 +418,15 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   useEffect(() => { if (ended) onEnd?.(s.winner ? iWon : null) }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
   const byId = new Map(players.flatMap(p => ['battlefield', 'hand', 'graveyard', 'exile'].flatMap(z => (p[z] || []).map(c => [c.id, c]))))
   const lives = `${me?.life}|${opp?.life}`, prevLives = useRef(null), [lifeFx, setLifeFx] = useState(null)
+  // veneno (infect, toxic, poisonous…): o ☠ ao lado da vida pulsa e sobe quando aumenta, como na arena
+  const psns = `${ctrs(me?.counters).poison || 0}|${ctrs(opp?.counters).poison || 0}`, prevPsn = useRef(null), [psnFx, setPsnFx] = useState(null)
+  useEffect(() => {
+    const [a, b] = psns.split('|').map(Number), pv = prevPsn.current
+    prevPsn.current = [a, b]
+    if (!pv || (a <= pv[0] && b <= pv[1])) return
+    setPsnFx({ p: a > pv[0] ? 'a' : 'b', n: a > pv[0] ? a - pv[0] : b - pv[1] })
+    const t = setTimeout(() => setPsnFx(null), 1200); return () => clearTimeout(t)
+  }, [psns])
   useEffect(() => {  // a vida mudou: o orbe pisca e mostra o +N/−N, como na arena
     const [a, b] = lives.split('|').map(Number), pv = prevLives.current
     prevLives.current = [a, b]
@@ -519,7 +528,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   const att = new Map()
   for (const p of [...bs.a.perms, ...bs.b.perms]) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
   const sel = new Set([...byId.values()].filter(c => c.sel).map(c => String(c.id)))
-  const fx = { hl: sel, par: 'sel', pops: fxs.pops, life: lifeFx, player: null }
+  const fx = { hl: sel, par: 'sel', pops: fxs.pops, life: lifeFx, player: psnFx && { p: psnFx.p, psn: true } }
   const openZone = (k, z) => setZone({ p: k === 'a' ? me : opp, k: z })
   const onClick = e => {  // um clique numa carta da mesa ou da mão = o mesmo que no Forge; no orbe = escolher o jogador
     if (dragged.current) return
