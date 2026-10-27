@@ -177,49 +177,60 @@ function Hist({ log, nameOf }) {
   return <ol className="fp-hist" ref={box} aria-label={tx('Histórico do jogo')}>{log.map((e, k) => <li key={k} className={`y-${e.y}`}>{line(e.m)}</li>)}</ol>
 }
 
-// a mesa cabe no ecrã (normal e ecrã inteiro): a caixa vai do sítio onde começa até ao fundo do ecrã e o tamanho das
-// cartas (--k) acerta-se pela secante até o conteúdo encher essa altura, como o --fit do tabuleiro (Board.jsx).
-// Com cartas novas só volta a medir se deixar de caber ou se sobrar mais de 15%: as cartas não saltam a cada jogada.
-function useTableFit(boxRef, tableRef, ready) {
+// Mesa de tamanho fixo (como o Balatro ou o Tabletop Simulator): a mesa tem sempre o mesmo tamanho «lógico» — deitada
+// 1280×820, ao alto 760×1180 — e escala-se inteira para caber no ecrã. As cartas têm tamanho fixo lá dentro, por isso uma
+// carta nova nunca empurra as zonas; num monte cheio as cartas encolhem dentro da fila. Só se volta a medir com mudanças a
+// sério (rodar, redimensionar, ecrã inteiro): a barra do browser a aparecer/desaparecer (≈ 60–100 px) não conta.
+const STAGE = { wide: [1280, 820], tall: [760, 1180] }
+// filas cheias (muitas criaturas, terrenos, a mão): as cartas encostam-se umas às outras (--ov negativo) em vez de
+// saírem da mesa; mede-se depois de cada mudança, só dentro da mesa de tamanho fixo
+function useOverlap(tableRef) {
   useLayoutEffect(() => {
-    const box = boxRef.current, t = tableRef.current
-    if (!box || !t) return
-    const content = () => {  // altura do que está dentro da mesa (as filas, sem o espaço que o space-between espalha)
-      const cs = getComputedStyle(t), kids = [...t.children]
-      return kids.reduce((a, k) => a + k.offsetHeight, 0) + (kids.length - 1) * (parseFloat(cs.rowGap) || 0) + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
+    for (const row of tableRef.current?.querySelectorAll('.brow.front, .brow.lands, .brow.others, .fp-hand') || []) {
+      const kids = [...row.children].filter(k => k.offsetWidth), n = kids.length
+      const cur = parseFloat(row.style.getPropertyValue('--ov')) || 0
+      if (n < 2) { row.style.removeProperty('--ov'); continue }
+      const span = kids[n - 1].offsetLeft + kids[n - 1].offsetWidth - kids[0].offsetLeft, natural = span - (n - 1) * cur
+      const room = row.clientWidth - 4
+      const ov = natural > room ? Math.max(-kids[0].offsetWidth * 0.82, (room - natural) / (n - 1)) : 0
+      if (Math.abs(ov - cur) > 0.5) row.style.setProperty('--ov', `${ov}px`)
     }
-    const fit = () => {
-      const vh = window.visualViewport?.height || innerHeight, top = box.getBoundingClientRect().top
-      const fe = document.fullscreenElement || document.webkitFullscreenElement
-      box.style.height = `${Math.max(420, Math.floor(vh - Math.max(0, top) - (fe ? 6 : 10)))}px`
-      if (innerWidth < 901) return t.style.removeProperty('--k')
-      const a = t.clientHeight, h = k => { t.style.setProperty('--k', k); return content() }
-      let k0 = 1, h0 = h(1), k = Math.max(0.45, Math.min(1.8, k0 * a / h0))
-      for (let n = 0; n < 6; n++) {
-        const h1 = h(k)
-        if (Math.abs(h1 - a) < 3 || h1 === h0) break
-        const g = Math.max(0.45, Math.min(1.8, k + (a - h1) * (k - k0) / (h1 - h0)))
-        k0 = k; h0 = h1
-        if (Math.abs(g - k) < 0.005) break
-        k = g
-      }
-      while (content() > a + 1 && k > 0.46) { k -= 0.02; t.style.setProperty('--k', k) }  // nunca a passar: um pouco abaixo
+  })
+}
+
+function useStage(boxRef, wrapRef, ready) {
+  const [st, setSt] = useState({ shape: 'wide', sc: 1, left: 0 })
+  useLayoutEffect(() => {
+    const box = boxRef.current, wrap = wrapRef.current
+    if (!box || !wrap) return
+    let last = null
+    const fit = force => {
+      const vh = window.visualViewport?.height || innerHeight, fe = !!(document.fullscreenElement || document.webkitFullscreenElement)
+      const top = Math.max(0, box.getBoundingClientRect().top), w = wrap.clientWidth
+      if (!force && last && Math.abs(w - last.w) < 2 && Math.abs(vh - last.vh) < 110 && fe === last.fe) return  // barra do browser: ignora
+      last = { w, vh, fe }
+      // forma pela orientação do aparelho: ao alto (telemóvel, tablet ao alto) a mesa é alta e usa a altura do ecrã toda
+      // (fora do ecrã inteiro a página desce até ela); deitado cabe no espaço que sobra por baixo do cabeçalho
+      const tall = innerWidth < innerHeight, side = box.querySelector('.fp-side'), below = getComputedStyle(box).gridTemplateRows.split(' ').length > 1
+      const total = Math.max(380, Math.floor(vh - (tall && !fe ? 0 : top) - (fe ? 4 : 10)))
+      box.style.height = tall && !fe ? '' : `${total}px`
+      const h = below ? total - (side?.offsetHeight || 0) - 8 : total
+      const shape = tall ? 'tall' : 'wide', [W, H] = STAGE[shape]
+      const sc = Math.min(w / W, h / H)
+      setSt({ shape, sc, left: Math.max(0, (w - W * sc) / 2), h: H * sc })
     }
-    const check = () => { const a = t.clientHeight, c = content(); if (c > a + 2 || c < a * 0.85) fit() }
-    let tm = [], raf = 0
-    const later = () => { fit(); tm.forEach(clearTimeout); tm = [120, 400, 900].map(x => setTimeout(fit, x)) }
-    later()
-    const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(check) })
-    for (const k of t.children) ro.observe(k)
-    const mo = new MutationObserver(() => { for (const k of t.children) ro.observe(k) })  // filas novas também contam
-    mo.observe(t, { childList: true })
-    const evs = ['fullscreenchange', 'webkitfullscreenchange']
-    addEventListener('resize', later); window.visualViewport?.addEventListener('resize', later); evs.forEach(e => document.addEventListener(e, later))
+    fit(true)
+    const again = () => fit(false), hard = () => fit(true)
+    const tm = [150, 500].map(x => setTimeout(hard, x))
+    addEventListener('resize', again); window.visualViewport?.addEventListener('resize', again)
+    const evs = ['fullscreenchange', 'webkitfullscreenchange', 'orientationchange']
+    evs.forEach(e => (e === 'orientationchange' ? window : document).addEventListener(e, hard))
     return () => {
-      ro.disconnect(); mo.disconnect(); cancelAnimationFrame(raf); tm.forEach(clearTimeout)
-      removeEventListener('resize', later); window.visualViewport?.removeEventListener('resize', later); evs.forEach(e => document.removeEventListener(e, later))
+      tm.forEach(clearTimeout); removeEventListener('resize', again); window.visualViewport?.removeEventListener('resize', again)
+      evs.forEach(e => (e === 'orientationchange' ? window : document).removeEventListener(e, hard))
     }
   }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
+  return st
 }
 
 // cartas que mudam de sítio entre um estado do Forge e o seguinte (da mão para a mesa, presas a uma criatura, outra fila)
@@ -239,7 +250,8 @@ function useFlip(box, seq) {
       const o = flipFrom.get(id) || last.current.get(id)
       flipFrom.delete(id)
       if (!o || reduce) continue
-      const dx = o.left - r.left, dy = o.top - r.top, k = o.width / r.width
+      const sc = +t.closest('.fp-stage')?.dataset.sc || 1  // dentro da mesa escalada, o translate conta em px «lógicos»
+      const dx = (o.left - r.left) / sc, dy = (o.top - r.top) / sc, k = o.width / r.width
       if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue
       el.style.transition = 'none'
       el.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`
@@ -515,8 +527,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     setFxs(f => ({ pops, gone: [...f.gone.filter(g => g.until > Date.now()), ...gone], rev: left ? { k: 'resolve', card: left.name, p: left.by === me?.id ? 'a' : 'b', txt: left.text } : f.rev, ri: left ? f.ri + 1 : f.ri }))
   }, [seqKey]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!fxs.gone.length && !fxs.pops.size) return; const t = setTimeout(() => setFxs(f => ({ ...f, pops: new Map(), gone: f.gone.filter(g => g.until > Date.now()) })), 1200); return () => clearTimeout(t) }, [fxs.gone.length, fxs.pops])
-  const fitBox = useRef(null), fitTable = useRef(null)
-  useTableFit(fitBox, fitTable, !!st)
+  const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null)
+  const stage = useStage(fitBox, stageWrap, !!st)
+  useOverlap(fitTable)
   useFlip(fitTable, seqKey)
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const myTurn = st.active === me?.id
@@ -567,6 +580,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   }
   return (
     <div className="fp" ref={fitBox} onMouseLeave={() => setZoom(null)} onMouseOver={onOver}>
+      <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
+      <div className={`fp-stage ${stage.shape}`} data-sc={stage.sc} style={{ width: STAGE[stage.shape][0], height: STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})` }}>
       <div className="fp-table board table" ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone}
@@ -579,6 +594,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
         {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} place={lay.place} order={lay.order}
           hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}
       </div>
+      </div></div>
       <aside className="fp-side">
         <div className="fp-zoom">{zc ? <img src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>

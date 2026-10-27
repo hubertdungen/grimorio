@@ -2273,7 +2273,7 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .play-modo { margin: 6px 0 4px; }
 .fp-bar { align-items: center; margin-bottom: 8px; }
 .view.play.fp-view { padding-bottom: 0; margin-bottom: 0; }  /* a mesa vai até ao fundo do ecrã: sem espaço que faça rolar a página */
-.fp { display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 21vw, 310px); gap: 10px; position: relative; height: calc(100dvh - 178px); min-height: 420px; }  /* a altura certa vem do useTableFit (ForgePlay.jsx) */
+.fp { display: grid; grid-template-columns: minmax(0, 1fr) clamp(220px, 21vw, 310px); gap: 10px; position: relative; height: calc(100dvh - 178px); min-height: 420px; }  /* a altura certa vem do useStage (ForgePlay.jsx) */
 /* mais específico do que as regras do tabuleiro em ecrã inteiro (.coliseu:fullscreen .board), que punham o seu próprio
    tamanho e anulavam o --k: era por isso que a mesa não acertava em ecrã inteiro */
 .fp-table.board, .coliseu .fp-table.board, .coliseu:fullscreen .fp-table.board, .coliseu:-webkit-full-screen .fp-table.board {
@@ -2520,3 +2520,22 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 @keyframes fpDeal { from { opacity: 0; transform: translateY(-30px) rotate(-6deg) scale(.85); } }
 @media (max-width: 600px) { .fp-pile-row { grid-template-columns: minmax(0, 1fr); } }
 .fp-grid .fp-opt { position: relative; } .fp-many { position: absolute; right: 6px; bottom: 6px; padding: 1px 7px; border-radius: 99px; background: #000c; color: var(--gold2); font-size: 12px; }
+
+/* Forge Play: mesa de tamanho fixo (useStage). Lá dentro tudo em px «lógicos»: nada depende do vw/vh do ecrã */
+.fp-stagebox { position: relative; min-width: 0; overflow: hidden; }
+.fp-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.fp-stage .fp-table.board, .coliseu .fp-stage .fp-table.board, .coliseu:fullscreen .fp-stage .fp-table.board, .coliseu:-webkit-full-screen .fp-stage .fp-table.board {
+  --k: 1; --cw: 80px; --ow: 66px; --lw: 48px; --hw: 92px; --ohw: 50px;
+  width: 100%; height: 100%; max-height: none; overflow: hidden; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; align-content: space-between; }
+.fp-stage.tall .fp-table.board, .coliseu .fp-stage.tall .fp-table.board, .coliseu:fullscreen .fp-stage.tall .fp-table.board, .coliseu:-webkit-full-screen .fp-stage.tall .fp-table.board { --cw: 118px; --ow: 90px; --lw: 66px; --hw: 132px; --ohw: 64px; }
+/* a fila das criaturas guarda sempre espaço para auras/equipamentos presos: prender uma não empurra nada */
+.fp-stage .brow.front { min-height: calc(var(--cw) * 1.4 + 28px); }
+/* filas de largura fixa: muitas cartas encostam-se (--ov, useOverlap) em vez de saírem da mesa */
+.fp-stage .bside { min-width: 0; max-width: 100%; grid-template-columns: minmax(0, 1fr); }
+.fp-stage .brow { flex-wrap: nowrap; min-width: 0; max-width: 100%; }
+.fp-stage .brow.front { width: 100%; }
+.fp-stage .brow.rear { width: 100%; } .fp-stage .brow.rear > .brow.lands { flex: 1 1 0; } .fp-stage .brow.rear > .brow.others { flex: 0 1 auto; }
+.fp-stage .brow > * + * { margin-left: var(--ov, 0px); }
+.fp-stage .fp-hand { flex-wrap: nowrap; min-width: 0; }
+.fp-stage .fp-hand .fp-card + .fp-card { margin-left: calc(var(--hw) * -.18 + var(--ov, 0px)); }
+.fp-stage .fp-hand .fp-card.fp-gap { margin-left: calc(var(--hw) * .55); }
