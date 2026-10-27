@@ -417,6 +417,7 @@ def ranking(st):
 def podium(st):
     P, me = st["players"], st.get("me")
     return sorted(({"i": i, "place": lo, **{k: P[i].get(k) for k in ("name", "src", "ref", "cover", "colors", "format")},
+                    **{k: P[i][k] for k in ("com", "fr") if P[i].get(k)},  # da comunidade / de um amigo (filtros da galeria)
                     **({"me": True} if i == me else {})} for i, (lo, _) in ranking(st).items()
                    if lo <= 3 and (st["type"] != "gauntlet" or i == st.get("champion"))), key=lambda x: (x["place"], x["i"]))
 
@@ -890,6 +891,11 @@ def route(method, path, owner, body=None, bettor=None):
             for x in out:  # os acabados antes de haver pódio calculam-no agora
                 x["podium"] = json.loads(x["podium"]) if x["podium"] else podium(json.loads(con.execute(
                     "SELECT state FROM tournaments WHERE id=?", (x["id"],)).fetchone()[0])) if x["champion"] is not None else None
+                for p in x["podium"] or []:  # pódios guardados antes de haver com/fr: vêm dos jogadores
+                    if p.get("src") == "meus" and "com" not in p and "fr" not in p:
+                        c, f = con.execute("SELECT json_extract(state, '$.players[' || ? || '].com'), json_extract(state, '$.players[' || ? || '].fr')"
+                                           " FROM tournaments WHERE id=?", (p["i"], p["i"], x["id"])).fetchone()
+                        p.update({k: v for k, v in (("com", c), ("fr", f)) if v})
             return 200, out
         row = con.execute("SELECT id, ts, name, type, format, status, champion, n, state FROM tournaments WHERE id=? AND owner=?",
                           (tid, owner)).fetchone()

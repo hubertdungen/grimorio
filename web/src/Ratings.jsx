@@ -3,7 +3,8 @@
 // ou «Todos») e Casual (um só grupo: jogos em modo casual e decks casuais).
 import { useEffect, useRef, useState } from 'react'
 import { FORMAT } from './formats.js'
-import { Empty, Stars, PROV_TIP } from './ui.jsx'
+import { Empty, Stars, PROV_TIP, WhiteStars, SrcFilter } from './ui.jsx'
+import { deckPoints, trophyStars } from './trophyvalue.js'
 import { img, HUE, coverOf, colorsOf } from './data.js'
 import Replay from './Board.jsx'
 import { DIFF_INFO } from './difficulty.js'
@@ -53,7 +54,7 @@ function History({ k, format }) {
   )
 }
 
-function Row({ r, data, open, onOpen, showFmt }) {
+function Row({ r, data, open, onOpen, showFmt, tro }) {
   const c = r.deck?.main ? coverOf(r.deck, data) : null, cols = r.deck?.main ? colorsOf(r.deck, data) : []
   const edge = cols.length ? cols.map(x => HUE[x]) : ['#8a8a99']
   return (
@@ -62,7 +63,7 @@ function Row({ r, data, open, onOpen, showFmt }) {
         <span className="rt-rank">#{r.rank_in_tier}<small>{tx('{p}.º geral', { p: r.rank })}</small></span>
         <span className="rt-art" style={{ '--edge': edge.length > 1 ? `linear-gradient(135deg, ${edge.join(', ')})` : edge[0] }}>{c ? <img src={img(c, 'art_crop')} alt="" loading="lazy" /> : <span>✦</span>}</span>
         <span className="rt-name"><b title={r.name}>{r.name}</b>
-          <span><Stars r={{ ...r, prov: r.provisional, elo: Math.round(r.elo) }} /><i className={`badge ${r.friend ? 'ami' : r.community ? 'com' : r.kind}`}>{r.friend ? `🤝 ${r.friend}` : r.community ? tx('comunidade') : r.kind === 'meu' ? tx('meu') : 'meta'}</i>{showFmt && <i className="badge">{fmtName(r.format === 'casual' ? r.deck_format : r.format)}</i>}{r.provisional && <i className="badge prov" title={PROV_TIP}>{tx('provisório')}</i>}</span></span>
+          <span><Stars r={{ ...r, prov: r.provisional, elo: Math.round(r.elo) }} /><i className={`badge ${r.friend ? 'ami' : r.community ? 'com' : r.kind}`}>{r.friend ? `🤝 ${r.friend}` : r.community ? tx('comunidade') : r.kind === 'meu' ? tx('meu') : 'meta'}</i>{showFmt && <i className="badge">{fmtName(r.format === 'casual' ? r.deck_format : r.format)}</i>}{r.provisional && <i className="badge prov" title={PROV_TIP}>{tx('provisório')}</i>}{tro}</span></span>
         <span className="rt-num wide">{Math.round(r.elo)}<small>Elo</small></span>
         <span className="rt-num">{r.wins}-{r.losses}{r.draws ? `-${r.draws}` : ''} <b>{pct(r.win_pct)}</b><small>{tx('jogos')}</small></span>
         <span className="rt-num wide">{r.rounds ? <>{r.round_wins}-{r.round_losses} <b>{pct(r.round_pct)}</b></> : '—'}<small>{tx('rondas')}</small></span>
@@ -166,6 +167,9 @@ export default function Ratings({ data, fmt }) {
   const [res, setRes] = useState(null)
   const [open, setOpen] = useState(null)
   const [n, setN] = useState(0)
+  const [who, setWho] = useState(['meu', 'ami', 'com', 'meta'])
+  const [tro, setTro] = useState({})
+  useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const [by, setBy] = useState('stars')  // ordenar e agrupar por: amarelo (normal), azul (todos os jogos) ou vermelho (objetivo)
   const first = useRef(true)
   useEffect(() => {
@@ -176,8 +180,17 @@ export default function Ratings({ data, fmt }) {
     }).catch(() => setRes({ rows: [], formats: [] }))
   }, [f, n, cas])
   const val = r => r[by] ?? -1
-  const rows = by === 'stars' ? res?.rows || [] : [...res?.rows || []].sort((a, b) => val(b) - val(a) || b.elo - a.elo).map((r, i) => ({ ...r, rank: i + 1, tier: Math.floor(val(r)) }))
-  const tiers = [6, 5, 4, 3, 2, 1, 0, -1].map(t => [t, rows.filter(r => r.tier === t).map((r, i) => (by === 'stars' ? r : { ...r, rank_in_tier: i + 1 }))]).filter(([, rs]) => rs.length)
+  const kindOf = r => (r.friend ? 'ami' : r.community ? 'com' : r.kind === 'meu' ? 'meu' : 'meta')
+  const has = new Set((res?.rows || []).map(kindOf)), only = who.length < 4
+  // com filtro, as posições contam-se só entre os decks que ficam
+  const base = (res?.rows || []).filter(r => who.includes(kindOf(r)))
+  const rows = by === 'stars' ? (only ? base.map((r, i) => ({ ...r, rank: i + 1 })) : base) : [...base].sort((a, b) => val(b) - val(a) || b.elo - a.elo).map((r, i) => ({ ...r, rank: i + 1, tier: Math.floor(val(r)) }))
+  const tiers = [6, 5, 4, 3, 2, 1, 0, -1].map(t => [t, rows.filter(r => r.tier === t).map((r, i) => (by === 'stars' && !only ? r : { ...r, rank_in_tier: i + 1 }))]).filter(([, rs]) => rs.length)
+  // estrelas brancas e número de troféus (só os meus decks ganham troféus)
+  const troOf = r => {
+    const l = (tro[r.key?.replace(/^deck:/, '')] || []).filter(x => x.valid !== false), p = deckPoints(l)
+    return l.length ? <span className="rt-tro" title={tx('{n} troféus · {p} pontos', { n: l.length, p })}><WhiteStars v={trophyStars(p)} title={tx('{p} pontos de troféus', { p })} /><b>🏆 {l.length}</b></span> : null
+  }
   const where = cas ? tx('no rating casual') : f === 'all' ? tx('em nenhum formato') : tx('em {f}', { f: fmtName(f) })
   const fmts = [...new Set([...META_FMTS, ...(res?.formats || []), fmt.key])]
   return (
@@ -187,6 +200,7 @@ export default function Ratings({ data, fmt }) {
           <h3 style={{ margin: 0 }}>📊 Ratings</h3>
           <span className="seg">{[[false, tx('Normal')], [true, tx('Casual')]].map(([k, l]) => <button key={l} className={cas === k ? 'on' : ''} onClick={() => { setCas(k); setOpen(null) }}>{l}</button>)}</span>
           {!cas && <select value={f} onChange={e => { setF(e.target.value); setOpen(null) }} aria-label={tx('Formato')}><option value="all">{tx('Todos os formatos')}</option>{fmts.map(x => <option key={x} value={x}>{fmtName(x)}{res?.formats?.includes(x) ? ' ●' : ''}</option>)}</select>}
+          <SrcFilter on={who} set={setWho} has={has} />
           <select value={by} onChange={e => setBy(e.target.value)} aria-label={tx('Ordenar por')}>{[['stars', tx('Ordenar: normal')], ['blue', tx('Ordenar: todos os jogos')], ['red', tx('Ordenar: objetivo')]].map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <span className="muted small">{tx('{k} decks com jogos', { k: rows.length })} · {cas ? tx('Casual: jogos em modo casual (formatos misturados) e decks casuais, todos no mesmo grupo') : f === 'all' ? tx('Todos: cada deck com as estrelas do seu formato') : tx('Normal: só jogos legais do formato')} · {tx('Elo jogo a jogo (1500 ao começar)')} · {cas ? tx('estrelas de 0,0 a 6,0 = a probabilidade de ganhar a um deck médio nos jogos casuais (pelo Elo): 3★ ganha metade, 6★ ganha sempre') : tx('estrelas de 0,0 a 6,0 = a probabilidade de ganhar a um deck médio do formato (pelo Elo): 3★ ganha metade, 6★ ganha sempre')} · <abbr title={PROV_TIP}>{tx('mais claras = provisório')}</abbr>: {tx('menos de {p} jogos, o rating ainda mexe muito', { p: res?.prov || 10 })}</span>
         </div>
@@ -194,7 +208,7 @@ export default function Ratings({ data, fmt }) {
         {tiers.map(([t, rs]) => (
           <div key={t} className="rt-tier">
             <h4>{t < 0 ? tx('Sem objetivo medido') : <><Stars v={t} bare /> {tx('{n} estrela|{n} estrelas', { n: t })}</>} <span className="muted small">{tx('{n} deck|{n} decks', { n: rs.length })}</span></h4>
-            <ul className="rt-list">{rs.map(r => { const k = `${r.key}|${r.format}`; return <Row key={k} r={r} data={data} showFmt={cas || f === 'all'} open={open === k} onOpen={() => setOpen(o => (o === k ? null : k))} /> })}</ul>
+            <ul className="rt-list">{rs.map(r => { const k = `${r.key}|${r.format}`; return <Row key={k} r={r} data={data} showFmt={cas || f === 'all'} tro={troOf(r)} open={open === k} onOpen={() => setOpen(o => (o === k ? null : k))} /> })}</ul>
           </div>
         ))}
       </section>

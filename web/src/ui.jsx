@@ -198,3 +198,15 @@ export function WhiteStars({ v, title }) {
     </span>
   )
 }
+
+// De quem é um deck (para filtrar Ratings, Hall da fama e Galeria): meu, de um amigo, da comunidade ou do meta
+export const SRC_KINDS = [['meu', tx('🧙 Meus')], ['ami', tx('🤝 Amigos')], ['com', tx('🌐 Comunidade')], ['meta', tx('📊 Meta')]]
+// botões que se ligam e desligam (fica sempre pelo menos um ligado)
+export function SrcFilter({ on, set, has }) {
+  return (
+    <span className="seg src-filt" role="group" aria-label={tx('De quem')}>{SRC_KINDS.map(([k, l]) => {
+      const a = on.includes(k)
+      return <button key={k} className={a ? 'on' : ''} aria-pressed={a} disabled={has && !has.has(k)} onClick={() => set(a ? (on.length > 1 ? on.filter(x => x !== k) : on) : [...on, k])}>{l}</button>
+    })}</span>
+  )
+}

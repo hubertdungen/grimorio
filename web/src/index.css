@@ -2443,11 +2443,13 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 }
 
 /* Análise › Ratings do deck */
-.rt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.rt-list li { display: grid; grid-template-columns: 9em auto minmax(0, 1fr); align-items: center; gap: 4px 12px; }
-.rt-l { font-weight: 600; } .rt-y .rt-l { color: #f2b84b; } .rt-b .rt-l { color: #6aa8ff; } .rt-r .rt-l { color: #ff6b6b; } .rt-w .rt-l { color: #e8ecf3; }
-@media (max-width: 600px) { .rt-list li { grid-template-columns: 7em minmax(0, 1fr); } .rt-list li small { grid-column: 1 / -1; } }
+.drt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.drt-list li { display: grid; grid-template-columns: 9em auto minmax(0, 1fr); align-items: center; gap: 4px 12px; }
+.drt-l { font-weight: 600; } .drt-y .drt-l { color: #f2b84b; } .drt-b .drt-l { color: #6aa8ff; } .drt-r .drt-l { color: #ff6b6b; } .drt-w .drt-l { color: #e8ecf3; }
+@media (max-width: 600px) { .drt-list li { grid-template-columns: 7em minmax(0, 1fr); } .drt-list li small { grid-column: 1 / -1; } }
 .wstars.prov { opacity: .7; }
 .px-toks { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; gap: 4px; }
 .px-toks li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .px-toks input, .px-n { width: 56px; }
 .sess-bar { position: fixed; z-index: 9999; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: calc(100vw - 24px); padding: 10px 14px; border-radius: 12px; background: #2a1620; border: 1px solid var(--bad); color: var(--text); box-shadow: 0 8px 30px #000a; }
+.rt-tro { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; } .rt-tro b { color: #e8ecf3; font-weight: 600; }
+.src-filt button:disabled { opacity: .4; }

@@ -269,18 +269,18 @@ export function RatingsCard({ deck }) {
   const n = rt[`deck:${deck.id}`], c = rt[`deck:${deck.id}|casual`], list = tro?.[deck.id] || []
   const pts = list.filter(x => x.valid).reduce((a, x) => a + ptsOf(x), 0)
   const games = (x, k = 'games') => tx('{n} jogos', { n: x?.[k] || 0 })
-  const row = (label, stars, txt, cls) => <li className={cls}><span className="rt-l">{label}</span><span className="rt-s">{stars}</span><small className="muted">{txt}</small></li>
+  const row = (label, stars, txt, cls) => <li className={cls}><span className="drt-l">{label}</span><span className="drt-s">{stars}</span><small className="muted">{txt}</small></li>
   const routes = n?.routes ? Object.entries(n.routes).filter(([, v]) => v >= 0.05).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${ROUTE[k] || k} ${Math.round(v * 100)}%`).join(' · ') : ''
   return (
     <section className="card rt-card">
       <h3>⭐ {tx('Ratings do deck')}</h3>
       {!n && !c && !list.length ? <p className="muted small">{tx('Ainda sem rating: joga o deck no Laboratório, em torneios ou na Arena.')}</p> : (
-        <ul className="rt-list">
-          {n && row(tx('Normal'), <ColorStars v={n.stars} color="#f2b84b" prov={n.prov} />, `Elo ${n.elo} · ${games(n)}${n.prov ? ` · ${tx('provisório')}` : ''}`, 'rt-y')}
-          {n?.blue != null && row(tx('Todos os jogos'), <ColorStars v={n.blue} color="#6aa8ff" />, `Elo ${n.blue_elo} · ${games(n, 'blue_games')} (${tx('com casuais e cruzados')})`, 'rt-b')}
-          {n?.red != null && row(tx('Objetivo'), <ColorStars v={n.red} color="#ff6b6b" />, `${tx('ganha pela via do deck {p}% das vezes', { p: Math.round((n.goal || 0) * 100) })}${routes ? ` · ${routes}` : ''}`, 'rt-r')}
-          {c && row(tx('Casual'), <ColorStars v={c.stars} color="#c9a35a" prov={c.prov} />, `Elo ${c.elo} · ${games(c)}${c.prov ? ` · ${tx('provisório')}` : ''}`, 'rt-c')}
-          {row(tx('Troféus'), <WhiteStars v={trophyStars(pts)} title={tx('{p} pontos de troféus', { p: pts })} />, list.length ? <>{tx('{n} troféus · {p} pontos', { n: list.length, p: pts })} <Trophies list={list} /></> : tx('ainda sem pódios em torneios'), 'rt-w')}
+        <ul className="drt-list">
+          {n && row(tx('Normal'), <ColorStars v={n.stars} color="#f2b84b" prov={n.prov} />, `Elo ${n.elo} · ${games(n)}${n.prov ? ` · ${tx('provisório')}` : ''}`, 'drt-y')}
+          {n?.blue != null && row(tx('Todos os jogos'), <ColorStars v={n.blue} color="#6aa8ff" />, `Elo ${n.blue_elo} · ${games(n, 'blue_games')} (${tx('com casuais e cruzados')})`, 'drt-b')}
+          {n?.red != null && row(tx('Objetivo'), <ColorStars v={n.red} color="#ff6b6b" />, `${tx('ganha pela via do deck {p}% das vezes', { p: Math.round((n.goal || 0) * 100) })}${routes ? ` · ${routes}` : ''}`, 'drt-r')}
+          {c && row(tx('Casual'), <ColorStars v={c.stars} color="#c9a35a" prov={c.prov} />, `Elo ${c.elo} · ${games(c)}${c.prov ? ` · ${tx('provisório')}` : ''}`, 'drt-c')}
+          {row(tx('Troféus'), <WhiteStars v={trophyStars(pts)} title={tx('{p} pontos de troféus', { p: pts })} />, list.length ? <>{tx('{n} troféus · {p} pontos', { n: list.length, p: pts })} <Trophies list={list} /></> : tx('ainda sem pódios em torneios'), 'drt-w')}
         </ul>
       )}
     </section>

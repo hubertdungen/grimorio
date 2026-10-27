@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef,
 import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
 import { img, coverOf, colorsOf, HUE } from './data.js'
-import { Mana, Stars, WhiteStars } from './ui.jsx'
+import { Mana, Stars, WhiteStars, SrcFilter } from './ui.jsx'
 import Replay from './Board.jsx'
 import ForgeTable from './ForgePlay.jsx'
 import { Cup, PLACE, TIERS, KIND, tierOf } from './Library.jsx'
@@ -1347,7 +1347,8 @@ function Registry({ data, list, open, reload }) {
 // hall da fama: títulos e pódios por deck (os meus e os do meta), por formato do torneio ou só os casuais
 function Fame({ data, list }) {
   const [f, setF] = useState('')
-  const [who, setWho] = useState('todos')
+  const [who, setWho] = useState(['meu', 'ami', 'com', 'meta'])
+  const kindOf = p => (p.src !== 'meus' ? 'meta' : p.fr ? 'ami' : p.com ? 'com' : 'meu')
   const fmts = [...new Set(list.filter(x => x.podium && !x.old && !x.casual).map(x => x.format))]  // old: de antes de repor os troféus
   const rows = {}
   for (const x of list) if (x.podium && !x.old && (!f || (f === 'casual' ? x.casual : !x.casual && x.format === f))) for (const p of x.podium) {
@@ -1358,7 +1359,8 @@ function Fame({ data, list }) {
   // troféus dos meus decks que já não contam (a lista mudou mais de 10% desde o torneio): ficam a cinzento na galeria
   const [tro, setTro] = useState({})
   useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
-  const top = Object.values(rows).filter(r => who === 'todos' || (who === 'meus') === (r.src === 'meus'))
+  const has = new Set(Object.values(rows).map(kindOf))
+  const top = Object.values(rows).filter(r => who.includes(kindOf(r)))
     .sort((a, b) => b.m[0] - a.m[0] || b.m[1] - a.m[1] || b.m[2] - a.m[2] || a.name.localeCompare(b.name))
   // galeria: filtros (lugar/cor e tipo de torneio) e ordem (valor, quantidade, nome) próprios
   const [gTier, setGTier] = useState(''), [gKind, setGKind] = useState(''), [gSort, setGSort] = useState('valor'), [gInfo, setGInfo] = useState(false)
@@ -1374,7 +1376,7 @@ function Fame({ data, list }) {
       <h3>{tx('🏛 Hall da fama')}</h3>
       <div className="row-btns">
         <select value={f} onChange={e => setF(e.target.value)} aria-label={tx('Formato')}><option value="">{tx('Todos os formatos')}</option>{fmts.map(k => <option key={k} value={k}>{FORMAT[k]?.name || k}</option>)}{list.some(x => x.casual && x.podium) && <option value="casual">{tx('Casuais')}</option>}</select>
-        <span className="seg">{[['todos', tx('Todos')], ['meus', tx('Os meus')], ['meta', tx('Do meta')]].map(([k, l]) => <button key={k} className={who === k ? 'on' : ''} onClick={() => setWho(k)}>{l}</button>)}</span>
+        <SrcFilter on={who} set={setWho} has={has} />
       </div>
       {!top.length ? <p className="muted small">{f ? tx('Ainda ninguém subiu ao pódio neste formato.') : tx('Ainda ninguém subiu ao pódio.')}</p> : (
         <table className="lab-table ts-table"><thead><tr><th>Deck</th><th title={tx('Torneios ganhos')}>🥇</th><th>🥈</th><th>🥉</th><th>{tx('Pódios')}</th></tr></thead>
