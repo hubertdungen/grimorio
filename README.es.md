@@ -165,7 +165,12 @@ en la nube es para ordenadores y servidores de un solo dueño.
 - **Universo 3D de cartas**: regiones por función que muestran lo que le falta a tu mazo, el rendimiento de cada carta
   en partidas reales con cambios sugeridos, constelaciones de los arquetipos del meta y un lazo para encontrar las mejores
   cartas de cualquier zona.
-- **Combos y paquetes de sinergia**, comparación de mazos y detección de duplicados.
+- **Combos y paquetes de sinergia**, comparación de mazos (con el porqué de que un mazo parecido tenga mejor rating:
+  interacción, curva, tierras, staples, objetivo) y detección de duplicados.
+- **Mesa de Forge Play estable y viva** — tamaño fijo escalado a la pantalla (apaisada en PC y tablet, vertical en el
+  móvil): las zonas no saltan con cartas nuevas ni con la barra del navegador y las filas llenas solapan las cartas. Las
+  cartas se deslizan entre jugadas, soltar un aura, remoción o equipo sobre una criatura la elige como objetivo, adivinar
+  y vigilar en dos montones, buscar en la biblioteca en una cuadrícula con filtro y el veneno subiendo en el ☠.
 - **Asistente de IA (opcional)**: claves de varios proveedores, modelos más recientes detectados solos; cambia tu mazo
   directamente (cambios, cantidades, sustitutos para cualquier carta) con un clic.
 - **Coliseo (IA de Forge)**: IA contra IA con reglas reales (Bo1/Bo3, sideboard inteligente, aprendizaje), todos

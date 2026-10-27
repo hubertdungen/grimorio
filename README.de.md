@@ -163,7 +163,12 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
   es geschlagen hat, die Karten, die in echten Partien gewinnen oder auf der Hand liegen bleiben, und ein ⓘ an jeder Zahl.
 - **3D-Kartenuniversum** – Regionen nach Rolle, die zeigen, was deinem Deck fehlt, die Leistung jeder Karte in echten
   Spielen mit Tauschvorschlägen, Sternbilder der Meta-Archetypen und ein Lasso, um die besten Karten jedes Bereichs zu finden.
-- **Combos und Synergiepakete**, Deckvergleich und Erkennung doppelter Decks.
+- **Combos und Synergiepakete**, Deckvergleich (mit dem Warum, wenn ein ähnliches Deck besser bewertet ist: Interaktion,
+  Kurve, Länder, Staples, Ziel) und Erkennung doppelter Decks.
+- **Ein ruhiger, lebendiger Forge-Play-Tisch** — feste Größe, auf den Bildschirm skaliert (quer auf PC und Tablet, hoch
+  auf dem Handy): Zonen springen nicht bei neuen Karten oder der Browserleiste, volle Reihen schieben die Karten
+  übereinander. Karten gleiten zwischen den Zügen, eine Aura, Removal oder Ausrüstung auf eine Kreatur fallen lassen wählt
+  sie als Ziel, Hellsicht und Überwachen als zwei Stapel, Bibliothekssuche als filterbares Raster und Gift, das am ☠ steigt.
 - **KI-Assistent (optional)** – Schlüssel mehrerer Anbieter, neueste Modelle automatisch erkannt; er ändert dein Deck
   direkt (Tausch, Mengen, Ersatz für jede Karte) mit einem Klick.
 - **Kolosseum (Forge-KI)** – KI gegen KI mit echten Regeln (Bo1/Bo3, cleveres Sideboarding, lernend), Jeder gegen jeden

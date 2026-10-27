@@ -158,7 +158,12 @@ computadores e servidores de um só dono.
   sideboard cobre o que o venceu, as cartas que ganham ou ficam presas na mão nos jogos, e um ⓘ a explicar cada número.
 - **Universo 3D de cartas** — regiões por função que mostram o que falta ao teu deck, o desempenho de cada carta nos
   jogos com trocas sugeridas, constelações dos arquétipos do meta e um laço para achar as melhores cartas de qualquer zona.
-- **Combos e pacotes de sinergia**, comparação de decks e deteção de duplicados.
+- **Combos e pacotes de sinergia**, comparação de decks (com o porquê de um deck parecido ter melhor rating: interação,
+  curva, terrenos, staples, objetivo) e deteção de duplicados.
+- **Mesa do Forge Play estável e viva** — tamanho fixo escalado ao ecrã (deitada no PC e tablet, ao alto no telemóvel):
+  as zonas não saltam com cartas novas nem com a barra do browser e filas cheias encostam as cartas. As cartas deslizam
+  entre jogadas, largar uma aura, remoção ou equipamento em cima de uma criatura escolhe-a como alvo, scry e vigiar em dois
+  montes, procurar na biblioteca numa grelha com filtro e o veneno a subir no ☠.
 - **Assistente de IA (opcional)** — chaves de vários fornecedores, modelos mais recentes detetados sozinhos; muda o
   deck diretamente (trocas, quantidades, substitutos para qualquer carta) com um clique.
 - **Coliseu (IA do Forge)** — IA contra IA com regras reais (Bo1/Bo3, sideboard inteligente, aprendizagem), todos contra

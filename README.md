@@ -155,7 +155,12 @@ sync is for computers and single-owner servers.
   beat it, the cards that win or get stuck in hand in real games, and a ⓘ explanation on every number.
 - **3D card universe** — role regions that show what your deck is missing, each card's performance in real games with
   suggested swaps, meta archetype constellations and a lasso to find the best cards of any area.
-- **Combos and synergy packages**, deck comparison and duplicate detection.
+- **Combos and synergy packages**, deck comparison (with why a similar deck rates higher: interaction, curve, lands,
+  staples, goal) and duplicate detection.
+- **A steady, lively Forge Play table** — fixed size scaled to the screen (landscape on PC and tablet, portrait on
+  phones): zones never jump when cards arrive or the browser bar moves, and crowded rows overlap their cards. Cards glide
+  between plays, dropping an aura, removal or equipment on a creature targets it, scry and surveil as two piles, library
+  searches as a filterable grid, and poison ticking up on the ☠.
 - **AI assistant (optional)** — keys for several providers, newest models detected automatically; it changes your deck
   directly (swaps, quantities, substitutes for any card) with one click.
 - **Coliseum (Forge AI)** — AI vs AI with real rules (Bo1/Bo3, smart sideboarding, learning), 3–4 player free-for-all
