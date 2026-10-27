@@ -1,6 +1,7 @@
 // Forge Play nativo: jogas contra a IA do Forge com a mesa do Grimório. O motor corre no servidor (playnet.py +
 // build/forge/GrimorioNet.java) e manda o estado do jogo, o pedido atual (o que o motor espera de ti) e as escolhas
 // pendentes; aqui desenha-se a mesa e cada clique volta como comando (carta, jogador, OK/cancelar, mana, responder).
+import { fpPrefs } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Side, Hand, StackFx } from './Board.jsx'
@@ -30,7 +31,7 @@ function promptText(msg, st, me) {
   if (/^Priority:/.test(m)) {
     if (st?.stack?.length) return tx('Há {n} na pilha: responde com um instantâneo ou OK para deixar resolver.', { n: st.stack.length })
     const mine = st?.active === me?.id, main = st?.phase === 'MAIN1' || st?.phase === 'MAIN2'
-    return mine && main ? tx('O teu turno: joga um terreno ou uma carta (clica nela), ou OK para avançar.') : tx('Tens prioridade: OK para passar.')
+    return mine && main ? tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou duplo clique), ou OK para avançar.') : tx('Tens prioridade: OK para passar.')
   }
   if (/^Waiting for/.test(m)) return tx('O adversário está a pensar…')
   if (/won the coin toss/.test(m)) return tx('Ganhaste a moeda ao ar: jogas primeiro ou vais em segundo?')
@@ -46,12 +47,12 @@ function promptText(msg, st, me) {
 
 // uma carta solta (mão, escolhas, cemitério): imagem da Scryfall com força/resistência por cima. h = id da carta na mão:
 // a mesa trata do clique e do arrastar pelo data-h
-function FCard({ c, data, onClick, h, cls = '', big }) {
+function FCard({ c, data, onClick, h, cls = '', big, flip }) {
   if (!c || c.hidden) return <div className={`fp-card back ${cls}`} />
   const card = data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase())
-  const src = card ? img(card, big ? 'normal' : 'small') : null
+  const src = card ? img(card, big ? 'normal' : 'small', !!(flip && card.df)) : null  // virada: a outra face (cartas de duas faces)
   return (
-    <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${cls}`} title={c.name} data-h={h} data-zid={c.id}
+    <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${flip && !card?.df ? 'upside' : ''} ${cls}`} title={c.name} data-h={h} data-zid={c.id}
       onClick={onClick && (() => onClick(c))} onContextMenu={e => e.preventDefault()}>
       {src ? <img src={src} alt={c.name} loading="lazy" draggable="false" /> : <span className="fp-name">{c.name}</span>}
       {c.pt && <i className="fp-pt">{c.pt[0]}/{c.pt[1]}</i>}
@@ -92,7 +93,7 @@ function useDrag(onDrop, onLong) {
     if (!el) return
     const id = +(el.dataset.h || el.dataset.z.slice(2)), from = el.dataset.h ? 'hand' : 'field'
     const r = el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY
-    let ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, over = null
+    let gap = null, ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, over = null
     const long = e.pointerType !== 'mouse' && setTimeout(() => onLong?.(id), 450)  // tocar e manter = ver em grande
     const mark = t => { if (over) over.classList.remove('fp-over'); over = t; if (t) t.classList.add('fp-over') }
     const targetAt = (px, py) => document.elementFromPoint(px, py)
@@ -116,13 +117,16 @@ function useDrag(onDrop, onLong) {
         el.style.visibility = 'hidden'
         raf = requestAnimationFrame(tick)
       }
-      mark(zoneAt(targetAt(tx0, ty0)))
+      const t = targetAt(tx0, ty0)
+      mark(zoneAt(t))
+      const g = t?.closest('.fp-hand [data-h]')  // por cima da mão: as outras cartas abrem espaço onde ela vai ficar
+      if (g !== gap) { gap?.classList.remove('fp-gap'); gap = g && g !== el ? g : null; gap?.classList.add('fp-gap') }
     }
     const up = ev => {
       clearTimeout(long)
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up)
       if (!ghost) return
-      cancelAnimationFrame(raf); mark(null)
+      cancelAnimationFrame(raf); mark(null); gap?.classList.remove('fp-gap')
       dragged.current = true; setTimeout(() => { dragged.current = false }, 0)  // o clique que vem a seguir ao largar não conta
       const res = ev.type === 'pointerup' && onDrop({ id, from, target: targetAt(ev.clientX, ev.clientY) }), g = ghost
       if (res === 'local') {  // arrumação: a carta voa com mola para o sítio novo e só então aparece lá
@@ -285,11 +289,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   const me = players.find(p => p.me) || players.find(p => !p.ai), opp = players.find(p => p !== me)
   const pr = s?.prompt, btns = (pr?.buttons || []).filter(b => b.label)
   const ask = s?.asks?.[0]
+  const hoverId = useRef(null), [flipped, setFlipped] = useState(() => new Set()), [lift, setLift] = useState(null)  // carta debaixo do rato; viradas; levantada na mão
   useEffect(() => {  // Enter/Espaço = o botão principal (passar ao passo seguinte), Shift+Enter = acabar o turno, Esc = o outro botão
     const k = e => {
       if (ask || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return
+      const P = fpPrefs()
+      if (e.key.toLowerCase() === P.flip && hoverId.current != null && !e.ctrlKey && !e.metaKey) { e.preventDefault(); const k = hoverId.current; setFlipped(f => { const n = new Set(f); n.has(k) ? n.delete(k) : n.add(k); return n }); return }
       const end = btns.find(b => b.label === 'End Turn')
-      const b = e.key === 'Enter' && e.shiftKey ? end : e.key === ' ' || e.key === 'Enter' ? btns[0] : e.key === 'Escape' ? btns[1] : null
+      const b = e.key === 'Enter' && e.shiftKey ? end : (e.key === ' ' && P.space) || e.key === 'Enter' ? btns[0] : e.key === 'Escape' ? btns[1] : null
       if (b?.on) { e.preventDefault(); send({ c: b.c }) }
     }
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
@@ -376,14 +383,26 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   const onClick = e => {  // um clique numa carta da mesa ou da mão = o mesmo que no Forge; no orbe = escolher o jogador
     if (dragged.current) return
     const h = e.target.closest('[data-h]')
-    if (h) return send({ c: 'card', id: +h.dataset.h })
+    if (h) {  // na mão, um clique só levanta a carta (jogar = arrastá-la para a mesa ou duplo clique); se o Forge pede uma carta da mão, escolhe-a
+      const id = +h.dataset.h
+      if (byId.get(id)?.sel || !/^Priority:/.test(pr?.msg || '')) return send({ c: 'card', id })  // o Forge pede uma escolha: o clique escolhe
+      setLift(l => (l === id ? null : id)); setZoom(byId.get(id)); return
+    }
     const z = e.target.closest('[data-z]')?.dataset.z
     if (z?.startsWith('k:')) return send({ c: 'card', id: +z.slice(2) })
     const orb = e.target.closest('.orb')
     if (orb) send({ c: 'player', i: players.indexOf(orb.closest('.bside')?.classList.contains('top') ? opp : me) })
   }
+  const onDouble = e => {  // duplo clique numa carta da mão = jogá-la (atalho)
+    const h = e.target.closest('[data-h]')
+    if (!h || dragged.current) return
+    const id = +h.dataset.h
+    if (!byId.get(id)?.play) { setToast({ title: tx('Agora não dá para jogar esta carta'), msg: tx('Falta mana, não é a altura (feitiço fora da tua fase principal) ou já jogaste um terreno neste turno.') }); return }
+    setLift(null); send({ c: 'card', id })
+  }
   const onOver = e => {
     const el = e.target.closest('[data-z], [data-zid]'), z = el?.dataset.z
+    hoverId.current = el?.dataset.h ? +el.dataset.h : z?.startsWith('k:') ? +z.slice(2) : null
     const c = z?.startsWith('k:') ? byId.get(+z.slice(2)) : el?.dataset.zid ? byId.get(+el.dataset.zid) || (el.dataset.zn && { name: el.dataset.zn }) : z?.startsWith('n:') ? { name: z.slice(2) } : null
     if (c && !c.hidden) setZoom(c)
   }
@@ -398,7 +417,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   }
   return (
     <div className="fp" ref={fitBox} onMouseLeave={() => setZoom(null)} onMouseOver={onOver}>
-      <div className="fp-table board table" ref={fitTable} onClick={onClick} onMouseMove={tilt} onPointerDown={down}>
+      <div className="fp-table board table" ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
+        {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone}
           hand={nOpp > 0 && <Hand z={{ hand: nOpp, known: Array(nOpp).fill('?') }} data={data} exact opp hidden quiet />} />}
         <div className="fp-mid">
@@ -407,7 +427,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
           <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={null} who={{ a: me?.name, b: opp?.name }} speed={1} />
         </div>
         {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} place={lay.place} order={lay.order}
-          hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big cls={c.play ? 'play' : ''} />)}</div>} />}
+          hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}
       </div>
       <aside className="fp-side">
         <div className="fp-zoom">{zc ? <img src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>

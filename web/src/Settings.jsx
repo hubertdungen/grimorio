@@ -1,5 +1,6 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
+import { fpPrefs } from './fpprefs.js'
 import { wakeOn, setWake, wakeSupported, fsOrientPref, setFsOrientPref } from './wakelock.js'
 import { sfMode, setSfMode } from './data.js'
 import { useEffect, useRef, useState } from 'react'
@@ -98,6 +99,19 @@ function ImgSource() {
         </select>
       </label>
       <p className="muted small">{tx('Algumas redes (trabalho, escolas) bloqueiam scryfall.io e as cartas aparecem sem imagem. Pelo Grimório as imagens passam pelo teu servidor e ficam guardadas lá; é um pouco mais lento da primeira vez.')}</p>
+    </>
+  )
+}
+
+function TableKeys() {
+  const [p, setP] = useState(fpPrefs)
+  const save = v => { const n = { ...p, ...v }; setP(n); try { localStorage.setItem('grimorio.fp.prefs', JSON.stringify(n)) } catch { /* sem armazenamento */ } }
+  return (
+    <>
+      <label className="chk"><input type="checkbox" checked={p.space} onChange={e => save({ space: e.target.checked })} /> {tx('Espaço faz o mesmo que Enter (OK / passar)')}</label>
+      <label className="fmt"><span>{tx('Tecla para virar a carta debaixo do rato (a outra face, ou de pernas para o ar; só no teu ecrã)')}</span>
+        <input value={p.flip.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (/^[a-z0-9]$/.test(k)) save({ flip: k }) }} /></label>
+      <p className="muted small">{tx('Na mão: um clique levanta a carta e mostra-a; para a jogar, arrasta-a para a mesa (ou duplo clique). Se a largares de volta na mão, fica no sítio onde a largaste.')}</p>
     </>
   )
 }
@@ -240,6 +254,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('🤖 Bots predefinidos')}</h3><DefaultBots /></section>
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
       <section className="card"><h3>{tx('Ecrã')}</h3><ScreenAwake /></section>
+      <section className="card"><h3>{tx('Mesa (Forge Play)')}</h3><TableKeys /></section>
       <section className="card"><h3>{tx('Imagens das cartas')}</h3><ImgSource /></section>
       <section className="card"><h3>{tx('Estrelas dos decks')}</h3><StarLayers /></section>
       <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>

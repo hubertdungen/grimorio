@@ -2478,3 +2478,10 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .pv-sb ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; max-height: 340px; overflow-y: auto; }
 .pv-sb li { display: flex; align-items: center; gap: 8px; font-size: 13px; } .pv-sb li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pv-sb li button { padding: 1px 9px; } .pv-sb .chg { color: var(--gold2); font-weight: 700; }
+/* Forge Play: mão mais viva — levantar ao clicar, zoom animado ao passar, espaço ao arrastar, carta virada */
+.fp-hand .fp-card { transition: transform .22s cubic-bezier(.2, 1.3, .4, 1), margin .22s ease, box-shadow .2s; }
+.fp-hand .fp-card:hover { transform: perspective(520px) translateY(-26%) rotateX(calc(var(--ty) * -12deg)) rotateY(calc(var(--tx) * 14deg)) scale(1.32); z-index: 4; box-shadow: 0 14px 30px #000a; }
+.fp-hand .fp-card.lift { transform: translateY(-34%) scale(1.4); z-index: 5; box-shadow: 0 0 0 2px var(--gold), 0 18px 36px #000c; }
+.fp-hand .fp-card.fp-gap { margin-left: calc(var(--hw) * .55); }
+.fp-card.upside img { transform: rotate(180deg); }
+@media (hover: none) { .fp-hand .fp-card:hover { transform: none; box-shadow: none; } }
