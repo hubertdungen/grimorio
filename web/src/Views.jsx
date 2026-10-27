@@ -92,10 +92,10 @@ function useTastes(data, deck) {
 // Personalização opcional das sugestões (fica guardada no deck).
 // ⛰ Terrenos: quantos, que cores e que terrenos (swap.js landPlan); não precisa de jogos
 const LAND_KIND = { menos: tx('menos 1 terreno, mais 1 carta'), mais: tx('mais 1 terreno, menos 1 carta'), cor: tx('cor em falta'), melhor: tx('terreno melhor') }
-function LandPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
+function LandPanel({ data, deck, fmt, ctx, act, swaps, recs, co, meta }) {
   const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.terrenos') === '1' } catch { return false } })
   const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.terrenos', v ? '1' : '0') } catch { /* sem armazenamento */ } }
-  const plan = useMemo(() => (open ? landPlan(data, deck, fmt, ctx, { fn: swaps, recs }) : null), [open, data, deck, fmt, ctx, swaps, recs])
+  const plan = useMemo(() => (open ? landPlan(data, deck, fmt, ctx, { fn: swaps, recs, co, meta }) : null), [open, data, deck, fmt, ctx, swaps, recs, co, meta])
   const card = (n, c) => c || data.byName.get(n)
   return (
     <div className={`prefs cutp ${open ? 'on' : ''}`}>
@@ -126,12 +126,12 @@ function LandPanel({ data, deck, fmt, ctx, act, swaps, recs }) {
 
 // 🧩 Preencher o deck: só aparece com cartas a menos (Commander incluído); várias estratégias, cada carta com o porquê
 const FILL_ST = [['equilibrada', '⚖', tx('Equilibrada')], ['plano', '🎯', tx('Reforçar o plano')], ['interacao', '🛡', tx('Mais interação')], ['curva', '⚡', tx('Curva baixa')], ['copias', '📈', tx('Mais cópias')]]
-function FillPanel({ data, deck, fmt, ctx, act, recs, needs }) {
+function FillPanel({ data, deck, fmt, ctx, act, recs, needs, meta }) {
   const total = Object.values(deck.main).reduce((a, q) => a + q, 0) + deck.commanders.length, min = fmt.size[0]
   const [st, setSt] = useState(() => { try { return localStorage.getItem('grimorio.preencher') || 'equilibrada' } catch { return 'equilibrada' } })
   const pick = v => { setSt(v); try { localStorage.setItem('grimorio.preencher', v) } catch { /* sem armazenamento */ } }
   const need = useMemo(() => (total < min ? manaNeeds(data, deck, fmt) : null), [total, min, data, deck, fmt])
-  const lands = useMemo(() => (need ? recommendLands(data, { deck, fmt, ctx, need, limit: 12 }).filter(l => !deck.main[l.c.n]) : []), [need, data, deck, fmt, ctx])
+  const lands = useMemo(() => (need ? recommendLands(data, { deck, fmt, ctx, meta, need, limit: 12 }).filter(l => !deck.main[l.c.n]) : []), [need, data, deck, fmt, ctx, meta])
   const sts = FILL_ST.filter(([k]) => k !== 'copias' || fmt.copies !== 1)
   const s = sts.some(([k]) => k === st) ? st : 'equilibrada'
   const plan = useMemo(() => {
@@ -561,9 +561,9 @@ const NOLANDS = { noLands: true }
 const LANDS_ONLY = { type: 'Land', colors: [] }
 
 // Base de mana: equilíbrio de terrenos, fontes por cor e terrenos sugeridos (com mecânica).
-function ManaBlock({ data, deck, fmt, ctx, act, co, swaps, limit = 4, full = false }) {
+function ManaBlock({ data, deck, fmt, ctx, act, co, meta, swaps, limit = 4, full = false }) {
   const need = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
-  const lands = useMemo(() => (full || limit ? recommendLands(data, { deck, fmt, ctx, co, need, limit: full ? 12 : limit }) : []), [data, deck, fmt, ctx, co, need, limit, full])
+  const lands = useMemo(() => (full || limit ? recommendLands(data, { deck, fmt, ctx, co, meta, need, limit: full ? 12 : limit }) : []), [data, deck, fmt, ctx, co, meta, need, limit, full])
   const short = Object.entries(need.cols).filter(([, x]) => x.have < x.need)
   const nLand = need.lands
   return (
@@ -624,9 +624,9 @@ function LivePanel({ data, deck, fmt, ctx, act, onSwaps }) {
         </div>
       )}
       {open && seeds.length > 0 && kind !== 'terrenos' && landsFirst && (
-        <div className="mana-sec"><h4>{tx('Base de mana · prioridade')}</h4><ManaBlock {...{ data, deck, fmt, ctx, act, co, swaps }} /></div>
+        <div className="mana-sec"><h4>{tx('Base de mana · prioridade')}</h4><ManaBlock {...{ data, deck, fmt, ctx, act, co, meta, swaps }} /></div>
       )}
-      {open && seeds.length > 0 && kind === 'terrenos' && <div className="mana-sec"><ManaBlock {...{ data, deck, fmt, ctx, act, co, swaps }} limit={12} /></div>}
+      {open && seeds.length > 0 && kind === 'terrenos' && <div className="mana-sec"><ManaBlock {...{ data, deck, fmt, ctx, act, co, meta, swaps }} limit={12} /></div>}
       {open && kind !== 'terrenos' && (seeds.length ? (
         <ul className="live-list">
           {recs.map(r => (
@@ -642,7 +642,7 @@ function LivePanel({ data, deck, fmt, ctx, act, onSwaps }) {
             </li>
           ))}
           {!recs.length && <li className="muted small">{tx('Nenhuma sugestão com este tipo de razão.')}</li>}
-          {!landsFirst && !kind && !tag && <li className="mana-sec-li"><h4>{tx('Base de mana')}</h4><ManaBlock {...{ data, deck, fmt, ctx, act, co, swaps }} limit={3} /></li>}
+          {!landsFirst && !kind && !tag && <li className="mana-sec-li"><h4>{tx('Base de mana')}</h4><ManaBlock {...{ data, deck, fmt, ctx, act, co, meta, swaps }} limit={3} /></li>}
         </ul>
       ) : <p className="muted small live-empty">{tx('Junta o comandante ou umas cartas e as sugestões aparecem aqui, com o porquê de cada uma.')}</p>)}
     </aside>
@@ -1013,10 +1013,10 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
         <SeedPicker {...{ data, ctx, act }} />
       </div>
       <PrefsPanel {...{ deck, fmt, act }} />
-      <FillPanel {...{ data, deck, fmt, ctx, act, recs: allSug, needs }} />
+      <FillPanel {...{ data, deck, fmt, ctx, act, recs: allSug, needs, meta }} />
       <CutPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug, co, cmdIdx, needs, meta, archetype }} />
       <AdjustPanel {...{ data, deck, fmt, ctx, act, needs }} />
-      <LandPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug }} />
+      <LandPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug, co, meta }} />
       <SidePanel {...{ data, deck, fmt, ctx, act, meta, have }} />
       <Filters f={f} set={x => { setSugTag(''); setF(x) }} compact noTag />
       <label className="sug-sort small">{tx('Ordenar')} <select value={sort} onChange={e => setSort(e.target.value)}>
@@ -1357,7 +1357,7 @@ function usePlanCuts({ data, deck, fmt, ctx, act, issues }) {
     <Fold>
       <h3>{tx('Base de mana')} <Hint t={tx('Fontes de cada cor que o deck tem e de que precisa nesta fase (Frank Karsten); a vermelho as que faltam.')} /></h3>
       <p className="muted small">{tx('Fontes por cor: tem/precisa nesta fase (aprox. Frank Karsten; um custo com {gg} pede mais fontes verdes do que {g}).', { gg: '{G}{G}', g: '{G}' })}</p>
-      <ManaBlock {...{ data, deck, fmt, ctx, act, co }} limit={0} />
+      <ManaBlock {...{ data, deck, fmt, ctx, act, co, meta }} limit={0} />
       <button className="link small" onClick={() => toSug('grimorio.terrenos')}>⛰ {tx('Terrenos sugeridos (em Sugestões) →')}</button>
     </Fold>
   )

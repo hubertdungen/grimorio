@@ -21,7 +21,8 @@ export const HATE = [
   ['graveyard', /exile (all|each)[^.]*graveyards?|target player's graveyard|card (from|in) (a|an opponent's) graveyard|search its owner's graveyard|graveyards? (can't|lose)|cards in graveyards can't/i, tx('castiga o cemitério')],
   ['spells', /counter target (spell|instant|sorcery|noncreature)|instant (and|or) sorcery spells? cost|nonland card from it|instant or sorcery card from it/i, tx('trava instantâneos e feitiços')],
   ['creatures', /counter target creature spell|destroy all creatures|damage to each creature|each creature gets -|(destroy|exile) target creature(?![^.]*\byou control\b)/i, tx('trava criaturas')],  // exilar as tuas (blink) não trava nada
-  ['flyers', /creature with flying|reach|destroy target creature with flying/i, tx('trava voadores')],
+  // responde a voadores: matar/encolher criaturas voadoras ou ter alcance (não «can't be blocked except by creatures with flying»)
+  ['flyers', /target creatures? with flying|each creature with flying|creatures with flying[^.]* gets? -|(^|\n)(\w+, )*reach\b|(has|have) reach\b/i, tx('trava voadores')],
   ['lifegain', /can't gain life|life total can't|players can't gain/i, tx('corta o ganho de vida')],
 ]
 export const CAT_LABEL = { creatures: tx('criaturas'), flyers: tx('criaturas voadoras'), artifacts: tx('artefactos'), enchantments: tx('encantamentos'), spells: tx('instantâneos e feitiços'), graveyard: tx('cemitério'), lifegain: tx('ganho de vida') }

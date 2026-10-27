@@ -73,7 +73,20 @@ const gate = L('Simic Guildgate', 'Land — Gate', 'Simic Guildgate enters tappe
 assert.equal(gate.tapped, 'sim')
 const wilds = L('Evolving Wilds', 'Land', '{T}, Sacrifice Evolving Wilds: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle.')
 assert.ok(wilds.fetch && wilds.colors.has('*'))
+assert.equal(wilds.tapped, 'sim')  // o terreno que vai buscar entra virado
+assert.equal(L('Fabled Passage', 'Land', '{T}, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield tapped, then shuffle. Then if you control four or more lands, untap that land.').tapped, 'às vezes')
+// «unless» noutra frase não torna condicional (Gateway Plaza entra sempre virada); Demolition Field não é fetch
+assert.equal(L('Gateway Plaza', 'Land', 'This land enters tapped.\nWhen this land enters, sacrifice it unless you pay {1}.\n{T}: Add one mana of any color.').tapped, 'sim')
+assert.ok(!L('Demolition Field', 'Land', "{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Destroy target nonbasic land an opponent controls. That land's controller may search their library for a basic land card, put it onto the battlefield, then shuffle. You may search your library for a basic land card, put it onto the battlefield, then shuffle.").fetch)
 assert.ok(L('Mishra\'s Factory', 'Land', '{1}: Mishra\'s Factory becomes a 2/2 Assembly-Worker artifact creature until end of turn.').util.includes('vira criatura (manland)'))
+// Sideboard por tipo de ameaça: só respostas a sério
+{ const { SIDE_CATS: S } = await import('./src/data.js'), hit = (k, o) => S[k][1].test(o.toLowerCase())
+  assert.ok(hit(0, 'When Rest in Peace enters, exile all graveyards.') && !hit(0, '{W}: Exile target card from a graveyard.'))
+  assert.ok(hit(3, 'Each creature gets -X/-X until end of turn.') && !hit(3, 'You gain 5 life and shuffle your graveyard into your library.') && !hit(3, 'Creatures your opponents control get -2/-0 until end of turn.'))
+  assert.ok(hit(4, 'Destroy target creature with flying.') && hit(4, 'Reach, trample') && !hit(4, 'This spell costs {1} less to cast if you control a creature with flying.'))
+  assert.ok(!hit(5, 'Permanents your opponents control lose hexproof and indestructible.'))
+  const { HATE } = await import('./src/tests.js'), fly = HATE.find(x => x[0] === 'flyers')[1]
+  assert.ok(fly.test('Destroy target creature with flying.') && !fly.test("Signal Pest can't be blocked except by creatures with flying or reach.")) }
 // Básicos vão para a cor com menos fontes face ao alvo.
 const b = basicsFor(null, { cols: { G: { have: 10, full: 20 }, U: { have: 2, full: 16 } } }, 6, 'GU')
 assert.ok(b.Island >= 5, JSON.stringify(b))

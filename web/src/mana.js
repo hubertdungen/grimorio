@@ -11,7 +11,7 @@ const BASIC_OF = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 
 export function landInfo(c, cmd = true) {
   const o = c.o.toLowerCase()
   // Command Tower sem comandante não dá cor; Gemstone Caverns só com o marcador de sorte (quase nunca)
-  const any = /any color|any one color|mana of any type|mana of any one color/.test(o) && !/luck counter/.test(o) && (cmd || !/commander's color identity/.test(o))
+  const any = /any color|any one color|mana of any type|mana of any one color|choose a basic land type/.test(o) && !/luck counter/.test(o) && (cmd || !/commander's color identity/.test(o))
   const colors = new Set()
   // só o que vem a seguir a «Add» (o {G}{W} do custo de uma habilidade não é mana que a terra dê)
   const adds = [...c.o.matchAll(/\badd ((?:\{[WUBRGC]\}|\s|,|or|and)+)/gi)].map(m => m[1]).join(' ')
@@ -19,14 +19,20 @@ export function landInfo(c, cmd = true) {
   for (const [t, k] of Object.entries(BASIC_OF)) if (c.t.includes(t)) colors.add(k)
   // «qualquer cor» com limites vale menos: só para um tipo de feitiço / só no turno em que entra (0,25), filtro que pede {1} (0,5)
   const anyQ = !any ? 0 : /spend this mana only|activate only if|could produce|energy|turned face up/.test(o) ? 0.25 : /\{t\}, [^:]{2,60}: add (one|\w+) mana of any (one )?color|\{\d\}, \{t\}: add one mana of any color/.test(o) ? 0.5 : 1
-  const fetch = /search your library for (a|an|up to \w+)[^.]*(land|plains|island|swamp|mountain|forest)/.test(o) && /sacrifice/.test(o)
+  // fetch: a procura é o efeito do sacrifício (Demolition Field só procura depois de destruir um terreno do adversário)
+  const fetch = /sacrifice [^:.]*: search your library for (a|an|up to \w+)[^.]*(land|plains|island|swamp|mountain|forest)|sacrifice it\. when you do, search your library for/.test(o)
   const basicOnly = fetch && /search your library for (a|an|up to \w+) basic/.test(o)  // só vai buscar básicos (precisa de os ter no deck)
   if (fetch) {
     for (const [t, k] of Object.entries(BASIC_OF)) if (o.includes(t.toLowerCase())) colors.add(k)
     if (/basic land/.test(o) && !colors.size) colors.add('*')
   }
-  const tappedAlways = /enters (the battlefield )?tapped\.?/.test(o) && !/unless|you may pay \d+ life|if you control|if it's not your first/.test(o)
-  const tappedCond = /enters (the battlefield )?tapped/.test(o) && !tappedAlways
+  // fetch que põe o terreno virado (Evolving Wilds) ou que custa mana a ativar (Panoramas) também é um terreno lento
+  const slowFetch = fetch && (/onto the battlefield tapped/.test(o) || /\{\d\}, \{t\}, sacrifice/.test(o))
+  // a condição está na mesma frase («enters tapped unless…», «If you don't, it enters tapped»); o «unless you pay» de
+  // outra frase (Gateway Plaza: entra virada E sacrifica-se se não pagares) não a torna condicional
+  const ts = o.split(/\n|(?<=\.) /).find(x => /enters (the battlefield )?tapped/.test(x))
+  const tappedAlways = (!!ts && !/unless|\bif\b|you may pay/.test(ts)) || (slowFetch && !/untap that land/.test(o))
+  const tappedCond = (/enters (the battlefield )?tapped/.test(o) || slowFetch) && !tappedAlways
   const util = []
   if (/becomes? an? [^.]*creature/.test(o)) util.push(tx('vira criatura (manland)'))
   if (/draw (a|two) cards?/.test(o)) util.push(tx('compra cartas'))
@@ -115,6 +121,7 @@ export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, n
     if (ctx.identity == null && deckCols.length && c.ci && ![...c.ci].every(k => deckCols.includes(k))) continue
     const L = landInfo(c, cmd)
     if (deckCols.length && offColorLand(L, deckCols)) continue
+    if (!cmd && /commander's color identity/i.test(c.o)) continue  // Command Tower sem comandante não dá mana nenhuma
     if (deadRefsN(c, deckCards, reps).length) continue  // Villainous Hideout sem Villains: a mana dela não serve ao deck
     const why = [], P = {}
     // 1) cores que faltam (as que vão buscar básicos só dão as cores dos básicos que o deck tem)
@@ -128,10 +135,12 @@ export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, n
       fix += gap * (L.any ? L.anyQ : 1)
       if (x.have < x.need) short.push(`${k} ${x.have}/${x.need}`)
     }
-    P.cores = Math.min(0.4, 0.22 * fix) + (gives.length >= 2 ? 0.04 : 0)
+    // «qualquer cor» com condições (Sliver Hive, Plaza of Heroes, Mirrex) não é um terreno duplo
+    P.cores = Math.min(0.4, 0.22 * fix) + (gives.length >= 2 && (!L.any || L.anyQ >= 1) ? 0.04 : 0)
     if (short.length) why.push({ k: 'falta', txt: tx('Dá {c}, cores com fontes a menos ({s})', { c: gives.join('/'), s: short.join(', ') }) })
     else if (gives.length >= 2) why.push({ k: 'tema', txt: tx('Dá {c}', { c: gives.join('/') }) })
     if (deckCols.length >= 3 && !gives.length && !L.any) { P.cores -= 0.1; why.push({ k: 'perto', txt: tx('Só dá mana incolor num deck de várias cores') }) }
+    else if (deckCols.length && !gives.length && !L.any) { P.cores -= 0.06; why.push({ k: 'perto', txt: tx('Só dá mana incolor') }) }  // no lugar de um básico, tira uma fonte da cor
     // 2) ritmo: virado ou destapado
     P.ritmo = L.tapped === 'sim' ? (N.fast ? -0.15 : -0.06) : L.tapped === 'às vezes' ? -0.01 : 0.03
     if (L.tapped === 'não' && gives.length >= 2) why.push({ k: 'tema', txt: tx('Entra destapada') })
@@ -151,6 +160,9 @@ export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, n
     if (e) { P.dados += 0.3 * e.incl + 0.2 * Math.max(0, e.syn); why.push({ k: 'edh', txt: tx('Em {p}% dos decks de {c}', { p: Math.round(e.incl * 100), c: e.from }) }) }
     const m = meta?.byCard.get(c.i)
     if (m) { P.dados += 0.3 * Math.min(1, m.incl * 2.5); why.push({ k: 'meta', txt: tx('Em {p}% dos decks de {f} (≈{q} cópias)', { p: Math.round(m.incl * 100), f: meta.fmtName, q: num(m.copies, 1) }) }) }
+    else if (meta?.decks >= 100) P.dados -= 0.03  // com meta a sério, um terreno que ninguém joga desce, como em recommend
+    // incolor: o meta vem de decks que o jogam por outra razão (Urza's Saga, Ugin's Labyrinth); aqui tira uma fonte de cor
+    if (deckCols.length && !gives.length && !L.any && P.dados > 0) P.dados *= 0.4
     P.popular = c.er ? 0.05 * Math.max(0, 1 - Math.log(c.er) / LOGR) : 0
     const score = Object.values(P).reduce((a, b) => a + b, 0)
     if (score <= 0.02 && !why.length) continue

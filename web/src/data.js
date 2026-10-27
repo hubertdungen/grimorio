@@ -622,7 +622,8 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
   const themes = new Set(Object.entries(tagCount).filter(([, n]) => n >= Math.max(2, seeds.length * 0.25)).map(([t]) => t))
   const [tribe, tribeN] = Object.entries(tribeCount).sort((a, b) => b[1] - a[1])[0] || []
   const hasTribe = tribe && tribeN >= Math.max(3, creatures * 0.3)
-  const tribeRe = hasTribe ? new RegExp(`\\b${tribe.toLowerCase()}s?\\b|${tribe === 'Elf' ? 'elves' : '$^'}`) : null
+  // (?!) nunca casa; o antigo «$^» casava com o texto vazio e dava «Tribo X» a todas as criaturas sem texto (Alpha Myr)
+  const tribeRe = hasTribe ? new RegExp(`\\b${tribe.toLowerCase()}s?\\b|${tribe === 'Elf' ? 'elves' : '(?!)'}`) : null
   const topKw = Object.entries(kwCount).filter(([, n]) => n >= Math.max(3, spells * 0.15)).map(([k]) => k)
 
   // Probabilidade de montar combos (peças fora do comandante, tutores no deck).
@@ -763,6 +764,8 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     if (meta && meta.decks >= 100) {
       P.texto *= 0.6
       if (!mRow && !mArch && !mPart.length) P.torneios = -0.05
+      // o EDHREC são decks de 100 cartas singleton a 4: num formato de 60 com meta, o «jogada com X» de lá pesa metade
+      if (!edhOk) P.decksReais *= 0.5
     }
     // Testes do Laboratório: responde ao que nos venceu nos jogos guardados.
     const tb = testsBoost(c, ctx?.tests)
@@ -1048,13 +1051,16 @@ export function deckLinks(data, idxs, ctx, max = 160) {
 }
 
 // --- Sideboard sem meta: respostas por tipo de ameaça ---
+// Texto em minúsculas. Só respostas a sério: exilar UMA carta de um cemitério (Lion Sash) não para um plano de cemitério,
+// ganhar vida avulso (Elixir of Immortality) ou -2/-0 (Hampering Snare) não seguram um aggro, «creature with flying» num custo (Winged Words) não
+// responde a voadores e o «lose hexproof» da Shadowspear não protege de nada.
 export const SIDE_CATS = [
-  [tx('Contra cemitério'), /exile (all|target|each)[^.]*graveyards?|exile target player's graveyard|cards in graveyards can't|graveyards? (can't|lose)/],
+  [tx('Contra cemitério'), /exile (all|each)[^.]*graveyards?|exile target player's graveyard|cards in graveyards can't|graveyards? (can't|lose)|would be put into an opponent's graveyard[^.]*exile it instead/],
   [tx('Contra artefactos e encantamentos'), /destroy target (artifact|enchantment|artifact or enchantment)|destroy all (artifacts|enchantments)|exile target (artifact|enchantment)/],
   [tx('Contra feitiços e combo'), /counter target (instant|sorcery|noncreature|activated)|spells? (your opponents cast )?cost \{|can't cast|players can't (search|activate)/],
-  [tx('Contra aggro'), /damage to each creature|destroy all creatures|each creature gets -|you gain (4|5|6|7) life/],
-  [tx('Contra voadores'), /creature with flying|destroy target creature with flying|\breach\b/],
-  [tx('Contra controlo'), /can't be countered|hexproof|uncounterable/],
+  [tx('Contra aggro'), /(?<!equipped creature [^.]*)damage to each creature(?! with flying)|destroy all creatures|(each creature gets|creatures (your opponents control|you don't control) get) -(\d+|x)\/-([1-9]|x)/],
+  [tx('Contra voadores'), /target creatures? with flying|each creature with flying|creatures with flying[^.]* gets? -|(^|\n)(\w+, )*reach\b|(has|have) reach\b/],
+  [tx('Contra controlo'), /can't be countered|uncounterable|(has|have|gains?) hexproof/],
 ]
 export function sideSuggest(data, deck, ctx, perCat = 3) {
   const inDeck = n => deck.main[n] || deck.side[n]

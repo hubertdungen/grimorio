@@ -552,7 +552,9 @@ function build(data, deck, fmt, ctx, opts) {
         if (!xFn && plan.length && onPlan && !(X.ro & planBits) && !synX && !sharedFn.length) push(0.2, 'fora do plano', tx('Fora do plano ({p}); nenhuma sinergia no deck', { p: planName }))
         const simX = simOf.get(X.i) ?? 0
         if (simX < q25 && simS > simX + 0.05) push(0.15, 'linha fraca', tx('Texto entre os mais afastados do resto do deck'))
-        if (crowd(slotS) && Math.min(7, Math.floor(X.cmc)) === slotS) push(0.15, 'curva', tx('Curva: já tens {n} cartas de {mv} de mana', { n: s.curve[slotS], mv: slotS }))
+        // a troca alivia a curva só se X sai de um custo cheio para a sugestão entrar noutro (trocar duas de 1 de mana não muda nada)
+        const slotX = Math.min(7, Math.floor(X.cmc))
+        if (crowd(slotX) && !crowd(slotS) && slotX !== slotS) push(0.15, 'curva', tx('Curva: já tens {n} cartas de {mv} de mana', { n: s.curve[slotX], mv: slotX }))
         else if (s.avgMv > 3.8 && X.cmc >= 5 && X.cmc > S.cmc && !reanTarget(X) && !altCost(X)) push(0.1, 'curva', tx('Deck pesado (MV médio {m}); esta custa {mv}', { m: num(s.avgMv, 1), mv: X.cmc }))
         const k = strain(X)
         if (k && !strain(S) && !hard) push(0.12, 'linha fraca', tx('Pede {k}, a cor de splash do deck', { k }))
