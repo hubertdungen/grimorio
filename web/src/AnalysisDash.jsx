@@ -7,10 +7,10 @@ import { landInfo } from './mana.js'
 import { wrDelta } from './tests.js'
 import { WIN_LABEL } from './swap.js'
 import { winLose } from './winlose.js'
-import { tx, num } from './i18n.js'
+import { tx, num, LOCALE } from './i18n.js'
 import { WhiteStars } from './ui.jsx'
-import { Trophies, tierOf } from './Library.jsx'
-import { trophyStars, trophyValue } from './trophyvalue.js'
+import { Trophies, tierOf, Cup, PLACE, KIND } from './Library.jsx'
+import { trophyStars, trophyValue, trophyTier, itemValue } from './trophyvalue.js'
 
 const ptsOf = x => trophyValue({ tier: x.platinum ? 'plat' : tierOf(x.place, x.champions), kind: x.type, casual: x.casual, n: x.n, m: x.m, podiums: x.podiums })  // como na Biblioteca
 
@@ -283,6 +283,13 @@ export function RatingsCard({ deck }) {
           {row(tx('Troféus'), <WhiteStars v={trophyStars(pts)} title={tx('{p} pontos de troféus', { p: pts })} />, list.length ? <>{tx('{n} troféus · {p} pontos', { n: list.length, p: pts })} <Trophies list={list} /></> : tx('ainda sem pódios em torneios'), 'drt-w')}
         </ul>
       )}
+      {list.length > 0 && <ul className="drt-shelf" aria-label={tx('Troféus ganhos')}>{list.map(x => {  // cada troféu: o torneio, o lugar e a data; abre o torneio
+        const t = trophyTier(x)
+        return <li key={`${x.tid}${x.place}`} className={x.valid ? '' : 'off'}><button className="plain" onClick={() => openTour(x.tid)} title={`${PLACE[t]} · ${KIND[x.type] || ''}${x.valid ? ` · ${tx('+{p} pontos', { p: itemValue(x) })}` : ` · ${tx('não conta: a lista mudou mais de 10%')}`}`}>
+          <Cup place={t} kind={x.type} casual={x.casual} friends={x.friends} off={!x.valid} /><span><b>{x.name}</b><small className="muted">{PLACE[t].split(':')[0]} · {x.rec[0]}V {x.rec[1]}D{x.rec[2] ? ` ${x.rec[2]}E` : ''} · {new Date(x.ts * 1000).toLocaleDateString(LOCALE)}</small></span></button></li>
+      })}</ul>}
     </section>
   )
 }
+// abre um torneio no Coliseu (Ao vivo mostra o pódio dos acabados)
+const openTour = id => { try { localStorage.setItem('grimorio.torneio', id); localStorage.setItem('grimorio.torneio.vista', 'ver') } catch { /* sem armazenamento */ } window.dispatchEvent(new CustomEvent('grimorio:col', { detail: 'torneio' })) }

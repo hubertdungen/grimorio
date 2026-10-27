@@ -23,12 +23,14 @@ function cut(src, sx, sy, sw, sh, max = 1400, up = 1) {
 export default function CardScan({ data, onPick, onClose }) {
   const video = useRef(null), stream = useRef(null), guide = useRef(null), fileIn = useRef(null)
   const camOk = typeof window !== 'undefined' && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia
+  const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches  // telemóvel/tablet: câmara em ecrã inteiro
+  const [camFail, setCamFail] = useState(false)
   const [live, setLive] = useState(false), [busy, setBusy] = useState(''), [res, setRes] = useState(null), [shot, setShot] = useState(''), [added, setAdded] = useState([]), [err, setErr] = useState('')
   useEffect(() => {
     if (!camOk) return
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
       .then(s => { stream.current = s; if (video.current) { video.current.srcObject = s; setLive(true) } })
-      .catch(() => setLive(false))
+      .catch(() => { setLive(false); setCamFail(true) })
     return () => stream.current?.getTracks().forEach(t => t.stop())
   }, [camOk])
   // sem câmara ao vivo (http): abre logo a câmara do telemóvel (ainda dentro do toque que abriu o leitor)
@@ -74,12 +76,13 @@ export default function CardScan({ data, onPick, onClose }) {
   const pick = c => { onPick(c); setAdded(a => [c.n, ...a]); setRes(null); setShot('') }
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal scan" onClick={e => e.stopPropagation()} role="dialog" aria-label={tx('Ler carta')}>
+      <div className={`modal scan ${touch && camOk && !camFail ? 'full' : ''}`} onClick={e => e.stopPropagation()} role="dialog" aria-label={tx('Ler carta')}>
         <header className="scan-h"><h3>📷 {tx('Ler carta')}</h3><button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button></header>
         {camOk && <div className={`scan-cam ${live ? '' : 'off'}`} onClick={() => live && !busy && snap()} title={tx('Toca para ler')}><video ref={video} autoPlay playsInline muted /><i className="scan-guide" ref={guide} data-l={tx('nome')} /></div>}
         <p className="small muted">{live ? tx('Põe a carta dentro da moldura, com o nome em cima, e toca na imagem ou em «Tirar foto e ler».') : tx('Tira uma foto à carta (de frente, com o nome visível) ou escolhe uma imagem. Para a câmara ao vivo abre a app em https.')}</p>
         <div className="row-btns">
           {live && <button className="primary" onClick={snap} disabled={!!busy}>📸 {tx('Tirar foto e ler')}</button>}
+          {camFail && <button className="primary big" onClick={() => fileIn.current?.click()}>📷 {tx('Abrir a câmara')}</button>}
           <label className={`btn ${live ? '' : 'primary'}`}>{live ? '🖼' : '📷'} {live ? tx('Foto ou imagem') : tx('Tirar foto')}<input ref={fileIn} type="file" accept="image/*" capture="environment" onChange={file} hidden /></label>
           {busy && <span className="small muted">{busy}</span>}
         </div>
