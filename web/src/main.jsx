@@ -43,6 +43,14 @@ window.fetch = async (...a) => {
   return new Response(JSON.stringify({ ...j, erro: tx(j.erro) }), { status: r.status, statusText: r.statusText, headers: r.headers })
 }
 
+// Imagens próprias de decks importados (TappedOut, Archidekt) que não carregam (rede que as bloqueia): tenta outra vez
+// pelo Grimório, que as vai buscar e guarda (/ext/…)
+const EXT = /^https:\/\/(static\.tappedout\.net|storage\.googleapis\.com)\//
+document.addEventListener('error', e => {
+  const el = e.target
+  if (el.tagName === 'IMG' && EXT.test(el.src) && !el.dataset.ext) { el.dataset.ext = '1'; el.src = el.src.replace(EXT, './ext/$1/') }
+}, true)
+
 // a app só carrega depois do dicionário da língua: as tabelas fixas dos módulos já nascem traduzidas
 // (o data.js também só aqui: as tabelas dele — tipos, cores — traduzem-se ao carregar o módulo)
 ready.catch(() => {}).then(() => Promise.all([import('./App.jsx'), import('./confirm.jsx'), import('./data.js')]))

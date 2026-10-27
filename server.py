@@ -30,6 +30,8 @@ META_PATH = re.compile(r"^/api/meta/(standard|pioneer|modern|legacy|vintage|paup
 L17_PATH = re.compile(r"^/api/l17/(expansions|ratings/[A-Z0-9]{2,6})$")
 EDHREC_PATH = re.compile(r"^/api/edhrec/(commanders|cards)/([a-z0-9-]{1,120})$")
 # imagens da Scryfall servidas pelo Grimório (redes que bloqueiam scryfall.io, ex.: PCs de trabalho): /sf/<host>/<caminho>
+# imagens próprias de decks importados (TappedOut, Archidekt): o browser tenta direto e, se falhar, pede-as aqui
+EXT_PATH = re.compile(r"^/ext/(static\.tappedout\.net|storage\.googleapis\.com)/([A-Za-z0-9][A-Za-z0-9/_.%-]{0,300}\.(?:jpg|jpeg|png|webp))$")
 SF_PATH = re.compile(r"^/sf/(cards|svgs|backs)/([A-Za-z0-9][A-Za-z0-9/_.-]{0,200}\.(?:jpg|png|svg))$")
 SIM_OPP = re.compile(r"^/api/sim/opponents/([a-z0-9-]{1,130})$")
 SIM_JOB = re.compile(r"^/api/sim/jobs/([0-9a-f]{12})$")
@@ -197,13 +199,14 @@ class H(BaseHTTPRequestHandler):
     def json(self, obj, code=200):
         self.send(code, json.dumps(obj, ensure_ascii=False).encode())
 
-    def scryfall_img(self, host, path):
-        """Uma imagem de cards/svgs/backs.scryfall.io, guardada em <dados>/cache/sf (as imagens de uma carta não mudam).
+    def scryfall_img(self, host, path, url=None, sub="sf"):
+        """Uma imagem de cards/svgs/backs.scryfall.io (ou `url`, com `sub` = ext), guardada em <dados>/cache/<sub> (as
+        imagens de uma carta não mudam).
         ponytail: cache sem limite de tamanho; limpar as mais antigas se um dia passar de alguns GB."""
-        f = os.path.join(ARGS.data_dir, "cache", "sf", host, path)
+        f = os.path.join(ARGS.data_dir, "cache", sub, host, path)
         if not os.path.isfile(f):
             try:
-                req = urllib.request.Request(f"https://{host}.scryfall.io/{path}", headers={"User-Agent": "Grimorio/1.0 (uso pessoal)"})
+                req = urllib.request.Request(url or f"https://{host}.scryfall.io/{path}", headers={"User-Agent": "Grimorio/1.0 (uso pessoal)"})
                 with urllib.request.urlopen(req, timeout=20) as r:
                     body = r.read()
             except Exception:
@@ -308,6 +311,9 @@ class H(BaseHTTPRequestHandler):
         msf = SF_PATH.match(p)
         if msf and ".." not in msf.group(2):
             return self.scryfall_img(msf.group(1), msf.group(2))
+        mx = EXT_PATH.match(p)
+        if mx and ".." not in mx.group(2):
+            return self.scryfall_img(mx.group(1), mx.group(2), f"https://{mx.group(1)}/{mx.group(2)}", "ext")
         m = EDHREC_PATH.match(p)
         if m:
             return self.edhrec(m.group(1), m.group(2))
