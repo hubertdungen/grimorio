@@ -115,7 +115,7 @@ def room_link(h, con, token, name):
                                               "<title>Grimório</title><body style='font:16px system-ui;padding:2em;max-width:30em;margin:auto;background:#0b0a14;color:#eee'>"
                                               + body).encode(), "text/html; charset=utf-8")
     try:
-        r = con.execute("SELECT owner, status, json_extract(spec, '$.name') FROM rooms WHERE json_extract(spec, '$.link')=?", (token,)).fetchone()
+        r = con.execute("SELECT owner, status, json_extract(spec, '$.name'), json_extract(spec, '$.type') FROM rooms WHERE json_extract(spec, '$.link')=?", (token,)).fetchone()
     except sqlite3.OperationalError:
         r = None
     if not r or r[1] != "open":
@@ -126,7 +126,11 @@ def room_link(h, con, token, name):
         return h.send(302, b"", "text/plain", {"Location": "/#online"})
     name = re.sub(r"[<>&\"']", "", str(name or "")).strip()[:30]
     if not name:
-        return page(f"<h2>🎲 {html.escape(r[2] or 'Sala')}</h2><p>Entra com um nome para jogares nesta sala com um deck teu.</p>"
+        how = ("<p style='padding:.6em .8em;border-radius:8px;background:#1d1a2e'>🃏 <b>Mesa livre · sem regras</b><br>Só amigos, sem bots: cada um mexe nas"
+               " suas cartas, como numa mesa a sério (compras, viras, atacas, contas a vida). Ninguém valida as jogadas.</p>" if r[3] == "livre" else
+               "<p style='padding:.6em .8em;border-radius:8px;background:#1d1a2e'>🤖 <b>Com os bots do Forge</b><br>Juntas um deck teu e os bots do Forge"
+               " jogam-no por ti, com as regras todas; tu vês ao vivo e podes apostar.</p>")
+        return page(f"<h2>{'🃏' if r[3] == 'livre' else '🎲'} {html.escape(r[2] or 'Sala')}</h2>{how}<p>Entra com um nome para jogares nesta sala com um deck teu.</p>"
                     "<form><input name=nome maxlength=30 autofocus required placeholder='O teu nome' style='font:inherit;padding:.5em;width:100%;box-sizing:border-box'>"
                     "<button style='font:inherit;margin-top:1em;padding:.5em 1.2em'>Entrar</button></form>")
     init(con)
@@ -188,6 +192,8 @@ def handle(h, method, g, db, tournament):
         import rooms
         with db() as con:
             return h.json(*reversed(rooms.route(con, method, p, g["owner"], h.body() if method == "POST" else None, guest=g)))
+    if p.startswith("/api/freetables/") and method in ("GET", "POST"):  # mesa livre: só as mesas onde está sentado (freetable.route)
+        return h.freetable_route(method, p, g["owner"], f"guest:{g['id']}")
     bettor = f"guest:{g['id']}"
     if p in ("/api/tournaments/bets", "/api/tournaments/wallet-reset") and method in ("GET", "POST"):
         return h.json(*reversed(tournament.route(method, h.path, g["owner"], h.body() if method == "POST" else None, bettor=bettor)))

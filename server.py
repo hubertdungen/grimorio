@@ -17,6 +17,7 @@ import tournament
 import artfolder
 import guests
 import rooms
+import freetable
 import share
 import rules
 
@@ -268,11 +269,21 @@ class H(BaseHTTPRequestHandler):
             body = self.body() if method == "POST" else None
             with db() as con:
                 return self.json(*reversed(rooms.route(con, method, p, self.owner(), body)))
+        if p.startswith("/api/freetables/") and method in ("GET", "POST"):  # mesa livre (freetable.py): o dono é um dos jogadores
+            return self.freetable_route(method, p, self.owner(), "host")
         if p.startswith("/api/friends") and method != "HEAD":  # o dono gere os amigos
             body = self.body() if method in ("POST",) and not p.endswith("/revoke") else None
             with db() as con:
                 return self.json(*reversed(guests.owner_route(con, method, p, self.owner(), body, ARGS.port, share.status()["url"], getattr(ARGS, "host", "0.0.0.0"))))
         return inner()
+
+    def freetable_route(self, method, p, owner, who):
+        try:
+            body = self.body(200_000) if method == "POST" else None
+            since = int(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("since", ["0"])[0])
+        except ValueError:
+            return self.json({"erro": "pedido inválido"}, 400)
+        return self.json(*reversed(freetable.route(db, method, p, owner, body, who, since)))
 
     def do_GET(self):
         return self._route("GET", self._get)
@@ -1074,6 +1085,26 @@ def selfcheck():
             op.open(base + "/sala/naoexiste")
         except urllib.error.HTTPError as e:
             assert e.code == 404
+        # mesa livre: o anfitrião abre com um deck seu, o amigo entra com o dele, começam e jogam eles (freetable.py)
+        assert call("POST", "/api/rooms", {"name": "Livre QA", "type": "livre", "max": 2, "players": [{"src": "meus", "ref": dk["id"]}]})[0] == 400  # deck do amigo: não
+        st, lr, _ = call("POST", "/api/rooms", {"name": "Livre QA", "type": "livre", "max": 2, "players": [{"src": "meus", "ref": hs[0]}, {"src": "meus", "ref": hs[1]}]})
+        assert st == 201, lr
+        assert call("POST", f"/api/rooms/{lr['id']}/join", {"deck": hs[1]})[0] == 409  # um lugar por pessoa, também para o anfitrião
+        st, rv, _ = call("POST", f"/api/rooms/{lr['id']}/join", {"deck": dk["id"]}, G)
+        assert st == 200 and rv["type"] == "livre" and rv["max"] == 2 and len(rv["players"]) == 2, rv
+        assert call("POST", f"/api/rooms/{lr['id']}/start", None, G)[0] == 403
+        st, sr, _ = call("POST", f"/api/rooms/{lr['id']}/start")
+        assert st == 200 and sr["table"], sr
+        tb = f"/api/freetables/{sr['table']}"
+        st, gv, _ = call("GET", tb + "?since=0", cookie=G)
+        assert st == 200 and gv["me"] == 1 and gv["seats"][1]["hand"][0]["n"] == "Swamp" and all("n" not in c for c in gv["seats"][0]["hand"]), gv
+        st, hv, _ = call("POST", tb, {"c": "draw", "n": 2})
+        assert st == 200 and len(hv["seats"][0]["hand"]) == 9 and all("n" in c for c in hv["seats"][0]["hand"])
+        assert call("POST", tb, {"c": "move", "id": hv["seats"][0]["hand"][0]["id"], "to": "graveyard"}, G)[0] == 403  # a mão do anfitrião não é dele
+        assert call("POST", "/api/friends", {"name": "Eva"})[0] == 201
+        G2 = f"grimorio_guest={[f for f in call('GET', '/api/friends')[1]['friends'] if f['name'] == 'Eva'][0]['token']}"
+        assert call("GET", tb, cookie=G2)[0] == 404 and call("POST", tb, {"c": "draw"}, G2)[0] == 404  # outro amigo, fora da mesa
+        assert next(r for r in call("GET", "/api/rooms", cookie=G)[1] if r["id"] == lr["id"])["tid"] == sr["table"]
         assert call("POST", f"/api/friends/{fr['id']}/revoke")[0] == 200 and call("GET", "/api/guest/me", cookie=G)[1]["expired"] is True  # revogado
         print("selfcheck convidados ok")
     finally:

@@ -1,9 +1,11 @@
-"""Salas de torneio e de jogos avulsos (tipo «jogo»: 2–4 decks, uma partida ou uma mesa) com amigos: o anfitrião prepara o torneio (regras + os seus decks) e abre uma sala; os amigos
+"""Salas de torneio, de jogos avulsos (tipo «jogo»: 2–4 decks, uma partida ou uma mesa) e de mesa livre (tipo «livre»:
+2–4 amigos jogam eles mesmos, sem bots nem regras — freetable.py) com amigos: o anfitrião prepara o torneio (regras + os seus decks) e abre uma sala; os amigos
 convidados (guests.py) entram com um deck seu; o anfitrião começa e nasce um torneio normal (tournament.create),
 visível aos amigos (`friends_open`) para o verem ao vivo e apostarem.
 """
 import json, re, secrets, time
 
+import freetable
 import sim
 import tournament
 
@@ -15,10 +17,17 @@ def init(con):
                 " status TEXT, tid TEXT)")
 
 
+def span(spec):
+    """(mínimo, máximo) de decks: a mesa livre leva 2 até ao máximo escolhido (4 no máximo)."""
+    if spec.get("type") == "livre":
+        return 2, max(2, min(4, int(spec.get("max") or 4)))
+    return tournament.TYPES.get(spec.get("type"), (2, 32))
+
+
 def view(con, r, who):
     rid, ts, spec, players, status, tid = r
     spec, players = json.loads(spec), json.loads(players)
-    lo, hi = tournament.TYPES.get(spec.get("type"), (2, 32))
+    lo, hi = span(spec)
     return {"id": rid, "ts": ts, "status": status, "tid": tid, "name": spec.get("name"), "type": spec.get("type"),
             "format": spec.get("format"), "casual": bool(spec.get("casual")), "bo": spec.get("bo"), "min": lo, "max": hi,
             "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref")} for p in players],
@@ -57,11 +66,16 @@ def route(con, method, path, owner, body, guest=None):
             return 403, {"erro": "Só quem aloja pode abrir salas."}
         d = body or {}
         spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold")}
-        if spec["type"] not in tournament.TYPES:
-            return 400, {"erro": "Tipo de torneio desconhecido."}
-        if spec["format"] in sim.GAME_TYPE:  # sem Commander online: o EDH com amigos fica para outra app
-            return 400, {"erro": "As salas online não têm formatos Commander."}
         players = [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "name")}, "by": "host"} for p in (d.get("players") or []) if isinstance(p, dict)]
+        if spec["type"] == "livre":  # mesa livre: um lugar por pessoa (o anfitrião com um deck seu), qualquer formato
+            spec.update(format=None, casual=True, max=max(2, min(4, int(d.get("max") or 4))))
+            players = players[:1]
+            if not players or not deck_ok(con, owner, players[0].get("ref"), None):
+                return 400, {"erro": "Escolhe um deck teu para a mesa."}
+        elif spec["type"] not in tournament.TYPES:
+            return 400, {"erro": "Tipo de torneio desconhecido."}
+        elif spec["format"] in sim.GAME_TYPE:  # sem Commander com os bots online: o EDH com amigos é na mesa livre
+            return 400, {"erro": "As salas online não têm formatos Commander."}
         rid = secrets.token_hex(5)
         spec["link"] = secrets.token_urlsafe(12)  # /sala/<link>: entra quem não está nos amigos (guests.room_link)
         con.execute("INSERT INTO rooms VALUES (?,?,?,?,?, 'open', NULL)", (rid, owner, time.time(), json.dumps(spec), json.dumps(players)))
@@ -72,13 +86,14 @@ def route(con, method, path, owner, body, guest=None):
     spec, players, status = json.loads(r[2]), json.loads(r[3]), r[4]
     if status != "open":
         return 409, {"erro": "Esta sala já não está aberta."}
-    lo, hi = tournament.TYPES[spec["type"]]
+    lo, hi = span(spec)
+    livre = spec["type"] == "livre"
     if act == "join":
         did = (body or {}).get("deck")
         name = deck_ok(con, owner, did, guest["id"] if guest else None)
         if not name:
             return 400, {"erro": "Esse deck não é teu ou não existe."}
-        if guest and any(p.get("by") == who for p in players):
+        if (guest or livre) and any(p.get("by") == who for p in players):
             return 409, {"erro": "Já tens um deck nesta sala (sai primeiro para trocar)."}
         if len(players) >= hi:
             return 409, {"erro": "A sala está cheia."}
@@ -92,6 +107,19 @@ def route(con, method, path, owner, body, guest=None):
     elif act == "start" and not guest:
         if not lo <= len(players) <= hi:
             return 400, {"erro": f"Este tipo de torneio leva entre {lo} e {hi} decks (há {len(players)})."}
+        if livre:
+            seats = []
+            for p in players:
+                r2 = con.execute("SELECT body FROM decks WHERE id=? AND owner=? AND deleted IS NULL", (str(p.get("ref")), owner)).fetchone()
+                if not r2:
+                    return 400, {"erro": f"O deck «{p.get('name')}» já não existe."}
+                seats.append({"by": p["by"], "name": p.get("byName") or owner, "deck": json.loads(r2[0])})
+            try:
+                tid = freetable.create(con, owner, spec.get("name"), seats)
+            except ValueError as e:
+                return 400, {"erro": str(e)}
+            con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
+            return 200, {"table": tid}
         try:
             tid = tournament.create(owner, {**spec, "friends_open": True, "players": [{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me")} for p in players]})
         except ValueError as e:

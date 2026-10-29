@@ -1,0 +1,490 @@
+"""Mesa livre: jogos só entre amigos, sem bots e sem motor de regras (como o untap.in ou o Tabletop Simulator).
+
+A sala (rooms.py, tipo «livre») junta 2–4 pessoas, cada uma com um deck seu; ao começar nasce aqui uma mesa. O estado
+vive em memória (e na SQLite, para um reinício do servidor não a perder) e cada jogador lê-o por espera longa (`since`),
+como no playnet.py. As jogadas são comandos pequenos aplicados aqui e espalhados a todos: comprar, baralhar, mudar uma
+carta de zona, virar (tap), marcadores, vida, dados… Não há validação de regras (é entre amigos); só se garante que
+cada carta está numa zona e só numa.
+
+Privacidade (aqui, não no browser): cada jogador recebe só o que pode ver. Mãos e bibliotecas alheias são números (e
+costas de cartas), cartas viradas para baixo só as vê quem as controla, as reveladas veem-se. Os ids das cartas são
+aleatórios e mudam quando a carta entra na biblioteca (não dá para seguir uma carta baralhada).
+"""
+import json, random, re, secrets, threading, time
+
+import sim
+
+T = {}                       # id -> mesa (em memória; a SQLite guarda a cópia)
+COND = threading.Condition()
+ZONES = ("library", "hand", "graveyard", "exile", "command", "battlefield")
+PUBLIC = ("graveyard", "exile", "command")
+DICE = {"d6": 6, "d20": 20, "moeda": 2}
+PATH = re.compile(r"^/api/freetables/([a-f0-9]{12})$")
+RNG = random.SystemRandom()
+
+
+def init(con):
+    con.execute("CREATE TABLE IF NOT EXISTS freetables (id TEXT PRIMARY KEY, owner TEXT, ts REAL, state TEXT)")
+
+
+def _new_id(t):
+    while True:
+        i = RNG.randrange(1, 2 ** 31)
+        if str(i) not in t["cards"]:
+            return i
+
+
+def create(con, owner, name, seats):
+    """seats = [{by, name, deck: {name, format, main, commanders}}] -> id da mesa (já com 7 cartas na mão de cada um)."""
+    init(con)
+    if not 2 <= len(seats) <= 4:
+        raise ValueError("A mesa livre leva entre 2 e 4 jogadores.")
+    t = {"id": secrets.token_hex(6), "owner": owner, "name": str(name or "Mesa livre")[:80], "seq": 1, "ts": time.time(),
+         "status": "playing", "turn": 1, "active": 0, "seats": [], "cards": {}, "zones": [], "log": [], "roll": None}
+    for i, s in enumerate(seats):
+        d = s["deck"] or {}
+        cmdrs = [str(c) for c in (d.get("commanders") or []) if c][:2]
+        cmd = d.get("format") in sim.GAME_TYPE and bool(cmdrs)
+        z = {k: [] for k in ZONES}
+        main = dict(d.get("main") or {})
+        for c in cmdrs:  # o comandante pode vir também no main: fica só na zona de comando
+            if main.get(c):
+                main[c] -= 1
+        names = [n for n, k in main.items() for _ in range(max(0, min(int(k or 0), 250)))][:300]
+        for n, zone in [(n, "library") for n in names] + [(c, "command") for c in cmdrs]:
+            cid = _new_id(t)
+            t["cards"][str(cid)] = {"id": cid, "n": str(n)[:150], "o": i, "s": i, "z": zone}
+            z[zone].append(cid)
+        RNG.shuffle(z["library"])
+        z["hand"], z["library"] = z["library"][:7], z["library"][7:]
+        for cid in z["hand"]:
+            t["cards"][str(cid)]["z"] = "hand"
+        t["zones"].append(z)
+        t["seats"].append({"by": s["by"], "name": str(s.get("name") or "?")[:40], "deck": str(d.get("name") or "")[:80],
+                           "format": d.get("format"), "life": 40 if cmd else 20, "poison": 0, "out": False, "peek": 0})
+    for c in t["cards"].values():
+        _clean(c)
+    _log(t, None, "start")
+    with COND:
+        T[t["id"]] = t
+    _save(con, t)
+    return t["id"]
+
+
+def _clean(c):
+    """Estado de mesa a zeros (a carta entrou numa zona nova)."""
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "r"):
+        c.pop(k, None)
+
+
+def _save(con, t):
+    con.execute("INSERT OR REPLACE INTO freetables VALUES (?,?,?,?)", (t["id"], t["owner"], t["ts"], json.dumps(t, ensure_ascii=False)))
+
+
+def _load(db, tid):
+    with COND:
+        if tid in T:
+            return T[tid]
+    with db() as con:
+        init(con)
+        r = con.execute("SELECT state FROM freetables WHERE id=?", (tid,)).fetchone()
+    if not r:
+        return None
+    with COND:
+        return T.setdefault(tid, json.loads(r[0]))
+
+
+def _seat(t, who):
+    return next((i for i, s in enumerate(t["seats"]) if s["by"] == who), None)
+
+
+def _public(c):
+    z = c["z"]
+    return z in PUBLIC or (z == "battlefield" and not c.get("d")) or (z == "hand" and c.get("r"))
+
+
+def _sees(t, c, me):
+    z = c["z"]
+    if z == "library":
+        return c["o"] == me and c["id"] in t["zones"][me]["library"][:t["seats"][me]["peek"]]
+    if z == "hand":
+        return c["o"] == me or bool(c.get("r"))
+    if z == "battlefield" and c.get("d"):
+        return me in (c["o"], c["s"])
+    return True
+
+
+def _card(t, cid, me):
+    c = t["cards"][str(cid)]
+    out = {"id": c["id"], "o": c["o"]}
+    if _sees(t, c, me):
+        out["n"] = c["n"]
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "r", "tok"):
+        if c.get(k) not in (None, False, {}):
+            out[k] = c[k]
+    return out
+
+
+def view(t, me):
+    """O que o jogador `me` pode ver (o servidor nunca manda nomes escondidos)."""
+    seats = []
+    for i, s in enumerate(t["seats"]):
+        z = t["zones"][i]
+        v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "me": i == me, "library": len(z["library"]),
+             "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
+        if i == me and s["peek"]:
+            v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]
+        seats.append(v)
+    return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
+            "me": me, "host": t["seats"][me]["by"] == "host", "seats": seats, "log": t["log"][-60:], "roll": t["roll"]}
+
+
+def _log(t, seat, k, **kw):
+    t["log"] = (t["log"] + [{"k": k, "s": seat, "ts": round(time.time()), **kw}])[-200:]
+
+
+def _take(t, c):
+    t["zones"][c["s"]][c["z"]].remove(c["id"])
+
+
+def _put(t, c, seat, zone, bottom=False):
+    lst = t["zones"][seat][zone]
+    if zone == "library" and not bottom:
+        lst.insert(0, c["id"])
+    else:
+        lst.append(c["id"])
+    c["s"], c["z"] = seat, zone
+
+
+def _rekey(t, c):
+    """Entrou na biblioteca: id novo (quem viu a carta antes não a segue depois de baralhar)."""
+    lst = t["zones"][c["s"]][c["z"]]
+    t["cards"].pop(str(c["id"]))
+    i, c["id"] = lst.index(c["id"]), _new_id(t)
+    lst[i] = c["id"]
+    t["cards"][str(c["id"])] = c
+
+
+def _num(v, lo, hi, dflt=0):
+    try:
+        return max(lo, min(hi, int(v)))
+    except (TypeError, ValueError):
+        return dflt
+
+
+def _pos(v):
+    try:
+        return round(max(0.0, min(1.0, float(v))), 4)
+    except (TypeError, ValueError):
+        return 0.5
+
+
+def _draw(t, me, n):
+    z = t["zones"][me]
+    n = min(n, len(z["library"]))
+    for _ in range(n):
+        c = t["cards"][str(z["library"][0])]
+        _take(t, c)
+        _put(t, c, me, "hand")
+    t["seats"][me]["peek"] = max(0, t["seats"][me]["peek"] - n)
+    return n
+
+
+def apply(t, me, d):
+    """Um comando do jogador `me`. Erros de uso -> ValueError (a mesa fica como estava)."""
+    if t["status"] != "playing":
+        raise ValueError("Esta mesa já terminou.")
+    c0 = str(d.get("c") or "")
+    seat = t["seats"][me]
+    card = None
+    if "id" in d:
+        card = t["cards"].get(str(d.get("id")))
+        if not card:
+            raise ValueError("Essa carta já não está lá.")
+        # nas zonas escondidas (mão, biblioteca) só mexe o dono; nas públicas qualquer um (é entre amigos)
+        if card["z"] in ("hand", "library") and card["o"] != me:
+            raise PermissionError("Essa carta não é tua.")
+        if card["z"] == "library" and not _sees(t, card, me):
+            raise PermissionError("Não podes ver essa carta.")
+
+    def need():
+        if not card:
+            raise ValueError("Falta a carta.")
+        return card
+    if c0 == "draw":
+        n = _draw(t, me, _num(d.get("n"), 1, 20, 1))
+        _log(t, me, "draw", n=n)
+    elif c0 == "shuffle":
+        RNG.shuffle(t["zones"][me]["library"])
+        seat["peek"] = 0
+        _log(t, me, "shuffle")
+    elif c0 == "mulligan":
+        z = t["zones"][me]
+        for cid in list(z["hand"]):
+            c = t["cards"][str(cid)]
+            _take(t, c); _clean(c); _put(t, c, me, "library"); _rekey(t, c)
+        RNG.shuffle(z["library"])
+        seat["peek"] = 0
+        _log(t, me, "mulligan", n=_draw(t, me, 7))
+    elif c0 == "move":
+        c = need()
+        to = d.get("to")
+        if to not in ZONES:
+            raise ValueError("Zona desconhecida.")
+        was_pub, src = _public(c), c["z"]
+        if to == "battlefield":
+            dest = _num(d.get("seat"), 0, len(t["seats"]) - 1, c["s"] if src == "battlefield" else me)
+            if src == "battlefield" and dest == c["s"]:  # só mudar de sítio (vem para cima das outras)
+                _take(t, c); _put(t, c, dest, "battlefield")
+                c["x"], c["y"] = _pos(d.get("x")), _pos(d.get("y"))
+                return
+            _take(t, c)
+            if src != "battlefield":
+                _clean(c)
+                if d.get("down"):
+                    c["d"] = True
+            _put(t, c, dest, "battlefield")
+            c["x"], c["y"] = _pos(d.get("x")), _pos(d.get("y"))
+        else:
+            if src == to and to != "library":
+                return
+            _take(t, c)
+            if c.get("tok"):  # uma ficha que sai do campo deixa de existir
+                t["cards"].pop(str(c["id"]))
+                _log(t, me, "move", name=c["n"], fr=src, to=to, tok=True, w=c["o"])
+                return
+            _clean(c)
+            _put(t, c, c["o"], to, bool(d.get("bottom")))
+            if to == "library":
+                _rekey(t, c)
+                ps = t["seats"][c["o"]]
+                if ps["peek"] and not d.get("bottom"):  # posta no topo enquanto espreitas: continua à vista
+                    ps["peek"] += 1
+        if src == "library":  # saiu do topo que estava a ser espreitado
+            seat["peek"] = max(0, seat["peek"] - 1)
+        _log(t, me, "move", name=c["n"] if was_pub or _public(c) else None, fr=src, to=to, w=c["o"], bottom=bool(d.get("bottom")) or None)
+    elif c0 in ("tap", "flip", "face", "attack", "counter"):
+        c = need()
+        if c["z"] != "battlefield":
+            raise ValueError("A carta tem de estar no campo.")
+        if c0 == "tap":
+            c["t"] = not c.get("t") if d.get("on") is None else bool(d["on"])
+            if not c["t"]:
+                c.pop("atk", None)
+        elif c0 == "flip":
+            c["f"] = not c.get("f")
+            _log(t, me, "flip", name=None if c.get("d") else c["n"])
+        elif c0 == "face":
+            if me not in (c["o"], c["s"]):
+                raise PermissionError("Só quem controla a carta a pode virar para cima ou para baixo.")
+            c["d"] = not c.get("d")
+            _log(t, me, "face", name=None if c["d"] else c["n"], down=c["d"])
+        elif c0 == "attack":
+            tgt = d.get("seat")
+            if tgt is None:
+                c.pop("atk", None)
+            else:
+                c["atk"], c["t"] = _num(tgt, 0, len(t["seats"]) - 1), True
+                _log(t, me, "attack", name=None if c.get("d") else c["n"], p=c["atk"])
+        else:
+            k = str(d.get("k") or "+1/+1").strip()[:16]
+            ks = dict(c.get("k") or {})
+            ks[k] = _num(ks.get(k, 0) + _num(d.get("d"), -99, 99, 1), -999, 999)
+            if not ks[k]:
+                del ks[k]
+            c["k"] = ks
+    elif c0 == "untapall":
+        for cid in t["zones"][me]["battlefield"]:
+            c = t["cards"][str(cid)]
+            c.pop("t", None); c.pop("atk", None)
+        _log(t, me, "untapall")
+    elif c0 == "token":
+        name = str(d.get("name") or "").strip()[:60]
+        if not name:
+            raise ValueError("Falta o nome da ficha.")
+        if len(t["cards"]) > 2000:
+            raise ValueError("Fichas a mais na mesa.")
+        cid = _new_id(t)
+        c = t["cards"][str(cid)] = {"id": cid, "n": name, "o": me, "s": me, "z": "battlefield", "tok": True, "x": _pos(d.get("x")), "y": _pos(d.get("y"))}
+        t["zones"][me]["battlefield"].append(cid)
+        _log(t, me, "token", name=name)
+    elif c0 in ("life", "poison"):
+        who = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
+        s = t["seats"][who]
+        s[c0] = _num(s[c0] + _num(d.get("d"), -999, 999), -999 if c0 == "life" else 0, 9999)
+        _log(t, me, c0, p=who, d=_num(d.get("d"), -999, 999), v=s[c0])
+    elif c0 == "dice":
+        types = [x for x in (d.get("types") or []) if x in DICE][:4]
+        if not types:
+            raise ValueError("Que dados?")
+        v = [RNG.randint(1, DICE[x]) for x in types]
+        t["roll"] = {"n": (t["roll"] or {}).get("n", 0) + 1, "s": me, "types": types, "v": v}
+        _log(t, me, "dice", types=types, v=v)
+    elif c0 == "reveal":
+        c = need()
+        if c["z"] != "hand":
+            raise ValueError("Só se revelam cartas da mão.")
+        c["r"] = not c.get("r")
+        if c["r"]:
+            _log(t, me, "reveal", name=c["n"])
+    elif c0 == "revealhand":
+        hand = [t["cards"][str(x)] for x in t["zones"][me]["hand"]]
+        on = not all(c.get("r") for c in hand)
+        for c in hand:
+            c["r"] = on
+        if on:
+            _log(t, me, "revealhand", names=[c["n"] for c in hand])
+    elif c0 == "peek":
+        seat["peek"] = _num(d.get("n"), 0, len(t["zones"][me]["library"]))
+        if seat["peek"]:
+            _log(t, me, "peek", n=seat["peek"])
+    elif c0 == "pass":
+        n = len(t["seats"])
+        nxt = next((x % n for x in range(t["active"] + 1, t["active"] + n + 1) if not t["seats"][x % n]["out"]), t["active"])
+        t["active"], t["turn"] = nxt, t["turn"] + 1
+        _log(t, me, "pass", p=nxt, turn=t["turn"])
+    elif c0 == "concede":
+        seat["out"] = True
+        _log(t, me, "concede")
+    elif c0 == "chat":
+        txt = re.sub(r"\s+", " ", str(d.get("text") or "")).strip()[:200]
+        if not txt:
+            return
+        _log(t, me, "chat", text=txt)
+    elif c0 == "close":
+        if seat["by"] != "host":
+            raise PermissionError("Só quem aloja pode terminar a mesa.")
+        t["status"] = "ended"
+        _log(t, me, "close")
+    else:
+        raise ValueError("Comando desconhecido.")
+
+
+def route(db, method, path, owner, body, who, since=0):
+    """GET /api/freetables/<id>?since=N (espera até 25 s por novidades) | POST /api/freetables/<id> {c, …}.
+    `who` = 'host' (o dono) ou 'guest:<id>'; só quem está sentado à mesa a vê."""
+    m = PATH.match(path)
+    if not m or method not in ("GET", "POST"):
+        return 404, {"erro": "rota desconhecida"}
+    t = _load(db, m.group(1))
+    if not t or t["owner"] != owner or _seat(t, who) is None:
+        return 404, {"erro": "Esta mesa não existe ou não estás sentado nela."}
+    me = _seat(t, who)
+    if method == "GET":
+        end = time.time() + 25
+        with COND:
+            while t["seq"] <= since and time.time() < end:
+                COND.wait(timeout=end - time.time())
+            return 200, view(t, me)
+    if not isinstance(body, dict):
+        return 400, {"erro": "Comando inválido."}
+    with COND:
+        try:
+            apply(t, me, body)
+        except PermissionError as e:
+            return 403, {"erro": str(e)}
+        except ValueError as e:
+            return 400, {"erro": str(e)}
+        t["seq"] += 1
+        t["ts"] = time.time()
+        COND.notify_all()
+        with db() as con:  # ponytail: grava a mesa inteira a cada jogada (≈ 30 KB), sob o mesmo cadeado; diferenças só se um dia pesar
+            _save(con, t)
+        return 200, view(t, me)
+
+
+def selfcheck():
+    """Privacidade, zonas consistentes, espera longa e fronteira dos convidados (base de dados temporária)."""
+    import os, sqlite3, tempfile
+    path = os.path.join(tempfile.mkdtemp(prefix="grim-ml-"), "t.db")
+    db = lambda: sqlite3.connect(path)  # noqa: E731
+    deck = lambda n, f="modern", cmd=(): {"name": n, "format": f, "commanders": list(cmd), "main": {f"{n} Card {i}": 4 for i in range(15)}}  # noqa: E731
+    with db() as con:
+        tid = create(con, "hubert", "QA", [{"by": "host", "name": "Hubert", "deck": deck("A")},
+                                          {"by": "guest:rui", "name": "Rui", "deck": deck("B", "commander", ["B Boss"])}])
+    T.clear()  # vem da SQLite como depois de um reinício
+    t = _load(db, tid)
+
+    def consistent():
+        seen = {}
+        for s, z in enumerate(t["zones"]):
+            for k in ZONES:
+                for cid in z[k]:
+                    assert cid not in seen, ("carta em duas zonas", cid)
+                    seen[cid] = 1
+                    c = t["cards"][str(cid)]
+                    assert (c["s"], c["z"]) == (s, k) and c["id"] == cid, c
+        assert len(seen) == len(t["cards"]), "carta fora de qualquer zona"
+    consistent()
+    assert [s["life"] for s in t["seats"]] == [20, 40] and len(t["zones"][1]["command"]) == 1
+    assert len(t["zones"][0]["hand"]) == 7 and len(t["zones"][0]["library"]) == 53
+
+    def call(method, who, body=None, since=0, owner="hubert"):
+        return route(db, method, f"/api/freetables/{tid}", owner, body, who, since)
+    st, v = call("GET", "guest:rui")
+    assert st == 200 and v["me"] == 1, v
+    host_names = {c["n"] for c in (t["cards"][str(x)] for z in ("hand", "library") for x in t["zones"][0][z])}
+    blob = json.dumps(v)
+    assert not any(n in blob for n in host_names), "o convidado viu cartas da mão/biblioteca do anfitrião"
+    assert all("n" not in c for c in v["seats"][0]["hand"]) and v["seats"][0]["library"] == 53 and all("n" in c for c in v["seats"][1]["hand"])
+    assert call("GET", "guest:outro")[0] == 404 and call("GET", "host", owner="outro")[0] == 404  # fora da mesa / outro anfitrião
+    h0 = t["zones"][0]["hand"][0]
+    assert call("POST", "guest:rui", {"c": "move", "id": h0, "to": "graveyard"})[0] == 403  # mão alheia: não
+    assert call("POST", "guest:rui", {"c": "move", "id": t["zones"][0]["library"][0], "to": "hand"})[0] == 403
+    # espera longa: a jogada do anfitrião acorda o convidado
+    got = {}
+    th = threading.Thread(target=lambda: got.update(r=call("GET", "guest:rui", since=v["seq"])))
+    th.start(); time.sleep(0.2)
+    assert th.is_alive(), "a espera longa devia ficar à espera"
+    st, hv = call("POST", "host", {"c": "move", "id": h0, "to": "battlefield", "x": 0.3, "y": 0.4, "down": True})
+    th.join(3)
+    assert st == 200 and not th.is_alive() and got["r"][1]["seq"] > v["seq"]
+    bf = got["r"][1]["seats"][0]["battlefield"]
+    assert bf[0]["d"] and "n" not in bf[0] and "n" in hv["seats"][0]["battlefield"][0]  # virada para baixo: só o dono a vê
+    call("POST", "host", {"c": "face", "id": h0})
+    assert "n" in call("GET", "guest:rui")[1]["seats"][0]["battlefield"][0]
+    assert call("POST", "guest:rui", {"c": "tap", "id": h0})[0] == 200 and t["cards"][str(h0)]["t"]  # campo: qualquer um mexe
+    call("POST", "host", {"c": "counter", "id": h0, "k": "+1/+1", "d": 2})
+    call("POST", "host", {"c": "counter", "id": h0, "k": "+1/+1", "d": -2})
+    assert not t["cards"][str(h0)].get("k")
+    # para a biblioteca: id novo e escondido de novo
+    name = t["cards"][str(h0)]["n"]
+    call("POST", "guest:rui", {"c": "move", "id": h0, "to": "library"})
+    assert str(h0) not in t["cards"] and t["cards"][str(t["zones"][0]["library"][0])]["n"] == name
+    consistent()
+    # olhar para o topo: só o dono vê; revelar a mão: todos veem
+    call("POST", "host", {"c": "peek", "n": 3})
+    assert len(call("GET", "host")[1]["seats"][0]["top"]) == 3 and "top" not in call("GET", "guest:rui")[1]["seats"][0]
+    top = t["zones"][0]["library"][0]
+    tn = t["cards"][str(top)]["n"]
+    assert call("POST", "host", {"c": "move", "id": top, "to": "library", "bottom": True})[0] == 200  # scry para o fundo
+    assert t["cards"][str(t["zones"][0]["library"][-1])]["n"] == tn and t["seats"][0]["peek"] == 2
+    assert call("POST", "host", {"c": "move", "id": t["zones"][0]["library"][5], "to": "hand"})[0] == 403  # fora do que espreita
+    call("POST", "host", {"c": "revealhand"})
+    assert all("n" in c for c in call("GET", "guest:rui")[1]["seats"][0]["hand"])
+    call("POST", "host", {"c": "revealhand"})
+    assert all("n" not in c for c in call("GET", "guest:rui")[1]["seats"][0]["hand"])
+    # mulligan, fichas, vida, dados, passar a vez
+    call("POST", "guest:rui", {"c": "mulligan"})
+    assert len(t["zones"][1]["hand"]) == 7 and len(t["zones"][1]["library"]) == 53
+    st, rv = call("POST", "guest:rui", {"c": "token", "name": "Goblin", "x": 0.5, "y": 0.5})
+    tok = rv["seats"][1]["battlefield"][-1]
+    assert tok["tok"] and tok["n"] == "Goblin"
+    call("POST", "guest:rui", {"c": "move", "id": tok["id"], "to": "graveyard"})
+    assert str(tok["id"]) not in t["cards"]  # a ficha desaparece
+    call("POST", "guest:rui", {"c": "life", "seat": 0, "d": -3})
+    assert t["seats"][0]["life"] == 17
+    st, rv = call("POST", "host", {"c": "dice", "types": ["d20", "moeda"]})
+    assert 1 <= rv["roll"]["v"][0] <= 20 and rv["roll"]["v"][1] in (1, 2) and call("GET", "guest:rui")[1]["roll"] == rv["roll"]
+    call("POST", "host", {"c": "pass"})
+    assert t["active"] == 1 and t["turn"] == 2
+    assert call("POST", "host", {"c": "rm -rf"})[0] == 400 and call("POST", "guest:rui", {"c": "close"})[0] == 403
+    consistent()
+    # o registo nunca diz o nome de uma carta escondida
+    hidden = [e for e in t["log"] if e["k"] == "move" and e["fr"] in ("hand", "library") and e["to"] in ("hand", "library")]
+    assert hidden and not any(e["name"] for e in hidden), t["log"]
+    print("selfcheck mesa livre ok")
+
+
+if __name__ == "__main__":
+    selfcheck()
