@@ -1423,6 +1423,16 @@ function Podium({ data, t }) {
 
 // ---------- registo ----------
 
+// páginas: ‹ Anteriores · Página p de t · Seguintes › (só aparece com mais de uma página)
+function Pages({ pg, pages, set }) {
+  if (pages < 2) return null
+  return (
+    <div className="row-btns reg-pages"><button onClick={() => set(pg - 1)} disabled={!pg}>{tx('‹ Anteriores')}</button>
+      <span className="muted small">{tx('Página {p} de {t}', { p: pg + 1, t: pages })}</span><button onClick={() => set(pg + 1)} disabled={pg >= pages - 1}>{tx('Seguintes ›')}</button></div>
+  )
+}
+const page = (xs, pg, per) => { const pages = Math.max(1, Math.ceil(xs.length / per)), p = Math.min(pg, pages - 1); return [xs.slice(p * per, (p + 1) * per), p, pages] }
+
 const REG_K = 'grimorio.torneio.registo', REG0 = { st: '', type: '', fmt: '', cas: '', mine: false, sort: 'novo' }, PER_PAGE = 20
 const whenY = t => new Date(t * 1000).toLocaleString(LOCALE, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 const REG_SORT = { novo: [tx('Mais recentes'), (a, b) => b.ts - a.ts], velho: [tx('Mais antigos'), (a, b) => a.ts - b.ts], nome: [tx('Nome'), (a, b) => a.name.localeCompare(b.name)],
@@ -1482,8 +1492,7 @@ function Registry({ data, list, open, reload }) {
             <span className="row-btns"><button onClick={() => open(x.id)}>{tx('Abrir')}</button><button className="link small" onClick={() => del(x)}>{tx('apagar')}</button></span>
           </li>
         ))}</ul>
-        {pages > 1 && <div className="row-btns reg-pages"><button onClick={() => setPage(pg - 1)} disabled={!pg}>{tx('‹ Anteriores')}</button>
-          <span className="muted small">{tx('Página {p} de {t}', { p: pg + 1, t: pages })}</span><button onClick={() => setPage(pg + 1)} disabled={pg >= pages - 1}>{tx('Seguintes ›')}</button></div>}
+        <Pages pg={pg} pages={pages} set={setPage} />
       </section>
       <Fame data={data} list={list} />
     </div>
@@ -1513,9 +1522,15 @@ function Fame({ data, list }) {
   const [gTier, setGTier] = useState(''), [gKind, setGKind] = useState(''), [gSort, setGSort] = useState('valor'), [gInfo, setGInfo] = useState(false)
   const offOf = (r, m) => r.src === 'meus' && (tro[r.ref] || []).some(t => t.tid === m.tid && t.place === m.place && !t.valid)
   const keepM = m => (!gKind || m.kind === gKind) && (!gTier || (gTier === 'azul' ? m.casual : gTier === 'normal' ? !m.casual : String(m.tier) === gTier))
+  // páginas (hall: 20 decks; galeria: 24); mudar um filtro volta à 1.ª
+  const [pT, setPT] = useState(0), [pG, setPG] = useState(0)
+  const whoK = who.join()
+  useEffect(() => setPT(0), [f, whoK]); useEffect(() => setPG(0), [f, whoK, gTier, gKind, gSort])
+  const [topPg, pt, ptN] = page(top, pT, 20)
   const gal = top.map(r => { const med = r.med.filter(keepM), ok = med.filter(m => !offOf(r, m)); return { r, med, val: ok.reduce((a, m) => a + trophyValue(m), 0), n: ok.length, all: r.med.filter(m => !offOf(r, m)).reduce((a, m) => a + trophyValue(m), 0), blue: r.med.filter(m => !offOf(r, m) && m.casual).reduce((a, m) => a + trophyValue(m), 0) } })
     .filter(x => x.med.length)
     .sort((a, b) => (gSort === 'nome' ? a.r.name.localeCompare(b.r.name) : gSort === 'quantidade' ? b.n - a.n || b.val - a.val : b.val - a.val || b.n - a.n))
+  const [galPg, pg2, pgN] = page(gal, pG, 24)
   const kinds = [...new Set(top.flatMap(r => r.med.map(m => m.kind)))].filter(Boolean)
   return (
     <>
@@ -1527,12 +1542,13 @@ function Fame({ data, list }) {
         <select value={f} onChange={e => setF(e.target.value)} aria-label={tx('Formato')}><option value="">{tx('Todos os formatos')}</option>{fmts.map(k => <option key={k} value={k}>{FORMAT[k]?.name || k}</option>)}{list.some(x => x.casual && x.podium) && <option value="casual">{tx('Casuais')}</option>}</select>
         <SrcFilter on={who} set={setWho} has={has} />
       </div>
-      {!top.length ? <p className="muted small">{f ? tx('Ainda ninguém subiu ao pódio neste formato.') : tx('Ainda ninguém subiu ao pódio.')}</p> : (
+      {!top.length ? <p className="muted small">{f ? tx('Ainda ninguém subiu ao pódio neste formato.') : tx('Ainda ninguém subiu ao pódio.')}</p> : (<>
         <table className="lab-table ts-table"><thead><tr><th>Deck</th><th title={tx('Torneios ganhos')}>🥇</th><th>🥈</th><th>🥉</th><th>{tx('Pódios')}</th></tr></thead>
-          <tbody>{top.map(r => (
+          <tbody>{topPg.map(r => (
             <tr key={`${r.src}:${r.ref}`} className={kindOf(r) === 'meu' ? 'me-row' : ''}><td><button className="ts-name plain fame-deck" onClick={() => setView(r)} onMouseEnter={e => peek.on(r, e)} onMouseLeave={peek.off} title={tx('Ver o deck')}><Thumb data={data} p={r} /> {r.name} <OwnTag p={r} /></button></td>
               <td><b>{r.m[0] || '—'}</b></td><td>{r.m[1] || '—'}</td><td>{r.m[2] || '—'}</td><td>{r.m[0] + r.m[1] + r.m[2]}</td></tr>
           ))}</tbody></table>
+        <Pages pg={pt} pages={ptN} set={setPT} /></>
       )}
     </section>
       {top.length > 0 && <section className="card fg-sec">
@@ -1559,7 +1575,7 @@ function Fame({ data, list }) {
           <span className="muted small">{tx('{n} deck|{n} decks', { n: gal.length })}</span>
         </div>
         {!gal.length && <p className="muted small">{tx('Nenhum troféu com estes filtros.')}</p>}
-        <div className="fame-gal">{gal.slice(0, 40).map(({ r, med, val, all, blue }) => {
+        <div className="fame-gal">{galPg.map(({ r, med, val, all, blue }) => {
           const off = m => offOf(r, m)
           const g = {}
           for (const m of med) { const k = `${m.tier}|${m.kind}|${m.casual}|${m.friends}|${off(m)}`; const e = (g[k] ||= { ...m, off: off(m), n: 0, names: [], pts: 0 }); e.n++; e.names.push(m.name); e.pts += off(m) ? 0 : trophyValue(m) }
@@ -1569,6 +1585,7 @@ function Fame({ data, list }) {
             <span className="fg-cups">{cups.map(c => <span key={`${c.tier}${c.kind}${c.casual}${c.off}`} className="fg-cup" title={`${PLACE[c.tier]} · ${KIND[c.kind] || ''}${c.friends ? ` · ${tx('🤝 só eu e amigos')}` : c.casual ? ` · ${tx('troféu azul: casual ou não ranked')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''} · ${tx('+{p} pontos', { p: c.pts })}\n${c.names.slice(0, 6).map(nm => `• ${nm}`).join('\n')}${c.names.length > 6 ? `\n+${c.names.length - 6}` : ''}`}><Cup place={c.tier} friends={c.friends} casual={c.casual} off={c.off} kind={c.kind} />{c.n > 1 && <small>×{c.n}</small>}</span>)}</span></>
           return <button key={`${r.src}:${r.ref}`} className={`fg-card ${kindOf(r) === 'meu' ? 'me' : ''}`} onClick={() => setView(r)} onMouseEnter={e => peek.on(r, e)} onMouseLeave={peek.off}>{body}</button>
         })}</div>
+        <Pages pg={pg2} pages={pgN} set={setPG} />
       </section>}
     </>
   )
