@@ -102,11 +102,12 @@ function useDrag(onDrop, onLong, onMove) {
     const r = el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY
     let gap = null, ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, rx = 0, over = null
     const long = e.pointerType !== 'mouse' && setTimeout(() => onLong?.(id), 450)  // tocar e manter = ver em grande
+    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     const mark = t => { if (over) over.classList.remove('fp-over'); over = t; if (t) t.classList.add('fp-over') }
     const targetAt = (px, py) => document.elementFromPoint(px, py)
     const zoneAt = t => t?.closest('.pc[data-z^="k:"]') || t?.closest('.bside') || t?.closest('.fp-mid')
     const tick = () => {
-      x += (tx0 - x) * 0.32; y += (ty0 - y) * 0.32
+      if (calm) { x = tx0; y = ty0 } else { x += (tx0 - x) * 0.32; y += (ty0 - y) * 0.32 }  // movimento reduzido: segue o dedo, sem inclinar
       const want = Math.max(-26, Math.min(26, (tx0 - x) * 0.45))
       rot += (want - rot) * 0.22; rx += (Math.max(-22, Math.min(22, (y - ty0) * 0.5)) - rx) * 0.22  // a subir inclina-se para trás, a descer para a frente
       ghost.style.transform = `translate(${x - r.width / 2}px, ${y - r.height / 2}px) perspective(700px) rotateX(${rx.toFixed(2)}deg) rotate(${rot.toFixed(2)}deg) scale(1.12)`
@@ -275,12 +276,12 @@ function spotOn(side, px, py, kind, grid, skip) {
   const sx = w + 10, sy = h + 10, ox = 8, oy = 6
   if (grid) {
     const taken = [...side.querySelectorAll('.pc[data-z^="k:"]')].filter(e => e.dataset.z !== `k:${skip}` && !e.closest('.pc-att')).map(e => {
-      const q = e.getBoundingClientRect(); return [(q.left + q.width / 2 - r.left) / sc, (q.top + q.height / 2 - r.top) / sc]
+      const q = e.getBoundingClientRect(); return [(q.left + q.width / 2 - r.left) / sc, (q.top + q.height / 2 - r.top) / sc, q.width / sc / 2, q.height / sc / 2]
     })
     let best = null
     for (let i = 0; ox + (i + 1) * sx <= W; i++) for (let j = 0; oy + (j + 1) * sy <= H || j === 0; j++) {
       const cx = ox + sx / 2 + i * sx, cy = oy + sy / 2 + j * sy, d = Math.hypot(cx - x, cy - y)
-      if ((!best || d < best.d) && !taken.some(t => Math.abs(t[0] - cx) < sx * 0.6 && Math.abs(t[1] - cy) < sy * 0.6)) best = { d, cx, cy }
+      if ((!best || d < best.d) && !taken.some(t => Math.abs(t[0] - cx) < (w / 2 + t[2]) * 0.85 && Math.abs(t[1] - cy) < (h / 2 + t[3]) * 0.85)) best = { d, cx, cy }
     }
     if (best) { x = best.cx; y = best.cy }
   }
@@ -622,6 +623,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     // ainda na fase principal: o gesto diz «ataca com esta» — passa-se ao combate e declara-se sozinho
     if (mine && st.phase === 'MAIN1' && target.closest('.bside.top') && /Creature/.test(typeOf(id)) && /^Priority:/.test(pr?.msg || '') && !st.stack?.length) {
       if (byId.get(id)?.sick) { setToast({ title: tx('Esta criatura ainda não pode atacar'), msg: tx('Entrou neste turno (enjoo de invocação).') }); return false }
+      const oracle = (data.byName.get(byId.get(id)?.name) || {}).o || ''
+      if (/^Defender\b/im.test(oracle) || byId.get(id)?.tapped) { setToast({ title: tx('Esta criatura não pode atacar'), msg: byId.get(id)?.tapped ? tx('Está virada.') : tx('Tem a habilidade Defensor.') }); return false }
       attackIntent.current = { ids: [...(attackIntent.current?.ids || []), id], until: Date.now() + 15000 }
       send1({ c: 'ok' }); return true
     }

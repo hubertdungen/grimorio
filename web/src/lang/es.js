@@ -3111,4 +3111,7 @@ export default {
   "Retirar atacantes": "Retirar atacantes",
   "Tirar os dados da mesa": "Quitar los dados de la mesa",
   "perspetiva": "perspectiva",
+  "Esta criatura não pode atacar": "Esta criatura no puede atacar",
+  "Tem a habilidade Defensor.": "Tiene la habilidad defensor.",
+  "Está virada.": "Está girada.",
 }

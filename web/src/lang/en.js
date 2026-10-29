@@ -3119,4 +3119,7 @@ export default {
   "Retirar atacantes": "Call back",
   "Tirar os dados da mesa": "Remove the dice from the table",
   "perspetiva": "perspective",
+  "Esta criatura não pode atacar": "This creature can't attack",
+  "Tem a habilidade Defensor.": "It has defender.",
+  "Está virada.": "It's tapped.",
 }

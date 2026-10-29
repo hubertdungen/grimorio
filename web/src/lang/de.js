@@ -3111,4 +3111,7 @@ export default {
   "Retirar atacantes": "Angreifer zurückziehen",
   "Tirar os dados da mesa": "Würfel vom Tisch nehmen",
   "perspetiva": "Perspektive",
+  "Esta criatura não pode atacar": "Diese Kreatur kann nicht angreifen",
+  "Tem a habilidade Defensor.": "Sie hat Verteidiger.",
+  "Está virada.": "Sie ist getappt.",
 }

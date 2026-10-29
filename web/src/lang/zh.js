@@ -3111,4 +3111,7 @@ export default {
   "Retirar atacantes": "撤回攻击者",
   "Tirar os dados da mesa": "把骰子从桌上拿走",
   "perspetiva": "透视",
+  "Esta criatura não pode atacar": "这个生物不能攻击",
+  "Tem a habilidade Defensor.": "它具有守军异能。",
+  "Está virada.": "它已横置。",
 }
