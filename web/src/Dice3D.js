@@ -30,7 +30,10 @@ function faceTexture(kind, label, colors, corners, words) {
 }
 
 // malha de um sólido: uma face = um grupo com a sua textura; UV no plano da face, com o «cima» a apontar para o 1.º vértice
-function meshOf(kind, colors, words) {
+// sw = [a, b]: as faces a e b trocam de número (um dado que cai no a mostra o b): é assim que o dado assenta num valor dado
+const swap = (sw, v) => (!sw ? v : v === sw[0] ? sw[1] : v === sw[1] ? sw[0] : v)
+const rng32 = seed => () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }  // mulberry32
+function meshOf(kind, colors, words, sw) {
   const S = solid(kind), pos = [], uv = [], nor = [], geo = new THREE.BufferGeometry(), mats = []
   const side = new THREE.MeshStandardMaterial({ color: colors[1], roughness: 0.35, metalness: kind === 'coin' ? 0.55 : 0.05 })
   S.faces.forEach((f, i) => {
@@ -51,7 +54,7 @@ function meshOf(kind, colors, words) {
     const labelled = kind !== 'coin' || i < 2
     if (!labelled) { mats.push(side); return }
     const corners = kind === 'd4' ? f.map(vi => { const [a, b] = UV(S.verts[vi]); return [(a - 0.5) * 2, (b - 0.5) * 2, S.labels[vi]] }) : null
-    mats.push(new THREE.MeshStandardMaterial({ map: faceTexture(kind, S.labels[i], colors, corners, words), roughness: kind === 'coin' ? 0.3 : 0.42, metalness: kind === 'coin' ? 0.45 : 0.04 }))
+    mats.push(new THREE.MeshStandardMaterial({ map: faceTexture(kind, swap(sw, S.labels[i]), colors, corners, words), roughness: kind === 'coin' ? 0.3 : 0.42, metalness: kind === 'coin' ? 0.45 : 0.04 }))
   })
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3))
@@ -88,7 +91,7 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
   let lastHit = 0
   const hit = sp => { const now = performance.now(); if (now - lastHit > 60) { lastHit = now; onHit?.(Math.min(1, sp / 14)) } }
   const report = () => onSettle?.(groups.map(g => {
-    const vs = g.bodies.map(readValue)
+    const vs = g.bodies.map(b => swap(b.sw, readValue(b)))
     return { type: g.type, v: g.type === 'd100' ? (vs[0] + vs[1] || 100) : g.type === 'd10' ? vs[0] || 10 : vs[0], ...(g.type === 'd100' && { parts: vs }) }
   }))
   let tPrev = 0
@@ -105,14 +108,26 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
     for (const { mesh } of meshes) { scene.remove(mesh); mesh.geometry.dispose(); [].concat(mesh.material).forEach(m => { m.map?.dispose(); m.dispose() }) }
     meshes = []; groups = []; world = makeWorld({ X, Z }); render()
   }
-  const roll = types => {
+  // want = [valor por tipo] (só dados de um corpo: d6, d20, moeda…): o lançamento corre primeiro sem desenhar com uma
+  // semente, vê-se em que face cada dado cai e essa face troca de número com a pedida; depois corre a sério com a mesma
+  // semente (a física é determinista) e o dado assenta mesmo no valor pedido
+  const roll = (types, want) => {
     clear()
     const all = types.flatMap(t => KINDS[t].map(k => [t, k]))
+    let sws = []
+    if (want) {
+      const seed = (Math.random() * 2 ** 32) >>> 0, pre = makeWorld({ X, Z, rng: rng32(seed) })
+      all.forEach(([, k], j) => pre.throwDie(k, j, all.length))
+      while (!pre.done()) pre.step()
+      sws = pre.bodies.map((b, j) => [readValue(b), want[j]])
+      world = makeWorld({ X, Z, rng: rng32(seed) })
+    }
     let i = 0
     for (const t of types) {
       const g = { type: t, bodies: [] }
       for (const k of KINDS[t]) {
-        const b = world.throwDie(k, i++, all.length), mesh = meshOf(k, colors[k === 'd10t' ? 'd100' : t] || colors.d6, words)
+        const sw = sws[i], b = world.throwDie(k, i++, all.length), mesh = meshOf(k, colors[k === 'd10t' ? 'd100' : t] || colors.d6, words, sw)
+        b.sw = sw
         mesh.userData.b = b; scene.add(mesh); meshes.push({ mesh, b }); g.bodies.push(b)
       }
       groups.push(g)

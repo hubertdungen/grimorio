@@ -472,6 +472,8 @@ console.log('selfcheck universo ok')
   for (let i = 0; i < 240; i++) { const r = simulate(['d6'], { rng }); assert.ok(r.t < 9, 'd6 assenta'); cnt[r.values[0]]++ }
   assert.ok(cnt.slice(1).every(c => c > 20 && c < 60), `d6 justo ${cnt}`)
   const m = simulate(['d20', 'd20', 'd10t', 'd10', 'coin'], { rng }); assert.ok(m.t < 9 && m.values.every(v => v != null))
+  { const lcg = s0 => () => (s0 = (s0 * 16807) % 2147483647) / 2147483647, k = ['d6', 'd20', 'coin']  // mesa livre: a mesma semente dá o mesmo lançamento (Dice3D assenta no valor do servidor)
+    for (const s0 of [3, 77, 901]) assert.deepEqual(simulate(k, { X: 9, Z: 5, rng: lcg(s0) }).values, simulate(k, { X: 9, Z: 5, rng: lcg(s0) }).values, 'física determinista') }
   const { qrot } = await import('./src/dicephys.js')
   for (let i = 0; i < 40; i++) for (const b of simulate(['d12', 'd20', 'd8', 'coin'], { rng }).bodies) {  // assentes numa face, de vez
     const d = Math.max(...b.S.info.filter((_, k) => b.kind !== 'coin' || k < 2).map(f => -qrot(b.q, f.n)[1]))

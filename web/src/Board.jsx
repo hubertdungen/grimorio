@@ -222,7 +222,7 @@ function Face({ p, c, back, size = 'small' }) {
   )
 }
 
-const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // tgt: [lado, nome] do jogador atacado (3+ jogadores)
+export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // tgt: [lado, nome] do jogador atacado (3+ jogadores)
   const [enter] = useState(() => !quiet)
   const c = lookup(data, p.name)
   const creature = isCreature(data, p)
@@ -319,12 +319,12 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit }) {  // pois
   )
 }
 
-function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet }) {  // est: jogo antigo, contagem deduzida
+function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet, zone }) {  // zone: data-zone (a mesa livre larga cartas nos montes)  // est: jogo antigo, contagem deduzida
   const top = cards?.length ? cards[cards.length - 1] : null
   const c = top && lookup(data, top), im = useImg()
   const n = count ?? cards?.length ?? 0
   return (
-    <button className={`pile ${n ? '' : 'empty'}`} onClick={onOpen} title={`${label}: ${n}${est ? ` ${tx('(estimativa: o Forge não regista as compras)')}` : ''}`} disabled={!onOpen}>
+    <button className={`pile ${n ? '' : 'empty'}`} data-zone={zone} onClick={onOpen} title={`${label}: ${n}${est ? ` ${tx('(estimativa: o Forge não regista as compras)')}` : ''}`} disabled={!onOpen}>
       <span className="pile-c">{back || !c ? <span className={n ? 'pc-back' : 'pile-0'} /> : <In as="img" key={`${n}`} quiet={quiet} src={im(c, 'small')} alt={top} />}</span>
       <small>{icon} {n == null ? '?' : `${est ? '≈' : ''}${n}`}</small>
     </button>
@@ -333,7 +333,7 @@ function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet }) {  
 
 // de onde vem o deck de cada lugar: meta, meu, de um amigo ou da comunidade (ao lado da etiqueta do bot)
 const OWN = { meta: ['📊', tx('Meta'), tx('Deck do meta (torneios reais)')], meu: ['🧙', tx('Meu'), tx('Um deck teu')], ami: ['🤝', tx('Amigo'), tx('Deck de um amigo')], com: ['🌐', tx('Comunidade'), tx('Deck da comunidade (de outra pessoa)')] }
-function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, bet, bot, own }) {  // bet: as minhas apostas neste deck (torneios)  // hand: a mão fica nesta linha, ao centro (em baixo a nossa, em cima a do adversário)
+export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, bet, bot, own, openLib }) {  // openLib: clicar na biblioteca (mesa livre: comprar)  // bet: as minhas apostas neste deck (torneios)  // hand: a mão fica nesta linha, ao centro (em baixo a nossa, em cima a do adversário)
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg()
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
@@ -366,10 +366,10 @@ function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, b
             </div>
           )
         })}
-        <Pile label={tx('Biblioteca')} icon="▤" count={z.library} back est={!s.exact} data={data} />
+        <Pile label={tx('Biblioteca')} icon="▤" count={z.library} back est={!s.exact} data={data} zone="library" onOpen={openLib && (() => openLib(k))} />
         {(k !== 'a' || top) && !s.exact && <div className="bhand" title={`${tx('{n} carta na mão|{n} cartas na mão', { n: z.hand })}${s.exact ? '' : ` ${tx('(estimativa)')}`}`}>{Array.from({ length: Math.min(8, z.hand) }).map((_, j) => <span key={j} className="back" />)}<small>✋ {s.exact ? '' : '≈'}{z.hand}</small></div>}
-        <Pile label={tx('Cemitério')} icon="⚰" cards={z.graveyard} data={data} quiet={fast} onOpen={() => openZone(k, 'graveyard')} />
-        <Pile label={tx('Exílio')} icon="⌀" cards={z.exile} data={data} quiet={fast} onOpen={() => openZone(k, 'exile')} />
+        <Pile label={tx('Cemitério')} icon="⚰" cards={z.graveyard} data={data} quiet={fast} onOpen={() => openZone(k, 'graveyard')} zone="graveyard" />
+        <Pile label={tx('Exílio')} icon="⌀" cards={z.exile} data={data} quiet={fast} onOpen={() => openZone(k, 'exile')} zone="exile" />
       </div>
     </div>
   )
