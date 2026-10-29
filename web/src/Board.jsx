@@ -375,12 +375,12 @@ function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, b
   )
 }
 
-export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order, owns }) {  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
+export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order, owns, free }) {  // free: cartas pousadas à mão fora das filas (Forge Play: {key: {x, y}}, o centro em fração do lado)  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
   const z = s[k]  // compact: um de 3–4 jogadores (cartas mais pequenas); hit: está a ser atacado
   const all = s.sides.flatMap(x => s[x].perms)
   const live = markDormant(data, z.perms).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
-  const creatures = [], lands = [], others = []
-  for (const p of live) { const r = place?.[p.key] || (isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'); (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
+  const creatures = [], lands = [], others = [], loose = []
+  for (const p of live) { if (free?.[p.key]) { loose.push(p); continue } const r = place?.[p.key] || (isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'); (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
   if (order) for (const xs of [creatures, lands, others]) xs.sort((x, y) => (order[x.key] ?? 1e9) - (order[y.key] ?? 1e9))
   const front = <Row perms={creatures} data={data} fx={fx} att={att} cls="front" groupable={p => p.token} empty={tx('sem criaturas')} quiet={fast} who={who} />
   const back = (
@@ -394,6 +394,10 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
   return (
     <Arts.Provider value={art}><div className={`bside ${top ? 'top' : 'bottom'} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`}>
       {top ? <>{hud}{back}{front}</> : <>{front}{back}{hud}</>}
+      {loose.length > 0 && <div className="bfree">{loose.map(p => (
+        <div key={p.key} className={`bfree-c ${isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'}`} style={{ left: `${free[p.key].x * 100}%`, top: `${free[p.key].y * 100}%` }}>
+          <Perm p={p} data={data} hl={fx.hl.has(p.key) ? fx.par : 0} pop={fx.pops.get(p.key) || null} att={att.get(p.key)} n={0} quiet={fast} />
+        </div>))}</div>}
     </div></Arts.Provider>
   )
 }
