@@ -158,10 +158,12 @@ export default function App() {
   const [tool, setToolS] = useState(() => { try { return sessionStorage.getItem('grimorio.mesa') || null } catch { return null } })
   const setTool = t => { setToolS(t); try { if (t) sessionStorage.setItem('grimorio.mesa', t); else sessionStorage.removeItem('grimorio.mesa') } catch { /* sem armazenamento */ } }
   const [showRefresh, setShowRefresh] = useState(false)
-  const [section, setSectionRaw] = useState(() => (FROM_ROOM ? 'coliseu' : store.get('grimorio.section') || 'construir'))
+  // sentado numa mesa livre (o separador guarda-a na sessão): ao recarregar volta direto à mesa, também para convidados
+  const AT_TABLE = (() => { try { return !!sessionStorage.getItem('grimorio.mesalivre') } catch { return false } })()
+  const [section, setSectionRaw] = useState(() => (FROM_ROOM || AT_TABLE ? 'coliseu' : store.get('grimorio.section') || 'construir'))
   const setSection = x => { setSectionRaw(x); store.set('grimorio.section', x) }
   const coliseuRef = useRef(null)
-  const [colMode, setColModeS] = useState(() => (FROM_ROOM ? 'online' : store.get('grimorio.colMode') || 'bots'))  // bots a testar | jogar contra o Forge | torneio | ratings
+  const [colMode, setColModeS] = useState(() => (FROM_ROOM || AT_TABLE ? 'online' : store.get('grimorio.colMode') || 'bots'))  // bots a testar | jogar contra o Forge | torneio | ratings
   const setColMode = m => { setColModeS(m); store.set('grimorio.colMode', m) }
   const [fromState, setFromState] = useState(null)
   const playFrom = st => { setFromState(st); setColMode('jogar'); setSection('coliseu') }
