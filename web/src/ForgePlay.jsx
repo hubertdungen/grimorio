@@ -405,8 +405,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     if (/^AI can't play/.test(m.title || '')) return  // o aviso do Forge sobre cartas que a IA joga mal não interessa a quem joga
     // flash = o Forge recusou o clique (sem alvos válidos, sem mana, fora de tempo): sem isto parecia que nada acontecia
     setToast(m.t === 'flash' ? { title: tx('O Forge recusou essa jogada'), msg: tx('Não há alvos válidos, falta mana ou não é a altura. Uma aura como Hardlight Containment precisa de um artefacto teu em jogo.') } : m)
-    const t = setTimeout(() => setToast(null), m.t === 'flash' ? 3500 : 6000); return () => clearTimeout(t)
   }, [s?.log])
+  useEffect(() => {  // qualquer aviso some sozinho com fade (mais tempo se trouxer uma lista); um toque fecha logo
+    if (!toast) return
+    const ms = toast.list ? 8000 : 4000, a = setTimeout(() => setToast(t => (t === toast ? { ...t, out: true } : t)), ms), b = setTimeout(() => setToast(t => (t?.out ? null : t)), ms + 450)
+    return () => { clearTimeout(a); clearTimeout(b) }
+  }, [toast?.title, toast?.msg])  // eslint-disable-line react-hooks/exhaustive-deps
   const send = c => j(`/api/playnet/${sid}/cmd`, c).catch(e => setErr(e.message))
   const answer = (a, v) => { setS(x => ({ ...x, asks: x.asks.filter(y => y.id !== a.id) })); send({ c: 'answer', id: a.id, v }) }
   const st = s?.state, players = st?.players || []
@@ -615,7 +619,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       {zone && <div className="fp-modal" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
         <p><b>{zone.k === 'graveyard' ? tx('Cemitério de {n}', { n: zone.p.name }) : tx('Exílio de {n}', { n: zone.p.name })}</b> <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
         <div className="fp-opts">{(players.find(p => p.id === zone.p.id)?.[zone.k] || []).map(c => <FCard key={c.id} c={c} data={data} big onClick={x => { send({ c: 'card', id: x.id }); setZone(null) }} />)}</div></div></div>}
-      {toast && <div className="fp-toast" onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} <Syms text={toast.msg} />{toast.list && <ul>{toast.list.map((l, k) => <li key={k}><Syms text={l} /></li>)}</ul>}</div>}
+      {toast && <div className={`fp-toast ${toast.out ? 'out' : ''}`} onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} <Syms text={toast.msg} />{toast.list && <ul>{toast.list.map((l, k) => <li key={k}><Syms text={l} /></li>)}</ul>}</div>}
       {s.ended && <div className="fp-modal"><div className="fp-ask fp-end">
         <h3>{s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : tx('Jogo terminado')}</h3>
         {series && <p className="fp-series">{series.done ? (series.w[0] > series.w[1] ? tx('🏆 Ganhaste a série {a}–{b}', { a: series.w[0], b: series.w[1] }) : tx('Perdeste a série {a}–{b}', { a: series.w[0], b: series.w[1] })) : tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })}</p>}

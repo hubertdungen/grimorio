@@ -2562,3 +2562,4 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra Â
 .ia-hist { margin: 8px 0; } .ia-hist summary { cursor: pointer; }
 .ia-hist ol { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; max-height: 240px; overflow-y: auto; }
 .ia-hist li { padding: 6px 8px; border-radius: 8px; background: var(--bg2); } .ia-hist li p { margin: 2px 0; font-size: 13px; }
+.fp-toast { transition: opacity .45s ease, transform .45s ease; } .fp-toast.out { opacity: 0; transform: translate(-50%, 10px); pointer-events: none; }
