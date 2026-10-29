@@ -3252,4 +3252,6 @@ export default {
   "↻ Virar (tap)": "↻ 横置",
   "Virar (tap)": "横置",
   "Zona de comando": "指挥区",
+  "Descartar: clica em {n} carta(s) da mão.": "弃牌：点击手牌中的 {n} 张牌。",
+  "Escolhidas: {k} de {n}.": "已选：{k}/{n}。",
 }

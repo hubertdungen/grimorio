@@ -650,7 +650,7 @@ h2 .mana img { width: 20px; height: 20px; }
 /* a nossa mão */
 .myhand { display: grid; justify-items: center; gap: 2px; padding-top: 4px; }
 .fan { display: flex; justify-content: center; align-items: flex-end; min-height: 72px; padding: 0 20px; max-width: 100%; }
-.hc { width: 62px; aspect-ratio: 488/680; margin-left: -16px; border-radius: 5px; overflow: hidden; box-shadow: 0 3px 10px #000c; transform: rotate(var(--r)) translateY(calc(var(--r) * var(--r) * .02px)); transform-origin: 50% 120%; transition: transform .25s; cursor: zoom-in; flex: none; }
+.hc { width: 62px; aspect-ratio: 488/680; margin-left: -16px; border-radius: 5px; overflow: hidden; box-shadow: 0 3px 10px #000c; transform: rotate(var(--r)) translateY(calc(var(--q, 0) * var(--q, 0) * .02px)); transform-origin: 50% 120%;  /* --q = o ângulo sem unidade (graus × graus não é uma medida: o arco não aparecia) */ transition: transform .25s; cursor: zoom-in; flex: none; }
 .hc.in { animation: enter .4s ease-out; }
 .hc:first-child { margin-left: 0; }
 .hc:hover { transform: translateY(-12px) scale(1.12); z-index: 2; }
@@ -2696,3 +2696,40 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 }
 @media (min-width: 901px) { .ml .fp-zoom { max-height: 36vh; } }
 .ml-menu.life { grid-template-columns: repeat(4, minmax(48px, 1fr)); } .ml-menu.life b { grid-column: 1 / -1; } .ml-menu.life button { text-align: center; font-weight: 700; }
+/* mão: o botão fica parado (é a zona do rato e do clique) e só o interior (.fp-cin) sobe, cresce e inclina — antes a
+   carta fugia de baixo do rato, perdia o :hover, descia e voltava a subir sem parar, e os cliques falhavam */
+.fp-cin { position: relative; display: block; width: 100%; height: 100%; border-radius: inherit; }
+.fp-hand .fp-card:not(.back), .fp-hand .fp-card:not(.back):hover, .fp-hand .fp-card.lift, .fp-hand .fp-card.play, .fp-hand .fp-card.sel, .fp-hand .fp-card.picked {
+  overflow: visible; background: none; transform: none; box-shadow: none !important; animation: none; }  /* as costas (mão do outro na mesa livre) ficam como estão */
+.fp-hand .fp-card::after, .fp-hand .fp-card:hover::after { content: none; }
+.fp-hand .fp-card .fp-cin { overflow: hidden; background: #2a2440; transform-origin: 50% 100%; pointer-events: none;
+  transition: transform .22s cubic-bezier(.2, 1.3, .4, 1), box-shadow .2s; }
+/* os botões (zonas do clique) ficam pela ordem da mão: só o desenho sobe por cima das vizinhas. Se o botão da escolhida
+   subisse, roubava o clique à parte tapada da vizinha e o clique seguinte desmarcava-a (descartar 2 às apalpadelas) */
+.fp-hand .fp-card:hover, .fp-hand .fp-card.lift, .fp-hand .fp-card.picked { z-index: auto; }
+.fp-hand .fp-card.picked .fp-cin { z-index: 3; } .fp-hand .fp-card:hover .fp-cin { z-index: 4; } .fp-hand .fp-card.lift .fp-cin { z-index: 5; }
+.fp-hand .fp-card:hover .fp-cin { transform: perspective(520px) translateY(-14%) rotateX(calc(var(--ty) * -12deg)) rotateY(calc(var(--tx) * 14deg)) scale(1.32); box-shadow: 0 14px 30px #000a; }
+.fp-hand .fp-card:hover .fp-cin::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(circle at calc(50% + var(--tx) * 100%) calc(50% + var(--ty) * 100%), #ffffff40, transparent 55%); }
+.fp-hand .fp-card.lift .fp-cin { transform: translateY(-20%) scale(1.4); box-shadow: 0 0 0 2px var(--gold), 0 18px 36px #000c; }
+.fp-hand .fp-card.play .fp-cin { box-shadow: 0 0 0 2px #4ade80, 0 0 14px #4ade8099; }
+.fp-hand .fp-card.sel .fp-cin { box-shadow: 0 0 0 3px var(--cyan), 0 0 16px var(--cyan); animation: fp-sel 1.2s ease-in-out infinite alternate; }
+/* escolhida (descartar 2, sacrificar…): sobe e fica com moldura dourada até confirmares (OK) ou a desmarcares */
+.fp-hand .fp-card.picked .fp-cin { transform: translateY(-22%); box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold); animation: none; }
+.fp-hand .fp-card.picked::before { content: '✓'; position: absolute; z-index: 6; left: 50%; top: -30%; transform: translateX(-50%); width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 13px; font-weight: 900; color: #111; background: var(--gold); pointer-events: none; }
+.fp-card.picked:not(.fp-hand *) { box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; }
+@media (hover: none) { .fp-hand .fp-card:hover .fp-cin { transform: none; box-shadow: none; } .fp-hand .fp-card.picked .fp-cin { transform: translateY(-22%); } }
+@media (prefers-reduced-motion: reduce) { .fp-hand .fp-card .fp-cin { transition: none; animation: none; } }
+/* mão do adversário no Forge Play: um leque a sério visto do outro lado da mesa — o eixo fica por cima, a carta do meio
+   é a que está mais perto de ti e as das pontas sobem e rodam para fora */
+.fp-table .myhand.opp .fan { padding: 0 30px; }
+.fp-table .myhand.opp .hc { margin-left: calc(var(--ohw) * -.42); transform-origin: 50% -60%;
+  transform: rotate(calc(var(--q, 0) * -1.5deg)) translateY(calc(var(--q, 0) * var(--q, 0) * -.09px)); }
+.fp-table .myhand.opp .hc:first-child { margin-left: 0; }
+/* pilha no Forge Play: a legenda vive dentro do monte (.stk-pile) e só a mesa da arena (.bmid) a punha ao lado; aqui
+   ficava por cima das cartas e a carta a resolver tapava-lhe o texto. Fica ao lado do monte, com folga para a carta que
+   cresce e roda, e por cima de tudo */
+.fp-mid .stk-cap { position: absolute; left: calc(100% + 30px); top: 50%; transform: translateY(-50%); animation-name: capInY; z-index: 8; }
+.fp-stage.tall .fp-mid .stk-cap { left: calc(100% + 20px); max-width: 250px; }
+.ml .fp-hand .fp-card.ml-rev .fp-cin { box-shadow: 0 0 0 2px var(--gold), 0 0 12px #f2b84b88; }  /* mesa livre: carta mostrada (o botão já não tem sombra na mão) */

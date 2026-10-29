@@ -38,8 +38,10 @@ function promptText(msg, st, me) {
   if (/^Waiting for/.test(m)) return tx('O adversário está a pensar…')
   if (/won the coin toss/.test(m)) return tx('Ganhaste a moeda ao ar: jogas primeiro ou vais em segundo?')
   if (/keep your hand/.test(m)) return /going first/.test(m) ? tx('Começas tu. Ficas com esta mão?') : tx('Começa o adversário. Ficas com esta mão?')
-  const disc = m.match(/Select (\d+) card\(s\) to discard/i)
-  if (disc) return tx('Mão cheia: clica em {n} carta(s) da mão para descartar.', { n: disc[1] })
+  // descartar (mão cheia, Faithless Looting…): quantas já escolheste — as escolhidas sobem com moldura dourada
+  const disc = m.match(/(?:Select|Choose) (\d+) cards?(?:\(s\))? to discard|Discard (\d+) cards?/i)
+  const got = (me?.hand || []).filter(c => c.picked).length
+  if (disc) return `${/^Select \d+ card\(s\) to discard/i.test(m) && st?.phase === 'CLEANUP' ? tx('Mão cheia: clica em {n} carta(s) da mão para descartar.', { n: disc[1] || disc[2] }) : tx('Descartar: clica em {n} carta(s) da mão.', { n: disc[1] || disc[2] })} ${tx('Escolhidas: {k} de {n}.', { k: got, n: disc[1] || disc[2] })}`
   // «Spider Umbra (4) - Spider Umbra\n\nSelect target creature»: o pedido nem sempre vem na 1.ª linha
   const ask = m.split('\n').find(l => /^(Select|Choose)/i.test(l.trim()))
   if (ask && st?.players?.some(p => [...(p.hand || []), ...(p.battlefield || [])].some(c => c.sel))) return `${tx('Clica numa das cartas assinaladas.')} (${ask.trim()})`
@@ -50,16 +52,18 @@ function promptText(msg, st, me) {
 }
 
 // uma carta solta (mão, escolhas, cemitério): imagem da Scryfall com força/resistência por cima. h = id da carta na mão:
-// a mesa trata do clique e do arrastar pelo data-h
+// a mesa trata do clique e do arrastar pelo data-h. picked = já escolhida numa escolha do Forge (descartar 2…)
 export function FCard({ c, data, onClick, h, cls = '', big, flip }) {
   if (!c || c.hidden) return <div className={`fp-card back ${cls}`} />
   const card = data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase())
   const src = card ? img(card, big ? 'normal' : 'small', !!(flip && card.df)) : null  // virada: a outra face (cartas de duas faces)
   return (
-    <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${flip && !card?.df ? 'upside' : ''} ${cls}`} title={c.name} data-h={h} data-zid={c.id}
+    <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${c.picked ? 'picked' : ''} ${flip && !card?.df ? 'upside' : ''} ${cls}`} title={c.name} data-h={h} data-zid={c.id}
       onClick={onClick && (() => onClick(c))} onContextMenu={e => e.preventDefault()}>
-      {src ? <img src={src} alt={c.name} loading="lazy" draggable="false" /> : <span className="fp-name">{c.name}</span>}
-      {c.pt && <i className="fp-pt">{c.pt[0]}/{c.pt[1]}</i>}
+      <span className="fp-cin">{/* na mão só o interior sobe com o rato: o botão (a zona do clique) fica parado */}
+        {src ? <img src={src} alt={c.name} loading="lazy" draggable="false" /> : <span className="fp-name">{c.name}</span>}
+        {c.pt && <i className="fp-pt">{c.pt[0]}/{c.pt[1]}</i>}
+      </span>
     </button>
   )
 }
@@ -265,6 +269,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   const pr = s?.prompt, btns = (pr?.buttons || []).filter(b => b.label)
   const ask = s?.asks?.[0]
   const hoverId = useRef(null), [flipped, setFlipped] = useState(() => new Set()), [lift, setLift] = useState(null)  // carta debaixo do rato; viradas; levantada na mão
+  useEffect(() => { if (!/^Priority:/.test(pr?.msg || '')) setLift(null) }, [pr?.msg])  // o Forge pede uma escolha: a carta levantada desce (as escolhidas sobem com moldura)
   useEffect(() => {  // Enter/Espaço = o botão principal (passar ao passo seguinte), Shift+Enter = acabar o turno, Esc = o outro botão
     const k = e => {
       if (ask || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return
@@ -487,6 +492,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   const att = new Map()
   for (const p of [...bs.a.perms, ...bs.b.perms]) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
   const sel = new Set([...byId.values()].filter(c => c.sel).map(c => String(c.id)))
+  const picked = [...byId.values()].filter(c => c.picked).map(c => c.id)  // já escolhidas nesta escolha do Forge (sacrificar 2…): moldura dourada
   const fx = { hl: sel, par: 'sel', pops: fxs.pops, life: lifeFx, player: psnFx && { p: psnFx.p, psn: true } }
   const openZone = (k, z) => setZone({ p: k === 'a' ? me : opp, k: z })
   const onClick = e => {  // um clique numa carta da mesa ou da mão = o mesmo que no Forge; no orbe = escolher o jogador
@@ -532,6 +538,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''}`} data-sc={stage.sc} style={{ width: STAGE[stage.shape][0], height: STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
       <div className="fp-table board table" ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
+        {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
         {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone}
           hand={nOpp > 0 && <Hand z={{ hand: nOpp, known: Array(nOpp).fill('?') }} data={data} exact opp hidden quiet />} />}
         <div className="fp-mid">

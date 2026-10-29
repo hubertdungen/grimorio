@@ -222,8 +222,11 @@ function Face({ p, c, back, size = 'small' }) {
   )
 }
 
+// cartas já mostradas na mesa (Side marca-as depois de desenhar): uma carta que volta a montar só porque mudou de monte
+// (×N) ou de fila não «entra» outra vez (sem isto piscava a cada estado novo); as que chegam mesmo à mesa animam a entrada
+const seenAt = new Map()
 export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // tgt: [lado, nome] do jogador atacado (3+ jogadores)
-  const [enter] = useState(() => !quiet)
+  const [enter] = useState(() => !quiet && !(Date.now() - (seenAt.get(p.key) || 0) < 600000))
   const c = lookup(data, p.name)
   const creature = isCreature(data, p)
   const pt = creature ? powTough(data, p) : null
@@ -391,6 +394,7 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
   )
   const hud = <Hud k={k} z={z} name={name} fmt={formats?.[k]} s={s} data={data} fx={fx} fast={fast} start={start} openZone={openZone} top={top} hand={hand} bet={bets?.[k]} bot={bots?.[k]} own={owns?.[k]} />
   const { arts } = useContext(Arts), art = useMemo(() => ({ arts, k }), [arts, k])
+  useEffect(() => { const t = Date.now(); for (const p of z.perms) seenAt.set(p.key, t) })
   return (
     <Arts.Provider value={art}><div className={`bside ${top ? 'top' : 'bottom'} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`}>
       {top ? <>{hud}{back}{front}</> : <>{front}{back}{hud}</>}
@@ -414,10 +418,10 @@ export function Hand({ z, data, quiet, exact, opp, hidden, label }) {  // opp: m
         {z.known.map((nm, j) => {
           seen[nm] = (seen[nm] || 0) + 1
           const c = lookup(data, nm), rot = (j - (n - 1) / 2) * Math.min(5, 40 / Math.max(1, n))
-          if (hidden) return <In key={`${nm}-${seen[nm]}`} quiet={quiet} className="hc unk" style={{ '--r': `${rot}deg` }}><span className="pc-back" /></In>
-          return <In key={`${nm}-${seen[nm]}`} quiet={quiet} className="hc" style={{ '--r': `${rot}deg` }} data-z={`n:${nm}`}>{c ? <img src={im(c, 'small')} srcSet={set(c)} sizes="(max-width: 900px) 70px, 6.2vw" alt={nm} draggable="false" /> : <span>{short(nm)}</span>}</In>
+          if (hidden) return <In key={`${nm}-${seen[nm]}`} quiet={quiet} className="hc unk" style={{ '--r': `${rot}deg`, '--q': rot }}><span className="pc-back" /></In>
+          return <In key={`${nm}-${seen[nm]}`} quiet={quiet} className="hc" style={{ '--r': `${rot}deg`, '--q': rot }} data-z={`n:${nm}`}>{c ? <img src={im(c, 'small')} srcSet={set(c)} sizes="(max-width: 900px) 70px, 6.2vw" alt={nm} draggable="false" /> : <span>{short(nm)}</span>}</In>
         })}
-        {Array.from({ length: Math.min(unknown, 10) }).map((_, j) => <In key={`u${j}`} quiet={quiet} className="hc unk" style={{ '--r': `${(z.known.length + j - (n - 1) / 2) * Math.min(5, 40 / Math.max(1, n))}deg` }}><span className="pc-back" /></In>)}
+        {Array.from({ length: Math.min(unknown, 10) }).map((_, j) => <In key={`u${j}`} quiet={quiet} className="hc unk" style={{ '--r': `${(z.known.length + j - (n - 1) / 2) * Math.min(5, 40 / Math.max(1, n))}deg`, '--q': (z.known.length + j - (n - 1) / 2) * Math.min(5, 40 / Math.max(1, n)) }}><span className="pc-back" /></In>)}
       </div>
       {exact
         ? <small className="muted">{label || (opp ? tx('Mão do adversário') : tx('Mão'))} · {tx('{n} carta|{n} cartas', { n: z.hand })}</small>

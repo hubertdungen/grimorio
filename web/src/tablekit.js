@@ -8,6 +8,7 @@ import { play } from './sfx.js'
 
 // camada por cima de tudo: em ecrã inteiro só o elemento em ecrã inteiro se vê (o que fosse para o body ficava invisível)
 export const onTop = () => document.fullscreenElement || document.webkitFullscreenElement || document.body
+let dragEnd = 0  // quando acabou o último arrastar (a carta que vem à frente espera um pouco depois de arrumares)
 
 // arrastar com física: a carta segue o ponteiro com um pouco de atraso, inclina-se com a velocidade e, se não puder
 // ficar onde a largaste, volta ao sítio com mola. onDrop({id, from, target}) diz se a jogada foi aceite.
@@ -54,7 +55,7 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up)
       if (!ghost) return
       cancelAnimationFrame(raf); mark(null); gap?.classList.remove('fp-gap'); onMove?.(null)
-      dragged.current = true; setTimeout(() => { dragged.current = false }, 0)  // o clique que vem a seguir ao largar não conta
+      dragged.current = true; dragEnd = Date.now(); setTimeout(() => { dragged.current = false }, 0)  // o clique que vem a seguir ao largar não conta
       const res = ev.type === 'pointerup' && onDrop({ id, from, target: targetAt(ev.clientX, ev.clientY), x: ev.clientX, y: ev.clientY }), g = ghost
       if (res === 'local') {  // arrumação: a carta a sério parte de onde a largaste e encaixa com mola no sítio novo (useFlip)
         flipFrom.set(String(id), g.getBoundingClientRect())
@@ -134,23 +135,39 @@ export function useStage(boxRef, wrapRef, ready, own = false) {  // own: com o p
 // cartas que mudam de sítio entre um estado do Forge e o seguinte (da mão para a mesa, presas a uma criatura, outra fila)
 // deslizam com mola do sítio antigo para o novo (FLIP: mede antes e depois e anima a diferença). A mesma carta tem o
 // mesmo id na mão e na mesa, por isso uma carta jogada voa da mão para o lugar dela.
-export const flipFrom = new Map()  // carta largada na mesa: o voo parte de onde a largaste (não da mão)
+// Mede-se o sítio de layout (offsetLeft/Top até à mesa, em px «lógicos»), que não vê transformações: a carta da mão
+// levantada pelo rato, o atacante que avança, a perspetiva ou uma animação a meio já não contam como «mudou de sítio»
+// (era isso que fazia cartas saltar e voltar a cada OK).
+export const flipFrom = new Map()  // carta largada na mesa: o voo parte de onde a largaste, em px do ecrã (não da mão)
+const layoutPos = (el, stop) => {
+  let x = 0, y = 0
+  for (let e = el; e && e !== stop; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; if (!e.offsetParent || e.offsetParent === document.body) break }
+  return { x, y, w: el.offsetWidth }
+}
 export function useFlip(box, seq, lay) {
-  const last = useRef(new Map())
-  useLayoutEffect(() => {
+  const last = useRef(new Map()), was = useRef(null)
+  useLayoutEffect(() => {  // mede a cada desenho (o ponto de partida fica sempre em dia); só anima quando o estado mudou
     const t = box.current
     if (!t) return
+    const fly = !was.current || was.current.seq !== seq || was.current.lay !== lay
+    was.current = { seq, lay }
+    const stage = t.closest('.fp-stage') || t, sc = +stage.dataset?.sc || 1
     const now = new Map(), reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     for (const el of t.querySelectorAll('.pc[data-z^="k:"], .fp-hand [data-h]')) {
-      const id = el.dataset.h || el.dataset.z.slice(2), r = el.getBoundingClientRect()
-      if (!r.width) continue
-      now.set(id, r)
-      const o = flipFrom.get(id) || last.current.get(id)
+      const id = el.dataset.h || el.dataset.z.slice(2)
+      if (!el.offsetWidth) continue
+      const p = layoutPos(el, stage)
+      now.set(id, p)
+      const drop = flipFrom.get(id), o = last.current.get(id)
+      if (!fly && !drop) continue
       flipFrom.delete(id)
-      if (!o || reduce) continue
-      const sc = +t.closest('.fp-stage')?.dataset.sc || 1  // dentro da mesa escalada, o translate conta em px «lógicos»
-      const dx = (o.left - r.left) / sc, dy = (o.top - r.top) / sc, k = o.width / r.width
-      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) continue
+      if (reduce || (!drop && !o)) continue
+      let dx, dy, k
+      if (drop) {  // vem do sítio do ecrã onde a largaste: compara com o retângulo atual no ecrã
+        const r = el.getBoundingClientRect()
+        dx = (drop.left - r.left) / sc; dy = (drop.top - r.top) / sc; k = drop.width / r.width
+      } else { dx = o.x - p.x; dy = o.y - p.y; k = o.w / p.w }
+      if (Math.abs(dx) < 3 && Math.abs(dy) < 3) continue  // não se mexeu (ou quase): deixa-a como está, a meio do que estiver a fazer
       el.style.transition = 'none'
       el.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`
       el.style.zIndex = '6'
@@ -161,7 +178,7 @@ export function useFlip(box, seq, lay) {
       }))
     }
     last.current = now
-  }, [seq, lay])  // eslint-disable-line react-hooks/exhaustive-deps
+  })
 }
 
 // arrumação livre do teu lado: o centro da carta largada em (px, py) do ecrã, em px «lógicos» do teu lado e em fração
@@ -191,6 +208,9 @@ export function spotOn(side, px, py, kind, grid, skip) {
 // carta que vem à frente: com o rato por cima de uma carta da mesa (tua ou do adversário, mesmo inclinada pela
 // perspetiva), uma cópia do que se vê dela sobe, endireita-se e cresce virada para o ecrã; ao sair volta ao lugar.
 // É uma cópia da face à vista: uma carta virada para baixo continua de costas (nada escondido se revela).
+// Só vem ao fim de PEEK_MS com o rato parado na mesma carta (passar por cima a arrumar terrenos não a chama) e nunca
+// durante ou logo a seguir a um arrastar; no toque não há (tocar e manter mostra-a em grande no painel).
+const PEEK_MS = 450
 export function usePeek() {
   const cur = useRef(null)
   const hide = () => {
@@ -209,6 +229,7 @@ export function usePeek() {
     const c = { pc }
     cur.current = c
     c.t = setTimeout(() => {
+      if (document.querySelector('.fp-ghost') || Date.now() - dragEnd < 700) { cur.current = null; return }
       const att = pc.classList.contains('pc-attc')  // aura/equipamento preso: a própria carta pequena
       const face = att ? pc : pc.querySelector(pc.querySelector('.pc-flip.on .pc-b') ? '.pc-b' : '.pc-f'), rot = att ? pc : pc.querySelector('.pc-rot')
       if (!face || !rot || cur.current !== c) return
@@ -224,7 +245,7 @@ export function usePeek() {
       onTop().appendChild(n)
       c.node = n
       requestAnimationFrame(() => requestAnimationFrame(() => { if (cur.current === c) { n.style.transform = 'none'; n.style.opacity = '1' } }))
-    }, 90)
+    }, PEEK_MS)
   }
   useEffect(() => hide, [])
   return { over, hide }

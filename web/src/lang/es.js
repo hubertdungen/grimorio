@@ -3252,4 +3252,6 @@ export default {
   "↻ Virar (tap)": "↻ Girar (tap)",
   "Virar (tap)": "Girar (tap)",
   "Zona de comando": "Zona de mando",
+  "Descartar: clica em {n} carta(s) da mão.": "Descartar: haz clic en {n} carta(s) de la mano.",
+  "Escolhidas: {k} de {n}.": "Elegidas: {k} de {n}.",
 }
