@@ -23,6 +23,7 @@
 //      cemitério/exílio e a derrota por 21 de dano olham para a variante Commander das regras, que se junta às regras
 //      base (-f) quando algum lugar tem comandante. Sem -C fica como antes (-f Commander = todos com comandante).
 //      [-L 20 20 40 20]  vida inicial por lugar (as regras base do sim.py: a mesma para todos)
+//      [-H]  Two-Headed Giant (com -T 1 1 2 2): o Forge 2.0.15 não tem a variante (GameType sem TwoHeadedGiant); ver Giant
 // Os perfis (-a) vêm de res/ai/*.ai; o sim.py monta lá os nossos (build.sh: chances 0/100 -> 10/90).
 import java.io.File;
 import java.util.*;
@@ -107,6 +108,8 @@ public class GrimorioSim {
     }
 
     // ---------- igual a SimulateMatch.simulate (sem torneios) ----------
+    static boolean giant;  // -H: Two-Headed Giant
+
     static void simulate(String[] args) {
         FModel.initialize(null, null);
         System.out.println("Simulation mode");
@@ -148,6 +151,7 @@ public class GrimorioSim {
         List<String> simModes = params.getOrDefault("S", List.of());
         List<String> teams = params.getOrDefault("T", List.of());
         List<String> cmdSeats = params.getOrDefault("C", List.of()), lifes = params.getOrDefault("L", List.of());
+        giant = params.containsKey("H") && !teams.isEmpty();
         if (cmdSeats.contains("1") && !rules.hasAppliedVariant(GameType.Commander)) rules.addAppliedVariant(GameType.Commander);
         List<RegisteredPlayer> pp = new ArrayList<>();
         StringBuilder sb = new StringBuilder();
@@ -166,6 +170,7 @@ public class GrimorioSim {
             RegisteredPlayer rp = type.equals(GameType.Commander) && cmdSeats.isEmpty() ? RegisteredPlayer.forCommander(d) : new RegisteredPlayer(d);
             if (cmdSeats.size() >= i && cmdSeats.get(i - 1).equals("1")) rp.assignCommander();
             if (lifes.size() >= i) rp.setStartingLife(Integer.parseInt(lifes.get(i - 1)));
+            if (giant) rp.setStartingLife(30);  // 2HG: 30 por equipa (partilhada pela Giant)
             // = GamePlayerUtil.createAiPlayer(name, i - 1, profile) (mesma capa ao acaso), mais a pesquisa de jogadas
             String sim = simModes.size() >= i ? simModes.get(i - 1) : "none";
             Set<AIOption> opts = sim.equals("full") ? EnumSet.of(AIOption.USE_FULL_SIMULATION)
@@ -958,6 +963,7 @@ public class GrimorioSim {
         g1.setNoGUIUser();
         final Spy spy = new Spy(g1, outputGamelog);
         g1.subscribeToEvents(spy);
+        if (giant) g1.subscribeToEvents(new Giant(g1));
         g1.getGameLog().addObserver((o, arg) -> spy.log());
         try {
             TimeLimitedCodeBlock.runWithTimeout(() -> {
@@ -984,6 +990,56 @@ public class GrimorioSim {
             out(String.format("%nGame Result: Game %d ended in a Draw! Took %d ms.", 1 + iGame, sw.getTime()));
         } else {
             out(String.format("%nGame Result: Game %d ended in %d ms. %s has won!%n", 1 + iGame, sw.getTime(), g1.getOutcome().getWinningLobbyPlayer().getName()));
+        }
+    }
+
+    // ---------- Two-Headed Giant (-H) ----------
+    // O Forge 2.0.15 não tem 2HG: com -T há equipas a sério (aliados, atacam só os adversários, ganham juntos), mas cada
+    // jogador tem a sua vida e o seu turno. Aqui junta-se o que dá sem mexer no motor: vida partilhada (30 por equipa:
+    // cada mudança da vida de um passa ao parceiro, sem gatilhos, e o registo diz a vida nova de ambos), veneno
+    // partilhado e a equipa perde junta (quem fica sem parceiro sai também). Limites honestos: o turno não é partilhado
+    // (o PhaseHandler só tem um jogador ativo; com lugares 1 1 2 2 os parceiros jogam em turnos seguidos, que é o mais
+    // parecido) e o veneno perde aos 10 da equipa, não aos 15 (o Player.checkLoseCondition tem 10 fixo).
+    public static class Giant {
+        static final java.lang.reflect.Field LIFE;
+        static {
+            try { LIFE = Player.class.getDeclaredField("life"); LIFE.setAccessible(true); }
+            catch (NoSuchFieldException e) { throw new IllegalStateException(e); }
+        }
+        final Game g;
+        Map<Integer, Integer> life, poison;  // o último valor visto por jogador; null até ao 1.º turno (a vida inicial já está posta)
+
+        Giant(Game g) { this.g = g; }
+
+        @Subscribe
+        public void any(GameEvent e) {
+            if (life == null) {
+                if (!(e instanceof GameEventTurnBegan)) return;
+                life = new HashMap<>();
+                poison = new HashMap<>();
+                for (Player p : g.getRegisteredPlayers()) { life.put(p.getId(), p.getLife()); poison.put(p.getId(), p.getPoisonCounters()); }
+            }
+            Set<Integer> done = new HashSet<>();
+            for (Player p : g.getRegisteredPlayers()) {
+                if (!done.add(p.getId())) continue;
+                List<Player> team = new ArrayList<>(p.getTeamMates(true));
+                int dl = 0, dp = 0;  // o que mudou na equipa desde a última vez (os dois podem ter mudado de uma vez)
+                for (Player q : team) { done.add(q.getId()); dl += q.getLife() - life.get(q.getId()); dp += q.getPoisonCounters() - poison.get(q.getId()); }
+                int l = life.get(p.getId()) + dl, ps = poison.get(p.getId()) + dp;
+                for (Player q : team) {
+                    if (q.getLife() != l) {
+                        int old = q.getLife();
+                        try { LIFE.setInt(q, l); } catch (IllegalAccessException x) { throw new IllegalStateException(x); }
+                        g.fireEvent(new GameEventPlayerLivesChanged(q, old, l));
+                    }
+                    if (q.getPoisonCounters() != ps) q.setPoisonCounters(ps, q);
+                    life.put(q.getId(), l);
+                    poison.put(q.getId(), ps);
+                }
+            }
+            for (Player p : g.getLostPlayers())  // a equipa perde junta
+                for (Player q : p.getTeamMates(false))
+                    if (!q.hasLost()) q.loseConditionMet(forge.game.player.GameLossReason.SpellEffect, "Two-Headed Giant");
         }
     }
 

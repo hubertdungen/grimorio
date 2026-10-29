@@ -2563,3 +2563,36 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .ia-hist ol { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; max-height: 240px; overflow-y: auto; }
 .ia-hist li { padding: 6px 8px; border-radius: 8px; background: var(--bg2); } .ia-hist li p { margin: 2px 0; font-size: 13px; }
 .fp-toast { transition: opacity .45s ease, transform .45s ease; } .fp-toast.out { opacity: 0; transform: translate(-50%, 10px); pointer-events: none; }
+
+/* ---------- torneios de equipas (1.11) ---------- */
+/* pódio: o cartão de cada deck encolhe com a coluna (sem isto a arte e as etiquetas transbordavam e os decks da mesma
+   equipa encavalitavam-se); com vários decks no mesmo lugar, cada um numa linha compacta (arte pequena + nome) */
+.pd-deck { grid-template-columns: minmax(0, 1fr); }
+.pd-sub { flex-wrap: wrap; }
+.podium.team .pd-decks { flex-direction: column; align-items: stretch; gap: 6px; }
+.podium.team .pd-deck { flex: none; max-width: none; grid-template-columns: 64px minmax(0, 1fr); align-items: center; column-gap: 8px; row-gap: 2px; padding: 3px 8px 3px 3px; }
+.podium.team .pd-deck > :first-child { grid-row: span 2; }
+.podium.team .pd-deck img, .podium.team .pd-noart { border-radius: 8px; font-size: 16px; }
+.podium.team .pd-deck > b { text-align: left; padding: 0; font-size: 13px; }
+.podium.team .pd-1 .pd-deck > b { font-size: 14px; }
+.podium.team .pd-sub { justify-content: flex-start; min-height: 0; padding: 0; gap: 4px; }
+.podium.team .pd-sub .fmt-tag.own { margin-left: 0; }
+@media (max-width: 640px) {  /* telemóvel: os lugares uns por baixo dos outros, 1.º em cima, a toda a largura */
+  .podium.team .pd-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .podium.team .pd-1 { order: -1; }
+  .podium.team .pd-step { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; align-items: stretch; }
+  .podium.team .pd-block { order: -1; height: auto !important; border-radius: 10px; }
+  .podium.team .pd-block span { font-size: 20px; } .podium.team .pd-block b { font-size: 15px; }
+}
+/* 2 contra 2 à mesma mesa: traço entre as duas equipas; opções das equipas no Criar */
+.tm .ts.tt-b { margin-top: 6px; position: relative; }
+.tm .ts.tt-b::before { content: ''; position: absolute; left: 8px; right: 8px; top: -4px; border-top: 1px dashed var(--line); }
+.tc-team-opts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+/* registo: painel de estado (os estados filtram ao tocar), filtros e páginas */
+.reg-kpis { grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin: 6px 0 10px; }
+.reg-kpis .kpi { padding: 8px 10px; } .reg-kpis .kpi b { font-size: 20px; }
+.reg-kpis button.kpi:hover, .reg-kpis .kpi.on { border-color: var(--gold); } .reg-kpis .kpi.on { background: var(--bg2); }
+.reg-filt { flex-wrap: wrap; gap: 6px; margin-bottom: 8px; } .reg-filt select { max-width: 100%; }
+.reg-pages { justify-content: center; align-items: center; gap: 10px; margin-top: 10px; }
+.pd-block { line-height: 1.1; }  /* o «3.º» saía por baixo do degrau (66 px; 52 px em ecrãs pequenos) */
+@media (max-width: 900px) { .pd-block span { font-size: 20px; } .pd-block b { font-size: 18px; } }

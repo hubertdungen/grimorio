@@ -436,6 +436,14 @@ console.log('selfcheck universo ok')
   assert.deepEqual(kinds(mixTake([...mk('meus', 2), ...mk('meta', 10)], 8, { meu: 75, meta: 25 })), { meu: 2, meta: 6 })  // faltam meus: o meta completa
   assert.equal(mixTake(pool, 7, { meu: 1, com: 1, meta: 1 }).length, 7)
   console.log('selfcheck mistura ok') }
+{ const { genShape } = await import('./src/game.js')  // gerador: todos os tipos permitidos saem com a mesma probabilidade
+  const types = ['elim', 'dupla', 'suico', 'liga', 'mesas', 'gauntlet', 'rei', 'grupos', 'equipas'], N = 9000, cnt = {}
+  let r = 1; const rnd = () => ((r = (r * 16807) % 2147483647) / 2147483647)
+  for (let i = 0; i < N; i++) { const s = genShape({ types, formats: ['modern', 'pauper', 'commander'], multi: f => f === 'commander', ownIn: f => f !== 'pauper' }, rnd); cnt[s.type] = (cnt[s.type] || 0) + 1; assert.ok(s.type === 'mesas' ? s.format === 'commander' : s.format !== 'commander'); assert.ok(s.type !== 'gauntlet' || s.format === 'modern') }
+  for (const k of types) assert.ok(Math.abs(cnt[k] / N - 1 / 9) < 0.02, `${k} ${cnt[k]}`)
+  assert.deepEqual(genShape({ types: ['mesas'], formats: ['modern'], multi: () => false, ownIn: () => true }), { type: 'mesas', format: 'modern' })  // sem Commander, mesas a 3–4 do formato
+  assert.equal(genShape({ types: ['gauntlet'], formats: ['modern'], multi: () => false, ownIn: () => false }).type, 'elim')  // gauntlet sem decks meus: não dá
+  console.log('selfcheck gerador ok') }
 { const { needsMark } = await import('./src/game.js')
   assert.ok(needsMark(6, 20) && needsMark(9, 20) && needsMark(6, 8) && !needsMark(16, 20) && !needsMark(10, 20) && !needsMark(8, 20) && !needsMark(11, 20))
   assert.ok(needsMark(66, 100) && needsMark(68, 100) && needsMark(86, 100) && !needsMark(88, 100) && needsMark(61, 100) && !needsMark(1, 100) && !needsMark(50, 100))

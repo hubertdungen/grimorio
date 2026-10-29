@@ -41,9 +41,10 @@ SEARCH_CLOCK = 3  # margem para o relógio do Forge (até 900 s); a híbrida med
 GAME_TYPE = {"commander": "Commander", "duel": "Commander", "paupercommander": "Commander", "predh": "Commander",
              "oathbreaker": "Oathbreaker", "brawl": "Brawl", "standardbrawl": "Brawl"}
 SIDES = "abcd"  # lugar 1..4 no Forge -> lado; "a" é sempre o teu deck
-# modo -> (jogadores, equipas por lugar). O Forge 2.0.15 não tem Two-Headed Giant (vida e turno partilhados): «2hg» joga-se
-# como «equipas», 2 contra 2 com vidas e turnos separados, parceiros em lugares alternados (a+c contra b+d).
-MODES = {"1v1": (2, None), "ffa3": (3, None), "ffa4": (4, None), "equipas": (4, [1, 2, 1, 2]), "2hg": (4, [1, 2, 1, 2])}
+# modo -> (jogadores, equipas por lugar). «equipas»: 2 contra 2 com vidas e turnos separados, parceiros em lugares
+# alternados (a+c contra b+d). «2hg»: Two-Headed Giant (a+b contra c+d) — o Forge 2.0.15 não o tem; o GrimorioSim -H junta
+# vida partilhada (30), veneno partilhado e derrota da equipa inteira; os parceiros jogam em turnos seguidos (não partilhados).
+MODES = {"1v1": (2, None), "ffa3": (3, None), "ffa4": (4, None), "equipas": (4, [1, 2, 1, 2]), "2hg": (4, [1, 1, 2, 2])}
 META_FORMATS = ("standard", "pioneer", "modern", "legacy", "vintage", "pauper", "premodern")
 EDH_FORMATS = ("commander", "duel")
 # modo casual (formatos misturados): as regras base (formato escolhido) dão o tipo de jogo e a vida de todos; cada deck
@@ -1221,7 +1222,7 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
     cmd += ["sim", "-D", decks, "-d", *[f"{x}.dck" for x in sides], "-n", str(a["games"]), "-c", str(a["clock"]),
             "-a", *a["profiles"]]
     if a.get("teams"):
-        cmd += ["-T", *map(str, a["teams"])]
+        cmd += ["-T", *map(str, a["teams"])] + (["-H"] if a.get("mode") == "2hg" else [])
     if a.get("cmd_seats"):  # modo casual: quem tem comandante e a vida das regras base
         cmd += ["-C", *map(str, a["cmd_seats"]), "-L", *map(str, a["life"])]
     if a["gtype"] != "Constructed":

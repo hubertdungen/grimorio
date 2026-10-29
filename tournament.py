@@ -8,7 +8,11 @@ liga (todos contra todos, método do círculo) e mesas (3–4 jogadores todos co
 da lista — contra cada um dos outros, pela ordem; só é campeão com ≥ 75% de vitórias), rei da colina (quem ganha fica,
 quem perde vai para o fim da fila; N partidas; manda a série mais longa), grupos + eliminação (grupos de 4 ou 3 em liga,
 os 2 primeiros de cada grupo passam a uma chave com 3.º lugar, 1.ºs contra 2.ºs de outros grupos) e equipas (2 ou 3 decks
-por equipa pela ordem da lista; liga entre equipas, o tabuleiro k joga contra o tabuleiro k e a equipa ganha pela maioria).
+por equipa pela ordem da lista; liga entre equipas, o tabuleiro k joga contra o tabuleiro k e a equipa ganha pela maioria;
+com `table` e equipas de 2, cada partida de equipas é uma só mesa 2 contra 2: «equipas», cada um com a sua vida, ou «2hg»,
+Two-Headed Giant — os modos do sim.py com o mesmo nome).
+Equipas sorteadas podem sair equilibradas (balance_teams: formatos espalhados, depois o Elo) e, com formatos misturados,
+os tabuleiros emparelham decks do mesmo formato quando dá.
 
 Cada partida joga-se jogo a jogo: um trabalho do sim por jogo, na fila de sempre (um de cada vez, a RAM não dá para
 mais). O estado vive na SQLite (tabela tournaments, JSON) e os jogos com o registo inteiro em tournament_games
@@ -139,7 +143,9 @@ def next_round(st):
     st["matches"] += [M(f"R{r}-{i + 1}", "R", r, [a, b]) for i, (a, b) in enumerate(pairs)] + ms
 
 
-def build(t, n, bo=1, third=False, rounds=None, ch=0, team=2):
+def build(t, n, bo=1, third=False, rounds=None, ch=0, team=2, table=False, fmts=None):
+    """table: equipas de 2 numa só mesa (partida «T» com p = [a1, a2, b1, b2]); fmts: formato de cada deck — os
+    tabuleiros de cada partida de equipas juntam decks do mesmo formato quando dá."""
     st = {"type": t, "bo": bo, "third": bool(third), "rounds": rounds, "matches": [], "champion": None}
     if t in ("elim", "dupla"):
         st["matches"], st["final"] = bracket(n, third, t == "dupla")
@@ -157,7 +163,13 @@ def build(t, n, bo=1, third=False, rounds=None, ch=0, team=2):
         st["team"] = team
         for m in league(n // team):
             a, b = m["p"]
-            st["matches"] += [{**M(f"{m['id']}.{k + 1}", "R", m["r"], [a * team + k, b * team + k]), "tm": m["id"]} for k in range(team)]
+            if table:
+                st["matches"].append({**M(m["id"], "T", m["r"], [2 * a, 2 * a + 1, 2 * b, 2 * b + 1]), "tm": m["id"]})
+                continue
+            bb = [b * team + k for k in range(team)]  # a ordem dos tabuleiros da equipa b (a 1.ª que der mais formatos iguais)
+            if fmts:
+                bb = max(itertools.permutations(bb), key=lambda q: sum(fmts[a * team + k] == fmts[x] for k, x in enumerate(q)))
+            st["matches"] += [{**M(f"{m['id']}.{k + 1}", "R", m["r"], [a * team + k, bb[k]]), "tm": m["id"]} for k in range(team)]
     st["n"] = n
     resolve(st)
     return st
@@ -279,7 +291,7 @@ def team_table(st):
     for bs in tms.values():
         if any(m["st"] != "done" for m in bs):
             continue
-        a, b = (x // s for x in bs[0]["p"])
+        a, b = bs[0]["p"][0] // s, bs[0]["p"][-1] // s
         wa, wb = (sum(1 for m in bs if m["win"] is not None and m["win"] // s == e) for e in (a, b))
         for e, w, l in ((a, wa, wb), (b, wb, wa)):
             R[e]["bw"] += w
@@ -287,6 +299,23 @@ def team_table(st):
             R[e]["pts"] += 3 if w > l else 1 if w == l else 0
             R[e]["v" if w > l else "e" if w == l else "d"] += 1
     return sorted(R, key=lambda r: (-r["pts"], -r["bw"], r["t"]))
+
+
+def balance_teams(fmts, elo, s, by_fmt=True, by_elo=True):
+    """Equipas sorteadas mas equilibradas -> a nova ordem (equipa e = posições e·s … e·s+s−1). Os decks já vêm
+    baralhados; entram pelo formato mais comum primeiro (com by_fmt) e, dentro dele, do Elo mais alto para o mais baixo
+    (com by_elo); cada um vai para a equipa com vaga que tem menos decks desse formato e, no empate (formatos que não dá
+    para espalhar mais), a de menos Elo somado: a equipa mais fraca recebe o deck mais forte. Dentro de cada equipa os
+    tabuleiros ficam pela mesma ordem de formatos, para o tabuleiro k apanhar o mesmo formato do outro lado."""
+    n, cnt = len(fmts), Counter(fmts)
+    rank = {f: k for k, (f, _) in enumerate(cnt.most_common())}
+    order = sorted(range(n), key=lambda i: ((rank[fmts[i]] if by_fmt else 0), (-elo[i] if by_elo else 0)))
+    teams = [[] for _ in range(n // s)]
+    for i in order:
+        e = min((e for e in range(len(teams)) if len(teams[e]) < s), key=lambda e: (
+            sum(fmts[j] == fmts[i] for j in teams[e]) if by_fmt else 0, sum(elo[j] for j in teams[e]) if by_elo else 0, len(teams[e])))
+        teams[e].append(i)
+    return [i for tm in teams for i in sorted(tm, key=lambda i: (rank[fmts[i]], -elo[i]))]
 
 
 def standings(st):
@@ -310,20 +339,21 @@ def standings(st):
                 T[m["win"]]["v"] += 1
                 T[m["win"]]["bye"] += 1
             continue
-        a, b = m["p"]
-        T[a]["opp"].append(b)
-        T[b]["opp"].append(a)
-        for k, x in enumerate((a, b)):
-            T[x]["gw"] += m["w"][k]
-            T[x]["gl"] += m["w"][1 - k]
-        if m["win"] is None:
-            for x in (a, b):
-                T[x]["pts"] += 1
-                T[x]["e"] += 1
-        else:
-            T[m["win"]]["pts"] += 3
-            T[m["win"]]["v"] += 1
-            T[m["lose"]]["d"] += 1
+        for a, b in ((m["p"][0], m["p"][2]), (m["p"][1], m["p"][3])) if m["b"] == "T" else [m["p"]]:  # 2 contra 2: cada um conta como o par
+            T[a]["opp"].append(b)
+            T[b]["opp"].append(a)
+            for k, x in enumerate((a, b)):
+                T[x]["gw"] += m["w"][k]
+                T[x]["gl"] += m["w"][1 - k]
+            if m["win"] is None:
+                for x in (a, b):
+                    T[x]["pts"] += 1
+                    T[x]["e"] += 1
+            else:
+                w, l = (a, b) if m["win"] == m["p"][0] else (b, a)  # 2 contra 2: ganhou a equipa de p[0] ou a outra
+                T[w]["pts"] += 3
+                T[w]["v"] += 1
+                T[l]["d"] += 1
     mwp = lambda t: max(1 / 3, t["pts"] / (3 * (t["v"] + t["d"] + t["e"]))) if t["v"] + t["d"] + t["e"] else 1 / 3
     for t in T:
         t["omw"] = round(sum(mwp(T[o]) for o in t["opp"]) / len(t["opp"]), 4) if t["opp"] else 0
@@ -339,8 +369,8 @@ def standings(st):
 
 
 def seats_for(m):
-    """Lugares no Forge (a, b, …) para o próximo jogo: troca/roda a cada jogo."""
-    k = len(m["g"]) % len(m["p"])
+    """Lugares no Forge (a, b, …) para o próximo jogo: troca/roda a cada jogo (2 contra 2: troca a equipa que fica em a+b)."""
+    k = len(m["g"]) % len(m["p"]) if m["b"] != "T" else 2 * (len(m["g"]) % 2)
     return m["p"][k:] + m["p"][:k]
 
 
@@ -355,6 +385,7 @@ def decide(st, m, note=None):
         m["note"] = note
     if m["b"] == "P":
         return m.update(st="done", win=None, pl=None)
+    h = len(m["p"]) // 2  # 2 contra 2: a equipa k é p[k·2], p[k·2+1]; ganha (win) o 1.º dela
     if m["w"][0] != m["w"][1]:
         k = 0 if m["w"][0] > m["w"][1] else 1
     elif ko(st, m):
@@ -362,7 +393,7 @@ def decide(st, m, note=None):
         k, m["tb"] = (0 if sd[m["p"][0]] < sd[m["p"][1]] else 1), 1  # desempate pelo seed
     else:
         return m.update(st="done", win=None, lose=None)
-    m.update(st="done", win=m["p"][k], lose=m["p"][1 - k])
+    m.update(st="done", win=m["p"][k * h], lose=m["p"][(1 - k) * h])
 
 
 def record(st, m, g, gid):
@@ -386,7 +417,7 @@ def record(st, m, g, gid):
         pl = [side(s) for s in g.get("places") or [g["winner"]]]
         return m.update(st="done", win=win, pl=pl + [x for x in seats if x not in pl])
     if win is not None:
-        m["w"][m["p"].index(win)] += 1
+        m["w"][m["p"].index(win) // (len(m["p"]) // 2)] += 1  # 2 contra 2: o lado que ganhou -> a equipa
     counted = sum(1 for x in m["g"] if not x.get("x"))
     if max(m["w"]) > st["bo"] // 2 or counted >= st["bo"] + (MAX_EXTRA if ko(st, m) else 0):
         decide(st, m)
@@ -734,6 +765,14 @@ def create(owner, d):
         team = 3 if d.get("team") == 3 else 2
         if t == "equipas" and (n % team or not 3 <= n // team <= 8):
             raise ValueError(f"Com equipas de {team} são precisos entre {3 * team} e {8 * team} decks, em múltiplos de {team}.")
+        # 2 contra 2 à mesma mesa: «equipas» (cada um com a sua vida) ou «2hg» (Two-Headed Giant, fora do Commander)
+        table = d.get("table") if d.get("table") in ("equipas", "2hg") else "2hg" if d.get("table") is True else None
+        table = table if t == "equipas" and team == 2 and not (cmd and table == "2hg") else None
+        if t == "equipas" and d.get("seeding") != "ordem" and (d.get("bal_fmt") or d.get("bal_elo")):  # equipas equilibradas
+            elo = elos(con, {"format": fmt, "players": players, **({"casual": True} if casual else {})})
+            order = balance_teams([p["format"] for p in players], elo, team, bool(d.get("bal_fmt")), bool(d.get("bal_elo")))
+            players, decks = [players[i] for i in order], [decks[i] for i in order]
+        mixed = casual and len({p["format"] for p in players}) > 1
         bo = d.get("bo") if d.get("bo") in BO_OK and t != "mesas" and (d.get("bo") != 2 or t in BO2_OK) else 1
         rounds = None
         if t in ("suico", "mesas", "rei"):  # no rei da colina `rounds` é o número de partidas
@@ -747,9 +786,12 @@ def create(owner, d):
         if jogo:  # por dentro é uma eliminação de 2 (melhor de N) ou uma ronda de mesas de 3–4
             t, rounds = ("elim", None) if n == 2 else ("mesas", 1)
             bo = bo if n == 2 else 1
-        st = build(t, n, bo, False if jogo else bool(d.get("third")), rounds, me if me is not None else players.index(first), team)
+        st = build(t, n, bo, False if jogo else bool(d.get("third")), rounds, me if me is not None else players.index(first), team,
+                   table, [p["format"] for p in players] if mixed and d.get("same_fmt") and not table else None)
         if jogo:
             st["jogo"] = True
+        if table:
+            st["table"] = table
         st.update(format=fmt, players=players, decks=decks, **({"casual": True} if casual else {}), **({"me": me} if me is not None else {}))
         if d.get("play_me") and me is not None and not cmd and t not in ("mesas", "equipas"):
             st["play_me"] = True  # os meus jogos jogo-os eu no Forge Play; os outros são bot contra bot
@@ -883,10 +925,14 @@ def route(method, path, owner, body=None, bettor=None):
             rows = con.execute("SELECT id, ts, name, type, format, status, champion, n, json_extract(state, '$.casual'),"
                                " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions'),"
                                " COALESCE(json_extract(state, '$.ranked'), json_extract(state, '$.casual') IS NULL AND EXISTS (SELECT 1 FROM json_each(state, '$.players') WHERE json_extract(value, '$.src') = 'meta')),"
-                               " json_array_length(state, '$.matches'), json_extract(state, '$.podiums'), json_extract(state, '$.friends') FROM tournaments WHERE owner=? ORDER BY ts DESC",
+                               " json_array_length(state, '$.matches'), json_extract(state, '$.podiums'), json_extract(state, '$.friends'),"
+                               " (SELECT COUNT(*) FROM tournament_games WHERE tid=tournaments.id),"  # jogos jogados (painel do Registo)
+                               " EXISTS (SELECT 1 FROM json_each(state, '$.players') WHERE json_extract(value, '$.src') = 'meus'"
+                               "  AND json_extract(value, '$.fr') IS NULL AND json_extract(value, '$.com') IS NULL),"  # tem decks meus
+                               " json_extract(state, '$.table') FROM tournaments WHERE owner=? ORDER BY ts DESC",
                                (owner,)).fetchall()
             cut = trophy_cut(con, owner)
-            out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked", "m", "podiums", "friends"), r)),
+            out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked", "m", "podiums", "friends", "g", "mine", "table"), r)),
                     **({"old": True} if r[1] < cut else {})} for r in rows]  # old: de antes de repor os troféus
             for x in out:  # os acabados antes de haver pódio calculam-no agora
                 x["podium"] = json.loads(x["podium"]) if x["podium"] else podium(json.loads(con.execute(
@@ -1021,6 +1067,10 @@ def elos(con, st):
 
 
 def win_probs(m, elo):
+    if m.get("b") == "T":  # 2 contra 2: a equipa vale a média do Elo dos dois; cada deck tem a probabilidade da equipa
+        a, b = (sum(elo[i] for i in m["p"][k:k + 2]) / 2 for k in (0, 2))
+        pa = 1 / (1 + 10 ** ((b - a) / 400))
+        return [pa, pa, 1 - pa, 1 - pa]  # (o sorteio do Monte Carlo normaliza os pesos)
     s = [10 ** (elo[i] / 400) for i in m["p"]]
     return [x / sum(s) for x in s]
 
@@ -1044,7 +1094,9 @@ def champ_probs(st, elo, runs=MC_RUNS, rng=random):
                 if m["b"] == "P":
                     m.update(st="done", win=w, pl=[w] + rng.sample([x for x in m["p"] if x != w], len(m["p"]) - 1))
                 else:
-                    m.update(st="done", win=w, lose=m["p"][1 - k], w=[1, 0] if k == 0 else [0, 1])
+                    h = len(m["p"]) // 2  # 2 contra 2: k é um lugar; ganha a equipa dele
+                    k //= h
+                    m.update(st="done", win=m["p"][k * h], lose=m["p"][(1 - k) * h], w=[1, 0] if k == 0 else [0, 1])
             resolve(s)
         for c in champs(s):  # equipas: conta para cada deck da equipa campeã
             cnt[c] += 1
@@ -1120,7 +1172,8 @@ def settle(con, tid, st, cancelled=False):
             m = ms.get(mid)
             if not m or m["st"] != "done":
                 continue
-            res = "refund" if m["win"] is None or m.get("skip") or m.get("bye") else "won" if m["win"] == pick else "lost"
+            won = m["win"] == pick or m["b"] == "T" and (pick in m["p"][:2]) == (m["win"] in m["p"][:2])  # 2 contra 2: a equipa
+            res = "refund" if m["win"] is None or m.get("skip") or m.get("bye") else "won" if won else "lost"
         pay = round(stake * x) if res == "won" else stake if res == "refund" else 0
         con.execute("UPDATE bets SET status=?, payout=? WHERE id=?", (res, pay, bid))
         if pay:
@@ -1178,8 +1231,8 @@ def counts_yellow(st):
 
 
 def rate(con, tid, st, m, owner):
-    """Partida a dois acabada -> ratings; isentos, 2.ª final saltada e mesas ficam de fora."""
-    if ratings is None or m["b"] == "P" or m.get("bye") or m.get("skip"):
+    """Partida a dois acabada -> ratings; isentos, 2.ª final saltada, mesas e 2 contra 2 ficam de fora."""
+    if ratings is None or m["b"] in ("P", "T") or m.get("bye") or m.get("skip"):  # mesas e 2 contra 2: o Elo é a dois
         return
     a, b = m["p"]
     gs = [x for x in m["g"] if not x.get("x")]
@@ -1302,6 +1355,9 @@ def launch(con, tid, st, owner):
             save(con, tid, st, None if over(st) else "error")
         return False
     seats = seats_for(m)
+    mode = ("equipas" if st.get("table") == "equipas" else "2hg") if m["b"] == "T" else {2: "1v1", 3: "ffa3", 4: "ffa4"}[len(seats)]
+    if mode == "equipas":  # o sim.py põe os parceiros em lugares alternados (a+c contra b+d)
+        seats = [seats[0], seats[2], seats[1], seats[3]]
     m["sb"], decks = {}, {}
     for i in seats:
         sw = []
@@ -1314,7 +1370,7 @@ def launch(con, tid, st, owner):
             m["sb"][str(i)] = sw
         decks[i] = apply_swaps(st["decks"][i], sw) if sw else st["decks"][i]
     cmd = sim.GAME_TYPE.get(st["format"], "Constructed") != "Constructed"
-    body = {"format": st["format"], "casual": st.get("casual"), "mode": {2: "1v1", 3: "ffa3", 4: "ffa4"}[len(seats)], "games": 1,
+    body = {"format": st["format"], "casual": st.get("casual"), "mode": mode, "games": 1,
             "clock": (1500 if cmd else 900) if len(seats) > 2 else (600 if cmd else 300),
             "seats": [{"deck": decks[i], "difficulty": st["players"][i]["difficulty"]} for i in seats]}
     try:
@@ -1632,6 +1688,33 @@ def selfcheck():
     st = named(build("equipas", 6, team=2))
     play(st, lambda m: 0 if m["p"][0] % 2 == 0 else 1)  # o tabuleiro 1 ganha para a equipa da esquerda, o 2 para a da direita: empates
     assert all(r["pts"] == 2 and r["e"] == 2 for r in team_table(st))
+    # equipas de 2 à mesma mesa: uma partida «T» por par de equipas; ganha a equipa (p[0] ou p[2]), sem tabuleiros
+    st = named(build("equipas", 8, team=2, table=True))
+    assert len(st["matches"]) == 6 and all(m["b"] == "T" and len(m["p"]) == 4 and m["p"][0] // 2 == m["p"][1] // 2 for m in st["matches"])
+    play(st, lambda m: 0 if m["p"][0] < m["p"][2] else 2)  # a equipa de índices mais baixos ganha sempre
+    tab = team_table(st)
+    assert [r["t"] for r in tab] == [0, 1, 2, 3] and tab[0]["pts"] == 9 and tab[0]["bw"] == 3 and champs(st) == {0, 1}
+    assert [(x["i"], x["place"]) for x in podium(st)] == [(i, i // 2 + 1) for i in range(6)]
+    sd = {t["i"]: t for t in standings(st)}
+    assert sd[0]["v"] == sd[1]["v"] == 3 and sd[6]["d"] == sd[7]["d"] == 3
+    m = {"b": "T", "p": [4, 5, 0, 1], "g": [], "w": [0, 0], "st": "ready"}
+    assert seats_for(m) == [4, 5, 0, 1] and seats_for({**m, "g": [{}]}) == [0, 1, 4, 5]  # o 2.º jogo troca as equipas de lado
+    m["seats"] = [4, 0, 5, 1]  # modo «equipas» (a+c contra b+d): ganhou o lado d -> a equipa de 0 e 1
+    record({"bo": 1, "type": "equipas"}, m, {"winner": "d"}, 0)
+    assert m["w"] == [0, 1] and m["win"] == 0 and m["lose"] == 4
+    assert abs(sum(win_probs({"b": "T", "p": [0, 1, 2, 3]}, [1600, 1600, 1500, 1500])[:2]) / 2 - 0.64) < 0.01
+    # equipas equilibradas: os formatos espalham-se e a equipa mais fraca recebe o deck mais forte
+    f6, e6 = ["pauper"] * 3 + ["modern"] * 3, [1500, 1600, 1700, 1400, 1500, 1800]
+    o = balance_teams(f6, e6, 2)
+    assert sorted(o) == list(range(6)) and all(f6[o[2 * k]] != f6[o[2 * k + 1]] for k in range(3)), o
+    sums = [e6[o[2 * k]] + e6[o[2 * k + 1]] for k in range(3)]
+    assert max(sums) - min(sums) <= 200, sums  # sem equilíbrio: até 1700+1800 contra 1400+1500
+    o = balance_teams(["modern"] * 6, [1000, 1100, 1200, 1300, 1400, 2000], 2, by_fmt=False)
+    assert {frozenset((o[2 * k], o[2 * k + 1])) for k in range(3)} >= {frozenset((5, 0))}  # o mais forte com o mais fraco
+    # formatos misturados: o tabuleiro k junta decks do mesmo formato quando as duas equipas o têm
+    fm = ["pauper", "modern", "modern", "pauper", "pauper", "modern"]
+    st = build("equipas", 6, team=2, fmts=fm)
+    assert all(fm[m["p"][0]] == fm[m["p"][1]] for m in st["matches"]), [m["p"] for m in st["matches"]]
     # apostas no campeão: o Monte Carlo acaba em todos os tipos novos
     for st, tot in ((named(build("rei", 6, rounds=10)), 1), (named(build("grupos", 10)), 1), (named(build("equipas", 9, team=3)), 3)):
         st["format"] = "modern"

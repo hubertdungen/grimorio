@@ -535,6 +535,24 @@ export function nextGame(fl, i, mode, home, done) {
   return last.id !== fl[i].id ? { x: last } : null
 }
 
+// Gerador de torneios: o tipo sai primeiro, com a mesma probabilidade entre os permitidos, e o formato escolhe-se depois,
+// entre os que servem esse tipo (mesas: Commander a 4, se houver; gauntlet: onde tenho decks meus; os outros: fora do
+// Commander a 4, se houver). Antes saía primeiro o formato (Commander obrigava a mesas: 1 em cada 5 com 5 formatos; sem
+// Commander nunca havia mesas) e o nº de decks marcado tirava os tipos que não o aceitavam (com 20–32 decks só sobravam
+// suíço, gauntlet, rei e equipas); agora o nº ajusta-se ao tipo. types/formats: os candidatos; multi(f): Commander a 4;
+// ownIn(f): há decks meus de f.
+export function genShape({ types, formats, multi, ownIn }, rnd = Math.random) {
+  const pick = a => a[Math.floor(rnd() * a.length)]
+  const fmtsFor = k => {
+    const fs = k === 'gauntlet' ? formats.filter(ownIn) : formats
+    const pref = fs.filter(f => (k === 'mesas') === multi(f))
+    return pref.length ? pref : fs
+  }
+  const ok = types.filter(k => fmtsFor(k).length)
+  const type = pick(ok.length ? ok : ['elim'])
+  return { type, format: pick(fmtsFor(type).length ? fmtsFor(type) : formats) }
+}
+
 // «Preencher» com mistura: pool = [[src, deck], …] já baralhado (src 'meus' ou 'meta'; deck.community = da comunidade),
 // want = quantos faltam, w = {meu, com, meta} pesos (só os das fontes ligadas), minMeta = parte mínima do meta (0,2 nos
 // torneios não casuais). Cada fonte leva a sua parte; se uma não tiver decks que cheguem, as outras completam.
