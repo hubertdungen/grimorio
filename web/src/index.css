@@ -2542,3 +2542,23 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 /* Comparar decks › Porquê? */
 .cmp-why { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: var(--bg2); border: 1px solid var(--line); display: grid; gap: 8px; }
 .cmp-why h4 { margin: 0; } .cmp-why ul { margin: 4px 0 0; padding-left: 18px; } .cmp-why p { margin: 4px 0 0; }
+/* ver um deck: cartão do rato por cima e lista só para ler (DeckPeek.jsx) */
+.dpeek { position: fixed; z-index: 210; width: 280px; display: grid; gap: 4px; padding: 10px; border-radius: 12px; background: var(--panel); border: 1px solid var(--gold); box-shadow: 0 12px 30px #000b; font-size: 13px; pointer-events: none; animation: kwIn .16s ease-out; }
+.dpeek img { width: 100%; aspect-ratio: 626 / 457; object-fit: cover; border-radius: 8px; }
+.dpeek ul { list-style: none; margin: 2px 0; padding: 0; display: grid; gap: 1px; } .dpeek li span { color: var(--gold2); font-weight: 700; }
+.dview { width: min(1000px, calc(100vw - 24px)); max-height: 88vh; overflow-y: auto; }
+.dview-cols { columns: 3 220px; column-gap: 18px; margin-top: 8px; }
+.dview-cols section { break-inside: avoid; margin-bottom: 10px; } .dview-cols h4 { margin: 0 0 4px; }
+.dview-cols ul { list-style: none; margin: 0; padding: 0; font-size: 13px; } .dview-cols li { display: flex; gap: 6px; align-items: center; } .dview-cols li > span { min-width: 1.4em; color: var(--gold2); font-weight: 700; text-align: right; }
+/* Biblioteca: com troféus, o formato (e «Comunidade») sobe uma linha em vez de ficar por baixo dos troféus */
+.dbox-top:has(.dbox-tro) .dbox-fmt { bottom: 33px; }
+.dbox-fmt { max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* secções da IA: o seletor ocupa uma linha inteira (na grelha esticava-se à altura das colunas) e dá para as remover */
+.dgrid > .seg.viewby { grid-column: 1 / -1; justify-self: start; align-self: start; height: auto; }
+.seg.viewby { display: inline-flex; flex-wrap: wrap; align-items: center; float: none; clear: both; }
+.seg.viewby .viewby-x { margin-left: 8px; padding: 2px 6px; background: none; border: 0; color: var(--muted); }
+.seg.viewby .viewby-x:hover { color: var(--bad, #ff6b6b); }
+/* Assistente IA: histórico deste deck */
+.ia-hist { margin: 8px 0; } .ia-hist summary { cursor: pointer; }
+.ia-hist ol { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; max-height: 240px; overflow-y: auto; }
+.ia-hist li { padding: 6px 8px; border-radius: 8px; background: var(--bg2); } .ia-hist li p { margin: 2px 0; font-size: 13px; }

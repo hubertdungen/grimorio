@@ -384,6 +384,7 @@ export default function App() {
   const act = useMemo(() => ({ add, remove, move, setCommander, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
+    clearGroups: () => { setDeck(d => ({ ...d, groups: [] })); say(tx('Secções removidas: o deck volta a aparecer por tipo.')) },
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
   [add, remove, move, setCommander, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
 
@@ -590,7 +591,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
       )}
       <button className="ai-btn" onClick={() => setShowAI(true)}>✦ {tx('Assistente IA')} <span className="muted small">({tx('extra')})</span></button>
       {deck.groups?.length > 0 && (
-        <div className="seg viewby"><button className={viewBy === 'tipo' ? 'on' : ''} onClick={() => setViewBy('tipo')}><span>{tx('Por tipo')}</span></button><button className={viewBy === 'grupos' ? 'on' : ''} onClick={() => setViewBy('grupos')}><span>{tx('Por secções (IA)')}</span></button></div>
+        <div className="seg viewby"><button className={viewBy === 'tipo' ? 'on' : ''} onClick={() => setViewBy('tipo')}><span>{tx('Por tipo')}</span></button><button className={viewBy === 'grupos' ? 'on' : ''} onClick={() => setViewBy('grupos')}><span>{tx('Por secções (IA)')}</span></button><button className="link small viewby-x" onClick={() => { setViewBy('tipo'); act.clearGroups() }} title={tx('Apagar as secções da IA deste deck')}>✕ {tx('remover secções')}</button></div>
       )}
       {issues.length > 0 && (
         <ul className="issues">{issues.slice(0, 6).map((i, k) => <li key={k} className={i.nivel}>{i.msg}</li>)}{issues.length > 6 && <li className="muted">{tx('+{n} — ver Análise', { n: issues.length - 6 })}</li>}</ul>

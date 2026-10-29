@@ -60,7 +60,6 @@ export const tierOf = (place, champions) => (champions ? { 1: 'plat', 2: 'safira
 const tier = x => (x.platinum ? 'plat' : tierOf(x.place, x.champions))
 const ptsOf = x => trophyValue({ tier: tier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m, podiums: x.podiums })  // pontos que este troféu dá ao deck
 const ptsTxt = x => (x.valid === false ? tx('não conta (0 pontos)') : tx('+{p} pontos', { p: ptsOf(x) }))
-const label = x => [PLACE[tier(x)], KIND[x.type], `«${x.name}»`, x.friends ? tx('🤝 só eu e amigos') : x.casual && BLUE, ptsTxt(x)].filter(Boolean).join(' · ')
 export function Trophies({ list }) {
   const [open, setOpen] = useState(null)  // posição no ecrã (o cartão do deck corta o que sai dele)
   useEffect(() => {  // fecha ao tocar fora ou ao rolar a página (está preso ao ecrã)
@@ -78,7 +77,7 @@ export function Trophies({ list }) {
   return (
     <span className={`tro ${ok.length ? '' : 'lost'}`} onMouseEnter={show} onMouseLeave={() => setOpen(null)}>
       <button className="tro-ic" onClick={e => { e.stopPropagation(); if (open) setOpen(null); else show({ currentTarget: e.currentTarget.parentNode }) }} aria-expanded={!!open} aria-label={sum}>
-        {shown.slice(0, 3).map((x, k) => <i key={`${x.tid}-${x.place}`} style={{ zIndex: 3 - k }} title={label(x)}><Cup place={tier(x)} casual={x.casual} friends={x.friends} off={!x.valid} kind={x.type} /></i>)}
+        {shown.slice(0, 3).map((x, k) => <i key={`${x.tid}-${x.place}`} style={{ zIndex: 3 - k }}><Cup place={tier(x)} casual={x.casual} friends={x.friends} off={!x.valid} kind={x.type} /></i>)}
         {shown.length > 3 && <small>+{shown.length - 3}</small>}
       </button>
       {open && createPortal(

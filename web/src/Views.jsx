@@ -1733,6 +1733,7 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
   const [err, setErr] = useState('')
   const [res, setRes] = useState(null)
   const [done, setDone] = useState(() => new Set())
+  const [curH, setCurH] = useState(null)  // a entrada do histórico desta resposta (para guardar o que foi aplicado)
   const { recs, plan, archetype, needs, have } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 40)
   useEffect(() => { fetch('/api/ia/config').then(r => r.json()).then(c => { setCfg(c); if (c.provider === 'off') setShowSet(true) }).catch(() => setErr(tx('Sem ligação ao servidor.'))) }, [])
   const need = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
@@ -1753,13 +1754,29 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
       combos: [...combos.full.slice(0, 5).map(x => `completo: ${x.cb[1].map(i => data.cards[i].n).join(' + ')} → ${x.cb[2][0]}`), ...combos.near.slice(0, 5).map(x => `falta ${data.cards[x.missing[0]].n}: ${x.cb[1].map(i => data.cards[i].n).join(' + ')} → ${x.cb[2][0]}`)].join('\n'),
       validacao: issues.filter(i => i.nivel !== 'info').map(i => i.msg).join('\n'),
       contagem: `main: ${mainN} de ${fmt.size[0]}${fmt.size[1] && fmt.size[1] !== fmt.size[0] ? `–${fmt.size[1]}` : ''} cartas; ${need.lands} terrenos (alvo ~${need.target})`,
+      // cartas a mais: num formato de 60+ o certo é 60; em Commander são 100 certas — a IA tem de cortar o excesso exato
+      excesso: mainN > fmt.size[0] ? `O deck tem ${mainN - fmt.size[0]} carta(s) a mais (${mainN} para ${fmt.size[0]}). Corta EXATAMENTE ${mainN - fmt.size[0]} com "ajustes" (de → para, menos cópias) ou "tirar", escolhendo as mais fracas ou fora do plano; as trocas não contam para isto.` : '',
+      historico: (deck.iaHist || []).slice(-6).map(h => `${new Date(h.ts).toLocaleDateString('pt-PT')} · ${h.mode}${h.q ? ` · pedido: ${h.q}` : ''} → ${h.resumo || ''}${h.applied?.length ? ` · aplicado: ${h.applied.join('; ')}` : ' · nada aplicado'}`).join('\n'),
       sugestoes: recs.slice(0, 30).map(r => `${r.c.n} — ${r.why.slice(0, 2).map(w => w.txt).join('; ')}`).join('\n'),
       lista: exportList(deck),
     }
-    try { setRes({ ...(await postJSON('/api/ia/ask', { mode, question: q, context })), snap: { ...deck.main } }) } catch (e) { setErr(e.message) }  // snap: as cópias no momento da resposta
+    try {
+      const r = await postJSON('/api/ia/ask', { mode, question: q, context })
+      setRes({ ...r, snap: { ...deck.main } })  // snap: as cópias no momento da resposta
+      // histórico no próprio deck (as últimas 20): o que se pediu, o que a IA disse e, depois, o que foi aplicado
+      const h = { id: Date.now(), ts: Date.now(), mode, q: q.trim().slice(0, 300), resumo: String(r.resumo || '').slice(0, 600), applied: [] }
+      setCurH(h.id); setDeck(d => ({ ...d, iaHist: [...(d.iaHist || []).slice(-19), h] }))
+    } catch (e) { setErr(e.message) }
     setBusy(false)
   }
   const mark = k => setDone(s => new Set(s).add(k))
+  useEffect(() => {  // o que foi aplicado desta resposta fica no histórico do deck
+    if (!curH || !done.size) return
+    const lab = k => { const i = +k.slice(1), x = { a: vAdd, c: vCut, s: vSwap, j: vAdj }[k[0]]?.[i]; if (!x) return null
+      return k[0] === 'a' ? `+ ${x.c?.n || x.carta}` : k[0] === 'c' ? `− ${x.c?.n || x.carta}` : k[0] === 's' ? `${x.a?.n || x.sai} → ${x.b?.n || x.entra}` : `${x.c?.n || x.carta}: ${x.now}→${x.to}` }
+    const applied = [...done].map(lab).filter(Boolean)
+    setDeck(d => ({ ...d, iaHist: (d.iaHist || []).map(h => (h.id === curH ? { ...h, applied } : h)) }))
+  }, [done]) // eslint-disable-line react-hooks/exhaustive-deps
   const vAdd = (res?.adicionar || []).map(x => ({ ...x, c: card(x.carta) })).map(x => ({ ...x, ok: x.c && passes(x.c, null, ctx) && !inDeckN(x.c.n), why2: !x.c ? tx('não existe') : !passes(x.c, null, ctx) ? tx('ilegal ou fora das cores') : inDeckN(x.c.n) ? tx('já está no deck') : '' }))
   const vCut = (res?.tirar || []).map(x => ({ ...x, c: card(x.carta) })).map(x => ({ ...x, ok: x.c && inDeckN(x.c.n), why2: x.c && !inDeckN(x.c.n) ? tx('não está no deck') : !x.c ? tx('não existe') : '' }))
   const vSwap = (res?.trocas || []).map(x => ({ ...x, a: card(x.sai), b: card(x.entra) })).map(x => ({ ...x, q: Math.max(1, Math.min(+x.qtd || 0, inDeckN(x.a?.n)) || inDeckN(x.a?.n)), ok: x.a && x.b && inDeckN(x.a.n) && passes(x.b, null, ctx) && !inDeckN(x.b.n) }))
@@ -1799,6 +1816,10 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
               <span className="muted small">{tx('A IA recebe o deck e o que o Grimório já sabe (plano, faltas, mana, combos, meta). Cartas propostas são verificadas antes de aparecerem.')}</span></div>
           </>
         )}
+        {(deck.iaHist || []).length > 0 && <details className="ia-hist"><summary>{tx('Histórico deste deck ({n})', { n: deck.iaHist.length })} <span className="muted small">{tx('a IA também o recebe, para não repetir o que já foi aplicado')}</span></summary>
+          <ol>{[...deck.iaHist].reverse().map(h => <li key={h.id}><small className="muted">{new Date(h.ts).toLocaleString(LOCALE, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · {h.mode}{h.q ? ` · «${h.q}»` : ''}</small>
+            <p>{h.resumo}</p>{h.applied?.length > 0 ? <small className="good-t">✓ {h.applied.join(' · ')}</small> : <small className="muted">{tx('nada aplicado')}</small>}</li>)}</ol>
+          <button className="link small" onClick={() => setDeck(d => ({ ...d, iaHist: [] }))}>{tx('limpar o histórico')}</button></details>}
         {busy && <div className="auto-wait"><div className="spinner" /></div>}
         {err && <p className="bad-t">{err}</p>}
         {res && (
@@ -1910,7 +1931,7 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
   return (
     <div className="dgrid">
       {deck.groups?.length > 0 && (
-        <div className="seg viewby"><button className={!bySec ? 'on' : ''} onClick={() => setBySec(false)}><span>{tx('Por tipo')}</span></button><button className={bySec ? 'on' : ''} onClick={() => setBySec(true)}><span>{tx('Por secções (IA)')}</span></button></div>
+        <div className="seg viewby"><button className={!bySec ? 'on' : ''} onClick={() => setBySec(false)}><span>{tx('Por tipo')}</span></button><button className={bySec ? 'on' : ''} onClick={() => setBySec(true)}><span>{tx('Por secções (IA)')}</span></button><button className="link small viewby-x" onClick={() => { setBySec(false); act.clearGroups?.() }} title={tx('Apagar as secções da IA deste deck')}>✕ {tx('remover secções')}</button></div>
       )}
       {cmd.length > 0 && (
         <section><h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</h4><div className="dg-row">{cmd.map(c => (

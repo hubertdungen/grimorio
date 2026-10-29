@@ -12,6 +12,8 @@ import { trophyValue, TIER_PTS, KIND_W, BLUE_W, trophyStars, starPoints } from '
 import { swapSide, nextGame, mixTake } from './game.js'
 import { DIFF_INFO, getBots } from './difficulty.js'
 import { ask } from './confirm.jsx'
+import { DeckView } from './DeckPeek.jsx'
+import { usePeek } from './peek.jsx'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
 
@@ -1380,6 +1382,7 @@ function Fame({ data, list }) {
   const [f, setF] = useState('')
   const [who, setWho] = useState(['meu', 'ami', 'com', 'meta'])
   const kindOf = p => (p.src !== 'meus' ? 'meta' : p.fr ? 'ami' : p.com ? 'com' : 'meu')
+  const peek = usePeek(data), [view, setView] = useState(null)  // deck em destaque (rato) e aberto (clique, só para ler)
   const fmts = [...new Set(list.filter(x => x.podium && !x.old && !x.casual).map(x => x.format))]  // old: de antes de repor os troféus
   const rows = {}
   for (const x of list) if (x.podium && !x.old && (!f || (f === 'casual' ? x.casual : !x.casual && x.format === f))) for (const p of x.podium) {
@@ -1403,6 +1406,8 @@ function Fame({ data, list }) {
   const kinds = [...new Set(top.flatMap(r => r.med.map(m => m.kind)))].filter(Boolean)
   return (
     <>
+    {peek.card}
+    {view && <DeckView p={view} data={data} onClose={() => setView(null)} onOpen={showDeck} />}
     <section className="card fame">
       <h3>{tx('🏛 Hall da fama')}</h3>
       <div className="row-btns">
@@ -1412,7 +1417,7 @@ function Fame({ data, list }) {
       {!top.length ? <p className="muted small">{f ? tx('Ainda ninguém subiu ao pódio neste formato.') : tx('Ainda ninguém subiu ao pódio.')}</p> : (
         <table className="lab-table ts-table"><thead><tr><th>Deck</th><th title={tx('Torneios ganhos')}>🥇</th><th>🥈</th><th>🥉</th><th>{tx('Pódios')}</th></tr></thead>
           <tbody>{top.map(r => (
-            <tr key={`${r.src}:${r.ref}`} className={r.src === 'meus' ? 'me-row' : ''}><td><span className="ts-name">{r.src === 'meus' ? <button className="pd-open sm" onClick={() => showDeck(r.ref)} title={tx('Abrir na Biblioteca')}><Thumb data={data} p={r} /></button> : <Thumb data={data} p={r} />} {r.name}{r.src === 'meus' && <i className="me-tag">{tx('meu')}</i>}</span></td>
+            <tr key={`${r.src}:${r.ref}`} className={kindOf(r) === 'meu' ? 'me-row' : ''}><td><button className="ts-name plain fame-deck" onClick={() => setView(r)} onMouseEnter={e => peek.on(r, e)} onMouseLeave={peek.off} title={tx('Ver o deck')}><Thumb data={data} p={r} /> {r.name} <OwnTag p={r} /></button></td>
               <td><b>{r.m[0] || '—'}</b></td><td>{r.m[1] || '—'}</td><td>{r.m[2] || '—'}</td><td>{r.m[0] + r.m[1] + r.m[2]}</td></tr>
           ))}</tbody></table>
       )}
@@ -1449,8 +1454,7 @@ function Fame({ data, list }) {
           const body = <><Thumb data={data} p={r} /><b title={r.name}>{r.name}</b><small className="fg-val" title={tx('Valor dos troféus')}>{val} {tx('pts')}</small>
             <WhiteStars v={trophyStars(all)} title={`${tx('Estrelas brancas: {s} — vêm dos {p} pontos de todos os troféus que contam ({k} pontos = 6★; ⓘ Valor dos troféus)', { s: trophyStars(all).toLocaleString(LOCALE), p: all, k: starPoints(6) })}${blue ? `\n${tx('{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)', { a: all - blue, b: blue })}` : ''}`} />
             <span className="fg-cups">{cups.map(c => <span key={`${c.tier}${c.kind}${c.casual}${c.off}`} className="fg-cup" title={`${PLACE[c.tier]} · ${KIND[c.kind] || ''}${c.friends ? ` · ${tx('🤝 só eu e amigos')}` : c.casual ? ` · ${tx('troféu azul: casual ou não ranked')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''} · ${tx('+{p} pontos', { p: c.pts })}\n${c.names.slice(0, 6).map(nm => `• ${nm}`).join('\n')}${c.names.length > 6 ? `\n+${c.names.length - 6}` : ''}`}><Cup place={c.tier} friends={c.friends} casual={c.casual} off={c.off} kind={c.kind} />{c.n > 1 && <small>×{c.n}</small>}</span>)}</span></>
-          return r.src === 'meus' ? <button key={`${r.src}:${r.ref}`} className="fg-card me" onClick={() => showDeck(r.ref)} title={tx('Abrir na Biblioteca')}>{body}</button>
-            : <div key={`${r.src}:${r.ref}`} className="fg-card">{body}</div>
+          return <button key={`${r.src}:${r.ref}`} className={`fg-card ${kindOf(r) === 'meu' ? 'me' : ''}`} onClick={() => setView(r)} onMouseEnter={e => peek.on(r, e)} onMouseLeave={peek.off}>{body}</button>
         })}</div>
       </section>}
     </>

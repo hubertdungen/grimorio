@@ -54,6 +54,7 @@ Regras:
 - Nomes de cartas EXATAMENTE como no Oracle da Scryfall, em inglês. Nada de cartas inventadas.
 - Só cartas legais no formato indicado e dentro da identidade de cor do comandante, se houver.
 - Respeita o tamanho do deck: quando sugeres adicionar, diz também o que sai (em "tirar" ou "trocas") se o deck já estiver cheio.
+- Se o deck tiver cartas a mais (mais de 60 num formato de 60+, mais de 100 em Commander, mais de 40 em Limitado), corta o excesso EXATO com "ajustes"/"tirar": é a primeira coisa a resolver.
 - Usa os dados que o Grimório te dá (funções em falta, base de mana, combos, decks reais, meta) e cita-os no "porque".
 - "porque" curto (1 frase) e específico deste deck: nomeia as cartas com que interage.
 - "trocas": "qtd" = quantas cópias saem e entram (ex.: 4 quando trocas um playset).
@@ -207,7 +208,7 @@ def _user_prompt(payload):
         parts.append(f"Pedido do utilizador: {str(payload['question'])[:2000]}")
     for k, label in (("formato", "Formato e regras"), ("comandante", "Comandante"), ("bracket", "Bracket alvo"),
                      ("plano", "Plano detetado"), ("arquetipo", "Arquétipo (meta)"), ("faltas", "Funções face às metas do formato"),
-                     ("mana", "Base de mana"), ("combos", "Combos no deck / a uma carta"), ("validacao", "Problemas de regras"), ("contagem", "Contagem atual"),
+                     ("mana", "Base de mana"), ("combos", "Combos no deck / a uma carta"), ("validacao", "Problemas de regras"), ("contagem", "Contagem atual"), ("excesso", "CARTAS A MAIS (obrigatório corrigir)"), ("historico", "Histórico com este deck (o que já pediste, disseste e foi aplicado: não repitas o que já foi aplicado; podes construir em cima disso)"),
                      ("sugestoes", "Candidatas do motor do Grimório (já legais, com o porquê)"), ("lista", "Lista atual")):
         v = ctx.get(k)
         if v:
