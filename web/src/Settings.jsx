@@ -1,6 +1,6 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
-import { fpPrefs } from './fpprefs.js'
+import { fpPrefs, setFpPrefs } from './fpprefs.js'
 import { wakeOn, setWake, wakeSupported, fsOrientPref, setFsOrientPref } from './wakelock.js'
 import { sfMode, setSfMode } from './data.js'
 import { useEffect, useRef, useState } from 'react'
@@ -105,7 +105,7 @@ function ImgSource() {
 
 function TableKeys() {
   const [p, setP] = useState(fpPrefs)
-  const save = v => { const n = { ...p, ...v }; setP(n); try { localStorage.setItem('grimorio.fp.prefs', JSON.stringify(n)) } catch { /* sem armazenamento */ } }
+  const save = v => { setP(x => ({ ...x, ...v })); setFpPrefs(v) }
   return (
     <>
       <label className="chk"><input type="checkbox" checked={p.space} onChange={e => save({ space: e.target.checked })} /> {tx('Espaço faz o mesmo que Enter (OK / passar)')}</label>

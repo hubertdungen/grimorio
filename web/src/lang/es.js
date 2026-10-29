@@ -3110,4 +3110,5 @@ export default {
   "Pagar a mana sozinho quando lanças uma carta (como o «Pagar sozinho» do Forge)": "Pagar el maná solo al lanzar una carta (como el «Auto» de Forge)",
   "Retirar atacantes": "Retirar atacantes",
   "Tirar os dados da mesa": "Quitar los dados de la mesa",
+  "perspetiva": "perspectiva",
 }

@@ -3110,4 +3110,5 @@ export default {
   "Pagar a mana sozinho quando lanças uma carta (como o «Pagar sozinho» do Forge)": "Mana beim Wirken automatisch bezahlen (wie Forges „Auto“)",
   "Retirar atacantes": "Angreifer zurückziehen",
   "Tirar os dados da mesa": "Würfel vom Tisch nehmen",
+  "perspetiva": "Perspektive",
 }

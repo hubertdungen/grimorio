@@ -62,7 +62,7 @@ function meshOf(kind, colors, words) {
   return mesh
 }
 
-export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSettle }) {
+export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSettle, view = VIEW }) {  // view maior = dados mais pequenos
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.domElement.className = 'dc-gl'; el.appendChild(renderer.domElement)
@@ -77,7 +77,7 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
     const w = el.clientWidth || 300, h = el.clientHeight || 300, a = w / h
     // abertura horizontal até 50°: numa mesa larga e baixa a câmara afasta-se em vez de ficar grande angular (dados deformados nas pontas)
     camera.fov = Math.min(32, (2 * Math.atan(Math.tan((25 * Math.PI) / 180) / a) * 180) / Math.PI)
-    const halfH = VIEW / Math.min(1, a), dist = halfH / Math.tan((camera.fov * Math.PI) / 360)
+    const halfH = view / Math.min(1, a), dist = halfH / Math.tan((camera.fov * Math.PI) / 360)
     camera.aspect = a; camera.position.set(0, dist, dist * 0.12); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix()
     renderer.setSize(w, h, false)
     X = halfH * a * 0.94; Z = halfH * 0.86; world.setBox(X, Z)

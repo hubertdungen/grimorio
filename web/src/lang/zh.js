@@ -3110,4 +3110,5 @@ export default {
   "Pagar a mana sozinho quando lanças uma carta (como o «Pagar sozinho» do Forge)": "施放卡牌时自动支付法术力（同 Forge 的“自动”）",
   "Retirar atacantes": "撤回攻击者",
   "Tirar os dados da mesa": "把骰子从桌上拿走",
+  "perspetiva": "透视",
 }

@@ -2602,7 +2602,7 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 /* perspetiva: o lado do adversário inclina-se para longe (a beira de baixo fica no sítio) e as cartas dele ficam mais
    pequenas; o espaço que sobra vai para o teu lado (a fila das criaturas cresce) */
 .fp-stage.persp .fp-table.board { grid-template-rows: auto auto minmax(0, 1fr); }
-.fp-stage.persp .bside.top { transform: perspective(1500px) rotateX(var(--tilt)); transform-origin: 50% 100%; margin-top: calc(var(--tf) * -26px);
+.fp-stage.persp .bside.top { transform: perspective(800px) rotateX(var(--tilt)); transform-origin: 50% 100%; margin-top: calc(var(--tf) * -26px);
   --cw: calc(80px * (1 - var(--tf) * .38)); --ow: calc(66px * (1 - var(--tf) * .38)); --lw: calc(48px * (1 - var(--tf) * .3)); }
 .fp-stage.tall.persp .bside.top { --cw: calc(118px * (1 - var(--tf) * .38)); --ow: calc(90px * (1 - var(--tf) * .38)); --lw: calc(66px * (1 - var(--tf) * .3)); }
 .fp-stage.persp .bside.top .brow.front { min-height: calc(var(--cw) * 1.4 + 12px); }
@@ -2611,7 +2611,7 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 /* a carta que vem à frente (usePeek): cópia por cima de tudo, sem apanhar o rato */
 .fp-peek { position: fixed; z-index: 80; pointer-events: none; opacity: 0; transform-origin: 50% 50%; border-radius: 4.8%; overflow: hidden;
   box-shadow: 0 18px 50px #000d, 0 0 0 1px #ffffff30; transition: transform .26s cubic-bezier(.2, 1.25, .4, 1), opacity .16s ease-out; }
-.fp-peek .pc-f, .fp-peek .pc-b { position: absolute; inset: 0; transform: none !important; border-radius: inherit; box-shadow: none; animation: none !important; }
+.fp-peek .pc-f, .fp-peek .pc-b, .fp-peek .pc-attc { position: absolute; inset: 0; transform: none !important; border-radius: inherit; box-shadow: none; animation: none !important; }
 .fp-peek img { width: 100%; height: 100%; object-fit: cover; display: block; }
 @media (prefers-reduced-motion: reduce) { .fp-peek { transition: opacity .1s; } }
 /* arrumação livre/grelha do teu lado: cartas pousadas à mão (Board.jsx › Side free) e a casa onde vai encaixar */
@@ -2623,8 +2623,31 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .bside.fp-placing { background-image: radial-gradient(circle, #ffffff2a 1.4px, transparent 2px); background-size: var(--sx) var(--sy); background-position: calc(8px - var(--sx) / 2) calc(6px - var(--sy) / 2); }
 .fp-slot { position: absolute; z-index: 2; pointer-events: none; border-radius: 6%; border: 2px dashed #ffd98acc; background: #ffd98a14; box-shadow: 0 0 18px #ffd98a33 inset;
   transition: left .12s ease-out, top .12s ease-out; }
-/* dados na mesa: a camada 3D é maior e encolhida (os dados ficam do tamanho das cartas) e não apanha o rato */
-.fp-dice { position: absolute; left: 0; top: 0; width: 220%; height: 220%; transform: scale(.4545); transform-origin: 0 0; pointer-events: none; z-index: 20; }
+/* dados na mesa: a camada 3D cobre a mesa e não apanha o rato (o tamanho dos dados vem do view do createTray) */
+.fp-dice { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
 .fp-dice .dc-gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
 .fp-dicebar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .fp-dres { padding: 2px 10px; border-radius: 99px; font-weight: 700; color: #111; background: var(--gold); border: 0; animation: fp-in .35s cubic-bezier(.34, 1.56, .64, 1); }
+/* perspetiva também em ecrã inteiro (as regras do ecrã inteiro acima são mais específicas) */
+.coliseu:fullscreen .fp-stage.persp .fp-table.board, .coliseu:-webkit-full-screen .fp-stage.persp .fp-table.board { grid-template-rows: auto auto minmax(0, 1fr); }
+/* combate com corpo: o atacante investe para o lado do adversário e assenta; quem bloqueia dá um salto para a frente; o
+   dano abana a carta com um clarão vermelho; a carta que morre estremece, perde a cor e cai da mesa */
+.fp .pc.atk .pc-flip { animation: fp-lunge .62s cubic-bezier(.3, .7, .4, 1); }
+.fp .bside.top .pc.atk .pc-flip { animation-name: fp-lunge-d; }
+.fp .pc.blk .pc-flip { animation: fp-guard .45s ease-out; }
+.fp .bside.top .pc.blk .pc-flip { animation-name: fp-guard-d; }
+@keyframes fp-lunge { 30% { translate: 0 -42px; scale: 1.12; } 60% { translate: 0 4px; scale: .98; } }
+@keyframes fp-lunge-d { 30% { translate: 0 42px; scale: 1.12; } 60% { translate: 0 -4px; scale: .98; } }
+@keyframes fp-guard { 40% { translate: 0 -14px; scale: 1.06; } } @keyframes fp-guard-d { 40% { translate: 0 14px; scale: 1.06; } }
+.fp .pc:has(> .pc-pop.dmg) .pc-f { animation: fp-hurt .5s ease-out; }
+@keyframes fp-hurt { 0% { filter: none; } 12% { translate: -5px 0; rotate: -3deg; filter: sepia(1) hue-rotate(-50deg) saturate(5) brightness(1.1); } 30% { translate: 5px 0; rotate: 2.5deg; }
+  48% { translate: -3px 0; rotate: -1.5deg; } 70% { translate: 2px 0; rotate: .5deg; filter: none; } }
+.fp .pc.dying { animation: fp-die .85s ease-in forwards; }
+@keyframes fp-die { 0% { filter: brightness(1.8) sepia(.6) hue-rotate(-40deg); } 15% { translate: -4px 0; rotate: -4deg; } 30% { translate: 4px -6px; rotate: 3deg; scale: 1.06; filter: grayscale(.6) brightness(1.2); }
+  100% { opacity: 0; translate: 0 34px; rotate: -16deg; scale: .55; filter: grayscale(1) brightness(.5) blur(1px); } }
+@media (prefers-reduced-motion: reduce) { .fp .pc.atk .pc-flip, .fp .pc.blk .pc-flip, .fp .pc .pc-f, .fp-ghost { animation: none !important; } .fp .pc.dying { animation: fp-fade .3s reverse forwards; } }
+/* a carta em grande ao lado: entra com um fundido curto em vez de saltar de uma para outra */
+.fp-zoom img.fp-zin { animation: fp-zin .2s ease-out; }
+@keyframes fp-zin { from { opacity: .35; transform: scale(.97) translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .fp-zoom img.fp-zin { animation: none; } }
+.fp-slot.bar { border: 0; border-radius: 3px; background: #ffd98a; box-shadow: 0 0 12px #ffd98a; }

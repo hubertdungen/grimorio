@@ -1,7 +1,7 @@
 // Forge Play nativo: jogas contra a IA do Forge com a mesa do Grimório. O motor corre no servidor (playnet.py +
 // build/forge/GrimorioNet.java) e manda o estado do jogo, o pedido atual (o que o motor espera de ti) e as escolhas
 // pendentes; aqui desenha-se a mesa e cada clique volta como comando (carta, jogador, OK/cancelar, mana, responder).
-import { fpPrefs } from './fpprefs.js'
+import { fpPrefs, setFpPrefs } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Side, Hand, StackFx } from './Board.jsx'
@@ -40,7 +40,9 @@ function promptText(msg, st, me) {
   if (/keep your hand/.test(m)) return /going first/.test(m) ? tx('Começas tu. Ficas com esta mão?') : tx('Começa o adversário. Ficas com esta mão?')
   const disc = m.match(/Select (\d+) card\(s\) to discard/i)
   if (disc) return tx('Mão cheia: clica em {n} carta(s) da mão para descartar.', { n: disc[1] })
-  if (/^Select|^Choose/i.test(m) && st?.players?.some(p => [...(p.hand || []), ...(p.battlefield || [])].some(c => c.sel))) return `${tx('Clica numa das cartas assinaladas.')} (${m.split('\n')[0]})`
+  // «Spider Umbra (4) - Spider Umbra\n\nSelect target creature»: o pedido nem sempre vem na 1.ª linha
+  const ask = m.split('\n').find(l => /^(Select|Choose)/i.test(l.trim()))
+  if (ask && st?.players?.some(p => [...(p.hand || []), ...(p.battlefield || [])].some(c => c.sel))) return `${tx('Clica numa das cartas assinaladas.')} (${ask.trim()})`
   if (/Declare attackers|Select creatures to attack/i.test(m)) return tx('Atacar: clica nas criaturas que atacam e depois OK.')
   if (/Declare blockers|Select creatures to block/i.test(m)) return tx('Bloquear: clica no atacante e depois na tua criatura que bloqueia; OK no fim.')
   if (/Pay Mana Cost|Pay mana cost/i.test(m)) return `${tx('Paga: toca nos terrenos ou na mana da reserva.')} ${m.split('\n').find(l => /\{/.test(l)) || ''}`
@@ -85,6 +87,9 @@ function zoneOf(p, combat) {
   }
 }
 
+// camada por cima de tudo: em ecrã inteiro só o elemento em ecrã inteiro se vê (o que fosse para o body ficava invisível)
+const onTop = () => document.fullscreenElement || document.webkitFullscreenElement || document.body
+
 // arrastar com física: a carta segue o ponteiro com um pouco de atraso, inclina-se com a velocidade e, se não puder
 // ficar onde a largaste, volta ao sítio com mola. onDrop({id, from, target}) diz se a jogada foi aceite.
 function useDrag(onDrop, onLong, onMove) {
@@ -95,7 +100,7 @@ function useDrag(onDrop, onLong, onMove) {
     if (!el) return
     const id = +(el.dataset.h || el.dataset.z.slice(2)), from = el.dataset.h ? 'hand' : 'field'
     const r = el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY
-    let gap = null, ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, over = null
+    let gap = null, ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, rx = 0, over = null
     const long = e.pointerType !== 'mouse' && setTimeout(() => onLong?.(id), 450)  // tocar e manter = ver em grande
     const mark = t => { if (over) over.classList.remove('fp-over'); over = t; if (t) t.classList.add('fp-over') }
     const targetAt = (px, py) => document.elementFromPoint(px, py)
@@ -103,8 +108,8 @@ function useDrag(onDrop, onLong, onMove) {
     const tick = () => {
       x += (tx0 - x) * 0.32; y += (ty0 - y) * 0.32
       const want = Math.max(-26, Math.min(26, (tx0 - x) * 0.45))
-      rot += (want - rot) * 0.22
-      ghost.style.transform = `translate(${x - r.width / 2}px, ${y - r.height / 2}px) rotate(${rot}deg) scale(1.12)`
+      rot += (want - rot) * 0.22; rx += (Math.max(-22, Math.min(22, (y - ty0) * 0.5)) - rx) * 0.22  // a subir inclina-se para trás, a descer para a frente
+      ghost.style.transform = `translate(${x - r.width / 2}px, ${y - r.height / 2}px) perspective(700px) rotateX(${rx.toFixed(2)}deg) rotate(${rot.toFixed(2)}deg) scale(1.12)`
       raf = requestAnimationFrame(tick)
     }
     const move = ev => {
@@ -115,7 +120,7 @@ function useDrag(onDrop, onLong, onMove) {
         ghost = el.cloneNode(true)
         ghost.classList.add('fp-ghost')
         Object.assign(ghost.style, { width: `${r.width}px`, height: `${r.height}px` })
-        document.body.appendChild(ghost)
+        onTop().appendChild(ghost)
         el.style.visibility = 'hidden'
         raf = requestAnimationFrame(tick)
       }
@@ -140,7 +145,7 @@ function useDrag(onDrop, onLong, onMove) {
       if (ok) flipFrom.set(String(id), g.getBoundingClientRect())
       g.style.transition = ok ? 'transform .25s ease-out, opacity .25s ease-out' : 'transform .55s cubic-bezier(.2, 1.6, .4, 1)'
       requestAnimationFrame(() => {
-        g.style.transform = ok ? `translate(${ev.clientX - r.width / 2}px, ${ev.clientY - r.height / 2}px) scale(.9)` : `translate(${r.left}px, ${r.top}px) rotate(0deg) scale(1)`
+        g.style.transform = ok ? `translate(${ev.clientX - r.width / 2}px, ${ev.clientY - r.height / 2}px) perspective(700px) rotateX(0deg) rotate(0deg) scale(.9)` : `translate(${r.left}px, ${r.top}px) perspective(700px) rotateX(0deg) rotate(0deg) scale(1)`
         if (ok) g.style.opacity = '0'
       })
       setTimeout(() => { g.remove(); el.style.visibility = '' }, ok ? 700 : 560)
@@ -304,18 +309,19 @@ function usePeek() {
     const c = { pc }
     cur.current = c
     c.t = setTimeout(() => {
-      const face = pc.querySelector(pc.querySelector('.pc-flip.on .pc-b') ? '.pc-b' : '.pc-f'), rot = pc.querySelector('.pc-rot')
+      const att = pc.classList.contains('pc-attc')  // aura/equipamento preso: a própria carta pequena
+      const face = att ? pc : pc.querySelector(pc.querySelector('.pc-flip.on .pc-b') ? '.pc-b' : '.pc-f'), rot = att ? pc : pc.querySelector('.pc-rot')
       if (!face || !rot || cur.current !== c) return
       const sc = +pc.closest('.fp-stage')?.dataset.sc || 1, q = rot.getBoundingClientRect(), cx = q.left + q.width / 2, cy = q.top + q.height / 2
       const w0 = rot.offsetWidth * sc, w = Math.max(190, Math.min(250, w0 * 2.2)), h = w * 680 / 488
       const x = Math.max(8, Math.min(innerWidth - w - 8, cx - w / 2)), y = Math.max(8, Math.min(innerHeight - h - 8, cy - h / 2))
       const tilt = pc.closest('.bside.top') && pc.closest('.fp-stage.persp') ? fpPrefs().tilt : 0
-      c.from = `translate(${cx - x - w / 2}px, ${cy - y - h / 2}px) perspective(900px) rotateX(${tilt}deg) rotate(${pc.classList.contains('tapped') ? 90 : 0}deg) scale(${(w0 / w).toFixed(3)})`
+      c.from = `translate(${cx - x - w / 2}px, ${cy - y - h / 2}px) perspective(800px) rotateX(${tilt}deg) rotate(${pc.classList.contains('tapped') ? 90 : 0}deg) scale(${(w0 / w).toFixed(3)})`
       const n = document.createElement('div')
       n.className = 'fp-peek'
       n.appendChild(face.cloneNode(true))
       Object.assign(n.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px`, transform: c.from })
-      document.body.appendChild(n)
+      onTop().appendChild(n)
       c.node = n
       requestAnimationFrame(() => requestAnimationFrame(() => { if (cur.current === c) { n.style.transform = 'none'; n.style.opacity = '1' } }))
     }, 90)
@@ -335,7 +341,7 @@ function useTableDice(box) {
     if (!tray.current) {
       const D = await import('./Dice3D.js')
       if (!box.current) return
-      tray.current = D.webglOk() ? D.createTray(box.current, { colors: DICE_COL, words: [tx('Cara'), tx('Coroa')], onHit: a => play('diceHit', { amount: a }),
+      tray.current = D.webglOk() ? D.createTray(box.current, { view: 13, colors: DICE_COL, words: [tx('Cara'), tx('Coroa')], onHit: a => play('diceHit', { amount: a }),
         onSettle: items => { setRes({ items }); play('tick', { amount: 1 }); if (items.some(x => x.type === 'moeda')) play('coin'); clearTimeout(clear.current); clear.current = setTimeout(() => { tray.current?.clear(); setRes(null) }, 20000) } }) : 'flat'
     }
     play('dice', { amount: types.length })
@@ -538,20 +544,55 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   const keysIn = (box, sel, attr) => [...box.querySelectorAll(sel)].map(e => e.getAttribute(attr).replace(/^k:/, ''))
   const moveBefore = (keys, k, before) => { const l = keys.filter(x => x !== k), i = before == null ? -1 : l.indexOf(before); l.splice(i < 0 ? l.length : i, 0, k); return l }
   const kindOf = c => (c?.land ? 'lands' : c?.creature || c?.pt ? 'front' : 'others')
-  // onde a carta vai ficar no teu lado (arrumação livre/grelha): null = fora do teu lado, por cima da tua barra, ou filas
-  const spotAt = (id, target, x, y) => {
+  // onde a carta vai ficar no teu lado: largada à altura das cartas de uma fila (a fila debaixo do dedo ou a dela —
+  // criaturas, terrenos, outras) entra nessa fila, no sítio pela posição; largada longe das filas fica solta onde a
+  // pousaste (Livre) ou na casa mais perto (Grelha). Com «Filas automáticas» vai sempre para uma fila.
+  // null = fora do teu lado ou por cima da tua barra; {row, before} = numa fila, antes dessa carta; {free} = solta
+  const whereOn = (id, target, x, y) => {
     const side = target?.closest('.fp-table .bside.bottom')
-    if (fpPrefs().place === 'rows' || !side || target.closest('.bhud')) return null
-    return spotOn(side, x, y, kindOf(byId.get(id)), fpPrefs().place === 'grid', id)
+    if (!side || target.closest('.bhud')) return null
+    const kind = kindOf(byId.get(id)), P = fpPrefs(), sc = +side.closest('.fp-stage')?.dataset.sc || 1
+    const rowOf = k => side.querySelector(`.brow.${k}`) || (k === 'others' ? side.querySelector('.brow.rear') : null)
+    const under = target.closest('.brow:not(.rear)') || (target.closest('.brow.rear') && rowOf(kind === 'front' ? 'lands' : kind))
+    for (const row of [...new Set([under, rowOf(kind)])].filter(Boolean)) {
+      const cs = [...row.querySelectorAll('.pc[data-z^="k:"]')].filter(e => e.dataset.z !== `k:${id}` && !e.closest('.bfree')).map(e => e.getBoundingClientRect())
+      const q = cs.length ? { top: Math.min(...cs.map(r => r.top)), bottom: Math.max(...cs.map(r => r.bottom)) } : row.getBoundingClientRect()
+      const pad = cs.length ? 22 * sc : 0
+      if (P.place !== 'rows' && (y < q.top - pad || y > q.bottom + pad)) continue
+      const r = row.classList.contains('front') ? 'front' : row.classList.contains('lands') ? 'lands' : 'others'
+      const keys = keysIn(row, '.pc[data-z^="k:"]', 'data-z').filter(k => k !== String(id))
+      const before = keys.find(k => { const e = row.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect(); return e && e.left + e.width / 2 > x }) ?? null
+      return { row: r, before, box: row.classList.contains('rear') ? row.querySelector('.brow.others') || row : row }
+    }
+    if (P.place === 'rows') return { row: kind, before: null, box: rowOf(kind) }
+    return { free: spotOn(side, x, y, kind, P.place === 'grid', id) }
   }
-  const preview = m => {  // enquanto arrastas: a casa onde a carta vai encaixar (e a grelha, ao de leve)
+  const putAt = (id, w) => setLay(l => {  // guarda o sítio escolhido (a carta pode ainda estar na mão: conta quando entrar)
+    const free = { ...l.free }; delete free[id]
+    if (w?.free) return { ...l, free: { ...free, [id]: { x: w.free.x, y: w.free.y } } }
+    if (!w?.row) return { ...l, free }
+    const keys = w.box ? moveBefore(keysIn(w.box, '.pc[data-z^="k:"]', 'data-z').filter(k => !l.free?.[k]), String(id), w.before) : [String(id)]
+    return { ...l, free, place: { ...l.place, [id]: w.row }, order: { ...l.order, ...Object.fromEntries(keys.map((k, i) => [k, i])) } }
+  })
+  const preview = m => {  // enquanto arrastas: onde a carta vai ficar — a casa (e a grelha, ao de leve) ou o sítio na fila
     const old = document.querySelector('.fp-slot'), side = document.querySelector('.fp-table .bside.bottom')
-    const sp = m && (m.from === 'field' || !m.target?.closest('.pc[data-z^="k:"]')) && spotAt(m.id, m.target, m.x, m.y)
-    if (!sp) { old?.remove(); side?.classList.remove('fp-placing'); return }
+    const w = m && (m.from === 'field' || byId.get(m.id)?.land || !m.target?.closest('.pc[data-z^="k:"]')) && whereOn(m.id, m.target, m.x, m.y)
+    if (!w) { old?.remove(); side?.classList.remove('fp-placing'); return }
     const n = old || Object.assign(document.createElement('div'), { className: 'fp-slot' })
     if (!old) side.appendChild(n)
-    side.classList.add('fp-placing'); side.style.setProperty('--sx', `${sp.sx}px`); side.style.setProperty('--sy', `${sp.sy}px`)
-    Object.assign(n.style, { left: `${sp.px - sp.w / 2}px`, top: `${sp.py - sp.h / 2}px`, width: `${sp.w}px`, height: `${sp.h}px` })
+    const sc = +side.closest('.fp-stage')?.dataset.sc || 1, sr = side.getBoundingClientRect()
+    if (w.free) {
+      const sp = w.free
+      side.classList.add('fp-placing'); side.style.setProperty('--sx', `${sp.sx}px`); side.style.setProperty('--sy', `${sp.sy}px`); n.classList.remove('bar')
+      Object.assign(n.style, { left: `${sp.px - sp.w / 2}px`, top: `${sp.py - sp.h / 2}px`, width: `${sp.w}px`, height: `${sp.h}px` })
+      return
+    }
+    // numa fila: uma barra onde ela vai entrar (antes da carta `before`, ou no fim da fila)
+    side.classList.remove('fp-placing'); n.classList.add('bar')
+    const row = w.box || side, b = w.before != null && row.querySelector(`.pc[data-z="k:${w.before}"]`)
+    const ks = [...row.querySelectorAll('.pc[data-z^="k:"]')].filter(e => e.dataset.z !== `k:${m.id}`), last = ks[ks.length - 1]
+    const q = (b || last || row).getBoundingClientRect(), xx = b ? q.left - 5 * sc : last ? q.right + 5 * sc : q.left + 8 * sc
+    Object.assign(n.style, { left: `${(xx - sr.left) / sc - 3}px`, top: `${(q.top - sr.top) / sc}px`, width: '6px', height: `${Math.max(40, q.height / sc)}px` })
   }
   const drop = ({ id, from, target, x, y }) => {
     if (!target?.closest('.fp-table')) return false
@@ -564,10 +605,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     if (from === 'hand') {  // da mão para a mesa: jogar — só se o Forge diz que dá (mana e altura certas)
       if (!byId.get(id)?.play) { setToast({ title: tx('Agora não dá para jogar esta carta'), msg: tx('Falta mana, não é a altura (feitiço fora da tua fase principal) ou já jogaste um terreno neste turno.') }); return false }
       // largada em cima de uma permanente (aura, remoção, reforço…): esse é o alvo — a mesa responde ao Forge por ti
-      if (pid != null) { aim(pid, perm) }
-      // largada num sítio vazio do teu lado: quando entrar em jogo fica aí (enquanto está na mão a posição não conta)
-      const sp = pid == null && spotAt(id, target, x, y)
-      setLay(l => { const f = { ...l.free }; if (sp) f[id] = { x: sp.x, y: sp.y }; else delete f[id]; return { ...l, free: f } })
+      const land = byId.get(id)?.land
+      if (pid != null && !land) { aim(pid, perm) }
+      // largada no teu lado (um terreno, mesmo por cima de outra carta): quando entrar em jogo fica nesse sítio/fila
+      putAt(id, (pid == null || land) && whereOn(id, target, x, y))
       castNow(id); send1({ c: 'card', id }); return true
     }
     // equipamento teu largado numa criatura tua, no teu turno: equipar essa criatura
@@ -584,16 +625,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       attackIntent.current = { ids: [...(attackIntent.current?.ids || []), id], until: Date.now() + 15000 }
       send1({ c: 'ok' }); return true
     }
-    const sp = spotAt(id, target, x, y)  // no teu lado, com arrumação livre/grelha: a carta fica onde a pousaste
-    if (sp) { setLay(l => ({ ...l, free: { ...l.free, [id]: { x: sp.x, y: sp.y } } })); return 'local' }
-    const row = target.closest('.bside.bottom') && target.closest('.brow')
-    if (!row) return false
-    // no teu lado: arrumar à vontade (por cima de uma carta = fica no lugar dela; numa fila vazia = vai para o fim dessa fila)
-    const r = row.classList.contains('front') ? 'front' : row.classList.contains('lands') ? 'lands' : 'others'
-    const box = row.classList.contains('rear') ? row.querySelector('.brow.others') || row : row
-    const l = moveBefore(keysIn(box, '.pc[data-z^="k:"]', 'data-z'), String(id), pid != null && pid !== id ? String(pid) : null)
-    setLay(x => ({ ...x, place: { ...x.place, [id]: r }, order: { ...x.order, ...Object.fromEntries(l.map((k, i) => [k, i])) } }))
-    return 'local'
+    const w = whereOn(id, target, x, y)  // no teu lado: arrumar à vontade (numa fila pela posição, ou solta)
+    if (!w) return false
+    putAt(id, w); return 'local'
   }
   const { down, dragged } = useDrag(drop, id => setZoom(byId.get(id)), preview)
   // jogo mais solto (Definições › Mesa): o que acabaste de lançar paga-se sozinho (o «Pagar sozinho» do Forge) e o que é
@@ -669,6 +703,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     setFxs(f => ({ pops, gone: [...f.gone.filter(g => g.until > Date.now()), ...gone], rev: left ? { k: 'resolve', card: left.name, p: left.by === me?.id ? 'a' : 'b', txt: left.text } : f.rev, ri: left ? f.ri + 1 : f.ri }))
   }, [seqKey]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!fxs.gone.length && !fxs.pops.size) return; const t = setTimeout(() => setFxs(f => ({ ...f, pops: new Map(), gone: f.gone.filter(g => g.until > Date.now()) })), 1200); return () => clearTimeout(t) }, [fxs.gone.length, fxs.pops])
+  useEffect(() => {  // cartas que foram para o cemitério ou o exílio esquecem o sítio onde estavam (se voltarem, vão para as filas)
+    const out = Object.keys(lay.free || {}).filter(k => players.some(p => [...(p.graveyard || []), ...(p.exile || [])].some(c => String(c.id) === k)))
+    if (out.length) setLay(l => { const f = { ...l.free }; for (const k of out) delete f[k]; return { ...l, free: f } })
+  }, [seqKey])  // eslint-disable-line react-hooks/exhaustive-deps
+  const [, redraw] = useState(0)
+  const persp = () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }
   const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null), peek = usePeek(), diceBox = useRef(null), dice = useTableDice(diceBox)
   const P = fpPrefs()
   const stage = useStage(fitBox, stageWrap, !!st)
@@ -708,7 +748,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     if (lay.free?.[id]) setLay(l => { const f = { ...l.free }; delete f[id]; return { ...l, free: f } })  // sem sítio escolhido: vai para a fila
   }
   const onOver = e => {
-    peek.over(e.target.closest('.fp-table .pc[data-z^="k:"]'))
+    peek.over(e.target.closest('.fp-table .pc-attc[data-z], .fp-table .pc[data-z^="k:"]'))
     const el = e.target.closest('[data-z], [data-zid]'), z = el?.dataset.z
     hoverId.current = el?.dataset.h ? +el.dataset.h : z?.startsWith('k:') ? +z.slice(2) : null
     const c = z?.startsWith('k:') ? byId.get(+z.slice(2)) : el?.dataset.zid ? byId.get(+el.dataset.zid) || (el.dataset.zn && { name: el.dataset.zn }) : z?.startsWith('n:') ? { name: z.slice(2) } : null
@@ -741,7 +781,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       </div>
       </div><div className="fp-dice" ref={diceBox} /></div>
       <aside className="fp-side">
-        <div className="fp-zoom">{zc ? <img src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
+        <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           <p><Syms text={promptText(pr?.msg, st, me)} /></p>
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
@@ -755,6 +795,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
           <div className="row-btns small">
             <button className="link small" onClick={() => send({ c: 'undo' })}>↶ {tx('desfazer')}</button>
             {(lay.free && Object.keys(lay.free).length > 0) || lay.order ? <button className="link small" onClick={() => setLay(l => ({ hand: l.hand }))} title={tx('As cartas do teu lado voltam às filas automáticas')}>▦ {tx('arrumar')}</button> : null}
+            <button className="link small" onClick={persp} title={tx('Lado do adversário em perspetiva (mais espaço para o teu)')}>{P.persp ? '▭' : '⏢'} {tx('perspetiva')}</button>
             <button className="link small" onClick={() => send({ c: 'concede' })}>🏳 {tx('desistir')}</button>
           </div>
           {err && <p className="small bad-t">{err}</p>}

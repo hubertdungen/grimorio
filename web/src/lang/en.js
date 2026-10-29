@@ -3118,4 +3118,5 @@ export default {
   "Pagar a mana sozinho quando lanças uma carta (como o «Pagar sozinho» do Forge)": "Pay the mana automatically when you cast a card (like Forge's \"Auto\")",
   "Retirar atacantes": "Call back",
   "Tirar os dados da mesa": "Remove the dice from the table",
+  "perspetiva": "perspective",
 }
