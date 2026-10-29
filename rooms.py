@@ -70,8 +70,10 @@ def route(con, method, path, owner, body, guest=None):
         if spec["type"] == "livre":  # mesa livre: um lugar por pessoa (o anfitrião com um deck seu), qualquer formato
             spec.update(format=None, casual=True, max=max(2, min(4, int(d.get("max") or 4))))
             players = players[:1]
-            if not players or not deck_ok(con, owner, players[0].get("ref"), None):
+            dname = players and deck_ok(con, owner, players[0].get("ref"), None)
+            if not dname:
                 return 400, {"erro": "Escolhe um deck teu para a mesa."}
+            players[0].update(src="meus", name=dname)
         elif spec["type"] not in tournament.TYPES:
             return 400, {"erro": "Tipo de torneio desconhecido."}
         elif spec["format"] in sim.GAME_TYPE:  # sem Commander com os bots online: o EDH com amigos é na mesa livre

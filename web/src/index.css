@@ -2651,3 +2651,48 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 @keyframes fp-zin { from { opacity: .35; transform: scale(.97) translateY(4px); } }
 @media (prefers-reduced-motion: reduce) { .fp-zoom img.fp-zin { animation: none; } }
 .fp-slot.bar { border: 0; border-radius: 3px; background: #ffd98a; box-shadow: 0 0 12px #ffd98a; }
+
+/* ---------- Mesa livre (FreeTable.jsx): só amigos, sem bots nem regras; a mesa do Forge Play com o campo livre ---------- */
+.fp.ml .fp-stage .fp-table.board { display: flex; flex-direction: column; gap: 4px; }
+.ml .ml-opps { display: grid; grid-template-columns: repeat(var(--np), minmax(0, 1fr)); gap: 6px; flex: 0 0 37%; min-height: 0; }
+.ml .ml-side { display: flex; flex-direction: column; gap: 4px; min-height: 0; padding: 4px 6px; }
+.ml .ml-side.bottom { flex: 1 1 0; } .ml .ml-side.top { height: 100%; }
+.ml .ml-side > .bhud { flex: none; }
+.ml .ml-field { position: relative; flex: 1 1 0; min-height: 0; border-radius: 10px; background: #ffffff05; box-shadow: inset 0 0 0 1px #ffffff0d; }
+.ml .ml-field.fp-placing { background-image: radial-gradient(circle, #ffffff2a 1.4px, transparent 2px); background-size: var(--sx) var(--sy); background-position: calc(8px - var(--sx) / 2) calc(6px - var(--sy) / 2); }
+.ml .ml-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; pointer-events: none; opacity: .6; text-align: center; padding: 8px; }
+.ml .bside.compact .bfree-c.front { --w: calc(var(--cw) * .72); } .ml .bside.compact .bfree-c.lands { --w: calc(var(--lw) * .75); } .ml .bside.compact .bfree-c.others { --w: calc(var(--ow) * .72); }
+.ml .fp-mid { flex: none; }
+.ml-badge { padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 700; color: #111; background: #4ade80; }
+.ml-last { max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml .fp-hand.opp { min-height: 0; padding: 0; } .ml .fp-hand.opp .fp-card { --cw: var(--ohw); } .ml .fp-hand.opp .fp-card + .fp-card { margin-left: calc(var(--ohw) * -.45); }
+.ml-cmd { display: flex; gap: 4px; align-items: flex-end; flex: none; } .ml-cmd .fp-card { --cw: 54px; } .ml-cz { display: inline-block; }
+.ml .fp-card.ml-rev { box-shadow: 0 0 0 2px var(--gold), 0 0 12px #f2b84b88; }
+.ml .ml-down .pc-f { filter: brightness(.45) saturate(.3); }
+.ml .ml-down::after { content: '🂠'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 22px; pointer-events: none; }
+.ml .orb { cursor: pointer; }
+.ml-menu-back { position: fixed; inset: 0; z-index: 90; }
+.ml-menu { position: fixed; z-index: 91; min-width: 210px; max-height: 70vh; overflow: auto; display: grid; gap: 1px; padding: 6px; border-radius: 12px; background: var(--panel); border: 1px solid var(--gold); box-shadow: 0 14px 40px #000c; animation: fp-in .2s ease-out; }
+.ml-menu button { text-align: left; padding: 7px 10px; border: 0; background: none; border-radius: 8px; font-size: 14px; }
+.ml-menu button:hover, .ml-menu button:focus-visible { background: #ffffff14; }
+.ml-menu b { padding: 4px 10px; font-size: 12px; color: var(--gold2); }
+.ml-panel { gap: 8px; } .fp-prompt.ml-panel > p.ml-mode { min-height: 0; font-size: 14px; }
+.ml-row { flex-wrap: wrap; gap: 6px; } .ml-row input { flex: 1 1 120px; min-width: 0; }
+.ml-log { max-height: 22vh; } .ml-log li.k-chat { color: var(--text); } .ml-log li.k-dice, .ml-log li.k-pass { color: var(--gold2); }
+.ml-help { max-width: min(560px, 100%); } .ml-help h3 { margin: 0; } .ml-help ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; } .ml-help p { margin: 0; }
+.ml-top .ml-topc { display: grid; gap: 4px; justify-items: center; } .ml-top .ml-topc .row-btns { gap: 2px; }
+/* Online › Nova sala: os modos lado a lado, cada um diz quem joga e que regras há */
+.nr-modes button { grid-template-columns: auto minmax(0, 1fr); align-items: start; row-gap: 3px; }
+.nr-modes button .tc-ico { grid-row: span 3; } .nr-modes button small { grid-column: 2; font-size: 12px; }
+.nr-modes .nr-rules { color: var(--text); opacity: .85; }
+.nr-modes .m-livre.on { border-color: #4ade80; background: rgba(74, 222, 128, .1); box-shadow: inset 0 0 0 1px #4ade80; }
+.room-mode { font-size: 11px; padding: 1px 8px; border-radius: 99px; background: #ffffff12; } .room-mode.livre { background: #4ade8022; color: #bbf7d0; }
+.room-why { margin: 0; }
+.nr-free-f { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end; } .nr-free-f label { display: grid; gap: 4px; font-size: 13px; }
+.nr-free-f select { max-width: min(420px, 80vw); }
+@media (max-width: 900px) {  /* mesa livre ao alto: a mesa ocupa o ecrã e o painel (muitos botões e o registo) vem por baixo */
+  .fp.ml { height: auto !important; grid-template-rows: auto auto; }
+  .fp.ml .fp-side { flex-direction: column; }
+}
+@media (min-width: 901px) { .ml .fp-zoom { max-height: 36vh; } }
+.ml-menu.life { grid-template-columns: repeat(4, minmax(48px, 1fr)); } .ml-menu.life b { grid-column: 1 / -1; } .ml-menu.life button { text-align: center; font-weight: 700; }
