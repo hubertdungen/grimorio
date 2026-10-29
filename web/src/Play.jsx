@@ -113,13 +113,13 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   const start = (cur = series) => {
     if (!opp) return
     let ser = cur
-    if (useNative && bo > 1 && (!ser || ser.done)) { ser = { bo, w: [0, 0], d: mineDeck, d0: mineDeck, done: false }; setSeries(ser) }
+    if (useNative && bo > 1 && (!ser || ser.done)) { ser = { bo, w: [0, 0], d: mineDeck, d0: mineDeck, done: false, id: Math.random().toString(36).slice(2, 12) }; setSeries(ser) }
     else if (bo === 1 || !useNative) { ser = null; setSeries(null) }
     const myDeck = ser?.d || mineDeck
     const opponent = opp.kind === 'meta' ? { id: opp.id } : opp.kind === 'meu' ? { deck_id: opp.id } : { deck: { ...mineDeck, name: opp.name } }  // espelho: sempre a lista original
     if (!useNative) return go(tx('A arrancar o Forge…'), '/api/play/start', { format: fmt.key, difficulty: diff, deck: mineDeck, opponent })
     setErr(''); setBusy(tx('A arrancar o Forge…'))
-    j('/api/playnet', { difficulty: diff, deck: myDeck, opponent, casual, name: tx('Tu') }).then(r => setNet(r.id)).catch(e => setErr(e.message)).finally(() => setBusy(''))
+    j('/api/playnet', { difficulty: diff, deck: myDeck, opponent, casual, name: tx('Tu'), rate_id: deck.id, format: fmt.key, round: ser?.id, bo: ser?.bo || 1 })  // rate_id/format/round/bo: o jogo conta para os ratings.then(r => setNet(r.id)).catch(e => setErr(e.message)).finally(() => setBusy(''))
   }
   const stopNet = async () => { if (net) await j(`/api/playnet/${net}/stop`, {}).catch(() => {}); setNet(null) }
   const resume = () => go(tx('A preparar a posição…'), '/api/play/from-state', { ...fromState, difficulty: diff, format: fromState.format || fmt.key })

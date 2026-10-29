@@ -227,6 +227,43 @@ def from_lab(con, d, owner):
                  final=max(ws.count("a"), ws.count("b")) > bo // 2 or len(ws) >= bo, casual=bool(d.get("casual")))
 
 
+def forgeplay_end(rate, winner):
+    """playnet.ON_END: abre a base de dados e regista o jogo (corre na thread que lê o Forge)."""
+    with contextlib.closing(db()) as con, con:
+        return from_forgeplay(con, rate, winner)
+
+
+def from_forgeplay(con, rate, winner):
+    """Jogo do Forge Play (playnet.py) que acabou com vencedor: o meu deck (a, humano) contra o adversário (b, a IA do
+    Forge). rate = {deck_id, owner, format, casual, opp ('meta:<id>' | 'deck:<id>'), opp_name, round, bo}; winner =
+    'a' | 'b' | 'draw'. Chamado uma vez por jogo (o playnet marca a sessão); jogos parados a meio (sem vencedor), o
+    espelho e listas coladas não contam. Numa série Bo3/Bo5 os jogos partilham o round e a ronda fecha quando alguém
+    passa de bo//2 (ou ao fim de bo jogos)."""
+    if not isinstance(rate, dict) or winner not in ("a", "b", "draw"):
+        return None
+    did, owner, key = str(rate.get("deck_id") or ""), str(rate.get("owner") or ""), str(rate.get("opp") or "")
+    if not did or not re.fullmatch(r"(meta|deck):[a-z0-9-]{1,130}", key):
+        return None
+    mine = lambda i: con.execute("SELECT name FROM decks WHERE id=? AND owner=? AND deleted IS NULL", (i, owner)).fetchone()  # noqa: E731
+    r = mine(did)
+    if not r:
+        return None
+    a = {"key": "deck:" + did, "kind": "meu", "name": r[0], "owner": owner}
+    if key.startswith("deck:"):
+        r = mine(key[5:])
+        if not r:
+            return None
+        b = {"key": key, "kind": "meu", "name": r[0], "owner": owner}
+    else:
+        b = {"key": key, "kind": "meta", "name": str(rate.get("opp_name") or key)[:200], "owner": ""}
+    rid = f"fp:{did}:{str(rate.get('round') or uuid.uuid4().hex)[:60]}"
+    ws = [w if ak == a["key"] or w == "draw" else "ab"[w == "a"] for ak, w in
+          con.execute("SELECT a_key, winner FROM rating_games WHERE round_id=?", (rid,))] + [winner]
+    bo = max(1, min(9, int(rate.get("bo") or 1)))
+    return record_round(con, str(rate.get("format") or "").lower()[:40], a, b, [winner], "forgeplay", rid,
+                        final=max(ws.count("a"), ws.count("b")) > bo // 2 or len(ws) >= bo, casual=bool(rate.get("casual")))
+
+
 # ---------- estrelas, tabela e escolhas ----------
 
 TOP_P = 0.97  # a partir daqui conta como «ganha sempre»: 6★
@@ -1022,6 +1059,23 @@ def selfcheck():
     assert settings(c2)["difficulty_mine"] == ""
     arena_set(c2, "ana", {"difficulty_mine": sim.DIFFICULTIES[1][0]})
     assert settings(c2)["difficulty_mine"] == sim.DIFFICULTIES[1][0]
+    # Forge Play: só o meu deck guardado conta; série Bo3 fecha a ronda à 2.ª vitória; parado/espelho/estranhos não
+    c3 = schema(sqlite3.connect(":memory:"))
+    c3.execute("CREATE TABLE decks (id TEXT PRIMARY KEY, name TEXT, format TEXT, body TEXT, updated REAL, owner TEXT, deleted REAL)")
+    c3.execute("INSERT INTO decks VALUES ('d1', 'Burn', 'modern', '{}', 0, 'ana', NULL), ('d2', 'Zoo', 'modern', '{}', 0, 'ana', NULL)")
+    rt = {"deck_id": "d1", "owner": "ana", "format": "Modern", "opp": "meta:affinity", "opp_name": "Affinity", "round": "s1", "bo": 3}
+    games = lambda: c3.execute("SELECT COUNT(*) FROM rating_games WHERE source='forgeplay'").fetchone()[0]  # noqa: E731
+    assert from_forgeplay(c3, rt, None) is None and from_forgeplay(c3, {**rt, "owner": "outro"}, "a") is None and games() == 0
+    assert from_forgeplay(c3, {**rt, "opp": "deck:d9"}, "a") is None and from_forgeplay(c3, {**rt, "opp": "x; drop"}, "a") is None
+    from_forgeplay(c3, rt, "a")
+    assert c3.execute("SELECT rounds FROM ratings WHERE key='deck:d1' AND format='modern'").fetchone() == (0,)  # 1–0: a série continua
+    from_forgeplay(c3, rt, "a")
+    r = c3.execute("SELECT games, wins, rounds, round_wins FROM ratings WHERE key='deck:d1' AND format='modern'").fetchone()
+    assert r == (2, 2, 1, 1) and games() == 2, r
+    assert c3.execute("SELECT elo > 1500 FROM ratings WHERE key='deck:d1'").fetchone() == (1,)
+    from_forgeplay(c3, {**rt, "opp": "deck:d2", "round": None, "bo": 1, "casual": True}, "b")  # Bo1 casual contra outro deck meu
+    assert c3.execute("SELECT games, losses, rounds FROM ratings WHERE key='deck:d1' AND format=?", (CASUAL,)).fetchone() == (1, 1, 1)
+    assert from_forgeplay(c3, {**rt, "opp": "deck:d1"}, "a") and games() == 3  # o espelho (o mesmo deck) não mexe em nada
     print("selfcheck ok")
 
 

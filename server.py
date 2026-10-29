@@ -586,7 +586,13 @@ class H(BaseHTTPRequestHandler):
                 if d.get("casual"):  # modo casual: decks de qualquer formato, 1 contra 1; o comandante joga como carta do deck
                     a, b = ({**x, "main": {**(x.get("main") or {}), **{c: 1 for c in x.get("commanders") or []}}, "commanders": []} for x in (a, b))
                 prof = self.profile()
-                return self.json({"id": playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or str(d.get("name") or "")[:30] or "Tu")}, 201)
+                # ratings: o meu deck guardado (rate_id; o jogo pode levar a lista com trocas do sideboard) contra um deck do
+                # meta ou outro deck meu; o espelho e listas coladas não contam (ratings.from_forgeplay)
+                did = str(d.get("rate_id") or d.get("deck_id") or "")[:130]
+                okey = f"meta:{o['id']}" if o.get("id") else f"deck:{o['deck_id']}" if o.get("deck_id") else ""
+                rate = {"deck_id": did, "owner": owner, "format": str(d.get("format") or a.get("format") or "")[:40], "casual": bool(d.get("casual")),
+                        "opp": str(okey)[:140], "opp_name": b.get("name"), "round": str(d.get("round") or "")[:60] or None, "bo": d.get("bo") or 1} if did and okey else None
+                return self.json({"id": playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or str(d.get("name") or "")[:30] or "Tu", rate)}, 201)
             if act == "cmd":
                 playnet.cmd(sid, owner, d)
                 return self.json({"ok": True})
@@ -1159,6 +1165,7 @@ if __name__ == "__main__":
         backfill_created(con)
     tournament.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma os torneios a decorrer
     ratings.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma a Arena automática se estava ligada
+    playnet.ON_END = ratings.forgeplay_end  # jogos do Forge Play acabados com vencedor contam para os ratings
     backup.init(ARGS.data_dir)  # pasta na nuvem (se ligada): traz o que mudou noutros aparelhos e leva o daqui
     print(f"Grimório em http://{ARGS.host}:{ARGS.port}", flush=True)
     ThreadingHTTPServer((ARGS.host, ARGS.port), H).serve_forever()

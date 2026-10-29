@@ -106,7 +106,9 @@ public class GrimorioNet {
 
         Bridge() {
             ScheduledExecutorService ex = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "grimorio-state"); t.setDaemon(true); return t; });
-            ex.scheduleAtFixedRate(() -> { try { if (dirty) { dirty = false; sendState(); } } catch (Exception e) { e.printStackTrace(); } }, 300, 150, TimeUnit.MILLISECONDS);
+            // também sem «dirty»: no fim do jogo o Forge corre as conquistas na EDT e rebenta sem a imagem do troféu
+            // (IMG_COMMON_TROPHY, não há skin sem janela) antes de chamar o finishGame; o fim sai daqui pelo estado
+            ex.scheduleAtFixedRate(() -> { try { GameView gv = getGameView(); if (dirty || (!ended && gv != null && gv.isGameOver())) { dirty = false; sendState(); } } catch (Exception e) { e.printStackTrace(); } }, 300, 150, TimeUnit.MILLISECONDS);
         }
 
         IGameController ctl() { return getGameController(); }
@@ -200,6 +202,7 @@ public class GrimorioNet {
                 o.add("counters", co);
             }
             if (selectable.contains(c.getId())) o.addProperty("sel", true);
+            if (isHighlighted(c)) o.addProperty("picked", true);  // já escolhida nesta escolha (descartar 2, sacrificar…): o motor marca-a no ecrã
             if (playable.contains(c.getId())) o.addProperty("play", true);
             return o;
         }
@@ -295,6 +298,7 @@ public class GrimorioNet {
                 o.add("combat", ca);
             }
             if (gv.isGameOver()) { o.addProperty("over", true); o.addProperty("winner", gv.getWinningPlayerName()); }
+            boolean endNow = gv.isGameOver() && !ended;
             // o registo do jogo (o mesmo do painel do Forge): as últimas 40 entradas, com o id da carta de cada uma
             if (gv.getGameLog() != null) {
                 java.util.List<forge.game.GameLogEntry> es = new ArrayList<>();  // do mais antigo para o mais recente, sem as fases
@@ -312,6 +316,7 @@ public class GrimorioNet {
                 o.addProperty("logN", es.size());
             }
             send(o);
+            if (endNow) finishGame();
         }
 
         // --- pedidos que bloqueiam o motor até o browser responder ---
@@ -386,9 +391,11 @@ public class GrimorioNet {
             dirty = true;
         }
         @Override public void clearSelectables() { super.clearSelectables(); selectable.clear(); dirty = true; }
+        @Override public void setHighlighted(Iterable<GameEntityView> ges, boolean on) { super.setHighlighted(ges, on); dirty = true; }
         @Override public void flashIncorrectAction() { JsonObject o = new JsonObject(); o.addProperty("t", "flash"); send(o); }
         @Override public void alertUser() { }
-        @Override public void finishGame() { dirty = true; sendState(); JsonObject o = new JsonObject(); o.addProperty("t", "end"); GameView gv = getGameView(); if (gv != null) o.addProperty("winner", gv.getWinningPlayerName()); send(o); new Thread(() -> { try { Thread.sleep(1500); } catch (InterruptedException e) { } System.exit(0); }).start(); }
+        volatile boolean ended = false;  // o fim só se manda uma vez (pelo finishGame do Forge ou pelo estado que já diz «acabou»)
+        @Override public synchronized void finishGame() { if (ended) return; ended = true; dirty = true; sendState(); JsonObject o = new JsonObject(); o.addProperty("t", "end"); GameView gv = getGameView(); if (gv != null) o.addProperty("winner", gv.getWinningPlayerName()); send(o); new Thread(() -> { try { Thread.sleep(1500); } catch (InterruptedException e) { } System.exit(0); }).start(); }
         @Override public void afterGameEnd() { finishGame(); }
         @Override public GameState getGamestate() { return null; }
         @Override public boolean isUiSetToSkipPhase(PlayerView turn, PhaseType phase) {

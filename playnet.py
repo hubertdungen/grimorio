@@ -13,6 +13,20 @@ S = {}                      # sessão -> {owner, p, seq, state, prompt, asks, lo
 COND = threading.Condition()
 OK_CMDS = {"ok", "cancel", "card", "player", "answer", "mana", "alpha", "undo", "concede", "state"}
 IDLE = 2 * 3600             # um jogo parado há mais de 2 h fecha-se
+ON_END = None               # server.py: ON_END(rate, side) quando um jogo acaba com vencedor (ratings, uma vez por jogo)
+
+
+def _over(s, winner):
+    """O jogo acabou (mensagem «end» do GrimorioNet ou o estado já diz «over»): quem ganhou e se conta para os ratings."""
+    if s["ended"] and s.get("side_set"):
+        return None
+    s["ended"], s["winner"], s["side_set"] = True, winner, True
+    pl = s.get("players") or {}
+    s["side"] = next((k2 for k2, n in pl.items() if n and n == winner), None)  # quem ganhou: a (tu) ou b
+    if s.get("rate") and s["side"] and not s.get("rated"):
+        s["rated"] = True
+        return (s["rate"], s["side"])
+    return None
 
 
 def _reader(sid, p):
@@ -28,9 +42,11 @@ def _reader(sid, p):
             s = S.get(sid)
             if not s:
                 break
-            k = m.get("t")
+            k, rate = m.get("t"), None
             if k == "state":
                 s["state"] = m
+                if m.get("over") and m.get("winner"):
+                    rate = _over(s, m.get("winner"))
             elif k == "prompt":
                 s["prompt"] = m
             elif k == "ask":
@@ -38,12 +54,15 @@ def _reader(sid, p):
             elif k in ("msg", "flash"):
                 s["log"] = (s["log"] + [m])[-40:]
             elif k == "end":
-                s["ended"], s["winner"] = True, m.get("winner")
-                pl = s.get("players") or {}
-                s["side"] = next((k2 for k2, n in pl.items() if n and n == m.get("winner")), None)  # quem ganhou: a (tu) ou b
+                rate = _over(s, m.get("winner") or s.get("winner"))
             s["seq"] += 1
             s["ts"] = time.time()
             COND.notify_all()
+        if rate and ON_END:  # fora do cadeado: escreve na base de dados
+            try:
+                ON_END(*rate)
+            except Exception as e:  # um erro nos ratings não pode parar o jogo
+                print("playnet: ratings:", e, flush=True)
     with COND:
         if sid in S:
             S[sid]["ended"] = True
@@ -66,8 +85,9 @@ def _kill(s):
         subprocess.run(["docker", "kill", s["container"]], capture_output=True)
 
 
-def start(data_dir, owner, deck, opp, difficulty="default", name="Tu"):
-    """deck/opp = {name, main, side, commanders}; devolve o id da sessão. Um jogo de cada vez por dono."""
+def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None):
+    """deck/opp = {name, main, side, commanders}; devolve o id da sessão. Um jogo de cada vez por dono. rate: para os
+    ratings quando acabar (ratings.from_forgeplay), ou None (não conta)."""
     _cleanup()
     for d in (deck, opp):
         if not isinstance(d, dict) or not isinstance(d.get("main"), dict) or not d["main"]:
@@ -112,7 +132,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu"):
     with COND:
         S[sid] = {"owner": owner, "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
                   "ended": False, "winner": None, "ts": time.time(), "names": {"a": deck.get("name"), "b": opp.get("name")},
-                  "players": {"a": str(name)[:40] or "Tu", "b": oname}}
+                  "players": {"a": str(name)[:40] or "Tu", "b": oname}, "rate": rate}
     threading.Thread(target=_reader, args=(sid, p), daemon=True).start()
     return sid
 
@@ -209,6 +229,25 @@ def selfcheck():
         r = poll("t1", "o", r["seq"], 5)
     assert r["winner"] == "IA" and result("t1")["ended"]
     stop("t1", "o")
+    # fim pelo estado («over») e depois a mensagem «end»: os ratings recebem o jogo uma vez só, com o lado certo
+    global ON_END
+    got, ON_END = [], lambda rate, side: got.append((rate, side))
+    fake2 = ("import json\nfor m in [{'t':'state','turn':3,'over':True,'winner':'Tu'},{'t':'end','winner':'Tu'}]:\n"
+             "  print('@@GN '+json.dumps(m),flush=True)\n")
+    p = subprocess.Popen([sys.executable, "-c", fake2], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    with COND:
+        S["t2"] = {"owner": "o", "p": p, "container": None, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
+                   "ended": False, "winner": None, "ts": time.time(), "names": {}, "players": {"a": "Tu", "b": "IA"}, "rate": {"deck_id": "d"}}
+    _reader("t2", p)
+    assert got == [({"deck_id": "d"}, "a")] and result("t2")["side"] == "a", got
+    S["t2"]["rate"], S["t2"]["rated"] = {"x": 1}, False  # parado a meio (sem vencedor): o fim do processo não conta
+    S["t3"] = {**S["t2"], "ended": False, "side_set": False, "winner": None, "side": None, "seq": 0}
+    p = subprocess.Popen([sys.executable, "-c", "pass"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    S["t3"]["p"] = p
+    _reader("t3", p)
+    assert len(got) == 1 and result("t3")["ended"] and result("t3")["side"] is None
+    ON_END = None
+    S.pop("t2", None), S.pop("t3", None)
     print("selfcheck ok")
 
 
