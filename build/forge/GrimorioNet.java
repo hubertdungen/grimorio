@@ -351,7 +351,15 @@ public class GrimorioNet {
                     if (d != null) x.addProperty("def", d.getId());
                     if (d instanceof CardView) x.addProperty("defc", ((CardView) d).getCurrentState().getName());  // ataca um planeswalker ou uma batalha
                     JsonArray bl = new JsonArray();
-                    if (cb.getBlockers(at) != null) for (CardView b : cb.getBlockers(at)) bl.add(b.getId());
+                    // a declarar bloqueadores, o CombatView só se atualiza no fim: os bloqueios vêm do combate a decorrer
+                    // (sem isto o bloqueio não aparecia e um segundo clique desfazia-o sem se ver)
+                    boolean live = false;
+                    try {
+                        forge.game.combat.Combat lc = game == null ? null : game.getCombat();
+                        forge.game.card.Card ac = lc == null ? null : game.findById(at.getId());
+                        if (ac != null && lc.isAttacking(ac)) { for (forge.game.card.Card b : lc.getBlockers(ac)) bl.add(b.getId()); live = true; }
+                    } catch (Exception e) { bl = new JsonArray(); }
+                    if (!live && cb.getBlockers(at) != null) for (CardView b : cb.getBlockers(at)) bl.add(b.getId());
                     x.add("blockers", bl);
                     ca.add(x);
                 }
@@ -397,6 +405,7 @@ public class GrimorioNet {
             if (x instanceof CardView) return ((CardView) x).getCurrentState().getName();
             if (x instanceof PlayerView) return ((PlayerView) x).getLobbyPlayerName();
             if (x instanceof SpellAbilityView) return ((SpellAbilityView) x).getDescription();
+            if (x instanceof StackItemView) return ((StackItemView) x).getText();  // alvo na pilha (Counterspell, Negate, Stifle…)
             return String.valueOf(x);
         }
 
@@ -407,6 +416,10 @@ public class GrimorioNet {
                 o.addProperty("label", display != null ? display.apply(x) : label(x));
                 if (x instanceof CardView) o.addProperty("card", ((CardView) x).getId());
                 if (x instanceof PlayerView) o.addProperty("player", ((PlayerView) x).getId());
+                if (x instanceof StackItemView && ((StackItemView) x).getSourceCard() != null) {  // a mesa mostra a carta do feitiço na pilha
+                    CardView sc = ((StackItemView) x).getSourceCard();
+                    o.addProperty("card", sc.getId()); o.addProperty("name", sc.getCurrentState().getName()); o.addProperty("stack", true);
+                }
                 a.add(o);
             }
             return a;
