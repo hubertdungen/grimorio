@@ -176,6 +176,14 @@ export function probeScryfall() {
   im.onload = () => end(true)
   im.onerror = () => end(false)
   im.src = `https://svgs.scryfall.io/card-symbols/W.svg?t=${Date.now()}`
+  // uma imagem da Scryfall que falha (o Cloudflare da Scryfall bloqueia às vezes a rede toda, mesmo com os símbolos a
+  // passar): tenta uma vez pelo Grimório, que tem as já vistas em cache
+  document.addEventListener('error', e => {
+    const t = e.target
+    if (t?.tagName !== 'IMG' || t.dataset.sf || !/^https:\/\/(cards|backs)\.scryfall\.io\//.test(t.src)) return
+    t.dataset.sf = '1'
+    t.src = t.src.replace(/^https:\/\/(cards|backs)\.scryfall\.io\//, '/sf/$1/')
+  }, true)
 }
 export const img = (c, size = 'normal', back = false, pid = null) => {
   if (pid?.startsWith('https:') || pid?.startsWith('arts/')) { if (!back) return pid; pid = null }  // imagem própria (site de origem ou carregada)
