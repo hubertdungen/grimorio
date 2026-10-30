@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Replay from './Board.jsx'
 import { tx } from './i18n.js'
+import { useBackClose } from './backnav.js'
 
 export default function LiveJob({ data, job, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [game, setGame] = useState(null), [gone, setGone] = useState(false)
   useEffect(() => {
     let off = false

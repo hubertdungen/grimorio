@@ -406,7 +406,7 @@ h2 .mana img { width: 20px; height: 20px; }
 .draft-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 3px; margin: 8px 0; }
 .draft-picks img { cursor: pointer; }
 @media (max-width: 900px) { .draft-grid { grid-template-columns: minmax(0, 1fr); } }
-.dgrid section { margin-bottom: 14px; }
+.dk-grid section { margin-bottom: 14px; }
 .dg-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .dg-tile { position: relative; display: grid; gap: 4px; }
 .dg-img { padding: 0; border: none; background: none; border-radius: 4.75% / 3.5%; overflow: hidden; aspect-ratio: 488 / 680; transition: transform .15s; }
@@ -1243,7 +1243,7 @@ img[src^="https://static.tappedout.net"] { aspect-ratio: 488 / 680; object-fit: 
 .row .mv { width: 26px; padding: 0; border: 1px solid transparent; background: none; color: var(--muted); font-size: 13px; text-align: center; appearance: none; cursor: pointer; flex: none; }
 .row:hover .mv, .row .mv:focus { border-color: var(--line); color: var(--text); }
 section.maybe { opacity: .85; }
-section.maybe h4 { border-top: 1px dashed var(--line); padding-top: 8px; }
+section.maybe .cat-tg { border-style: dashed; border-left-style: solid; }
 .dg-bar .dg-mv { padding: 2px 6px; font-size: 11px; color: var(--muted); }
 .rf-sum { margin: 6px 0; padding-left: 18px; }
 .rf-arts { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin: 6px 0 10px; }
@@ -2375,7 +2375,6 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .fp-hand .fp-card.play { box-shadow: 0 0 0 2px #4ade80, 0 0 14px #4ade8099; }  /* o Forge diz que dá para jogar agora */
 .fp-opt { position: relative; } .fp-ord { position: absolute; top: 6px; left: 6px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--gold); color: #111; font-size: 14px; box-shadow: 0 2px 6px #000a; }
 .fp-prompt kbd, .fp-reveal kbd { font: 600 10px/1 system-ui, sans-serif; padding: 2px 4px; margin-left: 4px; border-radius: 4px; border: 1px solid #ffffff40; opacity: .75; }
-.dgrid > .dg-basics { grid-column: 1 / -1; align-self: start; }  /* a barra dos básicos na grelha do deck: uma linha inteira */
 .pi-who { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 8px 0; }
 @media (prefers-reduced-motion: reduce) { .fp .pc-rot, .fp .pc .pc-f, .fp-card { animation: none !important; transition: none !important; } }
 @media (max-width: 900px) {  /* tablet ao alto e telemóvel: o painel lateral passa para baixo da mesa */
@@ -2576,7 +2575,6 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .dbox-top:has(.dbox-tro) .dbox-fmt { bottom: 33px; }
 .dbox-fmt { max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* secções da IA: o seletor ocupa uma linha inteira (na grelha esticava-se à altura das colunas) e dá para as remover */
-.dgrid > .seg.viewby { grid-column: 1 / -1; justify-self: start; align-self: start; height: auto; }
 .seg.viewby { display: inline-flex; flex-wrap: wrap; align-items: center; float: none; clear: both; }
 .seg.viewby .viewby-x { margin-left: 8px; padding: 2px 6px; background: none; border: 0; color: var(--muted); }
 .seg.viewby .viewby-x:hover { color: var(--bad, #ff6b6b); }
@@ -2923,3 +2921,42 @@ body:has(.fp.ml) .live-bar, body:has(.fp.ml) .live-bar-pad { display: none; }  /
 .plays-btn.dono { background: #a78bfa2e; border-color: #a78bfa88; color: #ede9fe; } .plays-btn.bot { background: #ffffff0d; }
 .room-pl li .plays-btn { padding: 1px 8px; font-size: 11px; } .room-pl li select.small { font-size: 11px; padding: 1px 4px; }
 .tc-wait select { margin-left: 4px; }
+
+/* Deck (lista, grelha e painel lateral): cada categoria abre com uma barra (▾ aberta, ▸ fechada) com o nº de cartas,
+   o custo médio e uma mini-curva; no painel lateral a barra fica presa no topo enquanto a categoria passa */
+.cat-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0; }
+.cat-tools .seg.viewby { margin: 0; } .fold-all { margin-left: auto; color: var(--muted); text-decoration: none; }
+.fold-all:hover { color: var(--gold2); }
+.cat-h { display: flex; align-items: center; gap: 8px; margin: 18px 0 6px; }
+.cat-tg { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 7px; border: 1px solid var(--line); border-left: 3px solid var(--gold); border-radius: 8px;
+  background: linear-gradient(90deg, rgba(242, 184, 75, .13), var(--bg2) 65%); color: var(--gold2); text-transform: inherit; letter-spacing: inherit; font-weight: inherit; text-align: left; }
+.cat-tg:hover { background: linear-gradient(90deg, rgba(242, 184, 75, .22), var(--panel2) 65%); border-color: #4a4272; border-left-color: var(--gold); }
+.cat-ch { font-style: normal; color: var(--gold); width: 12px; text-align: center; transition: transform .15s; }
+.cat-l { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cat-n { padding: 0 7px; border-radius: 99px; background: rgba(242, 184, 75, .18); color: var(--gold2); font-variant-numeric: tabular-nums; }
+.cat-mv { margin-left: auto; color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cat-cv { display: inline-flex; align-items: flex-end; gap: 1px; height: 14px; flex: none; }
+.cat-cv i { width: 3px; background: var(--gold); border-radius: 1px; opacity: .8; } .cat-cv i.z { opacity: .2; }
+.cat-note { color: var(--muted); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.cat-h.shut .cat-ch { transform: rotate(-90deg); }
+.cat-h.shut .cat-tg { background: var(--bg2); border-left-color: #6b5a33; color: var(--text); }
+.cat > ul, .cat > .dg-row { padding-left: 4px; }
+.deck-panel .cat-h { position: sticky; top: 0; z-index: 2; margin: 12px 0 4px; padding: 4px 0; background: var(--bg2); }
+@media (prefers-reduced-motion: reduce) { .cat-ch { transition: none; } }
+
+/* toque (tablet/telemóvel): alvos de 44 px no deck, nas cartas da pesquisa/sugestões e na Biblioteca; sem zoom de
+   duplo toque; o toque longo numa carta mostra-a (sem o menu do browser); o ⟲ da linha só funciona com rato */
+html { touch-action: manipulation; }
+.row-art, .dg-img img, .tile-img img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+@media (hover: none) { .row .peek-flip { display: none; } }
+@media (pointer: coarse) {
+  .cat-tg { min-height: 44px; } .fold-all { min-height: 44px; }
+  .deck .qty button, .deck-tab .deck-mobile .qty button { min-width: 44px; min-height: 44px; line-height: 42px; }
+  .row .mv { width: 44px; min-height: 44px; display: inline-grid; place-items: center; }
+  .deck-tab .deck-mobile .row-main .row-name { min-height: 44px; }
+  .dg-bar { gap: 4px; } .dg-bar button { min-height: 44px; min-width: 40px; flex: 1 1 40px; padding: 0 4px; } .dg-bar b { flex: none; } .dg-bar .dg-x { margin-left: 0; }
+  .act, .qmore, .tile-bar .act { min-height: 44px; }
+  .dbox .row-btns button, .basicbar button { min-height: 44px; }
+}
+@media (pointer: coarse) { .dk-grid .dg-row { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }  /* cartas largas o bastante para a barra caber em 2 linhas */
+@media (pointer: coarse) and (max-width: 520px) { .dk-grid .dg-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }  /* 2 cartas por linha: a barra de ações cabe em 2 linhas */

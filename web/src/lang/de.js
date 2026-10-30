@@ -3507,4 +3507,7 @@ export default {
   "jogado por pessoas: só fica o resultado": "von Menschen gespielt: nur das Ergebnis bleibt",
   "Quem aloja deu a partida ao bot.": "Der Gastgeber hat die Partie dem Bot gegeben.",
   "Ninguém apareceu a tempo: jogou o bot.": "Niemand ist rechtzeitig erschienen: Der Bot hat gespielt.",
+  "Abrir tudo": "Alle aufklappen",
+  "Fechar tudo": "Alle zuklappen",
+  "Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes": "Für später aufheben: bleibt außerhalb des Decks, der Statistiken und der Tests",
 }

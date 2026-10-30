@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { img, TAG_LABEL, sf } from './data.js'
 import { tx, num } from './i18n.js'
+import { pressPeek } from './deckview.js'
 import { pointStars, perfStars, trophyStars } from './trophyvalue.js'
 
 const sym = s => sf(`https://svgs.scryfall.io/card-symbols/${s.replace(/\//g, '')}.svg`)
@@ -52,7 +53,7 @@ export function Tags({ c, onTag }) {
 export function CardTile({ c, pid, onOpen, actions, note, children }) {
   return (
     <div className="tile">
-      <button className="tile-img" onClick={() => onOpen(c)} title={c.n}>
+      <button className="tile-img" onClick={() => onOpen(c)} title={c.n} {...pressPeek(c, pid)}>
         <img src={img(c, 'normal', false, pid)} alt={c.n} loading="lazy" />
       </button>
       <div className="tile-bar">
@@ -228,5 +229,29 @@ export function SrcFilter({ on, set, has }) {
       const a = on.includes(k)
       return <button key={k} className={a ? 'on' : ''} aria-pressed={a} disabled={has && !has.has(k)} onClick={() => set(a ? (on.length > 1 ? on.filter(x => x !== k) : on) : [...on, k])}>{l}</button>
     })}</span>
+  )
+}
+
+// «Abrir tudo» se houver alguma fechada, senão «Fechar tudo»
+export function FoldAll({ keys, f }) {
+  if (keys.length < 2) return null
+  const any = keys.some(f.shut)
+  return <button className="link small fold-all" onClick={() => f.all(keys, !any)}>{any ? `▾ ${tx('Abrir tudo')}` : `▸ ${tx('Fechar tudo')}`}</button>
+}
+// cabeçalho de uma categoria do deck: a barra inteira abre e fecha; nº de cartas, custo médio e mini-curva (sem os terrenos)
+export function CatHead({ label, cards, shut, onToggle, children }) {
+  const sp = cards.filter(([c]) => c && c.mt !== 'Land'), m = sp.reduce((s, [, q]) => s + q, 0)
+  const cv = Array(7).fill(0)
+  for (const [c, q] of sp) cv[Math.min(6, Math.floor(c.cmc || 0))] += q
+  const top = Math.max(...cv)
+  return (
+    <h4 className={`cat-h ${shut ? 'shut' : ''}`}>
+      <button className="cat-tg" aria-expanded={!shut} onClick={onToggle}>
+        <i className="cat-ch" aria-hidden="true">▾</i><span className="cat-l">{label}</span><b className="cat-n">{cards.reduce((s, [, q]) => s + q, 0)}</b>
+        {m > 0 && <span className="cat-mv" title={tx('Custo médio')}>⌀ {num(sp.reduce((s, [c, q]) => s + (c.cmc || 0) * q, 0) / m)}</span>}
+        {m > 0 && <span className="cat-cv" title={tx('Curva de mana')} aria-hidden="true">{cv.map((x, k) => <i key={k} style={{ height: `${Math.max(8, (x / top) * 100)}%` }} className={x ? '' : 'z'} />)}</span>}
+      </button>
+      {children}
+    </h4>
   )
 }

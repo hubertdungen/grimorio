@@ -12,6 +12,7 @@ import { BasicArtPicker, applyBasics } from './Basics.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 import { trophyValue, deckSplit, deckPoints, perfOf, trophyStars, pointStars } from './trophyvalue.js'
 import { SyncHint } from './Settings.jsx'
+import { useBackClose } from './backnav.js'
 
 const META_FMTS = ['commander', 'duel', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'premodern']
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
@@ -110,6 +111,7 @@ export const Ico = ({ n }) => <svg className="ico" viewBox="0 0 24 24" aria-hidd
 // Escolher a capa: popup com todas as cartas do deck (deck, sideboard, comandantes; terrenos no fim), pesquisa,
 // link ou imagem carregada. As artes próprias (TappedOut) vêm do deck completo.
 function CoverPicker({ d, data, setCover, setImg, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [full, setFull] = useState(null), [q, setQ] = useState(''), [link, setLink] = useState('')
   useEffect(() => { fetch(`/api/decks/${d.id}`).then(r => r.json()).then(setFull).catch(() => setFull({})) }, [d.id])
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])

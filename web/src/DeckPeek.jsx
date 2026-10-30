@@ -7,7 +7,8 @@ import { FORMAT } from './formats.js'
 import { Mana } from './ui.jsx'
 import { tx } from './i18n.js'
 import { loadDeck } from './peek.jsx'
-import { showCardPeek, hideCardPeek } from './Views.jsx'
+import { showCardPeek, hideCardPeek } from './deckview.js'
+import { useBackClose } from './backnav.js'
 
 const ORDER = ['Creature', 'Planeswalker', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Battle', 'Land']
 const groupsOf = (d, data) => {
@@ -37,6 +38,7 @@ export function PeekCard({ d, p, x, y, data }) {
 // de uma carta = a imagem ao lado; toque/clique = a imagem grande (no telemóvel não há rato). `extra` = o que vem de fora
 // (os troféus do deck, na galeria)
 export function DeckView({ p, data, onClose, onOpen, extra }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [d, setD] = useState(null), [zoom, setZoom] = useState(null)
   useEffect(() => { loadDeck(p).then(x => setD(x || { name: p.name, main: {} })) }, [p])
   useEffect(() => { const k = e => { if (e.key === 'Escape') { if (zoom) setZoom(null); else onClose() } }; addEventListener('keydown', k); return () => { removeEventListener('keydown', k); hideCardPeek() } }, [onClose, zoom])

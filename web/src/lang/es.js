@@ -3507,4 +3507,7 @@ export default {
   "jogado por pessoas: só fica o resultado": "jugado por personas: solo queda el resultado",
   "Quem aloja deu a partida ao bot.": "Quien aloja dio la partida al bot.",
   "Ninguém apareceu a tempo: jogou o bot.": "Nadie apareció a tiempo: jugó el bot.",
+  "Abrir tudo": "Abrir todo",
+  "Fechar tudo": "Cerrar todo",
+  "Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes": "Guardarla para decidir después: queda fuera del mazo, de las estadísticas y de las pruebas",
 }

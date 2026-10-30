@@ -3507,4 +3507,7 @@ export default {
   "jogado por pessoas: só fica o resultado": "由真人进行：只保留结果",
   "Quem aloja deu a partida ao bot.": "主持人把这场对局交给了机器人。",
   "Ninguém apareceu a tempo: jogou o bot.": "没有人按时出现：由机器人进行。",
+  "Abrir tudo": "全部展开",
+  "Fechar tudo": "全部收起",
+  "Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes": "留待以后决定：不计入卡组、统计和测试",
 }

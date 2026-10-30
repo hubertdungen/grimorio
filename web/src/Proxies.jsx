@@ -8,6 +8,7 @@ import { img, sf, recommend } from './data.js'
 import { exportList, proxyGroups } from './deck.js'
 import { PAPERS, UNITS, PRINT0, layout, guides, pageOps, pdf } from './printpdf.js'
 import { tx } from './i18n.js'
+import { useBackClose } from './backnav.js'
 
 const own = s => s && (s.startsWith('arts/') || s.startsWith('https:'))
 const urlOf = (g, size, back = false) => (back ? (g.c.df && !own(g.src) ? img(g.c, size, true, g.src) : null) : img(g.c, size, false, g.src))
@@ -78,6 +79,7 @@ const NUMW = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, 
 const madeBy = c => { const m = /\bcreates? (a|an|one|two|three|four|five|six|x|\d+)\b/i.exec(c?.o || ''); return m ? NUMW[m[1].toLowerCase()] || +m[1] || 1 : 1 }
 
 export default function ProxyDialog({ data, deck, ctx, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [side, setSide] = useState(true), [perCopy, setPerCopy] = useState(false)
   // extras: os tokens que as cartas do deck criam (Scryfall, pelo servidor) e as sugestões do Grimório para testar
   const [withTok, setWithTok] = useState(false), [toks, setToks] = useState(null), [tokErr, setTokErr] = useState('')

@@ -9,6 +9,7 @@ import { img, HUE, coverOf, colorsOf } from './data.js'
 import Replay from './Board.jsx'
 import { DIFF_INFO } from './difficulty.js'
 import { tx, LOCALE } from './i18n.js'
+import { useBackClose } from './backnav.js'
 
 const j = async (url, body) => {
   const r = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined)
@@ -75,6 +76,7 @@ function Row({ r, data, open, onOpen, showFmt, tro }) {
 
 // Ver ao vivo o jogo da Arena: lê o registo em curso do Forge (job.live) de 2 em 2 s e segue para o jogo seguinte
 function LiveArena({ data, a, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const id = a.cur?.job?.id
   const [game, setGame] = useState(null)
   useEffect(() => {

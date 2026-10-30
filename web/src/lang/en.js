@@ -3515,4 +3515,7 @@ export default {
   "jogado por pessoas: só fica o resultado": "played by people: only the result is kept",
   "Quem aloja deu a partida ao bot.": "The host gave the match to the bot.",
   "Ninguém apareceu a tempo: jogou o bot.": "Nobody showed up in time: the bot played.",
+  "Abrir tudo": "Expand all",
+  "Fechar tudo": "Collapse all",
+  "Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes": "Keep it to decide later: it stays out of the deck, the stats and the tests",
 }

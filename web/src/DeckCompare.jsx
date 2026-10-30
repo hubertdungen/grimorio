@@ -6,6 +6,7 @@ import { FORMAT } from './formats.js'
 import { img } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import { tx, num } from './i18n.js'
+import { useBackClose } from './backnav.js'
 
 const L = ['A', 'B', 'C', 'D']
 const ROUTE = { dmg: tx('dano'), psn: tx('veneno'), cmd: tx('comandante'), mill: tx('biblioteca'), alt: tx('vitória alternativa') }
@@ -83,6 +84,7 @@ function Why({ data, decks, st, rt }) {
 }
 
 export default function DeckCompare({ data, decks, onClose, onOpen, onFav, onDelete, rt = {}, trophies = null }) {  // rt: estrelas por chave; trophies(d): os troféus do deck
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [show, setShow] = useState('dif')  // dif | comum | todas
   const [lands, setLands] = useState(false)
   // artes próprias dos decks (vêm só no deck completo, não no resumo da Biblioteca)

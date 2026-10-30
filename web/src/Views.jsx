@@ -4,7 +4,8 @@ import { HATE, CAT_LABEL } from './tests.js'
 import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
-import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars } from './ui.jsx'
+import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll } from './ui.jsx'
+import { showCardPeek, hideCardPeek, pressPeek, useFolded } from './deckview.js'
 import { deckPoints, deckSplit, trophyStars, perfOf as troPerf } from './trophyvalue.js'
 import Map3D from './Map3D.jsx'
 import { autoBuild } from './autobuild.js'
@@ -17,6 +18,7 @@ import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPl
 import { hlProps, pin } from './hl.js'
 import { parseQuery } from './nlsearch.js'
 import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
+import { useBackClose } from './backnav.js'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -651,6 +653,7 @@ function LivePanel({ data, deck, fmt, ctx, act, onSwaps }) {
 
 // Completar deck: calcula, mostra agrupado com o porquê, e só aplica o que ficar marcado.
 export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, act }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const cmdIdx = useMemo(() => deck.commanders.map(n => data.byName.get(n)?.i).filter(x => x != null), [data, deck.commanders])
   const co = useEdhrec(data, cmdIdx, cmdIdx)
   const meta = useMeta(data, fmt)
@@ -760,50 +763,7 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
   )
 }
 
-let peek
 const hoverPeek = (c, pid) => ({ onMouseEnter: e => showCardPeek(e, c, pid), onMouseLeave: hideCardPeek })
-// ao lado da linha; num scroll (do rato ou do browser a reajustar a página) acompanha a linha enquanto o rato lá estiver
-const placePeek = (el, a) => {
-  const r = a.getBoundingClientRect()
-  el.style.top = `${Math.min(window.innerHeight - 350, Math.max(8, r.top - 120))}px`
-  el.style.left = `${Math.min(window.innerWidth - 250, r.right + 12)}px`
-}
-// cartas de duas faces: a imagem vira em 3D para a outra face passado 1 s (e com F ou o ⟲ da linha)
-let peekFlipT
-export const peekOpen = () => peek?.style.display === 'block'
-export function flipCardPeek() { clearTimeout(peekFlipT); if (peek?.dataset.df && peek.style.display === 'block') peek.classList.toggle('flipped') }  // virar à mão cancela o automático
-export function showCardPeek(e, c, pid) {
-  if (!matchMedia('(hover: hover)').matches) return
-  if (!peek) {
-    peek = document.body.appendChild(document.createElement('div')); peek.className = 'peek'
-    peek.innerHTML = '<div class="peek-in"><img class="pf" alt=""><img class="pb" alt=""></div>'
-  }
-  peek.querySelector('.pf').src = img(c, 'normal', false, pid)
-  peek.dataset.df = c.df ? '1' : ''
-  peek.querySelector('.pb').src = c.df ? img(c, 'normal', true, pid) : ''
-  peek.classList.remove('flipped')
-  clearTimeout(peekFlipT)
-  if (c.df) peekFlipT = setTimeout(flipCardPeek, 1000)
-  placePeek(peek, e.currentTarget)
-  peek.style.display = 'block'
-  watchPeek(peek, e.currentTarget)
-}
-// fecha-se se a linha por baixo desaparecer (ex.: «−» tirou a última cópia), se o rato sair dela ou a qualquer clique/tecla
-let peekAnchor, peekTimer
-const anchored = () => peekAnchor?.isConnected && (peekAnchor.matches(':hover') || !!peekAnchor.parentElement?.matches('.row:hover'))  // a linha inteira (o ⟲ incluído)
-function watchPeek(el, a) {
-  peekAnchor = a
-  if (!window.__peekGuard) {
-    window.__peekGuard = true
-    addEventListener('pointerdown', e => { if (!e.target.closest?.('.peek-flip')) hideCardPeek() }, true)
-    addEventListener('keydown', e => { if ((e.key === 'f' || e.key === 'F') && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { if (peek?.dataset.df && peek.style.display === 'block') { e.preventDefault(); clearTimeout(peekFlipT); flipCardPeek() } } else hideCardPeek() }, true)
-    addEventListener('scroll', () => { if (peek?.style.display === 'block') { if (anchored()) placePeek(peek, peekAnchor); else hideCardPeek() } }, true)
-  }
-  clearInterval(peekTimer)
-  peekTimer = setInterval(() => { if (!anchored()) { el.style.display = 'none'; clearInterval(peekTimer) } }, 250)
-}
-
-export function hideCardPeek() { clearTimeout(peekFlipT); if (peek) peek.style.display = 'none' }
 
 const inDeck = (deck, n) => (deck.main[n] || 0) + (deck.side[n] || 0) + (deck.commanders.includes(n) ? 1 : 0) + (deck.signature === n ? 1 : 0)
 
@@ -1567,6 +1527,7 @@ function Prints({ c, deck, act, onPreview }) {
 
 const CARD_BACK = sf('https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg')  // o verso comum das cartas (Scryfall)
 export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [back, setBack] = useState(false)  // flip 3D: a outra face (cartas de duas faces) ou o verso
   const [rot, setRot] = useState(0)  // virar ao contrário (180° de cada vez, animado)
   const [subs, setSubs] = useState(false)  // 🔁 substitutos desta carta neste deck (motor + IA)
@@ -1612,6 +1573,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
           <div className="row-btns">
             <button className="primary" onClick={() => act.add(c)}>+ Deck {inDeck(deck, c.n) ? `(${inDeck(deck, c.n)})` : ''}</button>
             {fmt.side > 0 && <button onClick={() => act.add(c, 'side')}>+ Sideboard</button>}
+            <button onClick={() => act.add(c, 'maybe')} title={tx('Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes')}>+ Maybeboard{deck.maybe?.[c.n] ? ` (${deck.maybe[c.n]})` : ''}</button>
             {fmt.cmd && canBeCommander(c, fmt) && <button onClick={() => act.setCommander(c)}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : tx('Comandante')}</button>}
             <button onClick={() => act.toggleSeed(c)}>{deck.seeds.includes(c.n) ? `★ ${tx('É semente')}` : `☆ ${tx('Semente')}`}</button>
             <button onClick={() => act.showOnMap(c)}>{tx('Ver no universo')}</button>
@@ -1726,6 +1688,7 @@ export function IASettings({ cfg, setCfg, onDone }) {
 }
 
 export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [cfg, setCfg] = useState(null)
   const [showSet, setShowSet] = useState(false)
   const [mode, setMode] = useState('sugerir')
@@ -1892,6 +1855,7 @@ const ZONE_T = { main: tx('Mover para o deck'), side: tx('Mover para o sideboard
 // Deck em grelha: imagens com quantidade, + / − / × (retirar tudo), por tipo ou pelas secções da IA.
 export function DeckGrid({ data, deck, fmt, act, ctx }) {
   const [bySec, setBySec] = useState(false)
+  const fold = useFolded()
   const secOf = new Map()
   if (bySec) for (const g of deck.groups || []) for (const n of g.cartas) if (!secOf.has(n)) secOf.set(n, g.nome)
   const zones = [['main', deck.main], ['side', deck.side]]
@@ -1899,10 +1863,12 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
   for (const [n, q] of Object.entries(deck.main)) {
     const c = data.byName.get(n)
     if (!c) continue
-    const g = bySec ? secOf.get(n) || tx('Outras') : TYPE_LABEL[c.mt] || c.mt
+    const g = bySec ? `ia:${secOf.get(n) || 'Outras'}` : c.mt  // as mesmas chaves da lista (App.jsx), para abrir/fechar em conjunto
     ;(groups[g] ||= []).push([c, q])
   }
-  const order = bySec ? [...(deck.groups || []).map(g => g.nome), tx('Outras')] : [...TYPES.map(t => TYPE_LABEL[t])]
+  const order = (bySec ? [...(deck.groups || []).map(g => `ia:${g.nome}`), 'ia:Outras'] : TYPES).filter((g, k, a) => groups[g] && a.indexOf(g) === k)
+  const label = g => (g === 'ia:Outras' ? tx('Outras') : g.startsWith('ia:') ? g.slice(3) : TYPE_LABEL[g] || g)
+  const zoneHead = (k, label, z, note) => <CatHead label={label} cards={Object.entries(z).map(([n, q]) => [data.byName.get(n), q])} shut={fold.shut(k)} onToggle={() => fold.toggle(k)}>{note}</CatHead>
   // cópias divididas por várias artes (terrenos básicos): um cartão por arte, com as suas cópias; as que sobram, com a principal
   const tile = ({ c, q, zone }) => {
     const sp = zone === 'main' && deck.split?.[c.n]
@@ -1914,7 +1880,7 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
   }
   const tile1 = ({ c, q, zone, pid, part, k = 0 }) => (  // função e não componente (ver o row do DeckPanel em App.jsx)
     <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}`} data-card={c.n}>
-      <button className="dg-img" onClick={() => act.open(c)} title={c.n}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
+      <button className="dg-img" onClick={() => act.open(c)} title={c.n} {...pressPeek(c, pid ?? pidOf(deck, c.n))}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
       {(part != null || q > 1) && <span className="dg-q" title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>×{part ?? q}</span>}
       <div className="dg-bar">
         <button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
@@ -1930,32 +1896,35 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
   const sum = z => Object.values(z).reduce((s, q) => s + q, 0)
   if (!sum(deck.main) && !cmd.length && !sum(deck.maybe || {})) return <Empty>{tx('O deck está vazio. Procura cartas, usa as sugestões ou o «Completar deck».')}</Empty>
   return (
-    <div className="dgrid">
+    <div className="dk-grid">
+      <div className="cat-tools">
       {deck.groups?.length > 0 && (
         <div className="seg viewby"><button className={!bySec ? 'on' : ''} onClick={() => setBySec(false)}><span>{tx('Por tipo')}</span></button><button className={bySec ? 'on' : ''} onClick={() => setBySec(true)}><span>{tx('Por secções (IA)')}</span></button><button className="link small viewby-x" onClick={() => { setBySec(false); act.clearGroups?.() }} title={tx('Apagar as secções da IA deste deck')}>✕ {tx('remover secções')}</button></div>
       )}
+      <FoldAll keys={[...order, ...(sum(deck.side) ? ['side'] : []), ...(sum(deck.maybe || {}) ? ['maybe'] : [])]} f={fold} />
+      </div>
       {cmd.length > 0 && (
         <section><h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</h4><div className="dg-row">{cmd.map(c => (
           <div key={c.i} className="dg-tile"><button className="dg-img" onClick={() => act.open(c)}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
             <div className="dg-bar"><button className="dg-x" onClick={() => act.setCommander(c)} title={tx('Retirar comandante')}>×</button></div></div>
         ))}</div></section>
       )}
-      {order.filter(g => groups[g]).map(g => (
-        <section key={g}>
-          <h4>{g} <span className="muted">{groups[g].reduce((s, [, q]) => s + q, 0)}</span></h4>
-          <div className="dg-row">{groups[g].sort((a, b) => a[0].cmc - b[0].cmc || a[0].n.localeCompare(b[0].n)).map(([c, q]) => tile({ c, q, zone: 'main' }))}</div>
+      {order.map(g => (
+        <section key={g} className="cat">
+          <CatHead label={label(g)} cards={groups[g]} shut={fold.shut(g)} onToggle={() => fold.toggle(g)} />
+          {!fold.shut(g) && <div className="dg-row">{groups[g].sort((a, b) => a[0].cmc - b[0].cmc || a[0].n.localeCompare(b[0].n)).map(([c, q]) => tile({ c, q, zone: 'main' }))}</div>}
         </section>
       ))}
       <section className="dg-basics"><h4>{tx('Terrenos básicos')}</h4><BasicBar {...{ data, deck, ctx, act }} /></section>
       {sum(zones[1][1]) > 0 && (
-        <section><h4>Sideboard <span className="muted">{sum(deck.side)}</span></h4><div className="dg-row">
+        <section className="cat">{zoneHead('side', 'Sideboard', deck.side)}{!fold.shut('side') && <div className="dg-row">
           {Object.keys(deck.side).map(n => data.byName.get(n)).filter(Boolean).map(c => tile({ c, q: deck.side[c.n], zone: 'side' }))}
-        </div></section>
+        </div>}</section>
       )}
       {sum(deck.maybe || {}) > 0 && (
-        <section className="maybe"><h4>Maybeboard <span className="muted">{sum(deck.maybe)} · {tx('fora do deck, das estatísticas e dos testes')}</span></h4><div className="dg-row">
+        <section className="cat maybe">{zoneHead('maybe', 'Maybeboard', deck.maybe, <small className="cat-note">{tx('fora do deck, das estatísticas e dos testes')}</small>)}{!fold.shut('maybe') && <div className="dg-row">
           {Object.keys(deck.maybe).map(n => data.byName.get(n)).filter(Boolean).map(c => tile({ c, q: deck.maybe[c.n], zone: 'maybe' }))}
-        </div></section>
+        </div>}</section>
       )}
     </div>
   )
@@ -2057,6 +2026,7 @@ function OwnArt({ c, deck, act }) {
 }
 
 export function ArtPicker({ c, deck, act, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [preview, setPreview] = useState(null)
   const [hoverPid, setHoverPid] = useState(null)
   const pid = hoverPid || preview || pidOf(deck, c.n)

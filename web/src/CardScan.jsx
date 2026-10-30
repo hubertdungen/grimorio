@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { buildIndex, matchName, setInfo } from './cardmatch.js'
 import { img } from './data.js'
 import { tx } from './i18n.js'
+import { useBackClose } from './backnav.js'
 
 let WORKER = null, IDX = null, onProg = null
 const worker = () => (WORKER ??= import('tesseract.js').then(({ createWorker }) => {
@@ -21,6 +22,7 @@ function cut(src, sx, sy, sw, sh, max = 1400, up = 1) {
 }
 
 export default function CardScan({ data, onPick, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const video = useRef(null), stream = useRef(null), guide = useRef(null), fileIn = useRef(null)
   const camOk = typeof window !== 'undefined' && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia
   const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches  // telemóvel/tablet: câmara em ecrã inteiro

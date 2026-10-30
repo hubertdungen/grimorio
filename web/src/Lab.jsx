@@ -2,7 +2,7 @@
 // aprendizagem pelo histórico, repetição animada e relatório.
 import { useEffect, useMemo, useState } from 'react'
 import { img, pidOf, recommend, sideSuggest, SIDE_CATS } from './data.js'
-import { showCardPeek, hideCardPeek } from './Views.jsx'
+import { showCardPeek, hideCardPeek } from './deckview.js'
 import { parseList, stats } from './deck.js'
 import { landAdvice, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
 import { Empty, Stars } from './ui.jsx'

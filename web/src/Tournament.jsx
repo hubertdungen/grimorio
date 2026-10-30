@@ -18,6 +18,7 @@ import { DeckView } from './DeckPeek.jsx'
 import { usePeek } from './peek.jsx'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
+import { useBackClose } from './backnav.js'
 
 const TYPES = {
   elim: [tx('Eliminação simples'), 4, 16, tx('Quem perde sai. Se o número de decks não for 4, 8 ou 16, os melhores seeds passam a 1.ª ronda sem jogar (isentos). Pode haver jogo de 3.º lugar entre os vencidos das meias-finais.')],
@@ -710,6 +711,7 @@ function Generator({ data, onCreated }) {
 
 // destaque de um deck no gerador: arte grande, de quem é, cores e dificuldade (rato por cima ou toque)
 function GenPeek({ data, p, r, diffs, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const c = data.byName.get(p.cover), W = 260, left = Math.max(8, Math.min(window.innerWidth - W - 8, r.left + r.width / 2 - W / 2))
   const below = r.bottom + 230 < window.innerHeight, d = diffs.find(x => x.id === p.difficulty)
   return (

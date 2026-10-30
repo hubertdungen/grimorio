@@ -10,8 +10,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList } from './data.js'
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
-import { Logo, Mana } from './ui.jsx'
-import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, showCardPeek, hideCardPeek, flipCardPeek, peekOpen, BasicBar } from './Views.jsx'
+import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
+import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar } from './Views.jsx'
+import { pushView, setOnView, useBackClose } from './backnav.js'
+import { showCardPeek, hideCardPeek, flipCardPeek, peekOpen, pressPeek, useFolded } from './deckview.js'
 import DraftView from './Draft.jsx'
 import NewDeckWizard from './Wizard.jsx'
 import LabView from './Lab.jsx'
@@ -397,6 +399,20 @@ export default function App() {
     dirty.current = false
     setDeckRaw({ ...emptyDeck(), ...d }); store.set('grimorio.deck', id); setSaveState('')
   }
+  // «Voltar» (backnav.js): cada mudança de área, separador, modo do Coliseu ou deck é um passo; o deck que acabou de ganhar
+  // id (1.ª gravação) ou o 1.º que carrega substituem o passo em vez de acrescentar
+  const view = JSON.stringify({ home, section, tab, colMode, deck: deck.id || null })
+  const prevView = useRef(null)
+  useEffect(() => {
+    const p = prevView.current && JSON.parse(prevView.current), v = JSON.parse(view)
+    prevView.current = view
+    pushView(view, !p || (!p.deck && JSON.stringify({ ...p, deck: v.deck }) === view))
+  }, [view])
+  useEffect(() => setOnView(s => {
+    const v = JSON.parse(s)
+    setHome(v.home); setSection(v.section); setTab(v.tab); setColMode(v.colMode)
+    if (v.deck && v.deck !== deck.id && !dirty.current) openDeck(v.deck).catch(() => {})  // com alterações por gravar fica o atual
+  }))
   const delDeck = async () => {
     if (!deck.id || !(await ask('apagar', { title: tx('Eliminar «{name}»?', { name: deck.name }), body: tx('Fica 30 dias no lixo da Biblioteca.'), ok: tx('Eliminar') }))) return
     await api(`/api/decks/${deck.id}`, { method: 'DELETE' })
@@ -521,6 +537,7 @@ export default function App() {
 function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist }) {
   const [viewBy, setViewBy] = useState(deck.groups?.length ? 'grupos' : 'tipo')
   const [proxies, setProxies] = useState(false)
+  const fold = useFolded()
   const bySec = viewBy === 'grupos' && deck.groups?.length
   const secOf = new Map()
   if (bySec) for (const g of deck.groups) for (const n of g.cartas) if (!secOf.has(n)) secOf.set(n, g.nome)
@@ -531,6 +548,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
     ;(groups[t] ||= []).push([n, q, c])
   }
   const order = bySec ? [...deck.groups.map(g => g.nome), 'Outras'].filter((t, k, a) => groups[t] && a.indexOf(t) === k) : [...TYPES, 'Desconhecidas'].filter(t => groups[t])
+  const fk = t => (bySec ? `ia:${t}` : t)  // chave da categoria fechada (as secções da IA à parte dos tipos)
   const [min, max] = fmt.size
   const copy = async () => {
     try { await navigator.clipboard.writeText(exportList(deck)); act.say(tx('Lista copiada.')) }
@@ -552,9 +570,9 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
         <b>{q}</b>
         <button onClick={() => c && act.add(c, zone, 1)} aria-label={tx('Mais')}>+</button>
       </span>
-      {c && <img className="row-art" src={img(c, 'art_crop', false, pidOf(deck, n))} alt="" loading="lazy" onClick={() => act.open(c)} />}
+      {c && <img className="row-art" src={img(c, 'art_crop', false, pidOf(deck, n))} alt="" loading="lazy" onClick={() => act.open(c)} {...pressPeek(c, pidOf(deck, n))} />}
       <span className="row-main">
-      <button className="row-name" onClick={() => c && act.open(c)} onMouseEnter={e => c && showCardPeek(e, c, pidOf(deck, n))} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.peek-flip')) hideCardPeek() }}>{n}</button>
+      <button className="row-name" onClick={() => c && act.open(c)} {...(c ? pressPeek(c, pidOf(deck, n)) : {})} onMouseEnter={e => c && showCardPeek(e, c, pidOf(deck, n))} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.peek-flip')) hideCardPeek() }}>{n}</button>
       {c?.df ? <button className="peek-flip" title={tx('Ver a outra face (ou tecla F com o rato na carta)')} aria-label={tx('Outra face de {c}', { c: n })} onMouseEnter={e => { if (!peekOpen()) showCardPeek(e, c, pidOf(deck, n)) }} onClick={e => { if (!peekOpen()) showCardPeek(e, c, pidOf(deck, n)); flipCardPeek() }} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.row-name')) hideCardPeek() }}>⟲</button> : null}
       {c && <Mana cost={c.mc} />}
       </span>
@@ -617,26 +635,29 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
         </section>
       )}
 
+      {order.length > 0 && <div className="cat-tools"><FoldAll keys={[...order.map(fk), ...(count(deck.side) ? ['side'] : []), ...(count(deck.maybe || {}) ? ['maybe'] : [])]} f={fold} /></div>}
       {order.map(t => (
-        <section key={t}>
-          <h4>{GROUP_L[t] || TYPE_LABEL[t] || t} <span className="muted">{groups[t].reduce((s, [, q]) => s + q, 0)}</span></h4>
-          {t === 'Land' && <BasicBar {...{ data, deck, ctx, act }} />}
-          <ul>{groups[t].sort((a, b) => (a[2]?.cmc ?? 0) - (b[2]?.cmc ?? 0) || a[0].localeCompare(b[0])).map(([n, q, c]) => row({ n, q, c, zone: 'main' }))}</ul>
+        <section key={t} className="cat">
+          <CatHead label={GROUP_L[t] || TYPE_LABEL[t] || t} cards={groups[t].map(([, q, c]) => [c, q])} shut={fold.shut(fk(t))} onToggle={() => fold.toggle(fk(t))} />
+          {!fold.shut(fk(t)) && <>
+            {t === 'Land' && <BasicBar {...{ data, deck, ctx, act }} />}
+            <ul>{groups[t].sort((a, b) => (a[2]?.cmc ?? 0) - (b[2]?.cmc ?? 0) || a[0].localeCompare(b[0])).map(([n, q, c]) => row({ n, q, c, zone: 'main' }))}</ul>
+          </>}
         </section>
       ))}
       {order.length > 0 && !groups.Land && <section><h4>{tx('Terrenos básicos')}</h4><BasicBar {...{ data, deck, ctx, act }} /></section>}
       {!order.length && <p className="muted small empty-hint">{tx('Deck vazio. Usa o')} <b>✦ {tx('Novo deck')}</b> {tx('(escolhe 3 a 10 cartas e o Grimório completa o resto), procura cartas, ou escolhe sementes em')} <b>{tx('Sugestões')}</b>.</p>}
 
       {count(deck.side) > 0 && (
-        <section>
-          <h4>Sideboard <span className="muted">{count(deck.side)}</span></h4>
-          <ul>{Object.entries(deck.side).map(([n, q]) => row({ n, q, c: data.byName.get(n), zone: 'side' }))}</ul>
+        <section className="cat">
+          <CatHead label="Sideboard" cards={Object.entries(deck.side).map(([n, q]) => [data.byName.get(n), q])} shut={fold.shut('side')} onToggle={() => fold.toggle('side')} />
+          {!fold.shut('side') && <ul>{Object.entries(deck.side).map(([n, q]) => row({ n, q, c: data.byName.get(n), zone: 'side' }))}</ul>}
         </section>
       )}
       {count(deck.maybe || {}) > 0 && (
-        <section className="maybe">
-          <h4>Maybeboard <span className="muted">{count(deck.maybe)} · {tx('fora do deck')}</span></h4>
-          <ul>{Object.entries(deck.maybe).map(([n, q]) => row({ n, q, c: data.byName.get(n), zone: 'maybe' }))}</ul>
+        <section className="cat maybe">
+          <CatHead label="Maybeboard" cards={Object.entries(deck.maybe).map(([n, q]) => [data.byName.get(n), q])} shut={fold.shut('maybe')} onToggle={() => fold.toggle('maybe')}><small className="cat-note">{tx('fora do deck')}</small></CatHead>
+          {!fold.shut('maybe') && <ul>{Object.entries(deck.maybe).map(([n, q]) => row({ n, q, c: data.byName.get(n), zone: 'maybe' }))}</ul>}
         </section>
       )}
 
@@ -657,6 +678,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
 // ⟳ Atualizar do site: volta a ler o deck pelo link de origem; traz as artes próprias (TappedOut), as edições
 // e a capa; a lista (deck, sideboard, maybeboard) só se for pedido.
 function RefreshDialog({ data, deck, setDeck, say, onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [url, setUrl] = useState(sourceOf(deck))
   const [got, setGot] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -714,6 +736,7 @@ function RefreshDialog({ data, deck, setDeck, say, onClose }) {
 }
 
 function ImportDialog({ data, deck, setDeck, say, onClose, onImported }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [text, setText] = useState('')
   const [url, setUrl] = useState('')
   const [info, setInfo] = useState(null)

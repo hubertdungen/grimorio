@@ -5,12 +5,14 @@ import { createPortal } from 'react-dom'
 import { KW, normKw, define } from './keywords.js'
 import { Syms } from './ui.jsx'
 import { tx } from './i18n.js'
+import { useBackClose } from './backnav.js'
 
 const Rules = lazy(() => import('./Rules.jsx'))
 const EN = new Set(KW.source.slice(3, -3).split('|').map(normKw))
 export default function KwPeek({ data }) {
   const [pt, setPt] = useState(null), [peek, setPeek] = useState(null), [full, setFull] = useState(null)
   const t = useRef(0), inBox = useRef(false)
+  useBackClose(!!full, () => setFull(null))  // «voltar» do telemóvel fecha as Regras
   useEffect(() => { fetch('/api/rules?terms=1').then(r => (r.ok ? r.json() : {})).then(d => setPt(new Set((d.pt || []).map(normKw)))).catch(() => setPt(new Set())) }, [])
   useEffect(() => {
     if (!pt) return

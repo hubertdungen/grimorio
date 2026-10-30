@@ -15,6 +15,7 @@ import { tx } from './i18n.js'
 import { play } from './sfx.js'
 import TableChat from './TableChat.jsx'
 import { usePen, PEN_COLS } from './tablepen.js'
+import { useBackClose } from './backnav.js'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -76,6 +77,7 @@ function line(e, who) {
 }
 
 function Help({ onClose }) {
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   return (
     <div className="fp-modal" onClick={onClose}><div className="fp-ask ml-help" onClick={e => e.stopPropagation()}>
       <h3>🃏 {tx('Mesa livre · sem regras')}</h3>

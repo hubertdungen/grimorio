@@ -7,6 +7,7 @@ import { emptyDeck } from './deck.js'
 import { PrefsPanel, IASettings } from './Views.jsx'
 import { Mana } from './ui.jsx'
 import { tx } from './i18n.js'
+import { useBackClose } from './backnav.js'
 
 const subset = (a, b) => [...a].every(k => b.includes(k))
 const KEY = 'grimorio.wizard'
@@ -25,6 +26,7 @@ function pairOk(a, b) {
 const START = [['cartas', tx('Escolher 3–10 cartas'), '▦'], ['manual', tx('Construir à mão'), '✎'], ['importar', tx('Importar e melhorar'), '⇩'], ['ia', tx('Descrever a ideia (IA)'), '✦']]
 
 export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImport }) {
+  useBackClose(true, onCancel)  // «voltar» do telemóvel fecha esta janela
   const [S0] = useState(load), cards = ns => (ns || []).map(n => data.byName.get(n)).filter(Boolean)
   const [start, setStart] = useState(S0.start || 'cartas')
   const [idea, setIdea] = useState(S0.idea || '')
