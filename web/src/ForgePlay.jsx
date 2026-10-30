@@ -8,6 +8,7 @@ import { Side, Hand, StackFx } from './Board.jsx'
 import { tx } from './i18n.js'
 import { Syms } from './ui.jsx'
 import { obviousPay } from './mana.js'
+import { useBackClose } from './backnav.js'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 
 async function j(url, body) {
@@ -205,6 +206,7 @@ export function BigCard({ name, data, onClose }) {
   const card = name && (data.byName.get(name) || data.byLower?.get(String(name).toLowerCase()))
   const ref = useRef(null), g = useRef({ pts: new Map(), s: 1, s0: 1, d0: 0, dy: 0, y0: 0, t0: 0, moved: 0, last: 0 })
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
+  useBackClose(true, onClose)  // «voltar» do telemóvel fecha a carta
   if (!card) return null
   const draw = () => { const x = g.current; if (ref.current) ref.current.style.transform = `translateY(${x.dy}px) scale(${x.s})` }
   const dist = () => { const [a, b] = [...g.current.pts.values()]; return Math.hypot(a.x - b.x, a.y - b.y) }
@@ -239,6 +241,7 @@ const abilityLabel = (l, name) => { const s = String(l || ''), p = `${name} - `,
 function Ask({ a, st, data, answer, zoom, payCancel }) {  // payCancel: o Forge está a meio de um pagamento (cancelá-lo desfaz tudo)
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
   const escRef = useRef(null)
+  useBackClose(a.kind === 'choose' && ((a.min === 0 && (a.max ?? 1) === 1) || !!payCancel), () => escRef.current?.())  // «voltar» = Cancelar, quando dá
   useEffect(() => { const k = e => { if (e.key === 'Escape' && escRef.current) { e.preventDefault(); escRef.current() } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
   const all = (st?.players || []).flatMap(p => [...(p.battlefield || []), ...(p.hand || []), ...(p.graveyard || []), ...(p.exile || [])])
   const cardOf = o => (o.card != null ? all.find(c => c.id === o.card) || { id: o.card, name: o.name || o.label } : null)  // name: feitiço na pilha (o label é o texto dele)
@@ -325,7 +328,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   const blocking = /Declare blockers|Select creatures to block/i.test(pr?.msg || '')  // o Forge pede os bloqueadores (cliques = bloquear)
   const ask = s?.asks?.[0]
   const hoverId = useRef(null), [flipped, setFlipped] = useState(() => new Set()), [lift, setLift] = useState(null)  // carta debaixo do rato; viradas; levantada na mão
+  // «voltar» do telemóvel: fecha primeiro o que está aberto por cima; com o jogo a decorrer nunca sai da mesa (avisa e fica)
+  const [guard, setGuard] = useState(true)
+  useBackClose(guard && !s?.ended, () => { setGuard(false); setTimeout(() => setGuard(true), 0); setToast({ title: tx('O jogo continua'), msg: tx('Para sair, usa «Parar o jogo» ou desiste no painel.') }) })
+  useBackClose(!!s?.ended, () => onClose?.())
   const [act, setAct] = useState(null)  // {id, x, y, lines}: confirmar ativar uma habilidade de uma permanente tua (um clique já não ativa às escondidas)
+  useBackClose(!!zone, () => setZone(null)); useBackClose(!!act, () => setAct(null))  // cemitério/exílio e o «Ativar …?»
   useEffect(() => { if (!/^Priority:/.test(pr?.msg || '')) setLift(null) }, [pr?.msg])  // o Forge pede uma escolha: a carta levantada desce (as escolhidas sobem com moldura)
   useEffect(() => {  // Enter/Espaço = o botão principal (passar ao passo seguinte), Shift+Enter = acabar o turno, Esc = o outro botão
     const k = e => {

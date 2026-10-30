@@ -3520,4 +3520,6 @@ export default {
   "Carrega OK até aparecer o pedido de bloqueadores; aí arrasta a tua criatura para o atacante (ou clica no atacante e depois nela).": "Pulsa OK hasta que se pidan bloqueadores; entonces arrastra tu criatura al atacante (o haz clic en el atacante y luego en ella).",
   "Ainda não é a altura de bloquear: para bloquear, carrega OK até o Forge pedir os bloqueadores.": "Aún no es momento de bloquear: para bloquear, pulsa OK hasta que Forge pida bloqueadores.",
   "Dois dedos ampliam · arrasta para baixo para fechar": "Dos dedos amplían · desliza hacia abajo para cerrar",
+  "O jogo continua": "La partida sigue",
+  "Para sair, usa «Parar o jogo» ou desiste no painel.": "Para salir, usa «Parar la partida» o ríndete en el panel.",
 }

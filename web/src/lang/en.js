@@ -3528,4 +3528,6 @@ export default {
   "Carrega OK até aparecer o pedido de bloqueadores; aí arrasta a tua criatura para o atacante (ou clica no atacante e depois nela).": "Press OK until you're asked for blockers; then drag your creature onto the attacker (or click the attacker, then your creature).",
   "Ainda não é a altura de bloquear: para bloquear, carrega OK até o Forge pedir os bloqueadores.": "It's not time to block yet: to block, press OK until Forge asks for blockers.",
   "Dois dedos ampliam · arrasta para baixo para fechar": "Pinch to zoom · swipe down to close",
+  "O jogo continua": "The game goes on",
+  "Para sair, usa «Parar o jogo» ou desiste no painel.": "To leave, use «Stop the game» or concede in the panel.",
 }

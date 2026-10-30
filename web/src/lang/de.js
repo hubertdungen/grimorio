@@ -3520,4 +3520,6 @@ export default {
   "Carrega OK até aparecer o pedido de bloqueadores; aí arrasta a tua criatura para o atacante (ou clica no atacante e depois nela).": "Drücke OK, bis nach Blockern gefragt wird; dann zieh deine Kreatur auf den Angreifer (oder klicke den Angreifer und dann sie an).",
   "Ainda não é a altura de bloquear: para bloquear, carrega OK até o Forge pedir os bloqueadores.": "Noch keine Zeit zum Blocken: Drücke OK, bis Forge nach Blockern fragt.",
   "Dois dedos ampliam · arrasta para baixo para fechar": "Mit zwei Fingern zoomen · nach unten wischen zum Schließen",
+  "O jogo continua": "Das Spiel läuft weiter",
+  "Para sair, usa «Parar o jogo» ou desiste no painel.": "Zum Verlassen nutze «Spiel beenden» oder gib im Panel auf.",
 }

@@ -3520,4 +3520,6 @@ export default {
   "Carrega OK até aparecer o pedido de bloqueadores; aí arrasta a tua criatura para o atacante (ou clica no atacante e depois nela).": "按 OK 直到要求宣告阻挡者；然后把你的生物拖到攻击者上（或先点攻击者再点它）。",
   "Ainda não é a altura de bloquear: para bloquear, carrega OK até o Forge pedir os bloqueadores.": "还不到阻挡的时候：要阻挡，请按 OK 直到 Forge 要求宣告阻挡者。",
   "Dois dedos ampliam · arrasta para baixo para fechar": "双指缩放 · 向下滑动关闭",
+  "O jogo continua": "对局继续",
+  "Para sair, usa «Parar o jogo» ou desiste no painel.": "要离开，请使用「停止对局」或在面板中认输。",
 }
