@@ -90,7 +90,9 @@ export function useOverlap(tableRef) {
       const cur = parseFloat(row.style.getPropertyValue('--ov')) || 0
       if (n < 2) { row.style.removeProperty('--ov'); continue }
       const span = kids[n - 1].offsetLeft + kids[n - 1].offsetWidth - kids[0].offsetLeft, natural = span - (n - 1) * cur
-      const room = row.clientWidth - 4
+      // as outras permanentes (artefactos, encantamentos, planeswalkers) medem-se pelo conteúdo: o espaço delas é até 60%
+      // da faixa de trás (medir a largura delas próprias encolhia-as de vez e o planeswalker ficava tapado pela saga)
+      const room = (row.matches('.brow.rear > .brow.others') ? row.parentElement.clientWidth * 0.6 : row.clientWidth) - 4
       const ov = natural > room ? Math.max(-kids[0].offsetWidth * 0.82, (room - natural) / (n - 1)) : 0
       if (Math.abs(ov - cur) > 0.5) row.style.setProperty('--ov', `${ov}px`)
     }
@@ -181,6 +183,25 @@ export function useFlip(box, seq, lay) {
   })
 }
 
+// cartas que mudam de zona sem passar pela tua mão ou pelo campo (reanimar, devolver do exílio, regrowth, o adversário
+// que joga da mão dele): o useFlip não as conhece no sítio antigo, por isso o voo parte do monte/mão de onde vieram.
+// at(): Map id -> {z, src (seletor do sítio onde a zona se vê), fly (o sítio novo é seguido pelo useFlip)}. Corre antes
+// do useFlip (chamar este primeiro).
+export function useZoneFlights(box, seq, at) {
+  const prev = useRef(new Map())
+  useLayoutEffect(() => {
+    const now = at(), pv = prev.current
+    prev.current = now
+    if (!pv.size || !box.current) return
+    for (const [id, w] of now) {
+      const o = pv.get(id)
+      if (!o || o.z === w.z || !w.fly || !o.src) continue
+      const el = box.current.querySelector(o.src)
+      if (el?.offsetWidth) flipFrom.set(String(id), el.getBoundingClientRect())
+    }
+  }, [seq]) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 // arrumação livre do teu lado: o centro da carta largada em (px, py) do ecrã, em px «lógicos» do teu lado e em fração
 // dele. Com grelha encaixa na casa livre mais perto (casas do tamanho da carta; as ocupadas por outras cartas saltam-se);
 // livre fica onde a largaste. Nunca por cima da tua barra (vida, mão, montes).
@@ -265,7 +286,7 @@ export function useTableDice(box, o = null) {
       const D = await import('./Dice3D.js')
       if (!box.current || tray.current) return tray.current
       const O = opt.current
-      tray.current = D.webglOk() ? D.createTray(box.current, { view: 13, colors: DICE_COL, words: [tx('Cara'), tx('Coroa')], onHit: a => play('diceHit', { amount: a }),
+      tray.current = D.webglOk() ? D.createTray(box.current, { view: 13, cloth: true, colors: DICE_COL, words: [tx('Cara'), tx('Coroa')], onHit: a => play('diceHit', { amount: a }),
         ...(O && { box: O.box, rot: O.rot || 0, onThrow: (types, thr) => opt.current?.onThrow?.(types, thr) }),
         onSettle: items => { setRes({ items }); play('tick', { amount: 1 }); if (items.some(x => x.type === 'moeda')) play('coin'); clearTimeout(clear.current); clear.current = setTimeout(() => { tray.current?.clear(); setRes(null) }, opt.current?.keep || 20000) } }) : 'flat'
     }

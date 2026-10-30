@@ -68,7 +68,7 @@ function meshOf(kind, colors, words, sw) {
 // box = [X, Z]: caixa fixa (mesa livre: igual em todos os ecrãs, para a mesma física dar o mesmo lançamento); rot: rodar a
 // vista (o adversário vê a mesa do lado dele); onThrow(types, {x, v}): agarrar e largar um dado não o lança já — pede o
 // lançamento (o servidor sorteia e devolve-o a todos) e o dado fica na mão até chegar
-export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSettle, view = VIEW, box = null, rot = 0, onThrow = null }) {  // view maior = dados mais pequenos
+export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSettle, view = VIEW, box = null, rot = 0, onThrow = null, cloth = false }) {  // cloth: o pano com aro onde os dados assentam (mesas do Forge Play e livre); view maior = dados mais pequenos
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.domElement.className = 'dc-gl'; el.appendChild(renderer.domElement)
@@ -78,6 +78,12 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
   sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 60 }); scene.add(sun)
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.ShadowMaterial({ opacity: 0.32 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor)
   const table = new THREE.Group(); table.rotation.y = rot; scene.add(table)
+  // o tabuleiro dos dados: um pano escuro com aro dourado do tamanho da caixa da física (onde os dados batem e assentam),
+  // só à vista enquanto há dados na mesa
+  const tray = new THREE.Group(), flat = g => { g.rotateX(-Math.PI / 2); return g }
+  tray.add(new THREE.Mesh(flat(new THREE.PlaneGeometry(1, 1)), new THREE.MeshBasicMaterial({ color: 0x0d1424, transparent: true, opacity: 0.22, depthWrite: false })))
+  const rim = new THREE.LineSegments(new THREE.EdgesGeometry(flat(new THREE.PlaneGeometry(1, 1))), new THREE.LineBasicMaterial({ color: 0xf2b84b, transparent: true, opacity: 0.5 })); rim.position.y = 0.01; tray.add(rim)
+  tray.visible = false; table.add(tray)
   let world = makeWorld(box ? { X: box[0], Z: box[1] } : {}), groups = [], meshes = [], raf = 0, X = box?.[0] ?? 6, Z = box?.[1] ?? 4, settled = true
   const ext = () => { const c = Math.abs(Math.cos(table.rotation.y)), s = Math.abs(Math.sin(table.rotation.y)); return [c * X + s * Z, s * X + c * Z] }  // meias-medidas da caixa no ecrã
 
@@ -89,6 +95,7 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
     camera.aspect = a; camera.position.set(0, dist, dist * 0.12); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix()
     renderer.setSize(w, h, false)
     if (!box) { X = halfH * a * 0.94; Z = halfH * 0.86; world.setBox(X, Z) }
+    tray.scale.set(2 * X, 1, 2 * Z)
     render()
   }
   const render = () => renderer.render(scene, camera)
@@ -111,7 +118,7 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
   const clear = () => {
     cancelAnimationFrame(raf)
     for (const { mesh } of meshes) { table.remove(mesh); mesh.geometry.dispose(); [].concat(mesh.material).forEach(m => { m.map?.dispose(); m.dispose() }) }
-    meshes = []; groups = []; world = makeWorld({ X, Z }); render()
+    meshes = []; groups = []; world = makeWorld({ X, Z }); tray.visible = false; render()
   }
   // want = [valor por tipo] (só dados de um corpo: d6, d20, moeda…): o lançamento corre primeiro sem desenhar com uma
   // semente, vê-se em que face cada dado cai e essa face troca de número com a pedida; depois corre a sério com a mesma
@@ -155,6 +162,7 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
       }
       groups.push(g)
     }
+    tray.visible = cloth
     kick()
   }
 

@@ -193,10 +193,14 @@ public class GrimorioNet {
         JsonObject card(CardView c, boolean hidden) {
             JsonObject o = new JsonObject();
             o.addProperty("id", c.getId());
-            if (hidden || c.isFaceDown() && !mayView(c)) { o.addProperty("hidden", true); return o; }
+            if (hidden) { o.addProperty("hidden", true); return o; }
             CardView.CardStateView s = c.getCurrentState();
-            o.addProperty("name", s.getName());
-            o.addProperty("set", s.getSetCode());
+            forge.game.card.Card rc = real.get(c.getId());  // a carta do jogo (só as do campo): o que a vista não diz
+            if (c.isFaceDown() && !mayView(c)) o.addProperty("hidden", true);  // morph/manifest/disfarce do adversário: sem nome, mas à vista (virada, 2/2, marcadores)
+            else if (c.isFaceDown()) {  // a tua virada para baixo: o nome verdadeiro (só tu o vês)
+                String n = rc != null ? rc.getState(forge.card.CardStateName.Original).getName() : c.getAlternateState() != null ? c.getAlternateState().getName() : s.getName();
+                o.addProperty("name", n);
+            } else { o.addProperty("name", s.getName()); o.addProperty("set", s.getSetCode()); }
             if (c.isTapped()) o.addProperty("tapped", true);
             if (c.isSick() && s.isCreature()) o.addProperty("sick", true);
             if (s.isCreature()) { JsonArray pt = new JsonArray(); pt.add(s.getPower()); pt.add(s.getToughness()); o.add("pt", pt); }
@@ -206,7 +210,16 @@ public class GrimorioNet {
             if (c.getDamage() > 0) o.addProperty("dmg", c.getDamage());
             if (c.isToken()) o.addProperty("token", true);
             if (c.isFaceDown()) o.addProperty("faceDown", true);
-            if (c.isFlipped() || c.getCurrentState().getState().toString().equals("Transformed")) o.addProperty("flipped", true);
+            String stn = s.getState().toString();  // a outra face à vista: transformada, flip (Kamigawa), MDFC jogada por trás, fundida
+            if (c.isFlipped() || stn.equals("Transformed") || stn.equals("Flipped") || stn.equals("Modal") || stn.equals("Meld")) o.addProperty("flipped", true);
+            if (rc != null) {
+                try {
+                    if (rc.isPhasedOut()) o.addProperty("phased", true);
+                    if (rc.isGoaded()) o.addProperty("goad", true);
+                    if (rc.getCopiedPermanent() != null || c.isCloned()) o.addProperty("copy", true);
+                    if (rc.getMergedCards() != null && rc.getMergedCards().size() > 1) { JsonArray m = new JsonArray(); for (forge.game.card.Card x : rc.getMergedCards()) m.add(x.getName()); o.add("merged", m); }
+                } catch (Exception e) { System.err.println("card: " + e); }
+            }
             if (c.getAttachedTo() != null) o.addProperty("attachedTo", c.getAttachedTo().getId());
             if (c.getController() != null) o.addProperty("ctrl", c.getController().getId());
             com.google.common.collect.Multiset<CounterType> ct = c.getCounters();
@@ -219,6 +232,22 @@ public class GrimorioNet {
             if (isHighlighted(c)) o.addProperty("picked", true);  // já escolhida nesta escolha (descartar 2, sacrificar…): o motor marca-a no ecrã
             if (playable.contains(c.getId())) o.addProperty("play", true);
             return o;
+        }
+
+        // zona de comando: emblemas e masmorras (com a sala atual); os efeitos internos do Forge (monarca, iniciativa…) ficam de fora
+        JsonArray command(PlayerView p) {
+            JsonArray a = new JsonArray();
+            if (p.getCommand() != null) for (CardView c : p.getCommand()) {
+                String room = c.getCurrentRoom();
+                if (!c.isEmblem() && room == null && !c.isCommander()) continue;
+                JsonObject o = new JsonObject();
+                o.addProperty("id", c.getId());
+                o.addProperty("name", c.getCurrentState().getName());
+                if (c.isEmblem()) o.addProperty("emblem", true);
+                if (room != null) o.addProperty("room", room);
+                a.add(o);
+            }
+            return a;
         }
 
         JsonArray cards(Iterable<CardView> cs, boolean hidden) {
@@ -253,10 +282,16 @@ public class GrimorioNet {
             return out;
         }
 
+        Map<Integer, forge.game.card.Card> real = new HashMap<>();  // id -> carta do jogo, no campo (fora de fase incluídas)
+
         void sendState() {
             GameView gv = getGameView();
             if (gv == null) return;
             playable = playableNow();
+            forge.game.Game game = HM == null ? null : HM.getGame();
+            Map<Integer, forge.game.card.Card> rm = new HashMap<>();
+            try { if (game != null) for (forge.game.card.Card x : game.getCardsIncludePhasingIn(ZoneType.Battlefield)) rm.put(x.getId(), x); } catch (Exception e) { System.err.println("real: " + e); }
+            real = rm;
             JsonObject o = new JsonObject();
             o.addProperty("t", "state");
             o.addProperty("turn", gv.getTurn());
@@ -281,11 +316,21 @@ public class GrimorioNet {
                 po.add("battlefield", cards(p.getBattlefield(), false));
                 po.add("graveyard", cards(p.getGraveyard(), false));
                 po.add("exile", cards(p.getExile(), false));
+                po.add("command", command(p));
+                forge.game.player.Player rp = null;
+                if (game != null) for (forge.game.player.Player x : game.getPlayers()) if (x.getId() == p.getId()) rp = x;
+                if (rp != null) try {  // designações: monarca, iniciativa, bênção da cidade, velocidade
+                    if (rp.isMonarch()) po.addProperty("monarch", true);
+                    if (rp.hasInitiative()) po.addProperty("initiative", true);
+                    if (rp.hasBlessing()) po.addProperty("blessing", true);
+                    if (!rp.noSpeed()) po.addProperty("speed", rp.getSpeed());
+                } catch (Exception e) { System.err.println("designações: " + e); }
                 com.google.common.collect.Multiset<CounterType> pc = p.getCounters();
                 if (pc != null && !pc.isEmpty()) { JsonObject co = new JsonObject(); for (CounterType t : pc.elementSet()) co.addProperty(t.getName(), pc.count(t)); po.add("counters", co); }
                 ps.add(po);
             }
             o.add("players", ps);
+            try { if (game != null && game.getDayTime() != null) o.addProperty("day", game.isDay() ? "day" : "night"); } catch (Exception e) { System.err.println("dia/noite: " + e); }
             JsonArray st = new JsonArray();
             for (StackItemView si : gv.getStack()) {
                 JsonObject so = new JsonObject();
@@ -304,6 +349,7 @@ public class GrimorioNet {
                     x.addProperty("att", at.getId());
                     GameEntityView d = cb.getDefender(at);
                     if (d != null) x.addProperty("def", d.getId());
+                    if (d instanceof CardView) x.addProperty("defc", ((CardView) d).getCurrentState().getName());  // ataca um planeswalker ou uma batalha
                     JsonArray bl = new JsonArray();
                     if (cb.getBlockers(at) != null) for (CardView b : cb.getBlockers(at)) bl.add(b.getId());
                     x.add("blockers", bl);

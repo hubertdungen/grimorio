@@ -7,7 +7,7 @@ import { img } from './data.js'
 import { Side, Hand, StackFx } from './Board.jsx'
 import { tx } from './i18n.js'
 import { Syms } from './ui.jsx'
-import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice } from './tablekit.js'
+import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -73,27 +73,33 @@ export function FCard({ c, data, onClick, h, cls = '', big, flip }) {
 
 // estado do Forge -> o formato do tabuleiro das repetições (Board.jsx), para a mesa ser igual à da arena: criaturas à
 // frente, terrenos (agrupados) e artefactos/encantamentos atrás, a vida no orbe, cemitério e exílio nas pilhas
-const CTR = { P1P1: '+1/+1', M1M1: '-1/-1', LOYALTY: 'loyalty', POISON: 'poison', ENERGY: 'energy' }
-const ctrs = o => Object.fromEntries(Object.entries(o || {}).map(([k, n]) => [CTR[k] || CTR[String(k).toUpperCase()] || k, n]))
+// marcadores do Forge pelo nome («+1/+1», «Loyalty», «Lore», «Poison»…) -> as chaves do tabuleiro (minúsculas)
+const CTR = { P1P1: '+1/+1', M1M1: '-1/-1' }
+const ctrs = o => Object.fromEntries(Object.entries(o || {}).map(([k, n]) => [CTR[k] || (/^[+-]/.test(k) ? k : String(k).toLowerCase()), n]))
 function toPerm(c, combat) {
   const counters = ctrs(c.counters)
   if (c.loyalty != null) counters.loyalty = c.loyalty
   const plus = (counters['+1/+1'] || 0) - (counters['-1/-1'] || 0)  // o Forge já soma os marcadores ao P/R; o tabuleiro volta a somá-los
+  const at = combat?.find(x => x.att === c.id)
   return {
     key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped,
     land: !!c.land, crewed: !!c.creature, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, damage: c.dmg || 0, counters,
-    pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined,
-    attacking: combat?.some(x => x.att === c.id) ? 'x' : undefined, blocking: combat?.some(x => x.blockers?.includes(c.id)) || undefined,
+    pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined, faceDown: !!c.faceDown, phased: !!c.phased, goaded: !!c.goad, copy: !!c.copy, merged: c.merged,
+    attacking: at ? 'x' : undefined, atkName: at?.defc, blocking: combat?.some(x => x.blockers?.includes(c.id)) || undefined,
   }
 }
 function zoneOf(p, combat) {
-  const pc = ctrs(p.counters)
+  const { poison = 0, energy = 0, ...pctr } = ctrs(p.counters), cz = p.command || []
   return {
     life: p.life, library: p.library, hand: p.hand?.length || 0, known: [], graveyard: (p.graveyard || []).map(c => c.name), exile: (p.exile || []).map(c => c.name),
-    command: [], cmdDmg: {}, poison: pc.poison || 0, energy: pc.energy || 0, emblems: [], out: false, perms: (p.battlefield || []).map(c => toPerm(c, combat)),
+    command: cz.filter(c => !c.emblem).map(c => ({ name: c.name, room: c.room, casts: 0 })), cmdDmg: {}, poison, energy, pctr, emblems: cz.filter(c => c.emblem).map(c => c.name),
+    monarch: !!p.monarch, initiative: !!p.initiative, blessing: !!p.blessing, speed: p.speed || 0, out: false, perms: (p.battlefield || []).map(c => toPerm(c, combat)),
   }
 }
 
+
+// dia/noite (daybound/nightbound): a pastilha troca com um meio giro quando muda
+export const DayNight = ({ v, onClick }) => <button type="button" key={v} className={`fp-day ${v}`} onClick={onClick} disabled={!onClick} title={v === 'day' ? tx('É dia (cartas daybound à vista)') : tx('É noite (cartas nightbound à vista)')}>{v === 'day' ? `☀ ${tx('dia')}` : `☾ ${tx('noite')}`}</button>
 
 // o registo do Forge (as últimas 40 entradas): «Ruin Crab (55)» passa a nome com o rato a mostrar a carta
 const NAME_END = /([A-Z][\w'’,-]*(?: (?:[A-Z][\w'’,-]*|of|the|to|and|in|from|for|with|a|an|on|at))*)$/
@@ -487,8 +493,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       const o = a.perms.get(id)?.c
       if (!o) continue
       if ((c.dmg || 0) > (o.dmg || 0)) pops.set(String(id), { i: seqKey, kind: 'dmg', n: -((c.dmg || 0) - (o.dmg || 0)) })
-      const dc = (ctrs(c.counters)['+1/+1'] || 0) - (ctrs(o.counters)['+1/+1'] || 0)
-      if (dc) pops.set(String(id), { i: seqKey, kind: 'ctr', n: dc })
+      // marcadores que mudaram (o último ganha: lealdade de um planeswalker ativado, +1/+1, capítulo de uma saga, defesa…)
+      const cn = { ...ctrs(c.counters), ...(c.loyalty != null && { loyalty: c.loyalty }) }, co = { ...ctrs(o.counters), ...(o.loyalty != null && { loyalty: o.loyalty }) }
+      for (const k of new Set([...Object.keys(cn), ...Object.keys(co)])) {
+        const d = (cn[k] || 0) - (co[k] || 0)
+        if (d) pops.set(String(id), { i: seqKey, kind: d < 0 && (k === 'loyalty' || k === 'defense') ? 'dmg' : 'ctr', n: d, ct: k })
+      }
+      if (!!c.flipped !== !!o.flipped || !!c.faceDown !== !!o.faceDown) pops.set(String(id), { i: seqKey, kind: 'flip' })  // transformar, virar para cima (morph)
     }
     for (const [id, x] of a.perms) if (!now.has(id) && !x.c.hidden) gone.push({ ...x, until: Date.now() + 700 })
     // a pilha do Forge vem do topo para baixo; o que saiu dela resolveu (ou foi contrariado): fantasma «A resolver»
@@ -508,6 +519,16 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   const P = fpPrefs()
   const stage = useStage(fitBox, stageWrap, !!st)
   useOverlap(fitTable)
+  // cartas que voltam do cemitério ou do exílio (reanimar, flashback de permanentes, exilar e devolver) e as que o adversário
+  // joga da mão: voam do monte/mão de onde vieram (a tua mão e o campo já voam sozinhos pelo id)
+  useZoneFlights(fitTable, seqKey, () => {
+    const m = new Map()
+    for (const p of st?.players || []) {
+      const side = `.bside.${p.id === me?.id ? 'bottom' : 'top'}`
+      for (const z of ['hand', 'graveyard', 'exile', 'battlefield']) for (const c of p[z] || []) m.set(c.id, { z, fly: z === 'battlefield' || (z === 'hand' && p.id === me?.id), src: z === 'hand' ? (p.id === me?.id ? null : `${side} .myhand`) : z === 'battlefield' ? null : `${side} [data-zone="${z}"]` })
+    }
+    return m
+  })
   useFlip(fitTable, seqKey, lay)
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const myTurn = st.active === me?.id
@@ -574,6 +595,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
           hand={nOpp > 0 && <Hand z={{ hand: nOpp, known: Array(nOpp).fill('?') }} data={data} exact opp hidden quiet />} />}
         <div className="fp-mid">
           <span className="fp-turn">{tx('Turno {n}', { n: st.turn })} · {myTurn ? tx('teu') : opp?.name}</span>
+          {st.day && <DayNight v={st.day} />}
           <span className="fp-phases">{PHASES.map(([k, l, ps]) => <i key={k} className={ps.includes(st.phase) ? 'on' : ''}>{l}</i>)}</span>
           <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={null} who={{ a: me?.name, b: opp?.name }} speed={1} />
         </div>
