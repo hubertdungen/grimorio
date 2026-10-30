@@ -5,10 +5,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Perm, Hud } from './Board.jsx'
-import { FCard } from './ForgePlay.jsx'
-import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice } from './tablekit.js'
+import { FCard, DayNight } from './ForgePlay.jsx'
+import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 import { fpPrefs, setFpPrefs } from './fpprefs.js'
-import { lookup, isCreature, isLand } from './game.js'
+import { lookup, isCreature, isLand, flipKind, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
 import { tx } from './i18n.js'
@@ -28,6 +28,8 @@ const FROM = { library: tx('da biblioteca'), hand: tx('da mão'), graveyard: tx(
 const TO = { library: tx('para o topo da biblioteca'), bottom: tx('para o fundo da biblioteca'), hand: tx('para a mão'), graveyard: tx('para o cemitério'), exile: tx('para o exílio'), command: tx('para a zona de comando'), battlefield: tx('para o campo') }
 const HELP_K = 'grimorio.mesalivre.ajuda'
 const short = n => String(n || '').split(' // ')[0]
+const DESIG = { monarch: ['♛', tx('Monarca')], initiative: ['⚑', tx('Iniciativa')], blessing: ['🏙', tx('Bênção da cidade')] }
+const MORE_CT = ['-1/-1', 'shield', 'stun', 'lore', 'time', 'defense', 'oil', 'charge', 'level']  // marcadores do submenu
 const lsGet = k => { try { return localStorage.getItem(k) } catch { return null } }
 const lsSet = (k, v) => { try { localStorage.setItem(k, v) } catch { /* sem armazenamento */ } }
 
@@ -62,6 +64,12 @@ function line(e, who) {
     case 'result': return e.p == null ? tx('Resultado: empate') : tx('Resultado: ganhou {T} 🏆', { T })
     case 'newturn': return tx('{P} começa o turno: desvira tudo e compra {n}', { P, n: e.n })
     case 'newgame': return tx('{P} recomeça o jogo com o mesmo deck', { P })
+    case 'energy': return tx('{T}: energia {v} ({d})', { T, v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
+    case 'cmdmg': return tx('{T}: dano de comandante de {c} {v}/21 ({d})', { T, c, v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
+    case 'mark': return e.on ? tx('{T} fica com: {x}', { T, x: DESIG[e.mk]?.[1] || e.mk }) : tx('{T} deixa de ter: {x}', { T, x: DESIG[e.mk]?.[1] || e.mk })
+    case 'day': return e.v === 'day' ? tx('{P}: passa a ser dia', { P }) : e.v === 'night' ? tx('{P}: passa a ser noite', { P }) : tx('{P}: nem dia nem noite', { P })
+    case 'phase': return e.out ? tx('{P}: {c} sai de fase', { P, c: c || tx('uma carta') }) : tx('{P}: {c} volta à fase', { P, c: c || tx('uma carta') })
+    case 'attach': return tx('{P} prende {c} a {T}', { P, c: c || tx('uma carta'), T: short(e.to) || tx('uma carta virada para baixo') })
     case 'gf': return tx('Adversário imaginário: vida {v} ({d})', { v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
     default: return e.k
   }
@@ -79,7 +87,8 @@ function Help({ onClose }) {
         <li><b>{tx('Atacar')}</b> — {tx('arrasta a tua criatura para o lado do adversário: fica virada e a atacar.')}</li>
         <li><b>{tx('Cemitério, exílio, mão, biblioteca')}</b> — {tx('arrasta a carta para o monte, ou usa o menu da carta (clique direito; no telemóvel, tocar e manter).')}</li>
         <li><b>{tx('Marcadores, virar para baixo, transformar, revelar')}</b> — {tx('no menu da carta.')}</li>
-        <li><b>{tx('Vida e veneno')}</b> — {tx('toca no círculo da vida de qualquer jogador.')}</li>
+        <li><b>{tx('Auras e equipamentos')}</b> — {tx('larga-os em cima da carta (ou «Prender a…» no menu): ficam presos a ela e saem soltos se ela sair.')}</li>
+        <li><b>{tx('Vida, veneno, energia, dano de comandante')}</b> — {tx('toca no círculo da vida de qualquer jogador; aí também o monarca, a iniciativa e a bênção da cidade.')}</li>
         <li><b>{tx('Dados e moeda')}</b> — {tx('no painel, ou agarra um dado na mesa e atira-o: todos veem o mesmo lançamento e o mesmo resultado.')}</li>
         <li><b>{tx('Caneta')}</b> — {tx('✏️ ou P: desenha na mesa para mostrar algo; os outros veem o risco ao vivo e ele apaga-se sozinho.')}</li>
         <li><b>{tx('Conversa')}</b> — {tx('as jogadas e as mensagens juntas; escreve @ para mostrar uma carta e # para uma regra.')}</li>
@@ -99,6 +108,7 @@ export default function FreeTable({ id, data, onClose }) {
   const [phone, setPhone] = useState(() => matchMedia('(max-width: 900px)').matches)
   useEffect(() => { const q = matchMedia('(max-width: 900px)'), f = () => setPhone(q.matches); q.addEventListener('change', f); return () => q.removeEventListener('change', f) }, [])
   const [nDraw, setNDraw] = useState(1), [nPeek, setNPeek] = useState(3), [tok, setTok] = useState('')
+  const [pickAt, setPickAt] = useState(null)  // «prender a…»: a carta que espera o clique na carta de destino
   useEffect(() => {  // espera longa: o servidor responde quando alguém mexe (ou ao fim de 25 s)
     let live = true, since = 0
     ;(async () => {
@@ -133,6 +143,28 @@ export default function FreeTable({ id, data, onClose }) {
     setLifeFx({ p: keyOf(i), d: now[i] - pv[i] })
     const t = setTimeout(() => setLifeFx(null), 1200); return () => clearTimeout(t)
   }, [lives]) // eslint-disable-line react-hooks/exhaustive-deps
+  // o que mudou nas cartas do campo (marcadores, transformar/virar) e no veneno: os mesmos números a saltar da arena
+  const prevC = useRef(null), [pops, setPops] = useState(() => new Map()), [psnFx, setPsnFx] = useState(null)
+  useEffect(() => {
+    if (!s) return
+    const now = new Map(), out = new Map()
+    s.seats.forEach(v => v.battlefield.forEach(c => now.set(c.id, c)))
+    const pv = prevC.current
+    prevC.current = { cards: now, psn: s.seats.map(v => v.poison) }
+    if (!pv) return
+    for (const [id, c] of now) {
+      const o = pv.cards.get(id)
+      if (!o) continue
+      for (const k of new Set([...Object.keys(c.k || {}), ...Object.keys(o.k || {})])) {
+        const d = (c.k?.[k] || 0) - (o.k?.[k] || 0)
+        if (d) out.set(String(id), { i: s.seq, kind: d < 0 && (k === 'loyalty' || k === 'defense') ? 'dmg' : 'ctr', n: d, ct: k })
+      }
+      if (!!c.f !== !!o.f || !!c.d !== !!o.d) out.set(String(id), { i: s.seq, kind: 'flip' })
+    }
+    const pi = s.seats.findIndex((v, i) => v.poison > (pv.psn[i] ?? v.poison))
+    if (pi >= 0) { setPsnFx({ p: keyOf(pi) }); setTimeout(() => setPsnFx(null), 1200) }
+    if (out.size) { setPops(out); const t = setTimeout(() => setPops(new Map()), 1200); return () => clearTimeout(t) }
+  }, [s?.seq]) // eslint-disable-line react-hooks/exhaustive-deps
   // dados: o servidor sorteia; cada ecrã lança os dados 3D que assentam nesses valores
   // agarrar um dado e largá-lo pede ao servidor um lançamento com esse gesto; todos veem o mesmo, cada um do seu lado
   const throwDice = (types, thr) => j(`/api/freetables/${id}${seatQ('?')}`, { c: 'dice', types, thr }).then(r => setS(x => (!x || r.seq >= x.seq ? r : x)))
@@ -147,6 +179,13 @@ export default function FreeTable({ id, data, onClose }) {
   const stage = useStage(fitBox, stageWrap, !!s, phone ? 62 : true)  // telemóvel: a barra das ações fica fixa em baixo
   const penLayer = useRef(null), pen = usePen({ table: fitTable, layer: penLayer, me, flip: me !== 0, send, chunks: s?.pen })
   useOverlap(fitTable)
+  // cartas que vêm do cemitério/exílio (reanimar, devolver) ou da mão de outro jogador: voam do monte para o campo
+  useZoneFlights(fitTable, `${s?.seq}|${ver}`, () => {
+    const m = new Map()
+    seats.forEach((v, i) => ['hand', 'graveyard', 'exile', 'battlefield'].forEach(z => (v[z] || []).forEach(c => m.set(c.id, {
+      z, fly: z === 'battlefield' || (z === 'hand' && i === me), src: z === 'hand' ? (i === me ? null : `.bside[data-seat="${i}"] .fp-hand`) : z === 'battlefield' ? null : `.bside[data-seat="${i}"] [data-zone="${z}"]` }))))
+    return m
+  })
   useFlip(fitTable, `${s?.seq}|${ver}`)
   const [, redraw] = useState(0)
   const P = fpPrefs()
@@ -156,7 +195,8 @@ export default function FreeTable({ id, data, onClose }) {
   const mv = (cid, to, extra) => send({ c: 'move', id: cid, to, ...extra })
   const toField = (cid, extra) => { const e = byId.get(cid), w = spot(e?.c); return mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me, ...extra }) }
   const tap = cid => { play('tick', { amount: 1 }); send({ c: 'tap', id: cid }) }
-  const turnOver = cid => { const e = byId.get(cid), cd = e && lookup(data, e.c.n); return send(cd?.df ? { c: 'flip', id: cid } : { c: 'face', id: cid }) }  // F: transformar (duas faces) ou virar para baixo
+  const turnOver = cid => { const e = byId.get(cid), cd = e && lookup(data, e.c.n); return send(flipKind(cd) ? { c: 'flip', id: cid } : { c: 'face', id: cid }) }  // F: transformar (duas faces / carta flip) ou virar para baixo
+  const attach = (cid, to) => { play('tick', { amount: 1 }); return send({ c: 'attach', id: cid, to }) }
 
   // ---------- arrastar ----------
   const preview = m => {  // enquanto arrastas por cima do teu lado: a casa onde a carta vai ficar
@@ -182,6 +222,12 @@ export default function FreeTable({ id, data, onClose }) {
       mv(cid, 'hand'); return true
     }
     const field = target.closest('.ml-field'), seat = field && +field.dataset.seat
+    // aura, equipamento, fortificação (não é criatura) largada em cima de uma carta do campo: fica presa a ela
+    const host = target.closest('.ml-field .pc[data-z^="k:"]'), hid = host && +host.dataset.z.slice(2)
+    if (host && hid !== cid && e?.c.n && !isCreature(data, { name: e.c.n }) && !isLand(data, { name: e.c.n })) {
+      if (from === 'field') { attach(cid, hid); return true }
+      const w = spot(e.c); mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me }).then(() => attach(cid, hid)); return true
+    }
     if (field && seat === me) {
       const w = spot(e?.c, x, y)
       if (from === 'field') {  // no teu lado: muda de sítio já no ecrã (o servidor confirma a seguir)
@@ -215,25 +261,29 @@ export default function FreeTable({ id, data, onClose }) {
   const others = Array.from({ length: n - 1 }, (_, k) => (me + 1 + k) % n)
   const fx = { hl: new Set(), par: 0, pops: new Map(), life: lifeFx, player: null }
   const hs = { active: keyOf(s.active), exact: true, i: s.seq, sides: [] }
-  const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: {}, poison: v.poison, energy: 0, emblems: [], out: false, perms: [] })
+  const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: v.cd || {}, poison: v.poison, energy: v.energy || 0, emblems: [], out: false, perms: [],
+    monarch: v.mk?.includes('monarch'), initiative: v.mk?.includes('initiative'), blessing: v.mk?.includes('blessing') })
   const handOf = v => (handOrder ? [...v.hand].sort((a, b) => { const i = handOrder.indexOf(String(a.id)), k = handOrder.indexOf(String(b.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : v.hand)
-  const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined })
+  const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph })
+  const onField = new Set(seats.flatMap(v => v.battlefield.map(c => c.id)))
+  const attOf = new Map()  // carta -> as que estão presas a ela
+  for (const v of seats) for (const c of v.battlefield) if (c.at != null && onField.has(c.at)) attOf.set(c.at, [...(attOf.get(c.at) || []), permOf(c)])
   const side = (i, top, compact) => {
     const v = seats[i], k = keyOf(i), isMe = i === me
     const cmd = v.command.length > 0 && <div className="ml-cmd" title={tx('Zona de comando')}>{v.command.map(c => (
-      <span key={c.id} className="ml-cz" {...(isMe ? { 'data-h': c.id, 'data-from': 'command' } : { 'data-zid': c.id })}><FCard c={{ id: c.id, name: c.n }} data={data} /></span>))}</div>
+      <span key={c.id} className="ml-cz" {...(isMe ? { 'data-h': c.id, 'data-from': 'command' } : { 'data-zid': c.id })}><FCard c={{ id: c.id, name: c.n }} data={data} />{c.cc > 0 && <b className="ml-tax" title={tx('Imposto de comandante: lançado {n}× da zona de comando, custa mais {x}', { n: c.cc, x: 2 * c.cc })}>+{2 * c.cc}</b>}</span>))}</div>
     const hand = isMe
       ? <div className="fp-hand mine">{handOf(v).map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} h={c.id} data={data} big cls={`${c.r ? 'ml-rev' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>
       : <div className="fp-hand opp" title={tx('{n} carta na mão|{n} cartas na mão', { n: v.hand.length })}>{v.hand.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n, hidden: !c.n }} data={data} cls={c.n ? 'ml-rev' : ''} />)}</div>
-    const hud = <Hud k={k} z={zOf(v)} name={`${v.name}${v.out ? ' 🏳' : ''}`} fmt={FORMAT[v.format]?.name || null} s={hs} data={data} fx={fx} fast={false} start={v.life > 20 ? 40 : 20}
+    const hud = <Hud k={k} z={zOf(v)} name={`${v.name}${v.out ? ' 🏳' : ''}`} fmt={FORMAT[v.format]?.name || null} s={hs} data={data} fx={{ ...fx, player: psnFx?.p === k ? { p: k, psn: true } : null }} fast={false} start={v.life > 20 ? 40 : 20}
       openZone={() => {}} top={top} hand={<>{cmd}{hand}</>} openLib={isMe ? () => send({ c: 'draw', n: 1 }) : null} />
     const field = (
       <div className={`ml-field ${top ? 'mirror' : ''}`} data-seat={i}>
-        {v.battlefield.map(c => {
+        {v.battlefield.filter(c => !(c.at != null && onField.has(c.at))).map(c => {
           const left = top ? 1 - (c.x ?? 0.5) : c.x ?? 0.5, tp = top ? 1 - (c.y ?? 0.5) : c.y ?? 0.5
           return (
-            <div key={c.id} className={`bfree-c ${kindOf(c)} ${c.d ? 'ml-down' : ''}`} style={{ left: `${left * 100}%`, top: `${tp * 100}%` }}>
-              <Perm p={permOf(c)} data={data} hl={0} pop={null} n={0} quiet={false} tgt={c.atk != null ? [keyOf(c.atk), short(who(c.atk))] : null} />
+            <div key={c.id} className={`bfree-c ${kindOf(c)} ${pickAt != null && pickAt !== c.id ? 'ml-pick' : ''}`} style={{ left: `${left * 100}%`, top: `${tp * 100}%` }}>
+              <Perm p={permOf(c)} data={data} hl={0} pop={pops.get(String(c.id)) || null} att={attOf.get(c.id)} n={0} quiet={false} tgt={c.atk != null ? [keyOf(c.atk), short(who(c.atk))] : null} />
             </div>)
         })}
         {!v.battlefield.length && isMe && <span className="ml-empty">{tx('o teu lado da mesa: arrasta para aqui as cartas da mão')}</span>}
@@ -253,6 +303,7 @@ export default function FreeTable({ id, data, onClose }) {
     const h = e.target.closest('[data-h]')
     if (h) { const cid = +h.dataset.h; setLift(l => (l === cid ? null : cid)); setZoom(byId.get(cid)?.c.n || null); return }
     const pc = e.target.closest('.pc[data-z^="k:"]')
+    if (pickAt != null) { const to = pc && +pc.dataset.z.slice(2); if (to != null && to !== pickAt) attach(pickAt, to); setPickAt(null); return }
     if (pc) { const cid = +pc.dataset.z.slice(2); if (pc.closest('.bside')?.dataset.seat === String(me)) tap(cid); else setZoom(byId.get(cid)?.c.n || null); return }
     const orb = e.target.closest('.orb')
     if (orb) { const r = orb.getBoundingClientRect(); setMenu({ life: +orb.closest('.bside').dataset.seat, x: r.right, y: r.top }) }
@@ -263,14 +314,14 @@ export default function FreeTable({ id, data, onClose }) {
     setLift(null); play('tick', { amount: 1 }); toField(+h.dataset.h)
   }
   const onCtx = e => {
-    const el = e.target.closest('[data-h], .pc[data-z^="k:"], [data-zid]')
+    const el = e.target.closest('[data-h], .pc-attc[data-z], .pc[data-z^="k:"], [data-zid]')
     if (!el) return
     e.preventDefault()
     openMenu(+(el.dataset.h || el.dataset.zid || el.dataset.z.slice(2)), e.clientX, e.clientY)
   }
   const onOver = e => {
-    peek.over(e.target.closest('.fp-table .pc[data-z^="k:"]'))
-    const el = e.target.closest('[data-h], [data-zid], .pc[data-z^="k:"]')
+    peek.over(e.target.closest('.fp-table .pc-attc[data-z], .fp-table .pc[data-z^="k:"]'))
+    const el = e.target.closest('[data-h], [data-zid], .pc-attc[data-z], .pc[data-z^="k:"]')
     const cid = el ? +(el.dataset.h || el.dataset.zid || el.dataset.z.slice(2)) : null
     hoverId.current = cid
     const c = cid != null && byId.get(cid)?.c
@@ -288,6 +339,8 @@ export default function FreeTable({ id, data, onClose }) {
     if (menu.more) return [
       [P.persp ? tx('▭ Mesa sem perspetiva') : tx('⏢ Lado dos outros em perspetiva'), () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }],
       ['❓ ' + tx('Como se joga aqui'), () => setHelp(true)],
+      [s.day === 'day' ? '☾ ' + tx('Passar a noite') : '☀ ' + tx('Passar a dia'), () => send({ c: 'day' })],
+      ...(s.day ? [['◌ ' + tx('Tirar o dia/noite'), () => send({ c: 'day', v: null })]] : []),
       ...(s.solo && !ended ? [['⟲ ' + tx('Novo jogo com o mesmo deck'), async () => { if (await ask('mesalivre-novo', { title: tx('Recomeçar com o mesmo deck?'), body: tx('Todas as cartas voltam à biblioteca, baralhas e compras 7; a vida e o turno recomeçam.'), ok: tx('Recomeçar'), danger: false })) send({ c: 'newgame' }) }]] : []),
       ...(!s.solo && !ended ? [['🏆 ' + tx('Ganhei este jogo'), () => send({ c: 'result', w: me })], ...others.map(i => ['🏆 ' + tx('Ganhou {p}', { p: who(i) }), () => send({ c: 'result', w: i })]), ['🤝 ' + tx('Empate'), () => send({ c: 'result', w: null })]] : []),
       ...(!s.solo && !mine?.out && !ended ? [['🏳 ' + tx('Desistir'), async () => { if (await ask('mesalivre-desistir', { title: tx('Desistir deste jogo?'), ok: tx('Desistir') })) send({ c: 'concede' }) }]] : []),
@@ -295,8 +348,17 @@ export default function FreeTable({ id, data, onClose }) {
       ...(onClose ? [['← ' + tx('Sair da mesa'), onClose]] : []),
     ]
     if (menu.life != null) {
-      const i = menu.life, L = d => () => send({ c: 'life', seat: i, d }), Ps = d => () => send({ c: 'poison', seat: i, d })
-      return [[tx('Vida de {p}: {v}', { p: who(i), v: seats[i].life }), null], ['−5', L(-5)], ['−1', L(-1)], ['+1', L(1)], ['+5', L(5)], [tx('☠ veneno {v}', { v: seats[i].poison }), null], ['☠ −1', Ps(-1)], ['☠ +1', Ps(1)]]
+      const i = menu.life, v = seats[i], L = (c, d, x) => () => send({ c, seat: i, d, ...x }), pm = (c, x) => [['−1', L(c, -1, x)], ['+1', L(c, 1, x)]]
+      // comandantes dos outros (zona de comando ou campo): o dano de cada um conta à parte
+      const cmdrs = [...new Set(seats.flatMap((w, j) => (j === i ? [] : [...w.command, ...w.battlefield].filter(c => c.cm && c.n).map(c => c.n))))]
+      return [[tx('Vida de {p}: {v}', { p: who(i), v: v.life }), null, [['−5', L('life', -5)], ['−1', L('life', -1)], ['+1', L('life', 1)], ['+5', L('life', 5)]]],
+        [`☠ ${tx('veneno')} ${v.poison}`, null, pm('poison')], [`ϟ ${tx('energia')} ${v.energy || 0}`, null, pm('energy')],
+        ...cmdrs.map(n => [`⚔ ${short(n)} ${v.cd?.[n] || 0}/21`, null, pm('cmdmg', { name: n })]),
+        ...Object.entries(DESIG).map(([k, [ic, l]]) => [`${ic} ${l}${v.mk?.includes(k) ? ' ✓' : ''}`, () => send({ c: 'mark', seat: i, k })])]
+    }
+    if (menu.ctr != null) {  // submenu dos marcadores: −/+ por tipo
+      const cid = menu.ctr, c = byId.get(cid)?.c
+      return [[tx('Marcadores'), null], ...MORE_CT.map(k => [`${CT_ICON[k] || ''} ${CT[k] || k} ${c?.k?.[k] || 0}`, null, [['−', () => send({ c: 'counter', id: cid, k, d: -1 })], ['＋', () => send({ c: 'counter', id: cid, k, d: 1 })]]])]
     }
     const e = byId.get(menu.id)
     if (!e) return []
@@ -309,14 +371,18 @@ export default function FreeTable({ id, data, onClose }) {
       const opp = others.filter(i => !seats[i].out)
       return [...head, [c.t ? tx('↺ Desvirar') : tx('↻ Virar (tap)'), () => tap(cid)],
         ...opp.map(i => ['⚔ ' + tx('Atacar {p}', { p: who(i) }), () => send({ c: 'attack', id: cid, seat: i })]), ...(c.atk != null ? [[tx('Deixar de atacar'), () => send({ c: 'attack', id: cid, seat: null })]] : []),
-        ['+1/+1 ＋', ctr('+1/+1', 1)], ['+1/+1 −', ctr('+1/+1', -1)], [tx('Lealdade ＋'), ctr('loyalty', 1)], [tx('Lealdade −'), ctr('loyalty', -1)], [tx('Marcador ＋'), ctr('charge', 1)], [tx('Marcador −'), ctr('charge', -1)],
-        ...(cd?.df ? [['⟲ ' + tx('Transformar (outra face)'), () => send({ c: 'flip', id: cid })]] : []),
+        [`+1/+1 ${c.k?.['+1/+1'] || 0}`, null, [['−', ctr('+1/+1', -1)], ['＋', ctr('+1/+1', 1)]]], [`${tx('Lealdade')} ${c.k?.loyalty || 0}`, null, [['−', ctr('loyalty', -1)], ['＋', ctr('loyalty', 1)]]],
+        ['◆ ' + tx('Outros marcadores…'), () => setTimeout(() => setMenu({ ctr: cid, x: menu.x, y: menu.y }))],
+        ...(flipKind(cd) === 'df' ? [['⟲ ' + tx('Transformar (outra face)'), () => send({ c: 'flip', id: cid })]] : flipKind(cd) === 'flip' ? [['⟲ ' + tx('Virar a carta flip (180°)'), () => send({ c: 'flip', id: cid })]] : []),
+        c.at != null ? ['📎 ' + tx('Soltar (deixa de estar presa)'), () => attach(cid, null)] : ['📎 ' + tx('Prender a… (toca na carta)'), () => setPickAt(cid)],
+        [c.ph ? '◐ ' + tx('Voltar à fase') : '◐ ' + tx('Sair de fase (phasing)'), () => send({ c: 'phase', id: cid })],
         ...(owner || c.d ? [[c.d ? tx('🂠 Virar para cima') : tx('🂠 Virar para baixo'), () => send({ c: 'face', id: cid })]] : []),
         ...to, ...(owner && !c.tok ? [['♛ ' + tx('Zona de comando'), () => mv(cid, 'command')]] : [])]
     }
     if (z === 'hand') return [...head, ['▶ ' + tx('Jogar (para o campo)'), () => toField(cid)], ['🂠 ' + tx('Jogar virada para baixo'), () => toField(cid, { down: true })],
       [c.r ? tx('🙈 Esconder outra vez') : tx('👁 Revelar a todos'), () => send({ c: 'reveal', id: cid })], ...to]
-    return [...head, ['▶ ' + tx('Para o campo'), () => toField(cid)], ...to, ...(z !== 'command' && owner ? [['♛ ' + tx('Zona de comando'), () => mv(cid, 'command')]] : [])]
+    return [...head, ['▶ ' + tx('Para o campo'), () => toField(cid)], ...to, ...(z !== 'command' && owner ? [['♛ ' + tx('Zona de comando'), () => mv(cid, 'command')]] : []),
+      ...(z === 'command' && c.cm ? [[`${tx('Imposto de comandante')} +${2 * (c.cc || 0)}`, null, [['−', () => send({ c: 'tax', id: cid, d: -1 })], ['＋', () => send({ c: 'tax', id: cid, d: 1 })]]]] : [])]
   }
   const rollDice = async types => { const thr = await dice.throwFrom(); send({ c: 'dice', types, ...(thr && { thr }) }) }
   const names = [...new Set([...byId.values()].map(e => e.c.n).filter(Boolean))]
@@ -371,6 +437,8 @@ export default function FreeTable({ id, data, onClose }) {
             <div className="fp-mid">
               <span className="ml-badge" title={tx('Sem bots e sem regras automáticas: cada um mexe nas suas cartas.')}>🃏 {tx('Mesa livre · sem regras')}</span>
               <span className="fp-turn">{tx('Turno {n}', { n: s.turn })} · {s.active === me ? tx('a tua vez') : tx('vez de {p}', { p: who(s.active) })}</span>
+              {s.day && <DayNight v={s.day} onClick={ended ? null : () => send({ c: 'day' })} />}
+              {pickAt != null && <span className="ml-pickmsg">📎 {tx('Toca na carta a que a queres prender')} <button className="ml-mini" onClick={() => setPickAt(null)}>✕</button></span>}
               {s.solo && <span className="ml-gf" title={tx('A vida de um adversário imaginário, para contares o dano que farias')}>🐟 {tx('Adversário')}
                 <button className="ml-mini" onClick={() => send({ c: 'gf', d: -5 })}>−5</button><button className="ml-mini" onClick={() => send({ c: 'gf', d: -1 })}>−1</button>
                 <b>{s.gf}</b><button className="ml-mini" onClick={() => send({ c: 'gf', d: 1 })}>+1</button></span>}
@@ -389,8 +457,9 @@ export default function FreeTable({ id, data, onClose }) {
         {(!phone || chatOpen) && <TableChat log={s.log} who={who} keyOf={keyOf} me={me} data={data} send={send} fmt={e => line(e, who)} names={names} onSeen={setSeen} />}
       </aside>
       {menu && <div className="ml-menu-back" onClick={() => setMenu(null)} onContextMenu={e => { e.preventDefault(); setMenu(null) }}>
-        <div className={`ml-menu ${menu.life != null ? 'life' : ''}`} style={menuStyle(menu)} onClick={e => e.stopPropagation()} role="menu">
-          {menuItems().map(([l, f], k) => (f ? <button key={k} role="menuitem" onClick={() => { setMenu(null); f() }} disabled={ended && !menu.more}>{l}</button> : <b key={k}>{l}</b>))}
+        <div className={`ml-menu ${menu.life != null || menu.ctr != null ? 'rows' : ''}`} style={menuStyle(menu)} onClick={e => e.stopPropagation()} role="menu">
+          {menuItems().map(([l, f, bs], k) => (bs ? <div key={k} className="ml-mrow"><span>{l}</span>{bs.map(([bl, bf], j) => <button key={j} onClick={bf} disabled={ended} aria-label={`${l} ${bl}`}>{bl}</button>)}</div>
+            : f ? <button key={k} role="menuitem" onClick={() => { setMenu(null); f() }} disabled={ended && !menu.more}>{l}</button> : <b key={k}>{l}</b>))}
         </div></div>}
       {zone && <div className="fp-modal zone" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
         <p><b>{zone.which === 'graveyard' ? tx('Cemitério de {n}', { n: who(zone.seat) }) : tx('Exílio de {n}', { n: who(zone.seat) })}</b> · {zoneCards.length} <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>

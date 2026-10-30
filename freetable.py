@@ -85,7 +85,8 @@ def create(con, owner, name, seats, solo=False):
             t["cards"][str(cid)] = {"id": cid, "n": str(n)[:150], "o": i, "s": i, "z": zone, **({"cm": True} if zone == "command" else {})}
             z[zone].append(cid)
         t["seats"].append({"by": s["by"], "name": str(s.get("name") or "?")[:40], "deck": str(d.get("name") or "")[:80],
-                           "format": d.get("format"), "life": 40 if cmd else 20, "life0": 40 if cmd else 20, "poison": 0, "out": False, "peek": 0})
+                           "format": d.get("format"), "life": 40 if cmd else 20, "life0": 40 if cmd else 20, "poison": 0, "energy": 0, "cd": {}, "mk": [],
+                           "out": False, "peek": 0})
         _deal(t, i)
     _log(t, None, "start")
     with COND:
@@ -96,8 +97,8 @@ def create(con, owner, name, seats, solo=False):
 
 def _clean(c):
     """Estado de mesa a zeros (a carta entrou numa zona nova)."""
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "r"):
-        c.pop(k, None)  # (cm = comandante, fica)
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "r", "at", "ph"):
+        c.pop(k, None)  # (cm = comandante e cc = vezes lançado da zona de comando ficam)
 
 
 def _save(con, t):
@@ -161,7 +162,7 @@ def _card(t, cid, me):
     out = {"id": c["id"], "o": c["o"]}
     if _sees(t, c, me):
         out["n"] = c["n"]
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "r", "tok"):
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "r", "tok", "at", "ph", "cm", "cc"):
         if c.get(k) not in (None, False, {}):
             out[k] = c[k]
     return out
@@ -172,14 +173,15 @@ def view(t, me):
     seats = []
     for i, s in enumerate(t["seats"]):
         z = t["zones"][i]
-        v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "me": i == me, "library": len(z["library"]),
+        v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {},
+             "mk": s.get("mk") or [], "me": i == me, "library": len(z["library"]),
              "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
         if i == me and s["peek"]:
             v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]
         seats.append(v)
     return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
             "me": me, "host": t["seats"][me]["by"] == "host", "mine": [i for i, s in enumerate(t["seats"]) if s["by"] == t["seats"][me]["by"]],
-            "res": t.get("res"), "result": t.get("result"), "solo": bool(t.get("solo")), "gf": t.get("gf"), "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
+            "res": t.get("res"), "result": t.get("result"), "solo": bool(t.get("solo")), "gf": t.get("gf"), "day": t.get("day"), "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
             "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE]}
 
 
@@ -222,6 +224,18 @@ def _pos(v):
         return round(max(0.0, min(1.0, float(v))), 4)
     except (TypeError, ValueError):
         return 0.5
+
+
+def _leave(t, c):
+    """A carta sai do campo: o que estava preso a ela (auras, equipamentos) fica solto."""
+    for x in t["zones"]:
+        for cid in x["battlefield"]:
+            o = t["cards"][str(cid)]
+            if o.get("at") == c["id"]:
+                o.pop("at", None)
+
+
+DESIG = ("monarch", "initiative", "blessing")  # monarca e iniciativa: só um jogador de cada vez; bênção da cidade: para sempre
 
 
 def _draw(t, me, n):
@@ -288,12 +302,18 @@ def apply(t, me, d):
                 _clean(c)
                 if d.get("down"):
                     c["d"] = True
+                if src == "command" and c.get("cm"):  # lançado da zona de comando: o imposto sobe 2
+                    c["cc"] = c.get("cc", 0) + 1
+            else:  # passa para o lado de outro jogador (controlo trocado): solta-se do que estava preso
+                c.pop("at", None)
             _put(t, c, dest, "battlefield")
             c["x"], c["y"] = _pos(d.get("x")), _pos(d.get("y"))
         else:
             if src == to and to != "library":
                 return
             _take(t, c)
+            if src == "battlefield":
+                _leave(t, c)
             if c.get("tok"):  # uma ficha que sai do campo deixa de existir
                 t["cards"].pop(str(c["id"]))
                 _log(t, me, "move", name=c["n"], fr=src, to=to, tok=True, w=c["o"])
@@ -308,7 +328,7 @@ def apply(t, me, d):
         if src == "library":  # saiu do topo que estava a ser espreitado
             seat["peek"] = max(0, seat["peek"] - 1)
         _log(t, me, "move", name=c["n"] if was_pub or _public(c) else None, fr=src, to=to, w=c["o"], bottom=bool(d.get("bottom")) or None)
-    elif c0 in ("tap", "flip", "face", "attack", "counter"):
+    elif c0 in ("tap", "flip", "face", "attack", "counter", "phase", "attach"):
         c = need()
         if c["z"] != "battlefield":
             raise ValueError("A carta tem de estar no campo.")
@@ -324,6 +344,22 @@ def apply(t, me, d):
                 raise PermissionError("Só quem controla a carta a pode virar para cima ou para baixo.")
             c["d"] = not c.get("d")
             _log(t, me, "face", name=None if c["d"] else c["n"], down=c["d"])
+        elif c0 == "phase":  # phasing: fica na mesa mas não conta
+            c["ph"] = not c.get("ph")
+            _log(t, me, "phase", name=None if c.get("d") else c["n"], out=c["ph"])
+        elif c0 == "attach":  # aura/equipamento/fortificação preso a outra carta do campo (de qualquer lado); to=None solta
+            to = d.get("to")
+            host = t["cards"].get(str(to)) if to is not None else None
+            if to is None:
+                c.pop("at", None)
+            elif not host or host["z"] != "battlefield" or host["id"] == c["id"] or host.get("at") == c["id"]:
+                raise ValueError("Só se prende a outra carta do campo.")
+            else:
+                c["at"] = host["id"]
+                for o in [t["cards"][str(x)] for z in t["zones"] for x in z["battlefield"]]:  # o que estava preso a ela passa para o novo sítio
+                    if o.get("at") == c["id"]:
+                        o["at"] = host["id"]
+                _log(t, me, "attach", name=None if c.get("d") else c["n"], to=None if host.get("d") else host["n"])
         elif c0 == "attack":
             tgt = d.get("seat")
             if tgt is None:
@@ -352,8 +388,10 @@ def apply(t, me, d):
         if not t.get("solo"):
             raise ValueError("Só se recomeça numa mesa a solo.")
         _deal(t, me)
-        seat.update(life=seat.get("life0", 20), poison=0)
-        t.update(turn=1, gf=20, roll=None)
+        seat.update(life=seat.get("life0", 20), poison=0, energy=0, cd={}, mk=[])
+        for c in t["cards"].values():
+            c.pop("cc", None)
+        t.update(turn=1, gf=20, roll=None, day=None)
         _log(t, me, "newgame")
     elif c0 == "gf":  # a vida do adversário imaginário (a solo)
         if not t.get("solo"):
@@ -370,11 +408,49 @@ def apply(t, me, d):
         c = t["cards"][str(cid)] = {"id": cid, "n": name, "o": me, "s": me, "z": "battlefield", "tok": True, "x": _pos(d.get("x")), "y": _pos(d.get("y"))}
         t["zones"][me]["battlefield"].append(cid)
         _log(t, me, "token", name=name)
-    elif c0 in ("life", "poison"):
+    elif c0 in ("life", "poison", "energy"):
         who = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
         s = t["seats"][who]
-        s[c0] = _num(s[c0] + _num(d.get("d"), -999, 999), -999 if c0 == "life" else 0, 9999)
+        s[c0] = _num(s.get(c0, 0) + _num(d.get("d"), -999, 999), -999 if c0 == "life" else 0, 9999)
         _log(t, me, c0, p=who, d=_num(d.get("d"), -999, 999), v=s[c0])
+    elif c0 == "cmdmg":  # dano de comandante: conta por comandante (21 = derrota) e também tira à vida
+        who = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
+        name = str(d.get("name") or "").strip()[:150]
+        if not any(c.get("cm") and c["n"] == name for c in t["cards"].values()):
+            raise ValueError("Esse comandante não está na mesa.")
+        s, n = t["seats"][who], _num(d.get("d"), -99, 99)
+        cd = s.setdefault("cd", {})
+        n = max(n, -cd.get(name, 0))
+        cd[name] = cd.get(name, 0) + n
+        if not cd[name]:
+            del cd[name]
+        s["life"] = _num(s["life"] - n, -999, 9999)
+        _log(t, me, "cmdmg", p=who, name=name, d=n, v=cd.get(name, 0))
+    elif c0 == "mark":  # monarca, iniciativa, bênção da cidade
+        k, who = d.get("k"), _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
+        if k not in DESIG:
+            raise ValueError("Designação desconhecida.")
+        mk = t["seats"][who].setdefault("mk", [])
+        on = k not in mk
+        if on and k != "blessing":
+            for s2 in t["seats"]:
+                if k in s2.get("mk", []):
+                    s2["mk"].remove(k)
+        mk.remove(k) if not on else mk.append(k)
+        _log(t, me, "mark", p=who, mk=k, on=on)
+    elif c0 == "day":  # dia/noite: nenhum -> dia -> noite -> dia…; v=None tira
+        v = d.get("v", "night" if t.get("day") == "day" else "day")
+        if v not in ("day", "night", None):
+            raise ValueError("Dia ou noite?")
+        t["day"] = v
+        _log(t, me, "day", v=v)
+    elif c0 == "tax":  # acertar o imposto de comandante à mão (posto em jogo sem ser lançado…)
+        c = need()
+        if not c.get("cm"):
+            raise ValueError("Só os comandantes têm imposto.")
+        c["cc"] = _num(c.get("cc", 0) + _num(d.get("d"), -9, 9), 0, 99)
+        if not c["cc"]:
+            del c["cc"]
     elif c0 == "dice":
         types = [x for x in (d.get("types") or []) if x in DICE][:4]
         if not types:
@@ -643,6 +719,31 @@ def selfcheck():
     assert route(db, "GET", f"/api/freetables/{rid}", "hubert", None, "host", 0, 1)[1]["me"] == 1
     route(db, "POST", f"/api/freetables/{rid}", "hubert", {"c": "concede"}, "host", 0, 1)
     assert result(rid)["w"] == 0
+    # mecânicas: energia, dano de comandante (conta e tira vida), designações únicas, dia/noite, imposto, anexar, phasing
+    call("POST", "host", {"c": "energy", "d": 3})
+    assert call("GET", "guest:rui")[1]["seats"][0]["energy"] == 3
+    boss = t["zones"][1]["command"][0]
+    assert call("POST", "guest:rui", {"c": "move", "id": boss, "to": "battlefield", "x": 0.5, "y": 0.5})[0] == 200 and t["cards"][str(boss)]["cc"] == 1
+    life0 = t["seats"][0]["life"]
+    call("POST", "host", {"c": "cmdmg", "seat": 0, "name": "B Boss", "d": 5})
+    assert t["seats"][0]["cd"] == {"B Boss": 5} and t["seats"][0]["life"] == life0 - 5
+    assert call("POST", "host", {"c": "cmdmg", "seat": 0, "name": "Ninguém", "d": 1})[0] == 400
+    call("POST", "host", {"c": "cmdmg", "seat": 0, "name": "B Boss", "d": -9})
+    assert t["seats"][0]["cd"] == {} and t["seats"][0]["life"] == life0
+    call("POST", "host", {"c": "mark", "k": "monarch"}); call("POST", "guest:rui", {"c": "mark", "k": "monarch"}); call("POST", "host", {"c": "mark", "k": "blessing"})
+    assert t["seats"][0]["mk"] == ["blessing"] and t["seats"][1]["mk"] == ["monarch"]
+    call("POST", "host", {"c": "day"}); call("POST", "host", {"c": "day"})
+    assert call("GET", "guest:rui")[1]["day"] == "night"
+    call("POST", "guest:rui", {"c": "tax", "id": boss, "d": -1})
+    assert "cc" not in t["cards"][str(boss)]
+    h1 = t["zones"][0]["hand"][0]
+    call("POST", "host", {"c": "move", "id": h1, "to": "battlefield", "x": 0.2, "y": 0.2})
+    assert call("POST", "host", {"c": "attach", "id": h1, "to": boss})[0] == 200 and call("GET", "guest:rui")[1]["seats"][0]["battlefield"][-1]["at"] == boss
+    assert call("POST", "host", {"c": "attach", "id": h1, "to": h1})[0] == 400
+    call("POST", "guest:rui", {"c": "phase", "id": boss})
+    assert t["cards"][str(boss)]["ph"]
+    call("POST", "guest:rui", {"c": "move", "id": boss, "to": "command"})
+    assert "at" not in t["cards"][str(h1)] and "ph" not in t["cards"][str(boss)]  # o comandante saiu: a aura fica solta
     call("POST", "host", {"c": "pass"})
     assert t["active"] == 1 and t["turn"] == 2
     assert call("POST", "host", {"c": "rm -rf"})[0] == 400 and call("POST", "guest:rui", {"c": "close"})[0] == 403
