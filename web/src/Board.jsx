@@ -60,7 +60,7 @@ function describe(ev, who) {
     case 'block': return tx('{c} bloqueia {T}', { c, T })
     case 'damage': return `${tx('{c}: {n} de dano a {T}', { c: c || tx('Dano'), n: ev.n, T })}${ev.psn ? ` ${tx('(veneno)')}` : ''}${ev.dt ? ` ${tx('(toque mortífero)')}` : ''}`
     case 'poison': return tx('{T} recebe {n} marcador de veneno|{T} recebe {n} marcadores de veneno', { T, n: ev.n })
-    case 'life': return tx('{P}: vida {n}', { P, n: ev.n })
+    case 'life': return ev.n >= 1e6 ? tx('{P}: vida infinita (ciclo repetido de uma vez)', { P }) : tx('{P}: vida {n}', { P, n: ev.n })
     case 'destroy': return ev.target === 'battlefield>graveyard' ? tx('{c} vai para o cemitério', { c }) : tx('{c} sai do campo', { c })
     case 'exile': return ev.target === 'library>exile' ? tx('{c}: da biblioteca para o exílio', { c }) : tx('{c} é exilada', { c })  // moer com Dauthi Voidwalker, Tasha's Hideous Laughter…
     case 'bounce': return tx('{c} volta para a mão', { c })
@@ -78,7 +78,7 @@ function describe(ev, who) {
     case 'mill': return ev.card ? tx('{P}: {c} da biblioteca para o cemitério', { P, c }) : tx('{P}: {n} carta da biblioteca para o cemitério|{P}: {n} cartas da biblioteca para o cemitério', { P, n: ev.n || 1 })
     case 'search': return ev.to === 'battlefield' ? tx('{P} procura na biblioteca (para o campo)', { P }) : ev.to === 'hand' ? tx('{P} procura na biblioteca (para a mão)', { P }) : tx('{P} procura na biblioteca (para o cemitério)', { P })
     case 'player': return ev.to === 'monarch' ? tx('{P} torna-se o monarca', { P }) : ev.to === 'initiative' ? tx('{P} toma a iniciativa', { P }) : ev.to === 'emblem' ? tx('{P} recebe um emblema', { P }) : tx('{P} recebe {n} de energia', { P, n: ev.n || 1 })
-    case 'outcome': return / has won/.test(ev.txt || '') ? tx('{P} ganha o jogo', { P }) : tx('{P} perde o jogo', { P })
+    case 'outcome': return / has won/.test(ev.txt || '') ? tx('{P} ganha o jogo', { P }) : / has conceded/.test(ev.txt || '') ? tx('{P} desiste', { P }) : tx('{P} perde o jogo', { P })
     default: {
       if (ev.x && ev.target) {  // mudança de zona exata sem frase própria (zone/other)
         const [fr, to] = ev.target.split('>')
@@ -87,6 +87,8 @@ function describe(ev, who) {
       }
       // linhas informativas do Forge (em inglês): traduz as mais comuns
       const t = ev.txt || ''
+      const loop = t.match(/^(.+?) repeats the (.+) loop: infinite life/)
+      if (loop) return tx('{P} repete o ciclo de {c} de uma vez: vida infinita', { P, c: loop[2] })
       if (FIZZLE.test(t)) return tx('{c} fica sem efeito: o alvo já não está lá', { c: c || t.match(FIZZLE)[1] })
       let m = t.match(/^.+? (scried|surveiled) (\d+) card\(s\) to the (top|bottom) of the library(?: and (\d+) card\(s\) to the (bottom of the library|graveyard))?/)
       if (m) return `${P}: ${m[1] === 'scried' ? tx('vidência') : tx('vigiar')} — ${toWhere(m[2], m[3])}${m[4] ? `, ${toWhere(m[4], m[5])}` : ''}`
@@ -298,13 +300,15 @@ function Row({ perms, data, fx, att, cls, groupable, empty, quiet, who }) {  // 
 }
 
 // ---------- vida (o número conta até ao valor novo; o anel pisca vermelho/verde) ----------
+// 1 000 000 = vida infinita: o ciclo (Heliod + Spike Feeder…) repetido de uma vez pelo atalho do Forge
+export const lifeTxt = n => (n >= 1e6 ? '∞' : n)
 function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit }) {  // poison: o veneno ao lado da vida (10 = derrota)
   const ref = useRef(null), prev = useRef(life)
   useEffect(() => {
     const el = ref.current, from = prev.current
     prev.current = life
     if (!el) return
-    if (fast || from === life || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { el.textContent = life; return }
+    if (fast || from === life || life >= 1e6 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { el.textContent = lifeTxt(life); return }
     let raf, t0
     const tick = t => {
       t0 ??= t
@@ -313,14 +317,14 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit }) {  // pois
       if (k < 1) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
-    return () => { cancelAnimationFrame(raf); el.textContent = life }
+    return () => { cancelAnimationFrame(raf); el.textContent = lifeTxt(life) }
   }, [life, fast])
   const low = life <= Math.max(5, Math.round(start / 4))
   return (
-    <div className={`orb ${low ? 'low' : ''}`} title={tx('{n} de vida', { n: life })}>
-      <b ref={ref}>{life}</b><small>{tx('vida')}</small>
+    <div className={`orb ${low ? 'low' : ''}`} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+      <b ref={ref}>{lifeTxt(life)}</b><small>{tx('vida')}</small>
       {d && !fast ? <i key={step} className={`orb-flash ${d < 0 ? 'loss' : 'gain'}`} /> : null}
-      {d && !fast ? <i key={`f${step}`} className={`float ${d < 0 ? 'loss' : 'gain'}`}>{d > 0 ? '+' : '−'}{Math.abs(d)}</i> : null}
+      {d && !fast ? <i key={`f${step}`} className={`float ${d < 0 ? 'loss' : 'gain'}`}>{d > 0 ? '+' : '−'}{lifeTxt(Math.abs(d))}</i> : null}
       {hit && !fast ? <i key={`h${step}`} className="orb-hit" /> : null}
       {poison > 0 && <i key={psnHit && !fast ? `p${step}` : 'p'} className={`orb-psn ${poison >= 7 ? 'crit' : ''} ${psnHit && !fast ? 'up' : ''}`} title={tx('{n} marcadores de veneno (10 = derrota)', { n: poison })}>☠ {poison}</i>}
     </div>
@@ -773,7 +777,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
             <div className={`endbanner ${game.stopped ? 'draw stopped' : !game.winner || game.winner === 'draw' ? 'draw' : pov === 'a' ? (game.winner === 'a' ? 'win' : 'loss') : !pov ? 'neutral' : game.winner === pov ? 'win' : 'loss'}`} role="status">
               <b>{game.stopped ? tx('⏹ Interrompido no turno {t} (não conta)', { t: game.turns || s.turn || 0 }) : pov !== 'a' ? (!game.winner || game.winner === 'draw' ? tx('Empate') : tx('«{d}» venceu no turno {t}', { d: who[game.winner], t: game.turns })) : game.winner === 'a' ? (mates.length ? tx('Vitória da equipa no turno {t}', { t: game.turns }) : tx('Vitória no turno {t}', { t: game.turns })) : !lost(game.winner) ? tx('Empate') : mates.length ? tx('Derrota da equipa no turno {t}', { t: game.turns }) : multi ? `${game.places ? tx('{p} lugar', { p: ord(game.places.indexOf('a') + 1) }) : tx('Derrota')}${s.a.out ? ` — ${tx('eliminado no turno {n}', { n: s.a.out })}` : ''}` : tx('Derrota no turno {t}', { t: game.turns })}</b>
               {multi && game.places && !mates.length && <span>{game.places.map((k, j) => `${ord(j + 1)} ${short(who[k])}`).join(' · ')}</span>}
-              <span>{tx('Vida final: {x}', { x: S.map(k => `${who[k]} ${s[k].life}`).join(' · ') })}</span>
+              <span>{tx('Vida final: {x}', { x: S.map(k => `${who[k]} ${lifeTxt(s[k].life)}`).join(' · ') })}</span>
               <span className="row-btns">
                 {next?.has && playing && next.auto && <Countdown key={`${game.g}-${next.secs}`} secs={next.secs} onDone={next.go} />}
                 <button onClick={() => go(0)}>{tx('⏮ ver de novo')}</button>

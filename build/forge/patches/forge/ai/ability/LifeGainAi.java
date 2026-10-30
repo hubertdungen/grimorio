@@ -36,7 +36,7 @@ public class LifeGainAi extends SpellAbilityAi {
     static boolean counterLoop(Player ai, SpellAbility sa) {
         Card host = sa.getHostCard();
         if (host == null || !host.isCreature() || sa.getPayCosts() == null || !sa.getPayCosts().hasSpecificCostType(CostRemoveCounter.class)
-                || host.getNetToughness() < 2 || !ai.canGainLife() || ai.getLife() >= 80) {  // 80 chega: mais só atrasava o jogo (empates por tempo)
+                || host.getNetToughness() < 2 || !ai.canGainLife() || ai.getLife() >= INF) {
             return false;
         }
         for (Card c : ai.getCardsIn(forge.game.zone.ZoneType.Battlefield)) {
@@ -53,9 +53,28 @@ public class LifeGainAi extends SpellAbilityAi {
         return false;
     }
 
+    // Grimório: o atalho das regras (720.2): em vez de repetir o ciclo 2 de vida de cada vez (parava aos 80 e o jogo
+    // arrastava-se 30+ turnos), anuncia-o e fica com vida «infinita» (1 000 000, a mesa mostra ∞). Quem não tem outra
+    // via de ganhar desiste (só IA; o humano decide no Forge Play).
+    static final int INF = 1_000_000;
+    static final java.util.regex.Pattern OUTS = java.util.regex.Pattern.compile(
+            "(?i)poison|infect|toxic|wins? the game|loses? the game|\\bmills?\\b|library into (?:their|his or her|that player's) graveyard|life totals?(?: becomes| to)|exchange life");
+    static void shortcut(Player ai, SpellAbility sa) {
+        Game g = ai.getGame();
+        ai.setLife(INF, sa);
+        g.getGameLog().add(forge.game.GameLogEntryType.INFORMATION, ai + " repeats the " + sa.getHostCard().getName() + " loop: infinite life");
+        for (Player o : new java.util.ArrayList<>(ai.getOpponents())) {
+            if (o.hasLost() || !o.getController().isAI() || !o.getCommanders().isEmpty()) continue;  // comandante: o dano de comandante ainda ganha
+            boolean out = false;
+            for (Card c : o.getAllCards()) if (c.getOracleText() != null && OUTS.matcher(c.getOracleText()).find()) { out = true; break; }
+            if (!out) o.concede();  // ponytail: texto da carta como heurística; casos raros (Sorin Markov, Repay in Kind) contam como saída
+        }
+    }
+
     @Override
     protected boolean willPayCosts(Player payer, SpellAbility sa, Cost cost, Card source) {
         if (counterLoop(payer, sa)) {
+            shortcut(payer, sa);
             return true;
         }
         final Game game = source.getGame();

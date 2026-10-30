@@ -3523,4 +3523,6 @@ export default {
   "O jogo continua": "Das Spiel läuft weiter",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "Zum Verlassen nutze «Spiel beenden» oder gib im Panel auf.",
   "{c}: da biblioteca para o exílio": "{c}: aus der Bibliothek ins Exil",
+  "{P}: vida infinita (ciclo repetido de uma vez)": "{P}: unendlich Leben (Schleife auf einmal wiederholt)",
+  "{P} repete o ciclo de {c} de uma vez: vida infinita": "{P} wiederholt die {c}-Schleife auf einmal: unendlich Leben",
 }

@@ -3523,4 +3523,6 @@ export default {
   "O jogo continua": "La partida sigue",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "Para salir, usa «Parar la partida» o ríndete en el panel.",
   "{c}: da biblioteca para o exílio": "{c}: de la biblioteca al exilio",
+  "{P}: vida infinita (ciclo repetido de uma vez)": "{P}: vida infinita (bucle repetido de una vez)",
+  "{P} repete o ciclo de {c} de uma vez: vida infinita": "{P} repite el bucle de {c} de una vez: vida infinita",
 }

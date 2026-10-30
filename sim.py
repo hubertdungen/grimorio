@@ -732,13 +732,13 @@ def parse_game(lines, result, decks=None, commanders=None):
             x = re.match(r"Turn (\d+)$", s)
             if x:
                 turns = int(x.group(1))
-            elif " has lost " in s:
+            elif " has lost " in s or s.endswith(" has conceded"):  # desiste: o ciclo infinito do adversário (LifeGainAi)
                 reason = s
                 e = None if side_of(s) in out else {"k": "outcome", "p": side_of(s)}  # já eliminado a meio do jogo
             elif " has won" in s:
                 e = {"k": "outcome", "p": side_of(s)}
         elif kind == "Information":
-            e = {"k": "other"}
+            e = {"k": "other", "p": side_of(s)} if " loop: infinite life" in s else {"k": "other"}
         if e is not None:
             emit(e, s)
         for x in extra:
@@ -1655,6 +1655,13 @@ def selfcheck():
     four = {"setup": dict.fromkeys("abcd", {}), "teams": [1, 2, 1, 2], "mode": "equipas"}
     assert multi_result({"winner": "c"}, four) == {"winner": "a", "mode": "equipas", "teams": {"a": 1, "b": 2, "c": 1, "d": 2}}
     assert multi_result({"winner": "d"}, four)["winner"] == "d" and "mode" not in multi_result({"winner": "b"}, {"setup": {"a": 1, "b": 1}})
+    # ciclo infinito (atalho do LifeGainAi): a linha diz de quem é e quem não tem saída desiste
+    lines = ["Ai(1)-A [Default] vs Ai(2)-B [Default] - one game of Constructed", "Turn: Turn 1 (Ai(1)-A)",
+             "Information: Ai(1)-A repeats the Spike Feeder loop: infinite life", "Game Outcome: Turn 1",
+             "Game Outcome: Ai(1)-A has won because all opponents have lost", "Game Outcome: Ai(2)-B has conceded"]
+    g = parse_game(lines, "Game Result: Game 1 ended in 9 ms. Ai(1)-A has won!")
+    assert g["winner"] == "a" and g["reason"] == "Ai(2)-B has conceded", (g["winner"], g["reason"])
+    assert any(e["k"] == "other" and e.get("p") == "a" for e in g["events"]), g["events"]
     print("selfcheck ok")
 
 

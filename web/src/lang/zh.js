@@ -3523,4 +3523,6 @@ export default {
   "O jogo continua": "对局继续",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "要离开，请使用「停止对局」或在面板中认输。",
   "{c}: da biblioteca para o exílio": "{c}：从牌库放逐",
+  "{P}: vida infinita (ciclo repetido de uma vez)": "{P}：无限生命（循环一次性重复）",
+  "{P} repete o ciclo de {c} de uma vez: vida infinita": "{P} 一次性重复 {c} 的循环：无限生命",
 }

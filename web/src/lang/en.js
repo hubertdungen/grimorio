@@ -3531,4 +3531,6 @@ export default {
   "O jogo continua": "The game goes on",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "To leave, use «Stop the game» or concede in the panel.",
   "{c}: da biblioteca para o exílio": "{c}: from library to exile",
+  "{P}: vida infinita (ciclo repetido de uma vez)": "{P}: infinite life (loop repeated at once)",
+  "{P} repete o ciclo de {c} de uma vez: vida infinita": "{P} repeats the {c} loop at once: infinite life",
 }
