@@ -181,7 +181,7 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
     const p = onPlane()
     if (!p) return
     const now = performance.now(), b = drag.b
-    drag.hist.push([now, p.x, p.z]); drag.hist = drag.hist.filter(x => now - x[0] < 90)
+    drag.hist.push([now, p.x, p.z]); drag.hist = drag.hist.filter((x, k, a) => now - x[0] < 90 || k >= a.length - 3)  // os últimos ~90 ms do gesto (pelo menos 3 pontos: num aparelho lento os eventos vêm espaçados)
     world.moveTo(b, [p.x, 2.4, p.z], [0, 0, 0])
     const w = 0.05; b.q = new THREE.Quaternion(...b.q).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(w, w * 0.7, 0))).toArray()  // a rodar na mão
   }

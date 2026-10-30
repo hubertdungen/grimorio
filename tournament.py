@@ -750,7 +750,8 @@ def create(owner, d):
                             "cover": str(x.get("cover") or "")[:200],
                             "colors": "".join(c for c in str(x.get("colors") or "") if c in "WUBRG")[:5],
                             **({"com": True} if src == "meus" and deck.get("community") and not deck.get("friend") else {}),  # da comunidade (não é meu)
-                            **({"fr": str(deck.get("friendName") or "?")[:40]} if src == "meus" and deck.get("friend") else {}),  # de um amigo convidado
+                            **({"fr": str(deck.get("friendName") or "?")[:40]} if src == "meus" and deck.get("friend") else
+                               {"fr": str(x["byName"])[:40]} if d.get("free") and x.get("byName") else {}),  # de um amigo convidado (ou o deck com que se sentou)
                             **({"me": True} if x.get("me") and src == "meus" and not any(p.get("me") for p in players) else {}),
                             # torneio de mesa livre: de quem é o deck (quem o joga à mesa): o anfitrião ou um amigo
                             **({"by": x["by"] if re.fullmatch(r"host|guest:[a-f0-9]{12}", str(x.get("by") or "")) else
@@ -1316,8 +1317,7 @@ def open_table(con, owner, st, m, name=""):
     seats = [{"by": st["players"][i].get("by") or "host", "name": (st["players"][i].get("fr") or owner)[:40],
               "deck": {**st["decks"][i], "name": st["players"][i]["name"], "format": st["players"][i].get("format")}} for i in m["p"]]
     m["table"] = freetable.create(con, owner, f"{name} · {m['id']}"[:80], seats)
-    m["seats"] = list(m["p"])
-    m.pop("rdy", None)
+    m["seats"] = list(m["p"])  # (os «prontos» ficam: quem estava pronto vai direto à mesa)
 
 
 def table_game(con, tid, st, m, w, owner, reason="Mesa livre"):

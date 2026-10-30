@@ -195,7 +195,7 @@ export function FreeMatches({ t, openTable, nameOf, onChange }) {
   })
   const act = async (m, a, body = {}) => {
     setBusy(`${m.id}:${a}`); setErr('')
-    try { const r = await post(`/api/tournaments/${t.id}/${a}`, { mid: m.id, ...body }); onChange?.(); if (a === 'open' && r.match?.table) openTable(r.match.table) } catch (e) { setErr(e.message) } finally { setBusy('') }
+    try { const r = await post(`/api/tournaments/${t.id}/${a}`, { mid: m.id, ...body }); onChange?.(); if ((a === 'open' || a === 'ready') && r.match?.table) openTable(r.match.table) } catch (e) { setErr(e.message) } finally { setBusy('') }
   }
   if (t.status !== 'running') return null
   return (

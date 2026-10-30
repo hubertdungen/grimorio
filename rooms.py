@@ -186,7 +186,7 @@ def route(con, method, path, owner, body, guest=None):
             except ValueError as e:
                 return 400, {"erro": str(e)}
         try:
-            tid = tournament.create(owner, {**spec, "friends_open": True, "players": [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "by")},
+            tid = tournament.create(owner, {**spec, "friends_open": True, "players": [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "by", "byName")},
                                                                                        **({"src": "meus"} if p.get("src") == "lend" else {})} for p in players]})
         except ValueError as e:
             return 400, {"erro": str(e)}
