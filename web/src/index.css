@@ -2865,3 +2865,4 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .ml-ended.win { background: #4ade80; display: flex; gap: 10px; align-items: center; } .ml-ended.res { top: 52px; background: var(--panel); color: var(--text); border: 1px solid var(--gold); display: flex; gap: 8px; align-items: center; font-weight: 600; }
 .ml-fm { display: grid; gap: 10px; } .ml-fm-m { display: grid; gap: 6px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); } .ml-fm-m.mine { border-color: var(--gold); }
 .ml-fm-res { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-left: auto; }
+body:has(.fp.ml) .live-bar, body:has(.fp.ml) .live-bar-pad { display: none; }  /* à mesa livre a barra «a decorrer» sai: no telemóvel tapava a barra de ferramentas e a mão */
