@@ -3528,4 +3528,12 @@ export default {
   "Marcadores de veneno ({m} = derrota)": "Contadores de veneno ({m} = derrota)",
   "Tabuleiro a tabuleiro: cada deck joga um contra um com o do outro lado. À mesma mesa: os dois decks de cada equipa jogam juntos contra os dois da outra, num só jogo a quatro — com a vida de cada um, ou em Two-Headed Giant (vida partilhada, 30 por equipa; veneno da equipa, 15 = derrota; a equipa que começa não compra no 1.º turno; a equipa perde junta).": "Tablero a tablero: cada mazo juega uno contra uno con el del otro lado. En la misma mesa: los dos mazos de cada equipo juegan juntos contra los dos del otro, en una sola partida a cuatro — cada uno con su vida, o en Two-Headed Giant (vida compartida, 30 por equipo; veneno del equipo, 15 = derrota; el equipo que empieza no roba en su primer turno; el equipo pierde junto).",
   "{P} não compra no 1.º turno (Two-Headed Giant: a equipa que começa)": "{P} no roba en el primer turno (Two-Headed Giant: el equipo que empieza)",
+  "Tamanho das cartas na mesa": "Tamaño de las cartas en la mesa",
+  "{n} px (terrenos também)": "{n} px (tierras también)",
+  "Automático (cabe no ecrã)": "Automático (cabe en la pantalla)",
+  "Também nas réplicas e torneios. Quando as cartas não cabem no lado do jogador, encostam-se e empilham-se (terrenos iguais num monte ×N) em vez de saírem dele.": "También en las repeticiones y torneos. Cuando las cartas no caben en la zona del jugador, se solapan y se apilan (tierras iguales en un montón ×N) en vez de salirse de ella.",
+  "Cartas: {n} px": "Cartas: {n} px",
+  "Cartas: automático": "Cartas: automático",
+  "Tamanho das cartas: {x} (muda para o seguinte)": "Tamaño de las cartas: {x} (cambia al siguiente)",
+  "automático": "automático",
 }

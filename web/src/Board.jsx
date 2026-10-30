@@ -7,6 +7,7 @@ import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
+import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
 import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, typeOf, markDormant, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
@@ -267,6 +268,18 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
   )
 })
 
+// tamanho das cartas na mesa em píxeis (0 = automático), guardado nas preferências da mesa (fpprefs: o mesmo nas
+// réplicas, no Forge Play e na mesa livre)
+export function CardPx({ onChange, className = '' }) {
+  const [v, setV] = useState(() => fpPrefs().cardPx)
+  return (
+    <select className={`cardpx ${className}`} value={v} title={tx('Tamanho das cartas na mesa')} aria-label={tx('Tamanho das cartas na mesa')}
+      onChange={e => { const n = +e.target.value; setV(n); setFpPrefs({ cardPx: n }); onChange?.(n) }}>
+      {CARD_PX.map(n => <option key={n} value={n}>{n ? tx('Cartas: {n} px', { n }) : tx('Cartas: automático')}</option>)}
+    </select>
+  )
+}
+
 // fichas e terrenos iguais ficam empilhados (×N); o resto um a um. Com a fila cheia (mais de CROWD cartas) empilham-se
 // todas as cartas iguais no mesmo estado (virada, marcadores, dano); só as que atacam ou bloqueiam ficam sempre à parte.
 // Uma pilha mostra no máximo 4 cartas sobrepostas; o «×N» diz quantas são.
@@ -408,7 +421,7 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
     <Arts.Provider value={art}><div className={`bside ${top ? 'top' : 'bottom'} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`}>
       {top ? <>{hud}{back}{front}</> : <>{front}{back}{hud}</>}
       {loose.length > 0 && <div className="bfree">{loose.map(p => (
-        <div key={p.key} className={`bfree-c ${isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'}`} style={{ left: `${free[p.key].x * 100}%`, top: `${free[p.key].y * 100}%` }}>
+        <div key={p.key} className={`bfree-c ${isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'}`} style={{ left: `clamp(calc(var(--w) * .5), ${free[p.key].x * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${free[p.key].y * 100}%, calc(100% - var(--w) * .7))` }}>
           <Perm p={p} data={data} hl={fx.hl.has(p.key) ? fx.par : 0} pop={fx.pops.get(p.key) || null} att={att.get(p.key)} n={0} quiet={fast} />
         </div>))}</div>}
     </div></Arts.Provider>
@@ -652,6 +665,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const logRef = useRef(null)
   const start = game.startLife || 20
   const giant = game.mode === '2hg' ? game.teams : null
+  const [px, setPx] = useState(() => fpPrefs().cardPx)  // tamanho das cartas escolhido (0 = automático)
   const states = useMemo(() => replayStates(evs, data, start, game.setup || null, !!game.exact, giant), [evs, data, start, game.setup, game.exact, giant])
   const i = Math.min(pos.i, evs.length)
   const go = (n, jump = true) => setPos({ i: Math.max(0, Math.min(evs.length, n)), jump })
@@ -722,7 +736,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const sp = { formats, s, data, fx, att, fast: fast || pos.jump, start, openZone, bets, bots, owns: own }
   const oppHand = k => game.exact && <Hand z={s[k]} data={data} quiet={fast || pos.jump} exact opp hidden={hands !== 'ambas'} label={mates.includes(k) ? tx('Mão do parceiro') : null} />
   return (
-    <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''}`} style={sideVars}
+    <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''} ${px ? 'px' : ''}`} style={px ? { ...sideVars, ...cardVars(px) } : sideVars}
       onPointerOver={onOver} onPointerLeave={() => zoom && !zoom.pin && setZoom(null)}
       onPointerDown={onPress} onPointerUp={unPress} onPointerCancel={unPress} onPointerMove={unPress} onClick={onTap} onContextMenu={e => { if (e.target.closest('[data-z]')) e.preventDefault() }}>
       <div className="rp-bar">
@@ -742,6 +756,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
         <button className="rp-more" onClick={() => setMore(!more)} aria-expanded={more} title={tx('Velocidade, mãos e turno')}>⚙</button>
         <label className="sl rp-speed"><span>{jsx(tx('Velocidade {x}'), { x: <b>{speed}×</b> })}</span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
         {onPlayFrom && !live && !multi && <button className="rp-x" onClick={() => { setPlaying(false); onPlayFrom(s, game) }} title={tx('Abre esta posição no Forge e jogas tu com o teu deck')}>{tx('🎮 Jogar daqui')}</button>}
+        <CardPx className="rp-x" onChange={setPx} />
         <select className="rp-x" value={hands} onChange={e => setHands(e.target.value)} aria-label={tx('Mãos à vista')}>{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
         <select className="rp-x" value={s.turn || ''} onChange={e => go(evs.findIndex(x => x.t === +e.target.value))} aria-label={tx('Ir para o turno')}>{turns.map(t => <option key={t} value={t}>{tx('Turno {t}', { t })}</option>)}</select>
         <div className="rp-time">
