@@ -2914,3 +2914,11 @@ body:has(.fp.ml) .live-bar, body:has(.fp.ml) .live-bar-pad { display: none; }  /
 .ml-cz { position: relative; } .ml-tax { position: absolute; right: -4px; top: -6px; font-size: 11px; padding: 1px 5px; border-radius: 99px; background: var(--gold); color: #1b1405; }
 .ml-pick .pc { animation: fp-sel 1.2s ease-in-out infinite alternate; border-radius: 6%; }
 .ml-pickmsg { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--panel); border: 1px solid var(--gold); }
+/* torneio misto: como se joga cada partida (🤖 Forge · 🎮 Forge Play · 🃏 mesa livre) e quem joga cada deck */
+.room-mode.misto { background: #a78bfa26; color: #ddd6fe; }
+.how-chip { font-size: 11px; padding: 0 7px; border-radius: 99px; background: #ffffff12; white-space: nowrap; }
+.how-chip.how-play { background: #a78bfa26; color: #ddd6fe; } .how-chip.how-mesa { background: #4ade8022; color: #bbf7d0; }
+.ml-fm-p .how-chip { margin-right: 6px; } .ml-fm-st { margin: 0; }
+.plays-tg { flex-wrap: wrap; } .plays-tg button { padding: 2px 8px; font-size: 12px; }
+.room-pl li .plays-tg button { padding: 1px 7px; font-size: 11px; } .room-pl li select.small { font-size: 11px; padding: 1px 4px; }
+.tc-wait select { margin-left: 4px; }

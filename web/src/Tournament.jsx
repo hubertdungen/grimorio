@@ -182,26 +182,36 @@ const MODES = {
   jogo: [tx('Jogo com bots'), tx('Quem joga: os bots do Forge, com os vossos decks. Os amigos veem ao vivo e apostam.'), tx('Regras: todas, aplicadas pelo Forge.')],
   torneio: [tx('Torneio com bots'), tx('Quem joga: os bots do Forge (eliminação, suíço, liga, grupos…). Os amigos veem e apostam.'), tx('Regras: todas, aplicadas pelo Forge.')],
   livre: [tx('Mesa livre'), tx('Quem joga: só vocês, 2 a 4 amigos, sem bots. Cada um mexe nas suas cartas, como numa mesa a sério.'), tx('Regras: nenhuma automática. Qualquer formato, Commander incluído.')],
+  misto: [tx('Torneio misto'), tx('Quem joga: pessoas e bots do Forge no mesmo torneio. Cada deck é jogado pelo dono ou pelo bot, à escolha de cada um.'), tx('Regras: cada partida usa as regras do Forge quando há um bot, e a mesa livre entre pessoas.')],
   livretorneio: [tx('Torneio de mesa livre'), tx('Quem joga: vocês, sem bots, cada um com um ou vários decks seus. Cada partida abre uma mesa livre entre os dois.'), tx('Regras: nenhuma automática; desistir = perder, o resultado combina-se na mesa ou marca-o quem aloja. Conta como torneio de amigos.')],
   solo: [tx('Mesa livre a solo'), tx('Quem joga: só tu, para testar um deck (goldfish). Sem sala nem link.'), tx('Regras: nenhuma automática. Novo turno, recomeçar e a vida de um adversário imaginário.')],
 }
 function NewRoom({ data, fmt, deckId, onRoom, openTable }) {
-  const [kind, setKindS] = useState(() => (['torneio', 'livre', 'solo', 'livretorneio'].includes(ls('grimorio.online.tipo')) ? ls('grimorio.online.tipo') : 'jogo'))
+  const [kind, setKindS] = useState(() => (['torneio', 'livre', 'solo', 'livretorneio', 'misto'].includes(ls('grimorio.online.tipo')) ? ls('grimorio.online.tipo') : 'jogo'))
   const setKind = k => { setKindS(k); ls('grimorio.online.tipo', k) }
   return <div className="new-room">
     <div className="nr-kind nr-modes" role="group" aria-label={tx('Tipo de sala')}>
       {Object.entries(MODES).map(([k, [t, w, r]]) => (
         <button key={k} className={`${kind === k ? 'on' : ''} m-${k}`} onClick={() => setKind(k)} aria-pressed={kind === k}>
-          <TypeIco k={k === 'torneio' || k === 'livretorneio' ? 'elim' : k === 'solo' ? 'livre' : k} /> <b>{['livre', 'solo', 'livretorneio'].includes(k) ? '🃏 ' : '🤖 '}{t}</b><small>{w}</small><small className="nr-rules">{r}</small></button>))}
+          <TypeIco k={['torneio', 'livretorneio', 'misto'].includes(k) ? 'elim' : k === 'solo' ? 'livre' : k} /> <b>{['livre', 'solo', 'livretorneio'].includes(k) ? '🃏 ' : k === 'misto' ? '🎮 ' : '🤖 '}{t}</b><small>{w}</small><small className="nr-rules">{r}</small></button>))}
     </div>
-    {kind === 'livre' ? <NewFreeRoom data={data} deckId={deckId} onRoom={onRoom} /> : kind === 'solo' ? <NewSolo data={data} deckId={deckId} openTable={openTable} /> : <Create key={kind} data={data} fmt0={fmt} deckId={deckId} room={kind === 'livretorneio' ? 'torneio' : kind} free={kind === 'livretorneio'} onRoom={onRoom} />}
+    {kind === 'livre' ? <NewFreeRoom data={data} deckId={deckId} onRoom={onRoom} /> : kind === 'solo' ? <NewSolo data={data} deckId={deckId} openTable={openTable} /> : <Create key={kind} data={data} fmt0={fmt} deckId={deckId} room={kind === 'livretorneio' || kind === 'misto' ? 'torneio' : kind} free={kind === 'livretorneio'} misto={kind === 'misto'} onRoom={onRoom} />}
   </div>
+}
+
+// torneio misto: quem joga este deck — o dono (uma pessoa: Forge Play contra bots, mesa livre contra pessoas) ou o bot
+function PlaysToggle({ plays, onChange, disabled }) {
+  const me = plays === 'dono'
+  return <span className="seg small plays-tg" role="group" aria-label={tx('Quem joga este deck')}>
+    <button type="button" className={me ? 'on' : ''} aria-pressed={me} disabled={disabled} onClick={() => onChange('dono')} title={tx('Joga o dono: contra um bot no Forge Play, contra outra pessoa numa mesa livre')}>🧑 {tx('joga o dono')}</button>
+    <button type="button" className={me ? '' : 'on'} aria-pressed={!me} disabled={disabled} onClick={() => onChange('bot')} title={tx('Joga o bot do Forge, com a dificuldade escolhida')}>🤖 {tx('joga o bot')}</button>
+  </span>
 }
 
 // mesa livre: nome, quantos lugares e o teu deck (qualquer formato; Commander com zona de comando e 40 de vida)
 // ---------- criar ----------
 
-function Create({ data, fmt0, onCreated, deckId, room, onRoom, free }) {  // free: torneio de mesa livre (sem bots; jogam os donos dos decks)  // room = 'jogo' | 'torneio': abre uma sala online em vez de começar já
+function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) {  // misto: cada deck joga-o o dono ou o bot  // free: torneio de mesa livre (sem bots; jogam os donos dos decks)  // room = 'jogo' | 'torneio': abre uma sala online em vez de começar já
   const [format, setFormat] = useState(fmt0.key === 'casual' || (room && fmt0.cmd) ? 'modern' : fmt0.key)  // online sem Commander (rooms.py)
   const F = FORMAT[format]
   const defType = f => (room === 'jogo' ? 'jogo' : FORMAT[f].cmd === 'commander' && f !== 'duel' ? 'mesas' : 'elim')
@@ -216,6 +226,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free }) {  // fre
   const [mixOn, setMixOn] = useState(true)
   const mixF = casual && mixOn  // formatos misturados (só em casual)
   const [hold, setHold] = useState(() => ls('grimorio.torneio.hold') === '1')
+  const [wait, setWait] = useState(() => +ls('grimorio.torneio.espera') || 0)  // misto: minutos à espera de uma pessoa; depois joga o bot
   const [playMe, setPlayMe] = useState(() => ls('grimorio.torneio.playme') === '1')  // os jogos do meu deck jogo-os eu (Forge Play)  // só começa com o OK (escolha guardada, também nas Definições)
   const [metaFmt, setMetaFmt] = useState('')
   const mf = mixF ? metaFmt || format : format
@@ -366,8 +377,8 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free }) {  // fre
   const openRoom = async () => {
     setBusy(true); setErr('')
     try {
-      await post('/api/rooms', { name: name.trim() || suggested, type, format, casual, hold, cross, bo: boOf, third, rounds: R, seeding, team, ...(free && { free: true }),
-        players: players.map(({ src, ref, difficulty, cover, colors, me, name: nm }) => ({ src, ref, difficulty, cover, colors, me, name: nm })) })
+      await post('/api/rooms', { name: name.trim() || suggested, type, format, casual, hold, cross, bo: boOf, third, rounds: R, seeding, team, ...(free && { free: true }), ...(misto && { misto: true, wait }),
+        players: players.map(({ src, ref, difficulty, cover, colors, me, name: nm, plays }) => ({ src, ref, difficulty, cover, colors, me, name: nm, plays })) })
       onRoom()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
@@ -384,7 +395,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free }) {  // fre
   const canPlayMe = !room && players.some(p => p.me) && !F.cmd && type !== 'mesas' && type !== 'equipas'  // como tournament.py
   return (
     <section className="card tour-create">
-      <h3>{free ? tx('Novo torneio de mesa livre') : room === 'jogo' ? tx('Novo jogo online') : room ? tx('Novo torneio online') : tx('Novo torneio')} <span className="muted small">{free ? tx('sem bots: junta os teus decks aqui (podes pôr vários) e partilha o link; cada amigo entra com um ou vários decks seus. Cada partida joga-se numa mesa livre entre os donos dos decks.') : room ? tx('abre a sala e partilha o link: quem entra junta um deck seu, e os lugares que juntares aqui jogam com os bots do Forge') : tx('os bots do Forge jogam tudo sozinhos no servidor — podes fechar o browser e voltar mais tarde')}</span></h3>
+      <h3>{misto ? tx('Novo torneio misto') : free ? tx('Novo torneio de mesa livre') : room === 'jogo' ? tx('Novo jogo online') : room ? tx('Novo torneio online') : tx('Novo torneio')} <span className="muted small">{misto ? tx('junta os teus decks e escolhe em cada um se o jogas tu ou o bot; cada amigo entra com os seus e escolhe o mesmo. Pessoa contra bot joga-se no Forge Play, pessoas entre si numa mesa livre, bot contra bot no Forge.') : free ? tx('sem bots: junta os teus decks aqui (podes pôr vários) e partilha o link; cada amigo entra com um ou vários decks seus. Cada partida joga-se numa mesa livre entre os donos dos decks.') : room ? tx('abre a sala e partilha o link: quem entra junta um deck seu, e os lugares que juntares aqui jogam com os bots do Forge') : tx('os bots do Forge jogam tudo sozinhos no servidor — podes fechar o browser e voltar mais tarde')}</span></h3>
       <div className="tc-grid">
         <div className="lab-step">
           <h4 className="step-h"><i>1</i> {tx('Regras')}</h4>
@@ -393,9 +404,10 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free }) {  // fre
           {casual && <label className="chk" title={tx('Desligado: todos os decks são do formato escolhido, só que o torneio não conta para os ratings.')}><input type="checkbox" checked={mixOn} onChange={e => setMixOn(e.target.checked)} /> {tx('Misturar formatos')}</label>}
           {casual && <p className="small muted tc-info">{mixF ? CASUAL_INFO : tx('Casual sem misturar: decks só deste formato.')} {tx('Os torneios casuais não contam para os ratings.')}</p>}
           <label className="fmt"><span>{mixF ? tx('Regras base (vida e tipo de jogo de todos)') : tx('Formato (todos os decks jogam este)')}</span>
-            <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(defType(f)) }}>{FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited' && !(room && f.cmd && !free)).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</select></label>
+            <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(defType(f)) }}>{FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited' && !(room && f.cmd && !free && !misto)).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</select></label>
           {!mixF && CROSS[format] && <label className="chk small" title={tx('Os decks têm de ser legais carta a carta neste formato (o servidor confirma).')}><input type="checkbox" checked={crossOn} onChange={e => { setCrossOn(e.target.checked); ls('grimorio.torneio.cross', e.target.checked ? '1' : '0') }} /> {tx('Aceitar decks legais de outros formatos ({l})', { l: CROSS[format].map(f => FORMAT[f]?.name || f).join(', ') })}</label>}
-          {room !== 'jogo' && <div className="tc-types">{Object.entries(TYPES).filter(([k]) => k !== 'jogo').map(([k, [l, lo, hi]]) => (
+          {misto && F.cmd && <p className="small muted tc-info">{tx('Commander só se todos jogarem eles mesmos (fica um torneio de mesa livre): com bots, o Forge Play é um contra um.')}</p>}
+          {room !== 'jogo' && <div className="tc-types">{Object.entries(TYPES).filter(([k]) => k !== 'jogo' && !(misto && k === 'mesas')).map(([k, [l, lo, hi]]) => (
             <button key={k} className={type === k ? 'on' : ''} onClick={() => setType(k)}><TypeIco k={k} /><b>{l}</b><small>{lo}–{hi} decks</small></button>
           ))}</div>}
           <p className="small muted tc-info">{info}</p>
@@ -477,6 +489,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free }) {  // fre
             {type === 'gauntlet' && k === chK && <small style={{ color: 'var(--gold2)' }}>{tx('⚔ desafiante')}</small>}
             <span className="tp-l1">{p.colors ? <Mana cost={[...p.colors].map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}</span>
             <span className="tp-l2">{stars[rkey(p.src, p.ref)] ? <Stars r={stars[rkey(p.src, p.ref)]} /> : !casual && <span className="muted small">{tx('sem rating')}</span>}</span>
+            {misto && <PlaysToggle plays={p.plays} onChange={v => setP(k, { plays: v })} />}
             <select value={p.difficulty} onChange={e => setP(k, { difficulty: e.target.value })} aria-label={tx('Dificuldade de {d}', { d: p.name })} title={DIFF_INFO[p.difficulty]?.resumo}>{diffs.filter(d => d.id !== 'random').map(d => <option key={d.id} value={d.id}>{dLabel(d)}</option>)}</select>
             <span className="row-btns">{p.src === 'meus' && <button className={`me-btn ${p.me ? 'on' : ''}`} onClick={() => setPlayers(ps => ps.map((x, i) => ({ ...x, me: i === k ? !x.me : false })))} aria-pressed={!!p.me} title={tx('É o teu deck: segues o percurso dele no torneio')}>{p.me ? tx('★ eu') : tx('☆ eu')}</button>}{seeding === 'ordem' && <><button onClick={() => move(k, -1)} disabled={!k} aria-label={tx('Subir')}>▲</button><button onClick={() => move(k, 1)} disabled={k === n - 1} aria-label={tx('Descer')}>▼</button></>}<button className="link small" onClick={() => setPlayers(x => x.filter((_, i) => i !== k))}>{tx('tirar')}</button></span>
           </div>
@@ -485,6 +498,8 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free }) {  // fre
       <div className="row-btns tc-go">
         {asRoom ? <button className="primary" onClick={openRoom} disabled={busy || n > max}>{tx('🚪 Abrir a sala')}</button>
           : <button className="primary" onClick={start} disabled={busy || n < lo || n > max || teamBad}>{tx('🏆 Começar o torneio')}</button>}
+        {misto && <label className="small tc-wait" title={tx('Se a pessoa de uma partida não aparecer (não carregar em «Jogar» nem em «Pronto»), o bot joga a partida por ela. Quem aloja também pode dar qualquer partida ao bot.')}>{tx('Se alguém não aparecer:')} <select value={wait} onChange={e => { setWait(+e.target.value); ls('grimorio.torneio.espera', e.target.value) }}>
+          <option value={0}>{tx('espera sempre')}</option>{[5, 10, 15, 30].map(m => <option key={m} value={m}>{tx('o bot joga ao fim de {m} min', { m })}</option>)}</select></label>}
         <label className="chk small" title={tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}><input type="checkbox" checked={hold} onChange={e => { setHold(e.target.checked); ls('grimorio.torneio.hold', e.target.checked ? '1' : '0') }} /> {tx('Só começar quando eu der OK')}</label>
         {!asRoom && <label className="chk small" title={canPlayMe ? tx('As partidas do teu deck esperam por ti e jogas tu, na mesa do Grimório; as outras jogam-nas os bots.') : tx('Escolhe «o meu deck» na lista (fora do Commander, das mesas e das equipas).')}><input type="checkbox" checked={canPlayMe && playMe} disabled={!canPlayMe} onChange={e => { setPlayMe(e.target.checked); ls('grimorio.torneio.playme', e.target.checked ? '1' : '0') }} /> 🎮 {tx('Jogo eu os jogos do meu deck (Forge Play)')}</label>}
         {n > 0 && (casual ? <span className="rk rk-cas" title={tx('Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.')}>{tx('Casual')}</span>
@@ -753,7 +768,7 @@ function Rooms({ data, guest, open, openTable }) {
         <div key={r.id} className={`room ${r.status}`}>
           <div className="room-h"><TypeIco k={r.type} /><b>{r.name}</b>
             <span className="small muted">{r.type === 'livre' ? tx('Mesa livre') : TYPES[r.type]?.[0]} · {r.casual ? (r.type === 'livre' ? tx('qualquer formato') : tx('casual')) : FORMAT[r.format]?.name || r.format} · {r.players.length}/{r.max} {tx('(mínimo {m})', { m: r.min })}</span>
-            <span className={`room-mode ${r.type === 'livre' || r.free ? 'livre' : 'bots'}`} title={(r.free ? MODES.livretorneio : MODES[r.type] || MODES.torneio).slice(1).join(' ')}>{r.free ? `🃏 ${tx('torneio sem bots')}` : r.type === 'livre' ? `🃏 ${tx('sem bots, sem regras')}` : `🤖 ${tx('os bots do Forge jogam')}`}</span>
+            <span className={`room-mode ${r.type === 'livre' || r.free ? 'livre' : r.misto ? 'misto' : 'bots'}`} title={(r.free ? MODES.livretorneio : r.misto ? MODES.misto : MODES[r.type] || MODES.torneio).slice(1).join(' ')}>{r.free ? `🃏 ${tx('torneio sem bots')}` : r.misto ? `🎮 ${tx('misto: pessoas e bots')}` : r.type === 'livre' ? `🃏 ${tx('sem bots, sem regras')}` : `🤖 ${tx('os bots do Forge jogam')}`}</span>
             {r.status === 'started' ? (r.type === 'livre' ? (r.players.some(p => p.mine) || !guest ? <button className="primary small" onClick={() => openTable(r.tid)}>{tx('🃏 Ir para a mesa')}</button> : <span className="small muted">{tx('a jogar')}</span>)
               : <button className="primary small" onClick={() => open(r.tid)}>{r.type === 'jogo' ? tx('🎲 Ver o jogo') : tx('🏆 Ver o torneio')}</button>)
               : !guest && <span className="row-btns"><button className="primary small" disabled={r.players.length < r.min || !!busy} onClick={() => act(r.id, 'start')} title={r.players.length < r.min ? tx('Precisa de pelo menos {m} jogadores (há {n})', { m: r.min, n: r.players.length }) : undefined}>{busy === `${r.id}:start` ? tx('A abrir a mesa…') : tx('▶ Começar')}</button><button className="link small" onClick={() => act(r.id, 'cancel')}>{tx('cancelar')}</button></span>}
@@ -782,12 +797,19 @@ function Rooms({ data, guest, open, openTable }) {
             {r.status === 'open' && !mine.length && <JoinPanel key={`${r.id}${decks.length}`} r={r} data={data} decks={myDecks(r)} guest={guest} busy={busy === `${r.id}:join`}
               onJoin={b => act(r.id, 'join', b)} reload={() => j('/api/decks').then(setDecks)} />}
           </> : <ul className="room-pl">{r.players.map((p, k) => (
-            <li key={k} className={p.by ? 'fr' : ''}>{p.by ? `🤝 ${p.by}` : '🏠'} · {p.name}{(!guest || p.mine) && r.status === 'open' && <button className="link small" onClick={() => act(r.id, 'leave', { ref: p.ref })}>{tx('tirar')}</button>}</li>))}</ul>}
+            <li key={k} className={p.by ? 'fr' : ''}>{p.by ? `🤝 ${p.by}` : '🏠'} · {p.name}
+              {r.misto && <PlaysToggle plays={p.plays} disabled={r.status !== 'open' || (guest && !p.mine) || !!busy} onChange={v => act(r.id, 'plays', { ref: p.ref, plays: v })} />}
+              {r.misto && p.plays !== 'dono' && <select className="small" value={p.difficulty} disabled={r.status !== 'open' || (guest && !p.mine)} onChange={e => act(r.id, 'plays', { ref: p.ref, difficulty: e.target.value })} aria-label={tx('Dificuldade de {d}', { d: p.name })}>{Object.entries(DIFF_INFO).filter(([id]) => id !== 'random').map(([id, d]) => <option key={id} value={id}>{d.label}</option>)}</select>}
+              {(!guest || p.mine) && r.status === 'open' && <button className="link small" onClick={() => act(r.id, 'leave', { ref: p.ref })}>{tx('tirar')}</button>}</li>))}</ul>}
           {r.free && r.status === 'open' && <><p className="small muted room-why">{MODES.livretorneio[1]} {MODES.livretorneio[2]}</p>
             {!guest && <LendPanel r={r} data={data} act={act} />}
             <JoinPanel key={`${r.id}${decks.length}${mine.length}`} r={r} data={data} decks={myDecks(r)} guest={guest} busy={busy === `${r.id}:join`} onJoin={b => act(r.id, 'join', b)} reload={() => j('/api/decks').then(setDecks)} />
             {mine.length > 0 && <p className="small muted">{tx('Tens {n} deck(s) neste torneio. Podes juntar mais.', { n: mine.length })}</p>}</>}
-          {r.type !== 'livre' && !r.free && r.status === 'open' && (!guest || !mine.length) && (opts.length ? (
+          {r.misto && r.status === 'open' && <><p className="small muted room-why">{MODES.misto[1]} {MODES.misto[2]} {r.wait ? tx('Se alguém não aparecer, o bot joga a partida ao fim de {m} min.', { m: r.wait }) : ''}</p>
+            {!guest && <LendPanel r={r} data={data} act={act} />}
+            <JoinPanel key={`${r.id}${decks.length}${mine.length}`} r={r} data={data} decks={myDecks(r)} guest={guest} busy={busy === `${r.id}:join`} onJoin={b => act(r.id, 'join', b)} reload={() => j('/api/decks').then(setDecks)} />
+            {mine.length > 0 && <p className="small muted">{tx('Tens {n} deck(s) neste torneio. Em cada um, escolhe se o jogas tu (🧑) ou o bot (🤖).', { n: mine.length })}</p>}</>}
+          {r.type !== 'livre' && !r.free && !r.misto && r.status === 'open' && (!guest || !mine.length) && (opts.length ? (
             <div className="row-btns"><select value={sel} onChange={e => setPick(x => ({ ...x, [r.id]: e.target.value }))} aria-label={tx('Deck para entrar')}>{opts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
               <button onClick={() => act(r.id, 'join', { deck: sel })} disabled={!sel || r.players.length >= r.max}>{tx('＋ Entrar com este deck')}</button></div>)
             : <p className="small muted">{guest ? tx('Não tens decks de {f}. Cria um no Construir.', { f: r.casual ? tx('qualquer formato') : FORMAT[r.format]?.name || r.format }) : null}</p>)}
@@ -933,7 +955,7 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
     return () => { off = true; clearTimeout(timer) }
   }, [tid])
   const P = t?.players || []
-  const games = useMemo(() => (t ? t.matches.flatMap(m => m.g.map((x, k) => ({ ...x, m, k }))).sort((a, b) => a.id - b.id) : []), [t])
+  const games = useMemo(() => (t ? t.matches.flatMap(m => m.g.map((x, k) => ({ ...x, m, k })).filter(x => !x.h)).sort((a, b) => a.id - b.id) : []), [t])  // os das pessoas não têm jogo para rever
   const fmt = FORMAT[t?.format] || FORMAT.modern
   const fl = useMemo(() => (onlyMine && t?.me != null ? games.filter(x => x.m.p.includes(t.me)) : games), [games, onlyMine, t?.me])  // o que se segue
   const openGame = async (x, away = false) => {  // away: salto para outra mesa à espera da seguida (mantém-na)
@@ -977,9 +999,15 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
     if (stick) { const nx = fl.find(x => x.m.id === stick.mid && x.id > stick.gid); if (nx) { setStick(null); openGame(nx) } }
   }, [fl]) // eslint-disable-line react-hooks/exhaustive-deps
   const bets = useBets(tid, t)
+  const queued = useRef(new Set())  // partidas minhas na fila do Forge Play: quando o jogo abre, vou para a mesa
+  useEffect(() => {
+    const m = t?.matches.find(x => queued.current.has(x.id) && x.play && x.by === t.you)
+    if (m) { queued.current.delete(m.id); setPlaying(m.play); play('tick', { amount: 1 }) }
+  }, [t])
   if (!t) return <section className="card">{err ? <p className="bad-t">{err}</p> : <p><span className="spin-dot" /> {tx('A abrir o torneio…')}</p>}</section>
   const act = async a => { try { await post(`/api/tournaments/${tid}/${a}`); setT(await j(`/api/tournaments/${tid}`)) } catch (e) { setErr(e.message) } }
-  const playMine = async mid => { setErr(''); try { setPlaying((await post(`/api/tournaments/${tid}/play`, { mid, name: tx('Tu') })).sid) } catch (e) { setErr(e.message) } }
+  // o meu jogo no Forge Play; sem lugar no servidor fica na fila e abre-se sozinho quando começar (efeito em cima)
+  const playMine = async mid => { setErr(''); try { const r = await post(`/api/tournaments/${tid}/play`, { mid, name: who || tx('Tu') }); if (r.sid) setPlaying(r.sid); else { queued.current.add(mid); setT(await j(`/api/tournaments/${tid}`)) } } catch (e) { setErr(e.message) } }
   if (playing) return <>{slot && createPortal(<button onClick={() => setPlaying(null)}>{tx('← Voltar ao torneio')}</button>, slot)}
     <div className="view play fp-view">
       <div className="row-btns fp-bar"><b>🏆 {t?.name}</b> <span className="muted small">{tx('o teu jogo do torneio')}</span>
@@ -1056,8 +1084,8 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
           {fl.length > 0 && <button className="small" onClick={() => openGame(fl[fl.length - 1])}>{onlyMine && t.me != null ? tx('▶ último jogo meu') : tx('▶ último jogo')}</button>}
         </div>
         <StartGate t={t} onStart={() => act('start')} />
-        {t.free && <FreeMatches t={t} openTable={openTable} nameOf={nameOf} onChange={() => j(`/api/tournaments/${tid}`).then(setT).catch(() => {})} />}
-        {myGame && <p className="tl-now me-play">🎮 {myGame.play ? tx('O teu jogo contra {o} está a decorrer', { o: nameOf(myGame.p.find(i => i !== t.me)) }) : tx('É a tua vez: jogo {g} contra {o}', { g: myGame.g.length + 1, o: nameOf(myGame.p.find(i => i !== t.me)) })} <button className="primary" onClick={() => playMine(myGame.id)}>{myGame.play ? tx('▶ Voltar à mesa') : tx('▶ Jogar no Forge Play')}</button></p>}
+        {(t.free || t.misto) && <FreeMatches t={t} openTable={openTable} nameOf={nameOf} playMine={playMine} onChange={() => j(`/api/tournaments/${tid}`).then(setT).catch(() => {})} />}
+        {myGame && <p className="tl-now me-play">🎮 {myGame.play ? tx('O teu jogo contra {o} está a decorrer', { o: nameOf(myGame.p.find(i => i !== t.me)) }) : tx('É a tua vez: jogo {g} contra {o}', { g: myGame.g.length + 1, o: nameOf(myGame.p.find(i => i !== t.me)) })} <button className="primary" disabled={!!myGame.want && !myGame.play} onClick={() => playMine(myGame.id)}>{myGame.play ? tx('▶ Voltar à mesa') : myGame.want ? `⏳ ${tx('Na fila do Forge…')}` : tx('▶ Jogar no Forge Play')}</button></p>}
         {meLine && <p className={`me-line ${ms.phase}`}><Thumb data={data} p={P[t.me]} /><span><small>{tx('O meu deck · {d}', { d: P[t.me]?.name })}</small><b>{ms.phase === 'done' ? `${(t.type !== 'gauntlet' || ms.place[0] === 1) && MEDAL[ms.place[0] - 1] || '🎖'} ` : ''}{meLine}</b></span></p>}
         {lives.map(({ L, lm }) => <p key={lm.id} className="tl-now"><span className="spin-dot" /> {L.status === 'queued' ? tx('Na fila do Forge (posição {p})', { p: L.position }) : tx('A jogar')}: <b>#{num[lm.id]}</b> {(L.seats || lm.p).map(nameOf).join(' vs ')} · {tx('jogo {g}', { g: lm.g.length + 1 })}{lm.p.length === 2 && t.bo > 1 ? ` · ${lm.w[0]}–${lm.w[1]}` : ''}{Object.keys(lm.sb || {}).length > 0 && <span className="muted" title={Object.entries(lm.sb).map(([i, sw]) => `${nameOf(+i)}: ${sw.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join('\n')}> · {tx('⇄ com sideboard:')} {Object.keys(lm.sb).map(i => nameOf(+i)).join(', ')}</span>}</p>)}
         {!lm && !myGame && !t.free && t.status === 'running' && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
@@ -1187,7 +1215,8 @@ function Thumb({ data, p }) {
 }
 
 function GameChips({ m, onGame, P }) {
-  return m.g.map((x, k) => <button key={x.id} className={`gchip ${x.x ? 'x' : x.w == null ? '' : 'w'}`} onClick={() => onGame({ ...x, m, k })} title={`${x.x ? tx('O Forge falhou neste jogo (repetido)') : x.w == null ? tx('Empate') : tx('Ganhou {d}', { d: P[x.w]?.name })}${x.sb ? ` · ${tx('com sideboard')}` : ''}`}>{tx('J{g}', { g: k + 1 })}{x.t ? ` · T${x.t}` : ''}{x.sb ? ' ⇄' : ''} ▶</button>)
+  // x.h: jogado por pessoas (Forge Play ou mesa livre): só o resultado, sem jogo para rever
+  return m.g.map((x, k) => <button key={x.id} className={`gchip ${x.x ? 'x' : x.w == null ? '' : 'w'}`} disabled={!!x.h} onClick={() => onGame({ ...x, m, k })} title={`${x.x ? tx('O Forge falhou neste jogo (repetido)') : x.w == null ? tx('Empate') : tx('Ganhou {d}', { d: P[x.w]?.name })}${x.sb ? ` · ${tx('com sideboard')}` : ''}${x.h ? ` · ${tx('jogado por pessoas: só fica o resultado')}` : ''}`}>{tx('J{g}', { g: k + 1 })}{x.t ? ` · T${x.t}` : ''}{x.sb ? ' ⇄' : ''}{x.h ? ' 🧑' : ' ▶'}</button>)
 }
 
 // trocas de sideboard de cada jogo (tournament.py: g[k].sb = {participante: [{in, out, q, why, outWhy}]})
@@ -1200,6 +1229,8 @@ function SideWhy({ m, P }) {
   )
 }
 
+// como se joga cada partida (tournament.how): no Forge (bot contra bot), no Forge Play (pessoa contra bot) ou à mesa livre
+const HOW = { forge: ['🤖', tx('Bot contra bot: joga-se no Forge, com as regras todas')], play: ['🎮', tx('Pessoa contra bot: joga-se no Forge Play, com as regras do Forge')], mesa: ['🃏', tx('Pessoas entre si: joga-se numa mesa livre')] }
 function Match({ m, data, P, live, num, onGame, label, me, casual, odds, bet }) {
   const now = live?.ids?.has(m.id), tt = m.b === 'T'  // tt: 2 contra 2 à mesma mesa (p = equipa a, equipa a, equipa b, equipa b)
   const slot = k => {
@@ -1217,7 +1248,7 @@ function Match({ m, data, P, live, num, onGame, label, me, casual, odds, bet }) 
   }
   return (
     <div className={`tm ${m.st} ${now ? 'now' : ''} ${m.bye ? 'isbye' : ''} ${me != null && m.p.includes(me) ? 'mine' : ''}`} data-mid={m.id}>
-      <div className="tm-h"><span>#{num[m.id]}{label ? ` · ${label}` : ''}</span>{now && <span className="livepill">{tx('● a jogar')}</span>}{m.tb ? <span className="muted" title={tx('Empatados depois dos jogos extra: passa o melhor seed')}>{tx('desempate pelo seed')}</span> : null}{m.note && <span className="muted" title={tx(m.note)}>⚠</span>}</div>
+      <div className="tm-h"><span>#{num[m.id]}{label ? ` · ${label}` : ''}</span>{m.how && <span className={`how-chip how-${m.how}`} title={HOW[m.how][1]}>{HOW[m.how][0]}</span>}{now && <span className="livepill">{tx('● a jogar')}</span>}{m.tb ? <span className="muted" title={tx('Empatados depois dos jogos extra: passa o melhor seed')}>{tx('desempate pelo seed')}</span> : null}{m.note && <span className="muted" title={tx(m.note)}>⚠</span>}</div>
       {(tt ? [0, 1, 2, 3] : [0, 1]).map(slot)}
       {odds?.[m.id] && bet && <BetPop m={m} odds={odds[m.id]} P={P} bet={bet} />}
       {m.g.length > 0 && <div className="tm-g"><GameChips m={m} onGame={onGame} P={P} /></div>}

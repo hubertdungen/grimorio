@@ -180,12 +180,15 @@ export function RemoteJoin({ data }) {
   )
 }
 
-// ---------- torneio de mesa livre: as partidas à espera, quem está pronto, a mesa e o resultado ----------
-export function FreeMatches({ t, openTable, nameOf, onChange }) {
+// ---------- torneio de mesa livre / misto: as partidas que esperam por pessoas ----------
+// mesa livre (🃏): os dois donos carregam em «Pronto» e a mesa abre; Forge Play (🎮, só no misto): a pessoa joga contra o
+// bot do outro deck (na fila do servidor se não houver lugar). Quem aloja marca resultados e, no misto, dá partidas ao bot.
+export function FreeMatches({ t, openTable, nameOf, onChange, playMine }) {
   const [busy, setBusy] = useState(''), [err, setErr] = useState(''), seen = useRef({})
   const host = t.you === 'host', P = t.players || []
   const owner = i => P[i]?.by || 'host', who = i => (owner(i) === 'host' ? tx('Anfitrião') : P[i]?.fr || tx('Amigo'))
-  const ms = (t.matches || []).filter(m => m.st === 'ready' && m.p.length >= 2)
+  const human = i => (t.free || P[i]?.ctl ? owner(i) : null)  // quem joga o deck i (null = o bot)
+  const ms = (t.matches || []).filter(m => m.st === 'ready' && m.p.length >= 2 && (m.how ? m.how !== 'forge' : true))
   useEffect(() => {  // a mesa da minha partida abriu e eu estava pronto: vai lá
     for (const m of ms) {
       if (m.table && !seen.current[m.table] && m.p.some(i => owner(i) === t.you) && (m.rdy || []).includes(t.you) && seen.current[m.id] !== undefined) openTable(m.table)
@@ -197,26 +200,34 @@ export function FreeMatches({ t, openTable, nameOf, onChange }) {
     setBusy(`${m.id}:${a}`); setErr('')
     try { const r = await post(`/api/tournaments/${t.id}/${a}`, { mid: m.id, ...body }); onChange?.(); if ((a === 'open' || a === 'ready') && r.match?.table) openTable(r.match.table) } catch (e) { setErr(e.message) } finally { setBusy('') }
   }
+  const go = async m => { setBusy(`${m.id}:play`); try { await playMine(m.id) } finally { setBusy('') } }
   if (t.status !== 'running') return null
+  const turn = ms.find(m => m.how === 'play' && m.p.some(i => human(i) === t.you) && !m.want)  // «É a tua vez» (Forge Play)
   return (
     <section className="card ml-fm">
-      <h3>🃏 {tx('Partidas à mesa livre')} <span className="muted small">{tx('Cada partida joga-se numa mesa livre entre os donos dos decks. Quando os dois carregam em «Pronto», a mesa abre. Desistir = perder; o resultado também se pode combinar na mesa ou ser marcado por quem aloja.')}</span></h3>
+      <h3>{t.misto ? `🎮 ${tx('Partidas com pessoas')}` : `🃏 ${tx('Partidas à mesa livre')}`} <span className="muted small">{t.misto ? tx('Pessoa contra bot joga-se no Forge Play (com as regras do Forge); pessoas entre si numa mesa livre: quando os dois carregam em «Pronto», a mesa abre. Bot contra bot joga-se sozinho no Forge.') : tx('Cada partida joga-se numa mesa livre entre os donos dos decks. Quando os dois carregam em «Pronto», a mesa abre. Desistir = perder; o resultado também se pode combinar na mesa ou ser marcado por quem aloja.')}</span></h3>
+      {turn && <p className="tl-now me-play">🎮 {turn.play ? tx('O teu jogo contra {o} está a decorrer', { o: nameOf(turn.p.find(i => !human(i))) }) : tx('É a tua vez: jogo {g} contra {o}', { g: turn.g.length + 1, o: nameOf(turn.p.find(i => !human(i))) })} <button className="primary" disabled={!!busy} onClick={() => go(turn)}>{turn.play ? tx('▶ Voltar à mesa') : tx('▶ Jogar no Forge Play')}</button></p>}
       {err && <p className="small bad-t">{err}</p>}
       {!ms.length && <p className="muted small">{tx('Nenhuma partida à espera agora.')}</p>}
       {ms.map(m => {
-        const mine = m.p.some(i => owner(i) === t.you), owners = [...new Set(m.p.map(owner))], ready = m.rdy || [], meReady = ready.includes(t.you)
+        const fp = m.how === 'play', mine = m.p.some(i => (fp ? human(i) : owner(i)) === t.you), owners = [...new Set(m.p.map(fp ? human : owner).filter(Boolean))], ready = m.rdy || [], meReady = ready.includes(t.you)
+        const nm = o => (o === 'host' ? tx('Anfitrião') : P.find(p => p.by === o)?.fr || tx('Amigo'))
         return (
           <div key={m.id} className={`ml-fm-m ${mine ? 'mine' : ''}`}>
-            <div className="ml-fm-p">{m.p.map((i, k) => <span key={i}>{k > 0 && <b className="muted"> vs </b>}<b>{nameOf(i)}</b> <small className="muted">({who(i)})</small></span>)}
+            <div className="ml-fm-p">{t.misto && <span className={`how-chip how-${m.how}`} title={fp ? tx('Pessoa contra bot: joga-se no Forge Play, com as regras do Forge') : tx('Pessoas entre si: joga-se numa mesa livre')}>{fp ? '🎮 Forge Play' : `🃏 ${tx('mesa livre')}`}</span>}
+              {m.p.map((i, k) => <span key={i}>{k > 0 && <b className="muted"> vs </b>}<b>{nameOf(i)}</b> <small className="muted">({fp && !human(i) ? `🤖 ${tx('bot')}` : who(i)})</small></span>)}
               <small className="muted"> · {t.bo > 1 ? tx('jogo {g} · melhor de {bo} ({a}–{b})', { g: m.g.length + 1, bo: t.bo, a: m.w?.[0] ?? 0, b: m.w?.[1] ?? 0 }) : tx('jogo único')}</small></div>
-            <div className="ml-seats">{owners.map(o => <span key={o} className={`ml-seat ${ready.includes(o) ? 'ready' : ''}`}><span><b>{o === 'host' ? tx('Anfitrião') : P.find(p => p.by === o)?.fr || tx('Amigo')}</b></span><em className="ml-rd">{ready.includes(o) || m.table ? '✓' : '…'}</em></span>)}</div>
+            {fp ? <p className="small ml-fm-st">{m.play ? `▶ ${tx('A jogar no Forge Play: {p}', { p: nm(m.by) })}` : m.want ? `⏳ ${tx('Na fila do Forge: abre quando houver lugar no servidor (cada jogo do Forge Play ocupa ~1 GB).')}` : `… ${tx('À espera de {p}', { p: nm(owners[0]) })}`}</p>
+              : <div className="ml-seats">{owners.map(o => <span key={o} className={`ml-seat ${ready.includes(o) ? 'ready' : ''}`}><span><b>{nm(o)}</b></span><em className="ml-rd">{ready.includes(o) || m.table ? '✓' : '…'}</em></span>)}</div>}
             <div className="row-btns">
-              {m.table ? (mine || host) && <button className="primary" onClick={() => openTable(m.table)}>🃏 {tx('Ir para a mesa')}</button>
-                : mine && <button className={meReady ? 'on ml-ready' : 'primary ml-ready'} disabled={!!busy} onClick={() => act(m, 'ready', { on: !meReady })}>{meReady ? tx('✓ Pronto (à espera do outro)') : tx('✋ Estou pronto')}</button>}
-              {host && !m.table && <button className="small" disabled={!!busy} onClick={() => act(m, 'open')}>{tx('Abrir a mesa já')}</button>}
+              {fp ? mine && <button className="primary" disabled={!!busy || (!!m.want && !m.play)} onClick={() => go(m)}>{m.play ? tx('▶ Voltar à mesa') : m.want ? `⏳ ${tx('Na fila do Forge…')}` : tx('▶ Jogar no Forge Play')}</button>
+                : m.table ? (mine || host) && <button className="primary" onClick={() => openTable(m.table)}>🃏 {tx('Ir para a mesa')}</button>
+                  : mine && <button className={meReady ? 'on ml-ready' : 'primary ml-ready'} disabled={!!busy} onClick={() => act(m, 'ready', { on: !meReady })}>{meReady ? tx('✓ Pronto (à espera do outro)') : tx('✋ Estou pronto')}</button>}
+              {host && !fp && !m.table && <button className="small" disabled={!!busy} onClick={() => act(m, 'open')}>{tx('Abrir a mesa já')}</button>}
+              {host && t.misto && <button className="small" disabled={!!busy} onClick={() => act(m, 'bot')} title={tx('Os jogos que faltam desta partida jogam-nos os bots do Forge (ex.: alguém teve de sair).')}>🤖 {tx('Dar ao bot')}</button>}
               {host && <span className="ml-fm-res"><small className="muted">{tx('Marcar o jogo:')}</small>{m.p.map(i => <button key={i} className="small" disabled={!!busy} onClick={() => act(m, 'result', { w: i })}>🏆 {nameOf(i)}</button>)}<button className="small" disabled={!!busy} onClick={() => act(m, 'result', { w: null })}>{tx('empate')}</button></span>}
             </div>
-            {mine && owners.length === 1 && !m.table && <p className="small muted">{tx('Os dois decks são teus: abre a mesa e joga os dois lados (troca de lugar na mesa), ou marca o resultado.')}</p>}
+            {!fp && mine && owners.length === 1 && !m.table && <p className="small muted">{tx('Os dois decks são teus: abre a mesa e joga os dois lados (troca de lugar na mesa), ou marca o resultado.')}</p>}
           </div>
         )
       })}
