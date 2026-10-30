@@ -9,7 +9,8 @@ import freetable
 import sim
 import tournament
 
-ROOM = re.compile(r"^/api/rooms(?:/([a-f0-9]{10})(?:/(join|leave|start|cancel))?)?$")
+ROOM = re.compile(r"^/api/rooms(?:/([a-f0-9]{10})(?:/(join|leave|start|cancel|ready|lend))?)?$")
+GO = 4  # segundos de contagem quando estão todos prontos (mesa livre)
 
 
 def init(con):
@@ -24,14 +25,60 @@ def span(spec):
     return tournament.TYPES.get(spec.get("type"), (2, 32))
 
 
-def view(con, r, who):
+def lent(con, owner, spec):
+    """Os decks que quem aloja empresta nesta mesa livre (inteiros: emprestar é mostrar a lista a quem se senta)."""
+    out = []
+    for did in spec.get("lend") or []:
+        r = con.execute("SELECT body FROM decks WHERE id=? AND owner=? AND deleted IS NULL", (did, owner)).fetchone()
+        if r:
+            b = json.loads(r[0])
+            out.append({"id": did, **{k: b.get(k) for k in ("name", "format", "main", "commanders", "cover", "coverImg")}})
+    return out
+
+
+def view(con, r, who, owner=None):
     rid, ts, spec, players, status, tid = r
     spec, players = json.loads(spec), json.loads(players)
     lo, hi = span(spec)
     return {"id": rid, "ts": ts, "status": status, "tid": tid, "name": spec.get("name"), "type": spec.get("type"),
             "format": spec.get("format"), "casual": bool(spec.get("casual")), "bo": spec.get("bo"), "min": lo, "max": hi,
-            "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref")} for p in players],
+            "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref"), "src": p.get("src"),
+                         "host": p.get("by") == "host", "ready": bool(p.get("ready"))} for p in players],
+            **({"go": round(max(0.0, spec["go"] - time.time()), 1)} if spec.get("go") else {}),
+            **({"lend": lent(con, owner, spec)} if spec.get("type") == "livre" and owner and status == "open" else {}),
             **({"link": f"/sala/{spec['link']}"} if who == "host" and spec.get("link") else {})}
+
+
+def seat_deck(con, owner, p):
+    """O deck de um lugar da mesa livre: do anfitrião ou do convidado (decks), emprestado ou do meta (só leitura)."""
+    if p.get("src") == "meta":
+        return sim.opponent(tournament.DATA, str(p.get("ref")))
+    r = con.execute("SELECT body FROM decks WHERE id=? AND owner=? AND deleted IS NULL", (str(p.get("ref")), owner)).fetchone()
+    return r and json.loads(r[0])
+
+
+def start_livre(con, owner, rid, spec, players):
+    seats = []
+    for p in players:
+        d = seat_deck(con, owner, p)
+        if not d:
+            raise ValueError(f"O deck «{p.get('name')}» já não existe.")
+        seats.append({"by": p["by"], "name": p.get("byName") or owner, "deck": d})
+    tid = freetable.create(con, owner, spec.get("name"), seats)
+    con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
+    return tid
+
+
+def due(con, owner):
+    """Mesas livres com todos prontos e a contagem acabada: começam (quem estiver a ver a lista arranca-as)."""
+    for rid, spec, players in con.execute("SELECT id, spec, players FROM rooms WHERE owner=? AND status='open' AND json_extract(spec, '$.go') IS NOT NULL", (owner,)).fetchall():
+        spec = json.loads(spec)
+        if spec.get("go") and spec["go"] <= time.time():
+            try:
+                start_livre(con, owner, rid, spec, json.loads(players))
+            except ValueError:
+                spec["go"] = None
+                con.execute("UPDATE rooms SET spec=? WHERE id=?", (json.dumps(spec), rid))
 
 
 def rows(con, owner, open_only=False):
@@ -58,7 +105,8 @@ def route(con, method, path, owner, body, guest=None):
     rid, act = m.group(1), m.group(2)
     who = f"guest:{guest['id']}" if guest else "host"
     if method == "GET" and not rid:
-        return 200, [view(con, r, who) for r in rows(con, owner, open_only=bool(guest))]
+        due(con, owner)
+        return 200, [view(con, r, who, owner) for r in rows(con, owner, open_only=bool(guest))]
     if method != "POST":
         return 404, {"erro": "rota desconhecida"}
     if not rid:  # criar (só o dono)
@@ -91,37 +139,47 @@ def route(con, method, path, owner, body, guest=None):
     lo, hi = span(spec)
     livre = spec["type"] == "livre"
     if act == "join":
-        did = (body or {}).get("deck")
-        name = deck_ok(con, owner, did, guest["id"] if guest else None)
+        did, src = (body or {}).get("deck"), (body or {}).get("src") or "meus"
+        if livre and src == "meta":  # um deck do meta, emprestado só para a mesa (lê-se dos ficheiros do meta)
+            name = (sim.opponent(tournament.DATA, str(did)) or {}).get("name")
+        elif livre and src == "lend":  # um deck que quem aloja empresta nesta mesa
+            name = did in (spec.get("lend") or []) and deck_ok(con, owner, did, None)
+        else:
+            src, name = "meus", deck_ok(con, owner, did, guest["id"] if guest else None)
         if not name:
             return 400, {"erro": "Esse deck não é teu ou não existe."}
         if (guest or livre) and any(p.get("by") == who for p in players):
             return 409, {"erro": "Já tens um deck nesta sala (sai primeiro para trocar)."}
         if len(players) >= hi:
             return 409, {"erro": "A sala está cheia."}
-        players.append({"src": "meus", "ref": did, "name": name, "by": who, "byName": guest["name"] if guest else None, "difficulty": "default"})
+        players.append({"src": src, "ref": did, "name": name, "by": who, "byName": guest["name"] if guest else None, "difficulty": "default"})
     elif act == "leave":
         ref = (body or {}).get("ref")
         players = [p for p in players if not (p.get("by") == who and (not ref or p.get("ref") == ref))] if guest else [p for p in players if p.get("ref") != ref]
+    elif act == "ready" and livre:  # pronto (ou já não): quando todos os sentados estão prontos, a mesa começa sozinha
+        p = next((p for p in players if p.get("by") == who), None)
+        if not p:
+            return 409, {"erro": "Senta-te primeiro com um deck."}
+        on = (body or {}).get("on")
+        p["ready"] = (not p.get("ready")) if on is None else bool(on)
+    elif act == "lend" and livre and not guest:  # emprestar (ou deixar de emprestar) um deck meu a quem se sentar
+        did = (body or {}).get("deck")
+        if not deck_ok(con, owner, did, None):
+            return 400, {"erro": "Esse deck não é teu ou não existe."}
+        lend = [x for x in spec.get("lend") or [] if x != did]
+        spec["lend"] = lend + ([did] if (body or {}).get("on", True) else [])
+        players = [p for p in players if not (p.get("src") == "lend" and p.get("ref") not in spec["lend"])]
     elif act == "cancel" and not guest:
         con.execute("UPDATE rooms SET status='cancelled' WHERE id=?", (rid,))
         return 200, {"ok": True}
     elif act == "start" and not guest:
         if not lo <= len(players) <= hi:
             return 400, {"erro": f"Este tipo de torneio leva entre {lo} e {hi} decks (há {len(players)})."}
-        if livre:
-            seats = []
-            for p in players:
-                r2 = con.execute("SELECT body FROM decks WHERE id=? AND owner=? AND deleted IS NULL", (str(p.get("ref")), owner)).fetchone()
-                if not r2:
-                    return 400, {"erro": f"O deck «{p.get('name')}» já não existe."}
-                seats.append({"by": p["by"], "name": p.get("byName") or owner, "deck": json.loads(r2[0])})
+        if livre:  # quem aloja pode começar sem esperar que estejam todos prontos
             try:
-                tid = freetable.create(con, owner, spec.get("name"), seats)
+                return 200, {"table": start_livre(con, owner, rid, spec, players)}
             except ValueError as e:
                 return 400, {"erro": str(e)}
-            con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
-            return 200, {"table": tid}
         try:
             tid = tournament.create(owner, {**spec, "friends_open": True, "players": [{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me")} for p in players]})
         except ValueError as e:
@@ -130,5 +188,7 @@ def route(con, method, path, owner, body, guest=None):
         return 200, {"tid": tid}
     else:
         return 403, {"erro": "Não podes fazer isto nesta sala."}
-    con.execute("UPDATE rooms SET players=? WHERE id=?", (json.dumps(players), rid))
-    return 200, view(con, con.execute("SELECT id, ts, spec, players, status, tid FROM rooms WHERE id=?", (rid,)).fetchone(), who)
+    if livre:  # a contagem: todos os sentados prontos e gente que chegue; qualquer mudança volta a pô-la a zero
+        spec["go"] = time.time() + GO if len(players) >= lo and all(p.get("ready") for p in players) else None
+    con.execute("UPDATE rooms SET players=?, spec=? WHERE id=?", (json.dumps(players), json.dumps(spec), rid))
+    return 200, view(con, con.execute("SELECT id, ts, spec, players, status, tid FROM rooms WHERE id=?", (rid,)).fetchone(), who, owner)

@@ -1122,6 +1122,34 @@ def selfcheck():
         G2 = f"grimorio_guest={[f for f in call('GET', '/api/friends')[1]['friends'] if f['name'] == 'Eva'][0]['token']}"
         assert call("GET", tb, cookie=G2)[0] == 404 and call("POST", tb, {"c": "draw"}, G2)[0] == 404  # outro amigo, fora da mesa
         assert next(r for r in call("GET", "/api/rooms", cookie=G)[1] if r["id"] == lr["id"])["tid"] == sr["table"]
+        # convidado sem decks: senta-se com um deck emprestado pelo anfitrião ou do meta; prontos -> a mesa começa sozinha
+        assert call("POST", "/api/friends", {"name": "Zé"})[0] == 201
+        Z = f"grimorio_guest={[f for f in call('GET', '/api/friends')[1]['friends'] if f['name'] == 'Zé'][0]['token']}"
+        st, lr2, _ = call("POST", "/api/rooms", {"name": "Livre 2", "type": "livre", "max": 3, "players": [{"src": "meus", "ref": hs[0]}]})
+        R2 = f"/api/rooms/{lr2['id']}"
+        assert call("POST", R2 + "/join", {"deck": hs[1], "src": "lend"}, Z)[0] == 400  # não emprestado: não
+        assert call("POST", R2 + "/lend", {"deck": hs[1]}, Z)[0] == 403
+        assert call("POST", R2 + "/lend", {"deck": hs[1]})[0] == 200
+        zv = next(r for r in call("GET", "/api/rooms", cookie=Z)[1] if r["id"] == lr2["id"])
+        assert [d["name"] for d in zv["lend"]] == ["H1"] and zv["lend"][0]["main"] == {"Island": 60}, zv
+        st, zv, _ = call("POST", R2 + "/join", {"deck": hs[1], "src": "lend"}, Z)
+        assert st == 200 and zv["players"][1]["src"] == "lend", zv
+        real = sim.opponent
+        sim.opponent = lambda d, oid: {"name": "Meta X", "format": "modern", "main": {"Forest": 60}} if oid == "modern-1" else None
+        try:
+            assert call("POST", R2 + "/join", {"deck": "modern-1", "src": "meta"}, G)[0] == 200
+            assert call("POST", R2 + "/ready", None, Z)[1]["players"][1]["ready"] and call("POST", R2 + "/ready", None, G)[0] == 200
+            st, rv, _ = call("POST", R2 + "/ready", {"on": True})
+            assert rv["go"] > 0, rv  # todos prontos: contagem
+            with db() as con:
+                sp = json.loads(con.execute("SELECT spec FROM rooms WHERE id=?", (lr2["id"],)).fetchone()[0]); sp["go"] = time.time() - 1
+                con.execute("UPDATE rooms SET spec=? WHERE id=?", (json.dumps(sp), lr2["id"]))
+            zv = next(r for r in call("GET", "/api/rooms", cookie=Z)[1] if r["id"] == lr2["id"])
+            assert zv["status"] == "started" and zv["tid"], zv
+            tv = call("GET", f"/api/freetables/{zv['tid']}", cookie=Z)[1]
+            assert [s["deck"] for s in tv["seats"]] == ["H0", "H1", "Meta X"] and tv["me"] == 1 and all("n" not in c for c in tv["seats"][0]["hand"])
+        finally:
+            sim.opponent = real
         # a solo: só o dono abre; um convidado não chega lá
         assert call("POST", "/api/freetables", {"deck": dk["id"]}, G)[0] == 403
         st, so, _ = call("POST", "/api/freetables", {"deck": hs[2]})
