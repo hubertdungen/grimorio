@@ -108,7 +108,7 @@ public class GrimorioNet {
             ScheduledExecutorService ex = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "grimorio-state"); t.setDaemon(true); return t; });
             // também sem «dirty»: no fim do jogo o Forge corre as conquistas na EDT e rebenta sem a imagem do troféu
             // (IMG_COMMON_TROPHY, não há skin sem janela) antes de chamar o finishGame; o fim sai daqui pelo estado
-            ex.scheduleAtFixedRate(() -> { try { GameView gv = getGameView(); if (dirty || (!ended && gv != null && gv.isGameOver())) { dirty = false; sendState(); } } catch (Exception e) { e.printStackTrace(); } }, 300, 150, TimeUnit.MILLISECONDS);
+            ex.scheduleAtFixedRate(() -> { try { GameView gv = getGameView(); if (dirty || pfail || (!ended && gv != null && gv.isGameOver())) { dirty = false; sendState(); } } catch (Exception e) { e.printStackTrace(); } }, 300, 150, TimeUnit.MILLISECONDS);
         }
 
         IGameController ctl() { return getGameController(); }
@@ -259,26 +259,30 @@ public class GrimorioNet {
         // cartas que o humano pode jogar já, com mana para as pagar (mão, cemitério com flashback, exílio, comando).
         // Só com a prioridade do humano: aí a thread do jogo está parada à espera dele e o estado não muda a meio.
         Set<Integer> playable = new HashSet<>();
+        volatile boolean pfail;  // o cálculo falhou (a thread do jogo mexeu nas listas a meio): a mesa não bloqueia e voltamos a tentar
         Set<Integer> playableNow() {
-            Set<Integer> out = new HashSet<>();
-            try {
-                forge.game.Game g = HM == null ? null : HM.getGame();
-                PlayerView pv = getCurrentPlayer();
-                if (g == null || pv == null) return out;
-                forge.game.player.Player me = null;
-                for (forge.game.player.Player p : g.getPlayers()) if (p.getId() == pv.getId()) me = p;
-                if (me == null) return out;
-                // a prioridade do jogo (a da vista do jogador atualiza-se depois do pedido e chegava tarde)
-                if (g.getPhaseHandler().getPriorityPlayer() != me) return out;
-                for (ZoneType z : new ZoneType[]{ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Command})
-                    for (forge.game.card.Card c : me.getCardsIn(z))
-                        for (forge.game.spellability.SpellAbility sa : c.getAllPossibleAbilities(me, true)) {
-                            if (sa.isManaAbility()) continue;
-                            if (sa.isLandAbility() || forge.ai.ComputerUtilMana.canPayManaCost(sa, me, 0, false)) { out.add(c.getId()); break; }
-                        }
-            } catch (Exception e) {
-                System.err.println("playable: " + e);
+            for (int i = 0; i < 3; i++) {
+                try { pfail = false; return playableOnce(); }
+                catch (Exception e) { System.err.println("playable: " + e); pfail = true; }
             }
+            return new HashSet<>();
+        }
+        Set<Integer> playableOnce() {
+            Set<Integer> out = new HashSet<>();
+            forge.game.Game g = HM == null ? null : HM.getGame();
+            PlayerView pv = getCurrentPlayer();
+            if (g == null || pv == null) return out;
+            forge.game.player.Player me = null;
+            for (forge.game.player.Player p : new ArrayList<>(g.getPlayers())) if (p.getId() == pv.getId()) me = p;
+            if (me == null) return out;
+            // a prioridade do jogo (a da vista do jogador atualiza-se depois do pedido e chegava tarde)
+            if (g.getPhaseHandler().getPriorityPlayer() != me) return out;
+            for (ZoneType z : new ZoneType[]{ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Command})
+                for (forge.game.card.Card c : new ArrayList<>(me.getCardsIn(z)))
+                    for (forge.game.spellability.SpellAbility sa : new ArrayList<>(c.getAllPossibleAbilities(me, true))) {
+                        if (sa.isManaAbility()) continue;
+                        if (sa.isLandAbility() || forge.ai.ComputerUtilMana.canPayManaCost(sa, me, 0, false)) { out.add(c.getId()); break; }
+                    }
             return out;
         }
 
@@ -294,6 +298,7 @@ public class GrimorioNet {
             real = rm;
             JsonObject o = new JsonObject();
             o.addProperty("t", "state");
+            if (pfail) o.addProperty("pfail", true);
             o.addProperty("turn", gv.getTurn());
             if (gv.getPhase() != null) o.addProperty("phase", gv.getPhase().name());
             if (gv.getPlayerTurn() != null) o.addProperty("active", gv.getPlayerTurn().getId());

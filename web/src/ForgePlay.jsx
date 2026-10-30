@@ -455,7 +455,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     }
     const perm = target.closest('.pc[data-z^="k:"]'), pid = perm && +perm.dataset.z.slice(2), mine = st.active === me?.id
     if (from === 'hand') {  // da mão para a mesa: jogar — só se o Forge diz que dá (mana e altura certas)
-      if (!byId.get(id)?.play) { setToast(whyNot(id)); return false }
+      if (!byId.get(id)?.play && !st.pfail) { setToast(whyNot(id)); return false }  // pfail: o Forge não conseguiu calcular, decide ele
       // largada em cima de uma permanente (aura, remoção, reforço…): esse é o alvo — a mesa responde ao Forge por ti
       const land = byId.get(id)?.land
       if (pid != null && !land) { aim(pid, perm) }
@@ -641,7 +641,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     const h = e.target.closest('[data-h]')
     if (!h || dragged.current) return
     const id = +h.dataset.h
-    if (!byId.get(id)?.play) { setToast(whyNot(id)); return }
+    if (!byId.get(id)?.play && !st.pfail) { setToast(whyNot(id)); return }
     setLift(null); castNow(id); send({ c: 'card', id })
     if (lay.free?.[id]) setLay(l => { const f = { ...l.free }; delete f[id]; return { ...l, free: f } })  // sem sítio escolhido: vai para a fila
   }
