@@ -62,7 +62,7 @@ function describe(ev, who) {
     case 'poison': return tx('{T} recebe {n} marcador de veneno|{T} recebe {n} marcadores de veneno', { T, n: ev.n })
     case 'life': return tx('{P}: vida {n}', { P, n: ev.n })
     case 'destroy': return ev.target === 'battlefield>graveyard' ? tx('{c} vai para o cemitério', { c }) : tx('{c} sai do campo', { c })
-    case 'exile': return tx('{c} é exilada', { c })
+    case 'exile': return ev.target === 'library>exile' ? tx('{c}: da biblioteca para o exílio', { c }) : tx('{c} é exilada', { c })  // moer com Dauthi Voidwalker, Tasha's Hideous Laughter…
     case 'bounce': return tx('{c} volta para a mão', { c })
     case 'discard': return tx('{P} descarta {c}', { P, c })
     case 'token': {

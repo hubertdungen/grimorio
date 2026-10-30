@@ -3522,4 +3522,5 @@ export default {
   "Dois dedos ampliam · arrasta para baixo para fechar": "Mit zwei Fingern zoomen · nach unten wischen zum Schließen",
   "O jogo continua": "Das Spiel läuft weiter",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "Zum Verlassen nutze «Spiel beenden» oder gib im Panel auf.",
+  "{c}: da biblioteca para o exílio": "{c}: aus der Bibliothek ins Exil",
 }

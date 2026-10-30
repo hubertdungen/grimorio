@@ -3522,4 +3522,5 @@ export default {
   "Dois dedos ampliam · arrasta para baixo para fechar": "Dos dedos amplían · desliza hacia abajo para cerrar",
   "O jogo continua": "La partida sigue",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "Para salir, usa «Parar la partida» o ríndete en el panel.",
+  "{c}: da biblioteca para o exílio": "{c}: de la biblioteca al exilio",
 }

@@ -3522,4 +3522,5 @@ export default {
   "Dois dedos ampliam · arrasta para baixo para fechar": "双指缩放 · 向下滑动关闭",
   "O jogo continua": "对局继续",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "要离开，请使用「停止对局」或在面板中认输。",
+  "{c}: da biblioteca para o exílio": "{c}：从牌库放逐",
 }

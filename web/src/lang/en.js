@@ -3530,4 +3530,5 @@ export default {
   "Dois dedos ampliam · arrasta para baixo para fechar": "Pinch to zoom · swipe down to close",
   "O jogo continua": "The game goes on",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "To leave, use «Stop the game» or concede in the panel.",
+  "{c}: da biblioteca para o exílio": "{c}: from library to exile",
 }
