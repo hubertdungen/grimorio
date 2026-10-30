@@ -4,13 +4,13 @@ import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef,
 import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
 import { img, coverOf, colorsOf, HUE } from './data.js'
-import { Mana, Stars, WhiteStars, SrcFilter } from './ui.jsx'
+import { Mana, Stars, TrophyStars, SrcFilter } from './ui.jsx'
 import Replay from './Board.jsx'
 import ForgeTable from './ForgePlay.jsx'
 import FreeTable from './FreeTable.jsx'
 import { NewSolo, NewFreeRoom, Seats, JoinPanel, LendPanel, RemoteJoin, FreeMatches } from './FreeRooms.jsx'
 import { Cup, PLACE, TIERS, KIND, tierOf } from './Library.jsx'
-import { trophyValue, TIER_PTS, KIND_W, BLUE_W, trophyStars, starPoints } from './trophyvalue.js'
+import { trophyValue, TIER_PTS, KIND_W, BLUE_W, PTS_STARS, PERF_STARS, starPoints, perfQ, perfOf } from './trophyvalue.js'
 import { swapSide, nextGame, mixTake, genShape } from './game.js'
 import { DIFF_INFO, getBots } from './difficulty.js'
 import { ask } from './confirm.jsx'
@@ -1517,23 +1517,69 @@ function Registry({ data, list, open, reload }) {
         ))}</ul>
         <Pages pg={pg} pages={pages} set={setPage} />
       </section>
-      <Fame data={data} list={list} />
+      <Fame data={data} list={list} open={open} />
     </div>
   )
 }
 
+// copos de um cartão da galeria: no máximo 3 linhas; mede onde começa a 4.ª e troca o último que cabe por «+N» (N =
+// troféus que ficam de fora; estão todos na vista do deck). Mede outra vez quando os copos ou a largura mudam.
+const cupKey = c => `${c.tier}${c.kind}${c.casual}${c.off}`
+function FgCups({ cups }) {
+  const ref = useRef(null), sig = cups.map(c => cupKey(c) + c.n).join(), [m, setM] = useState(null)  // m = {sig, w, cut}
+  const ok = m?.sig === sig
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || ok) return
+    const tops = [...el.children].map(c => Math.round(c.offsetTop + c.offsetHeight / 2)), lines = [...new Set(tops)]  // o centro: alinhados ao meio
+    setM({ sig, w: el.clientWidth, cut: lines.length > 3 ? tops.indexOf(lines[3]) - 1 : -1 })
+  }, [ok, sig])
+  useEffect(() => { const el = ref.current, ro = new ResizeObserver(() => setM(o => (o && o.w !== el.clientWidth ? null : o))); ro.observe(el); return () => ro.disconnect() }, [])
+  const cut = ok ? m.cut : -1, rest = cut > 0 ? cups.slice(cut) : []
+  return (
+    <span className="fg-cups" ref={ref}>{(cut > 0 ? cups.slice(0, cut) : cups).map(c => <span key={cupKey(c)} className="fg-cup" title={`${PLACE[c.tier]} · ${KIND[c.kind] || ''}${c.friends ? ` · ${tx('🤝 só eu e amigos')}` : c.casual ? ` · ${tx('troféu azul: casual ou não ranked')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''} · ${tx('+{p} pontos', { p: c.pts })}\n${c.names.slice(0, 6).map(nm => `• ${nm}`).join('\n')}${c.names.length > 6 ? `\n+${c.names.length - 6}` : ''}`}><Cup place={c.tier} friends={c.friends} casual={c.casual} off={c.off} kind={c.kind} />{c.n > 1 && <small>×{c.n}</small>}</span>)}
+      {rest.length > 0 && <span className="fg-cup fg-more" title={tx('Mais {n} troféus: clica para ver a lista inteira', { n: rest.reduce((a, c) => a + c.n, 0) })}>+{rest.reduce((a, c) => a + c.n, 0)}</span>}</span>
+  )
+}
+
+// os troféus de um deck na vista do deck (todos os formatos, sem os de antes de repor): torneio, tipo, formato, lugar,
+// data, registo, pontos e se ainda conta; cada um abre o torneio
+function DeckTrophies({ r, list, tro, medOf, offOf, open }) {
+  const perf = perfOf(tro, `${r.src}:${r.ref}`), mine = r.src === 'meus' ? tro[r.ref] || [] : []
+  const items = list.filter(x => x.podium && !x.old).flatMap(x => x.podium.filter(p => p.src === r.src && p.ref === r.ref).map(p => {
+    const m = medOf(x, p), off = offOf(r, m), t = mine.find(y => y.tid === x.id && y.place === p.place)
+    return { ...m, x, off, same: t?.same, rec: t?.rec || perf?.rec?.[x.id], pts: off ? 0 : trophyValue(m) }
+  })).sort((a, b) => a.off - b.off || TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || b.x.ts - a.x.ts)
+  if (!items.length) return null
+  const pts = items.reduce((a, t) => a + t.pts, 0)
+  return (
+    <section className="dv-tro">
+      <div className="dv-tro-h"><h4>🏆 {tx('Troféus')}</h4><span className="muted small">{tx('{n} troféus · {p} pontos', { n: items.length, p: pts })}</span><TrophyStars p={pts} perf={perf} /></div>
+      <ul className="drt-shelf">{items.map(t => (
+        <li key={`${t.tid}-${t.place}`} className={t.off ? 'off' : ''}><button className="plain" onClick={() => open(t.tid)} title={[t.off ? tx('Não conta: a lista mudou {p} desde este torneio (máx. 10%)', { p: `${Math.round((1 - (t.same ?? 0)) * 100)}%` }) : tx('Abrir o torneio'), t.friends ? tx('🤝 só eu e amigos') : t.casual ? tx('troféu azul: casual ou não ranked') : ''].filter(Boolean).join(' · ')}>
+          <Cup place={t.tier} kind={t.kind} casual={t.casual} friends={t.friends} off={t.off} />
+          <span><b>{t.name}</b>
+            <small className="muted">{PLACE[t.tier].split(':')[0]} · {KIND[t.kind] || t.kind} · {t.x.casual ? tx('casual') : FORMAT[t.x.format]?.name || t.x.format} · {tx('{n} decks', { n: t.n })}</small>
+            <small className="muted">{whenY(t.x.ts)}{t.rec ? ` · ${tx('{v}V {d}D', { v: t.rec[0], d: t.rec[1] })}${t.rec[2] ? ` ${t.rec[2]}E` : ''}` : ''}</small></span>
+          <b className="dv-p">{t.off ? tx('não conta') : `+${t.pts}`}</b></button></li>))}</ul>
+    </section>
+  )
+}
+
 // hall da fama: títulos e pódios por deck (os meus e os do meta), por formato do torneio ou só os casuais
-function Fame({ data, list }) {
+function Fame({ data, list, open }) {
   const [f, setF] = useState('')
   const [who, setWho] = useState(['meu', 'ami', 'com', 'meta'])
   const kindOf = p => (p.src !== 'meus' ? 'meta' : p.fr ? 'ami' : p.com ? 'com' : 'meu')
   const peek = usePeek(data), [view, setView] = useState(null)  // deck em destaque (rato) e aberto (clique, só para ler)
   const fmts = [...new Set(list.filter(x => x.podium && !x.old && !x.casual).map(x => x.format))]  // old: de antes de repor os troféus
   const rows = {}
+  // ranked chega da lista como 0/1 (SQLite), nunca false: com «=== false» os não ranked contavam como normais (o dobro)
+  const medOf = (x, p) => ({ tier: tierOf(p.place, x.champions), casual: !!x.casual || !x.ranked, tid: x.id, place: p.place, kind: x.type, name: x.name, n: x.n, m: x.m, podiums: !!x.podiums, friends: !!x.friends })
   for (const x of list) if (x.podium && !x.old && (!f || (f === 'casual' ? x.casual : !x.casual && x.format === f))) for (const p of x.podium) {
     const r = (rows[`${p.src}:${p.ref}`] ||= { ...p, m: [0, 0, 0], med: [] })
     r.m[p.place - 1]++
-    r.med.push({ tier: tierOf(p.place, x.champions), casual: !!x.casual || x.ranked === false, tid: x.id, place: p.place, kind: x.type, name: x.name, n: x.n, m: x.m, podiums: !!x.podiums, friends: !!x.friends })
+    r.med.push(medOf(x, p))
   }
   // troféus dos meus decks que já não contam (a lista mudou mais de 10% desde o torneio): ficam a cinzento na galeria
   const [tro, setTro] = useState({})
@@ -1558,7 +1604,7 @@ function Fame({ data, list }) {
   return (
     <>
     {peek.card}
-    {view && <DeckView p={view} data={data} onClose={() => setView(null)} onOpen={showDeck} />}
+    {view && <DeckView p={view} data={data} onClose={() => setView(null)} onOpen={showDeck} extra={<DeckTrophies r={view} list={list} tro={tro} medOf={medOf} offOf={offOf} open={id => { setView(null); open(id) }} />} />}
     <section className="card fame">
       <h3>{tx('🏛 Hall da fama')}</h3>
       <div className="row-btns">
@@ -1579,10 +1625,15 @@ function Fame({ data, list }) {
         {gInfo && <div className="fg-info small">
           <p className="muted">{tx('Valor = pontos do lugar × peso do tipo × jogadores (√(decks ÷ 8), ×0,6 a ×1,6) × duração no rei da colina, suíço e mesas (partidas jogadas ÷ típicas, ×0,5 a ×1,5); os azuis (casual ou não ranked) valem metade ({w}).', { w: `×${BLUE_W}` })}</p>
           <div className="fg-tab"><span>{TIERS.map(t => <i key={t}><Cup place={t} /> {PLACE[t].split(':')[0]} <b>{TIER_PTS[t]}</b></i>)}</span>
-            <span>{Object.entries(KIND_W).sort((a, b) => b[1] - a[1]).map(([k, w]) => <i key={k}><Cup place={1} kind={k} /> {KIND[k]} <b>×{w}</b></i>)}</span>
-            <span>{tx('Estrelas brancas (dos pontos de cada deck):')} {[1, 2, 3, 4, 5, 6].map(k => <i key={k}>{k}★ <b>{starPoints(k)}</b></i>)}</span></div>
+            <span>{Object.entries(KIND_W).sort((a, b) => b[1] - a[1]).map(([k, w]) => <i key={k}><Cup place={1} kind={k} /> {KIND[k]} <b>×{w}</b></i>)}</span></div>
+          <h4>{tx('Estrelas brancas (0–6) = pontos (até {a}★) + desempenho (até {b}★)', { a: PTS_STARS, b: PERF_STARS })}</h4>
+          <p className="muted">{tx('Pontos: a soma dos troféus que contam, em escala logarítmica — os primeiros troféus sobem depressa e as {a}★ ficam para coleções enormes. Sozinhos já não chegam às 6★.', { a: PTS_STARS })}</p>
+          <div className="fg-tab"><span>{tx('Pontos:')} {Array.from({ length: PTS_STARS }, (_, k) => k + 1).map(k => <i key={k}>{k}★ <b>{starPoints(k)}</b></i>)}</span></div>
+          <p className="muted">{tx('Desempenho: em todos os torneios que o deck jogou, os pontos de troféus que ganhou ÷ os que um deck médio ganharia (cada torneio reparte os pontos do pódio pelos decks que entram; maiores e mais difíceis pesam mais). ×1 é a média do campo — todos os decks que jogaram, meus, de amigos e do meta. Com poucos torneios o quociente é puxado para a média (como se tivesse mais 10 torneios na média), por isso um ouro de sorte não chega ao topo. Os meus decks só contam os torneios em que a lista ainda vale.')}</p>
+          <div className="fg-tab"><span>{tx('Desempenho:')} {[0, 0.5, 1, 1.5, 2].map(k => <i key={k}>+{k.toLocaleString(LOCALE)}★ <b>×{perfQ(k).toLocaleString(LOCALE, { maximumFractionDigits: 2 })}</b></i>)}</span></div>
+          <p className="muted">{tx('6★ é o deck perfeito: coleção enorme e sempre acima dos outros. Sem troféus que contem, sem estrelas.')}</p>
         </div>}
-        <p className="fg-note small"><Cup place={1} friends /> {tx('Contorno verde: torneio só entre os teus decks e os de amigos (vale como os azuis).')} <Cup place={1} casual /> {tx('Os troféus azuis vêm de torneios casuais ou não ranked (menos de 20% de decks do meta) e valem metade dos pontos. Os pontos de cada deck somam todos os troféus que contam, e as estrelas brancas vêm desse total.')}</p>
+        <p className="fg-note small"><Cup place={1} friends /> {tx('Contorno verde: torneio só entre os teus decks e os de amigos (vale como os azuis).')} <Cup place={1} casual /> {tx('Os troféus azuis vêm de torneios casuais ou não ranked (menos de 20% de decks do meta) e valem metade dos pontos. Os pontos de cada deck somam todos os troféus que contam; as estrelas brancas juntam esses pontos ao desempenho nos torneios (ⓘ Valor dos troféus). Clica num deck para ver as cartas e todos os troféus.')}</p>
         <div className="row-btns fg-filt">
           <select value={gTier} onChange={e => setGTier(e.target.value)} aria-label={tx('Troféus')}>
             <option value="">{tx('Todos os troféus')}</option>
@@ -1604,8 +1655,8 @@ function Fame({ data, list }) {
           for (const m of med) { const k = `${m.tier}|${m.kind}|${m.casual}|${m.friends}|${off(m)}`; const e = (g[k] ||= { ...m, off: off(m), n: 0, names: [], pts: 0 }); e.n++; e.names.push(m.name); e.pts += off(m) ? 0 : trophyValue(m) }
           const cups = Object.values(g).sort((a, b) => a.off - b.off || TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier) || a.casual - b.casual)
           const body = <><Thumb data={data} p={r} /><b title={r.name}>{r.name}</b><small className="fg-val" title={tx('Valor dos troféus')}>{val} {tx('pts')}</small>
-            <WhiteStars v={trophyStars(all)} title={`${tx('Estrelas brancas: {s} — vêm dos {p} pontos de todos os troféus que contam ({k} pontos = 6★; ⓘ Valor dos troféus)', { s: trophyStars(all).toLocaleString(LOCALE), p: all, k: starPoints(6) })}${blue ? `\n${tx('{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)', { a: all - blue, b: blue })}` : ''}`} />
-            <span className="fg-cups">{cups.map(c => <span key={`${c.tier}${c.kind}${c.casual}${c.off}`} className="fg-cup" title={`${PLACE[c.tier]} · ${KIND[c.kind] || ''}${c.friends ? ` · ${tx('🤝 só eu e amigos')}` : c.casual ? ` · ${tx('troféu azul: casual ou não ranked')}` : ''}${c.off ? ` · ${tx('não conta: a lista mudou mais de 10%')}` : ''} · ${tx('+{p} pontos', { p: c.pts })}\n${c.names.slice(0, 6).map(nm => `• ${nm}`).join('\n')}${c.names.length > 6 ? `\n+${c.names.length - 6}` : ''}`}><Cup place={c.tier} friends={c.friends} casual={c.casual} off={c.off} kind={c.kind} />{c.n > 1 && <small>×{c.n}</small>}</span>)}</span></>
+            <TrophyStars p={all} perf={perfOf(tro, `${r.src}:${r.ref}`)} note={blue ? tx('{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)', { a: all - blue, b: blue }) : ''} />
+            <FgCups cups={cups} />{/* no máximo 3 linhas; o resto num «+N» (a lista inteira está na vista do deck) */}</>
           return <button key={`${r.src}:${r.ref}`} className={`fg-card ${kindOf(r) === 'meu' ? 'me' : ''}`} onClick={() => setView(r)} onMouseEnter={e => peek.on(r, e)} onMouseLeave={peek.off}>{body}</button>
         })}</div>
         <Pages pg={pg2} pages={pgN} set={setPG} />

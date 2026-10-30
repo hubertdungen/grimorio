@@ -76,7 +76,7 @@ header.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: 
 .empty-hint { margin-top: 18px; }  /* «Deck vazio» no painel do deck (.hint é o ⓘ das análises) */
 .deck-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
 .notes { width: 100%; min-height: 70px; margin-top: 10px; resize: vertical; }
-.peek { position: fixed; width: 240px; pointer-events: none; z-index: 50; display: none; perspective: 1100px; }
+.peek { position: fixed; width: 240px; pointer-events: none; z-index: 70; display: none; perspective: 1100px; }
 .peek-in { position: relative; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.2, .8, .2, 1); }
 .peek.flipped .peek-in { transform: rotateY(180deg); }
 .peek img { display: block; width: 100%; border-radius: 12px; box-shadow: 0 12px 40px #000a; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
@@ -1747,7 +1747,7 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 /* galeria: filtros, valor e tabela de valores */
 .fg-filt { margin: 4px 0 10px; } .fg-val { padding: 0 9px; margin-top: -4px; color: var(--gold2); font-size: 11px; font-weight: 700; }
 .fg-info { padding: 8px 12px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
-.fg-info p { margin: 0 0 6px; } .fg-tab { display: grid; gap: 6px; }
+.fg-info p { margin: 0 0 6px; } .fg-tab { display: grid; gap: 6px; } .fg-info .fg-tab { margin-bottom: 8px; }
 .fg-tab > span { display: flex; flex-wrap: wrap; gap: 4px 14px; } .fg-tab i { display: inline-flex; align-items: center; gap: 4px; font-style: normal; }
 .fg-tab .cup { width: 16px; height: 16px; } .fg-tab b { color: var(--gold2); }
 .tro-pts { margin-left: 4px; padding: 0 6px; border-radius: 99px; background: #0009; color: var(--gold2); font-size: 11px; font-weight: 800; line-height: 18px; font-variant-numeric: tabular-nums; }
@@ -2546,10 +2546,32 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .dpeek { position: fixed; z-index: 210; width: 280px; display: grid; gap: 4px; padding: 10px; border-radius: 12px; background: var(--panel); border: 1px solid var(--gold); box-shadow: 0 12px 30px #000b; font-size: 13px; pointer-events: none; animation: kwIn .16s ease-out; }
 .dpeek img { width: 100%; aspect-ratio: 626 / 457; object-fit: cover; border-radius: 8px; }
 .dpeek ul { list-style: none; margin: 2px 0; padding: 0; display: grid; gap: 1px; } .dpeek li span { color: var(--gold2); font-weight: 700; }
-.dview { width: min(1000px, calc(100vw - 24px)); max-height: 88vh; overflow-y: auto; }
-.dview-cols { columns: 3 220px; column-gap: 18px; margin-top: 8px; }
-.dview-cols section { break-inside: avoid; margin-bottom: 10px; } .dview-cols h4 { margin: 0 0 4px; }
-.dview-cols ul { list-style: none; margin: 0; padding: 0; font-size: 13px; } .dview-cols li { display: flex; gap: 6px; align-items: center; } .dview-cols li > span { min-width: 1.4em; color: var(--gold2); font-weight: 700; text-align: right; }
+/* ver um deck (Hall da fama, galeria): cabeçalho preso em cima, troféus, lista por tipo; imagem grande ao tocar */
+.dview { width: min(1000px, 100%); padding: 0 20px 18px; }
+.dv-head { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; margin: 0 -20px 6px; padding: 14px 20px 10px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.dv-head img { width: 72px; aspect-ratio: 626 / 457; object-fit: cover; border-radius: 8px; flex: none; }
+.dv-t { display: grid; gap: 2px; min-width: 0; flex: 1; } .dv-t b { font-size: 16px; overflow-wrap: anywhere; } .dv-t .mana img { width: 14px; height: 14px; }
+.dv-btns { display: flex; gap: 6px; align-items: center; flex: none; }
+.dview-cols { columns: 3 220px; column-gap: 22px; margin-top: 10px; }
+.dview-cols section { break-inside: avoid; margin-bottom: 12px; } .dview-cols h4 { margin: 0 0 4px; padding-bottom: 3px; border-bottom: 1px solid var(--line); }
+.dview-cols ul { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.dview-cols li button { width: 100%; display: flex; gap: 6px; align-items: center; padding: 2px 4px; border: 0; border-radius: 6px; background: transparent; text-align: left; color: inherit; font: inherit; cursor: zoom-in; }
+.dview-cols li button:hover { background: var(--panel2); }
+.dv-q { min-width: 1.4em; color: var(--gold2); font-weight: 700; text-align: right; flex: none; }
+.dv-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dview-cols .mana { flex: none; } .dview-cols .mana img { width: 13px; height: 13px; }
+.dv-zoom { position: fixed; inset: 0; z-index: 75; display: flex; gap: 10px; align-items: center; justify-content: center; padding: 16px; background: #000c; cursor: zoom-out; }
+.dv-zoom img { width: min(340px, 44vw); max-height: 90dvh; object-fit: contain; border-radius: 14px; box-shadow: 0 20px 60px #000; }
+.dv-zoom img:only-child { width: min(380px, 92vw); }
+.dv-tro { margin: 8px 0 4px; } .dv-tro-h { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-bottom: 6px; } .dv-tro-h h4 { margin: 0; }
+.dv-tro .drt-shelf { margin: 0; padding: 0; border: 0; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); }
+.dv-tro .drt-shelf small { white-space: normal; } .dv-tro .drt-shelf .dv-p { margin-left: auto; flex: none; color: var(--gold2); font-size: 12px; font-weight: 700; }
+.dv-tro .drt-shelf li.off .dv-p { color: #ff9b8a; font-weight: 400; }
+@media (max-width: 900px) { .dview { padding: 0 14px calc(14px + env(safe-area-inset-bottom)); } .dv-head { margin: 0 -14px 6px; padding: 10px 14px 8px; } .dv-head img { width: 56px; } }
+@media (max-width: 600px) {  /* telemóvel: «Abrir na Biblioteca» numa linha própria por baixo do nome, o × fica em cima */
+  .dv-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 10px; } .dv-btns { display: contents; }
+  .dv-head > img { grid-column: 1; } .dv-t { grid-column: 2; } .dv-btns > button:last-child { grid-column: 3; grid-row: 1; } .dv-btns .primary { grid-column: 1 / -1; grid-row: 2; }
+}
 /* Biblioteca: com troféus, o formato (e «Comunidade») sobe uma linha em vez de ficar por baixo dos troféus */
 .dbox-top:has(.dbox-tro) .dbox-fmt { bottom: 33px; }
 .dbox-fmt { max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
