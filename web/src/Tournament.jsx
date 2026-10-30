@@ -710,8 +710,9 @@ function GenPeek({ data, p, r, diffs, onClose }) {
 }
 
 // ---------- salas: torneios com amigos (rooms.py) ----------
+const OLD_H = 12
 function Rooms({ data, guest, open, openTable }) {
-  const [list, setList] = useState(null), [decks, setDecks] = useState([]), [pick, setPick] = useState({}), [err, setErr] = useState('')
+  const [list, setList] = useState(null), [decks, setDecks] = useState([]), [pick, setPick] = useState({}), [err, setErr] = useState(''), [showOld, setShowOld] = useState(false)
   const [net] = useNet(!guest), [copied, setCopied] = useState('')  // o link da sala é o endereço público (túnel ou domínio próprio)
   const copyLink = async (url, k) => { try { await navigator.clipboard.writeText(url); setCopied(k); setTimeout(() => setCopied(''), 1500) } catch { window.prompt(tx('Copia o link:'), url) } }
   const seen = useRef({}), seats = useRef({}), [toast, setToast] = useState(null), [busy, setBusy] = useState('')  // mesa livre onde estou: quando o anfitrião começa, abre-se sozinha
@@ -738,7 +739,9 @@ function Rooms({ data, guest, open, openTable }) {
   const solo = async r => { const p = r.players.find(x => x.mine); if (!p) return; setBusy(`${r.id}:solo`); try { openTable((await post('/api/freetables', { deck: p.ref })).id) } catch (e) { setErr(e.message); setBusy('') } }
   if (!list) return <p className="muted">{err || tx('a carregar…')}</p>
   const myDecks = r => decks.filter(d => (guest ? true : !d.friend && !d.community) && (r.casual || (d.format === r.format && !d.casual)))
-  const shown = list.filter(r => r.status !== 'cancelled')
+  // abertas primeiro; as começadas há mais de OLD_H horas dobram-se em «mostrar antigas» (as canceladas não aparecem)
+  const live = list.filter(r => r.status !== 'cancelled'), isOld = r => r.status !== 'open' && Date.now() / 1000 - r.ts > OLD_H * 3600
+  const old = live.filter(isOld), shown = [...live.filter(r => r.status === 'open'), ...live.filter(r => r.status !== 'open' && !isOld(r)), ...(showOld ? old : [])]
   return (
     <section className="card rooms">
       <h3>🚪 {tx('Salas')} <span className="muted small">{guest ? tx('Entra numa sala com um deck teu; quem aloja começa quando estiverem todos.') : tx('Abre uma sala em «✦ Nova sala» e partilha o link: quem o abre entra com um deck seu e tu começas quando estiverem todos.')}</span></h3>
@@ -789,6 +792,7 @@ function Rooms({ data, guest, open, openTable }) {
               <button onClick={() => act(r.id, 'join', { deck: sel })} disabled={!sel || r.players.length >= r.max}>{tx('＋ Entrar com este deck')}</button></div>)
             : <p className="small muted">{guest ? tx('Não tens decks de {f}. Cria um no Construir.', { f: r.casual ? tx('qualquer formato') : FORMAT[r.format]?.name || r.format }) : null}</p>)}
         </div>) })}
+      {old.length > 0 && <button className="link small" onClick={() => setShowOld(v => !v)} aria-expanded={showOld}>{showOld ? tx('▴ esconder as antigas') : tx('▾ mostrar antigas ({n}, começadas há mais de {h} h)', { n: old.length, h: OLD_H })}</button>}
     </section>
   )
 }
