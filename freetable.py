@@ -37,13 +37,38 @@ def _new_id(t):
             return i
 
 
-def create(con, owner, name, seats):
-    """seats = [{by, name, deck: {name, format, main, commanders}}] -> id da mesa (já com 7 cartas na mão de cada um)."""
+def _deal(t, i):
+    """Começar (ou recomeçar) o jogo do lugar i: as cartas dele voltam à biblioteca (o comandante à zona de comando), as
+    fichas desaparecem, baralha-se e compra 7."""
+    z = t["zones"][i]
+    for zone in ZONES:
+        for s2 in t["zones"]:  # cartas dele no campo de outro (controlo trocado) também voltam
+            for cid in [x for x in s2[zone] if t["cards"][str(x)]["o"] == i]:
+                s2[zone].remove(cid)
+                c = t["cards"][str(cid)]
+                if c.get("tok"):
+                    t["cards"].pop(str(cid))
+                    continue
+                _clean(c)
+                _put(t, c, i, "command" if c.get("cm") else "library")
+    for cid in list(z["library"]):
+        _rekey(t, t["cards"][str(cid)])
+    RNG.shuffle(z["library"])
+    for cid in z["library"][:7]:
+        c = t["cards"][str(cid)]
+        _take(t, c); _put(t, c, i, "hand")
+    t["seats"][i]["peek"] = 0
+
+
+def create(con, owner, name, seats, solo=False):
+    """seats = [{by, name, deck: {name, format, main, commanders}}] -> id da mesa (já com 7 cartas na mão de cada um).
+    solo: um só lugar, para testar um deck (goldfish), com a vida de um adversário imaginário."""
     init(con)
-    if not 2 <= len(seats) <= 4:
+    if not (1 if solo else 2) <= len(seats) <= (1 if solo else 4):
         raise ValueError("A mesa livre leva entre 2 e 4 jogadores.")
     t = {"id": secrets.token_hex(6), "owner": owner, "name": str(name or "Mesa livre")[:80], "seq": 1, "ts": time.time(),
-         "status": "playing", "turn": 1, "active": 0, "seats": [], "cards": {}, "zones": [], "log": [], "roll": None}
+         "status": "playing", "turn": 1, "active": 0, "seats": [], "cards": {}, "zones": [], "log": [], "roll": None,
+         **({"solo": True, "gf": 20} if solo else {})}
     for i, s in enumerate(seats):
         d = s["deck"] or {}
         cmdrs = [str(c) for c in (d.get("commanders") or []) if c][:2]
@@ -54,19 +79,14 @@ def create(con, owner, name, seats):
             if main.get(c):
                 main[c] -= 1
         names = [n for n, k in main.items() for _ in range(max(0, min(int(k or 0), 250)))][:300]
+        t["zones"].append(z)
         for n, zone in [(n, "library") for n in names] + [(c, "command") for c in cmdrs]:
             cid = _new_id(t)
-            t["cards"][str(cid)] = {"id": cid, "n": str(n)[:150], "o": i, "s": i, "z": zone}
+            t["cards"][str(cid)] = {"id": cid, "n": str(n)[:150], "o": i, "s": i, "z": zone, **({"cm": True} if zone == "command" else {})}
             z[zone].append(cid)
-        RNG.shuffle(z["library"])
-        z["hand"], z["library"] = z["library"][:7], z["library"][7:]
-        for cid in z["hand"]:
-            t["cards"][str(cid)]["z"] = "hand"
-        t["zones"].append(z)
         t["seats"].append({"by": s["by"], "name": str(s.get("name") or "?")[:40], "deck": str(d.get("name") or "")[:80],
-                           "format": d.get("format"), "life": 40 if cmd else 20, "poison": 0, "out": False, "peek": 0})
-    for c in t["cards"].values():
-        _clean(c)
+                           "format": d.get("format"), "life": 40 if cmd else 20, "life0": 40 if cmd else 20, "poison": 0, "out": False, "peek": 0})
+        _deal(t, i)
     _log(t, None, "start")
     with COND:
         T[t["id"]] = t
@@ -77,7 +97,7 @@ def create(con, owner, name, seats):
 def _clean(c):
     """Estado de mesa a zeros (a carta entrou numa zona nova)."""
     for k in ("x", "y", "t", "d", "f", "k", "atk", "r"):
-        c.pop(k, None)
+        c.pop(k, None)  # (cm = comandante, fica)
 
 
 def _save(con, t):
@@ -140,7 +160,7 @@ def view(t, me):
             v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]
         seats.append(v)
     return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
-            "me": me, "host": t["seats"][me]["by"] == "host", "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
+            "me": me, "host": t["seats"][me]["by"] == "host", "solo": bool(t.get("solo")), "gf": t.get("gf"), "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
             "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE]}
 
 
@@ -299,11 +319,28 @@ def apply(t, me, d):
             if not ks[k]:
                 del ks[k]
             c["k"] = ks
-    elif c0 == "untapall":
+    elif c0 in ("untapall", "newturn"):  # newturn: desvirar tudo e comprar uma (o começo do teu turno; a solo conta o turno)
         for cid in t["zones"][me]["battlefield"]:
             c = t["cards"][str(cid)]
             c.pop("t", None); c.pop("atk", None)
-        _log(t, me, "untapall")
+        if c0 == "untapall":
+            _log(t, me, "untapall")
+        else:
+            if t.get("solo"):
+                t["turn"] += 1
+            _log(t, me, "newturn", n=_draw(t, me, 1), turn=t["turn"])
+    elif c0 == "newgame":  # a solo: o mesmo deck do princípio
+        if not t.get("solo"):
+            raise ValueError("Só se recomeça numa mesa a solo.")
+        _deal(t, me)
+        seat.update(life=seat.get("life0", 20), poison=0)
+        t.update(turn=1, gf=20, roll=None)
+        _log(t, me, "newgame")
+    elif c0 == "gf":  # a vida do adversário imaginário (a solo)
+        if not t.get("solo"):
+            raise ValueError("Só a solo.")
+        t["gf"] = _num(t.get("gf", 20) + _num(d.get("d"), -999, 999), -999, 9999)
+        _log(t, me, "gf", d=_num(d.get("d"), -999, 999), v=t["gf"])
     elif c0 == "token":
         name = str(d.get("name") or "").strip()[:60]
         if not name:
@@ -529,6 +566,23 @@ def selfcheck():
         assert "pen" not in json.loads(con.execute("SELECT state FROM freetables WHERE id=?", (tid,)).fetchone()[0])
     t["pen"][-1]["ts"] -= PEN_LIFE + 1
     assert not call("GET", "guest:rui")[1]["pen"]
+    # a solo: novo turno (desvira + compra), adversário imaginário, recomeçar com o comandante na zona de comando
+    with db() as con:
+        sid = create(con, "hubert", "Solo", [{"by": "host", "name": "H", "deck": deck("C", "commander", ["C Boss"])}], solo=True)
+    so = T[sid]
+    assert len(so["seats"]) == 1 and so["seats"][0]["life"] == 40
+    boss = so["zones"][0]["command"][0]
+    apply(so, 0, {"c": "move", "id": boss, "to": "battlefield", "x": 0.5, "y": 0.5})
+    apply(so, 0, {"c": "token", "name": "Spirit"}); apply(so, 0, {"c": "newturn"}); apply(so, 0, {"c": "gf", "d": -5})
+    assert so["turn"] == 2 and len(so["zones"][0]["hand"]) == 8 and so["gf"] == 15
+    apply(so, 0, {"c": "newgame"})
+    assert so["zones"][0]["command"] == [boss] and not so["zones"][0]["battlefield"] and len(so["zones"][0]["hand"]) == 7 and so["gf"] == 20 and so["turn"] == 1
+    assert len(so["cards"]) == 61  # 60 + o comandante; a ficha foi-se
+    try:
+        apply(t, 0, {"c": "newgame"})
+        raise AssertionError("recomeçar só a solo")
+    except ValueError:
+        pass
     call("POST", "host", {"c": "pass"})
     assert t["active"] == 1 and t["turn"] == 2
     assert call("POST", "host", {"c": "rm -rf"})[0] == 400 and call("POST", "guest:rui", {"c": "close"})[0] == 403

@@ -269,6 +269,17 @@ class H(BaseHTTPRequestHandler):
             body = self.body() if method == "POST" else None
             with db() as con:
                 return self.json(*reversed(rooms.route(con, method, p, self.owner(), body)))
+        if p == "/api/freetables" and method == "POST":  # mesa livre a solo: testar um deck teu (sem sala nem convidados)
+            try:
+                d = self.body()
+                with db() as con:
+                    r = con.execute("SELECT name, body FROM decks WHERE id=? AND owner=? AND deleted IS NULL", (str(d.get("deck") or ""), self.owner())).fetchone()
+                    if not r:
+                        return self.json({"erro": "Esse deck não existe."}, 404)
+                    tid = freetable.create(con, self.owner(), f"Solo · {r[0]}"[:80], [{"by": "host", "name": self.owner(), "deck": json.loads(r[1])}], solo=True)
+                return self.json({"id": tid}, 201)
+            except ValueError as e:
+                return self.json({"erro": str(e)}, 400)
         if p.startswith("/api/freetables/") and method in ("GET", "POST"):  # mesa livre (freetable.py): o dono é um dos jogadores
             return self.freetable_route(method, p, self.owner(), "host")
         if p.startswith("/api/friends") and method != "HEAD":  # o dono gere os amigos
@@ -1111,6 +1122,16 @@ def selfcheck():
         G2 = f"grimorio_guest={[f for f in call('GET', '/api/friends')[1]['friends'] if f['name'] == 'Eva'][0]['token']}"
         assert call("GET", tb, cookie=G2)[0] == 404 and call("POST", tb, {"c": "draw"}, G2)[0] == 404  # outro amigo, fora da mesa
         assert next(r for r in call("GET", "/api/rooms", cookie=G)[1] if r["id"] == lr["id"])["tid"] == sr["table"]
+        # a solo: só o dono abre; um convidado não chega lá
+        assert call("POST", "/api/freetables", {"deck": dk["id"]}, G)[0] == 403
+        st, so, _ = call("POST", "/api/freetables", {"deck": hs[2]})
+        assert st == 201, so
+        st, sv, _ = call("POST", f"/api/freetables/{so['id']}", {"c": "newturn"})
+        assert st == 200 and sv["solo"] and sv["turn"] == 2 and len(sv["seats"]) == 1 and len(sv["seats"][0]["hand"]) == 8, sv
+        assert call("POST", f"/api/freetables/{so['id']}", {"c": "gf", "d": -3})[1]["gf"] == 17
+        st, sv, _ = call("POST", f"/api/freetables/{so['id']}", {"c": "newgame"})
+        assert sv["turn"] == 1 and sv["gf"] == 20 and len(sv["seats"][0]["hand"]) == 7 and sv["seats"][0]["library"] == 53
+        assert call("GET", f"/api/freetables/{so['id']}", cookie=G)[0] == 404
         assert call("POST", f"/api/friends/{fr['id']}/revoke")[0] == 200 and call("GET", "/api/guest/me", cookie=G)[1]["expired"] is True  # revogado
         print("selfcheck convidados ok")
     finally:
