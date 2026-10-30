@@ -455,9 +455,14 @@ console.log('selfcheck universo ok')
   assert.equal(trophyValue({ tier: 1, kind: 'elim', n: 8, casual: true }), 50)            // azul vale metade
   assert.ok(trophyValue({ tier: 'plat', kind: 'gauntlet', n: 8 }) > trophyValue({ tier: 1, kind: 'grupos', n: 16 }))
   console.log('selfcheck valor dos troféus ok') }
-{ const { trophyStars, starPoints, deckPoints } = await import('./src/trophyvalue.js')
-  assert.ok(trophyStars(0) === 0 && trophyStars(100) > 1.9 && trophyStars(100) < 2.3 && trophyStars(3000) === 6 && trophyStars(99999) === 6)
-  for (let k = 1; k <= 6; k++) assert.ok(Math.abs(trophyStars(starPoints(k)) - k) < 0.11, `estrela ${k}`)
+{ const { trophyStars, starPoints, deckPoints, pointStars, perfStars, perfQ, trophyValue } = await import('./src/trophyvalue.js')
+  // os pontos sozinhos chegam às 4★; o desempenho (q: 1 = média do campo, 3 = 3× a média) dá as outras 2
+  assert.ok(trophyStars(0) === 0 && trophyStars(100) > 1.2 && trophyStars(100) < 1.6 && trophyStars(3000) === 4 && trophyStars(99999) === 4)
+  for (let k = 1; k <= 4; k++) assert.ok(Math.abs(pointStars(starPoints(k)) - k) < 0.11, `estrela ${k}`)
+  assert.ok(perfStars(1) === 0 && perfStars(0.4) === 0 && perfStars(undefined) === 0 && perfStars(3) === 2 && perfStars(50) === 2 && perfStars(perfQ(1)) === 1)
+  assert.ok(trophyStars(99999, 3) === 6 && trophyStars(3000, 1) === 4 && trophyStars(0, 3) === 0)  // 6★: coleção enorme E sempre no topo
+  assert.ok(trophyStars(500, 2.2) > trophyStars(1500, 1))  // ganhar mais do que os outros pesa mais do que acumular
+  assert.equal(trophyValue({ tier: 1, kind: 'rei', n: 4, m: 3 }), 33)  // o mesmo que tournament.py trophy_w (auto-teste de lá)
   assert.equal(deckPoints([{ place: 1, type: 'elim', n: 8, valid: true }, { place: 1, type: 'elim', n: 8, valid: false }]), 100)
   console.log('selfcheck estrelas brancas ok') }
 { const { solid, simulate } = await import('./src/dicephys.js')  // dados 3D: faces planas, rótulos certos, assentam e o d6 é justo

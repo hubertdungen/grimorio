@@ -8,9 +8,9 @@ import { wrDelta } from './tests.js'
 import { WIN_LABEL } from './swap.js'
 import { winLose } from './winlose.js'
 import { tx, num, LOCALE } from './i18n.js'
-import { WhiteStars } from './ui.jsx'
+import { TrophyStars } from './ui.jsx'
 import { Trophies, tierOf, Cup, PLACE, KIND } from './Library.jsx'
-import { trophyStars, trophyValue, trophyTier, itemValue } from './trophyvalue.js'
+import { perfOf, trophyValue, trophyTier, itemValue } from './trophyvalue.js'
 
 const ptsOf = x => trophyValue({ tier: x.platinum ? 'plat' : tierOf(x.place, x.champions), kind: x.type, casual: x.casual, n: x.n, m: x.m, podiums: x.podiums })  // como na Biblioteca
 
@@ -267,7 +267,7 @@ export function RatingsCard({ deck }) {
   }, [deck.id])
   if (!deck.id || !rt) return null
   const n = rt[`deck:${deck.id}`], c = rt[`deck:${deck.id}|casual`], list = tro?.[deck.id] || []
-  const pts = list.filter(x => x.valid).reduce((a, x) => a + ptsOf(x), 0)
+  const pts = list.filter(x => x.valid).reduce((a, x) => a + ptsOf(x), 0), perf = perfOf(tro, `meus:${deck.id}`)
   const games = (x, k = 'games') => tx('{n} jogos', { n: x?.[k] || 0 })
   const row = (label, stars, txt, cls) => <li className={cls}><span className="drt-l">{label}</span><span className="drt-s">{stars}</span><small className="muted">{txt}</small></li>
   const routes = n?.routes ? Object.entries(n.routes).filter(([, v]) => v >= 0.05).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${ROUTE[k] || k} ${Math.round(v * 100)}%`).join(' · ') : ''
@@ -280,7 +280,7 @@ export function RatingsCard({ deck }) {
           {n?.blue != null && row(tx('Todos os jogos'), <ColorStars v={n.blue} color="#6aa8ff" />, `Elo ${n.blue_elo} · ${games(n, 'blue_games')} (${tx('com casuais e cruzados')})`, 'drt-b')}
           {n?.red != null && row(tx('Objetivo'), <ColorStars v={n.red} color="#ff6b6b" />, `${tx('ganha pela via do deck {p}% das vezes', { p: Math.round((n.goal || 0) * 100) })}${routes ? ` · ${routes}` : ''}`, 'drt-r')}
           {c && row(tx('Casual'), <ColorStars v={c.stars} color="#c9a35a" prov={c.prov} />, `Elo ${c.elo} · ${games(c)}${c.prov ? ` · ${tx('provisório')}` : ''}`, 'drt-c')}
-          {row(tx('Troféus'), <WhiteStars v={trophyStars(pts)} title={tx('{p} pontos de troféus', { p: pts })} />, list.length ? <>{tx('{n} troféus · {p} pontos', { n: list.length, p: pts })} <Trophies list={list} /></> : tx('ainda sem pódios em torneios'), 'drt-w')}
+          {row(tx('Troféus'), <TrophyStars p={pts} perf={perf} />, list.length ? <>{tx('{n} troféus · {p} pontos', { n: list.length, p: pts })}{perf && ` · ${tx('desempenho ×{q} a média', { q: num(perf.q, 2) })}`} <Trophies list={list} /></> : tx('ainda sem pódios em torneios'), 'drt-w')}
         </ul>
       )}
       {list.length > 0 && <ul className="drt-shelf" aria-label={tx('Troféus ganhos')}>{list.map(x => {  // cada troféu: o torneio, o lugar e a data; abre o torneio

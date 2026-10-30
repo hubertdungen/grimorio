@@ -18,11 +18,23 @@ export const trophyValue = ({ tier, kind, casual, n, m, podiums }) => Math.round
 export const trophyTier = x => (x.platinum ? 'plat' : x.champions ? { 1: 'plat', 2: 'safira', 3: 'rubi' }[x.place] : x.place)
 export const itemValue = x => trophyValue({ tier: trophyTier(x), kind: x.type, casual: x.casual, n: x.n, m: x.m, podiums: x.podiums })
 export const deckPoints = list => (list || []).filter(x => x.valid !== false).reduce((t, x) => t + itemValue(x), 0)
-// Estrelas brancas (0–6) a partir dos pontos de troféus, em escala logarítmica: os primeiros troféus sobem depressa e as
-// 6★ ficam para coleções enormes (STAR_MAX pontos)
-export const STAR_MAX = 3000
+// Estrelas brancas (0–6) = pontos (até 4★) + desempenho (até 2★). Os pontos sozinhos já não chegam às 6★: com o tempo
+// quase todos os decks lá chegavam; as duas de cima pedem ganhar mais do que os outros decks. 4 + 2 e não 5 + 1: com 5★
+// só de pontos um deck antigo e mediano voltava a encostar ao topo, e uma estrela de desempenho pouco separava.
+// Pontos: escala logarítmica, os primeiros troféus sobem depressa e as 4★ ficam para coleções enormes (STAR_MAX pontos).
+export const STAR_MAX = 3000, PTS_STARS = 4, PERF_STARS = 2
 const LOG = Math.log10(1 + STAR_MAX / 20)
-export const trophyStars = p => (p > 0 ? Math.min(6, Math.round(((6 * Math.log10(1 + p / 20)) / LOG) * 10) / 10) : 0)
-export const starPoints = k => Math.round(20 * (10 ** ((k / 6) * LOG) - 1))  // pontos para k estrelas (tabela)
+const r1 = x => Math.round(x * 10) / 10
+export const pointStars = p => (p > 0 ? r1(Math.min(PTS_STARS, (PTS_STARS * Math.log10(1 + p / 20)) / LOG)) : 0)
+export const starPoints = k => Math.round(20 * (10 ** ((k / PTS_STARS) * LOG) - 1))  // pontos para k estrelas (tabela)
+// Desempenho: q de tournament.py trophies (`_perf`) = pontos de troféus ganhos ÷ os esperados em todos os torneios que o
+// deck jogou (cada torneio reparte os pontos do pódio pelos n decks, por isso a média do campo é 1), puxado para 1 com
+// mais 10 torneios na média (poucos torneios = perto da média). Na média ou abaixo, 0★; PERF_TOP (3× a média) = 2★, log.
+export const PERF_TOP = 3
+export const perfStars = q => r1(PERF_STARS * clamp(Math.log(q || 1) / Math.log(PERF_TOP), 0, 1))
+export const perfQ = k => PERF_TOP ** (k / PERF_STARS)  // desempenho para k estrelas de desempenho (tabela)
+export const perfOf = (tro, key) => tro?._perf?.[key]  // {k: torneios jogados, q}; key = 'meus:<id>' ou 'meta:<id>'
+// sem troféus que contem, sem estrelas (o desempenho só se soma a quem já subiu ao pódio)
+export const trophyStars = (p, q) => (p > 0 ? r1(pointStars(p) + perfStars(q)) : 0)
 // a divisão: pontos dos troféus normais (ranked) e dos azuis (casual ou não ranked)
 export const deckSplit = list => (list || []).filter(x => x.valid !== false).reduce((o, x) => { o[x.casual ? 'blue' : 'normal'] += itemValue(x); return o }, { normal: 0, blue: 0 })

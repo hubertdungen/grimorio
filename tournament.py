@@ -865,23 +865,53 @@ def trophy_cut(con, owner):
     return float(json.loads(r[0])) if r else 0
 
 
+# Valor de um troféu: o mesmo que web/src/trophyvalue.js (trophyValue); aqui só para o desempenho (perf em trophies)
+TIER_PTS = {"plat": 1000, "safira": 300, "rubi": 150, 1: 100, 2: 40, 3: 15}
+KIND_W = {"grupos": 1.3, "dupla": 1.25, "suico": 1.2, "liga": 1.15, "elim": 1, "mesas": 1, "equipas": 0.9, "rei": 0.8, "gauntlet": 0.7}
+PERF_K = 10  # desempenho: puxado para a média do campo como se o deck tivesse mais 10 torneios exatamente na média
+
+
+def trophy_w(typ, st):
+    """Peso do torneio (tudo menos os pontos do lugar): tipo × jogadores × duração × azul × liga dos pódios."""
+    n, m = st["n"], len(st["matches"])
+    typical = {"rei": 3 * (n - 1), "suico": math.ceil(math.log2(n)) * (n // 2), "mesas": 3 * math.ceil(n / 4)}.get(typ) if n > 1 else None
+    return (KIND_W.get(typ, 1) * min(1.6, max(0.6, math.sqrt(n / 8))) * (min(1.5, max(0.5, math.sqrt(m / typical))) if typical and m else 1)
+            * (1 if ranked(st) else 0.5) * (0.6 if st.get("podiums") and not st.get("champions") else 1))
+
+
 def trophies(con, owner):
     """{id do deck: [pódios em torneios: ouro, prata e bronze, cada lugar do mais recente]}: resumo de cada um (data, tipo,
     formato, nº de decks, lugar, registo, 1.º e 2.º lugar) e `same` = semelhança da lista de hoje com a do torneio;
-    `valid` = same ≥ SAME (o troféu só conta enquanto a lista não mudar mais de 10%)."""
+    `valid` = same ≥ SAME (o troféu só conta enquanto a lista não mudar mais de 10%).
+    `_perf` = {"src:ref": {k: torneios jogados, q: desempenho, rec: {torneio: [V, D, E] nos pódios]}}} de todos os decks que jogaram (meus, amigos, meta): q =
+    pontos de troféus ganhos ÷ os esperados (cada torneio reparte os pontos do pódio pelos n decks: a média do campo é 1),
+    puxado para 1 com PERF_K torneios a mais na média. Os meus decks só contam os torneios em que a lista ainda vale
+    (mesma regra dos troféus). As estrelas brancas juntam-lhe os pontos (web/src/trophyvalue.js trophyStars)."""
     cur = {i: json.loads(b or "{}") for i, b in con.execute(
         "SELECT id, body FROM decks WHERE owner=? AND (deleted IS NULL OR deleted=0)", (owner,))}
-    out, cut = {}, trophy_cut(con, owner)
+    out, cut, acc = {}, trophy_cut(con, owner), {}  # acc: deck -> [torneios, pontos ganhos, pontos esperados, registos]
     for tid, ts, name, typ, fmt, raw in con.execute("SELECT id, ts, name, type, format, state FROM tournaments"
                                                     " WHERE owner=? AND status='done' ORDER BY ts DESC", (owner,)):
         st = json.loads(raw)
         if st.get("champion") is None or not st.get("decks") or ts < cut or st.get("jogo"):  # jogos avulsos não dão troféus
             continue
         pod, rows = podium(st), {x["i"]: x for x in standings(st)}
+        sims = {i: similarity(st["decks"][i], cur[p["ref"]]) for i, p in enumerate(st["players"])
+                if p.get("src") == "meus" and p.get("ref") in cur and i < len(st["decks"])}
+        w = trophy_w(typ, st)
+        won = {x["i"]: TIER_PTS[{1: "plat", 2: "safira", 3: "rubi"}[x["place"]] if st.get("champions") else x["place"]] * w for x in pod}
+        exp = sum(won.values()) / st["n"]
+        for i, p in enumerate(st["players"]):
+            if sims.get(i, 1) >= SAME:
+                a = acc.setdefault(f"{p.get('src')}:{p.get('ref')}", [0, 0.0, 0.0, {}])
+                a[0] += 1; a[1] += won.get(i, 0); a[2] += exp  # noqa: E702
         for x in pod:  # ouro, prata e bronze (empates no 3.º: todos bronze)
+            row = rows.get(x["i"], {})
+            if f"{x.get('src')}:{x.get('ref')}" in acc:  # o registo do pódio (V/D/E) de qualquer deck: a vista do deck na galeria
+                acc[f"{x.get('src')}:{x.get('ref')}"][3][tid] = [row.get("v", 0), row.get("d", 0), row.get("e", 0)]
             if x.get("src") != "meus" or x.get("ref") not in cur:
                 continue
-            row, same = rows.get(x["i"], {}), round(similarity(st["decks"][x["i"]], cur[x["ref"]]), 3)
+            same = round(sims[x["i"]], 3)
             out.setdefault(x["ref"], []).append({
                 "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "m": len(st["matches"]), "casual": not ranked(st),
                 "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")), "podiums": bool(st.get("podiums")), "friends": bool(st.get("friends")),
@@ -890,6 +920,9 @@ def trophies(con, owner):
                 "second": [y["name"] for y in pod if y["place"] == 2 and y["i"] != x["i"]], "same": same, "valid": same >= SAME})
     for v in out.values():
         v.sort(key=lambda t: (t["place"], -t["ts"]))
+    if acc:
+        out["_perf"] = {k: {"k": n, "q": round((a + PERF_K * e / n) / (e + PERF_K * e / n), 3), **({"rec": r} if r else {})}
+                        for k, (n, a, e, r) in acc.items() if e}
     return out
 
 
@@ -1842,6 +1875,19 @@ def selfcheck():
             assert r2[:2] == ("jogo", "Jogo avulso") and s2["jogo"] and s2["type"] == "elim" and s2["bo"] == 3 and len(s2["matches"]) == 1, r2[:2]
             assert s3["type"] == "mesas" and s3["rounds"] == 1 and s3["matches"][0]["p"] == [0, 1, 2] or sorted(s3["matches"][0]["p"]) == [0, 1, 2]
             assert trophies(c, "o") == {}
+            # desempenho (_perf): eliminação de 4 sem 3.º lugar, ganha o seed mais alto; o meta «m» perde na 1.ª ronda
+            st = build("elim", 4)
+            st.update(players=[{"name": k, "src": "meus", "ref": k} for k in "abc"] + [{"name": "m", "src": "meta", "ref": "m"}],
+                      decks=[{"main": {"Island": 60}}] * 3 + [{"main": {"Bear": 60}}], ranked=True)
+            play(st, better)
+            c.execute("INSERT INTO tournaments VALUES ('t4', 'o', 1, 'T', 'elim', 'modern', 'done', 0, 4, ?)", (json.dumps(st),))
+            c.execute("UPDATE decks SET body=? WHERE id='c'", (json.dumps({"main": {"Swamp": 60}}),))  # a lista do c mudou: não conta
+            pf, e = trophies(c, "o")["_perf"], (100 + 40 + 15 + 15) * trophy_w("elim", st) / 4
+            assert set(pf) == {"meus:a", "meus:b", "meta:m"} and pf["meus:a"]["k"] == 1 and pf["meus:a"]["rec"]["t4"][0] == 2 and "rec" in pf["meta:m"], pf
+            assert pf["meus:a"]["q"] == round((100 * trophy_w("elim", st) + PERF_K * e) / ((1 + PERF_K) * e), 3) > 1 > pf["meus:b"]["q"] > pf["meta:m"]["q"]
+    assert round(100 * trophy_w("elim", {"n": 8, "matches": [0] * 7, "ranked": True})) == 100  # o mesmo que trophyValue no
+    assert round(100 * trophy_w("rei", {"n": 4, "matches": [0] * 3, "ranked": True})) == 33     # web/selfcheck.mjs
+    assert round(100 * trophy_w("elim", {"n": 8, "matches": [], "ranked": False})) == 50
     DB, DATA = keep
     print("selfcheck ok")
 

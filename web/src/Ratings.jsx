@@ -3,8 +3,8 @@
 // ou «Todos») e Casual (um só grupo: jogos em modo casual e decks casuais).
 import { useEffect, useRef, useState } from 'react'
 import { FORMAT } from './formats.js'
-import { Empty, Stars, PROV_TIP, WhiteStars, SrcFilter } from './ui.jsx'
-import { deckPoints, trophyStars } from './trophyvalue.js'
+import { Empty, Stars, PROV_TIP, TrophyStars, SrcFilter } from './ui.jsx'
+import { deckPoints, perfOf } from './trophyvalue.js'
 import { img, HUE, coverOf, colorsOf } from './data.js'
 import Replay from './Board.jsx'
 import { DIFF_INFO } from './difficulty.js'
@@ -188,8 +188,8 @@ export default function Ratings({ data, fmt }) {
   const tiers = [6, 5, 4, 3, 2, 1, 0, -1].map(t => [t, rows.filter(r => r.tier === t).map((r, i) => (by === 'stars' && !only ? r : { ...r, rank_in_tier: i + 1 }))]).filter(([, rs]) => rs.length)
   // estrelas brancas e número de troféus (só os meus decks ganham troféus)
   const troOf = r => {
-    const l = (tro[r.key?.replace(/^deck:/, '')] || []).filter(x => x.valid !== false), p = deckPoints(l)
-    return l.length ? <span className="rt-tro" title={tx('{n} troféus · {p} pontos', { n: l.length, p })}><WhiteStars v={trophyStars(p)} title={tx('{p} pontos de troféus', { p })} /><b>🏆 {l.length}</b></span> : null
+    const id = r.key?.replace(/^deck:/, ''), l = (tro[id] || []).filter(x => x.valid !== false), p = deckPoints(l)
+    return l.length ? <span className="rt-tro"><TrophyStars p={p} perf={perfOf(tro, `meus:${id}`)} /><b title={tx('{n} troféus · {p} pontos', { n: l.length, p })}>🏆 {l.length}</b></span> : null
   }
   const where = cas ? tx('no rating casual') : f === 'all' ? tx('em nenhum formato') : tx('em {f}', { f: fmtName(f) })
   const fmts = [...new Set([...META_FMTS, ...(res?.formats || []), fmt.key])]

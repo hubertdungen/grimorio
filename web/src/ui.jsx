@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { img, TAG_LABEL, sf } from './data.js'
 import { tx, num } from './i18n.js'
+import { pointStars, perfStars, trophyStars } from './trophyvalue.js'
 
 const sym = s => sf(`https://svgs.scryfall.io/card-symbols/${s.replace(/\//g, '')}.svg`)
 
@@ -206,6 +207,16 @@ export function WhiteStars({ v, title }) {
       <b>{num(v, 1)}</b>
     </span>
   )
+}
+
+// As estrelas brancas de um deck a partir dos pontos (p) e do desempenho (perf = {k, q} de trophyvalue.js perfOf), com a
+// conta por extenso ao passar por cima; `note` acrescenta linhas (ex.: a divisão normais + azuis)
+export function TrophyStars({ p, perf, note }) {
+  const a = pointStars(p), b = p > 0 ? perfStars(perf?.q) : 0
+  const title = [tx('Estrelas brancas {s}: {a} dos {p} pontos de troféus (até 4★) + {b} do desempenho (até 2★)', { s: num(a + b), a: num(a), p, b: num(b) }),
+    perf ? tx('Desempenho ×{q} a média do campo em {n} torneio (×1 = +0★, ×3 = +2★)|Desempenho ×{q} a média do campo em {n} torneios (×1 = +0★, ×3 = +2★)', { q: num(perf.q, 2), n: perf.k }) : tx('Desempenho: ainda sem torneios que contem'),
+    note].filter(Boolean).join('\n')
+  return <WhiteStars v={trophyStars(p, perf?.q)} title={title} />
 }
 
 // De quem é um deck (para filtrar Ratings, Hall da fama e Galeria): meu, de um amigo, da comunidade ou do meta
