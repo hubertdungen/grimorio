@@ -2374,7 +2374,7 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 @media (max-width: 700px) { .pv-vs { grid-template-columns: 1fr; text-align: center; } .pv-side, .pv-side.opp { flex-direction: column; text-align: center; } .pv-x { justify-self: center; } }
 .fp-hand .fp-card.play { box-shadow: 0 0 0 2px #4ade80, 0 0 14px #4ade8099; }  /* o Forge diz que dá para jogar agora */
 .fp-opt { position: relative; } .fp-ord { position: absolute; top: 6px; left: 6px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--gold); color: #111; font-size: 14px; box-shadow: 0 2px 6px #000a; }
-.fp-prompt kbd, .fp-reveal kbd { font: 600 10px/1 system-ui, sans-serif; padding: 2px 4px; margin-left: 4px; border-radius: 4px; border: 1px solid #ffffff40; opacity: .75; }
+.fp-prompt kbd, .fp-reveal kbd, .fp-ask kbd { font: 600 10px/1 system-ui, sans-serif; padding: 2px 4px; margin-left: 4px; border-radius: 4px; border: 1px solid #ffffff40; opacity: .75; }
 .pi-who { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 8px 0; }
 @media (prefers-reduced-motion: reduce) { .fp .pc-rot, .fp .pc .pc-f, .fp-card { animation: none !important; transition: none !important; } }
 @media (max-width: 900px) {  /* tablet ao alto e telemóvel: o painel lateral passa para baixo da mesa */
@@ -2960,3 +2960,38 @@ html { touch-action: manipulation; }
 }
 @media (pointer: coarse) { .dk-grid .dg-row { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }  /* cartas largas o bastante para a barra caber em 2 linhas */
 @media (pointer: coarse) and (max-width: 520px) { .dk-grid .dg-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }  /* 2 cartas por linha: a barra de ações cabe em 2 linhas */
+/* a escolher alvos: a pilha (cartas e legenda) por cima do lado do adversário fica transparente e não apanha cliques —
+   antes tapava a criatura que querias escolher (Path to Exile em resposta a um Counterspell) */
+.fp-table.fp-aiming .stackfx, .fp-table.fp-aiming .stackfx * { pointer-events: none !important; }
+.fp-table.fp-aiming .stackfx { opacity: .28; filter: saturate(.6); transition: opacity .2s; }
+.fp-stk-lbl { display: block; max-width: 150px; margin-top: 4px; font-size: 11px; line-height: 1.3; color: var(--muted); text-align: center; }
+.fp:has(.fp-ghost) .stackfx, .fp:has(.fp-ghost) .stackfx *, :root:has(.fp-ghost) .fp-table .stackfx, :root:has(.fp-ghost) .fp-table .stackfx * { pointer-events: none !important; }  /* a arrastar um feitiço para um alvo debaixo da pilha */
+/* confirmar ativar uma habilidade de uma permanente tua: balão por cima da carta (um clique já não ativa e paga sozinho) */
+.fp-act-bg { position: fixed; inset: 0; z-index: 64; }
+.fp-act { position: fixed; z-index: 65; width: 260px; transform: translateY(-100%); padding: 10px 12px; border-radius: 12px; background: var(--panel); border: 1px solid var(--gold);
+  box-shadow: 0 14px 34px #000c; display: grid; gap: 6px; font-size: 13px; animation: fp-in .22s cubic-bezier(.34, 1.56, .64, 1); }
+.fp-act.below { transform: none; } .fp-act p { margin: 0; color: #d9dcef; } .fp-act .row-btns { margin-top: 2px; }
+.fp-act kbd { font: 600 10px/1 system-ui, sans-serif; padding: 2px 4px; margin-left: 4px; border-radius: 4px; border: 1px solid #ffffff40; opacity: .75; }
+@media (prefers-reduced-motion: reduce) { .fp-act { animation: none; } }
+/* declarar bloqueadores: atacantes dele a dourado (o atacante escolhido com moldura), as tuas criaturas por virar que podem
+   bloquear a azul; um clique num bloqueador já declarado tira o bloqueio (é o Forge que decide; aqui só se vê) */
+.fp-table.fp-blocking .bside.top .pc.atk .pc-f { box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold); }
+.fp-table.fp-blocking .bside.bottom .pc.cre:not(.tapped):not(.blk) .pc-f { box-shadow: 0 0 0 2px var(--cyan), 0 0 12px #6ee7f988; }
+.fp-table.fp-blocking .bside.bottom .pc.blk .pc-f { box-shadow: 0 0 0 3px #9ad7ff, 0 0 16px #9ad7ff; }
+.fp-act-hint { color: #ffd98a; }
+/* toque (telemóvel/tablet): carta em grande ao tocar e manter, zonas maiores, botões de 44 px, sem atraso do duplo toque */
+.fp-big { position: fixed; inset: 0; z-index: 95; display: grid; place-items: center; align-content: center; gap: 10px; padding: 16px; background: #05040be6;
+  touch-action: none; animation: fp-fade .18s ease-out; }
+.fp-big img { width: min(92vw, 66vh * 488 / 680); aspect-ratio: 488 / 680; border-radius: 4.8%; box-shadow: 0 24px 60px #000; transform-origin: 50% 50%;
+  transition: transform .18s ease-out; animation: fp-reveal .35s cubic-bezier(.2, 1.25, .4, 1) both; user-select: none; }
+.fp-big small { color: var(--muted); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .fp-big img { animation: none; transition: none; } }
+.fp, .ml { touch-action: manipulation; }  /* sem o atraso de 300 ms nem o zoom do duplo toque */
+@media (pointer: coarse) {
+  .fp .pc::before { content: ''; position: absolute; inset: -5px; }  /* zona de toque um pouco maior que a carta */
+  .fp-side button, .fp-ask button, .fp-act button, .fp-reveal button, .fp-modal .row-btns button, .fp-prompt > .row-btns:first-of-type button { min-height: 44px; }
+  .fp-side .fp-dicebar button.link, .fp-side .row-btns.small button.link { min-height: 44px; padding: 6px 14px; }
+  .fp-table .bside.fp-over { box-shadow: inset 0 0 0 3px #6ee7f9aa, inset 0 0 40px #6ee7f933; }  /* onde vai cair debaixo do dedo */
+  .fp-table .pc.fp-over .pc-f { box-shadow: 0 0 0 4px #ffd98a, 0 0 24px #ffd98a; }
+}
+@media (pointer: coarse) { .ml-t, .fp.ml .ml-tools .ml-tg .ml-t { min-height: 44px; } }  /* mesa livre: barra de ferramentas confortável ao dedo */

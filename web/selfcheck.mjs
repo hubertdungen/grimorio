@@ -756,3 +756,17 @@ import { search as searchCards } from './src/data.js'
   assert.deepEqual(pq('removal forest', { types: T }).f, { tags: ['removal'], colors: ['G'] })
   console.log('selfcheck ciclos de terrenos ok')
 }
+{ // Forge Play: «pagar sozinho» só quando há uma maneira óbvia de pagar
+  const { obviousPay } = await import('./src/mana.js')
+  const D = { Plains: { o: '({T}: Add {W}.)', t: 'Basic Land — Plains' }, Forest: { o: '({T}: Add {G}.)', t: 'Basic Land — Forest' }, 'Sol Ring': { o: '{T}: Add {C}{C}.', t: 'Artifact' }, 'Grizzly Bears': { o: '', t: 'Creature — Bear' } }
+  const card = n => D[n], me = (...ns) => ({ mana: {}, battlefield: ns.map(n => ({ name: n, tapped: n.startsWith('~') ? true : undefined })).map(c => ({ ...c, name: c.name.replace('~', '') })) })
+  assert.equal(obviousPay('Pay Mana Cost: {1}', me('Plains', 'Forest'), card), false, '{1} com Plains ou Forest: escolhes tu')
+  assert.equal(obviousPay('Pay Mana Cost: {1}', me('Plains', 'Plains', 'Grizzly Bears'), card), true, 'só Plains: óbvio')
+  assert.equal(obviousPay('Pay Mana Cost: {1}{W}', me('Plains', 'Forest'), card), true, 'usam-se as duas')
+  assert.equal(obviousPay('Pay Mana Cost: {1}', me('Plains', '~Forest'), card), true, 'a Forest está virada')
+  assert.equal(obviousPay('Pay Mana Cost: {2}', me('Sol Ring', 'Plains', 'Forest'), card), false, 'Sol Ring ou terrenos')
+  assert.equal(obviousPay('Pay Mana Cost: {1}', { mana: { W: 1 }, battlefield: [{ name: 'Plains' }] }, card), false, 'mana na reserva: escolhes tu')
+  assert.equal(obviousPay('Pay Mana Cost: {W}', me('Plains', 'Forest'), card), true, '{W}: só a Plains serve')
+  assert.equal(obviousPay('Pay Mana Cost: {W}', me('Plains', 'Savannah'), n => n === 'Savannah' ? { o: '({T}: Add {G} or {W}.)', t: 'Land — Forest Plains' } : D[n]), false, '{W}: Plains ou um terreno duplo')
+  console.log('selfcheck pagar sozinho ok')
+}

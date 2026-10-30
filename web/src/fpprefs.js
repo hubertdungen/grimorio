@@ -3,7 +3,7 @@
 // dos adversários. Tudo só no teu ecrã.
 export const fpPrefs = () => {
   let o = {}; try { o = JSON.parse(localStorage.getItem('grimorio.fp.prefs') || '{}') } catch { /* sem armazenamento */ }
-  return { space: o.space !== false, flip: o.flip || 'f', tap: o.tap || 't', autopay: o.autopay !== false, autoresolve: o.autoresolve !== false,
+  return { space: o.space !== false, flip: o.flip || 'f', tap: o.tap || 't', autopay: o.autopay === true,  // pagar sozinho: desligado por omissão autoresolve: o.autoresolve !== false,
     place: ['grid', 'free', 'rows'].includes(o.place) ? o.place : 'grid', persp: o.persp !== false, tilt: Number.isFinite(o.tilt) ? o.tilt : 30,
     oppFace: o.oppFace === 'far' ? 'far' : 'me' }  // cartas dos adversários: viradas para mim (legíveis) ou para eles (180°, como numa mesa a sério)
 }

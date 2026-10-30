@@ -114,7 +114,7 @@ function TableKeys() {
       <label className="fmt"><span>{tx('Tecla para virar (tap) a carta tua na mesa debaixo do rato — o mesmo que clicar nela')}</span>
         <input value={p.tap.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (/^[a-z0-9]$/.test(k) && k !== p.flip) save({ tap: k }) }} /></label>
       <p className="muted small">{tx('Na mão: um clique levanta a carta e mostra-a; para a jogar, arrasta-a para a mesa (ou duplo clique). Se a largares de volta na mão, fica no sítio onde a largaste.')}</p>
-      <label className="chk"><input type="checkbox" checked={p.autopay} onChange={e => save({ autopay: e.target.checked })} /> {tx('Pagar a mana sozinho quando lanças uma carta (como o «Pagar sozinho» do Forge)')}</label>
+      <label className="chk"><input type="checkbox" checked={p.autopay} onChange={e => save({ autopay: e.target.checked })} /> {tx('Pagar a mana sozinho quando lanças uma carta, só quando há uma maneira óbvia de pagar (com escolha de cores, escolhes tu)')}</label>
       <label className="chk"><input type="checkbox" checked={p.autoresolve} onChange={e => save({ autoresolve: e.target.checked })} /> {tx('Deixar resolver sozinho o que é teu no topo da pilha (sem carregar em OK)')}</label>
       <label className="fmt"><span>{tx('Arrumação do teu lado da mesa')}</span>
         <select value={p.place} onChange={e => save({ place: e.target.value })}>

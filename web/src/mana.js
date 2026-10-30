@@ -186,3 +186,25 @@ export function basicsFor(data, need, n, identity) {
   }
   return res
 }
+
+// Forge Play › «pagar sozinho» só quando é óbvio: uma só maneira sensata de pagar — todas as fontes livres dão as mesmas
+// cores, ou são exatamente as que o custo pede (usam-se todas). Com escolha (um {1} que tanto sai de uma Plains como de uma
+// Forest) fica para quem joga: o «Pagar sozinho» do Forge escolhe as fontes à sua maneira e gastava a cor que fazia falta.
+// msg = o pedido do Forge («Pay Mana Cost: {1}{W}»), me = o jogador do estado (battlefield, mana), card(nome) -> carta
+export function obviousPay(msg, me, card) {
+  const cost = (String(msg).split('\n').find(l => /\{/.test(l)) || '').match(/\{[^}]+\}/g)
+  if (!cost || !me || Object.values(me.mana || {}).some(n => n > 0)) return false  // mana na reserva: escolhes tu
+  const need = cost.reduce((a, t) => a + (/^\{\d+\}$/.test(t) ? +t.slice(1, -1) : /^\{X\}$/i.test(t) ? 0 : 1), 0)
+  const sig = c => {  // as cores que uma fonte dá (pelo texto «Add …» e pelos tipos básicos)
+    const d = card(c.name)
+    if (!d || !/\badd \{/i.test(d.o) && !Object.keys(BASIC_OF).some(t => d.t.includes(t))) return null
+    const L = landInfo(d)
+    return L.any ? '*' : [...L.colors].filter(k => k !== '*').sort().join('') + (/\badd [^.]*\{C\}/i.test(d.o) ? 'C' : '')
+  }
+  const src = (me.battlefield || []).filter(c => !c.tapped).map(sig).filter(x => x != null)
+  if (!src.length) return false
+  // custo só de cores ({W}, {U}{U}): óbvio se nenhuma fonte que dá essas cores dá também outra (sem terrenos duplos a escolher)
+  const cols = cost.filter(t => /^\{[WUBRG]\}$/.test(t)).map(t => t[1])
+  if (cols.length === cost.length) return src.filter(x => x === '*' || cols.some(k => x.includes(k))).every(x => x.length === 1)
+  return new Set(src).size === 1 || src.length === need
+}
