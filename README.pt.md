@@ -27,6 +27,7 @@ A interface está disponível em **English** (predefinição), **Português**, *
 <tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Torneios: pódio ao vivo, classificação e a origem de cada deck"></a><br><sub>Torneios: pódio ao vivo, classificação e a origem de cada deck</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Salas online: jogos avulsos ou torneios por um link público"></a><br><sub>Salas online: jogos avulsos ou torneios por um link público</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: estrelas por deck e a Arena automática"></a><br><sub>Ratings: estrelas por deck e a Arena automática</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="À mesa: contador de vida, dados 3D e leitor de cartas"></a><br><sub>À mesa: contador de vida, dados 3D e leitor de cartas</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft e Selado: packs reais, bots do Forge e um torneio no fim"></a><br><sub>Draft e Selado: packs reais, bots do Forge e um torneio no fim</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Sideboard: respostas ao que te vence nos testes"></a><br><sub>Sideboard: respostas ao que te vence nos testes</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/freetable.jpg"><img src="docs/img/freetable.jpg" alt="Mesa livre online: perspetiva, dados, conversa com cartas mencionadas"></a><br><sub>Mesa livre online: perspetiva, dados, conversa com cartas mencionadas</sub></td><td width="50%"><a href="docs/img/teams.jpg"><img src="docs/img/teams.jpg" alt="Torneios de equipas: à mesma mesa e Two-Headed Giant"></a><br><sub>Torneios de equipas: à mesma mesa e Two-Headed Giant</sub></td></tr>
 </table>
 
 ## Instalar
@@ -164,6 +165,20 @@ computadores e servidores de um só dono.
   as zonas não saltam com cartas novas nem com a barra do browser e filas cheias encostam as cartas. As cartas deslizam
   entre jogadas, largar uma aura, remoção ou equipamento em cima de uma criatura escolhe-a como alvo, scry e vigiar em dois
   montes, procurar na biblioteca numa grelha com filtro e o veneno a subir no ☠.
+- **Mesa livre online, a solo e em torneio** — jogos só entre amigos, sem bots nem regras automáticas: cada um mexe nas
+  suas cartas como numa mesa a sério (arrastar, virar, marcadores, fichas, vida, veneno, energia, dano de comandante,
+  monarca, dia/noite), com perspetiva, dados 3D que se pegam e atiram (o amigo vê o mesmo lançamento do lado dele),
+  caneta que brilha e desaparece, e conversa com @cartas e #regras. Mãos e grimórios escondidos no servidor. «Pronto»
+  de cada um antes de começar; amigos sem decks sentam-se com um deck emprestado, do meta ou colado; entra-se com o
+  perfil deste Grimório ou com o de outro (a app de um amigo). Mesa a solo para testar decks e torneios de mesa livre.
+- **Mecânicas à vista em todas as mesas** — veneno e energia, lealdade dos planeswalkers a subir e a descer, battles,
+  sagas, cartas de duas faces e MDFC, cartas flip, viradas para baixo, cópias, emblemas, auras e equipamentos presos,
+  monarca, iniciativa, dia/noite, phasing, mutate e cartas que voltam do cemitério com animação.
+- **Torneios de equipas a sério** — 2 contra 2 à mesma mesa ou Two-Headed Giant (vida partilhada), equipas equilibradas
+  por formato e por rating, gerador mais justo; Registo com painel de estado, filtros, ordenação e páginas, e o Hall da
+  fama e a galeria de troféus também com páginas. Os jogos contra o Forge contam para os ratings.
+- **Assistente de IA com memória** — cada deck guarda o que pediste, o que a IA disse e o que aplicaste, e a IA recebe
+  esse histórico; corta exatamente o excesso acima de 60 (ou 100 em Commander).
 - **Assistente de IA (opcional)** — chaves de vários fornecedores, modelos mais recentes detetados sozinhos; muda o
   deck diretamente (trocas, quantidades, substitutos para qualquer carta) com um clique.
 - **Coliseu (IA do Forge)** — IA contra IA com regras reais (Bo1/Bo3, sideboard inteligente, aprendizagem), todos contra

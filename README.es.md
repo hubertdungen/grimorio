@@ -28,6 +28,7 @@ La interfaz está disponible en **English** (predeterminado), **Português**, **
 <tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Torneos: podio en directo, clasificación y etiquetas de origen de los mazos"></a><br><sub>Torneos: podio en directo, clasificación y etiquetas de origen de los mazos</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Salas en línea: partidas sueltas o torneos con un enlace público"></a><br><sub>Salas en línea: partidas sueltas o torneos con un enlace público</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: estrellas por mazo y la Arena automática"></a><br><sub>Ratings: estrellas por mazo y la Arena automática</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="En la mesa: contador de vidas, dados en 3D y escáner de cartas"></a><br><sub>En la mesa: contador de vidas, dados en 3D y escáner de cartas</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft y Sellado: sobres reales, bots de Forge y un torneo al final"></a><br><sub>Draft y Sellado: sobres reales, bots de Forge y un torneo al final</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Banquillo: respuestas a lo que te gana en las pruebas"></a><br><sub>Banquillo: respuestas a lo que te gana en las pruebas</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/freetable.jpg"><img src="docs/img/freetable.jpg" alt="Mesa libre online: perspectiva, dados, chat con cartas mencionadas"></a><br><sub>Mesa libre online: perspectiva, dados, chat con cartas mencionadas</sub></td><td width="50%"><a href="docs/img/teams.jpg"><img src="docs/img/teams.jpg" alt="Torneos por equipos: misma mesa y Two-Headed Giant"></a><br><sub>Torneos por equipos: misma mesa y Two-Headed Giant</sub></td></tr>
 </table>
 
 ## Instalación
@@ -171,6 +172,20 @@ en la nube es para ordenadores y servidores de un solo dueño.
   móvil): las zonas no saltan con cartas nuevas ni con la barra del navegador y las filas llenas solapan las cartas. Las
   cartas se deslizan entre jugadas, soltar un aura, remoción o equipo sobre una criatura la elige como objetivo, adivinar
   y vigilar en dos montones, buscar en la biblioteca en una cuadrícula con filtro y el veneno subiendo en el ☠.
+- **Mesa libre online, en solitario y en torneo**: partidas solo entre amigos, sin bots ni reglas automáticas: cada uno
+  mueve sus cartas como en una mesa de verdad (arrastrar, girar, contadores, fichas, vida, veneno, energía, daño de
+  comandante, monarca, día/noche), con perspectiva, dados 3D que se cogen y se lanzan (el amigo ve la misma tirada desde
+  su lado), un lápiz que brilla y se desvanece, y chat con @cartas y #reglas. Manos y bibliotecas ocultas en el servidor.
+  «Listo» de cada uno antes de empezar; amigos sin mazos se sientan con uno prestado, del meta o pegado; se entra con el
+  perfil de este Grimório o con el de otro (la app de un amigo). Mesa en solitario para probar mazos y torneos de mesa libre.
+- **Mecánicas a la vista en todas las mesas**: veneno y energía, lealtad de planeswalkers que sube y baja, batallas,
+  sagas, cartas de doble cara y MDFC, cartas flip, boca abajo, copias, emblemas, auras y equipos anexados, monarca,
+  iniciativa, día/noche, phasing, mutate y cartas que vuelven del cementerio, todo animado.
+- **Torneos por equipos de verdad**: 2 contra 2 en la misma mesa o Two-Headed Giant (vida compartida), equipos
+  equilibrados por formato y rating, generador más justo; Registro con panel de estado, filtros, orden y páginas, y el
+  Salón de la fama y la galería de trofeos también paginados. Las partidas contra Forge cuentan para los ratings.
+- **Asistente de IA con memoria**: cada mazo guarda lo que pediste, lo que dijo la IA y lo que aplicaste, y la IA recibe
+  ese historial; recorta exactamente el exceso por encima de 60 (o 100 en Commander).
 - **Asistente de IA (opcional)**: claves de varios proveedores, modelos más recientes detectados solos; cambia tu mazo
   directamente (cambios, cantidades, sustitutos para cualquier carta) con un clic.
 - **Coliseo (IA de Forge)**: IA contra IA con reglas reales (Bo1/Bo3, sideboard inteligente, aprendizaje), todos

@@ -27,6 +27,7 @@ The interface is available in **English** (default), **Português**, **Español*
 <tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Tournaments: live podium, standings and deck origin tags"></a><br><sub>Tournaments: live podium, standings and deck origin tags</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Online rooms: single games or tournaments by a public link"></a><br><sub>Online rooms: single games or tournaments by a public link</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: stars per deck and the automatic Arena"></a><br><sub>Ratings: stars per deck and the automatic Arena</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="At the table: life counter, 3D dice and card scanner"></a><br><sub>At the table: life counter, 3D dice and card scanner</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft and Sealed: real packs, Forge bots and a tournament afterwards"></a><br><sub>Draft and Sealed: real packs, Forge bots and a tournament afterwards</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Sideboard: answers to what you lose to in your tests"></a><br><sub>Sideboard: answers to what you lose to in your tests</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/freetable.jpg"><img src="docs/img/freetable.jpg" alt="Free table online: perspective, dice, chat with card mentions"></a><br><sub>Free table online: perspective, dice, chat with card mentions</sub></td><td width="50%"><a href="docs/img/teams.jpg"><img src="docs/img/teams.jpg" alt="Team tournaments: same table and Two-Headed Giant"></a><br><sub>Team tournaments: same table and Two-Headed Giant</sub></td></tr>
 </table>
 
 ## Install
@@ -161,6 +162,20 @@ sync is for computers and single-owner servers.
   phones): zones never jump when cards arrive or the browser bar moves, and crowded rows overlap their cards. Cards glide
   between plays, dropping an aura, removal or equipment on a creature targets it, scry and surveil as two piles, library
   searches as a filterable grid, and poison ticking up on the ☠.
+- **Free table online, solo and in tournaments** — games between friends only, no bots and no automatic rules: everyone
+  handles their own cards like at a real table (drag, tap, counters, tokens, life, poison, energy, commander damage,
+  monarch, day/night), with perspective, 3D dice you grab and throw (your friend sees the same throw from their side),
+  a glowing pen that fades, and chat with @cards and #rules. Hands and libraries hidden on the server. Everyone presses
+  «Ready» before starting; friends without decks sit with a lent, meta or pasted deck; join as a profile of this
+  Grimório or of another one (a friend's app). Solo table to playtest decks, and free-table tournaments.
+- **Mechanics in view on every table** — poison and energy, planeswalker loyalty going up and down, battles, sagas,
+  double-faced and MDFC cards, flip cards, face-down cards, copies, emblems, attached auras and equipment, monarch,
+  initiative, day/night, phasing, mutate and cards returning from the graveyard, all animated.
+- **Real team tournaments** — 2 vs 2 at one table or Two-Headed Giant (shared life), teams balanced by format and rating,
+  a fairer generator; Registry with a status panel, filters, sorting and pages, and the Hall of fame and trophy gallery
+  paged too. Games against Forge count towards ratings.
+- **AI assistant with memory** — each deck keeps what you asked, what the AI said and what you applied, and the AI gets
+  that history; it cuts exactly the excess above 60 (or 100 in Commander).
 - **AI assistant (optional)** — keys for several providers, newest models detected automatically; it changes your deck
   directly (swaps, quantities, substitutes for any card) with one click.
 - **Coliseum (Forge AI)** — AI vs AI with real rules (Bo1/Bo3, smart sideboarding, learning), 3–4 player free-for-all

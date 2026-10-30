@@ -28,6 +28,7 @@ Die Oberfläche gibt es auf **English** (Standard), **Português**, **Español**
 <tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Turniere: Live-Podium, Tabelle und Herkunfts-Tags der Decks"></a><br><sub>Turniere: Live-Podium, Tabelle und Herkunfts-Tags der Decks</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Online-Räume: einzelne Partien oder Turniere über einen öffentlichen Link"></a><br><sub>Online-Räume: einzelne Partien oder Turniere über einen öffentlichen Link</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: Sterne pro Deck und die automatische Arena"></a><br><sub>Ratings: Sterne pro Deck und die automatische Arena</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="Am Tisch: Lebenszähler, 3D-Würfel und Kartenscanner"></a><br><sub>Am Tisch: Lebenszähler, 3D-Würfel und Kartenscanner</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft und Sealed: echte Packs, Forge-Bots und danach ein Turnier"></a><br><sub>Draft und Sealed: echte Packs, Forge-Bots und danach ein Turnier</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Sideboard: Antworten auf das, wogegen du in Tests verlierst"></a><br><sub>Sideboard: Antworten auf das, wogegen du in Tests verlierst</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/freetable.jpg"><img src="docs/img/freetable.jpg" alt="Freier Tisch online: Perspektive, Würfel, Chat mit Kartenerwähnungen"></a><br><sub>Freier Tisch online: Perspektive, Würfel, Chat mit Kartenerwähnungen</sub></td><td width="50%"><a href="docs/img/teams.jpg"><img src="docs/img/teams.jpg" alt="Teamturniere: am selben Tisch und Two-Headed Giant"></a><br><sub>Teamturniere: am selben Tisch und Two-Headed Giant</sub></td></tr>
 </table>
 
 ## Installation
@@ -169,6 +170,21 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
   auf dem Handy): Zonen springen nicht bei neuen Karten oder der Browserleiste, volle Reihen schieben die Karten
   übereinander. Karten gleiten zwischen den Zügen, eine Aura, Removal oder Ausrüstung auf eine Kreatur fallen lassen wählt
   sie als Ziel, Hellsicht und Überwachen als zwei Stapel, Bibliothekssuche als filterbares Raster und Gift, das am ☠ steigt.
+- **Freier Tisch online, solo und als Turnier** – Spiele nur unter Freunden, ohne Bots und ohne automatische Regeln:
+  jeder bewegt seine Karten wie an einem echten Tisch (ziehen, tappen, Marken, Spielsteine, Leben, Gift, Energie,
+  Commander-Schaden, Monarch, Tag/Nacht), mit Perspektive, 3D-Würfeln zum Greifen und Werfen (der Freund sieht denselben
+  Wurf von seiner Seite), einem leuchtenden Stift, der verblasst, und Chat mit @Karten und #Regeln. Hände und Bibliotheken
+  bleiben auf dem Server verborgen. Jeder drückt «Bereit»; Freunde ohne Decks spielen mit einem geliehenen, Meta- oder
+  eingefügten Deck; Beitritt mit einem Profil dieses Grimório oder eines anderen (die App eines Freundes). Solo-Tisch zum
+  Testen von Decks und Turniere am freien Tisch.
+- **Mechaniken an allen Tischen sichtbar** – Gift und Energie, Loyalität von Planeswalkern rauf und runter, Battles,
+  Sagas, doppelseitige und MDFC-Karten, Flip-Karten, verdeckte Karten, Kopien, Embleme, angelegte Auren und Ausrüstung,
+  Monarch, Initiative, Tag/Nacht, Phasing, Mutate und Karten, die aus dem Friedhof zurückkommen – alles animiert.
+- **Echte Teamturniere** – 2 gegen 2 am selben Tisch oder Two-Headed Giant (geteiltes Leben), Teams nach Format und
+  Rating ausgeglichen, fairerer Generator; Register mit Statusanzeige, Filtern, Sortierung und Seiten, auch Ruhmeshalle
+  und Trophäengalerie mit Seiten. Spiele gegen Forge zählen für die Ratings.
+- **KI-Assistent mit Gedächtnis** – jedes Deck speichert, was du gefragt hast, was die KI sagte und was du übernommen
+  hast, und die KI bekommt diesen Verlauf; sie kürzt genau den Überschuss über 60 (oder 100 im Commander).
 - **KI-Assistent (optional)** – Schlüssel mehrerer Anbieter, neueste Modelle automatisch erkannt; er ändert dein Deck
   direkt (Tausch, Mengen, Ersatz für jede Karte) mit einem Klick.
 - **Kolosseum (Forge-KI)** – KI gegen KI mit echten Regeln (Bo1/Bo3, cleveres Sideboarding, lernend), Jeder gegen jeden
