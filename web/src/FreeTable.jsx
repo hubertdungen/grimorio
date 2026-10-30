@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Perm, Hud } from './Board.jsx'
-import { FCard, DayNight } from './ForgePlay.jsx'
+import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 import { fpPrefs, setFpPrefs } from './fpprefs.js'
 import { lookup, isCreature, isLand, flipKind, CT, CT_ICON } from './game.js'
@@ -242,7 +242,8 @@ export default function FreeTable({ id, data, onClose }) {
     if (field && from === 'field') { play('tick', { amount: 1 }); send({ c: 'attack', id: cid, seat }); return false }  // no lado de outro: atacar (a carta volta e fica virada)
     return false
   }
-  const { down, dragged } = useDrag(drop, cid => openMenu(cid, downAt.current.x, downAt.current.y), preview, '[data-h], .bside.bottom .pc[data-z^="k:"]')
+  const [big, setBig] = useState(null)  // tocar e manter numa carta que não é tua: em grande (as tuas abrem o menu)
+  const { down, dragged } = useDrag(drop, cid => openMenu(cid, downAt.current.x, downAt.current.y), preview, '[data-h], .bside.bottom .pc[data-z^="k:"]', el => { const z = el?.dataset.z, id = z?.startsWith('k:') ? +z.slice(2) : +el?.dataset.zid, n = byId.get(id)?.c?.n; if (n) setBig(n) })
   const [handOrder, setHandOrder] = useState(null)
   const openMenu = (cid, x, y) => { const e = byId.get(cid); if (!e || (e.z === 'hand' && e.c.o !== me)) return; setMenu({ id: cid, x, y }); setZoom(byId.get(cid)?.c.n || null); peek.hide() }
 
@@ -458,6 +459,7 @@ export default function FreeTable({ id, data, onClose }) {
         {err && <p className="small bad-t ml-err">{err}</p>}
         {(!phone || chatOpen) && <TableChat log={s.log} who={who} keyOf={keyOf} me={me} data={data} send={send} fmt={e => line(e, who)} names={names} onSeen={setSeen} />}
       </aside>
+      {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {menu && <div className="ml-menu-back" onClick={() => setMenu(null)} onContextMenu={e => { e.preventDefault(); setMenu(null) }}>
         <div className={`ml-menu ${menu.life != null || menu.ctr != null ? 'rows' : ''}`} style={menuStyle(menu)} onClick={e => e.stopPropagation()} role="menu">
           {menuItems().map(([l, f, bs], k) => (bs ? <div key={k} className="ml-mrow"><span>{l}</span>{bs.map(([bl, bf], j) => <button key={j} onClick={bf} disabled={ended} aria-label={`${l} ${bl}`}>{bl}</button>)}</div>

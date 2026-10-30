@@ -8,20 +8,30 @@ import { play } from './sfx.js'
 
 // camada por cima de tudo: em ecrã inteiro só o elemento em ecrã inteiro se vê (o que fosse para o body ficava invisível)
 export const onTop = () => document.fullscreenElement || document.webkitFullscreenElement || document.body
+export const buzz = (ms = 12) => { try { navigator.vibrate?.(ms) } catch { /* sem vibração */ } }  // tocar e manter: um toque no telemóvel
 let dragEnd = 0  // quando acabou o último arrastar (a carta que vem à frente espera um pouco depois de arrumares)
 
 // arrastar com física: a carta segue o ponteiro com um pouco de atraso, inclina-se com a velocidade e, se não puder
 // ficar onde a largaste, volta ao sítio com mola. onDrop({id, from, target}) diz se a jogada foi aceite.
-export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .pc[data-z^="k:"]') {  // sel: o que se pode agarrar (data-from diz de que zona vem)
+// onPeek(el): no toque, tocar e manter numa carta que não se arrasta (do adversário, empilhada na mão dele…) = vê-la em grande
+export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .pc[data-z^="k:"]', onPeek) {  // sel: o que se pode agarrar (data-from diz de que zona vem)
   const dragged = useRef(false)
   const down = e => {
     if (e.button > 0) return
     const el = e.target.closest(sel)
-    if (!el) return
+    if (!el) {
+      const card = e.pointerType !== 'mouse' && onPeek && e.target.closest('[data-z^="k:"], [data-zid], .hc[data-z], .stk[data-z]')
+      if (!card) return
+      const x0 = e.clientX, y0 = e.clientY, t = setTimeout(() => { buzz(); onPeek(card) }, 450)
+      const off = () => { clearTimeout(t); removeEventListener('pointermove', mv); removeEventListener('pointerup', off); removeEventListener('pointercancel', off) }
+      const mv = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) off() }
+      addEventListener('pointermove', mv); addEventListener('pointerup', off); addEventListener('pointercancel', off)
+      return
+    }
     const id = +(el.dataset.h || el.dataset.z.slice(2)), from = el.dataset.from || (el.dataset.h ? 'hand' : 'field')
     const r = el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY
     let gap = null, ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, rx = 0, over = null
-    const long = e.pointerType !== 'mouse' && setTimeout(() => onLong?.(id), 450)  // tocar e manter = ver em grande
+    const long = e.pointerType !== 'mouse' && setTimeout(() => { buzz(); onLong?.(id) }, 450)  // tocar e manter = ver em grande (com um toque de vibração)
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     const mark = t => { if (over) over.classList.remove('fp-over'); over = t; if (t) t.classList.add('fp-over') }
     const targetAt = (px, py) => document.elementFromPoint(px, py)
