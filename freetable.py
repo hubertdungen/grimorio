@@ -19,6 +19,9 @@ COND = threading.Condition()
 ZONES = ("library", "hand", "graveyard", "exile", "command", "battlefield")
 PUBLIC = ("graveyard", "exile", "command")
 DICE = {"d6": 6, "d20": 20, "moeda": 2}
+PEN = ("#ffd166", "#ff5c8a", "#4cc9f0", "#80ed99", "#ffffff", "#c77dff")  # cores da caneta
+REACT = ("👍", "😂", "😮", "🔥", "😭", "🤝")
+PEN_LIFE = 8  # segundos que um traço da caneta fica no estado (o browser apaga-o antes, a desvanecer)
 PATH = re.compile(r"^/api/freetables/([a-f0-9]{12})$")
 RNG = random.SystemRandom()
 
@@ -78,7 +81,8 @@ def _clean(c):
 
 
 def _save(con, t):
-    con.execute("INSERT OR REPLACE INTO freetables VALUES (?,?,?,?)", (t["id"], t["owner"], t["ts"], json.dumps(t, ensure_ascii=False)))
+    st = {k: v for k, v in t.items() if k != "pen"}  # os traços da caneta são passageiros: não se gravam
+    con.execute("INSERT OR REPLACE INTO freetables VALUES (?,?,?,?)", (t["id"], t["owner"], t["ts"], json.dumps(st, ensure_ascii=False)))
 
 
 def _load(db, tid):
@@ -136,11 +140,13 @@ def view(t, me):
             v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]
         seats.append(v)
     return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
-            "me": me, "host": t["seats"][me]["by"] == "host", "seats": seats, "log": t["log"][-60:], "roll": t["roll"]}
+            "me": me, "host": t["seats"][me]["by"] == "host", "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
+            "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE]}
 
 
 def _log(t, seat, k, **kw):
-    t["log"] = (t["log"] + [{"k": k, "s": seat, "ts": round(time.time()), **kw}])[-200:]
+    t["lid"] = t.get("lid", 0) + 1  # id de cada entrada (reações)
+    t["log"] = (t["log"] + [{"id": t["lid"], "k": k, "s": seat, "ts": round(time.time()), **kw}])[-300:]
 
 
 def _take(t, c):
@@ -318,7 +324,13 @@ def apply(t, me, d):
         if not types:
             raise ValueError("Que dados?")
         v = [RNG.randint(1, DICE[x]) for x in types]
-        t["roll"] = {"n": (t["roll"] or {}).get("n", 0) + 1, "s": me, "types": types, "v": v}
+        # o lançamento: semente e, se veio, o gesto (posição e velocidade ao largar, na mesa de quem lançou); todos os
+        # ecrãs correm a mesma física com isto e os dados assentam nos valores daqui
+        thr = d.get("thr") if isinstance(d.get("thr"), dict) else {}
+        vec = lambda k, m: [round(max(-m, min(m, float(x))), 3) for x in thr[k]][:3] if isinstance(thr.get(k), list) and len(thr[k]) == 3 and all(isinstance(x, (int, float)) for x in thr[k]) else None  # noqa: E731
+        g = {"x": vec("x", 30), "v": vec("v", 60)}
+        t["roll"] = {"n": (t["roll"] or {}).get("n", 0) + 1, "s": me, "types": types, "v": v, "seed": RNG.randrange(1, 2 ** 31),
+                     **({"thr": g} if g["x"] and g["v"] else {})}
         _log(t, me, "dice", types=types, v=v)
     elif c0 == "reveal":
         c = need()
@@ -346,8 +358,30 @@ def apply(t, me, d):
     elif c0 == "concede":
         seat["out"] = True
         _log(t, me, "concede")
+    elif c0 == "react":
+        e = d.get("e")
+        ent = next((x for x in t["log"] if x.get("id") == d.get("i")), None)
+        if e not in REACT or not ent:
+            raise ValueError("Reação inválida.")
+        re_ = ent.setdefault("re", {})
+        who = re_.setdefault(e, [])
+        who.remove(me) if me in who else who.append(me)
+        if not who:
+            del re_[e]
+    elif c0 == "pen":
+        pts = d.get("pts")
+        if not isinstance(pts, list) or not 0 < len(pts) <= 80:
+            raise ValueError("Traço inválido.")
+        try:
+            pts = [[_num(r, -1, 3), round(max(-0.2, min(1.2, float(x))), 3), round(max(-0.2, min(1.2, float(y))), 3)] for r, x, y in pts]
+        except (TypeError, ValueError):
+            raise ValueError("Traço inválido.")
+        now = time.time()
+        t["pn"] = t.get("pn", 0) + 1
+        t["pen"] = [x for x in t.get("pen", []) if x["ts"] > now - PEN_LIFE][-300:] + [
+            {"pn": t["pn"], "s": me, "sid": _num(d.get("sid"), 0, 2 ** 31), "pts": pts, "col": d.get("col") if d.get("col") in PEN else PEN[me % len(PEN)], "ts": now}]
     elif c0 == "chat":
-        txt = re.sub(r"\s+", " ", str(d.get("text") or "")).strip()[:200]
+        txt = re.sub(r"\s+", " ", str(d.get("text") or "")).strip()[:300]
         if not txt:
             return
         _log(t, me, "chat", text=txt)
@@ -388,8 +422,9 @@ def route(db, method, path, owner, body, who, since=0):
         t["seq"] += 1
         t["ts"] = time.time()
         COND.notify_all()
-        with db() as con:  # ponytail: grava a mesa inteira a cada jogada (≈ 30 KB), sob o mesmo cadeado; diferenças só se um dia pesar
-            _save(con, t)
+        if body.get("c") != "pen":  # a caneta é passageira: não vale uma escrita na base de dados
+            with db() as con:  # ponytail: grava a mesa inteira a cada jogada (≈ 30 KB), sob o mesmo cadeado; diferenças só se um dia pesar
+                _save(con, t)
         return 200, view(t, me)
 
 
@@ -476,6 +511,24 @@ def selfcheck():
     assert t["seats"][0]["life"] == 17
     st, rv = call("POST", "host", {"c": "dice", "types": ["d20", "moeda"]})
     assert 1 <= rv["roll"]["v"][0] <= 20 and rv["roll"]["v"][1] in (1, 2) and call("GET", "guest:rui")[1]["roll"] == rv["roll"]
+    st, rv = call("POST", "guest:rui", {"c": "dice", "types": ["d6"], "thr": {"x": [1, 2.4, 3], "v": [0, 1.5, -20]}})
+    assert rv["roll"]["thr"] == {"x": [1, 2.4, 3], "v": [0, 1.5, -20]} and rv["roll"]["seed"] and rv["roll"]["s"] == 1
+    assert "thr" not in call("POST", "host", {"c": "dice", "types": ["d6"], "thr": {"x": "rm", "v": [1]}})[1]["roll"]
+    # conversa com reações; caneta passageira (não se grava, desaparece do estado)
+    st, rv = call("POST", "guest:rui", {"c": "chat", "text": "olha o @[Lightning Bolt]!"})
+    cid = rv["log"][-1]["id"]
+    call("POST", "host", {"c": "react", "i": cid, "e": "😂"})
+    assert t["log"][-1]["re"] == {"😂": [0]} and call("POST", "host", {"c": "react", "i": cid, "e": "💩"})[0] == 400
+    call("POST", "host", {"c": "react", "i": cid, "e": "😂"})
+    assert "😂" not in t["log"][-1]["re"]
+    st, rv = call("POST", "host", {"c": "pen", "sid": 7, "col": "#ff5c8a", "pts": [[0, 0.5, 0.5], [-1, 0.2, 9]]})
+    assert st == 200 and rv["pen"][-1]["pts"] == [[0, 0.5, 0.5], [-1, 0.2, 1.2]], rv
+    assert call("GET", "guest:rui")[1]["pen"][-1]["col"] == "#ff5c8a"
+    assert call("POST", "host", {"c": "pen", "pts": []})[0] == 400
+    with db() as con:
+        assert "pen" not in json.loads(con.execute("SELECT state FROM freetables WHERE id=?", (tid,)).fetchone()[0])
+    t["pen"][-1]["ts"] -= PEN_LIFE + 1
+    assert not call("GET", "guest:rui")[1]["pen"]
     call("POST", "host", {"c": "pass"})
     assert t["active"] == 1 and t["turn"] == 2
     assert call("POST", "host", {"c": "rm -rf"})[0] == 400 and call("POST", "guest:rui", {"c": "close"})[0] == 403
