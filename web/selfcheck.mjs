@@ -787,3 +787,15 @@ import { search as searchCards } from './src/data.js'
   assert.deepEqual(['a', 'b', 'c', 'd'].map(k => st[k].life), [28, 28, 30, 30])
   console.log('selfcheck two-headed giant ok')
 }
+
+// Blood Moon: os terrenos não básicos (de qualquer lado) passam a Montanha; os básicos e o resto ficam iguais
+import { markMoon } from './src/game.js'
+{
+  const C = [{ n: 'Blood Moon', t: 'Enchantment', o: 'Nonbasic lands are Mountains.' }, { n: 'Temple Garden', t: 'Land — Forest Plains', o: '' },
+    { n: 'Forest', t: 'Basic Land — Forest', o: '' }, { n: 'Grizzly Bears', t: 'Creature — Bear', o: '' }]
+  const gm = { byName: new Map(C.map(c => [c.n, c])), byLower: new Map(C.map(c => [c.n.toLowerCase(), c])) }
+  const mine = ['Temple Garden', 'Forest', 'Grizzly Bears'].map((name, i) => ({ key: i, name }))
+  assert.deepEqual(markMoon(gm, mine, mine).map(p => !!p.moon), [false, false, false])
+  assert.deepEqual(markMoon(gm, mine, [...mine, { key: 9, name: 'Blood Moon' }]).map(p => !!p.moon), [true, false, false])
+  console.log('selfcheck blood moon ok')
+}

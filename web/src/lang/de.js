@@ -3538,4 +3538,5 @@ export default {
   "Cartas: automático": "Karten: automatisch",
   "Tamanho das cartas: {x} (muda para o seguinte)": "Kartengröße: {x} (zur nächsten wechseln)",
   "automático": "automatisch",
+  "Blood Moon: é uma Montanha e só dá mana vermelha": "Blood Moon: ist ein Gebirge und erzeugt nur rotes Mana",
 }

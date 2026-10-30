@@ -3538,4 +3538,5 @@ export default {
   "Cartas: automático": "卡牌：自动",
   "Tamanho das cartas: {x} (muda para o seguinte)": "卡牌大小：{x}（切换到下一档）",
   "automático": "自动",
+  "Blood Moon: é uma Montanha e só dá mana vermelha": "血月：它是山脉，只能产生红色法术力",
 }

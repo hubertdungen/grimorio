@@ -3546,4 +3546,5 @@ export default {
   "Cartas: automático": "Cards: automatic",
   "Tamanho das cartas: {x} (muda para o seguinte)": "Card size: {x} (switch to the next)",
   "automático": "automatic",
+  "Blood Moon: é uma Montanha e só dá mana vermelha": "Blood Moon: it's a Mountain and only makes red mana",
 }

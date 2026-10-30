@@ -66,6 +66,12 @@ export function devotion(data, perms, cols) {
   for (const p of perms) { const c = !p.token && lookup(data, p.name); for (const sym of (c?.mc || '').split(' // ')[0].match(/\{[^}]+\}/g) || []) if (cols.some(k => sym.includes(k))) n++ }
   return n
 }
+// Blood Moon / Magus of the Moon em jogo (de qualquer lado): os terrenos não básicos são Montanhas e só dão {R}
+const MOON = /^(Blood Moon|Magus of the Moon)$/
+export function markMoon(data, perms, all) {
+  if (!all.some(p => MOON.test(p.name) && !p.phased && !p.faceDown)) return perms
+  return perms.map(p => { const t = typeOf(data, p); return /\bLand\b/.test(t) && !/\bBasic\b/.test(t) && !p.faceDown ? { ...p, moon: true } : p })
+}
 // marca os deuses abaixo da devoção (não são criaturas: saem da fila das criaturas e mostram «devoção 3/5»)
 export function markDormant(data, perms) {
   return perms.map(p => { const g = devotionGate(data, p); if (!g) return p; const d = devotion(data, perms, g.cols); return d < g.need ? { ...p, dormant: { d, need: g.need, cols: g.cols } } : p })
