@@ -237,7 +237,7 @@ export function usePeek() {
       const w0 = rot.offsetWidth * sc, w = Math.max(190, Math.min(250, w0 * 2.2)), h = w * 680 / 488
       const x = Math.max(8, Math.min(innerWidth - w - 8, cx - w / 2)), y = Math.max(8, Math.min(innerHeight - h - 8, cy - h / 2))
       const tilt = pc.closest('.bside.top') && pc.closest('.fp-stage.persp') ? fpPrefs().tilt : 0
-      c.from = `translate(${cx - x - w / 2}px, ${cy - y - h / 2}px) perspective(800px) rotateX(${tilt}deg) rotate(${pc.classList.contains('tapped') ? 90 : 0}deg) scale(${(w0 / w).toFixed(3)})`
+      c.from = `translate(${cx - x - w / 2}px, ${cy - y - h / 2}px) perspective(800px) rotateX(${tilt}deg) rotate(${(pc.classList.contains('tapped') ? 90 : 0) + (pc.closest('.fp-stage.opp-far .bside.top') ? 180 : 0)}deg) scale(${(w0 / w).toFixed(3)})`
       const n = document.createElement('div')
       n.className = 'fp-peek'
       n.appendChild(face.cloneNode(true))

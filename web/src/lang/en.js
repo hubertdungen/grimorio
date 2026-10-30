@@ -3280,4 +3280,7 @@ export default {
   "Talvez não haja um alvo válido para ela agora (ou falte a cor certa de mana).": "There may be no valid target for it right now (or you lack the right mana color).",
   "O Forge não a deixa jogar agora: falta a cor certa de mana ou uma condição da carta.": "Forge won't let you play it now: you lack the right mana color or a condition of the card.",
   "Ciclar": "Cycling",
+  "Cartas dos adversários na mesa": "Opponents' cards on the table",
+  "Viradas para mim (legíveis)": "Facing me (readable)",
+  "Viradas para o adversário (como numa mesa a sério)": "Facing the opponent (like a real table)",
 }

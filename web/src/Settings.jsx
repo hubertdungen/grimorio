@@ -122,6 +122,11 @@ function TableKeys() {
           <option value="free">{tx('Livre: fica onde a largares')}</option>
           <option value="rows">{tx('Filas automáticas (criaturas, terrenos, outras)')}</option>
         </select></label>
+      <label className="fmt"><span>{tx('Cartas dos adversários na mesa')}</span>
+        <select value={p.oppFace} onChange={e => save({ oppFace: e.target.value })}>
+          <option value="me">{tx('Viradas para mim (legíveis)')}</option>
+          <option value="far">{tx('Viradas para o adversário (como numa mesa a sério)')}</option>
+        </select></label>
       <label className="chk"><input type="checkbox" checked={p.persp} onChange={e => save({ persp: e.target.checked })} /> {tx('Lado do adversário em perspetiva (mais espaço para o teu)')}</label>
       {p.persp && <label className="fmt"><span>{tx('Inclinação: {n}°', { n: p.tilt })}</span>
         <input type="range" min="8" max="45" step="1" value={p.tilt} onChange={e => save({ tilt: +e.target.value })} /></label>}

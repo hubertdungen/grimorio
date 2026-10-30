@@ -2758,3 +2758,7 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .fp-side .row-btns.small { gap: 6px; flex-wrap: wrap; }
 .fp-side .fp-dres { min-height: 30px; padding: 4px 12px; }
 @media (prefers-reduced-motion: reduce) { .fp-side .fp-dicebar button.link, .fp-side .row-btns.small button.link { transition: none; transform: none !important; } }
+/* Definições › Mesa › cartas dos adversários viradas para eles: as cartas do lado de lá ficam de pernas para o ar, como
+   vistas do outro lado de uma mesa a sério (Forge Play e mesa livre). rotate soma-se ao transform do rato e do F; a carta
+   que vem à frente (peek) é uma cópia fora da mesa e fica sempre direita */
+.fp-stage.opp-far .bside.top .pc-f, .fp-stage.opp-far .bside.top .pc-b, .fp-stage.opp-far .bside.top .pc-attc { rotate: 180deg; }

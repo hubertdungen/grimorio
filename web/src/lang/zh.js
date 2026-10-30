@@ -3272,4 +3272,7 @@ export default {
   "Talvez não haja um alvo válido para ela agora (ou falte a cor certa de mana).": "现在可能没有合法目标（或缺少正确颜色的法术力）。",
   "O Forge não a deixa jogar agora: falta a cor certa de mana ou uma condição da carta.": "Forge 现在不允许使用：缺少正确颜色的法术力或卡牌条件。",
   "Ciclar": "循环",
+  "Cartas dos adversários na mesa": "对手桌上的牌",
+  "Viradas para mim (legíveis)": "朝向我（便于阅读）",
+  "Viradas para o adversário (como numa mesa a sério)": "朝向对手（像真实牌桌一样）",
 }

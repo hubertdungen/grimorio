@@ -3272,4 +3272,7 @@ export default {
   "Talvez não haja um alvo válido para ela agora (ou falte a cor certa de mana).": "Quizá no haya un objetivo válido ahora (o falte el color de maná correcto).",
   "O Forge não a deixa jogar agora: falta a cor certa de mana ou uma condição da carta.": "Forge no te deja jugarla ahora: falta el color de maná correcto o una condición de la carta.",
   "Ciclar": "Ciclo",
+  "Cartas dos adversários na mesa": "Cartas de los rivales en la mesa",
+  "Viradas para mim (legíveis)": "Hacia mí (legibles)",
+  "Viradas para o adversário (como numa mesa a sério)": "Hacia el rival (como en una mesa de verdad)",
 }
