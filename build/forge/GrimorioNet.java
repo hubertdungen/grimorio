@@ -113,32 +113,46 @@ public class GrimorioNet {
 
         IGameController ctl() { return getGameController(); }
 
+        void command(JsonObject c, String line) {
+            try {
+                String k = c.get("c").getAsString();
+                switch (k) {
+                    case "ok": ctl().selectButtonOk(); break;
+                    case "cancel": ctl().selectButtonCancel(); break;
+                    case "card": { CardView cv = findCard(c.get("id").getAsInt()); if (cv != null) ctl().selectCard(cv, null, null); break; }
+                    case "player": { PlayerView pv = getGameView().getPlayers().get(c.get("i").getAsInt()); ctl().selectPlayer(pv, null); break; }
+                    case "mana": { int mc = "WUBRGC".indexOf(c.get("color").getAsString()); if (mc >= 0) ctl().useMana(forge.card.MagicColor.WUBRGC[mc]); break; }
+                    case "alpha": ctl().alphaStrike(); break;
+                    case "undo": ctl().undoLastAction(); break;
+                    case "concede": ctl().concede(); break;
+                    case "state": dirty = true; send(lastPrompt); break;
+                    default: break;
+                }
+            } catch (Exception e) {
+                System.err.println("comando inválido: " + line);
+                e.printStackTrace();
+            }
+        }
+
         // --- comandos do browser ---
+        // As respostas (answer) tratam-se aqui mesmo; o resto corre numa thread própria, por ordem. Um clique pode ficar à
+        // espera de uma escolha dentro do próprio selectCard (getAbilityToPlay: jogar o terreno ou ciclar, Shattered
+        // Landscape); se corresse nesta thread, ninguém lia a resposta e o jogo congelava.
+        final ExecutorService cmds = Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "grimorio-cmd"); t.setDaemon(true); return t; });
         void readCommands() {
             try (BufferedReader r = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8))) {
                 for (String line; (line = r.readLine()) != null; ) {
                     line = line.trim();
                     if (line.isEmpty()) continue;
+                    final String ln = line;
                     try {
                         JsonObject c = JsonParser.parseString(line).getAsJsonObject();
-                        String k = c.get("c").getAsString();
-                        switch (k) {
-                            case "answer": {
-                                CompletableFuture<JsonElement> f = asks.remove(c.get("id").getAsInt());
-                                if (f != null) f.complete(c.get("v"));
-                                break;
-                            }
-                            case "ok": ctl().selectButtonOk(); break;
-                            case "cancel": ctl().selectButtonCancel(); break;
-                            case "card": { CardView cv = findCard(c.get("id").getAsInt()); if (cv != null) ctl().selectCard(cv, null, null); break; }
-                            case "player": { PlayerView pv = getGameView().getPlayers().get(c.get("i").getAsInt()); ctl().selectPlayer(pv, null); break; }
-                            case "mana": { int mc = "WUBRGC".indexOf(c.get("color").getAsString()); if (mc >= 0) ctl().useMana(forge.card.MagicColor.WUBRGC[mc]); break; }
-                            case "alpha": ctl().alphaStrike(); break;
-                            case "undo": ctl().undoLastAction(); break;
-                            case "concede": ctl().concede(); break;
-                            case "state": dirty = true; send(lastPrompt); break;
-                            default: break;
+                        if ("answer".equals(c.get("c").getAsString())) {
+                            CompletableFuture<JsonElement> f = asks.remove(c.get("id").getAsInt());
+                            if (f != null) f.complete(c.get("v"));
+                            continue;
                         }
+                        cmds.submit(() -> command(c, ln));
                     } catch (Exception e) {
                         System.err.println("comando inválido: " + line);
                         e.printStackTrace();
@@ -370,6 +384,7 @@ public class GrimorioNet {
             o.addProperty("t", "prompt");
             o.addProperty("msg", msg);
             if (card != null) o.addProperty("card", card.getId()); else o.remove("card");
+            if (card != null && mayView(card)) o.addProperty("cardName", card.getCurrentState().getName()); else o.remove("cardName");  // vigiar/vidência de 1: a carta vem da biblioteca
             lastPrompt = o;
             send(o);
         }
@@ -434,7 +449,7 @@ public class GrimorioNet {
             return v == null || v.isJsonNull() ? null : v.getAsString();
         }
         @Override public boolean confirm(CardView c, String question, boolean defYes, List<String> opts) {
-            JsonObject p = new JsonObject(); p.addProperty("msg", question); if (c != null) p.addProperty("card", c.getId());
+            JsonObject p = new JsonObject(); p.addProperty("msg", question); if (c != null) { p.addProperty("card", c.getId()); if (mayView(c)) p.addProperty("cardName", c.getCurrentState().getName()); }
             JsonArray o = new JsonArray(); if (opts != null && opts.size() >= 2) { o.add(opts.get(0)); o.add(opts.get(1)); } else { o.add("Sim"); o.add("Não"); } p.add("options", o);
             List<Integer> r = idx(ask("confirm", p));
             return r.isEmpty() ? defYes : r.get(0) == 0;
@@ -498,6 +513,7 @@ public class GrimorioNet {
             if (abilities == null || abilities.isEmpty()) return null;
             if (abilities.size() == 1) return abilities.get(0);
             JsonObject p = new JsonObject(); p.addProperty("msg", card.getCurrentState().getName()); p.addProperty("min", 0); p.addProperty("max", 1);
+            p.addProperty("card", card.getId()); p.addProperty("cardName", card.getCurrentState().getName()); p.addProperty("ability", true);  // jogar o terreno ou ciclar, as formas de lançar…
             p.add("options", options(abilities, null));
             List<Integer> r = idx(ask("choose", p));
             return r.isEmpty() || r.get(0) < 0 || r.get(0) >= abilities.size() ? null : abilities.get(r.get(0));
