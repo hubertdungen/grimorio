@@ -65,7 +65,10 @@ function meshOf(kind, colors, words, sw) {
   return mesh
 }
 
-export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSettle, view = VIEW }) {  // view maior = dados mais pequenos
+// box = [X, Z]: caixa fixa (mesa livre: igual em todos os ecrãs, para a mesma física dar o mesmo lançamento); rot: rodar a
+// vista (o adversário vê a mesa do lado dele); onThrow(types, {x, v}): agarrar e largar um dado não o lança já — pede o
+// lançamento (o servidor sorteia e devolve-o a todos) e o dado fica na mão até chegar
+export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSettle, view = VIEW, box = null, rot = 0, onThrow = null }) {  // view maior = dados mais pequenos
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.domElement.className = 'dc-gl'; el.appendChild(renderer.domElement)
@@ -74,16 +77,18 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
   const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(-6, 18, 8); sun.castShadow = true
   sun.shadow.mapSize.set(1024, 1024); Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 60 }); scene.add(sun)
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.ShadowMaterial({ opacity: 0.32 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor)
-  let world = makeWorld(), groups = [], meshes = [], raf = 0, X = 6, Z = 4, settled = true
+  const table = new THREE.Group(); table.rotation.y = rot; scene.add(table)
+  let world = makeWorld(box ? { X: box[0], Z: box[1] } : {}), groups = [], meshes = [], raf = 0, X = box?.[0] ?? 6, Z = box?.[1] ?? 4, settled = true
+  const ext = () => { const c = Math.abs(Math.cos(table.rotation.y)), s = Math.abs(Math.sin(table.rotation.y)); return [c * X + s * Z, s * X + c * Z] }  // meias-medidas da caixa no ecrã
 
   const fit = () => {
     const w = el.clientWidth || 300, h = el.clientHeight || 300, a = w / h
     // abertura horizontal até 50°: numa mesa larga e baixa a câmara afasta-se em vez de ficar grande angular (dados deformados nas pontas)
     camera.fov = Math.min(32, (2 * Math.atan(Math.tan((25 * Math.PI) / 180) / a) * 180) / Math.PI)
-    const halfH = view / Math.min(1, a), dist = halfH / Math.tan((camera.fov * Math.PI) / 360)
+    const [hx, hz] = ext(), halfH = box ? Math.max(hz / 0.9, hx / a / 0.94) : view / Math.min(1, a), dist = halfH / Math.tan((camera.fov * Math.PI) / 360)
     camera.aspect = a; camera.position.set(0, dist, dist * 0.12); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix()
     renderer.setSize(w, h, false)
-    X = halfH * a * 0.94; Z = halfH * 0.86; world.setBox(X, Z)
+    if (!box) { X = halfH * a * 0.94; Z = halfH * 0.86; world.setBox(X, Z) }
     render()
   }
   const render = () => renderer.render(scene, camera)
@@ -105,30 +110,48 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
   const kick = () => { settled = false; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop) }
   const clear = () => {
     cancelAnimationFrame(raf)
-    for (const { mesh } of meshes) { scene.remove(mesh); mesh.geometry.dispose(); [].concat(mesh.material).forEach(m => { m.map?.dispose(); m.dispose() }) }
+    for (const { mesh } of meshes) { table.remove(mesh); mesh.geometry.dispose(); [].concat(mesh.material).forEach(m => { m.map?.dispose(); m.dispose() }) }
     meshes = []; groups = []; world = makeWorld({ X, Z }); render()
   }
   // want = [valor por tipo] (só dados de um corpo: d6, d20, moeda…): o lançamento corre primeiro sem desenhar com uma
   // semente, vê-se em que face cada dado cai e essa face troca de número com a pedida; depois corre a sério com a mesma
   // semente (a física é determinista) e o dado assenta mesmo no valor pedido
-  const roll = (types, want) => {
+  // opt = {seed, thr: {x, v}}: a mesma semente e o mesmo gesto dão o mesmo lançamento em todos os ecrãs (caixa fixa)
+  const throwAll = (w, all, seed, thr) => {
+    const jr = rng32(seed ^ 0x5bd1e995)
+    return all.map(([, k], j) => {
+      const b = w.throwDie(k, j, all.length)
+      if (thr) {  // do sítio onde o largaste, com a velocidade do gesto (vários dados lado a lado, cada um um pouco diferente)
+        const off = (j - (all.length - 1) / 2) * 1.1, lim = (L, v) => Math.max(-L + b.S.R, Math.min(L - b.S.R, v))
+        b.x = [lim(X, thr.x[0] + off), Math.max(1.2, thr.x[1]), lim(Z, thr.x[2] + off * 0.4)]
+        b.v = thr.v.map((v, d) => v * (0.92 + jr() * 0.16) + (d === 1 ? 0 : (jr() - 0.5) * 1.5))
+      }
+      return b
+    })
+  }
+  const roll = (types, want, opt = {}) => {
     clear()
     const all = types.flatMap(t => KINDS[t].map(k => [t, k]))
-    let sws = []
-    if (want) {
-      const seed = (Math.random() * 2 ** 32) >>> 0, pre = makeWorld({ X, Z, rng: rng32(seed) })
-      all.forEach(([, k], j) => pre.throwDie(k, j, all.length))
-      while (!pre.done()) pre.step()
-      sws = pre.bodies.map((b, j) => [readValue(b), want[j]])
+    let sws = [], bodies = null
+    const seed = opt.seed ?? (Math.random() * 2 ** 32) >>> 0, thr = opt.thr?.x && opt.thr?.v ? opt.thr : null
+    if (want || opt.seed != null) {
+      if (want) {
+        const pre = makeWorld({ X, Z, rng: rng32(seed) })
+        throwAll(pre, all, seed, thr)
+        while (!pre.done()) pre.step()
+        sws = pre.bodies.map((b, j) => [readValue(b), want[j]])
+      }
       world = makeWorld({ X, Z, rng: rng32(seed) })
+      bodies = throwAll(world, all, seed, thr)
     }
     let i = 0
     for (const t of types) {
       const g = { type: t, bodies: [] }
       for (const k of KINDS[t]) {
-        const sw = sws[i], b = world.throwDie(k, i++, all.length), mesh = meshOf(k, colors[k === 'd10t' ? 'd100' : t] || colors.d6, words, sw)
+        const sw = sws[i], b = bodies ? bodies[i] : world.throwDie(k, i, all.length), mesh = meshOf(k, colors[k === 'd10t' ? 'd100' : t] || colors.d6, words, sw)
+        i++
         b.sw = sw
-        mesh.userData.b = b; scene.add(mesh); meshes.push({ mesh, b }); g.bodies.push(b)
+        mesh.userData.b = b; table.add(mesh); meshes.push({ mesh, b }); g.bodies.push(b)
       }
       groups.push(g)
     }
@@ -139,23 +162,27 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -2.4), at = new THREE.Vector3()
   let drag = null
   const pick = e => { const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera) }
-  const onDown = e => {
+  const onPlane = () => (ray.ray.intersectPlane(plane, at) ? table.worldToLocal(at.clone()) : null)  // na mesa (rodada), não no ecrã
+  const onDown = (e, capture = true) => {
     pick(e)
     const h = ray.intersectObjects(meshes.map(m => m.mesh), false)[0]
-    if (!h) return
-    e.preventDefault(); renderer.domElement.setPointerCapture?.(e.pointerId)
+    if (!h || pending) return false
+    e.preventDefault(); if (capture) renderer.domElement.setPointerCapture?.(e.pointerId)
     const b = h.object.userData.b
     world.hold(b); drag = { b, hist: [] }
-    if (ray.ray.intersectPlane(plane, at)) world.moveTo(b, [at.x, 2.4, at.z], [0, 0, 0])
+    const p = onPlane()
+    if (p) world.moveTo(b, [p.x, 2.4, p.z], [0, 0, 0])
     kick()
+    return true
   }
   const onMove = e => {
     if (!drag) return
     pick(e)
-    if (!ray.ray.intersectPlane(plane, at)) return
+    const p = onPlane()
+    if (!p) return
     const now = performance.now(), b = drag.b
-    drag.hist.push([now, at.x, at.z]); drag.hist = drag.hist.filter(x => now - x[0] < 90)
-    world.moveTo(b, [at.x, 2.4, at.z], [0, 0, 0])
+    drag.hist.push([now, p.x, p.z]); drag.hist = drag.hist.filter(x => now - x[0] < 90)
+    world.moveTo(b, [p.x, 2.4, p.z], [0, 0, 0])
     const w = 0.05; b.q = new THREE.Quaternion(...b.q).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(w, w * 0.7, 0))).toArray()  // a rodar na mão
   }
   const onUp = () => {
@@ -163,13 +190,35 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
     const h = drag.hist, b = drag.b
     let v = [0, 0, 0]
     if (h.length > 1) { const [t0, x0, z0] = h[0], [t1, x1, z1] = h[h.length - 1], dt = Math.max(0.016, (t1 - t0) / 1000); v = [(x1 - x0) / dt, 1.5, (z1 - z0) / dt] }
-    world.release(b, v); drag = null; kick()
+    drag = null
+    if (!onThrow) { world.release(b, v); kick(); return }
+    // lançamento partilhado: o dado fica na mão até o servidor devolver o lançamento (roll limpa-o e lança a sério)
+    const sp = Math.hypot(v[0], v[2]), k = sp < 6 ? 6 / Math.max(0.01, sp) : sp > 40 ? 40 / sp : 1  // um pousar quase parado ainda rola um pouco
+    const thr = { x: b.x.map(n => +n.toFixed(3)), v: [v[0] * k, 1.5 + Math.min(4, sp / 10), v[2] * k].map(n => +n.toFixed(3)) }
+    if (sp < 0.01) thr.v = [0, 2, -6]
+    pending = b
+    Promise.resolve(onThrow(groups.map(g => g.type), thr)).catch(() => { if (pending === b) { world.release(b, v); kick() } }).finally(() => { if (pending === b) pending = null })
   }
+  let pending = null
+  // agarrar a partir de um toque fora da camada (a camada não apanha o rato para as cartas responderem por baixo)
+  const grab = e => {
+    if (!onDown(e, false)) return false
+    const up = ev => { removeEventListener('pointermove', onMove); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); onUp(ev) }
+    addEventListener('pointermove', onMove); addEventListener('pointerup', up); addEventListener('pointercancel', up)
+    return true
+  }
+  // o lançamento de um botão: do teu lado da mesa (em baixo no teu ecrã) para a frente, com um pouco de acaso
+  const throwFrom = () => {
+    const [, hz] = ext(), Y = new THREE.Vector3(0, 1, 0), r = -table.rotation.y
+    const p = new THREE.Vector3((Math.random() - 0.5) * 3, 3, hz * 0.8).applyAxisAngle(Y, r), v = new THREE.Vector3((Math.random() - 0.5) * 8, 2, -(18 + Math.random() * 8)).applyAxisAngle(Y, r)
+    return { x: p.toArray().map(n => +n.toFixed(3)), v: v.toArray().map(n => +n.toFixed(3)) }
+  }
+  const setRot = a => { if (table.rotation.y !== a) { table.rotation.y = a; fit() } }
   const cv = renderer.domElement
   cv.addEventListener('pointerdown', onDown); cv.addEventListener('pointermove', onMove); cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp)
   const ro = new ResizeObserver(fit); ro.observe(el); fit()
   return {
-    roll, clear,
+    roll, clear, grab, throwFrom, setRot, has: () => meshes.length > 0,
     dispose: () => { clear(); ro.disconnect(); renderer.dispose(); cv.remove() },
   }
 }

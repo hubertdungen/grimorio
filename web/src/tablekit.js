@@ -254,21 +254,34 @@ export function usePeek() {
 // dados na mesa: os mesmos dados 3D da Mesa (Dice3D.js, three.js + dicephys.js, só carregados ao primeiro lançamento)
 // rolam por cima da mesa e assentam lá; a camada não apanha o rato (as cartas continuam a responder por baixo)
 const DICE_COL = { d6: ['#fff6e6', '#cdb894', '#3a2a10'], d20: ['#8cc8ff', '#1f4fb8', '#ffffff'], moeda: ['#ffe9a3', '#b8860b', '#ffffff'] }
-export function useTableDice(box) {
-  const tray = useRef(null), clear = useRef(0), [res, setRes] = useState(null)
+// o = {box, rot, onThrow, keep} (mesa livre): caixa fixa, vista rodada para o teu lado, dados que se agarram e lançam
+// pelo servidor (ver Dice3D.createTray); keep = quanto tempo os dados ficam na mesa depois de assentarem
+export function useTableDice(box, o = null) {
+  const tray = useRef(null), clear = useRef(0), [res, setRes] = useState(null), opt = useRef(o)
+  opt.current = o
   useEffect(() => () => { clearTimeout(clear.current); tray.current?.dispose?.() }, [])
-  const roll = async (types, want) => {  // want: os valores já sorteados (mesa livre: o servidor tira-os e todos veem o mesmo)
-    clearTimeout(clear.current); setRes({ rolling: true, types })
+  const ensure = async () => {
     if (!tray.current) {
       const D = await import('./Dice3D.js')
-      if (!box.current) return
+      if (!box.current || tray.current) return tray.current
+      const O = opt.current
       tray.current = D.webglOk() ? D.createTray(box.current, { view: 13, colors: DICE_COL, words: [tx('Cara'), tx('Coroa')], onHit: a => play('diceHit', { amount: a }),
-        onSettle: items => { setRes({ items }); play('tick', { amount: 1 }); if (items.some(x => x.type === 'moeda')) play('coin'); clearTimeout(clear.current); clear.current = setTimeout(() => { tray.current?.clear(); setRes(null) }, 20000) } }) : 'flat'
+        ...(O && { box: O.box, rot: O.rot || 0, onThrow: (types, thr) => opt.current?.onThrow?.(types, thr) }),
+        onSettle: items => { setRes({ items }); play('tick', { amount: 1 }); if (items.some(x => x.type === 'moeda')) play('coin'); clearTimeout(clear.current); clear.current = setTimeout(() => { tray.current?.clear(); setRes(null) }, opt.current?.keep || 20000) } }) : 'flat'
     }
+    return tray.current
+  }
+  const roll = async (types, want, extra) => {  // want: os valores já sorteados (mesa livre: o servidor tira-os e todos veem o mesmo); extra = {seed, thr}
+    clearTimeout(clear.current); setRes({ rolling: true, types })
+    if (!(await ensure())) return
     play('dice', { amount: types.length })
     if (tray.current === 'flat') return setRes({ items: types.map((type, i) => ({ type, v: want?.[i] ?? 1 + Math.floor(Math.random() * (type === 'moeda' ? 2 : +type.slice(1))) })) })  // sem WebGL: só o número
-    tray.current.roll(types, want)
+    tray.current.roll(types, want, extra)
   }
-  const off = () => { clearTimeout(clear.current); if (tray.current !== 'flat') tray.current?.clear(); setRes(null) }
-  return { roll, res, off }
+  const off = () => { clearTimeout(clear.current); if (tray.current && tray.current !== 'flat') tray.current.clear(); setRes(null) }
+  const live = () => tray.current && tray.current !== 'flat' ? tray.current : null
+  const grab = e => { const t = live(); if (t?.has() && t.grab(e)) { clearTimeout(clear.current); return true } return false }  // agarrar um dado que está na mesa
+  const throwFrom = async () => { const t = await ensure(); return t && t !== 'flat' ? t.throwFrom() : null }
+  const setRot = a => live()?.setRot(a)
+  return { roll, res, off, grab, throwFrom, setRot }
 }
