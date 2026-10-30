@@ -7,7 +7,7 @@ import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
-import { PHASES, replayStates, lookup, isCreature, isLand, powTough, typeOf, markDormant } from './game.js'
+import { PHASES, replayStates, lookup, isCreature, isLand, powTough, typeOf, markDormant, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
 const PH_SHORT = { untap: tx('Desvirar'), upkeep: tx('Manut.'), draw: tx('fase§Compra'), main1: tx('Princ. 1'), combat: tx('Combate'), main2: tx('Princ. 2'), end: tx('fase§Final') }
@@ -17,7 +17,6 @@ const KW = {
   Vigilance: ['◉', tx('Vigilância')], Haste: ['ϟ', tx('Ímpeto')], Hexproof: ['◈', tx('Resistência a magia')],
   Indestructible: ['✚', tx('Indestrutível')], Menace: ['‼', tx('Ameaçar')], Reach: ['↥', tx('Alcance')], Infect: ['☣', tx('Infetar')],
 }
-const CT = { '+1/+1': '+1/+1', '-1/-1': '−1/−1', loyalty: tx('lealdade'), lore: tx('capítulo'), charge: tx('carga'), stun: tx('atordoamento'), shield: tx('escudo'), oil: tx('óleo'), time: tx('tempo'), defense: tx('defesa'), poison: tx('veneno') }
 const CT_SHORT = { lore: tx('cap.'), charge: tx('carga'), stun: tx('atord.'), shield: tx('escudo'), time: tx('tempo'), defense: tx('defesa'), oil: tx('óleo') }
 const PACE = { turn: 2, phase: 0.45, tap: 0.3, untap: 0.3, land: 0.9, cast: 1.2, resolve: 0.8, counter: 1, countered: 0.8, trigger: 0.7, activate: 0.8, attack: 0.9, block: 0.9, damage: 0.8, poison: 0.8, life: 0.6, token: 1, counters: 0.8, pump: 0.7, attach: 0.9, transform: 1.3, destroy: 1, exile: 1, bounce: 1, discard: 0.8, mulligan: 0.8, draw: 0.5, mill: 0.6, search: 0.6, player: 1, goad: 0.8, outcome: 2, other: 0.3 }
 // cor da marca na linha do tempo
@@ -225,30 +224,36 @@ function Face({ p, c, back, size = 'small' }) {
 // cartas já mostradas na mesa (Side marca-as depois de desenhar): uma carta que volta a montar só porque mudou de monte
 // (×N) ou de fila não «entra» outra vez (sem isto piscava a cada estado novo); as que chegam mesmo à mesa animam a entrada
 const seenAt = new Map()
+// a outra face à vista: virada (transformar, carta flip) ou uma MDFC jogada pela face de trás (o nome é o da 2.ª face)
+const backUp = (c, p) => !!(p.flipped || (c?.df && p.name && c.n.split(' // ')[1]?.toLowerCase() === String(p.name).toLowerCase()))
 export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // tgt: [lado, nome] do jogador atacado (3+ jogadores)
   const [enter] = useState(() => !quiet && !(Date.now() - (seenAt.get(p.key) || 0) < 600000))
   const c = lookup(data, p.name)
   const creature = isCreature(data, p)
   const pt = creature ? powTough(data, p) : null
   const kws = kwsOf(c, p)
-  const ctr = Object.entries(p.counters || {}).filter(([k]) => k !== 'loyalty')
-  const cls = ['pc', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', enter && 'in'].filter(Boolean).join(' ')
-  const title = [short(p.face || p.name), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
+  const back = backUp(c, p), upside = back && !c?.df && !p.hidden  // carta flip (Kamigawa): a mesma imagem, rodada 180°
+  const ctr = Object.entries(p.counters || {}).filter(([k]) => k !== 'loyalty' && k !== 'defense')
+  const cls = ['pc', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', p.phased && 'phased', p.faceDown && 'down', enter && 'in'].filter(Boolean).join(' ')
+  const title = [short(p.face || p.name), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase (phasing): não conta como estando em jogo'), p.copy && tx('cópia'), p.merged?.length > 1 && tx('mutada: {x}', { x: p.merged.map(short).join(' + ') }), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
+  tgt = tgt || (p.atkName ? ['x', short(p.atkName)] : null)  // ataca um planeswalker ou uma batalha
   return (
     <div className={cls} data-z={`k:${p.key}`} title={title}>
       {p.dormant && <span className="pc-dev" aria-hidden="true">{p.dormant.cols.map(k => <img key={k} src={sf(`https://svgs.scryfall.io/card-symbols/${k}.svg`)} alt="" />)}{p.dormant.d}/{p.dormant.need}</span>}
       {att?.length > 0 && <div className="pc-att">{att.map(a => <div key={a.key} className="pc-attc" data-z={`k:${a.key}`}><Face p={a} c={lookup(data, a.name)} /></div>)}</div>}
       <div className="pc-rot">
-        <div className={`pc-flip ${p.flipped ? 'on' : ''}`}>
-          <div className="pc-f"><Face p={p} c={c} /></div>
+        <div className={`pc-flip ${back && c?.df ? 'on' : ''} ${upside ? 'up' : ''}`}>
+          <div className="pc-f">{p.faceDown && !p.hidden ? <div className="pc-back pc-known" /> : <Face p={p} c={c} />}</div>
           {c?.df ? <div className="pc-b"><Face p={p} c={c} back /></div> : null}
         </div>
       </div>
       <div className="pc-ov">
         {p.damage > 0 && <b className="pc-dmg" title={tx('Dano marcado até ao fim do turno')}>{p.damage}</b>}
         {pt && <b className={`pc-pt ${pt.boosted ? 'up' : ''} ${pt.hurt ? 'down' : ''}`}>{pt.p}/{pt.t}</b>}
-        {p.counters?.loyalty != null && <b key={`l${p.counters.loyalty}`} className="pc-loy" title={tx('Lealdade')}>{p.counters.loyalty}</b>}
-        {ctr.length > 0 && <span className="pc-ctr">{ctr.map(([k, v]) => <b key={`${k}${v}`} title={tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[k] || k })}>{k === '+1/+1' ? `+${v}` : k === '-1/-1' ? `−${v}` : `${CT_SHORT[k] || (CT[k] || k).slice(0, 5)} ${v}`}</b>)}</span>}
+        {p.counters?.loyalty != null && <b key={`l${p.counters.loyalty}`} className={`pc-loy ${pop?.ct === 'loyalty' && !quiet ? (pop.n > 0 ? 'up' : 'down') : ''}`} title={tx('Lealdade')}>{p.counters.loyalty}</b>}
+        {p.counters?.defense != null && <b key={`d${p.counters.defense}`} className={`pc-loy def ${pop?.ct === 'defense' && !quiet ? 'down' : ''}`} title={tx('Defesa (batalha)')}>⛨{p.counters.defense}</b>}
+        {ctr.length > 0 && <span className="pc-ctr">{ctr.map(([k, v]) => <b key={`${k}${v}`} className={`c-${k === '+1/+1' ? 'p1' : k === '-1/-1' ? 'm1' : k}`} title={tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[k] || k })}>{k === '+1/+1' ? `+${v}` : k === '-1/-1' ? `−${v}` : CT_ICON[k] ? `${CT_ICON[k]}${v}` : `${CT_SHORT[k] || (CT[k] || k).slice(0, 5)} ${v}`}</b>)}</span>}
+        {(p.copy || p.merged?.length > 1 || (p.faceDown && !p.hidden)) && <span className="pc-tags">{p.faceDown && !p.hidden && <i title={tx('Virada para baixo: só tu sabes qual é')}>👁</i>}{p.copy && <i title={tx('Cópia')}>⎘</i>}{p.merged?.length > 1 && <i title={tx('mutada: {x}', { x: p.merged.map(short).join(' + ') })}>⧉{p.merged.length}</i>}</span>}
         {kws.length > 0 && <span className="pc-kw">{kws.map(k => <i key={k} title={KW[k][1]}>{KW[k][0]}</i>)}</span>}
         {p.sick && <i className="pc-zz" title={tx('Enjoo de invocação: entrou neste turno')}>z<sup>z</sup></i>}
         {p.goaded && <i className="pc-goad" title={tx('Incitada')}>⚑</i>}
@@ -256,7 +261,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
         {tgt && <i className={`pc-tgt t-${tgt[0]}`} title={tx('Ataca {x}', { x: tgt[1] })}>⚔ {tgt[1]}</i>}
         {(p.est || p.hidden) && <i className="pc-est" title={p.hidden ? tx('Estimativa: terreno procurado na biblioteca; o registo deste jogo (antigo) não diz qual.') : EST}>≈</i>}
       </div>
-      {pop && !quiet && <i key={pop.i} className={`pc-pop ${pop.kind}`}>{pop.kind === 'flip' ? '⟲' : pop.kind === 'pump' ? pop.pt : `${pop.n > 0 ? '+' : '−'}${Math.abs(pop.n)}`}</i>}
+      {pop && !quiet && <i key={pop.i} className={`pc-pop ${pop.kind} ${pop.ct === 'loyalty' ? 'loyalty' : ''}`}>{pop.kind === 'flip' ? '⟲' : pop.kind === 'enter' ? pop.txt : pop.kind === 'pump' ? pop.pt : `${pop.n > 0 ? '+' : '−'}${Math.abs(pop.n)}${pop.ct && pop.ct !== '+1/+1' && pop.ct !== 'loyalty' ? ` ${CT_ICON[pop.ct] || CT[pop.ct] || pop.ct}` : ''}`}</i>}
     </div>
   )
 })
@@ -353,7 +358,10 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
           {z.energy > 0 && <span className="chip" title={tx('Energia')}>ϟ {z.energy}</span>}
           {z.monarch && <span className="chip gold" title={tx('Monarca: compra uma carta extra no fim do turno')}>♛ {tx('monarca')}</span>}
           {z.initiative && <span className="chip gold" title={tx('Iniciativa (Masmorra Subterrânea)')}>⚑ {tx('iniciativa')}</span>}
-          {z.emblems.length > 0 && <span className="chip" title={z.emblems.map(short).join(', ')}>✦ {tx('{n} emblema|{n} emblemas', { n: z.emblems.length })}</span>}
+          {z.blessing && <span className="chip gold" title={tx('Bênção da cidade (ascender): fica para o resto do jogo')}>🏙 {tx('bênção')}</span>}
+          {z.speed > 0 && <span className="chip" title={tx('Velocidade (Start your engines!): sobe uma vez por turno, até 4')}>🏁 {z.speed}</span>}
+          {Object.entries(z.pctr || {}).map(([k, v]) => <span key={k} className="chip" title={tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[k] || k })}>{k === 'rad' ? '☢' : k === 'experience' ? '✦' : '◆'} {v}</span>)}
+          {z.emblems?.length > 0 && <span className="chip" title={z.emblems.map(short).join(', ')}>✦ {tx('{n} emblema|{n} emblemas', { n: z.emblems.length })}</span>}
           {cmdDmg.map(([n, v]) => <span key={n} className={`chip ${v >= 15 ? 'psn' : ''}`} title={tx('Dano de comandante de {c} (21 = derrota)', { c: short(n) })}>⚔ {v}/21</span>)}
           {z.out ? <span className="chip psn">{tx('eliminado no turno {n}', { n: z.out })}</span> : s.over?.loser === k ? <span className="chip psn">{tx('derrota')}</span> : null}
         </span>
@@ -363,9 +371,9 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
         {z.command.map(c => {
           const cc = lookup(data, c.name)
           return (
-            <div key={c.name} className={`cmdz ${c.out ? 'out' : ''}`} title={`${tx('Zona de comando: {c}', { c: short(c.name) })}${c.casts ? ` · ${tx('lançado {n}× · imposto +{x}', { n: c.casts, x: 2 * c.casts })}` : ''}${c.out ? ` ${tx('(está em jogo ou na pilha)')}` : ''}`} data-z={`n:${c.name}`}>
+            <div key={c.name} className={`cmdz ${c.out ? 'out' : ''}`} title={`${tx('Zona de comando: {c}', { c: short(c.name) })}${c.room ? ` · ${tx('sala: {r}', { r: c.room })}` : ''}${c.casts ? ` · ${tx('lançado {n}× · imposto +{x}', { n: c.casts, x: 2 * c.casts })}` : ''}${c.out ? ` ${tx('(está em jogo ou na pilha)')}` : ''}`} data-z={`n:${c.name}`}>
               {cc ? <img src={im(cc, 'art_crop')} alt={c.name} /> : <span>{short(c.name)}</span>}
-              <small>{c.casts ? `+${2 * c.casts}` : 'cmd'}</small>
+              <small>{c.casts ? `+${2 * c.casts}` : c.room ? '⚑' : 'cmd'}</small>
             </div>
           )
         })}
@@ -451,9 +459,9 @@ function zoomInfo(z, s, data) {
           att.length && tx('Anexadas: {x}', { x: att.map(x => short(x.name)).join(', ') }),
           host && tx('Anexada a {x}', { x: short(host.name) }),
           kwsOf(c, p).map(k => KW[k][1]).join(' · '),
-          [p.tapped && tx('virada'), p.sick && tx('enjoo de invocação'), p.attacking && tx('a atacar'), p.blocking && tx('a bloquear'), p.token && tx('ficha'), p.goaded && tx('incitada')].filter(Boolean).join(' · '),
+          [p.tapped && tx('virada'), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase'), p.copy && tx('cópia'), p.sick && tx('enjoo de invocação'), p.attacking && tx('a atacar'), p.blocking && tx('a bloquear'), p.token && tx('ficha'), p.goaded && tx('incitada')].filter(Boolean).join(' · '),
         ].filter(Boolean)
-        return { c: c || (p.token ? tokenCard(p.name, p.pt, p.src) : null), side: k, back: p.flipped && !!c?.df, name: short(p.face || p.name) || tx('Terreno'), lines, p }
+        return { c: c || (p.token ? tokenCard(p.name, p.pt, p.src) : null), side: k, back: backUp(c, p) && !!c?.df, name: short(p.face || p.name) || tx('Terreno'), lines, p }
       }
     }
     return null

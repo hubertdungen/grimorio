@@ -37,7 +37,15 @@ export function initialState(life = 20, setup = null) {
 }
 
 export const lookup = (data, n) => (n ? data.byName.get(n) || data.byLower.get(String(n).toLowerCase()) : null)
+// nomes dos marcadores (tabuleiro e menus da mesa livre)
+export const CT = { '+1/+1': '+1/+1', '-1/-1': '−1/−1', loyalty: tx('lealdade'), lore: tx('capítulo'), charge: tx('carga'), stun: tx('atordoamento'), shield: tx('escudo'), oil: tx('óleo'), time: tx('tempo'), defense: tx('defesa'), poison: tx('veneno'),
+  fade: tx('desvanecer'), age: tx('idade'), level: tx('nível'), finality: tx('finalidade'), bounty: tx('recompensa'), energy: tx('energia'), experience: tx('experiência'), rad: tx('radiação') }
+// ícone de cada marcador na carta (o número ao lado; o nome por extenso no título)
+export const CT_ICON = { lore: '📜', charge: '⚡', stun: '💫', shield: '🛡', oil: '🛢', time: '⏳', fade: '⏳', age: '⏳', level: '★', finality: '✝', bounty: '🎯', rad: '☢' }
 const faces = n => String(n || '').split(' // ')
+// como se vira a carta: 'df' = duas faces (transformar/MDFC: a imagem de trás), 'flip' = carta flip de Kamigawa (a mesma
+// imagem rodada 180°), null = não se vira
+export const flipKind = c => (!c ? null : c.df ? 'df' : c.n.includes(' // ') && /\bflip (?!a coin|that coin|coins)/i.test(c.o || '') ? 'flip' : null)
 export const typeOf = (data, perm) => {
   const c = lookup(data, perm.name)
   const tl = c ? c.t.split(' // ')[perm.flipped && c.t.includes(' // ') ? 1 : 0] : ''
@@ -362,10 +370,11 @@ export function applyEvent(s0, ev, data) {
         const t = ensure(ev.tid, ev.target, me ? other(me) : null)
         if (!t) break
         const [k, x] = t
-        if (x.counters?.loyalty != null && !isCreature(data, x)) {
-          const loy = X ? x.counters.loyalty : Math.max(0, x.counters.loyalty - ev.n)  // exato: o Forge tira os marcadores
-          upd(k, x.key, y => ({ ...y, counters: { ...y.counters, loyalty: loy } }))
-          touch(x.key, { n: -ev.n, kind: 'dmg' })
+        const lk = x.counters?.loyalty != null ? 'loyalty' : x.counters?.defense != null ? 'defense' : null  // planeswalker / batalha
+        if (lk && !isCreature(data, x)) {
+          const loy = X ? x.counters[lk] : Math.max(0, x.counters[lk] - ev.n)  // exato: o Forge tira os marcadores
+          upd(k, x.key, y => ({ ...y, counters: { ...y.counters, [lk]: loy } }))
+          touch(x.key, { n: -ev.n, kind: 'dmg', ct: lk })
           if (loy <= 0 && ev.gone) leave(k, x, 'graveyard')
           break
         }

@@ -2534,7 +2534,7 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .fp-stage .bside { min-width: 0; max-width: 100%; grid-template-columns: minmax(0, 1fr); }
 .fp-stage .brow { flex-wrap: nowrap; min-width: 0; max-width: 100%; }
 .fp-stage .brow.front { width: 100%; }
-.fp-stage .brow.rear { width: 100%; } .fp-stage .brow.rear > .brow.lands { flex: 1 1 0; } .fp-stage .brow.rear > .brow.others { flex: 0 1 auto; }
+.fp-stage .brow.rear { width: 100%; } .fp-stage .brow.rear > .brow.lands { flex: 1 1 0; } .fp-stage .brow.rear > .brow.others { flex: 0 0 auto; max-width: 60%; }
 .fp-stage .brow > * + * { margin-left: var(--ov, 0px); }
 .fp-stage .fp-hand { flex-wrap: nowrap; min-width: 0; }
 .fp-stage .fp-hand .fp-card + .fp-card { margin-left: calc(var(--hw) * -.18 + var(--ov, 0px)); }
@@ -2668,8 +2668,6 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .ml .fp-hand.opp { min-height: 0; padding: 0; } .ml .fp-hand.opp .fp-card { --cw: var(--ohw); } .ml .fp-hand.opp .fp-card + .fp-card { margin-left: calc(var(--ohw) * -.45); }
 .ml-cmd { display: flex; gap: 4px; align-items: flex-end; flex: none; } .ml-cmd .fp-card { --cw: 54px; } .ml-cz { display: inline-block; }
 .ml .fp-card.ml-rev { box-shadow: 0 0 0 2px var(--gold), 0 0 12px #f2b84b88; }
-.ml .ml-down .pc-f { filter: brightness(.45) saturate(.3); }
-.ml .ml-down::after { content: '🂠'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 22px; pointer-events: none; }
 .ml .orb { cursor: pointer; }
 .ml-menu-back { position: fixed; inset: 0; z-index: 90; }
 .ml-menu { position: fixed; z-index: 91; min-width: 210px; max-height: 70vh; overflow: auto; display: grid; gap: 1px; padding: 6px; border-radius: 12px; background: var(--panel); border: 1px solid var(--gold); box-shadow: 0 14px 40px #000c; animation: fp-in .2s ease-out; }
@@ -2693,7 +2691,6 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
   .fp.ml .fp-side { flex-direction: column; }
 }
 @media (min-width: 901px) { .ml .fp-zoom { max-height: 36vh; } }
-.ml-menu.life { grid-template-columns: repeat(4, minmax(48px, 1fr)); } .ml-menu.life b { grid-column: 1 / -1; } .ml-menu.life button { text-align: center; font-weight: 700; }
 /* mão: o botão fica parado (é a zona do rato e do clique) e só o interior (.fp-cin) sobe, cresce e inclina — antes a
    carta fugia de baixo do rato, perdia o :hover, descia e voltava a subir sem parar, e os cliques falhavam */
 .fp-cin { position: relative; display: block; width: 100%; height: 100%; border-radius: inherit; }
@@ -2866,3 +2863,32 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .ml-fm { display: grid; gap: 10px; } .ml-fm-m { display: grid; gap: 6px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); } .ml-fm-m.mine { border-color: var(--gold); }
 .ml-fm-res { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-left: auto; }
 body:has(.fp.ml) .live-bar, body:has(.fp.ml) .live-bar-pad { display: none; }  /* à mesa livre a barra «a decorrer» sai: no telemóvel tapava a barra de ferramentas e a mão */
+
+/* mecânicas no campo: carta flip (Kamigawa) rodada, fora de fase, virada para baixo conhecida, defesa das batalhas,
+   marcadores com ícone e cor, lealdade que salta ao ativar (+ verde, − vermelho) */
+.pc-flip.up { transform: rotate(180deg); }
+.pc.phased .pc-rot { opacity: .38; filter: grayscale(.6); outline: 2px dashed #9ad7ffaa; outline-offset: 2px; border-radius: 6%/4.4%; }
+.pc-loy.def { background: linear-gradient(180deg, #e2e8f0, #8a9bb0); clip-path: none; border-radius: 4px; bottom: auto; top: -6px; }
+.pc-loy.up { animation: loyUp .65s ease-out; } .pc-loy.down { animation: loyDown .65s ease-out; }
+@keyframes loyUp { 0% { transform: translateX(-50%) scale(1.8); box-shadow: 0 0 14px #7cff9b; } 100% { transform: translateX(-50%) scale(1); } }
+@keyframes loyDown { 0% { transform: translateX(-50%) scale(1.8); box-shadow: 0 0 14px #ff6b6b; } 100% { transform: translateX(-50%) scale(1); } }
+.pc-ctr b.c-m1 { background: #5b1414; color: #fecaca; border-color: #f87171; }
+.pc-ctr b:not(.c-p1):not(.c-m1) { background: #1c1f2b; color: #fde68a; border-color: #f2b84b; }
+.pc-ctr b.c-stun { color: #e9d5ff; border-color: #c084fc; } .pc-ctr b.c-shield { color: #bfdbfe; border-color: #60a5fa; }
+.pc-tags { position: absolute; left: 2px; top: 2px; display: flex; gap: 2px; z-index: 2; }
+.pc-tags i { font-style: normal; font-size: 10px; line-height: 1; padding: 2px 3px; border-radius: 4px; background: #0d0f18e6; color: #fff; }
+.pc-pop.enter { color: #c4b5fd; font-size: 13px; white-space: nowrap; }
+.pc-pop.ctr.loyalty { color: #7cff9b; } .pc-pop.dmg.loyalty { color: #ff6b6b; }
+@media (prefers-reduced-motion: reduce) { .pc-loy.up, .pc-loy.down { animation: none; } .pc-flip { transition: none; } }
+.fp-day { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--line); animation: dayTurn .6s ease-out; }
+.fp-day.day { background: linear-gradient(180deg, #fff3c4, #f2b84b); color: #3a2a10; } .fp-day.night { background: linear-gradient(180deg, #1e2a52, #0b1026); color: #c7d2fe; border-color: #6d7fd6; }
+.fp-day:disabled { cursor: default; opacity: 1; }
+@keyframes dayTurn { 0% { transform: rotateX(90deg); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fp-day { animation: none; } }
+/* mesa livre: linhas −/+ nos menus (vida, veneno, energia, dano de comandante, marcadores), imposto, prender a… */
+.ml-mrow { display: flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; font-size: 14px; }
+.ml-mrow span { flex: 1; white-space: nowrap; }
+.ml-menu .ml-mrow button { min-width: 38px; text-align: center; font-weight: 700; padding: 6px 8px; background: #ffffff0d; }
+.ml-cz { position: relative; } .ml-tax { position: absolute; right: -4px; top: -6px; font-size: 11px; padding: 1px 5px; border-radius: 99px; background: var(--gold); color: #1b1405; }
+.ml-pick .pc { animation: fp-sel 1.2s ease-in-out infinite alternate; border-radius: 6%; }
+.ml-pickmsg { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--panel); border: 1px solid var(--gold); }
