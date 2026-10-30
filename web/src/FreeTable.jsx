@@ -13,6 +13,8 @@ import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
 import { tx } from './i18n.js'
 import { play } from './sfx.js'
+import TableChat from './TableChat.jsx'
+import { usePen, PEN_COLS } from './tablepen.js'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -55,6 +57,9 @@ function line(e, who) {
     case 'concede': return tx('{P} desiste', { P })
     case 'chat': return `${P}: ${e.text}`
     case 'close': return tx('{P} terminou a mesa', { P })
+    case 'newturn': return tx('{P} começa o turno: desvira tudo e compra {n}', { P, n: e.n })
+    case 'newgame': return tx('{P} recomeça o jogo com o mesmo deck', { P })
+    case 'gf': return tx('Adversário imaginário: vida {v} ({d})', { v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
     default: return e.k
   }
 }
@@ -72,7 +77,9 @@ function Help({ onClose }) {
         <li><b>{tx('Cemitério, exílio, mão, biblioteca')}</b> — {tx('arrasta a carta para o monte, ou usa o menu da carta (clique direito; no telemóvel, tocar e manter).')}</li>
         <li><b>{tx('Marcadores, virar para baixo, transformar, revelar')}</b> — {tx('no menu da carta.')}</li>
         <li><b>{tx('Vida e veneno')}</b> — {tx('toca no círculo da vida de qualquer jogador.')}</li>
-        <li><b>{tx('Dados e moeda')}</b> — {tx('no painel: todos veem o mesmo resultado.')}</li>
+        <li><b>{tx('Dados e moeda')}</b> — {tx('no painel, ou agarra um dado na mesa e atira-o: todos veem o mesmo lançamento e o mesmo resultado.')}</li>
+        <li><b>{tx('Caneta')}</b> — {tx('✏️ ou P: desenha na mesa para mostrar algo; os outros veem o risco ao vivo e ele apaga-se sozinho.')}</li>
+        <li><b>{tx('Conversa')}</b> — {tx('as jogadas e as mensagens juntas; escreve @ para mostrar uma carta e # para uma regra.')}</li>
       </ul>
       <p className="muted small">{tx('Ninguém vê a tua mão nem a tua biblioteca (o servidor nem lhes manda os nomes). As cartas viradas para baixo só as vês tu.')}</p>
       <div className="row-btns"><button className="primary" onClick={onClose}>{tx('Percebi')}</button></div>
@@ -82,7 +89,11 @@ function Help({ onClose }) {
 
 export default function FreeTable({ id, data, onClose }) {
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [menu, setMenu] = useState(null)
-  const [help, setHelp] = useState(() => lsGet(HELP_K) !== '1'), [lift, setLift] = useState(null), [ver, setVer] = useState(0), [chat, setChat] = useState('')
+  const [help, setHelp] = useState(() => lsGet(HELP_K) !== '1'), [lift, setLift] = useState(null), [ver, setVer] = useState(0)
+  const [off, setOff] = useState(false)  // a ligação à mesa caiu (a espera longa falhou): volta a tentar sozinha
+  const [chatOpen, setChatOpen] = useState(false), [seen, setSeen] = useState(0), [cardPop, setCardPop] = useState(null), [tokOpen, setTokOpen] = useState(false)
+  const [phone, setPhone] = useState(() => matchMedia('(max-width: 900px)').matches)
+  useEffect(() => { const q = matchMedia('(max-width: 900px)'), f = () => setPhone(q.matches); q.addEventListener('change', f); return () => q.removeEventListener('change', f) }, [])
   const [nDraw, setNDraw] = useState(1), [nPeek, setNPeek] = useState(3), [tok, setTok] = useState('')
   useEffect(() => {  // espera longa: o servidor responde quando alguém mexe (ou ao fim de 25 s)
     let live = true, since = 0
@@ -91,8 +102,8 @@ export default function FreeTable({ id, data, onClose }) {
         try {
           const r = await j(`/api/freetables/${id}?since=${since}`)
           if (!live) return
-          since = r.seq; setS(x => (!x || r.seq >= x.seq ? r : x)); setErr('')
-        } catch (e) { if (!live) return; setErr(e.message); if (/não existe/.test(e.message)) return; await new Promise(ok => setTimeout(ok, 2000)) }
+          since = r.seq; setS(x => (!x || r.seq >= x.seq ? r : x)); setErr(''); setOff(false)
+        } catch (e) { if (!live) return; setErr(e.message); setOff(true); if (/não existe/.test(e.message)) return; await new Promise(ok => setTimeout(ok, 2000)) }
       }
     })()
     return () => { live = false }
@@ -119,15 +130,18 @@ export default function FreeTable({ id, data, onClose }) {
     const t = setTimeout(() => setLifeFx(null), 1200); return () => clearTimeout(t)
   }, [lives]) // eslint-disable-line react-hooks/exhaustive-deps
   // dados: o servidor sorteia; cada ecrã lança os dados 3D que assentam nesses valores
-  const diceBox = useRef(null), dice = useTableDice(diceBox), rollSeen = useRef(null)
+  // agarrar um dado e largá-lo pede ao servidor um lançamento com esse gesto; todos veem o mesmo, cada um do seu lado
+  const throwDice = (types, thr) => j(`/api/freetables/${id}`, { c: 'dice', types, thr }).then(r => setS(x => (!x || r.seq >= x.seq ? r : x)))
+  const diceBox = useRef(null), dice = useTableDice(diceBox, { box: [11, 10], rot: (s?.me || 0) ? Math.PI : 0, keep: 30000, onThrow: throwDice }), rollSeen = useRef(null)
   useEffect(() => {
     const r = s?.roll
     if (!s) return
     if (rollSeen.current === null) { rollSeen.current = r?.n || 0; return }  // ao abrir a mesa não se relança o último
-    if (r && r.n !== rollSeen.current) { rollSeen.current = r.n; dice.roll(r.types, r.v) }
+    if (r && r.n !== rollSeen.current) { rollSeen.current = r.n; dice.roll(r.types, r.v, { seed: r.seed, thr: r.thr }) }
   }, [s?.roll?.n, !!s]) // eslint-disable-line react-hooks/exhaustive-deps
   const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null), peek = usePeek(), hoverId = useRef(null), downAt = useRef({ x: 0, y: 0 })
-  const stage = useStage(fitBox, stageWrap, !!s, true)
+  const stage = useStage(fitBox, stageWrap, !!s, phone ? 62 : true)  // telemóvel: a barra das ações fica fixa em baixo
+  const penLayer = useRef(null), pen = usePen({ table: fitTable, layer: penLayer, me, flip: me !== 0, send, chunks: s?.pen })
   useOverlap(fitTable)
   useFlip(fitTable, `${s?.seq}|${ver}`)
   const [, redraw] = useState(0)
@@ -184,14 +198,15 @@ export default function FreeTable({ id, data, onClose }) {
   useEffect(() => {
     const k = e => {
       if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return
-      if (e.key === 'Escape') { setMenu(null); setZone(null); return }
+      if (e.key === 'Escape') { setMenu(null); setZone(null); pen.setOn(false); return }
+      if (e.key.toLowerCase() === 'p') { e.preventDefault(); pen.setOn(v => !v); return }
       const P2 = fpPrefs(), hv = hoverId.current, onField = hv != null && byId.get(hv)?.z === 'battlefield'
       if (e.key.toLowerCase() === P2.tap && onField) { e.preventDefault(); tap(hv) } else if (e.key.toLowerCase() === P2.flip && onField) { e.preventDefault(); turnOver(hv) } else if (e.key === ' ' && P2.space && s?.status === 'playing') { e.preventDefault(); send({ c: 'draw', n: 1 }) }
     }
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
   })
 
-  if (!s) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('A abrir a mesa…')}</p>}</div>
+  if (!s) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted"><span className="spin-dot" /> {tx('A abrir a mesa…')}</p>}</div>
   const mine = seats[me], ended = s.status !== 'playing'
   const others = Array.from({ length: n - 1 }, (_, k) => (me + 1 + k) % n)
   const fx = { hl: new Set(), par: 0, pops: new Map(), life: lifeFx, player: null }
@@ -266,6 +281,14 @@ export default function FreeTable({ id, data, onClose }) {
 
   // ---------- menu da carta (o que é menos comum) ----------
   const menuItems = () => {
+    if (menu.more) return [
+      [P.persp ? tx('▭ Mesa sem perspetiva') : tx('⏢ Lado dos outros em perspetiva'), () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }],
+      ['❓ ' + tx('Como se joga aqui'), () => setHelp(true)],
+      ...(s.solo && !ended ? [['⟲ ' + tx('Novo jogo com o mesmo deck'), async () => { if (await ask('mesalivre-novo', { title: tx('Recomeçar com o mesmo deck?'), body: tx('Todas as cartas voltam à biblioteca, baralhas e compras 7; a vida e o turno recomeçam.'), ok: tx('Recomeçar'), danger: false })) send({ c: 'newgame' }) }]] : []),
+      ...(!s.solo && !mine?.out && !ended ? [['🏳 ' + tx('Desistir'), async () => { if (await ask('mesalivre-desistir', { title: tx('Desistir deste jogo?'), ok: tx('Desistir') })) send({ c: 'concede' }) }]] : []),
+      ...(s.host && !ended ? [['■ ' + tx('Terminar a mesa'), async () => { if (await ask('mesalivre-terminar', { title: s.solo ? tx('Terminar esta mesa?') : tx('Terminar a mesa para todos?'), body: tx('A mesa fica só para ver; ninguém pode jogar mais nela.'), ok: tx('Terminar') })) send({ c: 'close' }) }]] : []),
+      ...(onClose ? [['← ' + tx('Sair da mesa'), onClose]] : []),
+    ]
     if (menu.life != null) {
       const i = menu.life, L = d => () => send({ c: 'life', seat: i, d }), Ps = d => () => send({ c: 'poison', seat: i, d })
       return [[tx('Vida de {p}: {v}', { p: who(i), v: seats[i].life }), null], ['−5', L(-5)], ['−1', L(-1)], ['+1', L(1)], ['+5', L(5)], [tx('☠ veneno {v}', { v: seats[i].poison }), null], ['☠ −1', Ps(-1)], ['☠ +1', Ps(1)]]
@@ -290,12 +313,51 @@ export default function FreeTable({ id, data, onClose }) {
       [c.r ? tx('🙈 Esconder outra vez') : tx('👁 Revelar a todos'), () => send({ c: 'reveal', id: cid })], ...to]
     return [...head, ['▶ ' + tx('Para o campo'), () => toField(cid)], ...to, ...(z !== 'command' && owner ? [['♛ ' + tx('Zona de comando'), () => mv(cid, 'command')]] : [])]
   }
+  const rollDice = async types => { const thr = await dice.throwFrom(); send({ c: 'dice', types, ...(thr && { thr }) }) }
+  const names = [...new Set([...byId.values()].map(e => e.c.n).filter(Boolean))]
+  const unread = s.log.filter(e => e.k === 'chat' && e.s !== me && (e.id || 0) > seen).length
+  const T = (ic, label, f, o = {}) => <button type="button" className={`ml-t ${o.cls || ''}`} onClick={f} disabled={o.dis ?? ended} title={o.title || label} aria-pressed={o.on}><i aria-hidden="true">{ic}</i><span>{label}</span>{o.badge ? <b className="ml-badge-n">{o.badge}</b> : null}</button>
+  const tools = (
+    <div className="ml-tools" role="toolbar" aria-label={tx('Ações da mesa')}>
+      <div className="ml-mode-l"><b>🃏 {s.solo ? tx('Mesa livre a solo') : tx('Mesa livre · sem regras')}</b><button className="link small" onClick={() => setHelp(true)} title={tx('Como se joga aqui')}>❓</button></div>
+      <div className="ml-tg main">
+        {!s.solo && T('▶', s.active === me ? tx('Passar a vez') : tx('Passar a vez de {p}', { p: who(s.active) }), () => send({ c: 'pass' }), { cls: s.active === me ? 'primary' : '' })}
+        {T('☀', tx('Novo turno'), () => send({ c: 'newturn' }), { title: tx('Desvira tudo e compra uma carta') })}
+        {T('↺', tx('Desvirar'), () => send({ c: 'untapall' }), { title: tx('Desvira todas as tuas cartas') })}
+        <span className="ml-pair">{T('🂠', tx('Comprar'), () => send({ c: 'draw', n: nDraw }))}<select className="ml-n" value={nDraw} onChange={e => setNDraw(+e.target.value)} aria-label={tx('Quantas cartas')}>{[1, 2, 3, 4, 5, 7].map(x => <option key={x} value={x}>{x}</option>)}</select></span>
+        <span className="ml-pair">{T('👁', tx('Ver o topo'), () => send({ c: 'peek', n: nPeek }), { title: tx('Só tu vês: depois escolhe o que fica no topo, vai para o fundo, para a mão ou para o cemitério') })}<select className="ml-n" value={nPeek} onChange={e => setNPeek(+e.target.value)} aria-label={tx('Quantas cartas do topo')}>{[1, 2, 3, 4, 5, 7, 10].map(x => <option key={x} value={x}>{x}</option>)}</select></span>
+      </div>
+      <div className="ml-tg">
+        {T('🔀', tx('Baralhar'), () => send({ c: 'shuffle' }))}
+        {T('♻', tx('Mulligan'), async () => { if (await ask('mesalivre-mulligan', { title: tx('Fazer mulligan?'), body: tx('A tua mão volta para a biblioteca, baralhas e compras 7. Se jogam com o mulligan de Londres, põe depois as cartas a mais no fundo (menu da carta).'), ok: tx('Mulligan'), danger: false })) send({ c: 'mulligan' }) })}
+        {!s.solo && T('🖐', mine?.hand.length && mine.hand.every(c => c.r) ? tx('Esconder a mão') : tx('Revelar a mão'), () => send({ c: 'revealhand' }))}
+        {T('✦', tx('Ficha'), () => setTokOpen(v => !v), { on: tokOpen })}
+      </div>
+      {tokOpen && <form className="ml-tok" onSubmit={e => { e.preventDefault(); if (!tok.trim()) return; const w = spot({ n: tok, tok: true }); send({ c: 'token', name: tok.trim(), x: w.x, y: w.y }); setTok(''); setTokOpen(false) }}>
+        <input autoFocus value={tok} onChange={e => setTok(e.target.value)} placeholder={tx('Ficha: nome (ex.: Goblin, Treasure)')} maxLength={60} aria-label={tx('Nome da ficha')} />
+        <button className="primary" disabled={!tok.trim()}>＋</button></form>}
+      <div className="ml-tg dice">
+        <span className="ml-dice" title={tx('Lançar na mesa (todos veem o mesmo). Também podes agarrar um dado na mesa e atirá-lo.')}><i aria-hidden="true">🎲</i>
+          {[['d6', ['d6']], ['2d6', ['d6', 'd6']], ['d20', ['d20']], [tx('moeda'), ['moeda']]].map(([l, t]) => <button key={l} type="button" className="ml-t" disabled={ended} onClick={() => rollDice(t)}>{l}</button>)}</span>
+        {dice.res?.items && s.roll && <button type="button" className="fp-dres" onClick={dice.off} title={tx('Tirar os dados da mesa')}>{who(s.roll.s)}: {dice.res.items.map(x => (x.type === 'moeda' ? (x.v === 1 ? tx('Cara') : tx('Coroa')) : x.v)).join(' + ')}{dice.res.items.length > 1 && dice.res.items.every(x => x.type !== 'moeda') ? ` = ${dice.res.items.reduce((a, x) => a + x.v, 0)}` : ''} ✕</button>}
+      </div>
+      <div className="ml-tg">
+        {T('✏️', tx('Caneta'), () => pen.setOn(v => !v), { on: pen.on, cls: pen.on ? 'on' : '', dis: false, title: tx('Desenhar na mesa (P): os outros veem o risco, que se apaga sozinho') })}
+        {pen.on && <span className="ml-cols" role="radiogroup" aria-label={tx('Cor da caneta')}>{PEN_COLS.map(c => <button key={c} role="radio" aria-checked={pen.col === c} className={pen.col === c ? 'on' : ''} style={{ '--c': c }} onClick={() => pen.setCol(c)} aria-label={c} />)}</span>}
+        {phone && T('💬', tx('Conversa'), () => setChatOpen(v => !v), { on: chatOpen, cls: chatOpen ? 'on' : '', dis: false, badge: !chatOpen && unread })}
+        {T('⋯', tx('Mais'), e => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ more: true, x: r.left, y: r.top - 8 }) }, { dis: false })}
+      </div>
+    </div>
+  )
   const menuStyle = m => ({ left: Math.max(8, Math.min(innerWidth - 230, m.x)), top: Math.max(8, Math.min(innerHeight - 380, m.y)) })
   const zc = zoom && lookup(data, zoom)
   const zoneCards = zone ? seats[zone.seat]?.[zone.which] || [] : []
   const top = mine?.top
   return (
-    <div className="fp ml" ref={fitBox} onMouseLeave={() => peek.hide()} onMouseOver={onOver} onPointerDown={e => { downAt.current = { x: e.clientX, y: e.clientY }; peek.hide() }}>
+    <div className={`fp ml ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${phone && chatOpen ? 'chat-open' : ''}`} ref={fitBox} onMouseLeave={() => peek.hide()} onMouseOver={onOver}
+      onPointerDown={e => { downAt.current = { x: e.clientX, y: e.clientY }; peek.hide() }}
+      onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && (pen.down(e) || dice.grab(e))) e.stopPropagation() }}
+      onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
         <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: STAGE[stage.shape][0], height: STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
           <div className="fp-table board table" ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onContextMenu={onCtx} onMouseMove={tilt} onPointerDown={down}>
@@ -303,59 +365,26 @@ export default function FreeTable({ id, data, onClose }) {
             <div className="fp-mid">
               <span className="ml-badge" title={tx('Sem bots e sem regras automáticas: cada um mexe nas suas cartas.')}>🃏 {tx('Mesa livre · sem regras')}</span>
               <span className="fp-turn">{tx('Turno {n}', { n: s.turn })} · {s.active === me ? tx('a tua vez') : tx('vez de {p}', { p: who(s.active) })}</span>
+              {s.solo && <span className="ml-gf" title={tx('A vida de um adversário imaginário, para contares o dano que farias')}>🐟 {tx('Adversário')}
+                <button className="ml-mini" onClick={() => send({ c: 'gf', d: -5 })}>−5</button><button className="ml-mini" onClick={() => send({ c: 'gf', d: -1 })}>−1</button>
+                <b>{s.gf}</b><button className="ml-mini" onClick={() => send({ c: 'gf', d: 1 })}>+1</button></span>}
               {s.log.length > 0 && <span className="ml-last muted small">{line(s.log[s.log.length - 1], who)}</span>}
             </div>
             {mine && side(me, false, false)}
           </div>
         </div>
+        <canvas className="ml-pen" ref={penLayer} aria-hidden="true" />
         <div className="fp-dice" ref={diceBox} />
       </div>
-      <aside className="fp-side">
+      <aside className="fp-side ml-aside">
         <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
-        <div className="fp-prompt ml-panel">
-          <p className="ml-mode"><b>🃏 {tx('Mesa livre · sem regras')}</b> <button className="link small" onClick={() => setHelp(true)} title={tx('Como se joga aqui')}>❓ {tx('ajuda')}</button><br />
-            <span className="small muted">{tx('Sem bots: cada um mexe nas suas cartas. Ninguém valida as jogadas.')}</span></p>
-          <div className="row-btns">
-            <button className={s.active === me ? 'primary' : ''} onClick={() => send({ c: 'pass' })} disabled={ended}>{s.active === me ? tx('Passar a vez ▶') : tx('Passar a vez de {p} ▶', { p: who(s.active) })}</button>
-            <button onClick={() => send({ c: 'untapall' })} disabled={ended} title={tx('Desvira todas as tuas cartas')}>↺ {tx('Desvirar tudo')}</button>
-          </div>
-          <div className="row-btns ml-row">
-            <button onClick={() => send({ c: 'draw', n: nDraw })} disabled={ended}>{tx('Comprar')}</button>
-            <select value={nDraw} onChange={e => setNDraw(+e.target.value)} aria-label={tx('Quantas cartas')}>{[1, 2, 3, 4, 5, 7].map(x => <option key={x} value={x}>{x}</option>)}</select>
-            <button onClick={() => send({ c: 'peek', n: nPeek })} disabled={ended} title={tx('Só tu vês: depois escolhe o que fica no topo, vai para o fundo, para a mão ou para o cemitério')}>👁 {tx('Ver o topo')}</button>
-            <select value={nPeek} onChange={e => setNPeek(+e.target.value)} aria-label={tx('Quantas cartas do topo')}>{[1, 2, 3, 4, 5, 7, 10].map(x => <option key={x} value={x}>{x}</option>)}</select>
-          </div>
-          <div className="row-btns ml-row">
-            <button className="link small" onClick={() => send({ c: 'shuffle' })} disabled={ended}>🔀 {tx('baralhar')}</button>
-            <button className="link small" onClick={async () => { if (await ask('mesalivre-mulligan', { title: tx('Fazer mulligan?'), body: tx('A tua mão volta para a biblioteca, baralhas e compras 7. Se jogam com o mulligan de Londres, põe depois as cartas a mais no fundo (menu da carta).'), ok: tx('Mulligan'), danger: false })) send({ c: 'mulligan' }) }} disabled={ended}>♻ {tx('mulligan')}</button>
-            <button className="link small" onClick={() => send({ c: 'revealhand' })} disabled={ended}>👁 {mine?.hand.length && mine.hand.every(c => c.r) ? tx('esconder a mão') : tx('revelar a mão')}</button>
-          </div>
-          <form className="row-btns ml-row" onSubmit={e => { e.preventDefault(); if (!tok.trim()) return; const w = spot({ n: tok, tok: true }); send({ c: 'token', name: tok.trim(), x: w.x, y: w.y }); setTok('') }}>
-            <input value={tok} onChange={e => setTok(e.target.value)} placeholder={tx('Ficha: nome (ex.: Goblin, Treasure)')} maxLength={60} aria-label={tx('Nome da ficha')} disabled={ended} />
-            <button disabled={ended || !tok.trim()}>＋ {tx('Ficha')}</button>
-          </form>
-          <div className="fp-dicebar"><span className="muted small">🎲</span>
-            {[['d6', ['d6']], ['2d6', ['d6', 'd6']], ['d20', ['d20']], [tx('moeda'), ['moeda']]].map(([l, t]) => <button key={l} type="button" className="link small" disabled={ended} onClick={() => send({ c: 'dice', types: t })} title={tx('Lançar na mesa (todos veem o mesmo)')}>{l}</button>)}
-            {dice.res?.items && s.roll && <button type="button" className="fp-dres" onClick={dice.off} title={tx('Tirar os dados da mesa')}>{who(s.roll.s)}: {dice.res.items.map(x => (x.type === 'moeda' ? (x.v === 1 ? tx('Cara') : tx('Coroa')) : x.v)).join(' + ')}{dice.res.items.length > 1 && dice.res.items.every(x => x.type !== 'moeda') ? ` = ${dice.res.items.reduce((a, x) => a + x.v, 0)}` : ''} ✕</button>}
-          </div>
-          <Log log={s.log} who={who} />
-          <form className="row-btns ml-row" onSubmit={e => { e.preventDefault(); if (chat.trim()) send({ c: 'chat', text: chat }); setChat('') }}>
-            <input value={chat} onChange={e => setChat(e.target.value)} placeholder={tx('Escreve à mesa…')} maxLength={200} aria-label={tx('Mensagem')} />
-            <button disabled={!chat.trim()}>{tx('Enviar')}</button>
-          </form>
-          <div className="row-btns small">
-            <button className="link small" onClick={() => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }} title={tx('Lado dos adversários em perspetiva')}>{P.persp ? '▭' : '⏢'} {tx('perspetiva')}</button>
-            {!mine?.out && !ended && <button className="link small" onClick={async () => { if (await ask('mesalivre-desistir', { title: tx('Desistir deste jogo?'), ok: tx('Desistir') })) send({ c: 'concede' }) }}>🏳 {tx('desistir')}</button>}
-            {s.host && !ended && <button className="link small" onClick={async () => { if (await ask('mesalivre-terminar', { title: tx('Terminar a mesa para todos?'), body: tx('A mesa fica só para ver; ninguém pode jogar mais nela.'), ok: tx('Terminar') })) send({ c: 'close' }) }}>■ {tx('terminar a mesa')}</button>}
-            {onClose && <button className="link small" onClick={onClose}>← {tx('sair da mesa')}</button>}
-          </div>
-          {ended && <p className="small gold-t">{tx('Esta mesa terminou.')}</p>}
-          {err && <p className="small bad-t">{err}</p>}
-        </div>
+        {tools}
+        {err && <p className="small bad-t ml-err">{err}</p>}
+        {(!phone || chatOpen) && <TableChat log={s.log} who={who} keyOf={keyOf} me={me} data={data} send={send} fmt={e => line(e, who)} names={names} onSeen={setSeen} />}
       </aside>
       {menu && <div className="ml-menu-back" onClick={() => setMenu(null)} onContextMenu={e => { e.preventDefault(); setMenu(null) }}>
         <div className={`ml-menu ${menu.life != null ? 'life' : ''}`} style={menuStyle(menu)} onClick={e => e.stopPropagation()} role="menu">
-          {menuItems().map(([l, f], k) => (f ? <button key={k} role="menuitem" onClick={() => { setMenu(null); f() }} disabled={ended}>{l}</button> : <b key={k}>{l}</b>))}
+          {menuItems().map(([l, f], k) => (f ? <button key={k} role="menuitem" onClick={() => { setMenu(null); f() }} disabled={ended && !menu.more}>{l}</button> : <b key={k}>{l}</b>))}
         </div></div>}
       {zone && <div className="fp-modal" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
         <p><b>{zone.which === 'graveyard' ? tx('Cemitério de {n}', { n: who(zone.seat) }) : tx('Exílio de {n}', { n: who(zone.seat) })}</b> · {zoneCards.length} <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
@@ -369,12 +398,9 @@ export default function FreeTable({ id, data, onClose }) {
               <button className="small" onClick={() => mv(c.id, 'graveyard')} title={tx('Para o cemitério')}>⚰</button><button className="small" onClick={() => mv(c.id, 'exile')} title={tx('Para o exílio')}>⌀</button><button className="small" onClick={() => toField(c.id)} title={tx('Para o campo')}>▶</button></span></div>))}</div>
         <div className="row-btns"><button className="primary" onClick={() => send({ c: 'peek', n: 0 })}>{tx('Feito (as que sobram ficam no topo)')}</button></div></div></div>}
       {help && <Help onClose={() => { setHelp(false); lsSet(HELP_K, '1') }} />}
+      {cardPop && lookup(data, cardPop) && <div className="fp-modal" onClick={() => setCardPop(null)}><img className="ml-pop" src={img(lookup(data, cardPop), 'normal')} alt={cardPop} /></div>}
+      {ended && <p className="ml-ended">{tx('Esta mesa terminou.')}</p>}
+      {off && !ended && <p className="ml-ended off" role="status">⟳ {tx('A voltar a ligar à mesa…')}</p>}
     </div>
   )
-}
-
-function Log({ log, who }) {
-  const box = useRef(null), last = log[log.length - 1]?.ts
-  useEffect(() => { const el = box.current; if (el) el.scrollTop = el.scrollHeight }, [log.length, last])
-  return <ol className="fp-hist ml-log" ref={box} aria-label={tx('Registo da mesa')}>{log.map((e, k) => <li key={k} className={`k-${e.k}`}>{line(e, who)}</li>)}</ol>
 }

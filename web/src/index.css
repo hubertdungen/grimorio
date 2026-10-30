@@ -2676,9 +2676,7 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .ml-menu button { text-align: left; padding: 7px 10px; border: 0; background: none; border-radius: 8px; font-size: 14px; }
 .ml-menu button:hover, .ml-menu button:focus-visible { background: #ffffff14; }
 .ml-menu b { padding: 4px 10px; font-size: 12px; color: var(--gold2); }
-.ml-panel { gap: 8px; } .fp-prompt.ml-panel > p.ml-mode { min-height: 0; font-size: 14px; }
 .ml-row { flex-wrap: wrap; gap: 6px; } .ml-row input { flex: 1 1 120px; min-width: 0; }
-.ml-log { max-height: 22vh; } .ml-log li.k-chat { color: var(--text); } .ml-log li.k-dice, .ml-log li.k-pass { color: var(--gold2); }
 .ml-help { max-width: min(560px, 100%); } .ml-help h3 { margin: 0; } .ml-help ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; } .ml-help p { margin: 0; }
 .ml-top .ml-topc { display: grid; gap: 4px; justify-items: center; } .ml-top .ml-topc .row-btns { gap: 2px; }
 /* Online › Nova sala: os modos lado a lado, cada um diz quem joga e que regras há */
@@ -2762,3 +2760,103 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
    vistas do outro lado de uma mesa a sério (Forge Play e mesa livre). rotate soma-se ao transform do rato e do F; a carta
    que vem à frente (peek) é uma cópia fora da mesa e fica sempre direita */
 .fp-stage.opp-far .bside.top .pc-f, .fp-stage.opp-far .bside.top .pc-b, .fp-stage.opp-far .bside.top .pc-attc { rotate: 180deg; }
+
+/* Mesa livre 2: painel com barra de ações e conversa (jogadas + mensagens), caneta e dados que se agarram */
+.ml-aside { gap: 8px; } .ml-aside .fp-zoom { max-height: 30vh; }
+.ml-tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+.ml-mode-l { flex-basis: 100%; display: flex; align-items: center; justify-content: space-between; font-size: 13px; }
+.ml-tg { display: flex; flex-wrap: wrap; gap: 4px; flex-basis: 100%; align-items: center; }
+.ml-t { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 9px; font-size: 13px; line-height: 1.1; min-height: 32px; }
+.ml-t i { font-style: normal; font-size: 15px; } .ml-t.primary { font-weight: 700; } .ml-t.on { border-color: var(--gold); background: rgba(242, 184, 75, .16); }
+.ml-pair { display: inline-flex; } .ml-pair .ml-t { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.ml-n { width: auto; min-height: 32px; padding: 0 4px; border-radius: 0 9px 9px 0; border-left: 0; font-size: 13px; }
+.ml-badge-n { position: absolute; top: -6px; right: -6px; min-width: 18px; padding: 0 5px; border-radius: 99px; background: #ff5c8a; color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+.ml-tok { display: flex; gap: 6px; flex-basis: 100%; } .ml-tok input { flex: 1; min-width: 0; }
+.ml-cols { display: inline-flex; gap: 4px; padding: 0 4px; } .ml-cols button { width: 22px; height: 22px; padding: 0; border-radius: 50%; background: var(--c); border: 2px solid #0006; box-shadow: 0 0 8px var(--c); }
+.ml-cols button.on { outline: 2px solid #fff; outline-offset: 1px; }
+.ml-err { margin: 0; }
+.ml-ended { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); z-index: 70; margin: 0; padding: 4px 14px; border-radius: 99px; background: var(--gold); color: #111; font-weight: 700; }
+.ml-gf { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; } .ml-gf b { min-width: 2ch; text-align: center; font-size: 15px; }
+.ml-mini { padding: 1px 6px; font-size: 12px; border-radius: 7px; min-height: 0; }
+.fp.ml.solo .ml-opps { display: none; }
+.ml-pop { max-width: min(420px, 90vw); max-height: 85vh; border-radius: 4.5%; box-shadow: 0 20px 60px #000c; animation: fp-in .25s ease-out; }
+/* caneta e dados por cima da mesa (não apanham o rato: a .fp decide quem desenha ou agarra) */
+.ml-pen { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 19; }
+.fp.ml-penon .fp-stagebox { cursor: crosshair; touch-action: none; }
+.fp.ml-penon .fp-stagebox .pc, .fp.ml-penon .fp-stagebox [data-h] { cursor: crosshair; }
+/* conversa */
+.ml-chat { --pa: var(--cyan); --pb: #ff6b8a; --pc: #fbbf24; --pd: #4ade80; --px: var(--muted);
+  flex: 1 1 0; min-height: 220px; display: flex; flex-direction: column; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); overflow: hidden; }
+.ml-chat-h { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.ml-chat-h .on { color: var(--gold); }
+.ml-feed { list-style: none; margin: 0; padding: 6px 8px; flex: 1 1 auto; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; }
+.ml-feed li { --pcol: var(--px); }
+.ml-feed li.p-a { --pcol: var(--pa); } .ml-feed li.p-b { --pcol: var(--pb); } .ml-feed li.p-c { --pcol: var(--pc); } .ml-feed li.p-d { --pcol: var(--pd); }
+.ml-feed li.ev { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px; align-items: baseline; color: var(--muted); padding-left: 4px; border-left: 2px solid var(--pcol); }
+.ml-feed li.ev .ml-re { grid-column: 2 / -1; }
+.ml-feed li.ev.k-pass, .ml-feed li.ev.k-newturn { color: var(--text); font-weight: 600; margin-top: 4px; }
+.ml-feed li.ev.k-dice { color: var(--gold2); }
+.ml-feed time { font-size: 10.5px; color: var(--muted); opacity: .8; }
+.ml-ico { font-style: normal; text-align: center; }
+.ml-feed li.msg { display: grid; gap: 2px; justify-items: start; margin: 4px 0; }
+.ml-feed li.msg.mine { justify-items: end; }
+.ml-who { font-size: 11px; font-weight: 700; color: var(--pcol); } .ml-who time { font-weight: 400; margin-left: 4px; }
+.ml-bubble { max-width: 92%; padding: 6px 10px; border-radius: 12px 12px 12px 4px; background: #ffffff12; color: var(--text); font-size: 13.5px; overflow-wrap: anywhere; box-shadow: inset 3px 0 0 var(--pcol); }
+.ml-feed li.msg.mine .ml-bubble { border-radius: 12px 12px 4px 12px; background: color-mix(in srgb, var(--pcol) 22%, transparent); box-shadow: none; }
+.ml-card { color: var(--gold2); cursor: zoom-in; text-decoration: underline dotted; text-underline-offset: 2px; }
+.ml-rule { color: #9fd3ff; cursor: help; border-radius: 6px; padding: 0 3px; background: #4cc9f01c; }
+.ml-re { display: inline-flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.ml-re button { padding: 0 6px; min-height: 0; font-size: 11.5px; border-radius: 99px; background: #ffffff10; border: 1px solid transparent; }
+.ml-re button.on { border-color: var(--gold); }
+.ml-re-add { opacity: 0; transition: opacity .15s; } .ml-feed li:hover .ml-re-add, .ml-re-add:focus-visible { opacity: .7; }
+@media (hover: none) { .ml-re-add { opacity: .45; } }
+.ml-re-pick { display: inline-flex; gap: 2px; padding: 2px; border-radius: 99px; background: var(--bg2); border: 1px solid var(--line); }
+.ml-re-pick button { font-size: 15px; background: none; }
+.ml-compose { position: relative; display: flex; gap: 6px; padding: 6px; border-top: 1px solid var(--line); }
+.ml-compose textarea { flex: 1; min-width: 0; resize: none; min-height: 36px; max-height: 90px; font: inherit; font-size: 14px; padding: 7px 9px; border-radius: 10px; }
+.ml-compose button { min-width: 40px; border-radius: 10px; }
+.ml-sug { position: absolute; left: 6px; right: 52px; bottom: calc(100% + 2px); margin: 0; padding: 4px; list-style: none; border-radius: 10px; background: var(--panel); border: 1px solid var(--gold); box-shadow: 0 10px 30px #000b; z-index: 5; }
+.ml-sug li { padding: 5px 8px; border-radius: 7px; cursor: pointer; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ml-sug li.on, .ml-sug li:hover { background: #ffffff16; }
+.ml-rule-peek { position: fixed; z-index: 95; }
+@media (max-width: 900px) {  /* telemóvel/tablet ao alto: as ações numa barra fixa em baixo; a conversa abre-se por cima, como uma gaveta */
+  .fp.ml .ml-aside { display: contents; }
+  .fp.ml .ml-tools { position: fixed; left: 0; right: 0; bottom: 0; z-index: 55; flex-wrap: nowrap; overflow-x: auto; border-radius: 14px 14px 0 0; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); gap: 4px; box-shadow: 0 -8px 24px #0009; }
+  .fp.ml .ml-mode-l, .fp.ml .ml-err { display: none; }
+  .fp.ml .ml-tg { flex: none; flex-basis: auto; flex-wrap: nowrap; gap: 4px; padding-right: 6px; border-right: 1px solid var(--line); }
+  .fp.ml .ml-t { flex-direction: column; gap: 1px; padding: 4px 7px; font-size: 10.5px; min-height: 44px; }
+  .fp.ml .ml-t i { font-size: 17px; }
+  .fp.ml .ml-tok { position: fixed; left: 8px; right: 8px; bottom: 72px; z-index: 56; padding: 8px; border-radius: 12px; background: var(--panel); border: 1px solid var(--gold); }
+  .fp.ml .ml-chat { position: fixed; left: 0; right: 0; bottom: 62px; height: min(62vh, 520px); z-index: 54; border-radius: 14px 14px 0 0; box-shadow: 0 -10px 30px #000b; animation: fp-in .2s ease-out; }
+  .fp.ml { padding-bottom: 70px; }
+}
+/* Mesa livre nas salas: lugares, prontos, contagem, emprestar e escolher deck */
+.ml-h4 { margin: 8px 0 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.ml-grid { max-height: 38vh; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.ml-seats { display: flex; flex-wrap: wrap; gap: 8px; }
+.ml-seat { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px 5px 5px; border-radius: 99px; background: #ffffff0d; border: 1px solid var(--line); animation: fp-in .3s ease-out; }
+.ml-seat i { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 800; color: #111; background: hsl(var(--h, 220) 70% 68%); flex: none; }
+.ml-seat > span { display: grid; line-height: 1.15; } .ml-seat small { color: var(--muted); font-size: 11px; max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-seat.mine { border-color: var(--gold); }
+.ml-seat.ready { border-color: #4ade80; background: #4ade8014; }
+.ml-rd { font-style: normal; font-weight: 800; color: var(--muted); } .ml-seat.ready .ml-rd { color: #4ade80; }
+.ml-seat.empty { opacity: .55; border-style: dashed; animation: none; } .ml-seat.empty i { background: #ffffff18; color: var(--muted); }
+.ml-wait { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 7px 10px; border-radius: 10px; background: #ffffff08; font-size: 13px; }
+.ml-wait.ready { background: #4ade8012; } .ml-wait.go { background: rgba(242, 184, 75, .16); }
+.ml-pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--gold); animation: ml-pulse 1.2s ease-in-out infinite; }
+.ml-wait.ready .ml-pulse { background: #4ade80; }
+@keyframes ml-pulse { 50% { opacity: .25; transform: scale(.7); } }
+@media (prefers-reduced-motion: reduce) { .ml-pulse { animation: none; } }
+.ml-ready { min-height: 40px; font-size: 15px; padding: 0 18px; } .ml-ready.on { border-color: #4ade80; color: #bbf7d0; background: #4ade801c; }
+.ml-lend { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; } .ml-lend > .ml-decks { flex-basis: 100%; }
+.ml-join { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: #ffffff06; border: 1px dashed var(--line); }
+.ml-tabs { flex-wrap: wrap; } .ml-nodeck { margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(242, 184, 75, .12); border: 1px solid var(--gold); font-size: 13px; }
+.ml-paste { display: grid; gap: 6px; } .ml-paste textarea { font: inherit; font-size: 13px; }
+.ml-room-toast { margin: 0; padding: 6px 12px; border-radius: 10px; background: #4ade801f; border: 1px solid #4ade8055; font-size: 13px; animation: fp-in .3s ease-out; }
+.ml-ended.off { background: #ff5c8a; color: #fff; }
+.ml-n { width: 46px; flex: none; padding: 0 2px 0 6px; text-align: center; background: var(--bg2); color: var(--text); border: 1px solid var(--line); }
+.ml-tools .ml-tg:not(.main) .ml-t { font-size: 12px; padding: 4px 8px; min-height: 30px; }
+.ml-dice { display: inline-flex; align-items: center; gap: 2px; } .ml-dice > i { font-style: normal; margin-right: 2px; }
+.ml-dice .ml-t { border-radius: 0; margin-left: -1px; } .ml-dice .ml-t:first-of-type { border-radius: 9px 0 0 9px; } .ml-dice .ml-t:last-of-type { border-radius: 0 9px 9px 0; }
+@media (min-width: 901px) { .ml-aside .fp-zoom { max-height: 24vh; } }
+.ml-remote { display: grid; gap: 8px; } .ml-remote summary { cursor: pointer; } .ml-remote[open] summary { margin-bottom: 4px; }

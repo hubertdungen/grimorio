@@ -2,22 +2,12 @@
 // abre-se um cartãozinho com a regra e «📖 Abrir nas Regras» mostra as Regras numa janela, sem sair de onde estás.
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { KW, normKw } from './keywords.js'
+import { KW, normKw, define } from './keywords.js'
 import { Syms } from './ui.jsx'
 import { tx } from './i18n.js'
 
 const Rules = lazy(() => import('./Rules.jsx'))
 const EN = new Set(KW.source.slice(3, -3).split('|').map(normKw))
-const cache = new Map()
-const define = term => {
-  if (!cache.has(term)) cache.set(term, fetch(`/api/rules?q=${encodeURIComponent(term)}`).then(r => (r.ok ? r.json() : null)).then(d => {
-    const r = d?.results?.find(x => x.kind === 'rule'), g = d?.results?.find(x => x.kind === 'gloss')
-    const sub = r?.rules?.find(([n]) => /[a-z]$/.test(n))  // a primeira alínea (702.19a …) diz o que é
-    return { name: d?.translated || r?.title || g?.term || term, num: r?.num, text: sub?.[1] || g?.text || '' }
-  }).catch(() => null))
-  return cache.get(term)
-}
-
 export default function KwPeek({ data }) {
   const [pt, setPt] = useState(null), [peek, setPeek] = useState(null), [full, setFull] = useState(null)
   const t = useRef(0), inBox = useRef(false)
