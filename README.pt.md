@@ -179,6 +179,18 @@ computadores e servidores de um só dono.
   fama e a galeria de troféus também com páginas. Os jogos contra o Forge contam para os ratings.
 - **Assistente de IA com memória** — cada deck guarda o que pediste, o que a IA disse e o que aplicaste, e a IA recebe
   esse histórico; corta exatamente o excesso acima de 60 (ou 100 em Commander).
+- **Torneio misto** — bots do Forge e pessoas no mesmo quadro: cada deck «joga o dono» ou «joga o bot»; bot contra bot
+  vai ao simulador, pessoa contra bot ao Forge Play (convidados também) e pessoa contra pessoa à mesa livre.
+- **Two-Headed Giant mais fiel às regras** — vida partilhada (30), veneno da equipa a perder aos 15, a equipa que começa
+  não compra no 1.º turno, e na réplica os turnos contam-se por equipa («Turno 9 — C», «Turno 9 — D»).
+- **Cartas do tamanho que quiseres** — em Definições › Mesa, na réplica e no Forge Play: automático ou 48–128 px, com os
+  terrenos ao mesmo tamanho; nada sai do lado do jogador — quando não cabe, empilha (terrenos iguais num monte ×N).
+- **Forge Play mais certeiro** — alvos debaixo da pilha (responder a um counter), «Ativar?» antes de usar uma habilidade,
+  pagar sozinho só quando é óbvio, Cancelar em todo o lado, bloquear a sério, toque e «voltar» do telemóvel dentro da app.
+- **Ciclos infinitos de uma vez** — Heliod + Spike Feeder e afins usam o atalho das regras (vida ∞) e o adversário sem
+  outra via desiste; Blood Moon mostra que os terrenos não básicos são Montanhas; moer com exílio diz de onde vem.
+- **Estrelas brancas por desempenho e galeria de troféus** — até 4★ pelos pontos e 2★ pelo desempenho nos pódios; taças
+  em 3 linhas e a vista do deck com todos os troféus. No Construir, categorias que abrem e fecham e «+ Maybeboard».
 - **Assistente de IA (opcional)** — chaves de vários fornecedores, modelos mais recentes detetados sozinhos; muda o
   deck diretamente (trocas, quantidades, substitutos para qualquer carta) com um clique.
 - **Coliseu (IA do Forge)** — IA contra IA com regras reais (Bo1/Bo3, sideboard inteligente, aprendizagem), todos contra

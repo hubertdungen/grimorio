@@ -186,6 +186,18 @@ en la nube es para ordenadores y servidores de un solo dueño.
   Salón de la fama y la galería de trofeos también paginados. Las partidas contra Forge cuentan para los ratings.
 - **Asistente de IA con memoria**: cada mazo guarda lo que pediste, lo que dijo la IA y lo que aplicaste, y la IA recibe
   ese historial; recorta exactamente el exceso por encima de 60 (o 100 en Commander).
+- **Torneo mixto**: bots de Forge y personas en el mismo cuadro; cada mazo «lo juega su dueño» o «lo juega el bot»;
+  bot contra bot va al simulador, persona contra bot a Forge Play (también invitados) y persona contra persona a la mesa libre.
+- **Two-Headed Giant más fiel a las reglas**: vida compartida (30), veneno del equipo que pierde a los 15, el equipo que
+  empieza no roba en el 1.er turno y la repetición cuenta los turnos por equipo («Turno 9 — C», «Turno 9 — D»).
+- **Cartas del tamaño que quieras**: en Ajustes › Mesa, en la repetición y en Forge Play: automático o 48–128 px, con las
+  tierras del mismo tamaño; nada sale del lado del jugador: si no cabe, se apila (tierras iguales en un montón ×N).
+- **Forge Play más certero**: objetivos bajo la pila (responder a un counter), «¿Activar?» antes de usar una habilidad,
+  pagar solo cuando es obvio, Cancelar en todas partes, bloqueos de verdad, táctil y el «atrás» del móvil dentro de la app.
+- **Bucles infinitos de una vez**: Heliod + Spike Feeder y similares usan el atajo de las reglas (vida ∞) y el rival sin
+  otra vía se rinde; Blood Moon muestra que las tierras no básicas son Montañas; moler con exilio dice de dónde viene.
+- **Estrellas blancas por rendimiento y galería de trofeos**: hasta 4★ por puntos y 2★ por rendimiento en podios; copas en
+  3 líneas y la vista del mazo con todos los trofeos. En Construir, categorías que se abren y cierran y «+ Maybeboard».
 - **Asistente de IA (opcional)**: claves de varios proveedores, modelos más recientes detectados solos; cambia tu mazo
   directamente (cambios, cantidades, sustitutos para cualquier carta) con un clic.
 - **Coliseo (IA de Forge)**: IA contra IA con reglas reales (Bo1/Bo3, sideboard inteligente, aprendizaje), todos

@@ -185,6 +185,21 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
   und Trophäengalerie mit Seiten. Spiele gegen Forge zählen für die Ratings.
 - **KI-Assistent mit Gedächtnis** – jedes Deck speichert, was du gefragt hast, was die KI sagte und was du übernommen
   hast, und die KI bekommt diesen Verlauf; sie kürzt genau den Überschuss über 60 (oder 100 im Commander).
+- **Gemischte Turniere** – Forge-Bots und Menschen im selben Turnierbaum: jedes Deck spielt «der Besitzer» oder «der Bot»;
+  Bot gegen Bot im Simulator, Mensch gegen Bot in Forge Play (auch Gäste), Mensch gegen Mensch am freien Tisch.
+- **Two-Headed Giant näher an den Regeln** – geteiltes Leben (30), Teamgift mit Niederlage bei 15, das beginnende Team
+  zieht im 1. Zug nicht, und Wiederholungen zählen Züge pro Team («Zug 9 — C», «Zug 9 — D»).
+- **Karten in der Größe, die du willst** – unter Einstellungen › Tisch, in Wiederholungen und in Forge Play: automatisch
+  oder 48–128 px, Länder gleich groß; nichts verlässt den Bereich eines Spielers – passt es nicht, wird gestapelt
+  (gleiche Länder auf einem ×N-Stapel).
+- **Treffsichereres Forge Play** – Ziele unter dem Stapel (auf einen Counter antworten), «Aktivieren?» vor einer
+  Fähigkeit, automatisch zahlen nur wenn eindeutig, überall Abbrechen, echtes Blocken, Touch und die Zurück-Taste des
+  Handys bleibt in der App.
+- **Endlosschleifen auf einmal** – Heliod + Spike Feeder und Ähnliches nutzen die Abkürzung der Regeln (∞ Leben), und ein
+  Gegner ohne anderen Weg gibt auf; Blood Moon zeigt nicht-einfache Länder als Gebirge; Mahlen ins Exil sagt, woher die
+  Karte kommt.
+- **Weiße Sterne nach Leistung und Trophäengalerie** – bis 4★ aus Punkten und 2★ aus Podiumsleistung; Pokale in 3 Zeilen
+  und die Deckansicht mit allen Trophäen. Im Bauen einklappbare Kategorien und «+ Maybeboard».
 - **KI-Assistent (optional)** – Schlüssel mehrerer Anbieter, neueste Modelle automatisch erkannt; er ändert dein Deck
   direkt (Tausch, Mengen, Ersatz für jede Karte) mit einem Klick.
 - **Kolosseum (Forge-KI)** – KI gegen KI mit echten Regeln (Bo1/Bo3, cleveres Sideboarding, lernend), Jeder gegen jeden

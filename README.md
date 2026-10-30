@@ -176,6 +176,18 @@ sync is for computers and single-owner servers.
   paged too. Games against Forge count towards ratings.
 - **AI assistant with memory** — each deck keeps what you asked, what the AI said and what you applied, and the AI gets
   that history; it cuts exactly the excess above 60 (or 100 in Commander).
+- **Mixed tournaments** — Forge bots and people in one bracket: each deck is «played by its owner» or «by the bot»;
+  bot vs bot goes to the simulator, person vs bot to Forge Play (guests too), person vs person to the free table.
+- **Two-Headed Giant closer to the rules** — shared life (30), team poison losing at 15, the starting team skips its
+  first draw, and replays count turns per team («Turn 9 — C», «Turn 9 — D»).
+- **Cards at the size you want** — in Settings › Table, in replays and in Forge Play: automatic or 48–128 px, with lands
+  at the same size; nothing leaves a player's area — when it doesn't fit, it stacks (identical lands in one ×N pile).
+- **Sharper Forge Play** — targets under the stack (respond to a counter), «Activate?» before using an ability, auto-pay
+  only when it's obvious, Cancel everywhere, proper blocking, touch, and the phone's back button stays in the app.
+- **Infinite loops at once** — Heliod + Spike Feeder and the like use the rules' shortcut (∞ life) and an opponent with
+  no other way to win concedes; Blood Moon shows nonbasic lands as Mountains; exiling mills say where the card came from.
+- **White stars by performance and a trophy gallery** — up to 4★ from points and 2★ from podium performance; cups in 3
+  lines and a deck view with every trophy. In Build, collapsible categories and «+ Maybeboard».
 - **AI assistant (optional)** — keys for several providers, newest models detected automatically; it changes your deck
   directly (swaps, quantities, substitutes for any card) with one click.
 - **Coliseum (Forge AI)** — AI vs AI with real rules (Bo1/Bo3, smart sideboarding, learning), 3–4 player free-for-all
