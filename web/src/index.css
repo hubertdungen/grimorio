@@ -890,6 +890,7 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .bside.compact .bhud, .bside.compact .bhud.withhand { flex-wrap: wrap; gap: 6px; }
 .bside.compact .bhud > .myhand { order: 5; flex-basis: 100%; max-width: none; }
 .bside.compact .bhud.withhand { min-height: 0 !important; }
+.bside.compact .bhud.withhand > .bname { flex: 1 1 120px; min-width: 120px; }  /* coluna estreita (parceiro, adversários a 4): os montes descem para a linha de baixo em vez de taparem o nome */
 .bside.compact .myhand .hc, .coliseu .bside.compact .myhand.opp .hc { width: calc(var(--ohw, 50px) * .62); margin-left: -12px; }
 .bside.compact .myhand .fan { min-height: 0; }
 .bside.compact .orb { width: 44px; height: 44px; } .bside.compact .orb b { font-size: 16px; }

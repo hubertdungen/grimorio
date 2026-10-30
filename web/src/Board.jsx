@@ -7,7 +7,7 @@ import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
-import { PHASES, replayStates, lookup, isCreature, isLand, powTough, typeOf, markDormant, CT, CT_ICON } from './game.js'
+import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, typeOf, markDormant, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
 const PH_SHORT = { untap: tx('Desvirar'), upkeep: tx('Manut.'), draw: tx('fase§Compra'), main1: tx('Princ. 1'), combat: tx('Combate'), main2: tx('Princ. 2'), end: tx('fase§Final') }
@@ -40,6 +40,7 @@ function describe(ev, who) {
   const P = who[ev.p] || tx('Alguém'), c = short(ev.card), T = who[ev.target] || short(ev.target)
   switch (ev.k) {
     case 'turn': return tx('Turno {t} — {P}', { t: ev.t, P })
+    case 'nodraw': return tx('{P} não compra no 1.º turno (Two-Headed Giant: a equipa que começa)', { P })
     case 'phase': return tx('Fase: {ph}', { ph: PH_LABEL[ev.ph] || ev.ph })
     case 'mulligan': return ev.card === 'kept' ? tx('{P} fica com {n} carta|{P} fica com {n} cartas', { P, n: ev.n }) : tx('{P} faz mulligan para {n}', { P, n: ev.n })
     case 'land': return `${tx('{P} joga o terreno {c}', { P, c })}${ev.tapped ? ` ${tx('(entra virado)')}` : ''}`
@@ -298,7 +299,7 @@ function Row({ perms, data, fx, att, cls, groupable, empty, quiet, who }) {  // 
 }
 
 // ---------- vida (o número conta até ao valor novo; o anel pisca vermelho/verde) ----------
-function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit }) {  // poison: o veneno ao lado da vida (10 = derrota)
+function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10 }) {  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
   const ref = useRef(null), prev = useRef(life)
   useEffect(() => {
     const el = ref.current, from = prev.current
@@ -322,7 +323,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit }) {  // pois
       {d && !fast ? <i key={step} className={`orb-flash ${d < 0 ? 'loss' : 'gain'}`} /> : null}
       {d && !fast ? <i key={`f${step}`} className={`float ${d < 0 ? 'loss' : 'gain'}`}>{d > 0 ? '+' : '−'}{Math.abs(d)}</i> : null}
       {hit && !fast ? <i key={`h${step}`} className="orb-hit" /> : null}
-      {poison > 0 && <i key={psnHit && !fast ? `p${step}` : 'p'} className={`orb-psn ${poison >= 7 ? 'crit' : ''} ${psnHit && !fast ? 'up' : ''}`} title={tx('{n} marcadores de veneno (10 = derrota)', { n: poison })}>☠ {poison}</i>}
+      {poison > 0 && <i key={psnHit && !fast ? `p${step}` : 'p'} className={`orb-psn ${poison >= pmax - 3 ? 'crit' : ''} ${psnHit && !fast ? 'up' : ''}`} title={tx('{n} marcadores de veneno ({m} = derrota)', { n: poison, m: pmax })}>☠ {poison}</i>}
     </div>
   )
 }
@@ -345,7 +346,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg()
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
-      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} />
+      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} />
       <div className="bname">
         <b title={name}>{name}</b>
         <span className="chips">
@@ -354,7 +355,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
           {OWN[own] && <span className={`fmt-tag own own-${own}`} title={OWN[own][2]}>{OWN[own][0]} {OWN[own][1]}</span>}
           {bet && <span className={`chip bet ${bet.st}`} title={bet.title}>🪙 {bet.txt}</span>}
           {s.active === k && !z.out && <span className="turnpill">{tx('a jogar')}</span>}
-          {z.poison > 0 && <span className="chip psn" title={tx('Marcadores de veneno (10 = derrota)')}>☠ {z.poison}</span>}
+          {z.poison > 0 && <span className="chip psn" title={s.giant ? tx('Veneno da equipa ({m} = derrota)', { m: 15 }) : tx('Marcadores de veneno ({m} = derrota)', { m: 10 })}>☠ {z.poison}</span>}
           {z.energy > 0 && <span className="chip" title={tx('Energia')}>ϟ {z.energy}</span>}
           {z.monarch && <span className="chip gold" title={tx('Monarca: compra uma carta extra no fim do turno')}>♛ {tx('monarca')}</span>}
           {z.initiative && <span className="chip gold" title={tx('Iniciativa (Masmorra Subterrânea)')}>⚑ {tx('iniciativa')}</span>}
@@ -559,7 +560,8 @@ function ScoreN({ sc, ended, game, who, fm }) {
 
 export const HANDS = [['ambas', tx('Mãos: ambas visíveis')], ['minha', tx('Mãos: só a minha')], ['nenhuma', tx('Mãos: ambas escondidas')]]
 
-export default function Replay({ data, game, onBack, backLabel = tx('← Relatório'), deckName, pov = 'a', track = false, bets, bots, live = false, next, speed0, onSpeed, hands: hands0, onHands, onPlayFrom, score, arts: arts0, formats, owns }) {  // arts: {a: {nome: link}, b: …} arte própria de cada deck (torneio: game.arts; Laboratório: game.decks); formats: {a: 'Pauper', b: …} (modo casual)
+export default function Replay({ data, game: game0, onBack, backLabel = tx('← Relatório'), deckName, pov = 'a', track = false, bets, bots, live = false, next, speed0, onSpeed, hands: hands0, onHands, onPlayFrom, score, arts: arts0, formats, owns }) {  // arts: {a: {nome: link}, b: …} arte própria de cada deck (torneio: game.arts; Laboratório: game.decks); formats: {a: 'Pauper', b: …} (modo casual)
+  const game = useMemo(() => giantTurns(game0), [game0])
   const art = useMemo(() => ({ arts: arts0 || game.arts || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, artMapOf(d)]))), k: null }), [arts0, game]), arts = art.arts
   const [hands, setHandsS] = useState(hands0 || 'ambas')
   // No Coliseu o tabuleiro escala as cartas (--fit) para caber na altura do ecrã: ao abrir, ao redimensionar e em ecrã inteiro
@@ -639,7 +641,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
   }, [game])
   useLayoutEffect(() => { fitRef.current?.() })
   const setHands = v => { setHandsS(v); onHands?.(v) }
-  const evs = useMemo(() => game.events || [], [game])
+  const evs = useMemo(() => game.events || [], [game])  // game: Two-Headed Giant com os turnos da equipa (giantTurns)
   const [pos, setPos] = useState({ i: 0, jump: true })
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeedS] = useState(speed0 ?? (live ? 3 : 2))
@@ -649,7 +651,8 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
   const [more, setMore] = useState(false)  // telemóvel: velocidade, mãos e turno atrás do ⚙
   const logRef = useRef(null)
   const start = game.startLife || 20
-  const states = useMemo(() => replayStates(evs, data, start, game.setup || null, !!game.exact), [evs, data, start, game.setup, game.exact])
+  const giant = game.mode === '2hg' ? game.teams : null
+  const states = useMemo(() => replayStates(evs, data, start, game.setup || null, !!game.exact, giant), [evs, data, start, game.setup, game.exact, giant])
   const i = Math.min(pos.i, evs.length)
   const go = (n, jump = true) => setPos({ i: Math.max(0, Math.min(evs.length, n)), jump })
   useEffect(() => {
@@ -725,7 +728,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
       <div className="rp-bar">
         {onBack && <button onClick={onBack}>{backLabel}</button>}
         {score?.wins ? <ScoreN sc={score} ended={ended} game={game} who={who} fm={fm} /> : score ? <Score sc={score} ended={ended} winner={game.winner} a={mates.length ? [deckName, ...mates.map(k => who[k])].join(' + ') : deckName} b={mates.length ? tops.map(k => who[k]).join(' + ') : game.opp} fa={!mates.length && fm('a')} fb={!mates.length && fm('b')} />
-          : formats ? <b>{S.map((k, j) => <span key={k}>{j ? (multi ? ' · ' : ' vs ') : ''}{who[k]} {fm(k)}</span>)}</b> : <b>{multi ? S.map(k => who[k]).join(' · ') : `${deckName} vs ${game.opp}`}</b>}
+          : formats ? <b>{S.map((k, j) => <span key={k}>{j ? (multi ? ' · ' : ' vs ') : ''}{who[k]} {fm(k)}</span>)}</b> : <b>{multi ? (game.teams ? [...new Set(S.map(k => game.teams[k]))].map(t => S.filter(k => game.teams[k] === t).map(k => who[k]).join(' + ')).join(' vs ') : S.map(k => who[k]).join(' · ')) : `${deckName} vs ${game.opp}`}</b>}
         {live && <span className="livepill">{tx('● a jogar')}</span>}
         {!score && ended && <span className="muted small">{tx('jogo {g} · {r} no turno {t}', { g: game.g, r: pov !== 'a' ? (lost(game.winner) || game.winner === 'a' ? tx('venceu «{d}»', { d: who[game.winner] }) : tx('empate')) : game.winner === 'a' ? tx('vitória') : lost(game.winner) ? tx('derrota') : tx('empate'), t: game.turns })}</span>}
       </div>
@@ -786,6 +789,7 @@ export default function Replay({ data, game, onBack, backLabel = tx('← Relató
         <ol className="blog" ref={logRef}>
           {evs.slice(Math.max(0, i - 60), i).map((e, k) => {
             const j = Math.max(0, i - 60) + k
+            if (e.tm) return null  // Two-Headed Giant: a mesma vida no parceiro
             return <li key={j} className={`p-${e.p || ''} k-${e.k} ${j === i - 1 ? 'now' : ''}`} title={e.txt} onClick={() => { setPlaying(false); go(j + 1) }}><Named text={describe(e, who)} names={[e.card, S.includes(e.target) ? null : e.target, e.to, ...(e.zn || []).map(z => z.card)]} /></li>
           })}
         </ol>

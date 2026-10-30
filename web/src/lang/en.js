@@ -3531,4 +3531,9 @@ export default {
   "O jogo continua": "The game goes on",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "To leave, use «Stop the game» or concede in the panel.",
   "{c}: da biblioteca para o exílio": "{c}: from library to exile",
+  "{n} marcadores de veneno ({m} = derrota)": "{n} poison counters ({m} = loss)",
+  "Veneno da equipa ({m} = derrota)": "Team poison ({m} = loss)",
+  "Marcadores de veneno ({m} = derrota)": "Poison counters ({m} = loss)",
+  "Tabuleiro a tabuleiro: cada deck joga um contra um com o do outro lado. À mesma mesa: os dois decks de cada equipa jogam juntos contra os dois da outra, num só jogo a quatro — com a vida de cada um, ou em Two-Headed Giant (vida partilhada, 30 por equipa; veneno da equipa, 15 = derrota; a equipa que começa não compra no 1.º turno; a equipa perde junta).": "Board by board: each deck plays one on one against its counterpart. At one table: both decks of each team play together against the other team's two, in a single four-player game — each with their own life, or as Two-Headed Giant (shared life, 30 per team; team poison, 15 = loss; the team that starts skips its first draw; the team loses together).",
+  "{P} não compra no 1.º turno (Two-Headed Giant: a equipa que começa)": "{P} skips the first draw (Two-Headed Giant: the team that starts)",
 }

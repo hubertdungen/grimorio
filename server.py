@@ -118,7 +118,8 @@ def deck_games(con, did, owner, limit=40):
                            (*ids, limit)).fetchall()
         for gid, ts, blob in rows:
             me, life = seat[gid]
-            out.append({"source": "tournament", "ts": ts, "startLife": life, **light_game(json.loads(zlib.decompress(blob)), me)})
+            g = json.loads(zlib.decompress(blob))
+            out.append({"source": "tournament", "ts": ts, "startLife": 30 if g.get("mode") == "2hg" else life, **light_game(g, me)})
     return sorted(out, key=lambda g: -g["ts"])[:limit]
 
 

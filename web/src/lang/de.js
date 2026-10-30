@@ -3523,4 +3523,9 @@ export default {
   "O jogo continua": "Das Spiel läuft weiter",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "Zum Verlassen nutze «Spiel beenden» oder gib im Panel auf.",
   "{c}: da biblioteca para o exílio": "{c}: aus der Bibliothek ins Exil",
+  "{n} marcadores de veneno ({m} = derrota)": "{n} Giftmarken ({m} = Niederlage)",
+  "Veneno da equipa ({m} = derrota)": "Gift des Teams ({m} = Niederlage)",
+  "Marcadores de veneno ({m} = derrota)": "Giftmarken ({m} = Niederlage)",
+  "Tabuleiro a tabuleiro: cada deck joga um contra um com o do outro lado. À mesma mesa: os dois decks de cada equipa jogam juntos contra os dois da outra, num só jogo a quatro — com a vida de cada um, ou em Two-Headed Giant (vida partilhada, 30 por equipa; veneno da equipa, 15 = derrota; a equipa que começa não compra no 1.º turno; a equipa perde junta).": "Brett für Brett: Jedes Deck spielt eins gegen eins gegen sein Gegenüber. Am selben Tisch: Die beiden Decks jedes Teams spielen zusammen gegen die beiden des anderen, in einer einzigen Partie zu viert — jeder mit eigenem Leben oder als Two-Headed Giant (geteiltes Leben, 30 pro Team; Gift des Teams, 15 = Niederlage; das beginnende Team zieht im ersten Zug nicht; das Team verliert gemeinsam).",
+  "{P} não compra no 1.º turno (Two-Headed Giant: a equipa que começa)": "{P} zieht im ersten Zug nicht (Two-Headed Giant: das beginnende Team)",
 }

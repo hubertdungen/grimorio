@@ -770,3 +770,20 @@ import { search as searchCards } from './src/data.js'
   assert.equal(obviousPay('Pay Mana Cost: {W}', me('Plains', 'Savannah'), n => n === 'Savannah' ? { o: '({T}: Add {G} or {W}.)', t: 'Land — Forest Plains' } : D[n]), false, '{W}: Plains ou um terreno duplo')
   console.log('selfcheck pagar sozinho ok')
 }
+{ // Two-Headed Giant: turnos da equipa (os parceiros seguidos contam como um) e veneno partilhado
+  const { giantTurns, replayStates: rs } = await import('./src/game.js')
+  const teams = { a: 1, b: 1, c: 2, d: 2 }
+  const E = [{ t: 1, k: 'turn', p: 'b' }, { t: 1, k: 'draw', p: 'b', id: 5, x: 1 }, { t: 1, k: 'phase', p: 'b', ph: 'main1' }, { t: 1, k: 'zone', p: 'b', id: 5, x: 1, target: 'hand>library' }, { t: 2, k: 'turn', p: 'c' }, { t: 2, k: 'life', p: 'a', n: 28 }, { t: 2, k: 'life', p: 'b', n: 28 },
+    { t: 3, k: 'turn', p: 'd' }, { t: 3, k: 'poison', p: 'd', target: 'a', n: 3 }, { t: 4, k: 'turn', p: 'a' }, { t: 5, k: 'turn', p: 'b' }]
+  const g = giantTurns({ mode: '2hg', teams, turns: 5, events: E })
+  assert.deepEqual(g.events.filter(e => e.k === 'turn').map(e => e.t), [1, 2, 2, 3, 3], 'b | c d | a b')
+  assert.equal(g.turns, 3)
+  assert.deepEqual(g.events.map(e => e.tm || 0), [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0], 'a vida repetida no parceiro e a compra desfeita não vão para o registo')
+  assert.equal(g.events[3].k, 'nodraw', 'a equipa que começa não compra')
+  assert.equal(giantTurns({ mode: 'equipas', teams, events: E }).events, E, 'só no 2HG')
+  const sides = { a: { size: 60 }, b: { size: 60 }, c: { size: 60 }, d: { size: 60 } }
+  const st = rs(g.events, { byName: new Map(), byLower: new Map() }, 30, sides, true, teams).at(-1)
+  assert.deepEqual(['a', 'b', 'c', 'd'].map(k => st[k].poison), [3, 3, 0, 0], 'o veneno é da equipa')
+  assert.deepEqual(['a', 'b', 'c', 'd'].map(k => st[k].life), [28, 28, 30, 30])
+  console.log('selfcheck two-headed giant ok')
+}

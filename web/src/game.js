@@ -387,7 +387,10 @@ export function applyEvent(s0, ev, data) {
       }
       break
     }
-    case 'poison': if (S.includes(ev.target)) { s[ev.target].poison += ev.n || 0; fx.player = { p: ev.target, n: ev.n, psn: true } } break
+    case 'poison': if (S.includes(ev.target)) {  // Two-Headed Giant: o veneno é da equipa (o Forge só o diz de quem levou)
+      for (const k of s.giant ? S.filter(x => s.giant[x] === s.giant[ev.target]) : [ev.target]) s[k].poison += ev.n || 0
+      fx.player = { p: ev.target, n: ev.n, psn: true }
+    } break
     case 'life': if (me && ev.n != null) { const z = s[me]; fx.life = { p: me, d: ev.n - z.life }; if (ev.n < z.life) s.loss = { p: me, n: z.life - ev.n, i: s.i }; z.life = ev.n } break
     case 'destroy': case 'exile': case 'bounce': case 'other': {
       const fz = ev.k === 'other' && /^(.+?) (?:ability )?fizzles/.exec(ev.txt || '')
@@ -506,9 +509,34 @@ export function applyEvent(s0, ev, data) {
   return s
 }
 
+// Two-Headed Giant: o Forge dá um turno a cada jogador e os parceiros jogam seguidos; a réplica conta-os como um turno
+// da equipa (muda quando joga a outra equipa). Devolve o jogo com ev.t e turns renumerados, ou o mesmo jogo se não é 2HG.
+export function giantTurns(game) {
+  if (game?.mode !== '2hg' || !game.teams || !game.events) return game
+  const map = {}
+  let n = 0, team = null
+  for (const e of game.events) if (e.k === 'turn' && map[e.t] == null) {
+    if (game.teams[e.p] !== team) { n++; team = game.teams[e.p] }
+    map[e.t] = n
+  }
+  // a vida passa ao parceiro: o Forge regista as duas linhas seguidas; a segunda (tm) não aparece no registo
+  const E = game.events, echo = (e, q) => e.k === 'life' && q?.k === 'life' && q.p !== e.p && q.n === e.n && game.teams[q.p] === game.teams[e.p]
+  // a equipa que começa não compra: a carta comprada volta ao topo (GrimorioSim Giant) — uma só linha, «não compra»
+  const undone = new Set(), hide = new Set()
+  E.forEach((e, j) => {
+    if (e.k !== 'zone' || e.target !== 'hand>library' || e.t > 2) return
+    const d = E.findLastIndex((q, i) => i < j && q.k === 'draw' && q.id === e.id && q.t === e.t)
+    if (d >= 0) { undone.add(j); hide.add(d) }
+  })
+  return {
+    ...game, turns: game.turns && (map[game.turns] ?? n),
+    events: E.map((e, j) => ({ ...e, ...(map[e.t] && { t: map[e.t] }), ...((echo(e, E[j - 1]) || hide.has(j)) && { tm: 1 }), ...(undone.has(j) && { k: 'nodraw' }) })),
+  }
+}
+
 // todos os estados de um jogo (o índice i é o estado depois de i eventos)
-export function replayStates(events, data, life = 20, setup = null, exact = false) {
-  const out = [{ ...initialState(life, setup), exact }]
+export function replayStates(events, data, life = 20, setup = null, exact = false, giant = null) {
+  const out = [{ ...initialState(life, setup), exact, giant }]
   for (const e of events) out.push(applyEvent(out[out.length - 1], e, data))
   return out
 }

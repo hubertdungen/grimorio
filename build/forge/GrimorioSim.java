@@ -997,19 +997,28 @@ public class GrimorioSim {
     // O Forge 2.0.15 não tem 2HG: com -T há equipas a sério (aliados, atacam só os adversários, ganham juntos), mas cada
     // jogador tem a sua vida e o seu turno. Aqui junta-se o que dá sem mexer no motor: vida partilhada (30 por equipa:
     // cada mudança da vida de um passa ao parceiro, sem gatilhos, e o registo diz a vida nova de ambos), veneno
-    // partilhado e a equipa perde junta (quem fica sem parceiro sai também). Limites honestos: o turno não é partilhado
-    // (o PhaseHandler só tem um jogador ativo; com lugares 1 1 2 2 os parceiros jogam em turnos seguidos, que é o mais
-    // parecido) e o veneno perde aos 10 da equipa, não aos 15 (o Player.checkLoseCondition tem 10 fixo).
+    // partilhado que perde aos 15 da equipa, a equipa que começa não compra no 1.º turno (os dois parceiros, quando
+    // jogam seguidos) e a equipa perde junta (quem fica sem parceiro sai também). Limite: o turno não é partilhado (o
+    // PhaseHandler só tem um jogador ativo; com lugares 1 1 2 2 os parceiros jogam em turnos seguidos, que é o mais
+    // parecido; a réplica junta-os num turno da equipa).
     public static class Giant {
         static final java.lang.reflect.Field LIFE;
         static {
             try { LIFE = Player.class.getDeclaredField("life"); LIFE.setAccessible(true); }
             catch (NoSuchFieldException e) { throw new IllegalStateException(e); }
         }
+        static final int POISON = 15;  // a equipa perde aos 15 (regra 810.10)
         final Game g;
-        Map<Integer, Integer> life, poison;  // o último valor visto por jogador; null até ao 1.º turno (a vida inicial já está posta)
+        // life: a última vida vista por jogador; poison: o veneno da equipa (o verdadeiro); seen: o que o jogador tem de
+        // facto no Forge. O Player.checkLoseCondition perde aos 10 fixos, por isso entre 10 e 14 cada um fica com 9 e
+        // aos 15 passa a 15 (o Forge tira-os do jogo). Cartas que contam veneno (corrupted: 3 ou mais) veem o mesmo.
+        Map<Integer, Integer> life, poison, seen;  // null até ao 1.º turno (a vida inicial já está posta)
+        Set<Integer> skip = new HashSet<>();  // quem salta a compra do 1.º turno (a equipa que começa)
+        List<Card> undraw = new ArrayList<>();  // cartas compradas nesse turno: voltam ao topo no início da fase principal
 
         Giant(Game g) { this.g = g; }
+
+        static int real(int team) { return team >= POISON ? team : Math.min(team, POISON - 6); }
 
         @Subscribe
         public void any(GameEvent e) {
@@ -1017,29 +1026,54 @@ public class GrimorioSim {
                 if (!(e instanceof GameEventTurnBegan)) return;
                 life = new HashMap<>();
                 poison = new HashMap<>();
-                for (Player p : g.getRegisteredPlayers()) { life.put(p.getId(), p.getLife()); poison.put(p.getId(), p.getPoisonCounters()); }
+                seen = new HashMap<>();
+                for (Player p : g.getRegisteredPlayers()) { life.put(p.getId(), p.getLife()); poison.put(p.getId(), p.getPoisonCounters()); seen.put(p.getId(), p.getPoisonCounters()); }
+                Player first = g.getPhaseHandler().getPlayerTurn();
+                if (first != null) for (Player q : first.getTeamMates(true)) skip.add(q.getId());
             }
+            firstDraw(e);
             Set<Integer> done = new HashSet<>();
             for (Player p : g.getRegisteredPlayers()) {
                 if (!done.add(p.getId())) continue;
                 List<Player> team = new ArrayList<>(p.getTeamMates(true));
                 int dl = 0, dp = 0;  // o que mudou na equipa desde a última vez (os dois podem ter mudado de uma vez)
-                for (Player q : team) { done.add(q.getId()); dl += q.getLife() - life.get(q.getId()); dp += q.getPoisonCounters() - poison.get(q.getId()); }
-                int l = life.get(p.getId()) + dl, ps = poison.get(p.getId()) + dp;
+                for (Player q : team) { done.add(q.getId()); dl += q.getLife() - life.get(q.getId()); dp += q.getPoisonCounters() - seen.get(q.getId()); }
+                int l = life.get(p.getId()) + dl, ps = Math.max(0, poison.get(p.getId()) + dp), r = real(ps);
                 for (Player q : team) {
                     if (q.getLife() != l) {
                         int old = q.getLife();
                         try { LIFE.setInt(q, l); } catch (IllegalAccessException x) { throw new IllegalStateException(x); }
                         g.fireEvent(new GameEventPlayerLivesChanged(q, old, l));
                     }
-                    if (q.getPoisonCounters() != ps) q.setPoisonCounters(ps, q);
+                    if (q.getPoisonCounters() != r) q.setPoisonCounters(r, q);
                     life.put(q.getId(), l);
                     poison.put(q.getId(), ps);
+                    seen.put(q.getId(), r);
                 }
             }
             for (Player p : g.getLostPlayers())  // a equipa perde junta
                 for (Player q : p.getTeamMates(false))
                     if (!q.hasLost()) q.loseConditionMet(forge.game.player.GameLossReason.SpellEffect, "Two-Headed Giant");
+        }
+
+        // Regra 103.8c: a equipa que começa salta a compra do seu 1.º turno. O Forge só a salta a 2 jogadores, por isso a
+        // carta comprada na etapa de compra do turno 1 (e do 2, se for do parceiro) volta ao topo da biblioteca quando
+        // começa a fase principal — fora de qualquer movimento a decorrer.
+        void firstDraw(GameEvent e) {
+            PhaseHandler ph = g.getPhaseHandler();
+            Player now = ph.getPlayerTurn();
+            if (now == null || ph.getTurn() > 2) { skip.clear(); return; }
+            if (e instanceof GameEventCardChangeZone z && ph.getPhase() == PhaseType.DRAW && skip.contains(now.getId())
+                    && z.from() != null && z.from().zoneType() == ZoneType.Library && z.to() != null && z.to().zoneType() == ZoneType.Hand) {
+                Card c = g.findByView(z.card());
+                if (c != null && c.getOwner() == now) undraw.add(c);
+            } else if (e instanceof GameEventTurnPhase tp && tp.phase() == PhaseType.MAIN1) {
+                skip.remove(now.getId());
+                for (Card c : undraw) if (c.isInZone(ZoneType.Hand)) g.getAction().moveToLibrary(c, 0, null);
+                undraw.clear();
+            } else if (e instanceof GameEventTurnBegan && ph.getTurn() == 2 && !now.getTeamMates(true).stream().anyMatch(q -> skip.contains(q.getId()))) {
+                skip.clear();  // o turno 2 é da outra equipa: o parceiro de quem começou já não está no 1.º turno da equipa
+            }
         }
     }
 

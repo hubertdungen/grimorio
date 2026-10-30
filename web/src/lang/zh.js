@@ -3523,4 +3523,9 @@ export default {
   "O jogo continua": "对局继续",
   "Para sair, usa «Parar o jogo» ou desiste no painel.": "要离开，请使用「停止对局」或在面板中认输。",
   "{c}: da biblioteca para o exílio": "{c}：从牌库放逐",
+  "{n} marcadores de veneno ({m} = derrota)": "{n} 个中毒指示物（{m} 个落败）",
+  "Veneno da equipa ({m} = derrota)": "队伍中毒指示物（{m} 个落败）",
+  "Marcadores de veneno ({m} = derrota)": "中毒指示物（{m} 个落败）",
+  "Tabuleiro a tabuleiro: cada deck joga um contra um com o do outro lado. À mesma mesa: os dois decks de cada equipa jogam juntos contra os dois da outra, num só jogo a quatro — com a vida de cada um, ou em Two-Headed Giant (vida partilhada, 30 por equipa; veneno da equipa, 15 = derrota; a equipa que começa não compra no 1.º turno; a equipa perde junta).": "逐桌对战：每副套牌与对方对应的套牌一对一。同桌：每队的两副套牌一起对抗另一队的两副，进行一场四人对局——各自计算生命，或采用双头巨人（共享生命，每队 30 点；队伍共享中毒，15 个落败；先手队伍第一回合不抓牌；队伍一起落败）。",
+  "{P} não compra no 1.º turno (Two-Headed Giant: a equipa que começa)": "{P} 第一回合不抓牌（双头巨人：先手队伍）",
 }
