@@ -95,6 +95,20 @@ export const STAGE = { wide: [1280, 820], tall: [760, 1180] }
 // saírem da mesa; mede-se depois de cada mudança, só dentro da mesa de tamanho fixo
 export function useOverlap(tableRef) {
   useLayoutEffect(() => {
+    // tamanho de carta escolhido (Definições › Mesa) maior do que cabe na altura da mesa: as filas de um lado
+    // encavalitavam-se (a dos terrenos por cima das criaturas) — encolhe-se aos poucos (--pk) até cada lado caber
+    const root = tableRef.current
+    if (root?.classList.contains('px')) {
+      const tb = () => root.getBoundingClientRect().bottom
+      const tight = () => [...root.querySelectorAll('.bside')].some(bs => {
+        const ks = [...bs.children].filter(k => k.offsetHeight && !k.classList.contains('bfree')).map(k => k.getBoundingClientRect())
+        return ks.some((q, i) => i && q.top < ks[i - 1].bottom - 4) || bs.getBoundingClientRect().bottom > tb() + 2
+      })
+      let k = +root.style.getPropertyValue('--pk') || 1  // parte do valor atual: cresce um passo de cada vez quando há espaço
+      const set = v => root.style.setProperty('--pk', v.toFixed(2))
+      if (tight()) while (k > 0.45 && tight()) { k -= 0.05; set(k) }
+      else if (k < 1) { set(Math.min(1, k + 0.05)); if (tight()) set(k) }
+    }
     for (const row of tableRef.current?.querySelectorAll('.brow.front, .brow.lands, .brow.others, .fp-hand') || []) {
       const kids = [...row.children].filter(k => k.offsetWidth), n = kids.length
       const cur = parseFloat(row.style.getPropertyValue('--ov')) || 0
@@ -103,7 +117,7 @@ export function useOverlap(tableRef) {
       // as outras permanentes (artefactos, encantamentos, planeswalkers) medem-se pelo conteúdo: o espaço delas é até 60%
       // da faixa de trás (medir a largura delas próprias encolhia-as de vez e o planeswalker ficava tapado pela saga)
       const room = (row.matches('.brow.rear > .brow.others') ? row.parentElement.clientWidth * 0.6 : row.clientWidth) - 4
-      const ov = natural > room ? Math.max(-kids[0].offsetWidth * 0.82, (room - natural) / (n - 1)) : 0
+      const ov = natural > room ? Math.max(8 - kids[0].offsetWidth, (room - natural) / (n - 1)) : 0  // até ficar só uma tira de 8 px: nunca passa da borda
       if (Math.abs(ov - cur) > 0.5) row.style.setProperty('--ov', `${ov}px`)
     }
   })

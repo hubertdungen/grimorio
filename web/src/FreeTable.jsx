@@ -7,7 +7,7 @@ import { img } from './data.js'
 import { Perm, Hud } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
-import { fpPrefs, setFpPrefs } from './fpprefs.js'
+import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
 import { lookup, isCreature, isLand, flipKind, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
@@ -285,7 +285,7 @@ export default function FreeTable({ id, data, onClose }) {
         {v.battlefield.filter(c => !(c.at != null && onField.has(c.at))).map(c => {
           const left = top ? 1 - (c.x ?? 0.5) : c.x ?? 0.5, tp = top ? 1 - (c.y ?? 0.5) : c.y ?? 0.5
           return (
-            <div key={c.id} className={`bfree-c ${kindOf(c)} ${pickAt != null && pickAt !== c.id ? 'ml-pick' : ''}`} style={{ left: `${left * 100}%`, top: `${tp * 100}%` }}>
+            <div key={c.id} className={`bfree-c ${kindOf(c)} ${pickAt != null && pickAt !== c.id ? 'ml-pick' : ''}`} style={{ left: `clamp(calc(var(--w) * .5), ${left * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${tp * 100}%, calc(100% - var(--w) * .7))` }}>
               <Perm p={permOf(c)} data={data} hl={0} pop={pops.get(String(c.id)) || null} att={attOf.get(c.id)} n={0} quiet={false} tgt={c.atk != null ? [keyOf(c.atk), short(who(c.atk))] : null} />
             </div>)
         })}
@@ -341,6 +341,7 @@ export default function FreeTable({ id, data, onClose }) {
   const menuItems = () => {
     if (menu.more) return [
       [P.persp ? tx('▭ Mesa sem perspetiva') : tx('⏢ Lado dos outros em perspetiva'), () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }],
+      ['🂠 ' + tx('Tamanho das cartas: {x} (muda para o seguinte)', { x: P.cardPx ? `${P.cardPx} px` : tx('automático') }), () => { const i = CARD_PX.indexOf(fpPrefs().cardPx); setFpPrefs({ cardPx: CARD_PX[(i + 1) % CARD_PX.length] }); redraw(x => x + 1) }],
       ['❓ ' + tx('Como se joga aqui'), () => setHelp(true)],
       [s.day === 'day' ? '☾ ' + tx('Passar a noite') : '☀ ' + tx('Passar a dia'), () => send({ c: 'day' })],
       ...(s.day ? [['◌ ' + tx('Tirar o dia/noite'), () => send({ c: 'day', v: null })]] : []),
@@ -435,7 +436,7 @@ export default function FreeTable({ id, data, onClose }) {
       onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
         <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: STAGE[stage.shape][0], height: STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
-          <div className="fp-table board table" ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onContextMenu={onCtx} onMouseMove={tilt} onPointerDown={down}>
+          <div className={`fp-table board table ${P.cardPx ? 'px' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onContextMenu={onCtx} onMouseMove={tilt} onPointerDown={down}>
             <div className="ml-opps" style={{ '--np': others.length }}>{others.map(i => side(i, true, others.length > 1))}</div>
             <div className="fp-mid">
               <span className="ml-badge" title={tx('Sem bots e sem regras automáticas: cada um mexe nas suas cartas.')}>🃏 {tx('Mesa livre · sem regras')}</span>

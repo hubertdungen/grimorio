@@ -1,10 +1,10 @@
 // Forge Play nativo: jogas contra a IA do Forge com a mesa do Grimório. O motor corre no servidor (playnet.py +
 // build/forge/GrimorioNet.java) e manda o estado do jogo, o pedido atual (o que o motor espera de ti) e as escolhas
 // pendentes; aqui desenha-se a mesa e cada clique volta como comando (carta, jogador, OK/cancelar, mana, responder).
-import { fpPrefs, setFpPrefs } from './fpprefs.js'
+import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx } from './Board.jsx'
 import { tx } from './i18n.js'
 import { Syms } from './ui.jsx'
 import { obviousPay } from './mana.js'
@@ -666,7 +666,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
       <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: STAGE[stage.shape][0], height: STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
-      <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''}`} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
+      <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
         {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone}
@@ -697,6 +697,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
             <button className="link small" onClick={() => send({ c: 'undo' })}>↶ {tx('desfazer')}</button>
             {(lay.free && Object.keys(lay.free).length > 0) || lay.order ? <button className="link small" onClick={() => setLay(l => ({ hand: l.hand }))} title={tx('As cartas do teu lado voltam às filas automáticas')}>▦ {tx('arrumar')}</button> : null}
             <button className="link small" onClick={persp} title={tx('Lado do adversário em perspetiva (mais espaço para o teu)')}>{P.persp ? '▭' : '⏢'} {tx('perspetiva')}</button>
+            <CardPx className="small" onChange={() => redraw(x => x + 1)} />
             <button className="link small" onClick={() => send({ c: 'concede' })}>🏳 {tx('desistir')}</button>
           </div>
           {err && <p className="small bad-t">{err}</p>}
