@@ -41,7 +41,7 @@ def view(con, r, who, owner=None):
     spec, players = json.loads(spec), json.loads(players)
     lo, hi = span(spec)
     return {"id": rid, "ts": ts, "status": status, "tid": tid, "name": spec.get("name"), "type": spec.get("type"),
-            "format": spec.get("format"), "casual": bool(spec.get("casual")), "bo": spec.get("bo"), "min": lo, "max": hi,
+            "format": spec.get("format"), "casual": bool(spec.get("casual")), "bo": spec.get("bo"), "min": lo, "max": hi, "free": bool(spec.get("free")),
             "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref"), "src": p.get("src"),
                          "host": p.get("by") == "host", "ready": bool(p.get("ready"))} for p in players],
             **({"go": round(max(0.0, spec["go"] - time.time()), 1)} if spec.get("go") else {}),
@@ -113,7 +113,7 @@ def route(con, method, path, owner, body, guest=None):
         if guest:
             return 403, {"erro": "Só quem aloja pode abrir salas."}
         d = body or {}
-        spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold")}
+        spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold", "free")}
         players = [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "name")}, "by": "host"} for p in (d.get("players") or []) if isinstance(p, dict)]
         if spec["type"] == "livre":  # mesa livre: um lugar por pessoa (o anfitrião com um deck seu), qualquer formato
             spec.update(format=None, casual=True, max=max(2, min(4, int(d.get("max") or 4))))
@@ -124,6 +124,8 @@ def route(con, method, path, owner, body, guest=None):
             players[0].update(src="meus", name=dname)
         elif spec["type"] not in tournament.TYPES:
             return 400, {"erro": "Tipo de torneio desconhecido."}
+        elif spec.get("free"):  # torneio de mesa livre: sem bots, qualquer formato (Commander incluído), vários decks por pessoa
+            spec.update(free=True, casual=True)
         elif spec["format"] in sim.GAME_TYPE:  # sem Commander com os bots online: o EDH com amigos é na mesa livre
             return 400, {"erro": "As salas online não têm formatos Commander."}
         rid = secrets.token_hex(5)
@@ -140,16 +142,19 @@ def route(con, method, path, owner, body, guest=None):
     livre = spec["type"] == "livre"
     if act == "join":
         did, src = (body or {}).get("deck"), (body or {}).get("src") or "meus"
-        if livre and src == "meta":  # um deck do meta, emprestado só para a mesa (lê-se dos ficheiros do meta)
+        free = livre or spec.get("free")
+        if free and src == "meta":  # um deck do meta, emprestado só para a mesa (lê-se dos ficheiros do meta)
             name = (sim.opponent(tournament.DATA, str(did)) or {}).get("name")
-        elif livre and src == "lend":  # um deck que quem aloja empresta nesta mesa
+        elif free and src == "lend":  # um deck que quem aloja empresta nesta mesa
             name = did in (spec.get("lend") or []) and deck_ok(con, owner, did, None)
         else:
             src, name = "meus", deck_ok(con, owner, did, guest["id"] if guest else None)
         if not name:
             return 400, {"erro": "Esse deck não é teu ou não existe."}
-        if (guest or livre) and any(p.get("by") == who for p in players):
+        if (guest or livre) and not spec.get("free") and any(p.get("by") == who for p in players):
             return 409, {"erro": "Já tens um deck nesta sala (sai primeiro para trocar)."}
+        if spec.get("free") and guest and sum(1 for p in players if p.get("by") == who) >= 6:
+            return 409, {"erro": "Já tens 6 decks neste torneio."}
         if len(players) >= hi:
             return 409, {"erro": "A sala está cheia."}
         players.append({"src": src, "ref": did, "name": name, "by": who, "byName": guest["name"] if guest else None, "difficulty": "default"})
@@ -181,7 +186,8 @@ def route(con, method, path, owner, body, guest=None):
             except ValueError as e:
                 return 400, {"erro": str(e)}
         try:
-            tid = tournament.create(owner, {**spec, "friends_open": True, "players": [{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me")} for p in players]})
+            tid = tournament.create(owner, {**spec, "friends_open": True, "players": [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "by")},
+                                                                                       **({"src": "meus"} if p.get("src") == "lend" else {})} for p in players]})
         except ValueError as e:
             return 400, {"erro": str(e)}
         con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))

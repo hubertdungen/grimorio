@@ -57,6 +57,9 @@ function line(e, who) {
     case 'concede': return tx('{P} desiste', { P })
     case 'chat': return `${P}: ${e.text}`
     case 'close': return tx('{P} terminou a mesa', { P })
+    case 'propose': return e.p == null ? tx('{P} propõe: empate', { P }) : tx('{P} propõe: ganhou {T}', { P, T })
+    case 'dispute': return tx('{P} não concorda com o resultado', { P })
+    case 'result': return e.p == null ? tx('Resultado: empate') : tx('Resultado: ganhou {T} 🏆', { T })
     case 'newturn': return tx('{P} começa o turno: desvira tudo e compra {n}', { P, n: e.n })
     case 'newgame': return tx('{P} recomeça o jogo com o mesmo deck', { P })
     case 'gf': return tx('Adversário imaginário: vida {v} ({d})', { v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
@@ -90,6 +93,7 @@ function Help({ onClose }) {
 export default function FreeTable({ id, data, onClose }) {
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [menu, setMenu] = useState(null)
   const [help, setHelp] = useState(() => lsGet(HELP_K) !== '1'), [lift, setLift] = useState(null), [ver, setVer] = useState(0)
+  const [seatSel, setSeatSel] = useState(null), seatQ = c => (seatSel != null ? `${c}seat=${seatSel}` : '')  // quem tem os dois decks de uma partida escolhe o lugar
   const [off, setOff] = useState(false)  // a ligação à mesa caiu (a espera longa falhou): volta a tentar sozinha
   const [chatOpen, setChatOpen] = useState(false), [seen, setSeen] = useState(0), [cardPop, setCardPop] = useState(null), [tokOpen, setTokOpen] = useState(false)
   const [phone, setPhone] = useState(() => matchMedia('(max-width: 900px)').matches)
@@ -100,15 +104,15 @@ export default function FreeTable({ id, data, onClose }) {
     ;(async () => {
       while (live) {
         try {
-          const r = await j(`/api/freetables/${id}?since=${since}`)
+          const r = await j(`/api/freetables/${id}?since=${since}${seatQ('&')}`)
           if (!live) return
           since = r.seq; setS(x => (!x || r.seq >= x.seq ? r : x)); setErr(''); setOff(false)
         } catch (e) { if (!live) return; setErr(e.message); setOff(true); if (/não existe/.test(e.message)) return; await new Promise(ok => setTimeout(ok, 2000)) }
       }
     })()
     return () => { live = false }
-  }, [id])
-  const send = c => j(`/api/freetables/${id}`, c).then(r => { setS(x => (!x || r.seq >= x.seq ? r : x)); return r }).catch(e => { setErr(e.message); setTimeout(() => setErr(''), 4000) })
+  }, [id, seatSel]) // eslint-disable-line react-hooks/exhaustive-deps
+  const send = c => j(`/api/freetables/${id}${seatQ('?')}`, c).then(r => { setS(x => (!x || r.seq >= x.seq ? r : x)); return r }).catch(e => { setErr(e.message); setTimeout(() => setErr(''), 4000) })
   const me = s?.me ?? 0, seats = s?.seats || [], n = seats.length
   const keyOf = i => KEYS[(i - me + n) % n]
   const who = i => (i == null ? tx('A mesa') : seats[i]?.name || '?')
@@ -131,7 +135,7 @@ export default function FreeTable({ id, data, onClose }) {
   }, [lives]) // eslint-disable-line react-hooks/exhaustive-deps
   // dados: o servidor sorteia; cada ecrã lança os dados 3D que assentam nesses valores
   // agarrar um dado e largá-lo pede ao servidor um lançamento com esse gesto; todos veem o mesmo, cada um do seu lado
-  const throwDice = (types, thr) => j(`/api/freetables/${id}`, { c: 'dice', types, thr }).then(r => setS(x => (!x || r.seq >= x.seq ? r : x)))
+  const throwDice = (types, thr) => j(`/api/freetables/${id}${seatQ('?')}`, { c: 'dice', types, thr }).then(r => setS(x => (!x || r.seq >= x.seq ? r : x)))
   const diceBox = useRef(null), dice = useTableDice(diceBox, { box: [11, 10], rot: (s?.me || 0) ? Math.PI : 0, keep: 30000, onThrow: throwDice }), rollSeen = useRef(null)
   useEffect(() => {
     const r = s?.roll
@@ -285,6 +289,7 @@ export default function FreeTable({ id, data, onClose }) {
       [P.persp ? tx('▭ Mesa sem perspetiva') : tx('⏢ Lado dos outros em perspetiva'), () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }],
       ['❓ ' + tx('Como se joga aqui'), () => setHelp(true)],
       ...(s.solo && !ended ? [['⟲ ' + tx('Novo jogo com o mesmo deck'), async () => { if (await ask('mesalivre-novo', { title: tx('Recomeçar com o mesmo deck?'), body: tx('Todas as cartas voltam à biblioteca, baralhas e compras 7; a vida e o turno recomeçam.'), ok: tx('Recomeçar'), danger: false })) send({ c: 'newgame' }) }]] : []),
+      ...(!s.solo && !ended ? [['🏆 ' + tx('Ganhei este jogo'), () => send({ c: 'result', w: me })], ...others.map(i => ['🏆 ' + tx('Ganhou {p}', { p: who(i) }), () => send({ c: 'result', w: i })]), ['🤝 ' + tx('Empate'), () => send({ c: 'result', w: null })]] : []),
       ...(!s.solo && !mine?.out && !ended ? [['🏳 ' + tx('Desistir'), async () => { if (await ask('mesalivre-desistir', { title: tx('Desistir deste jogo?'), ok: tx('Desistir') })) send({ c: 'concede' }) }]] : []),
       ...(s.host && !ended ? [['■ ' + tx('Terminar a mesa'), async () => { if (await ask('mesalivre-terminar', { title: s.solo ? tx('Terminar esta mesa?') : tx('Terminar a mesa para todos?'), body: tx('A mesa fica só para ver; ninguém pode jogar mais nela.'), ok: tx('Terminar') })) send({ c: 'close' }) }]] : []),
       ...(onClose ? [['← ' + tx('Sair da mesa'), onClose]] : []),
@@ -344,6 +349,7 @@ export default function FreeTable({ id, data, onClose }) {
       <div className="ml-tg">
         {T('✏️', tx('Caneta'), () => pen.setOn(v => !v), { on: pen.on, cls: pen.on ? 'on' : '', dis: false, title: tx('Desenhar na mesa (P): os outros veem o risco, que se apaga sozinho') })}
         {pen.on && <span className="ml-cols" role="radiogroup" aria-label={tx('Cor da caneta')}>{PEN_COLS.map(c => <button key={c} role="radio" aria-checked={pen.col === c} className={pen.col === c ? 'on' : ''} style={{ '--c': c }} onClick={() => pen.setCol(c)} aria-label={c} />)}</span>}
+        {s.mine?.length > 1 && T('⇄', tx('Trocar de lugar'), () => setSeatSel(s.mine[(s.mine.indexOf(s.me) + 1) % s.mine.length]), { title: tx('Os dois decks são teus: joga agora o outro lado') })}
         {phone && T('💬', tx('Conversa'), () => setChatOpen(v => !v), { on: chatOpen, cls: chatOpen ? 'on' : '', dis: false, badge: !chatOpen && unread })}
         {T('⋯', tx('Mais'), e => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ more: true, x: r.left, y: r.top - 8 }) }, { dis: false })}
       </div>
@@ -354,7 +360,7 @@ export default function FreeTable({ id, data, onClose }) {
   const zoneCards = zone ? seats[zone.seat]?.[zone.which] || [] : []
   const top = mine?.top
   return (
-    <div className={`fp ml ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${phone && chatOpen ? 'chat-open' : ''}`} ref={fitBox} onMouseLeave={() => peek.hide()} onMouseOver={onOver}
+    <div className={`fp ml ${dice.res ? 'dice-on' : ''} ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${phone && chatOpen ? 'chat-open' : ''}`} ref={fitBox} onMouseLeave={() => peek.hide()} onMouseOver={onOver}
       onPointerDown={e => { downAt.current = { x: e.clientX, y: e.clientY }; peek.hide() }}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && (pen.down(e) || dice.grab(e))) e.stopPropagation() }}
       onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
@@ -386,7 +392,7 @@ export default function FreeTable({ id, data, onClose }) {
         <div className={`ml-menu ${menu.life != null ? 'life' : ''}`} style={menuStyle(menu)} onClick={e => e.stopPropagation()} role="menu">
           {menuItems().map(([l, f], k) => (f ? <button key={k} role="menuitem" onClick={() => { setMenu(null); f() }} disabled={ended && !menu.more}>{l}</button> : <b key={k}>{l}</b>))}
         </div></div>}
-      {zone && <div className="fp-modal" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
+      {zone && <div className="fp-modal zone" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
         <p><b>{zone.which === 'graveyard' ? tx('Cemitério de {n}', { n: who(zone.seat) }) : tx('Exílio de {n}', { n: who(zone.seat) })}</b> · {zoneCards.length} <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
         <p className="small muted">{tx('Toca numa carta para a mudares de sítio.')}</p>
         <div className="fp-opts">{zoneCards.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} data={data} big onClick={() => openMenu(c.id, downAt.current.x, downAt.current.y)} />)}</div></div></div>}
@@ -399,7 +405,10 @@ export default function FreeTable({ id, data, onClose }) {
         <div className="row-btns"><button className="primary" onClick={() => send({ c: 'peek', n: 0 })}>{tx('Feito (as que sobram ficam no topo)')}</button></div></div></div>}
       {help && <Help onClose={() => { setHelp(false); lsSet(HELP_K, '1') }} />}
       {cardPop && lookup(data, cardPop) && <div className="fp-modal" onClick={() => setCardPop(null)}><img className="ml-pop" src={img(lookup(data, cardPop), 'normal')} alt={cardPop} /></div>}
-      {ended && <p className="ml-ended">{tx('Esta mesa terminou.')}</p>}
+      {s.result ? <p className="ml-ended win">{s.result.w == null ? tx('🤝 Empate') : tx('🏆 Ganhou {p}', { p: who(s.result.w) })}{onClose && <button className="small" onClick={onClose}>{tx('sair da mesa')}</button>}</p>
+        : ended && <p className="ml-ended">{tx('Esta mesa terminou.')}</p>}
+      {s.res && !ended && <p className="ml-ended res" role="status">{s.res.w == null ? tx('Proposta: empate') : tx('Proposta: ganhou {p}', { p: who(s.res.w) })}
+        <button className="small primary" onClick={() => send({ c: 'agree' })}>{tx('Confirmar')}</button><button className="small" onClick={() => send({ c: 'dispute' })}>{tx('Não concordo')}</button></p>}
       {off && !ended && <p className="ml-ended off" role="status">⟳ {tx('A voltar a ligar à mesa…')}</p>}
     </div>
   )

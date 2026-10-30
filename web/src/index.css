@@ -2860,3 +2860,8 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .ml-dice .ml-t { border-radius: 0; margin-left: -1px; } .ml-dice .ml-t:first-of-type { border-radius: 9px 0 0 9px; } .ml-dice .ml-t:last-of-type { border-radius: 0 9px 9px 0; }
 @media (min-width: 901px) { .ml-aside .fp-zoom { max-height: 24vh; } }
 .ml-remote { display: grid; gap: 8px; } .ml-remote summary { cursor: pointer; } .ml-remote[open] summary { margin-bottom: 4px; }
+/* dados na mesa (Forge Play e mesa livre): com dados à vista, um dedo na mesa agarra-os em vez de rolar a página */
+.fp.dice-on .fp-stagebox { touch-action: none; }
+.ml-ended.win { background: #4ade80; display: flex; gap: 10px; align-items: center; } .ml-ended.res { top: 52px; background: var(--panel); color: var(--text); border: 1px solid var(--gold); display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.ml-fm { display: grid; gap: 10px; } .ml-fm-m { display: grid; gap: 6px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); } .ml-fm-m.mine { border-color: var(--gold); }
+.ml-fm-res { display: inline-flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-left: auto; }

@@ -34,6 +34,7 @@ rating casual, casual=True, e também os torneios sem decks meta: só azul e ver
 """
 import itertools, json, math, os, random, re, sqlite3, sys, threading, time, uuid, zlib
 from collections import Counter
+import freetable
 import limited
 import playnet
 import sim
@@ -750,7 +751,10 @@ def create(owner, d):
                             "colors": "".join(c for c in str(x.get("colors") or "") if c in "WUBRG")[:5],
                             **({"com": True} if src == "meus" and deck.get("community") and not deck.get("friend") else {}),  # da comunidade (não é meu)
                             **({"fr": str(deck.get("friendName") or "?")[:40]} if src == "meus" and deck.get("friend") else {}),  # de um amigo convidado
-                            **({"me": True} if x.get("me") and src == "meus" and not any(p.get("me") for p in players) else {})})
+                            **({"me": True} if x.get("me") and src == "meus" and not any(p.get("me") for p in players) else {}),
+                            # torneio de mesa livre: de quem é o deck (quem o joga à mesa): o anfitrião ou um amigo
+                            **({"by": x["by"] if re.fullmatch(r"host|guest:[a-f0-9]{12}", str(x.get("by") or "")) else
+                                f"guest:{deck['friend']}" if src == "meus" and deck.get("friend") else "host"} if d.get("free") else {})})
             decks.append({k: deck.get(k) or ({} if k in ("main", "side") else []) for k in ("commanders", "main", "side")} |
                          ({"signature": deck["signature"]} if deck.get("signature") else {}) |
                          ({"art": deck["art"]} if isinstance(deck.get("art"), dict) and deck["art"] else {}) |  # artes próprias para o tabuleiro
@@ -793,11 +797,13 @@ def create(owner, d):
         if table:
             st["table"] = table
         st.update(format=fmt, players=players, decks=decks, **({"casual": True} if casual else {}), **({"me": me} if me is not None else {}))
-        if d.get("play_me") and me is not None and not cmd and t not in ("mesas", "equipas"):
+        if d.get("free"):  # mesa livre: sem bots; cada partida joga-se numa mesa livre entre os donos dos decks
+            st.update(free=True, friends=True, start_at=0)
+        elif d.get("play_me") and me is not None and not cmd and t not in ("mesas", "equipas"):
             st["play_me"] = True  # os meus jogos jogo-os eu no Forge Play; os outros são bot contra bot
         st["ranked"] = ranked_rule(st)
         # começo: START_WAIT s para apostar (ou, com hold, só quando o dono carregar em «Começar»)
-        st.update(start_at=time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
+        st.update(start_at=0 if st.get("free") else time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
         if cross:
             st["cross"] = True
         if d.get("friends_open"):
@@ -948,7 +954,7 @@ def route(method, path, owner, body=None, bettor=None):
         if not row:
             return 404, {"erro": "Esse torneio não existe."}
         if method == "GET" and len(parts) == 1:
-            return 200, public(row)
+            return 200, {**public(row), "you": "host" if bettor == owner else bettor}
         if method == "GET" and len(parts) == 3 and parts[1] == "games" and parts[2].isdigit():
             r = con.execute("SELECT game FROM tournament_games WHERE id=? AND tid=?", (int(parts[2]), tid)).fetchone()
             if not r:
@@ -963,6 +969,36 @@ def route(method, path, owner, body=None, bettor=None):
             arts = lambda i: {**sim.art_map(ds[i]), **(mine.get(P[i].get("ref"), {}) if i < len(P) and P[i].get("src") == "meus" else {})}  # noqa: E731
             g["arts"] = {"abcd"[k]: m for k, i in enumerate(g.get("seats") or []) if k < 4 and isinstance(i, int) and i < len(ds) and (m := arts(i))}
             return 200, g
+        if method == "POST" and len(parts) == 2 and parts[1] in ("ready", "open", "result"):  # torneio de mesa livre
+            who = "host" if bettor == owner else bettor
+            with LOCK:
+                st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
+                m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
+                if not st.get("free") or not m or m["st"] != "ready" or row[5] != "running" or not started(st):
+                    return 409, {"erro": "Essa partida não está à espera de jogadores."}
+                owners = {st["players"][i].get("by") or "host" for i in m["p"]}
+                if parts[1] == "ready":  # «Pronto»: com todos os donos dos decks prontos, a mesa abre
+                    if who not in owners:
+                        return 403, {"erro": "Não jogas esta partida."}
+                    rdy, on = set(m.get("rdy") or []), (body or {}).get("on")
+                    on = who not in rdy if on is None else bool(on)
+                    rdy = rdy | {who} if on else rdy - {who}
+                    m["rdy"] = sorted(rdy)
+                    if not m.get("table") and owners <= rdy:
+                        open_table(con, owner, st, m, row[2])
+                elif who != "host":
+                    return 403, {"erro": "Só quem aloja pode fazer isto."}
+                elif parts[1] == "open" and not m.get("table"):  # quem aloja abre já a mesa
+                    open_table(con, owner, st, m, row[2])
+                elif parts[1] == "result":  # quem aloja marca o resultado do jogo (índice do jogador no torneio, None = empate)
+                    w = (body or {}).get("w")
+                    if w is not None and w not in m["p"]:
+                        return 400, {"erro": "Esse deck não joga esta partida."}
+                    m.setdefault("seats", list(m["p"]))
+                    table_game(con, tid, st, m, None if w is None else m["seats"].index(w), owner, "Marcado por quem aloja")
+                    resolve(st)
+                save(con, tid, st)
+                return 200, {"match": m, "you": who}
         if method == "POST" and len(parts) == 2 and parts[1] == "play":  # o meu jogo seguinte no Forge Play {mid}
             with LOCK:
                 st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
@@ -1270,8 +1306,31 @@ def next_match(st):
 
 
 def mine_to_play(st, m):
-    """Partida minha num torneio em que jogo eu (Forge Play): não vai para o simulador, espera por mim."""
-    return bool(st.get("play_me")) and st.get("me") in m["p"]
+    """Partida minha num torneio em que jogo eu (Forge Play), ou qualquer uma num torneio de mesa livre: não vai para o
+    simulador, espera pelos jogadores."""
+    return bool(st.get("free")) or (bool(st.get("play_me")) and st.get("me") in m["p"])
+
+
+def open_table(con, owner, st, m, name=""):
+    """Torneio de mesa livre: a mesa desta partida (ou do jogo seguinte de uma série), com os decks dela."""
+    seats = [{"by": st["players"][i].get("by") or "host", "name": (st["players"][i].get("fr") or owner)[:40],
+              "deck": {**st["decks"][i], "name": st["players"][i]["name"], "format": st["players"][i].get("format")}} for i in m["p"]]
+    m["table"] = freetable.create(con, owner, f"{name} · {m['id']}"[:80], seats)
+    m["seats"] = list(m["p"])
+    m.pop("rdy", None)
+
+
+def table_game(con, tid, st, m, w, owner, reason="Mesa livre"):
+    """Um jogo de uma partida do torneio de mesa livre acabou (w = índice do lugar que ganhou, None = empate)."""
+    g = {"winner": sim.SIDES[w] if w is not None else "draw", "turns": None, "reason": reason, "events": [], "human": True}
+    gid = con.execute("INSERT INTO tournament_games (tid, ts, game) VALUES (?,?,?)", (tid, time.time(), zlib.compress(
+        json.dumps({**g, "match": m["id"], "seats": m["seats"]}, ensure_ascii=False).encode(), 6))).lastrowid
+    record(st, m, g, gid)  # sem ratings: jogos entre amigos à mesa livre não medem os decks
+    m.pop("table", None)
+    if m["st"] != "done":  # série (melhor de 3…): a mesa do jogo seguinte abre logo
+        open_table(con, owner, st, m)
+    else:
+        m.pop("seats", None)
 
 
 def step():
@@ -1284,6 +1343,17 @@ def step():
         rows = con.execute("SELECT id, status, state, owner FROM tournaments WHERE status IN ('running', 'paused') ORDER BY ts").fetchall()
         tours = [(tid, status, json.loads(s), owner) for tid, status, s, owner in rows]
         for tid, status, st, owner in tours:
+            for m in [m for m in st["matches"] if m.get("table") and m["st"] == "ready"]:  # torneio de mesa livre
+                r = freetable.result(m["table"], db)
+                if r and not r["ended"]:
+                    continue
+                if r:
+                    table_game(con, tid, st, m, r["w"], owner)
+                else:  # a mesa perdeu-se: a partida volta a esperar pelos jogadores
+                    m.pop("table"); m.pop("seats", None)
+                resolve(st)
+                save(con, tid, st)
+                return
             for m in [m for m in st["matches"] if m.get("play")]:  # os meus jogos no Forge Play
                 r = playnet.result(m["play"])
                 if r and not r["ended"]:

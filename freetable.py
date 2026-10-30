@@ -118,8 +118,26 @@ def _load(db, tid):
         return T.setdefault(tid, json.loads(r[0]))
 
 
-def _seat(t, who):
-    return next((i for i, s in enumerate(t["seats"]) if s["by"] == who), None)
+def _seat(t, who, want=None):
+    """O lugar de `who` (o pedido com `want`, se também for dele: quem tem os dois decks de uma partida joga os dois)."""
+    mine = [i for i, s in enumerate(t["seats"]) if s["by"] == who]
+    return want if want in mine else (mine[0] if mine else None)
+
+
+def _decide(t, w, me=None):
+    """Resultado final (w = lugar que ganhou, None = empate): a mesa acaba (os torneios leem-no com result())."""
+    t["result"] = {"w": w}
+    t.pop("res", None)
+    t["status"] = "ended"
+    _log(t, me, "result", p=w)
+
+
+def result(tid, db=None):
+    """Para os torneios: None se a mesa não existe; senão {ended, w (lugar que ganhou, None = empate), turns}."""
+    t = T.get(tid) or (db and _load(db, tid))
+    if not t:
+        return None
+    return {"ended": "result" in t, "w": (t.get("result") or {}).get("w"), "turns": t["turn"]}
 
 
 def _public(c):
@@ -160,7 +178,8 @@ def view(t, me):
             v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]
         seats.append(v)
     return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
-            "me": me, "host": t["seats"][me]["by"] == "host", "solo": bool(t.get("solo")), "gf": t.get("gf"), "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
+            "me": me, "host": t["seats"][me]["by"] == "host", "mine": [i for i, s in enumerate(t["seats"]) if s["by"] == t["seats"][me]["by"]],
+            "res": t.get("res"), "result": t.get("result"), "solo": bool(t.get("solo")), "gf": t.get("gf"), "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
             "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE]}
 
 
@@ -395,6 +414,33 @@ def apply(t, me, d):
     elif c0 == "concede":
         seat["out"] = True
         _log(t, me, "concede")
+        left = [i for i, s2 in enumerate(t["seats"]) if not s2["out"]]
+        if len(t["seats"]) > 1 and len(left) == 1:  # desistir = perder: sobra um, ganhou
+            _decide(t, left[0])
+    elif c0 in ("result", "agree", "dispute"):  # resultado combinado entre os jogadores (ou marcado por quem aloja)
+        if len(t["seats"]) < 2:
+            raise ValueError("A solo não há resultado.")
+        if c0 == "dispute":
+            t.pop("res", None)
+            _log(t, me, "dispute")
+        elif c0 == "result":
+            w = d.get("w")
+            if w is not None and w not in range(len(t["seats"])):
+                raise ValueError("Quem ganhou?")
+            people = {s2["by"] for s2 in t["seats"]}
+            if seat["by"] == "host" or len(people) == 1:  # quem aloja decide; quem joga os dois lados também
+                _decide(t, w, me)
+            else:
+                t["res"] = {"w": w, "ok": [seat["by"]]}
+                _log(t, me, "propose", p=w)
+        else:
+            r = t.get("res")
+            if not r:
+                raise ValueError("Não há resultado para confirmar.")
+            if seat["by"] not in r["ok"]:
+                r["ok"].append(seat["by"])
+            if {s2["by"] for s2 in t["seats"]} <= set(r["ok"]):
+                _decide(t, r["w"], me)
     elif c0 == "react":
         e = d.get("e")
         ent = next((x for x in t["log"] if x.get("id") == d.get("i")), None)
@@ -431,7 +477,7 @@ def apply(t, me, d):
         raise ValueError("Comando desconhecido.")
 
 
-def route(db, method, path, owner, body, who, since=0):
+def route(db, method, path, owner, body, who, since=0, seat=None):
     """GET /api/freetables/<id>?since=N (espera até 25 s por novidades) | POST /api/freetables/<id> {c, …}.
     `who` = 'host' (o dono) ou 'guest:<id>'; só quem está sentado à mesa a vê."""
     m = PATH.match(path)
@@ -440,7 +486,7 @@ def route(db, method, path, owner, body, who, since=0):
     t = _load(db, m.group(1))
     if not t or t["owner"] != owner or _seat(t, who) is None:
         return 404, {"erro": "Esta mesa não existe ou não estás sentado nela."}
-    me = _seat(t, who)
+    me = _seat(t, who, seat)
     if method == "GET":
         end = time.time() + 25
         with COND:
@@ -583,6 +629,20 @@ def selfcheck():
         raise AssertionError("recomeçar só a solo")
     except ValueError:
         pass
+    # resultado: o convidado propõe, o anfitrião confirma (ou decide); desistir = perder
+    with db() as con:
+        rid = create(con, "hubert", "R", [{"by": "host", "name": "H", "deck": deck("A")}, {"by": "guest:rui", "name": "Rui", "deck": deck("B")}])
+    rt = T[rid]
+    apply(rt, 1, {"c": "result", "w": 1})
+    assert rt["res"] == {"w": 1, "ok": ["guest:rui"]} and "result" not in rt and result(rid)["ended"] is False
+    apply(rt, 0, {"c": "agree"})
+    assert rt["result"] == {"w": 1} and result(rid) == {"ended": True, "w": 1, "turns": 1}
+    with db() as con:
+        rid = create(con, "hubert", "R2", [{"by": "host", "name": "H", "deck": deck("A")}, {"by": "host", "name": "H", "deck": deck("B")}])
+    rt = T[rid]  # os dois lados do mesmo jogador: escolhe o lugar e desistir do outro dá a vitória
+    assert route(db, "GET", f"/api/freetables/{rid}", "hubert", None, "host", 0, 1)[1]["me"] == 1
+    route(db, "POST", f"/api/freetables/{rid}", "hubert", {"c": "concede"}, "host", 0, 1)
+    assert result(rid)["w"] == 0
     call("POST", "host", {"c": "pass"})
     assert t["active"] == 1 and t["turn"] == 2
     assert call("POST", "host", {"c": "rm -rf"})[0] == 400 and call("POST", "guest:rui", {"c": "close"})[0] == 403

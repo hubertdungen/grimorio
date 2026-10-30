@@ -1,6 +1,6 @@
 // Mesa livre no separador Online: criar a sala (ou jogar a solo), quem está sentado e se está pronto, e com que deck te
 // sentas — os teus, um que quem aloja empresta, um do meta ou uma lista colada/um link (fica guardado como deck teu).
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FORMAT } from './formats.js'
 import { img, coverOf, colorsOf } from './data.js'
 import { parseList } from './deck.js'
@@ -177,5 +177,49 @@ export function RemoteJoin({ data }) {
       {err && <p className="small bad-t">{err}</p>}
       <div className="row-btns"><button className="primary" onClick={go} disabled={!ok || busy}>{busy ? tx('A entrar…') : `🚪 ${tx('Entrar na sala')}`}</button></div>
     </details>
+  )
+}
+
+// ---------- torneio de mesa livre: as partidas à espera, quem está pronto, a mesa e o resultado ----------
+export function FreeMatches({ t, openTable, nameOf, onChange }) {
+  const [busy, setBusy] = useState(''), [err, setErr] = useState(''), seen = useRef({})
+  const host = t.you === 'host', P = t.players || []
+  const owner = i => P[i]?.by || 'host', who = i => (owner(i) === 'host' ? tx('Anfitrião') : P[i]?.fr || tx('Amigo'))
+  const ms = (t.matches || []).filter(m => m.st === 'ready' && m.p.length >= 2)
+  useEffect(() => {  // a mesa da minha partida abriu e eu estava pronto: vai lá
+    for (const m of ms) {
+      if (m.table && !seen.current[m.table] && m.p.some(i => owner(i) === t.you) && (m.rdy || []).includes(t.you) && seen.current[m.id] !== undefined) openTable(m.table)
+      seen.current[m.id] = m.table || null
+      if (m.table) seen.current[m.table] = true
+    }
+  })
+  const act = async (m, a, body = {}) => {
+    setBusy(`${m.id}:${a}`); setErr('')
+    try { const r = await post(`/api/tournaments/${t.id}/${a}`, { mid: m.id, ...body }); onChange?.(); if (a === 'open' && r.match?.table) openTable(r.match.table) } catch (e) { setErr(e.message) } finally { setBusy('') }
+  }
+  if (t.status !== 'running') return null
+  return (
+    <section className="card ml-fm">
+      <h3>🃏 {tx('Partidas à mesa livre')} <span className="muted small">{tx('Cada partida joga-se numa mesa livre entre os donos dos decks. Quando os dois carregam em «Pronto», a mesa abre. Desistir = perder; o resultado também se pode combinar na mesa ou ser marcado por quem aloja.')}</span></h3>
+      {err && <p className="small bad-t">{err}</p>}
+      {!ms.length && <p className="muted small">{tx('Nenhuma partida à espera agora.')}</p>}
+      {ms.map(m => {
+        const mine = m.p.some(i => owner(i) === t.you), owners = [...new Set(m.p.map(owner))], ready = m.rdy || [], meReady = ready.includes(t.you)
+        return (
+          <div key={m.id} className={`ml-fm-m ${mine ? 'mine' : ''}`}>
+            <div className="ml-fm-p">{m.p.map((i, k) => <span key={i}>{k > 0 && <b className="muted"> vs </b>}<b>{nameOf(i)}</b> <small className="muted">({who(i)})</small></span>)}
+              <small className="muted"> · {t.bo > 1 ? tx('jogo {g} · melhor de {bo} ({a}–{b})', { g: m.g.length + 1, bo: t.bo, a: m.w?.[0] ?? 0, b: m.w?.[1] ?? 0 }) : tx('jogo único')}</small></div>
+            <div className="ml-seats">{owners.map(o => <span key={o} className={`ml-seat ${ready.includes(o) ? 'ready' : ''}`}><span><b>{o === 'host' ? tx('Anfitrião') : P.find(p => p.by === o)?.fr || tx('Amigo')}</b></span><em className="ml-rd">{ready.includes(o) || m.table ? '✓' : '…'}</em></span>)}</div>
+            <div className="row-btns">
+              {m.table ? (mine || host) && <button className="primary" onClick={() => openTable(m.table)}>🃏 {tx('Ir para a mesa')}</button>
+                : mine && <button className={meReady ? 'on ml-ready' : 'primary ml-ready'} disabled={!!busy} onClick={() => act(m, 'ready', { on: !meReady })}>{meReady ? tx('✓ Pronto (à espera do outro)') : tx('✋ Estou pronto')}</button>}
+              {host && !m.table && <button className="small" disabled={!!busy} onClick={() => act(m, 'open')}>{tx('Abrir a mesa já')}</button>}
+              {host && <span className="ml-fm-res"><small className="muted">{tx('Marcar o jogo:')}</small>{m.p.map(i => <button key={i} className="small" disabled={!!busy} onClick={() => act(m, 'result', { w: i })}>🏆 {nameOf(i)}</button>)}<button className="small" disabled={!!busy} onClick={() => act(m, 'result', { w: null })}>{tx('empate')}</button></span>}
+            </div>
+            {mine && owners.length === 1 && !m.table && <p className="small muted">{tx('Os dois decks são teus: abre a mesa e joga os dois lados (troca de lugar na mesa), ou marca o resultado.')}</p>}
+          </div>
+        )
+      })}
+    </section>
   )
 }

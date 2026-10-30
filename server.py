@@ -336,10 +336,11 @@ class H(BaseHTTPRequestHandler):
     def freetable_route(self, method, p, owner, who):
         try:
             body = self.body(200_000) if method == "POST" else None
-            since = int(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("since", ["0"])[0])
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            since, seat = int(q.get("since", ["0"])[0]), (int(q["seat"][0]) if q.get("seat") else None)
         except ValueError:
             return self.json({"erro": "pedido inválido"}, 400)
-        return self.json(*reversed(freetable.route(db, method, p, owner, body, who, since)))
+        return self.json(*reversed(freetable.route(db, method, p, owner, body, who, since, seat)))
 
     def do_GET(self):
         return self._route("GET", self._get)
@@ -1247,6 +1248,31 @@ def selfcheck():
             assert [s["deck"] for s in tv["seats"]] == ["H0", "H1", "Meta X"] and tv["me"] == 1 and all("n" not in c for c in tv["seats"][0]["hand"])
         finally:
             sim.opponent = real
+        # torneio de mesa livre: o anfitrião e o amigo entram com decks seus; cada partida abre uma mesa quando os dois estão prontos
+        st, tr, _ = call("POST", "/api/rooms", {"name": "Torneio livre", "type": "jogo", "free": True, "bo": 3, "players": [{"src": "meus", "ref": hs[0]}]})
+        assert st == 201, tr
+        TR = f"/api/rooms/{tr['id']}"
+        assert call("POST", TR + "/join", {"deck": dk["id"]}, G)[0] == 200 and next(r for r in call("GET", "/api/rooms", cookie=G)[1] if r["id"] == tr["id"])["free"]
+        st, ts, _ = call("POST", TR + "/start")
+        assert st == 200 and ts["tid"], ts
+        TT = f"/api/tournaments/{ts['tid']}"
+        tv = call("GET", TT, cookie=G)[1]
+        assert tv["free"] and tv["you"].startswith("guest:") and [p["by"] for p in tv["players"]].count("host") == 1, tv["players"]
+        mid = tv["matches"][0]["id"]
+        assert call("POST", TT + "/ready", {"mid": mid}, Z)[0] == 403  # quem não joga a partida
+        assert call("POST", TT + "/open", {"mid": mid}, G)[0] == 403  # só quem aloja abre à força
+        call("POST", TT + "/ready", {"mid": mid}, G)
+        st, rr, _ = call("POST", TT + "/ready", {"mid": mid})
+        assert st == 200 and rr["match"]["table"], rr
+        tb2 = f"/api/freetables/{rr['match']['table']}"
+        gs = call("GET", tb2, cookie=G)[1]["me"]
+        call("POST", tb2, {"c": "concede"}, G)  # o amigo desiste do 1.º jogo
+        tournament.step()
+        m = next(x for x in call("GET", TT)[1]["matches"] if x["id"] == mid)
+        assert len(m["g"]) == 1 and m["table"] and m["table"] != rr["match"]["table"] and m["st"] == "ready", m  # melhor de 3: abre o 2.º
+        st, rr, _ = call("POST", TT + "/result", {"mid": mid, "w": m["p"][1 - gs]})  # quem aloja marca o 2.º: o anfitrião ganha a série
+        assert st == 200 and rr["match"]["st"] == "done", rr
+        assert call("GET", TT)[1]["status"] in ("running", "done")
         # a solo: só o dono abre; um convidado não chega lá
         assert call("POST", "/api/freetables", {"deck": dk["id"]}, G)[0] == 403
         st, so, _ = call("POST", "/api/freetables", {"deck": hs[2]})

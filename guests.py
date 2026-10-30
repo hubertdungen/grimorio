@@ -353,7 +353,7 @@ def handle(h, method, g, db, tournament):
         with db() as con:
             ok = visible(con, g, mt.group(1))
         sub = (mt.group(2) or "").strip("/")
-        if not ok or not (method == "GET" or (method == "POST" and sub == "bets")):
+        if not ok or not (method == "GET" or (method == "POST" and sub in ("bets", "ready"))):  # ready: torneio de mesa livre (a rota vê se joga a partida)
             return deny()
         return h.json(*reversed(tournament.route(method, h.path, g["owner"], h.body() if method == "POST" else None, bettor=bettor)))
     if method in ("GET", "HEAD") and (p.startswith(PASS_GET) or not p.startswith(("/api/", "/play", "/convite"))):
