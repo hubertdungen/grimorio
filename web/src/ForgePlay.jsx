@@ -23,7 +23,7 @@ const PHASES = [  // as fases do Forge agrupadas como na mesa: a pastilha acende
   ['m2', tx('Principal 2'), ['MAIN2']],
   ['fim', tx('Fim'), ['END_OF_TURN', 'CLEANUP']],
 ]
-const BTN = { OK: tx('OK'), Cancel: tx('Cancelar'), 'End Turn': tx('Acabar o turno'), Keep: tx('Ficar com a mão'), Mulligan: 'Mulligan', Play: tx('Jogar primeiro'), Draw: tx('Comprar (ir em segundo)'), Auto: tx('Pagar sozinho'), Yes: tx('Sim'), No: tx('Não'), 'Alpha Strike': tx('Atacar com tudo'), 'Call Back': tx('Retirar atacantes') }
+const BTN = { OK: tx('OK'), Cancel: tx('Cancelar'), 'End Turn': tx('Acabar o turno'), Keep: tx('Ficar com a mão'), Mulligan: 'Mulligan', Play: tx('Jogar primeiro'), Draw: tx('Comprar (ir em segundo)'), Auto: tx('Pagar sozinho'), Yes: tx('Sim'), No: tx('Não'), 'Alpha Strike': tx('Atacar com tudo'), 'Call Back': tx('Retirar atacantes'), Library: tx('Biblioteca (topo)'), Graveyard: tx('Cemitério'), Top: tx('Topo da biblioteca'), Bottom: tx('Fundo da biblioteca') }
 const MANA = { W: '#f3ecd0', U: '#4a90d9', B: '#6d5b70', R: '#e0553b', G: '#3fa560', C: '#b7b2a8' }
 
 // o texto do Forge (inglês) passa a uma frase curta do Grimório; o que não se reconhece fica como vem
@@ -36,6 +36,9 @@ function promptText(msg, st, me) {
     return mine && main ? tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou duplo clique), ou OK para avançar.') : tx('Tens prioridade: OK para passar.')
   }
   if (/^Waiting for/.test(m)) return tx('O adversário está a pensar…')
+  const sv = m.match(/Put (.+?) on the top of library or graveyard/i), sc = m.match(/Put (.+?) on (?:the )?top or bottom of (?:your )?library/i)
+  if (sv) return tx('Vigiar: {c} fica no topo da biblioteca ou vai para o cemitério?', { c: sv[1] })
+  if (sc) return tx('Vidência: {c} fica no topo ou vai para o fundo da biblioteca?', { c: sc[1] })
   if (/won the coin toss/.test(m)) return tx('Ganhaste a moeda ao ar: jogas primeiro ou vais em segundo?')
   if (/keep your hand/.test(m)) return /going first/.test(m) ? tx('Começas tu. Ficas com esta mão?') : tx('Começa o adversário. Ficas com esta mão?')
   // descartar (mão cheia, Faithless Looting…): quantas já escolheste — as escolhidas sobem com moldura dourada
@@ -189,6 +192,8 @@ function GridAsk({ a, data, answer, zoom }) {
     </div>)
 }
 
+// habilidade a usar (getAbilityToPlay): «Shattered Landscape - Play land» -> «Jogar como terreno»; o resto sem o nome da carta
+const abilityLabel = (l, name) => { const s = String(l || ''), p = `${name} - `, t = s.startsWith(p) ? s.slice(p.length) : s; return /^Play land$/i.test(t) ? tx('Jogar como terreno') : t.replace(/^Cycling\b/, tx('Ciclar')) }
 // escolhas que bloqueiam o motor: sim/não, uma opção, um número ou texto, ou escolher entre cartas/jogadores
 function Ask({ a, st, data, answer, zoom }) {
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
@@ -206,7 +211,7 @@ function Ask({ a, st, data, answer, zoom }) {
       </div>)
   }
   if (a.kind === 'confirm' || a.kind === 'option') return (
-    <div className="fp-ask"><p>{a.msg || a.title}</p>{a.card != null && <div className="fp-opts"><FCard c={all.find(c => c.id === a.card) || { id: a.card, name: '' }} data={data} big /></div>}
+    <div className="fp-ask"><p>{a.msg || a.title}</p>{a.card != null && <div className="fp-opts fp-reveal-c"><FCard c={all.find(c => c.id === a.card) || { id: a.card, name: a.cardName || '' }} data={data} big /></div>}
       <div className="row-btns">{(a.options || []).map((o, k) => <button key={k} className={k ? '' : 'primary'} onClick={() => answer(a, [k])}>{BTN[o] || o}</button>)}</div></div>)
   if (a.kind === 'input') return (
     <div className="fp-ask"><p>{a.msg || a.title}</p>
@@ -219,14 +224,16 @@ function Ask({ a, st, data, answer, zoom }) {
     if (a.options.length >= 7) return <GridAsk a={a} data={data} answer={answer} zoom={zoom} />
   }
   const min = a.min ?? 1, max = a.max ?? 1, one = max === 1
+  const head = a.card != null && (all.find(c => c.id === a.card) || (a.cardName && { id: a.card, name: a.cardName }))  // jogar o terreno ou ciclar: a carta em grande
   const toggle = k => (one ? answer(a, [k]) : setPick(p => (p.includes(k) ? p.filter(x => x !== k) : p.length < max ? [...p, k] : p)))
   return (
-    <div className="fp-ask"><p>{a.msg} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
+    <div className="fp-ask"><p>{a.ability ? tx('Como queres usar {c}?', { c: a.msg }) : a.msg} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
+      {head && <div className="fp-opts fp-reveal-c"><FCard c={head} data={data} big /></div>}
       <div className="fp-opts">{(a.options || []).map((o, k) => { const c = cardOf(o); return c
         ? <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => toggle(k)} onZoom={zoom} /></div>
-        : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={o.label} /></button> })}</div>
+        : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={a.ability ? abilityLabel(o.label, a.msg) : o.label} /></button> })}</div>
       <div className="row-btns">{!one && <button className="primary" disabled={pick.length < min} onClick={() => answer(a, pick)}>{tx('Confirmar ({n})', { n: pick.length })}</button>}
-        {min === 0 && <button onClick={() => answer(a, [])}>{tx('Nenhum')}</button>}</div>
+        {min === 0 && <button onClick={() => answer(a, [])}>{a.ability ? tx('Cancelar') : tx('Nenhum')}</button>}</div>
     </div>
   )
 }
@@ -360,6 +367,26 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     const q = (b || last || row).getBoundingClientRect(), xx = b ? q.left - 5 * sc : last ? q.right + 5 * sc : q.left + 8 * sc
     Object.assign(n.style, { left: `${(xx - sr.left) / sc - 3}px`, top: `${(q.top - sr.top) / sc}px`, width: '6px', height: `${Math.max(40, q.height / sc)}px` })
   }
+  // porque é que esta carta da mão não dá para jogar agora (o Forge só diz que não está na lista do que se pode jogar):
+  // pela fase, de quem é o turno, a pilha, os terrenos por virar e o tipo da carta; o que não se percebe fica dito como talvez
+  const whyNot = id => {
+    const c = byId.get(id), d = c && (data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase())), t = d?.t || '', o = d?.o || ''
+    const title = tx('Agora não dá para jogar {c}', { c: c?.name || tx('esta carta') }), say = msg => ({ title, msg })
+    if (s.asks?.length) return say(tx('Primeiro responde à escolha que está aberta.'))
+    const myTurn = st.active === me?.id, main = st.phase === 'MAIN1' || st.phase === 'MAIN2', empty = !st.stack?.length
+    if (!/^Priority:/.test(pr?.msg || '')) return say(/^Waiting/.test(pr?.msg || '') ? tx('O adversário está a jogar: espera pela tua prioridade.') : tx('O Forge está à espera de outra coisa: vê o pedido ao lado.'))
+    if (c?.land || /\bLand\b/.test(t)) {
+      if (!myTurn) return say(tx('Os terrenos só se jogam no teu turno.'))
+      if (!main || !empty) return say(tx('Os terrenos só se jogam na tua fase principal, com a pilha vazia.'))
+      return say(tx('Já jogaste um terreno neste turno.'))
+    }
+    const fast = /\bInstant\b/.test(t) || /^Flash\b/im.test(o)
+    if (!fast && (!myTurn || !main || !empty)) return say(tx('Não é instantâneo: só na tua fase principal, com a pilha vazia.'))
+    const lands = (me?.battlefield || []).filter(x => x.land && !x.tapped).length, pool = Object.values(me?.mana || {}).reduce((a, n) => a + n, 0)
+    if (d?.cmc != null && lands + pool < d.cmc) return say(tx('Falta mana: custa {n} e tens {m} por usar (terrenos por virar e reserva).', { n: d.cmc, m: lands + pool }))
+    if (/\btarget\b/i.test(o)) return say(tx('Talvez não haja um alvo válido para ela agora (ou falte a cor certa de mana).'))
+    return say(tx('O Forge não a deixa jogar agora: falta a cor certa de mana ou uma condição da carta.'))
+  }
   const drop = ({ id, from, target, x, y }) => {
     if (!target?.closest('.fp-table')) return false
     const hand = target.closest('.fp-hand')
@@ -369,7 +396,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     }
     const perm = target.closest('.pc[data-z^="k:"]'), pid = perm && +perm.dataset.z.slice(2), mine = st.active === me?.id
     if (from === 'hand') {  // da mão para a mesa: jogar — só se o Forge diz que dá (mana e altura certas)
-      if (!byId.get(id)?.play) { setToast({ title: tx('Agora não dá para jogar esta carta'), msg: tx('Falta mana, não é a altura (feitiço fora da tua fase principal) ou já jogaste um terreno neste turno.') }); return false }
+      if (!byId.get(id)?.play) { setToast(whyNot(id)); return false }
       // largada em cima de uma permanente (aura, remoção, reforço…): esse é o alvo — a mesa responde ao Forge por ti
       const land = byId.get(id)?.land
       if (pid != null && !land) { aim(pid, perm) }
@@ -492,7 +519,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   const att = new Map()
   for (const p of [...bs.a.perms, ...bs.b.perms]) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
   const sel = new Set([...byId.values()].filter(c => c.sel).map(c => String(c.id)))
-  const picked = [...byId.values()].filter(c => c.picked).map(c => c.id)  // já escolhidas nesta escolha do Forge (sacrificar 2…): moldura dourada
+  const picked = [...byId.values()].filter(c => c.picked).map(c => c.id)
+  // o Forge mostra uma carta que não está à vista na mesa (vigiar/vidência de 1, do topo da biblioteca) e pede um de dois
+  // botões: a carta vem em grande, ao centro, com as duas escolhas por extenso
+  const reveal = !ask && pr?.cardName && pr.card != null && !byId.has(pr.card) && btns.filter(b => b.on).length === 2 ? pr : null  // já escolhidas nesta escolha do Forge (sacrificar 2…): moldura dourada
   const fx = { hl: sel, par: 'sel', pops: fxs.pops, life: lifeFx, player: psnFx && { p: psnFx.p, psn: true } }
   const openZone = (k, z) => setZone({ p: k === 'a' ? me : opp, k: z })
   const onClick = e => {  // um clique numa carta da mesa ou da mão = o mesmo que no Forge; no orbe = escolher o jogador
@@ -512,7 +542,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     const h = e.target.closest('[data-h]')
     if (!h || dragged.current) return
     const id = +h.dataset.h
-    if (!byId.get(id)?.play) { setToast({ title: tx('Agora não dá para jogar esta carta'), msg: tx('Falta mana, não é a altura (feitiço fora da tua fase principal) ou já jogaste um terreno neste turno.') }); return }
+    if (!byId.get(id)?.play) { setToast(whyNot(id)); return }
     setLift(null); castNow(id); send({ c: 'card', id })
     if (lay.free?.[id]) setLay(l => { const f = { ...l.free }; delete f[id]; return { ...l, free: f } })  // sem sítio escolhido: vai para a fila
   }
@@ -572,7 +602,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
         </div>
       </aside>
       {ask && <div className="fp-modal"><Ask key={ask.id} a={ask} st={st} data={data} answer={answer} zoom={setZoom} /></div>}
-      {zone && <div className="fp-modal" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
+      {reveal && <div className="fp-modal"><div className="fp-ask fp-reveal" key={`${reveal.card}`}>
+        <p>{btns.some(b => b.label === 'Graveyard') ? tx('Vigiar: {c} fica no topo da biblioteca ou vai para o cemitério?', { c: reveal.cardName })
+          : btns.some(b => b.label === 'Bottom') ? tx('Vidência: {c} fica no topo ou vai para o fundo da biblioteca?', { c: reveal.cardName }) : <Syms text={reveal.msg} />}</p>
+        <div className="fp-opts fp-reveal-c"><FCard c={{ id: reveal.card, name: reveal.cardName }} data={data} big /></div>
+        <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })}>{BTN[b.label] || b.label} <kbd>{k ? 'Esc' : '⏎'}</kbd></button>)}</div>
+      </div></div>}
+      {zone && <div className="fp-modal zone" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
         <p><b>{zone.k === 'graveyard' ? tx('Cemitério de {n}', { n: zone.p.name }) : tx('Exílio de {n}', { n: zone.p.name })}</b> <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
         <div className="fp-opts">{(players.find(p => p.id === zone.p.id)?.[zone.k] || []).map(c => <FCard key={c.id} c={c} data={data} big onClick={x => { send({ c: 'card', id: x.id }); setZone(null) }} />)}</div></div></div>}
       {toast && <div className={`fp-toast ${toast.out ? 'out' : ''}`} onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} <Syms text={toast.msg} />{toast.list && <ul>{toast.list.map((l, k) => <li key={k}><Syms text={l} /></li>)}</ul>}</div>}

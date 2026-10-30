@@ -2374,7 +2374,7 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 @media (max-width: 700px) { .pv-vs { grid-template-columns: 1fr; text-align: center; } .pv-side, .pv-side.opp { flex-direction: column; text-align: center; } .pv-x { justify-self: center; } }
 .fp-hand .fp-card.play { box-shadow: 0 0 0 2px #4ade80, 0 0 14px #4ade8099; }  /* o Forge diz que dá para jogar agora */
 .fp-opt { position: relative; } .fp-ord { position: absolute; top: 6px; left: 6px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--gold); color: #111; font-size: 14px; box-shadow: 0 2px 6px #000a; }
-.fp-prompt kbd { font: 600 10px/1 system-ui, sans-serif; padding: 2px 4px; margin-left: 4px; border-radius: 4px; border: 1px solid #ffffff40; opacity: .75; }
+.fp-prompt kbd, .fp-reveal kbd { font: 600 10px/1 system-ui, sans-serif; padding: 2px 4px; margin-left: 4px; border-radius: 4px; border: 1px solid #ffffff40; opacity: .75; }
 .dgrid > .dg-basics { grid-column: 1 / -1; align-self: start; }  /* a barra dos básicos na grelha do deck: uma linha inteira */
 .pi-who { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 8px 0; }
 @media (prefers-reduced-motion: reduce) { .fp .pc-rot, .fp .pc .pc-f, .fp-card { animation: none !important; transition: none !important; } }
@@ -2733,3 +2733,28 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .fp-mid .stk-cap { position: absolute; left: calc(100% + 30px); top: 50%; transform: translateY(-50%); animation-name: capInY; z-index: 8; }
 .fp-stage.tall .fp-mid .stk-cap { left: calc(100% + 20px); max-width: 250px; }
 .ml .fp-hand .fp-card.ml-rev .fp-cin { box-shadow: 0 0 0 2px var(--gold), 0 0 12px #f2b84b88; }  /* mesa livre: carta mostrada (o botão já não tem sombra na mão) */
+/* carta que o Forge mostra para decidir (vigiar/vidência de 1, jogar o terreno ou ciclar): entra a crescer e a virar-se */
+.fp-reveal { justify-items: center; text-align: center; }
+.fp-reveal-c { justify-content: center; } .fp-reveal-c .fp-card { --cw: clamp(170px, 26vh, 250px); animation: fp-reveal .55s cubic-bezier(.2, 1.25, .4, 1) both; box-shadow: 0 18px 50px #000d; }
+@keyframes fp-reveal { from { opacity: 0; transform: perspective(700px) translateY(30px) rotateY(70deg) scale(.45); } }
+@media (prefers-reduced-motion: reduce) { .fp-reveal-c .fp-card { animation: none; } }
+/* ver o cemitério/exílio: o fundo escurece, mas a carta em grande ao lado fica por cima, viva (o rato nas cartas mostra-a
+   lá) e a janela encosta-se à esquerda dela */
+.fp:has(> .fp-modal.zone) .fp-zoom { position: relative; z-index: 61; box-shadow: 0 0 0 1px #ffffff22, 0 18px 50px #000c; }
+@media (min-width: 901px) { .fp-modal.zone { padding-right: calc(clamp(220px, 21vw, 310px) + 26px); } }
+/* botões do painel da mesa (Forge Play e mesa livre): pílulas com ícone, em vez de links sublinhados; os dados ganham um
+   ar de ficha. Só no painel (.fp-side): o resto da app continua igual */
+.fp-side .fp-dicebar { gap: 6px; padding: 6px 8px; border-radius: 12px; background: #ffffff08; border: 1px solid #ffffff12; }
+.fp-side .fp-dicebar > span:first-child { font-size: 16px; margin-right: 2px; }
+.fp-side .fp-dicebar button.link, .fp-side .row-btns.small button.link {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 30px; padding: 4px 11px; border-radius: 99px; text-decoration: none;
+  font-size: 13px; font-weight: 600; color: var(--text); background: #ffffff0d; border: 1px solid #ffffff22;
+  transition: background .15s, border-color .15s, transform .12s, box-shadow .15s; }
+.fp-side .fp-dicebar button.link { min-width: 40px; justify-content: center; font-variant-numeric: tabular-nums; color: #f3e6c4;
+  background: linear-gradient(180deg, #3a3150, #241d36); border-color: #f2b84b55; }
+.fp-side .fp-dicebar button.link:hover:not(:disabled), .fp-side .row-btns.small button.link:hover:not(:disabled) { background: #ffffff1c; border-color: var(--gold); transform: translateY(-1px); box-shadow: 0 4px 12px #0007; }
+.fp-side .fp-dicebar button.link:active:not(:disabled), .fp-side .row-btns.small button.link:active:not(:disabled) { transform: translateY(1px) scale(.97); box-shadow: none; }
+.fp-side .fp-dicebar button.link:focus-visible, .fp-side .row-btns.small button.link:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.fp-side .row-btns.small { gap: 6px; flex-wrap: wrap; }
+.fp-side .fp-dres { min-height: 30px; padding: 4px 12px; }
+@media (prefers-reduced-motion: reduce) { .fp-side .fp-dicebar button.link, .fp-side .row-btns.small button.link { transition: none; transform: none !important; } }
