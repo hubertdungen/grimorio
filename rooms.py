@@ -47,7 +47,7 @@ def view(con, r, who, owner=None):
                          "host": p.get("by") == "host", "ready": bool(p.get("ready")),
                          **({"plays": p.get("plays") or "bot", "difficulty": p.get("difficulty") or "default"} if spec.get("misto") else {})} for p in players],
             **({"go": round(max(0.0, spec["go"] - time.time()), 1)} if spec.get("go") else {}),
-            **({"lend": lent(con, owner, spec)} if spec.get("type") == "livre" and owner and status == "open" else {}),
+            **({"lend": lent(con, owner, spec)} if (spec.get("type") == "livre" or spec.get("free") or spec.get("misto")) and owner and status == "open" else {}),
             **({"link": f"/sala/{spec['link']}"} if who == "host" and spec.get("link") else {})}
 
 
@@ -117,6 +117,8 @@ def route(con, method, path, owner, body, guest=None):
         d = body or {}
         spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold", "free", "misto", "wait")}
         players = [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "name", "plays")}, "by": "host"} for p in (d.get("players") or []) if isinstance(p, dict)]
+        for p in players:  # sem nome (pedido pela API): o do deck guardado
+            p["name"] = p["name"] or (p["src"] == "meus" and deck_ok(con, owner, p["ref"], None)) or None
         if spec["type"] == "livre":  # mesa livre: um lugar por pessoa (o anfitrião com um deck seu), qualquer formato
             spec.update(format=None, casual=True, max=max(2, min(4, int(d.get("max") or 4))))
             players = players[:1]
@@ -181,7 +183,7 @@ def route(con, method, path, owner, body, guest=None):
             return 409, {"erro": "Senta-te primeiro com um deck."}
         on = (body or {}).get("on")
         p["ready"] = (not p.get("ready")) if on is None else bool(on)
-    elif act == "lend" and livre and not guest:  # emprestar (ou deixar de emprestar) um deck meu a quem se sentar
+    elif act == "lend" and (livre or spec.get("free") or spec.get("misto")) and not guest:  # emprestar (ou deixar de emprestar) um deck meu a quem se sentar
         did = (body or {}).get("deck")
         if not deck_ok(con, owner, did, None):
             return 400, {"erro": "Esse deck não é teu ou não existe."}

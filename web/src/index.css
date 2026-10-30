@@ -2919,6 +2919,7 @@ body:has(.fp.ml) .live-bar, body:has(.fp.ml) .live-bar-pad { display: none; }  /
 .how-chip { font-size: 11px; padding: 0 7px; border-radius: 99px; background: #ffffff12; white-space: nowrap; }
 .how-chip.how-play { background: #a78bfa26; color: #ddd6fe; } .how-chip.how-mesa { background: #4ade8022; color: #bbf7d0; }
 .ml-fm-p .how-chip { margin-right: 6px; } .ml-fm-st { margin: 0; }
-.plays-tg { flex-wrap: wrap; } .plays-tg button { padding: 2px 8px; font-size: 12px; }
-.room-pl li .plays-tg button { padding: 1px 7px; font-size: 11px; } .room-pl li select.small { font-size: 11px; padding: 1px 4px; }
+.plays-btn { padding: 2px 9px; font-size: 12px; border-radius: 99px; white-space: nowrap; } .plays-btn i { font-style: normal; opacity: .55; }
+.plays-btn.dono { background: #a78bfa2e; border-color: #a78bfa88; color: #ede9fe; } .plays-btn.bot { background: #ffffff0d; }
+.room-pl li .plays-btn { padding: 1px 8px; font-size: 11px; } .room-pl li select.small { font-size: 11px; padding: 1px 4px; }
 .tc-wait select { margin-left: 4px; }

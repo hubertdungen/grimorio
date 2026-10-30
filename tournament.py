@@ -843,7 +843,8 @@ def public(row):
     st = json.loads(state)
     st.pop("decks", None)
     for m in st["matches"] if st.get("misto") or st.get("free") or st.get("play_me") else ():
-        m["how"] = how(st, m)  # 🤖 Forge · 🎮 Forge Play · 🃏 mesa livre
+        if -1 not in m["p"]:  # (com um lugar por decidir ainda não se sabe)
+            m["how"] = how(st, m)  # 🤖 Forge · 🎮 Forge Play · 🃏 mesa livre
     lives = []  # todas as partidas no Forge (com vários jogos ao mesmo tempo há mais do que uma); `live` = a 1.ª
     for m in (m for m in st["matches"] if m.get("job")):
         s = sim.status(m["job"]) or {"status": "queued"}

@@ -200,12 +200,10 @@ function NewRoom({ data, fmt, deckId, onRoom, openTable }) {
 }
 
 // torneio misto: quem joga este deck — o dono (uma pessoa: Forge Play contra bots, mesa livre contra pessoas) ou o bot
-function PlaysToggle({ plays, onChange, disabled }) {
+function PlaysToggle({ plays, onChange, disabled }) {  // um botão: carregar troca entre o dono e o bot
   const me = plays === 'dono'
-  return <span className="seg small plays-tg" role="group" aria-label={tx('Quem joga este deck')}>
-    <button type="button" className={me ? 'on' : ''} aria-pressed={me} disabled={disabled} onClick={() => onChange('dono')} title={tx('Joga o dono: contra um bot no Forge Play, contra outra pessoa numa mesa livre')}>🧑 {tx('joga o dono')}</button>
-    <button type="button" className={me ? '' : 'on'} aria-pressed={!me} disabled={disabled} onClick={() => onChange('bot')} title={tx('Joga o bot do Forge, com a dificuldade escolhida')}>🤖 {tx('joga o bot')}</button>
-  </span>
+  return <button type="button" className={`plays-btn ${me ? 'dono' : 'bot'}`} aria-pressed={me} aria-label={tx('Quem joga este deck')} disabled={disabled} onClick={() => onChange(me ? 'bot' : 'dono')}
+    title={me ? tx('Joga o dono: contra um bot no Forge Play, contra outra pessoa numa mesa livre') : tx('Joga o bot do Forge, com a dificuldade escolhida')}>{me ? `🧑 ${tx('joga o dono')}` : `🤖 ${tx('joga o bot')}`} <i>⇄</i></button>
 }
 
 // mesa livre: nome, quantos lugares e o teu deck (qualquer formato; Commander com zona de comando e 40 de vida)
@@ -1068,12 +1066,12 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
           <h3>🏆 {t.name}</h3>
           <span className={`tl-status ${t.status}`}>{STATUS[t.status] || t.status}</span>
           <span className="muted small">{!t.casual && (t.ranked !== false ? <span className="rk rk-ok sm" title={tx('Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).')}>🏅 {tx('Ranked')}</span> : <span className="rk rk-warn sm" title={tx('Menos de 20% de decks do meta: conta só para as estrelas azuis e vermelhas e os troféus saem azuis.')}>{tx('não ranked')}</span>)} <TypeIco k={t.type} /> {TYPES[t.type]?.[0]} · {t.casual ? tx('casual, regras de {f}', { f: FORMAT[t.format]?.name || t.format }) : FORMAT[t.format]?.name || t.format} · {t.type === 'mesas' ? tx('um jogo por mesa') : `Bo${t.bo}`} · {P.length} decks{t.team ? ` · ${tx('equipas de {s}', { s: t.team })}` : ''}{t.table ? ` · ${tableL(t.table)}` : ''}{t.rounds ? ` · ${t.type === 'rei' ? tx('{n} partida|{n} partidas', { n: t.rounds }) : tx('{n} ronda|{n} rondas', { n: t.rounds })}` : ''} · {when(t.ts)}</span>
-          <span className="tl-act">
+          {t.you !== 'guest' && !t.you?.startsWith('guest:') && <span className="tl-act">
             {t.status === 'running' && <button onClick={() => act('pause')} title={tx('O jogo em curso acaba e fica registado')}>{tx('❚❚ Pausar')}</button>}
             {(t.status === 'paused' || t.status === 'error') && <button className="primary" onClick={() => act('resume')}>{tx('▶ Retomar')}</button>}
             {going && <button onClick={async () => (await ask('torneio', { title: tx('Cancelar o torneio? O jogo em curso pára já.'), ok: tx('Cancelar o torneio') })) && act('cancel')}>{tx('■ Cancelar')}</button>}
             <button className="link small" onClick={del}>{tx('apagar')}</button>
-          </span>
+          </span>}
         </div>
         <div className="row-btns tl-opts">
           <label className="chk small"><input type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /> {tx('Seguir ao vivo (abre cada jogo quando acaba)')}</label>
@@ -1088,7 +1086,7 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
         {myGame && <p className="tl-now me-play">🎮 {myGame.play ? tx('O teu jogo contra {o} está a decorrer', { o: nameOf(myGame.p.find(i => i !== t.me)) }) : tx('É a tua vez: jogo {g} contra {o}', { g: myGame.g.length + 1, o: nameOf(myGame.p.find(i => i !== t.me)) })} <button className="primary" disabled={!!myGame.want && !myGame.play} onClick={() => playMine(myGame.id)}>{myGame.play ? tx('▶ Voltar à mesa') : myGame.want ? `⏳ ${tx('Na fila do Forge…')}` : tx('▶ Jogar no Forge Play')}</button></p>}
         {meLine && <p className={`me-line ${ms.phase}`}><Thumb data={data} p={P[t.me]} /><span><small>{tx('O meu deck · {d}', { d: P[t.me]?.name })}</small><b>{ms.phase === 'done' ? `${(t.type !== 'gauntlet' || ms.place[0] === 1) && MEDAL[ms.place[0] - 1] || '🎖'} ` : ''}{meLine}</b></span></p>}
         {lives.map(({ L, lm }) => <p key={lm.id} className="tl-now"><span className="spin-dot" /> {L.status === 'queued' ? tx('Na fila do Forge (posição {p})', { p: L.position }) : tx('A jogar')}: <b>#{num[lm.id]}</b> {(L.seats || lm.p).map(nameOf).join(' vs ')} · {tx('jogo {g}', { g: lm.g.length + 1 })}{lm.p.length === 2 && t.bo > 1 ? ` · ${lm.w[0]}–${lm.w[1]}` : ''}{Object.keys(lm.sb || {}).length > 0 && <span className="muted" title={Object.entries(lm.sb).map(([i, sw]) => `${nameOf(+i)}: ${sw.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join('\n')}> · {tx('⇄ com sideboard:')} {Object.keys(lm.sb).map(i => nameOf(+i)).join(', ')}</span>}</p>)}
-        {!lm && !myGame && !t.free && t.status === 'running' && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
+        {!lm && !myGame && !t.free && t.status === 'running' && t.matches.some(m => m.st === 'ready' && (m.how || 'forge') === 'forge') && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
         {t.error && <p className="small bad-t">{tx(t.error)}</p>}
         {err && <p className="small bad-t">{err}</p>}
       </section>
