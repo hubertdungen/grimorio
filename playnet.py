@@ -187,6 +187,12 @@ def stop(sid, owner):
     _kill(s)
 
 
+def running():
+    """Jogos a decorrer (cada um ~1 GB): os torneios contam-nos como lugares do simulador."""
+    with COND:
+        return sum(1 for s in S.values() if not s["ended"])
+
+
 def active(owner):
     with COND:
         return [{"id": k, "ended": s["ended"], "names": s["names"]} for k, s in S.items() if s["owner"] == owner]

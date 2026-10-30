@@ -616,7 +616,7 @@ class H(BaseHTTPRequestHandler):
         except RuntimeError as e:
             return self.json({"erro": str(e)}, 409)
 
-    def playnet_route(self, method):
+    def playnet_route(self, method, as_guest=None):
         """Forge Play nativo (playnet.py). POST /api/playnet {deck_id|deck, opponent: {id}|{deck_id}|{deck}, difficulty} -> {id};
         GET /api/playnet -> jogos meus; GET /api/playnet/<id>?since=N (espera até 20 s por novidades);
         POST /api/playnet/<id>/cmd {c, …}; POST /api/playnet/<id>/stop."""
@@ -624,7 +624,7 @@ class H(BaseHTTPRequestHandler):
         m = re.fullmatch(r"/api/playnet(?:/([a-f0-9]{12})(?:/(cmd|stop))?)?", u.path)
         if not m:
             return self.json({"erro": "rota desconhecida"}, 404)
-        sid, act, owner = m.group(1), m.group(2), self.owner()
+        sid, act, owner = m.group(1), m.group(2), as_guest or self.owner()  # convidado: as sessões «<dono>~guest:<id>»
         try:
             if method == "GET" and not sid:
                 return self.json(playnet.active(owner))
@@ -1273,6 +1273,76 @@ def selfcheck():
         st, rr, _ = call("POST", TT + "/result", {"mid": mid, "w": m["p"][1 - gs]})  # quem aloja marca o 2.º: o anfitrião ganha a série
         assert st == 200 and rr["match"]["st"] == "done", rr
         assert call("GET", TT)[1]["status"] in ("running", "done")
+        # torneio misto: o anfitrião joga um deck e dá dois ao bot; o amigo joga o dele. Cada partida vai pelo seu caminho:
+        # bot contra bot -> simulador, pessoa contra bot -> Forge Play (cada um só o seu, na fila se não houver lugar),
+        # pessoas entre si -> mesa livre; quem aloja pode dar uma partida ao bot; o tempo de espera também
+        assert call("POST", "/api/rooms", {"type": "liga", "format": "commander", "misto": True})[0] == 201  # EDH só se jogarem todos (vê-se ao começar)
+        st, mr, _ = call("POST", "/api/rooms", {"name": "Misto QA", "type": "liga", "format": "modern", "casual": True, "misto": True, "seeding": "ordem", "wait": 1,
+                                                "players": [{"src": "meus", "ref": hs[0], "plays": "dono"}, {"src": "meus", "ref": hs[1]}, {"src": "meus", "ref": hs[2], "difficulty": "default"}]})
+        assert st == 201, mr
+        MR = f"/api/rooms/{mr['id']}"
+        st, rv, _ = call("POST", MR + "/join", {"deck": dk["id"]}, G)
+        assert st == 200 and rv["misto"] and [p["plays"] for p in rv["players"]] == ["dono", "bot", "bot", "dono"], rv
+        assert call("POST", MR + "/plays", {"ref": hs[1], "plays": "dono"}, G)[0] == 403  # o deck do anfitrião não é do amigo
+        assert call("POST", MR + "/plays", {"ref": dk["id"], "plays": "bot"}, G)[1]["players"][3]["plays"] == "bot"
+        assert call("POST", MR + "/plays", {"ref": dk["id"], "plays": "dono"}, G)[1]["players"][3]["plays"] == "dono"
+        import subprocess
+        fake, subs, real_start, real_submit, real_status = {}, [], playnet.start, sim.submit, sim.status
+
+        def fake_start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None):
+            sid = f"{len(fake) + 1:012x}"
+            fake[sid] = {"owner": owner, "rate": rate, "deck": deck["name"], "opp": opp["name"]}
+            with playnet.COND:
+                playnet.S[sid] = {"owner": owner, "p": subprocess.Popen(["cat"], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL), "container": None, "seq": 0,
+                                  "state": None, "prompt": None, "asks": {}, "log": [], "ended": False, "winner": None, "ts": time.time(), "names": {}}
+            return sid
+        playnet.start, sim.submit, sim.status = fake_start, lambda d, body: subs.append(body) or f"job{len(subs)}", lambda j: {"status": "running"}
+        try:
+            st, ms, _ = call("POST", MR + "/start")
+            assert st == 200 and ms["tid"], ms
+            TM = f"/api/tournaments/{ms['tid']}"
+            call("POST", TM + "/start")
+            tv = call("GET", TM, cookie=G)[1]
+            kinds = {m["id"]: m["how"] for m in tv["matches"]}
+            assert tv["misto"] and tv["friends"] and kinds == {"R1-1": "mesa", "R1-2": "forge", "R2-1": "play", "R2-2": "play", "R3-1": "play", "R3-2": "play"}, kinds
+            tournament.step()  # bot contra bot: para o simulador
+            assert len(subs) == 1 and [x["deck"]["main"] for x in subs[0]["seats"]] == [{"Island": 60}] * 2
+            assert call("POST", TM + "/play", {"mid": "R2-1"}, G)[0] == 403  # a partida é do anfitrião
+            st, gp, _ = call("POST", TM + "/play", {"mid": "R2-2"}, G)
+            assert st == 200 and gp["sid"] and fake[gp["sid"]]["owner"] == f"hubert~guest:{fr['id']}", (gp, fake)
+            assert fake[gp["sid"]]["rate"]["deck_id"] == dk["id"] and fake[gp["sid"]]["rate"]["opp"] == f"deck:{hs[1]}"  # conta como Forge Play
+            assert call("GET", f"/api/playnet/{gp['sid']}?since=99", cookie=G)[0] == 200 and call("GET", f"/api/playnet/{gp['sid']}")[0] == 404
+            assert call("POST", "/api/playnet", {"deck_id": dk["id"]}, G)[0] == 403  # o convidado não abre jogos à parte
+            st, hp, _ = call("POST", TM + "/play", {"mid": "R2-1"})
+            assert st == 200 and hp == {"queued": True}, hp  # o simulador e o Forge Play do amigo ocupam os lugares: fica na fila
+            assert call("GET", TM)[1]["matches"][2]["want"]["by"] == "host"
+            assert call("POST", TM + "/bot", {"mid": "R1-1"}, G)[0] == 403
+            assert call("POST", TM + "/bot", {"mid": "R1-1"})[1]["match"]["bot"] == 1 and call("GET", TM)[1]["matches"][0]["how"] == "forge"
+            with playnet.COND:
+                playnet.S[gp["sid"]].update(ended=True, side="a", state={"turn": 7})  # o amigo ganhou ao bot
+            sim.status = lambda j: {"status": "done", "games": [{"winner": "a", "turns": 9}]}
+            for _ in range(4):
+                tournament.step()
+            tv = call("GET", TM)[1]
+            m22, m21 = (next(m for m in tv["matches"] if m["id"] == k) for k in ("R2-2", "R2-1"))
+            assert m22["st"] == "done" and m22["win"] == 3 and m22["g"][0]["h"] == 1, m22
+            assert m21.get("play") and not m21.get("want") and fake[m21["play"]]["owner"] == "hubert", m21  # abriu o da fila
+            with db() as con:  # ninguém apareceu à partida do amigo (R3-2) há mais de 1 min: joga o bot
+                sv = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (ms["tid"],)).fetchone()[0])
+                next(m for m in sv["matches"] if m["id"] == "R3-2")["since"] = time.time() - 120
+                con.execute("UPDATE tournaments SET state=? WHERE id=?", (json.dumps(sv), ms["tid"]))
+            tournament.step()
+            m32 = next(m for m in call("GET", TM)[1]["matches"] if m["id"] == "R3-2")
+            assert m32["how"] == "forge" and m32["bot"] and "Ninguém" in m32["note"], m32
+            st, rr, _ = call("POST", TM + "/result", {"mid": "R2-1", "w": 0})  # quem aloja marca o jogo do Forge Play em curso
+            assert st == 200 and rr["match"]["st"] == "done" and rr["match"]["win"] == 0 and m21["play"] not in playnet.S, rr
+        finally:
+            playnet.start, sim.submit, sim.status = real_start, real_submit, real_status
+            for sid in fake:
+                with playnet.COND:
+                    x = playnet.S.pop(sid, None)
+                if x:
+                    x["p"].kill()
         # a solo: só o dono abre; um convidado não chega lá
         assert call("POST", "/api/freetables", {"deck": dk["id"]}, G)[0] == 403
         st, so, _ = call("POST", "/api/freetables", {"deck": hs[2]})

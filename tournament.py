@@ -403,6 +403,7 @@ def record(st, m, g, gid):
     side = lambda s: seats[sim.SIDES.index(s)] if s in sim.SIDES[:len(seats)] else None
     win = None if g.get("crashed") else side(g.get("winner"))
     m["g"].append({"id": gid, "w": win, "t": g.get("turns"), "s": seats, **({"x": 1} if g.get("crashed") else {}),
+                   **({"h": 1} if g.get("human") else {}),  # jogado por pessoas (Forge Play ou mesa livre)
                    **({"sb": m["sb"]} if m.get("sb") else {})})
     if g.get("crashed"):
         m["err"] = m.get("err", 0) + 1
@@ -629,7 +630,7 @@ def lost_with(con, tid, owner, st, i, j):
 def sideboard(con, tid, owner, st, m, i):
     """Trocas do deck i para o próximo jogo da partida m, a partir dos jogos já jogados nela."""
     j = next(x for x in m["p"] if x != i)
-    gs = [x for x in m["g"] if not x.get("x")]
+    gs = [x for x in m["g"] if not x.get("x") and not x.get("h")]  # os jogos das pessoas não contam aqui
     if not gs:
         return []
     rows = dict(con.execute(f"SELECT id, game FROM tournament_games WHERE tid=? AND id IN ({','.join('?' * len(gs))})",
@@ -713,6 +714,8 @@ def create(owner, d):
         ref.startswith(fmt + "-") or fmt in sim.EDH_FORMATS and ref.startswith("edhrec-") or \
         cross and any(ref.startswith(f + "-") for f in CROSS[fmt])  # noqa: E731
     diffs = {x[0] for x in sim.DIFFICULTIES}
+    misto = bool(d.get("misto")) and not d.get("free")
+    room = d.get("free") or misto
     players, decks = [], []
     with db() as con:
         for x in ps:
@@ -751,11 +754,12 @@ def create(owner, d):
                             "colors": "".join(c for c in str(x.get("colors") or "") if c in "WUBRG")[:5],
                             **({"com": True} if src == "meus" and deck.get("community") and not deck.get("friend") else {}),  # da comunidade (não é meu)
                             **({"fr": str(deck.get("friendName") or "?")[:40]} if src == "meus" and deck.get("friend") else
-                               {"fr": str(x["byName"])[:40]} if d.get("free") and x.get("byName") else {}),  # de um amigo convidado (ou o deck com que se sentou)
+                               {"fr": str(x["byName"])[:40]} if room and x.get("byName") else {}),  # de um amigo convidado (ou o deck com que se sentou)
                             **({"me": True} if x.get("me") and src == "meus" and not any(p.get("me") for p in players) else {}),
-                            # torneio de mesa livre: de quem é o deck (quem o joga à mesa): o anfitrião ou um amigo
+                            # mesa livre / misto: de quem é o deck (quem o joga): o anfitrião ou um amigo
                             **({"by": x["by"] if re.fullmatch(r"host|guest:[a-f0-9]{12}", str(x.get("by") or "")) else
-                                f"guest:{deck['friend']}" if src == "meus" and deck.get("friend") else "host"} if d.get("free") else {})})
+                                f"guest:{deck['friend']}" if src == "meus" and deck.get("friend") else "host"} if room else {}),
+                            **({"ctl": True} if misto and x.get("plays") == "dono" else {})})  # misto: joga o dono (senão o bot)
             decks.append({k: deck.get(k) or ({} if k in ("main", "side") else []) for k in ("commanders", "main", "side")} |
                          ({"signature": deck["signature"]} if deck.get("signature") else {}) |
                          ({"art": deck["art"]} if isinstance(deck.get("art"), dict) and deck["art"] else {}) |  # artes próprias para o tabuleiro
@@ -798,8 +802,20 @@ def create(owner, d):
         if table:
             st["table"] = table
         st.update(format=fmt, players=players, decks=decks, **({"casual": True} if casual else {}), **({"me": me} if me is not None else {}))
+        if misto and all(p.get("ctl") for p in players):  # misto só com pessoas: é um torneio de mesa livre
+            misto, d = False, {**d, "free": True}
+            for p in players:
+                p.pop("ctl", None)
+        if misto and (cmd or t == "mesas" or table):
+            raise ValueError("Com bots no torneio misto não há Commander nem mesas de 3–4 (o Forge Play é um contra um). Para isso, jogam todos eles mesmos.")
         if d.get("free"):  # mesa livre: sem bots; cada partida joga-se numa mesa livre entre os donos dos decks
             st.update(free=True, friends=True, start_at=0)
+        elif misto:  # misto: cada partida joga-se conforme quem joga cada deck (ver how())
+            st.update(misto=True, friends=True)
+            try:
+                st["wait"] = max(0, min(120, int(d.get("wait") or 0)))  # minutos à espera das pessoas; depois joga o bot (0 = sem limite)
+            except (TypeError, ValueError):
+                pass
         elif d.get("play_me") and me is not None and not cmd and t not in ("mesas", "equipas"):
             st["play_me"] = True  # os meus jogos jogo-os eu no Forge Play; os outros são bot contra bot
         st["ranked"] = ranked_rule(st)
@@ -826,6 +842,8 @@ def public(row):
     tid, ts, name, t, fmt, status, champ, n, state = row
     st = json.loads(state)
     st.pop("decks", None)
+    for m in st["matches"] if st.get("misto") or st.get("free") or st.get("play_me") else ():
+        m["how"] = how(st, m)  # 🤖 Forge · 🎮 Forge Play · 🃏 mesa livre
     lives = []  # todas as partidas no Forge (com vários jogos ao mesmo tempo há mais do que uma); `live` = a 1.ª
     for m in (m for m in st["matches"] if m.get("job")):
         s = sim.status(m["job"]) or {"status": "queued"}
@@ -1008,9 +1026,11 @@ def route(method, path, owner, body=None, bettor=None):
             with LOCK:
                 st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
                 m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
-                if not st.get("free") or not m or m["st"] != "ready" or row[5] != "running" or not started(st):
+                kind = m and how(st, m)
+                if not m or m["st"] != "ready" or row[5] != "running" or not started(st) or \
+                        kind == "forge" or kind == "play" and parts[1] != "result":  # resultado: mesa livre ou Forge Play
                     return 409, {"erro": "Essa partida não está à espera de jogadores."}
-                owners = {st["players"][i].get("by") or "host" for i in m["p"]}
+                owners = {ctl(st, i) for i in m["p"]}
                 if parts[1] == "ready":  # «Pronto»: com todos os donos dos decks prontos, a mesa abre
                     if who not in owners:
                         return 403, {"erro": "Não jogas esta partida."}
@@ -1028,28 +1048,46 @@ def route(method, path, owner, body=None, bettor=None):
                     w = (body or {}).get("w")
                     if w is not None and w not in m["p"]:
                         return 400, {"erro": "Esse deck não joga esta partida."}
+                    if kind == "play":  # o jogo do Forge Play em curso pára: conta o que quem aloja marcou
+                        drop_play(m, owner)
                     m.setdefault("seats", list(m["p"]))
                     table_game(con, tid, st, m, None if w is None else m["seats"].index(w), owner, "Marcado por quem aloja")
                     resolve(st)
                 save(con, tid, st)
                 return 200, {"match": m, "you": who}
         if method == "POST" and len(parts) == 2 and parts[1] == "play":  # o meu jogo seguinte no Forge Play {mid}
+            who = "host" if bettor == owner else bettor
             with LOCK:
                 st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
                 m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
-                if not m or not mine_to_play(st, m) or m["st"] != "ready" or row[5] != "running":
+                if not m or how(st, m) != "play" or m["st"] != "ready" or row[5] != "running" or not started(st):
                     return 409, {"erro": "Essa partida não está à tua espera."}
+                if who not in {ctl(st, i) for i in m["p"]}:
+                    return 403, {"erro": "Não jogas esta partida."}
                 if m.get("play") and (r := playnet.result(m["play"])) and not r["ended"]:
                     return 200, {"sid": m["play"]}  # já está a decorrer: volta à mesa
-                me, other = st["me"], next(i for i in m["p"] if i != st["me"])
-                mine = {**st["decks"][me], "name": st["players"][me]["name"]}
-                opp = {**st["decks"][other], "name": st["players"][other]["name"]}
-                if st.get("casual"):  # casual: o comandante joga como carta do deck (como no Forge Play)
-                    mine, opp = ({**x, "main": {**x["main"], **{c: 1 for c in x.get("commanders") or []}}, "commanders": []} for x in (mine, opp))
-                m["play"] = playnet.start(DATA, owner, mine, opp, st["players"][other].get("difficulty") or "default", (body or {}).get("name") or "Tu")
-                m["seats"] = [me, other]
+                name = str((body or {}).get("name") or "")[:30] or "Tu"
+                if not play_room():  # sem lugar (ou RAM) agora: fica na fila e o runner abre-o quando houver
+                    m["want"] = {"by": who, "name": name, "ts": m.get("want", {}).get("ts") or time.time()}
+                    save(con, tid, st)
+                    return 200, {"queued": True}
+                try:
+                    start_play(st, m, tid, owner, who, name)
+                except ValueError as e:
+                    return 400, {"erro": str(e)}
                 save(con, tid, st)
             return 200, {"sid": m["play"]}
+        if method == "POST" and len(parts) == 2 and parts[1] == "bot":  # quem aloja: esta partida joga-a o bot {mid}
+            if bettor != owner:
+                return 403, {"erro": "Só quem aloja pode fazer isto."}
+            with LOCK:
+                st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
+                m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
+                if not m or m["st"] != "ready" or how(st, m) == "forge":
+                    return 409, {"erro": "Essa partida não está à espera de pessoas."}
+                to_bot(st, m, owner, "Quem aloja deu a partida ao bot.")
+                save(con, tid, st)
+                return 200, {"match": m}
         if method == "GET" and len(parts) == 2 and parts[1] == "bets":
             return 200, bets_view(con, bettor, tid, row[5], json.loads(row[8]))
         if method == "POST" and len(parts) == 2 and parts[1] == "bets":
@@ -1179,12 +1217,12 @@ def champ_open(st, status):
         not any(m["r"] >= 2 and (m.get("job") or m["g"]) for m in st["matches"])
 
 
-def match_open(m, status):
-    return status in ("running", "paused") and m["st"] == "ready" and not m.get("job") and not m["g"]
+def match_open(m, status):  # até o 1.º jogo começar (no Forge, no Forge Play ou à mesa livre)
+    return status in ("running", "paused") and m["st"] == "ready" and not (m.get("job") or m.get("play") or m.get("table")) and not m["g"]
 
 
 def odds_of(con, tid, st, status):
-    sig = (tid, status, tuple((m["st"], bool(m.get("job")), len(m["g"])) for m in st["matches"]))
+    sig = (tid, status, tuple((m["st"], bool(m.get("job") or m.get("play") or m.get("table")), len(m["g"])) for m in st["matches"]))
     if sig not in _ODDS:
         elo = elos(con, st)
         if len(_ODDS) > 64:
@@ -1305,7 +1343,7 @@ def rate(con, tid, st, m, owner):
     if ratings is None or m["b"] in ("P", "T") or m.get("bye") or m.get("skip"):  # mesas e 2 contra 2: o Elo é a dois
         return
     a, b = m["p"]
-    gs = [x for x in m["g"] if not x.get("x")]
+    gs = [x for x in m["g"] if not x.get("x") and not x.get("h")]  # os jogos das pessoas não contam aqui
     games = ["a" if x["w"] == a else "b" if x["w"] == b else "draw" for x in gs]
     who = lambda i: ratings.ref(st["players"][i]["src"], st["players"][i]["ref"], st["players"][i]["name"], owner)  # noqa: E731
     if games:
@@ -1339,10 +1377,52 @@ def next_match(st):
     return next((m for m in st["matches"] if m["st"] == "ready" and not m.get("job") and not busy & set(m["p"]) and not mine_to_play(st, m)), None)
 
 
+def ctl(st, i):
+    """Quem joga o deck i: "host" / "guest:<id>" (uma pessoa) ou None (o bot do Forge). Mesa livre: sempre o dono; misto:
+    os decks marcados «joga o dono»; play_me: o meu deck."""
+    if st.get("free") or st.get("misto") and st["players"][i].get("ctl"):
+        return st["players"][i].get("by") or "host"
+    return "host" if st.get("play_me") and i == st.get("me") else None
+
+
+def how(st, m):
+    """Como se joga a partida: "forge" (bot contra bot, no simulador), "play" (uma pessoa contra o bot, no Forge Play) ou
+    "mesa" (pessoas entre si, numa mesa livre). Quem aloja pode dar a partida ao bot (m["bot"]), e o tempo de espera também."""
+    hs = [ctl(st, i) for i in m["p"] if i is not None and i >= 0]
+    if m.get("bot") or not any(hs):
+        return "forge"
+    return "mesa" if all(hs) else "play"
+
+
 def mine_to_play(st, m):
-    """Partida minha num torneio em que jogo eu (Forge Play), ou qualquer uma num torneio de mesa livre: não vai para o
-    simulador, espera pelos jogadores."""
-    return bool(st.get("free")) or (bool(st.get("play_me")) and st.get("me") in m["p"])
+    """A partida espera por pessoas (Forge Play ou mesa livre): não vai para o simulador."""
+    return how(st, m) != "forge"
+
+
+def play_room():
+    """Há lugar para mais um jogo do Forge Play (~1 GB): conta como um jogo do simulador (lugares e RAM livre)."""
+    cap = max(1, sim.PAR["n"] if sim._worker else sim.load_parallel(DATA))
+    used = sim.busy_slots() + playnet.running()
+    return used < cap and (not used or sim.mem_free() >= sim.MEM_MIN)
+
+
+def start_play(st, m, tid, owner, who, name):
+    """Abre o jogo do Forge Play da pessoa `who` nesta partida (o deck dela contra o bot do outro)."""
+    h = next(i for i in m["p"] if ctl(st, i) == who)
+    other = next(i for i in m["p"] if i != h)
+    P = st["players"]
+    mine, opp = ({**st["decks"][i], "name": P[i]["name"]} for i in (h, other))
+    if st.get("casual"):  # casual: o comandante joga como carta do deck (como no Forge Play)
+        mine, opp = ({**x, "main": {**x["main"], **{c: 1 for c in x.get("commanders") or []}}, "commanders": []} for x in (mine, opp))
+    # misto: o jogo conta para os ratings como qualquer jogo do Forge Play (ratings.from_forgeplay): o meu deck guardado
+    # contra um deck do meta ou outro deck guardado; o play_me de sempre não conta (mede o deck nas mãos dos bots)
+    rate = {"deck_id": P[h]["ref"], "owner": owner, "format": st["format"], "casual": not counts_yellow(st),
+            "opp": f"{'meta' if P[other]['src'] == 'meta' else 'deck'}:{P[other]['ref']}", "opp_name": P[other]["name"],
+            "round": f"{tid}:{m['id']}", "bo": st["bo"]} if st.get("misto") and P[h]["src"] == "meus" and P[other]["src"] in ("meus", "meta") else None
+    key = owner if who == "host" else f"{owner}~{who}"  # cada convidado tem as suas sessões (playnet: uma por dono)
+    m["play"] = playnet.start(DATA, key, mine, opp, P[other].get("difficulty") or "default", name or "Tu", rate)
+    m["seats"], m["by"] = [h, other], who
+    m.pop("want", None)
 
 
 def open_table(con, owner, st, m, name=""):
@@ -1353,6 +1433,25 @@ def open_table(con, owner, st, m, name=""):
     m["seats"] = list(m["p"])  # (os «prontos» ficam: quem estava pronto vai direto à mesa)
 
 
+def drop_play(m, owner):
+    """Fecha o jogo do Forge Play desta partida (se houver) e tira-a da fila."""
+    if m.get("play"):
+        try:
+            playnet.stop(m["play"], owner if m.get("by", "host") == "host" else f"{owner}~{m['by']}")
+        except KeyError:
+            pass
+    for k in ("play", "want", "by", "seats"):
+        m.pop(k, None)
+
+
+def to_bot(st, m, owner, note):
+    """A partida passa para o bot (quem aloja, ou ninguém apareceu a tempo): os jogos que faltam vão para o simulador."""
+    drop_play(m, owner)
+    for k in ("table", "rdy", "since"):
+        m.pop(k, None)
+    m.update(bot=1, note=note)
+
+
 def table_game(con, tid, st, m, w, owner, reason="Mesa livre"):
     """Um jogo de uma partida do torneio de mesa livre acabou (w = índice do lugar que ganhou, None = empate)."""
     g = {"winner": sim.SIDES[w] if w is not None else "draw", "turns": None, "reason": reason, "events": [], "human": True}
@@ -1360,7 +1459,8 @@ def table_game(con, tid, st, m, w, owner, reason="Mesa livre"):
         json.dumps({**g, "match": m["id"], "seats": m["seats"]}, ensure_ascii=False).encode(), 6))).lastrowid
     record(st, m, g, gid)  # sem ratings: jogos entre amigos à mesa livre não medem os decks
     m.pop("table", None)
-    if m["st"] != "done":  # série (melhor de 3…): a mesa do jogo seguinte abre logo
+    m.pop("since", None)
+    if m["st"] != "done" and how(st, m) == "mesa":  # série (melhor de 3…): a mesa do jogo seguinte abre logo
         open_table(con, owner, st, m)
     else:
         m.pop("seats", None)
@@ -1395,9 +1495,10 @@ def step():
                     g = {"winner": r["side"], "turns": r["turns"], "reason": "Jogado no Forge Play", "events": [], "human": True}
                     gid = con.execute("INSERT INTO tournament_games (tid, ts, game) VALUES (?,?,?)", (tid, time.time(), zlib.compress(
                         json.dumps({**g, "match": m["id"], "seats": m["seats"]}, ensure_ascii=False).encode(), 6))).lastrowid
-                    record(st, m, g, gid)  # sem ratings: medem o deck nas mãos dos bots, não as minhas
+                    record(st, m, g, gid)  # ratings: só no misto, pelo playnet (ver start_play)
                 m.pop("play")  # parado sem vencedor (ou o servidor reiniciou): a partida volta a esperar por mim
                 m.pop("seats", None)
+                m.pop("since", None)
                 resolve(st)
                 save(con, tid, st)
                 return
@@ -1428,13 +1529,34 @@ def step():
                 return
         if BUSY():
             return
+        now = time.time()
+        for tid, status, st, owner in tours:  # as pessoas: Forge Play na fila (primeiro que os bots) e o tempo de espera
+            if status != "running" or not started(st):
+                continue
+            changed = False
+            for m in [m for m in st["matches"] if m["st"] == "ready" and mine_to_play(st, m)]:
+                if m.get("want") and not m.get("play") and play_room():
+                    try:
+                        start_play(st, m, tid, owner, m["want"]["by"], m["want"]["name"])
+                    except ValueError as e:
+                        m.pop("want")
+                        m["note"] = str(e)
+                    changed = True
+                elif st.get("wait") and not (m.get("play") or m.get("table") or m.get("want")):
+                    if "since" not in m:
+                        m["since"], changed = now, True
+                    elif now - m["since"] > st["wait"] * 60:
+                        to_bot(st, m, owner, "Ninguém apareceu a tempo: jogou o bot.")
+                        changed = True
+            if changed:
+                save(con, tid, st)
         # Lugares livres no simulador (contam os testes, os torneios e a Arena). Definições › Jogos do Forge: prioridade ao
         # torneio mais antigo ou ao mais recente; «quota» = jogos no máximo por torneio na 1.ª volta (0 = todos: enche um de
         # cada vez); na 2.ª volta os lugares que sobram vão para quem ainda tiver partidas; com a Arena durante os
         # torneios, um lugar fica para ela.
         sch = sim.PAR.get("sched") or sim.load_sched(DATA)
         reserve = 1 if sch.get("arena") and sim.ARENA_ON.get("on") and cap > 1 else 0
-        free = cap - reserve - sim.busy_slots()
+        free = cap - reserve - sim.busy_slots() - playnet.running()  # um jogo do Forge Play ocupa um lugar
         run = [x for x in tours if x[1] == "running" and started(x[2])]
         if sch.get("dist") == "recente":
             run.reverse()
@@ -1857,6 +1979,19 @@ def selfcheck():
     assert next_match({**lg, "play_me": True, "me": 2}) is None  # jogo eu as minhas: «c» espera por mim no Forge Play
     assert mine_to_play({"play_me": True, "me": 2}, lg["matches"][2]) and not mine_to_play({"me": 2}, lg["matches"][2])
     assert started({"start_at": 0}) and not started({"start_at": time.time() + 9}) and not started({"start_at": 0, "hold": True})
+    # torneio misto: cada partida pelo que joga cada deck (bot contra bot, pessoa contra bot, pessoas entre si)
+    mx = {"misto": True, "players": [{"by": "host", "ctl": True}, {"by": "guest:aaaaaaaaaaaa", "ctl": True}, {"by": "host"}, {"by": "guest:aaaaaaaaaaaa"}]}
+    kinds = {k: how(mx, {"p": p}) for k, p in {"pp": [0, 1], "pb": [0, 2], "bp": [3, 1], "bb": [2, 3]}.items()}
+    assert kinds == {"pp": "mesa", "pb": "play", "bp": "play", "bb": "forge"}, kinds
+    assert ctl(mx, 1) == "guest:aaaaaaaaaaaa" and ctl(mx, 3) is None and how(mx, {"p": [0, 1], "bot": 1}) == "forge"
+    assert next_match({**mx, "matches": [{"id": "x", "st": "ready", "p": [0, 2]}, {"id": "y", "st": "ready", "p": [3, 1]}, {"id": "z", "st": "ready", "p": [2, 3]}]})["id"] == "z"
+    m = {"id": "x", "st": "ready", "p": [0, 1], "g": [], "w": [0, 0], "table": "t1", "rdy": ["host"], "since": 1}
+    to_bot(mx, m, "o", "nota")
+    assert how(mx, m) == "forge" and not ({"table", "rdy", "since", "play"} & set(m)) and m["note"] == "nota"
+    assert ctl({"free": True, "players": [{}]}, 0) == "host"  # mesa livre: sempre o dono
+    m = {**M("R1-1", "R", 1, [0, 1]), "seats": [0, 1]}
+    record({"bo": 3, "type": "liga"}, m, {"winner": "a", "human": True}, 1)
+    assert m["g"][0]["h"] == 1  # jogo das pessoas: marcado (rate() deixa-o de fora)
     # jogo avulso (salas fora de torneio): 2 decks = uma partida Bo-N, 3 = uma mesa; tipo «jogo», sem troféus
     import tempfile
     global DB, DATA

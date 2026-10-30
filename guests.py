@@ -340,6 +340,8 @@ def handle(h, method, g, db, tournament):
             return h.json(*reversed(rooms.route(con, method, p, g["owner"], h.body() if method == "POST" else None, guest=g)))
     if p.startswith("/api/freetables/") and method in ("GET", "POST"):  # mesa livre: só as mesas onde está sentado (freetable.route)
         return h.freetable_route(method, p, g["owner"], f"guest:{g['id']}")
+    if re.fullmatch(r"/api/playnet/[a-f0-9]{12}(/cmd|/stop)?", p) and method in ("GET", "POST") and (method == "GET") != p.endswith(("/cmd", "/stop")):
+        return h.playnet_route(method, f"{g['owner']}~guest:{g['id']}")  # só os jogos do Forge Play dele (torneio misto)
     bettor = f"guest:{g['id']}"
     if p in ("/api/tournaments/bets", "/api/tournaments/wallet-reset") and method in ("GET", "POST"):
         return h.json(*reversed(tournament.route(method, h.path, g["owner"], h.body() if method == "POST" else None, bettor=bettor)))
@@ -353,7 +355,8 @@ def handle(h, method, g, db, tournament):
         with db() as con:
             ok = visible(con, g, mt.group(1))
         sub = (mt.group(2) or "").strip("/")
-        if not ok or not (method == "GET" or (method == "POST" and sub in ("bets", "ready"))):  # ready: torneio de mesa livre (a rota vê se joga a partida)
+        # ready: mesa livre; play: o seu jogo no Forge Play (a rota vê se joga a partida)
+        if not ok or not (method == "GET" or (method == "POST" and sub in ("bets", "ready", "play"))):
             return deny()
         return h.json(*reversed(tournament.route(method, h.path, g["owner"], h.body() if method == "POST" else None, bettor=bettor)))
     if method in ("GET", "HEAD") and (p.startswith(PASS_GET) or not p.startswith(("/api/", "/play", "/convite"))):
