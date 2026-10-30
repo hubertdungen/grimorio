@@ -78,7 +78,7 @@ const CTR = { P1P1: '+1/+1', M1M1: '-1/-1' }
 const ctrs = o => Object.fromEntries(Object.entries(o || {}).map(([k, n]) => [CTR[k] || (/^[+-]/.test(k) ? k : String(k).toLowerCase()), n]))
 function toPerm(c, combat) {
   const counters = ctrs(c.counters)
-  if (c.loyalty != null) counters.loyalty = c.loyalty
+  if (c.loyalty != null && counters.loyalty == null) counters.loyalty = +c.loyalty || 0  // o marcador «Loyalty» do Forge manda; «loyalty» da carta vem em texto («4»)
   const plus = (counters['+1/+1'] || 0) - (counters['-1/-1'] || 0)  // o Forge já soma os marcadores ao P/R; o tabuleiro volta a somá-los
   const at = combat?.find(x => x.att === c.id)
   return {
@@ -494,7 +494,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       if (!o) continue
       if ((c.dmg || 0) > (o.dmg || 0)) pops.set(String(id), { i: seqKey, kind: 'dmg', n: -((c.dmg || 0) - (o.dmg || 0)) })
       // marcadores que mudaram (o último ganha: lealdade de um planeswalker ativado, +1/+1, capítulo de uma saga, defesa…)
-      const cn = { ...ctrs(c.counters), ...(c.loyalty != null && { loyalty: c.loyalty }) }, co = { ...ctrs(o.counters), ...(o.loyalty != null && { loyalty: o.loyalty }) }
+      const cn = toPerm(c).counters, co = toPerm(o).counters
       for (const k of new Set([...Object.keys(cn), ...Object.keys(co)])) {
         const d = (cn[k] || 0) - (co[k] || 0)
         if (d) pops.set(String(id), { i: seqKey, kind: d < 0 && (k === 'loyalty' || k === 'defense') ? 'dmg' : 'ctr', n: d, ct: k })
