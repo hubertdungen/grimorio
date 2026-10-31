@@ -8,7 +8,8 @@ export const CARD_PX = [0, 48, 56, 64, 72, 80, 96, 112, 128]
 // padrões do tapete (desenho em index.css, .bside[data-mat]; a mesma lista em freetable.py MATS)
 export const MATS = ['pontos', 'riscas', 'xadrez', 'grelha', 'linho', 'escamas', 'arcano', 'oceano', 'brasas', 'floresta']
 // --pk: no Forge Play e na mesa livre (mesa de tamanho fixo) o useOverlap encolhe um pouco se as filas não cabem na altura
-export const cardVars = px => (px ? { '--px': `calc(${px}px * var(--pk, 1))`, '--cw': `calc(${px}px * var(--pk, 1))`, '--ow': `calc(${px}px * var(--pk, 1))`, '--lw': `calc(${px}px * var(--pk, 1))` } : null)
+// k: o fator que escala o tamanho escolhido — na mesa fixa o --pk do useOverlap; nas réplicas do Coliseu o --fit do zoom (−/⤢/+)
+export const cardVars = (px, k = 'var(--pk, 1)') => (px ? { '--px': `calc(${px}px * ${k})`, '--cw': `calc(${px}px * ${k})`, '--ow': `calc(${px}px * ${k})`, '--lw': `calc(${px}px * ${k})` } : null)
 export const fpPrefs = () => {
   let o = {}; try { o = JSON.parse(localStorage.getItem('grimorio.fp.prefs') || '{}') } catch { /* sem armazenamento */ }
   return { space: o.space !== false, flip: o.flip || 'f', tap: o.tap || 't',
