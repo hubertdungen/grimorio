@@ -3570,4 +3570,7 @@ export default {
   "Há uma versão nova da app Android: {v}": "Eine neue Version der Android-App ist da: {v}",
   "Grimório {v} pronto: começa quando voltares a abrir o Grimório (os teus dados passam tal como estão).": "Grimório {v} ist bereit: es startet, wenn du Grimório das nächste Mal öffnest (deine Daten bleiben, wie sie sind).",
   "A descarregar o Grimório {v}…": "Grimório {v} wird heruntergeladen…",
+  "Dano que fez neste combate: {n}": "In diesem Kampf zugefügter Schaden: {n}",
+  "Passou {n} com atropelar": "{n} durch Trampelschaden",
+  "Dano que levou neste combate: {n}": "In diesem Kampf erlittener Schaden: {n}",
 }

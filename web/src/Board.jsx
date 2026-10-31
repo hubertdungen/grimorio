@@ -8,7 +8,7 @@ import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX, MATS } from './fpprefs.js'
-import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, typeOf, markDormant, markMoon, CT, CT_ICON } from './game.js'
+import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
 const PH_SHORT = { untap: tx('Desvirar'), upkeep: tx('Manut.'), draw: tx('fase§Compra'), main1: tx('Princ. 1'), combat: tx('Combate'), main2: tx('Princ. 2'), end: tx('fase§Final') }
@@ -238,11 +238,13 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
   const kws = kwsOf(c, p)
   const back = backUp(c, p), upside = back && !c?.df && !p.hidden  // carta flip (Kamigawa): a mesma imagem, rodada 180°
   const ctr = Object.entries(p.counters || {}).filter(([k]) => k !== 'loyalty' && k !== 'defense')
-  const cls = ['pc', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', p.phased && 'phased', p.faceDown && 'down', enter && 'in'].filter(Boolean).join(' ')
+  const cls = ['pc', p.dmgIn > 0 && 'hurt', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', p.phased && 'phased', p.faceDown && 'down', enter && 'in'].filter(Boolean).join(' ')
   const title = [short(p.face || p.name), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase (phasing): não conta como estando em jogo'), p.copy && tx('cópia'), p.merged?.length > 1 && tx('mutada: {x}', { x: p.merged.map(short).join(' + ') }), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.moon && tx('Blood Moon: é uma Montanha e só dá mana vermelha'), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
   tgt = tgt || (p.atkName ? ['x', short(p.atkName)] : null)  // ataca um planeswalker ou uma batalha
   return (
     <div className={cls} data-z={`k:${p.key}`} title={title} style={p.pair ? { '--pair': PAIR[(p.pair - 1) % PAIR.length] } : undefined}>
+      {p.dmgOut > 0 && <span className="pc-dmgout" title={tx('Dano que fez neste combate: {n}', { n: p.dmgOut })}>⚔ {p.dmgOut}{p.trample > 0 && <em title={tx('Passou {n} com atropelar', { n: p.trample })}> ↠{p.trample}</em>}</span>}
+      {p.dmgIn > 0 && <span className="pc-dmgin" title={tx('Dano que levou neste combate: {n}', { n: p.dmgIn })}>✕ {p.dmgIn}</span>}
       {p.pair && <span className="pc-pair" title={p.attacking ? tx('Atacante {n}: bloqueado pelos que têm 🛡 {n}', { n: p.pair }) : tx('Bloqueia o atacante ⚔ {n}', { n: p.pair })}>{p.attacking ? '⚔' : '🛡'} {p.pair}</span>}
       {p.moon && <span className="pc-dev" aria-hidden="true">⛰<img src={sf('https://svgs.scryfall.io/card-symbols/R.svg')} alt="" /></span>}
       {p.dormant && <span className="pc-dev" aria-hidden="true">{p.dormant.cols.map(k => <img key={k} src={sf(`https://svgs.scryfall.io/card-symbols/${k}.svg`)} alt="" />)}{p.dormant.d}/{p.dormant.need}</span>}
@@ -437,7 +439,13 @@ export function DamageFx({ hits }) {
       box.append(bolt)
       const go = bolt.animate([{ transform: 'translate(-50%,-50%) scale(.6)', opacity: 0 }, { opacity: 1, offset: 0.15 },
         { transform: `translate(calc(-50% + ${b[0] - a[0]}px), calc(-50% + ${b[1] - a[1]}px)) scale(1.15)`, opacity: 1 }], { duration: a === b ? 1 : 460, delay: i * 120, easing: 'cubic-bezier(.5,0,.75,.4)', fill: 'forwards' })
-      go.onfinish = () => { bolt.remove(); box.append(pop); setTimeout(() => pop.remove(), 1100) }
+      go.onfinish = () => {
+        bolt.remove(); box.append(pop); setTimeout(() => pop.remove(), 1100)
+        // tremor de terra: a mesa abana ao bater, mais forte quanto maior o dano (até 8 px)
+        const k = Math.min(8, 2 + h.n)
+        root.animate([{ translate: '0 0' }, { translate: `${-k}px ${k / 2}px` }, { translate: `${k}px ${-k / 2}px` },
+          { translate: `${-k / 2}px ${k / 3}px` }, { translate: '0 0' }], { duration: 320, easing: 'ease-out' })  // translate: não mexe no transform (escala da mesa)
+      }
     })
     if (done.current.size > 400) done.current = new Set([...done.current].slice(-200))
   }, [hits])
@@ -463,6 +471,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg()
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
+      {s.dmg?.pl?.[k] > 0 && <span className="orb-dmg" title={tx('Dano que levou neste combate: {n}', { n: s.dmg.pl[k] })}>−{s.dmg.pl[k]}</span>}
       <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} />
       <div className="bname">
         <b title={name}>{name}</b>
@@ -508,7 +517,8 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
   const z = s[k]  // compact: um de 3–4 jogadores (cartas mais pequenas); hit: está a ser atacado
   const all = s.sides.flatMap(x => s[x].perms)
   const pairs = combatPairs(all)  // bloqueios: cada atacante bloqueado com um número e uma cor, os bloqueadores com os mesmos
-  const live = markMoon(data, markDormant(data, z.perms), all).map(p => (pairs.has(p.key) ? { ...p, pair: pairs.get(p.key) } : p)).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
+  const D = s.dmg, dm = p => (D && (D.out[p.key] || D.in[p.key]) ? { ...p, dmgOut: D.out[p.key], dmgIn: D.in[p.key], trample: D.tr[p.key] } : p)  // dano do combate
+  const live = markMoon(data, markDormant(data, z.perms), all).map(p => dm(pairs.has(p.key) ? { ...p, pair: pairs.get(p.key) } : p)).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
   const creatures = [], lands = [], others = [], loose = []
   for (const p of live) { if (free?.[p.key]) { loose.push(p); continue } const r = place?.[p.key] || (isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'); (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
   if (order) for (const xs of [creatures, lands, others]) xs.sort((x, y) => (order[x.key] ?? 1e9) - (order[y.key] ?? 1e9))
@@ -848,7 +858,8 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const fm = k => (formats?.[k] ? <span className="fmt-tag">{formats[k]}</span> : null)
   const ownOf = d => (!d ? null : d.friend ? 'ami' : d.community ? 'com' : d.source === 'MTGTop8' || d.source === 'EDHREC' || 'archetype' in d ? 'meta' : 'meu')
   const own = owns || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, ownOf(d)])))  // Laboratório: dos decks do jogo
-  const sp = { formats, s, data, fx, att, fast: fast || pos.jump, start, openZone, bets, bots, owns: own }
+  const sD = { ...s, dmg: replayDmg(evs, i, states) }  // o dano do combate em curso marcado nas cartas
+  const sp = { formats, s: sD, data, fx, att, fast: fast || pos.jump, start, openZone, bets, bots, owns: own }
   const oppHand = k => game.exact && <Hand z={s[k]} data={data} quiet={fast || pos.jump} exact opp hidden={hands !== 'ambas'} label={mates.includes(k) ? tx('Mão do parceiro') : null} />
   return (
     <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''} ${px ? 'px' : ''}`} style={px ? { ...sideVars, ...cardVars(px) } : sideVars}

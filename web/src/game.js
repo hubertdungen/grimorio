@@ -624,3 +624,32 @@ export function needsMark(v, n) {
   const r = [...s].reverse().map(d => TURN[d]).join('')
   return r[0] !== '0' && r !== s && +r >= 1 && +r <= n
 }
+
+// ---------- dano do combate marcado nas cartas até ao fim do combate ----------
+// dmg = {out: {chave: dano feito}, in: {chave: dano levado}, tr: {chave: o que passou com atropelar}, pl: {lado: dano levado}}
+export const addDmg = (D, { from, to, n, trample }) => {
+  if (from) D.out[from] = (D.out[from] || 0) + n
+  if (to?.card != null) D.in[to.card] = (D.in[to.card] || 0) + n
+  if (to?.side) D.pl[to.side] = (D.pl[to.side] || 0) + n
+  if (trample && from) D.tr[from] = (D.tr[from] || 0) + n
+  return D
+}
+// réplicas: os eventos de dano de combate desde o início do combate até ao evento i (fora do combate: nada)
+export function replayDmg(evs, i, states) {
+  const D = { out: {}, in: {}, tr: {}, pl: {} }, got = []
+  for (let j = i - 1; j >= 0; j--) {
+    const e = evs[j]
+    if (e.k === 'turn' || (e.k === 'phase' && e.ph !== 'combat')) return D
+    if (e.k === 'phase') break
+    if (e.k === 'damage' && e.combat) got.push(j)
+  }
+  for (const j of got) {
+    const e = evs[j], s0 = states[j] || states[i], all = s0.sides.flatMap(k => s0[k].perms)
+    const src = (e.id != null && all.find(p => p.fid === e.id)) || all.find(p => p.name === e.card && p.attacking)
+    const side = s0.sides.includes(e.target) ? e.target : null
+    const tp = !side && ((e.tid != null && all.find(p => p.fid === e.tid)) || all.find(p => p.name === e.target))
+    const blocked = src && all.some(p => p.blocking === src.key)
+    addDmg(D, { from: src?.key, to: side ? { side } : tp ? { card: tp.key } : null, n: e.n || 0, trample: !!(blocked && side) })
+  }
+  return D
+}

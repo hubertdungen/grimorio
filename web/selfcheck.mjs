@@ -821,3 +821,17 @@ import { newer } from './src/apkver.js'
   assert.ok(!newer('1.12.0', '1.12.0') && !newer('1.11.5', '1.12.0') && !newer('', '1.0.0'))
   console.log('selfcheck atualização da app android ok')
 }
+
+// dano do combate nas cartas: o atacante bloqueado que bate no bloqueador e passa com atropelar; fora do combate nada
+import { replayDmg } from './src/game.js'
+{
+  const perms = { a: [{ key: 'k1', fid: 1, name: 'Ghalta', attacking: 'b' }], b: [{ key: 'k2', fid: 2, name: 'Bears', blocking: 'k1' }] }
+  const st = { sides: ['a', 'b'], a: { perms: perms.a }, b: { perms: perms.b } }
+  const evs = [{ k: 'turn', p: 'a' }, { k: 'phase', ph: 'combat' }, { k: 'damage', combat: true, id: 1, card: 'Ghalta', tid: 2, target: 'Bears', n: 2 },
+    { k: 'damage', combat: true, id: 1, card: 'Ghalta', target: 'b', n: 10 }, { k: 'phase', ph: 'main2' }]
+  const states = evs.map(() => st).concat([st])
+  const D = replayDmg(evs, 4, states)
+  assert.deepEqual([D.out.k1, D.in.k2, D.tr.k1, D.pl.b], [12, 2, 10, 10])
+  assert.deepEqual(replayDmg(evs, 5, states).out, {})  // já no main2: os selos saíram
+  console.log('selfcheck dano do combate ok')
+}

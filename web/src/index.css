@@ -3069,3 +3069,14 @@ html { touch-action: manipulation; }
 @keyframes updspin { to { transform: rotate(360deg); } }
 @keyframes updok { 0% { transform: scale(.3); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .apk-banner, .upd-ico { animation: none !important; } }
+
+/* dano do combate marcado até ao fim do combate: laranja = o que a carta fez (↠ = passou com atropelar), vermelho = o que levou */
+.pc-dmgout { position: absolute; z-index: 5; left: 50%; bottom: -8px; transform: translateX(-50%); padding: 1px 7px; border-radius: 99px; background: linear-gradient(#ffb347, #ff8a1f); color: #2a1300; font-size: 12px; font-weight: 900; white-space: nowrap; box-shadow: 0 0 10px #ff9f43aa, 0 1px 4px #000a; pointer-events: auto; animation: dmgmark .35s ease-out; }
+.pc-dmgout em { font-style: normal; color: #5a1a00; }
+.pc-dmgin { position: absolute; z-index: 5; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 2px 9px; border-radius: 8px; background: #d61f3ae6; color: #fff; font-size: 18px; font-weight: 900; white-space: nowrap; box-shadow: 0 0 16px #ff2a4acc, 0 2px 6px #000c; pointer-events: auto; animation: dmgmark .35s ease-out; }
+.pc.hurt .pc-rot { box-shadow: 0 0 0 2px #ff3b5c, 0 0 18px #ff2a4a99; }
+.orb-dmg { align-self: center; padding: 1px 8px; border-radius: 99px; background: #d61f3ae6; color: #fff; font-size: 13px; font-weight: 900; box-shadow: 0 0 12px #ff2a4acc; animation: dmgmark .35s ease-out; }
+@keyframes dmgmark { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } }
+.orb-dmg, .pc-dmgout { animation-name: dmgmark2; }
+@keyframes dmgmark2 { from { scale: .3; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pc-dmgout, .pc-dmgin, .orb-dmg { animation: none; } }

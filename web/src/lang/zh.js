@@ -3570,4 +3570,7 @@ export default {
   "Há uma versão nova da app Android: {v}": "有新版 Android 应用：{v}",
   "Grimório {v} pronto: começa quando voltares a abrir o Grimório (os teus dados passam tal como estão).": "Grimório {v} 已就绪：下次打开 Grimório 时启用（你的数据原样保留）。",
   "A descarregar o Grimório {v}…": "正在下载 Grimório {v}…",
+  "Dano que fez neste combate: {n}": "本次战斗造成的伤害：{n}",
+  "Passou {n} com atropelar": "践踏穿透 {n}",
+  "Dano que levou neste combate: {n}": "本次战斗受到的伤害：{n}",
 }

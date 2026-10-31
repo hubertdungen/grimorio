@@ -7,6 +7,7 @@ import { img } from './data.js'
 import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, DamageFx } from './Board.jsx'
 import { tx } from './i18n.js'
 import { playDiff } from './sfx.js'
+import { addDmg } from './game.js'
 import { Syms } from './ui.jsx'
 import { obviousPay } from './mana.js'
 import { useBackClose } from './backnav.js'
@@ -382,7 +383,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // sons: o Forge Play não manda eventos — soa a diferença entre o estado anterior e este (sfx.playDiff); o 1.º não soa
   const snapRef = useRef(null)
   // dano à vista: as entradas DAMAGE novas do registo do Forge («X (12) deals 3 combat damage to Y (20).»; Y = carta ou jogador)
-  const logSeen = useRef(null), [hits, setHits] = useState(null)
+  const logSeen = useRef(null), [hits, setHits] = useState(null), [dmg, setDmg] = useState(null)  // dmg: o dano do combate em curso
+  useEffect(() => { if (!/^COMBAT/.test(st?.phase || '')) setDmg(null) }, [st?.phase, st?.turn])  // acaba o combate: os selos saem
   useEffect(() => {
     const lg = st?.log || [], n = st?.logN || 0
     if (logSeen.current == null || n < logSeen.current) { logSeen.current = n; return }
@@ -395,6 +397,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       return (m[6] || side) && { key: `${n}-${k}`, from: String(e.c ?? m[2]), to: m[6] ? { card: m[6] } : { side }, n: +m[3], combat: !!m[4], psn: /poison|infect/i.test(e.m) }
     }).filter(Boolean)
     if (out.length) setHits(out)
+    const cmb = out.filter(h => h.combat)
+    if (cmb.length) setDmg(d => {
+      const D = d ? { out: { ...d.out }, in: { ...d.in }, tr: { ...d.tr }, pl: { ...d.pl } } : { out: {}, in: {}, tr: {}, pl: {} }
+      for (const h of cmb) addDmg(D, { ...h, trample: !!(h.to.side && st.combat?.some(x => String(x.att) === h.from && x.blockers?.length)) })
+      return D
+    })
   }, [st?.logN])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!st) return
@@ -651,7 +659,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useFlip(fitTable, seqKey, lay)
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const myTurn = st.active === me?.id
-  const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true }
+  const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true, dmg }
   for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.push({ ...toPerm(g.c), dying: true })
   const hashN = t => [...String(t)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
   bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name,
