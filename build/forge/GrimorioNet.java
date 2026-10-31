@@ -109,6 +109,28 @@ public class GrimorioNet {
             // também sem «dirty»: no fim do jogo o Forge corre as conquistas na EDT e rebenta sem a imagem do troféu
             // (IMG_COMMON_TROPHY, não há skin sem janela) antes de chamar o finishGame; o fim sai daqui pelo estado
             ex.scheduleAtFixedRate(() -> { try { GameView gv = getGameView(); if (dirty || (!ended && gv != null && gv.isGameOver())) { dirty = false; sendState(); } } catch (Exception e) { e.printStackTrace(); } }, 300, 150, TimeUnit.MILLISECONDS);
+            ex.scheduleAtFixedRate(() -> { try { watchdog(); } catch (Exception e) { e.printStackTrace(); } }, 5, 3, TimeUnit.SECONDS);
+        }
+
+        // A thread do jogo do Forge pode morrer a meio (uma exceção dentro do motor: «Report a crash») e o processo fica vivo
+        // sem jogo: a mesa ficava em «o adversário está a pensar» e só restava desistir. Se nenhuma thread está dentro do
+        // Match.startGame (o jogo inteiro corre lá dentro) em 3 verificações seguidas, com o jogo por acabar: avisa e sai
+        // sem vencedor (o torneio põe a partida outra vez à espera).
+        int deadTicks = 0;
+        boolean gameAlive() {
+            for (StackTraceElement[] st : Thread.getAllStackTraces().values())
+                for (StackTraceElement f : st)
+                    if ("forge.game.Match".equals(f.getClassName()) && "startGame".equals(f.getMethodName())) return true;
+            return false;
+        }
+        void watchdog() {
+            forge.game.Game g = HM == null ? null : HM.getGame();
+            if (g == null || g.isGameOver() || ended) { deadTicks = 0; return; }
+            deadTicks = gameAlive() ? 0 : deadTicks + 1;
+            if (deadTicks < 3) return;
+            System.err.println("watchdog: a thread do jogo do Forge morreu; o jogo acaba sem vencedor");
+            JsonObject o = new JsonObject(); o.addProperty("t", "crash"); send(o);
+            System.exit(3);
         }
 
         IGameController ctl() { return getGameController(); }

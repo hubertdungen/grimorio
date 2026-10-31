@@ -53,6 +53,8 @@ def _reader(sid, p):
                 s["asks"][m["id"]] = m
             elif k in ("msg", "flash"):
                 s["log"] = (s["log"] + [m])[-40:]
+            elif k == "crash":  # a thread do jogo do Forge morreu (GrimorioNet.watchdog): acaba sem vencedor
+                s["crash"] = True
             elif k == "end":
                 rate = _over(s, m.get("winner") or s.get("winner"))
             s["seq"] += 1
@@ -152,7 +154,7 @@ def poll(sid, owner, since=0, wait=20.0):
         while s["seq"] <= since and not s["ended"] and time.time() < end:
             COND.wait(timeout=end - time.time())
         return {"seq": s["seq"], "state": s["state"], "prompt": s["prompt"], "asks": list(s["asks"].values()), "log": s["log"][-12:],
-                "ended": s["ended"], "winner": s["winner"], "names": s["names"]}
+                "ended": s["ended"], "winner": s["winner"], "names": s["names"], "crash": bool(s.get("crash"))}
 
 
 def cmd(sid, owner, c):
@@ -252,8 +254,14 @@ def selfcheck():
     S["t3"]["p"] = p
     _reader("t3", p)
     assert len(got) == 1 and result("t3")["ended"] and result("t3")["side"] is None
+    # a thread do jogo do Forge morreu (watchdog do GrimorioNet): acaba sem vencedor e o browser sabe porquê
+    S["t4"] = {**S["t3"], "ended": False, "seq": 0, "crash": False}
+    p = subprocess.Popen([sys.executable, "-c", "print('@@GN {\"t\":\"crash\"}',flush=True)"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    S["t4"]["p"] = p
+    _reader("t4", p)
+    assert result("t4")["ended"] and result("t4")["side"] is None and poll("t4", "o", 0, 1)["crash"] and len(got) == 1
     ON_END = None
-    S.pop("t2", None), S.pop("t3", None)
+    S.pop("t2", None), S.pop("t3", None), S.pop("t4", None)
     print("selfcheck ok")
 
 

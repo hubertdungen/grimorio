@@ -3562,4 +3562,6 @@ export default {
   "O teu lado da mesa fica com este padrão e os outros jogadores veem-no. Fica guardado neste aparelho.": "Your side of the table gets this pattern and the other players see it. It's saved on this device.",
   "Feito": "Done",
   "tapete": "playmat",
+  "O Forge falhou a meio deste jogo": "Forge failed in the middle of this game",
+  "Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.": "Nothing counts: you neither lost nor won. In a tournament the match waits for you again — open it to start over.",
 }

@@ -3554,4 +3554,6 @@ export default {
   "O teu lado da mesa fica com este padrão e os outros jogadores veem-no. Fica guardado neste aparelho.": "Tu lado de la mesa lleva este patrón y los demás jugadores lo ven. Se guarda en este dispositivo.",
   "Feito": "Hecho",
   "tapete": "tapete",
+  "O Forge falhou a meio deste jogo": "Forge falló a mitad de esta partida",
+  "Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.": "Nada cuenta: ni perdiste ni ganaste. En un torneo, la partida vuelve a esperarte: ábrela otra vez para empezar de nuevo.",
 }

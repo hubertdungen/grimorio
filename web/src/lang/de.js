@@ -3554,4 +3554,6 @@ export default {
   "O teu lado da mesa fica com este padrão e os outros jogadores veem-no. Fica guardado neste aparelho.": "Deine Tischseite bekommt dieses Muster und die anderen Spieler sehen es. Es wird auf diesem Gerät gespeichert.",
   "Feito": "Fertig",
   "tapete": "Spielmatte",
+  "O Forge falhou a meio deste jogo": "Forge ist mitten in diesem Spiel ausgefallen",
+  "Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.": "Nichts zählt: Du hast weder verloren noch gewonnen. In einem Turnier wartet die Partie wieder auf dich – öffne sie erneut, um neu zu beginnen.",
 }
