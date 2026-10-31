@@ -3568,4 +3568,6 @@ export default {
   "Descarregar a app {v}": "Descargar la app {v}",
   "Depois de descarregar, abre o ficheiro para instalar por cima: os dados ficam.": "Después de descargar, abre el archivo para instalar encima: los datos se mantienen.",
   "Há uma versão nova da app Android: {v}": "Hay una versión nueva de la app Android: {v}",
+  "Grimório {v} pronto: começa quando voltares a abrir o Grimório (os teus dados passam tal como estão).": "Grimório {v} está listo: empieza la próxima vez que abras Grimório (tus datos pasan tal cual).",
+  "A descarregar o Grimório {v}…": "Descargando Grimório {v}…",
 }

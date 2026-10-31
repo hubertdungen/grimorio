@@ -31,7 +31,7 @@ import { similarity } from './DeckCompare.jsx'
 import './index.css'
 import { tx, LOCALE } from './i18n.js'
 import Settings from './Settings.jsx'
-import { ApkBanner } from './apkupdate.jsx'
+import { ApkBanner, DesktopUpdBanner } from './apkupdate.jsx'
 import { WhoPlays, ProfileChip } from './Profiles.jsx'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
@@ -532,6 +532,7 @@ export default function App() {
       {data && <KwPeek data={data} />}
       <LiveBar guest={guest} data={data} go={m => { setColMode(m); setSection('coliseu') }} />
       {!guest && <ApkBanner />}
+      {!guest && <DesktopUpdBanner />}
     </div>
   )
 }

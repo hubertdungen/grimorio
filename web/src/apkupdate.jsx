@@ -46,3 +46,26 @@ export function ApkBanner() {
     </div>
   )
 }
+
+// pacotes de Windows e Linux: o launcher descarrega a versão nova sozinho (update.json → /api/update). Aqui só se mostra:
+// «a descarregar…» com animação enquanto vem e «pronta» quando já está (começa ao voltar a abrir o Grimório)
+export function DesktopUpdBanner() {
+  const [u, setU] = useState(null), [off, setOff] = useState(() => { try { return localStorage.getItem(K + '.desk') } catch { return null } })
+  useEffect(() => {
+    if (window.GrimorioApp) return  // a app Android tem o aviso dela
+    let t, live = true
+    const get = () => fetch('/api/update').then(r => r.json()).then(x => { if (!live) return; setU(x); if (x?.packaged && x.downloading) t = setTimeout(get, 15000) }).catch(() => {})
+    get()
+    const iv = setInterval(get, 30 * 60000)  // de meia em meia hora: o launcher procura atualizações em segundo plano
+    return () => { live = false; clearTimeout(t); clearInterval(iv) }
+  }, [])
+  if (!u?.packaged || !(u.downloading || u.ready) || off === (u.ready || u.downloading)) return null
+  const close = () => { const v = u.ready || u.downloading; try { localStorage.setItem(K + '.desk', v) } catch { /* sem armazenamento */ } setOff(v) }
+  return (
+    <div className={`apk-banner upd-banner ${u.ready ? 'ready' : 'busy'}`} role="status">
+      <i className="upd-ico" aria-hidden="true">{u.ready ? '✓' : '⟳'}</i>
+      <span>{u.ready ? tx('Grimório {v} pronto: começa quando voltares a abrir o Grimório (os teus dados passam tal como estão).', { v: u.ready }) : tx('A descarregar o Grimório {v}…', { v: u.downloading })}</span>
+      {u.ready && <button className="link small" onClick={close} aria-label={tx('Fechar')}>✕</button>}
+    </div>
+  )
+}

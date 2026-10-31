@@ -3576,4 +3576,6 @@ export default {
   "Descarregar a app {v}": "Download app {v}",
   "Depois de descarregar, abre o ficheiro para instalar por cima: os dados ficam.": "After downloading, open the file to install over the old one: your data stays.",
   "Há uma versão nova da app Android: {v}": "A new Android app version is available: {v}",
+  "Grimório {v} pronto: começa quando voltares a abrir o Grimório (os teus dados passam tal como estão).": "Grimório {v} is ready: it starts the next time you open Grimório (your data carries over as it is).",
+  "A descarregar o Grimório {v}…": "Downloading Grimório {v}…",
 }

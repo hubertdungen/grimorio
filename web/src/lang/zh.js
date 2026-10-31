@@ -3568,4 +3568,6 @@ export default {
   "Descarregar a app {v}": "下载应用 {v}",
   "Depois de descarregar, abre o ficheiro para instalar por cima: os dados ficam.": "下载后打开文件覆盖安装：数据会保留。",
   "Há uma versão nova da app Android: {v}": "有新版 Android 应用：{v}",
+  "Grimório {v} pronto: começa quando voltares a abrir o Grimório (os teus dados passam tal como estão).": "Grimório {v} 已就绪：下次打开 Grimório 时启用（你的数据原样保留）。",
+  "A descarregar o Grimório {v}…": "正在下载 Grimório {v}…",
 }
