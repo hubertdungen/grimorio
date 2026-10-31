@@ -1332,21 +1332,23 @@ function Standings({ t, data, P, me, casual, rows = t.standings, title = tx('Cla
 function Rounds({ t, data, P, live, num, onGame, me, casual, odds, bet, ms = t.matches }) {
   const rs = [...new Set(ms.map(m => m.r))].sort((a, b) => b - a)  // a ronda mais recente primeiro
   const rei = t.type === 'rei'
+  const [rp, setRp] = useState(0), [shown, rpp, rpages] = page(rs, rp, rei ? 12 : 4)  // muitas rondas (rei da colina: uma por partida): páginas
   return (
     <section className="card">
       <h4>{rei ? tx('Partidas') : tx('Rondas')} {t.rounds ? <span className="muted small">{tx('{a} de {b}', { a: rs.length, b: t.rounds })}</span> : null}</h4>
-      {rs.map(r => (
+      {shown.map(r => (
         <div key={r} className="tr-round"><h5>{rei ? tx('Partida {r}', { r }) : tx('Ronda {r}', { r })}</h5>
-          <div className="tr-ms">{ms.filter(m => m.r === r).map(m => m.b === 'P' ? (
+          <PagedMs list={ms.filter(m => m.r === r)} me={me} live={live}>{m => m.b === 'P' ? (
             <div key={m.id} className={`tm pod ${m.st} ${live?.ids?.has(m.id) ? 'now' : ''} ${m.p.includes(me) ? 'mine' : ''}`} data-mid={m.id}>
               <div className="tm-h"><span>{tx('Mesa {m}', { m: m.id.split('-')[1] })}</span>{live?.ids?.has(m.id) && <span className="livepill">{tx('● a jogar')}</span>}</div>
               {(m.pl || m.p).map((i, k) => <div key={i} className={`ts ${m.pl ? (k === 0 ? 'win' : '') : ''} ${i === me ? 'me' : ''}`}><Thumb data={data} p={P[i]} /><i className="ts-seed">{m.pl ? tx('{p}.º', { p: k + 1 }) : i + 1}</i><span className="ts-n">{P[i]?.name}</span>{i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[i]?.format} />}{m.st === 'done' && <b className="ts-sc">{m.pl ? `+${k === 0 ? 3 : m.pl.length - 1 - k}` : '+1'}</b>}</div>)}
               {odds?.[m.id] && bet && <BetPop m={m} odds={odds[m.id]} P={P} bet={bet} />}
               {m.g.length > 0 && <div className="tm-g"><GameChips m={m} onGame={onGame} P={P} /></div>}
             </div>
-          ) : <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} odds={odds} bet={bet} />)}</div>
+          ) : <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} odds={odds} bet={bet} />}</PagedMs>
         </div>
       ))}
+      <Pages pg={rpp} pages={rpages} set={setRp} />
     </section>
   )
 }
@@ -1389,11 +1391,12 @@ function HillThread({ t, data, P, live, num, onGame, me, casual, odds, bet }) {
   }
   const now = ms.filter(m => m.st !== 'done' && (live?.ids?.has(m.id) || m.st === 'ready')).slice(0, 1)
   const done = ms.filter(m => m.st === 'done').reverse()
+  const [hp, setHp] = useState(0), [doneP, hpp, hpages] = page(done, hp, 24)  // rei da colina com dezenas de partidas: 24 por página
   return (
     <section className="card hill-thread">
       <h4>{tx('Partidas')} <span className="muted small">{tx('{a} de {b}', { a: done.length, b: t.rounds || t.matches.length })}</span></h4>
       {now.map(m => <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} odds={odds} bet={bet} label={tx('Partida {r}', { r: m.r })} />)}
-      <div className="ht-grid">{done.map(m => {
+      <div className="ht-grid">{doneP.map(m => {
         const [k, c] = m.p, w = m.win
         const side = i => <span className={`ht-d ${w === i ? 'win' : ''} ${i === me ? 'me' : ''}`} title={P[i]?.name}><Thumb data={data} p={P[i]} /><span>{P[i]?.name}</span>{w === i && <i>👑</i>}</span>
         return (
@@ -1405,6 +1408,7 @@ function HillThread({ t, data, P, live, num, onGame, me, casual, odds, bet }) {
           </div>
         )
       })}</div>
+      <Pages pg={hpp} pages={hpages} set={setHp} />
       {!done.length && !now.length && <p className="muted small">{tx('Ainda sem partidas.')}</p>}
     </section>
   )
@@ -1485,6 +1489,14 @@ function Podium({ data, t }) {
 }
 
 // ---------- registo ----------
+
+// as partidas de uma ronda, 12 por página; abre na página da minha partida ou da que está a ser jogada
+function PagedMs({ list, me, live, children }) {
+  const per = 12, at = list.findIndex(m => live?.ids?.has(m.id) || m.p.includes(me))
+  const [pg, setPg] = useState(() => Math.max(0, Math.floor(at / per)))
+  const [xs, p, pages] = page(list, pg, per)
+  return <><div className="tr-ms">{xs.map(children)}</div><Pages pg={p} pages={pages} set={setPg} /></>
+}
 
 // páginas: ‹ Anteriores · Página p de t · Seguintes › (só aparece com mais de uma página)
 function Pages({ pg, pages, set }) {
