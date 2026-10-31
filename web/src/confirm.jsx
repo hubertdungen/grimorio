@@ -1,7 +1,9 @@
 // Confirmações antes de ações difíceis de desfazer. ask(chave, {...}) devolve uma Promise<boolean>; se essa confirmação
 // estiver desligada (Definições › Confirmações, ou «não voltar a perguntar»), resolve logo a true.
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
 import { tx } from './i18n.js'
+import { onTop } from './tablekit.js'
 
 export const CONFIRMS = [
   ['apagar', tx('Apagar um deck')],
@@ -48,7 +50,8 @@ export function ConfirmHost() {
     return () => removeEventListener('keydown', k)
   })
   if (!q) return null
-  return (
+  // em ecrã inteiro (mesa do Forge Play, Coliseu) só se vê o que está dentro do elemento em ecrã inteiro: a pergunta vai lá
+  return createPortal(
     <div className="modal-bg ask-bg" onClick={e => { if (e.target === e.currentTarget) done(false) }}>
       <div className="modal ask" role="alertdialog" aria-modal="true" aria-label={q.title}>
         <h3>{q.title}</h3>
@@ -60,8 +63,7 @@ export function ConfirmHost() {
           <button onClick={() => done(false)}>{tx('Cancelar')}</button>
         </div>
       </div>
-    </div>
-  )
+    </div>, onTop())
 }
 
 // textos das confirmações do modo casual (Biblioteca em massa e construtor)
