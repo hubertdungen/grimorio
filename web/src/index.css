@@ -570,9 +570,13 @@ h2 .mana img { width: 20px; height: 20px; }
 .pc-rot { position: relative; z-index: 1; aspect-ratio: 488/680; transition: transform .35s ease; }
 .pc.tapped { margin: 0 calc(var(--w) * .2); }
 .pc.tapped .pc-rot { transform: rotate(90deg) scale(.9); }
-.pc-flip { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .7s ease; }
+.pc-flip { position: absolute; inset: 0; transition: transform .7s ease; }
+/* 3D só nas cartas com verso (duas faces): o preserve-3d/backface em todas punha cada carta numa camada da gráfica, reduzida sem
+   qualidade — as cartas pequenas e as viradas ficavam pixelizadas */
+.pc-flip:has(.pc-b) { transform-style: preserve-3d; }
 .pc-flip.on { transform: rotateY(180deg); }
-.pc-f, .pc-b { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 6%/4.4%; overflow: hidden; background: var(--panel2); box-shadow: 0 2px 7px #000c; }
+.pc-f, .pc-b { position: absolute; inset: 0; border-radius: 6%/4.4%; overflow: hidden; background: var(--panel2); box-shadow: 0 2px 7px #000c; }
+.pc-flip:has(.pc-b) > .pc-f, .pc-b { backface-visibility: hidden; }
 .pc-b { transform: rotateY(180deg); }
 .pc img { width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; }
 .pc-est, .est-i { position: absolute; top: 2px; left: 3px; font-style: normal; font-size: 10px; line-height: 1; color: #fff; opacity: .45; text-shadow: 0 0 3px #000; cursor: help; pointer-events: auto; }
@@ -3117,3 +3121,4 @@ html { touch-action: manipulation; }
 .board .bside.top:not(.compact) { grid-template-rows: minmax(0, 1fr) auto auto; }
 .board .bside.top:not(.compact):not(.ml-side) > .bhud { align-self: start; }
 .board .bside.bottom:not(.compact) > .bhud.withhand > .bname { flex: 0 1 auto; max-width: 26%; }  /* o nome não corre por baixo da mão */
+.board .bside.top:not(.compact) > .bhud.withhand > .bname { flex: 0 1 auto; max-width: 30%; }  /* o nome do adversário não fica por baixo da mão dele */

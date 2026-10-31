@@ -952,7 +952,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
       <div className="bwrap">
         <div className={`table ${multi ? 'multi' : ''} ${track && pov ? `track-${pov}` : ''} ${S.some(k => s[k]?.perms?.some(p => p.attacking)) ? 'combat-on' : ''}`}>
           {multi
-            ? <div className="opps" style={{ '--np': tops.length }}>{tops.map(k => <Side key={k} k={k} name={who[k]} {...sp} top compact who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div>
+            ? <div className="opps" style={{ '--np': tops.length }}>{tops.map(k => <Side key={k} k={k} name={who[k]} {...sp} top compact={tops.length > 2} who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div>
             : <Side k="b" name={game.opp} {...sp} top hand={oppHand('b')} />}
           <div className="bmid">
             <div className="phases" style={{ '--n': PHASES.length, '--x': Math.max(0, ph) }}>
@@ -969,7 +969,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
           </div>
           {(() => {
             const me = <Side k="a" name={deckName} {...sp} who={multi ? who : null} hit={hit.has('a')} hand={<Hand z={s.a} data={data} quiet={fast || pos.jump} exact={!!game.exact} hidden={hands === 'nenhuma'} />} />
-            return mates.length ? <div className="mine withmate">{me}{mates.map(k => <Side key={k} k={k} name={who[k]} {...sp} compact who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div> : me
+            return mates.length ? <div className="mine withmate">{me}{mates.map(k => <Side key={k} k={k} name={who[k]} {...sp} compact={mates.length > 1} who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div> : me
           })()}
           <CombatLinks s={s} />
           <DamageFx hits={dmgHits} />
