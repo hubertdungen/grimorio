@@ -4,7 +4,7 @@
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, DamageFx } from './Board.jsx'
 import { tx } from './i18n.js'
 import { playDiff } from './sfx.js'
 import { Syms } from './ui.jsx'
@@ -381,6 +381,21 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useEffect(() => { if (ended) onEnd?.(s.winner ? iWon : null) }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
   // sons: o Forge Play não manda eventos — soa a diferença entre o estado anterior e este (sfx.playDiff); o 1.º não soa
   const snapRef = useRef(null)
+  // dano à vista: as entradas DAMAGE novas do registo do Forge («X (12) deals 3 combat damage to Y (20).»; Y = carta ou jogador)
+  const logSeen = useRef(null), [hits, setHits] = useState(null)
+  useEffect(() => {
+    const lg = st?.log || [], n = st?.logN || 0
+    if (logSeen.current == null || n < logSeen.current) { logSeen.current = n; return }
+    const fresh = lg.slice(Math.max(0, lg.length - (n - logSeen.current)))
+    logSeen.current = n
+    const out = fresh.filter(e => e.y === 'DAMAGE').map((e, k) => {
+      const m = /^(.+?) \((\d+)\) deals (\d+) (combat )?damage to (.+?)(?: \((\d+)\))?\.?$/.exec((e.m || '').replace(/^Damage:\s*/, ''))
+      if (!m) return null
+      const side = m[6] ? null : m[5] === me?.name ? 'a' : m[5] === opp?.name ? 'b' : null
+      return (m[6] || side) && { key: `${n}-${k}`, from: String(e.c ?? m[2]), to: m[6] ? { card: m[6] } : { side }, n: +m[3], combat: !!m[4], psn: /poison|infect/i.test(e.m) }
+    }).filter(Boolean)
+    if (out.length) setHits(out)
+  }, [st?.logN])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!st) return
     const top = st.stack?.[0], tc = top?.name && (data.byName.get(top.name) || data.byLower?.get(top.name.toLowerCase()))
@@ -722,6 +737,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
           hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}
         {bs && <CombatLinks s={bs} />}
+        <DamageFx hits={hits} />
       </div>
       </div><div className="fp-dice" ref={diceBox} /></div>
       <aside className="fp-side">

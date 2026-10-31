@@ -414,6 +414,36 @@ export function CombatLinks({ s }) {
   )
 }
 
+// ---------- dano à vista: um projétil da carta que causa o dano até quem o recebe (carta ou orbe da vida) e o «−N» lá ----------
+// hits = [{key (único), from: chave da carta, to: {card} | {side}, n, combat, psn}]; cada um anima uma vez só. Medido no
+// ecrã e passado para a mesa (escalada/com scroll), como as linhas dos bloqueios.
+export function DamageFx({ hits }) {
+  const ref = useRef(null), done = useRef(new Set())
+  useLayoutEffect(() => {
+    const root = ref.current?.parentElement
+    if (!root || !hits?.length || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    const r = root.getBoundingClientRect(), sc = r.width / (root.offsetWidth || r.width) || 1
+    const at = el => { const q = el?.getBoundingClientRect(); return q?.width ? [(q.left + q.width / 2 - r.left) / sc + root.scrollLeft, (q.top + q.height / 2 - r.top) / sc + root.scrollTop] : null }
+    const elOf = t => (t?.card != null ? root.querySelector(`.pc[data-z="k:${t.card}"]`) : t?.side ? root.querySelector(`.bside.p-${t.side} .orb`) : null)
+    hits.forEach((h, i) => {
+      if (done.current.has(h.key)) return
+      done.current.add(h.key)
+      const b = at(elOf(h.to)), a = at(root.querySelector(`.pc[data-z="k:${h.from}"]`)) || b
+      if (!b) return
+      const kind = h.psn ? 'psn' : h.combat ? 'cmb' : 'spl', box = ref.current
+      const bolt = document.createElement('i'), pop = document.createElement('b')
+      bolt.className = `dmgfx-bolt ${kind}`; pop.className = `dmgfx-pop ${kind}`; pop.textContent = `${h.psn ? '☠' : '−'}${h.n}`
+      Object.assign(bolt.style, { left: `${a[0]}px`, top: `${a[1]}px` }); Object.assign(pop.style, { left: `${b[0]}px`, top: `${b[1]}px` })
+      box.append(bolt)
+      const go = bolt.animate([{ transform: 'translate(-50%,-50%) scale(.6)', opacity: 0 }, { opacity: 1, offset: 0.15 },
+        { transform: `translate(calc(-50% + ${b[0] - a[0]}px), calc(-50% + ${b[1] - a[1]}px)) scale(1.15)`, opacity: 1 }], { duration: a === b ? 1 : 460, delay: i * 120, easing: 'cubic-bezier(.5,0,.75,.4)', fill: 'forwards' })
+      go.onfinish = () => { bolt.remove(); box.append(pop); setTimeout(() => pop.remove(), 1100) }
+    })
+    if (done.current.size > 400) done.current = new Set([...done.current].slice(-200))
+  }, [hits])
+  return <div ref={ref} className="dmgfx" aria-hidden="true" />
+}
+
 // a biblioteca com o topo à vista (Courser of Kruphix, Future Sight, Vizier of the Menagerie…, Forge Play): a carta de cima
 // virada para cima; a minha, se dá para a jogar, brilha e agarra-se/duplo clique como as da mão (data-h, data-from)
 function LibTop({ k, z, data }) {
@@ -799,6 +829,16 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   let ri = i
   while (ri > 0 && quiet(evs[ri - 1])) ri--
   const rev = evs[ri - 1]
+  // o dano do evento acabado de aplicar: de que carta para que carta/jogador (no estado de antes: a vítima pode já ter morrido)
+  const dmgHits = (() => {
+    const e = evs[i - 1]
+    if (!e || e.k !== 'damage' || fast || pos.jump) return null
+    const s0 = states[i - 1] || s, all = s0.sides.flatMap(k => s0[k].perms)
+    const src = (e.id != null && all.find(p => p.fid === e.id)) || all.find(p => p.name === e.card)
+    const tp = !s0.sides.includes(e.target) && ((e.tid != null && all.find(p => p.fid === e.tid)) || all.find(p => p.name === e.target))
+    const to = s0.sides.includes(e.target) ? { side: e.target } : tp ? { card: tp.key } : null
+    return to ? [{ key: `r${i}`, from: src?.key, to, n: e.n, combat: !!e.combat, psn: !!e.psn }] : null
+  })()
   const actor = s.sides.includes(rev?.p) ? rev.p : null
   // 3–4 jogadores: adversários em colunas em cima; o parceiro de equipa (game.teams) ao lado do teu deck, em baixo
   const S = s.sides, multi = S.length > 2
@@ -863,6 +903,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
             return mates.length ? <div className="mine withmate">{me}{mates.map(k => <Side key={k} k={k} name={who[k]} {...sp} compact who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div> : me
           })()}
           <CombatLinks s={s} />
+          <DamageFx hits={dmgHits} />
           {ended && (
             <div className={`endbanner ${game.stopped ? 'draw stopped' : !game.winner || game.winner === 'draw' ? 'draw' : pov === 'a' ? (game.winner === 'a' ? 'win' : 'loss') : !pov ? 'neutral' : game.winner === pov ? 'win' : 'loss'}`} role="status">
               <b>{game.stopped ? tx('⏹ Interrompido no turno {t} (não conta)', { t: game.turns || s.turn || 0 }) : pov !== 'a' ? (!game.winner || game.winner === 'draw' ? tx('Empate') : tx('«{d}» venceu no turno {t}', { d: who[game.winner], t: game.turns })) : game.winner === 'a' ? (mates.length ? tx('Vitória da equipa no turno {t}', { t: game.turns }) : tx('Vitória no turno {t}', { t: game.turns })) : !lost(game.winner) ? tx('Empate') : mates.length ? tx('Derrota da equipa no turno {t}', { t: game.turns }) : multi ? `${game.places ? tx('{p} lugar', { p: ord(game.places.indexOf('a') + 1) }) : tx('Derrota')}${s.a.out ? ` — ${tx('eliminado no turno {n}', { n: s.a.out })}` : ''}` : tx('Derrota no turno {t}', { t: game.turns })}</b>
