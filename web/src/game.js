@@ -656,7 +656,9 @@ export function replayDmg(evs, i, states) {
     if (e.k === 'damage' && e.combat) got.push(j)
   }
   for (const j of got) {
-    const e = evs[j], s0 = states[j] || states[i], all = s0.sides.flatMap(k => s0[k].perms)
+    const e = evs[j], s0 = states[j] || states[i]
+    if (!s0?.sides) continue  // ao vivo: o estado deste evento ainda não existe
+    const all = s0.sides.flatMap(k => s0[k]?.perms || [])
     const src = (e.id != null && all.find(p => p.fid === e.id)) || all.find(p => p.name === e.card && p.attacking)
     const side = s0.sides.includes(e.target) ? e.target : null
     const tp = !side && ((e.tid != null && all.find(p => p.fid === e.tid)) || all.find(p => p.name === e.target))

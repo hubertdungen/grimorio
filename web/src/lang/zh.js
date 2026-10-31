@@ -3579,4 +3579,8 @@ export default {
   "Marcadores −1/−1 ×{n}": "−1/−1 指示物 ×{n}",
   "Outros efeitos (auras, anthems, até ao fim do turno)": "其他效果（灵气、全体增益、直到回合结束）",
   "Total": "合计",
+  "Algo correu mal ao desenhar este ecrã": "绘制此画面时出错",
+  "O erro ficou registado para ser corrigido. Podes tentar outra vez ou recarregar a página.": "错误已记录以便修复。你可以重试或重新加载页面。",
+  "Tentar outra vez": "重试",
+  "Recarregar a página": "重新加载页面",
 }

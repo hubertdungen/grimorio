@@ -75,8 +75,13 @@ addEventListener('vite:preloadError', e => {
 
 // a app só carrega depois do dicionário da língua: as tabelas fixas dos módulos já nascem traduzidas
 // (o data.js também só aqui: as tabelas dele — tipos, cores — traduzem-se ao carregar o módulo)
-ready.catch(() => {}).then(() => Promise.all([import('./App.jsx'), import('./confirm.jsx'), import('./data.js')]))
-  .then(([m, c, d]) => initWake() || d.probeScryfall() || createRoot(document.getElementById('root')).render(createElement(StrictMode, null, createElement(m.default), createElement(c.ConfirmHost))))
+ready.catch(() => {}).then(() => Promise.all([import('./App.jsx'), import('./confirm.jsx'), import('./data.js'), import('./boundary.jsx')]))
+  .then(([m, c, d, b]) => {
+    // erros fora do desenho (eventos, promessas) também vão para o registo do servidor
+    addEventListener('error', e => e.error && b.reportError(e.message, e.error?.stack))
+    addEventListener('unhandledrejection', e => b.reportError(e.reason?.message || e.reason, e.reason?.stack))
+    return initWake() || d.probeScryfall() || createRoot(document.getElementById('root')).render(createElement(StrictMode, null, createElement(b.Boundary, null, createElement(m.default)), createElement(c.ConfirmHost)))
+  })
 
 // Sliders: a parte preenchida do trilho segue o valor (--p); o Firefox tem ::-moz-range-progress, o Chrome precisa disto
 const fill = el => { const lo = +el.min || 0, hi = +el.max || 100; el.style.setProperty('--p', `${((el.value - lo) / (hi - lo || 1)) * 100}%`) }

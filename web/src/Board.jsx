@@ -416,7 +416,8 @@ export function CombatLinks({ s }) {
     const root = ref.current?.parentElement
     if (!root || !sig) { setLs([]); return }
     const at = k => root.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect()
-    const measure = () => {
+    const measure = () => { try { measure0() } catch (e) { console.warn('CombatLinks', e) } }
+    const measure0 = () => {
       const r = root.getBoundingClientRect(), sc = r.width / (root.offsetWidth || r.width) || 1
       const pt = q => [(q.left + q.width / 2 - r.left) / sc + root.scrollLeft, (q.top + q.height / 2 - r.top) / sc + root.scrollTop]
       setLs(pairs.map(([b, a]) => { const qb = at(b), qa = at(a); return qb?.width && qa?.width ? { b, n: num.get(b), xy: [...pt(qb), ...pt(qa)] } : null }).filter(Boolean))
@@ -445,6 +446,9 @@ export function DamageFx({ hits }) {
   useLayoutEffect(() => {
     const root = ref.current?.parentElement
     if (!root || !hits?.length || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    try { fire(root) } catch (e) { console.warn('DamageFx', e) }  // um efeito visual nunca deita a mesa abaixo
+  }, [hits])  // eslint-disable-line react-hooks/exhaustive-deps
+  function fire(root) {
     const r = root.getBoundingClientRect(), sc = r.width / (root.offsetWidth || r.width) || 1
     const at = el => { const q = el?.getBoundingClientRect(); return q?.width ? [(q.left + q.width / 2 - r.left) / sc + root.scrollLeft, (q.top + q.height / 2 - r.top) / sc + root.scrollTop] : null }
     const mid = [root.clientWidth / 2 + root.scrollLeft, root.clientHeight / 2 + root.scrollTop]
@@ -483,7 +487,7 @@ export function DamageFx({ hits }) {
       }
     })
     if (done.current.size > 400) done.current = new Set([...done.current].slice(-200))
-  }, [hits])
+  }
   return <div ref={ref} className="dmgfx" aria-hidden="true" />
 }
 

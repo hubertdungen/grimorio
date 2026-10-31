@@ -760,6 +760,19 @@ class H(BaseHTTPRequestHandler):
             return self.playnet_route("POST")
         if self.path.startswith("/api/limited"):
             return self.limited_route("POST")
+        if self.path == "/api/clienterr":  # um erro do ecrã (ErrorBoundary, window.onerror): para <dados>/logs/client-errors.log
+            try:
+                b = self.body(limit=20_000) or {}
+            except ValueError:
+                return self.json({"ok": False}, 400)
+            p = os.path.join(ARGS.data_dir, "logs", "client-errors.log")
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            if os.path.isfile(p) and os.path.getsize(p) > 1_000_000:  # um só ficheiro antigo (.1), nunca cresce sem fim
+                os.replace(p, p + ".1")
+            rec = {"ts": time.strftime("%Y-%m-%d %H:%M:%S"), **{k: str(b.get(k) or "")[:3000] for k in ("msg", "stack", "comp", "url", "ua")}}
+            with open(p, "a", encoding="utf-8") as f:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            return self.json({"ok": True})
         if self.path == "/api/update":  # {auto: true|false}: atualizar sozinho (o launcher lê-o ao arrancar)
             try:
                 auto = bool((self.body() or {}).get("auto"))

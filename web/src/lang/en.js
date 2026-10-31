@@ -3587,4 +3587,8 @@ export default {
   "Marcadores −1/−1 ×{n}": "−1/−1 counters ×{n}",
   "Outros efeitos (auras, anthems, até ao fim do turno)": "Other effects (auras, anthems, until end of turn)",
   "Total": "Total",
+  "Algo correu mal ao desenhar este ecrã": "Something went wrong drawing this screen",
+  "O erro ficou registado para ser corrigido. Podes tentar outra vez ou recarregar a página.": "The error was logged so it can be fixed. You can try again or reload the page.",
+  "Tentar outra vez": "Try again",
+  "Recarregar a página": "Reload the page",
 }

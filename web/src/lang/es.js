@@ -3579,4 +3579,8 @@ export default {
   "Marcadores −1/−1 ×{n}": "Contadores −1/−1 ×{n}",
   "Outros efeitos (auras, anthems, até ao fim do turno)": "Otros efectos (auras, anthems, hasta el final del turno)",
   "Total": "Total",
+  "Algo correu mal ao desenhar este ecrã": "Algo salió mal al dibujar esta pantalla",
+  "O erro ficou registado para ser corrigido. Podes tentar outra vez ou recarregar a página.": "El error quedó registrado para corregirlo. Puedes intentarlo otra vez o recargar la página.",
+  "Tentar outra vez": "Intentar otra vez",
+  "Recarregar a página": "Recargar la página",
 }

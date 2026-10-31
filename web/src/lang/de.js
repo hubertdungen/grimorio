@@ -3579,4 +3579,8 @@ export default {
   "Marcadores −1/−1 ×{n}": "−1/−1-Marken ×{n}",
   "Outros efeitos (auras, anthems, até ao fim do turno)": "Andere Effekte (Auren, Anthems, bis Zugende)",
   "Total": "Gesamt",
+  "Algo correu mal ao desenhar este ecrã": "Beim Zeichnen dieser Ansicht ist etwas schiefgelaufen",
+  "O erro ficou registado para ser corrigido. Podes tentar outra vez ou recarregar a página.": "Der Fehler wurde protokolliert, damit er behoben werden kann. Du kannst es erneut versuchen oder die Seite neu laden.",
+  "Tentar outra vez": "Erneut versuchen",
+  "Recarregar a página": "Seite neu laden",
 }
