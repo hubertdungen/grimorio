@@ -191,6 +191,14 @@ computadores e servidores de um só dono.
   outra via desiste; Blood Moon mostra que os terrenos não básicos são Montanhas; moer com exílio diz de onde vem.
 - **Estrelas brancas por desempenho e galeria de troféus** — até 4★ pelos pontos e 2★ pelo desempenho nos pódios; taças
   em 3 linhas e a vista do deck com todos os troféus. No Construir, categorias que abrem e fecham e «+ Maybeboard».
+- **Mesa mais viva** — sons no Forge Play e na mesa livre (os mesmos das réplicas); em combate a mesa avermelha e cada
+  atacante bloqueado e os seus bloqueadores têm o mesmo número e cor (⚔ 1 / 🛡 1) com uma linha entre eles; padrões de
+  tapete para o teu lado (10, escolhidos a meio do jogo), que os outros jogadores veem online.
+- **Forge Play mais claro** — cada escolha diz para quê («Para: carta e habilidade»); jogar do topo da biblioteca
+  (Courser of Kruphix, Future Sight, Oracle of Mul Daya…); Cancelar na cor de mana de uma criatura; «jogo seguinte da
+  partida» nos torneios Bo3/Bo5; se o Forge falhar a meio, o jogo acaba sem contar e a partida volta a esperar.
+- **Torneios e app** — rondas e partidas com páginas; a app Android avisa quando há um .apk mais novo; as atualizações
+  do servidor esperam pelos jogos do Forge Play e não estragam páginas abertas.
 - **Assistente de IA (opcional)** — chaves de vários fornecedores, modelos mais recentes detetados sozinhos; muda o
   deck diretamente (trocas, quantidades, substitutos para qualquer carta) com um clique.
 - **Coliseu (IA do Forge)** — IA contra IA com regras reais (Bo1/Bo3, sideboard inteligente, aprendizagem), todos contra

@@ -198,6 +198,14 @@ en la nube es para ordenadores y servidores de un solo dueño.
   otra vía se rinde; Blood Moon muestra que las tierras no básicas son Montañas; moler con exilio dice de dónde viene.
 - **Estrellas blancas por rendimiento y galería de trofeos**: hasta 4★ por puntos y 2★ por rendimiento en podios; copas en
   3 líneas y la vista del mazo con todos los trofeos. En Construir, categorías que se abren y cierran y «+ Maybeboard».
+- **Una mesa más viva**: sonidos en Forge Play y en la mesa libre (los mismos que en las repeticiones); en combate la
+  mesa se enrojece y cada atacante bloqueado y sus bloqueadores llevan el mismo número y color (⚔ 1 / 🛡 1) con una línea
+  entre ellos; patrones de tapete para tu lado (10, elegidos a mitad de partida) que los demás jugadores ven en línea.
+- **Forge Play más claro**: cada elección dice para qué es («Para: carta y habilidad»); jugar desde la parte superior de
+  la biblioteca (Courser of Kruphix, Future Sight, Oracle of Mul Daya…); Cancelar en el color de maná de una criatura;
+  «siguiente partida del enfrentamiento» en torneos Bo3/Bo5; si Forge falla a mitad, la partida termina sin contar.
+- **Torneos y app**: rondas y partidas con páginas; la app Android avisa cuando hay un .apk más nuevo; las
+  actualizaciones del servidor esperan a las partidas de Forge Play y ya no rompen las páginas abiertas.
 - **Asistente de IA (opcional)**: claves de varios proveedores, modelos más recientes detectados solos; cambia tu mazo
   directamente (cambios, cantidades, sustitutos para cualquier carta) con un clic.
 - **Coliseo (IA de Forge)**: IA contra IA con reglas reales (Bo1/Bo3, sideboard inteligente, aprendizaje), todos

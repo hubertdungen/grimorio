@@ -188,6 +188,14 @@ sync is for computers and single-owner servers.
   no other way to win concedes; Blood Moon shows nonbasic lands as Mountains; exiling mills say where the card came from.
 - **White stars by performance and a trophy gallery** — up to 4★ from points and 2★ from podium performance; cups in 3
   lines and a deck view with every trophy. In Build, collapsible categories and «+ Maybeboard».
+- **A livelier table** — sounds in Forge Play and on the free table (the same as in replays); in combat the table turns
+  red and each blocked attacker and its blockers share a number and colour (⚔ 1 / 🛡 1) with a line between them; playmat
+  patterns for your side (10, picked mid-game) that other players see online.
+- **Clearer Forge Play** — every choice says what it's for («For: card and ability»); play from the top of your library
+  (Courser of Kruphix, Future Sight, Oracle of Mul Daya…); Cancel on a creature's mana colour; «next game of the match»
+  in Bo3/Bo5 tournaments; if Forge fails mid-game, the game ends without counting and the match waits again.
+- **Tournaments and app** — rounds and matches are paged; the Android app tells you when a newer .apk is out; server
+  updates wait for Forge Play games and no longer break open pages.
 - **AI assistant (optional)** — keys for several providers, newest models detected automatically; it changes your deck
   directly (swaps, quantities, substitutes for any card) with one click.
 - **Coliseum (Forge AI)** — AI vs AI with real rules (Bo1/Bo3, smart sideboarding, learning), 3–4 player free-for-all

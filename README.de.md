@@ -200,6 +200,14 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
   Karte kommt.
 - **Weiße Sterne nach Leistung und Trophäengalerie** – bis 4★ aus Punkten und 2★ aus Podiumsleistung; Pokale in 3 Zeilen
   und die Deckansicht mit allen Trophäen. Im Bauen einklappbare Kategorien und «+ Maybeboard».
+- **Ein lebendigerer Tisch** – Sounds in Forge Play und am freien Tisch (wie in den Wiederholungen); im Kampf färbt sich
+  der Tisch rot, und jeder geblockte Angreifer und seine Blocker tragen dieselbe Nummer und Farbe (⚔ 1 / 🛡 1) mit einer
+  Linie dazwischen; Spielmatten-Muster für deine Seite (10, mitten im Spiel wählbar), die andere Spieler online sehen.
+- **Klareres Forge Play** – jede Auswahl sagt, wofür sie ist («Für: Karte und Fähigkeit»); von oben aus der Bibliothek
+  spielen (Courser of Kruphix, Future Sight, Oracle of Mul Daya…); Abbrechen bei der Manafarbe einer Kreatur; «nächstes
+  Spiel des Matches» in Bo3/Bo5-Turnieren; fällt Forge mitten im Spiel aus, zählt das Spiel nicht.
+- **Turniere und App** – Runden und Partien mit Seiten; die Android-App meldet eine neuere .apk; Server-Updates warten
+  auf laufende Forge-Play-Spiele und machen offene Seiten nicht mehr kaputt.
 - **KI-Assistent (optional)** – Schlüssel mehrerer Anbieter, neueste Modelle automatisch erkannt; er ändert dein Deck
   direkt (Tausch, Mengen, Ersatz für jede Karte) mit einem Klick.
 - **Kolosseum (Forge-KI)** – KI gegen KI mit echten Regeln (Bo1/Bo3, cleveres Sideboarding, lernend), Jeder gegen jeden
