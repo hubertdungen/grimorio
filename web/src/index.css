@@ -3116,3 +3116,4 @@ html { touch-action: manipulation; }
 .board .bside.bottom:not(.compact):not(.ml-side) > .bhud { align-self: end; }
 .board .bside.top:not(.compact) { grid-template-rows: minmax(0, 1fr) auto auto; }
 .board .bside.top:not(.compact):not(.ml-side) > .bhud { align-self: start; }
+.board .bside.bottom:not(.compact) > .bhud.withhand > .bname { flex: 0 1 auto; max-width: 26%; }  /* o nome não corre por baixo da mão */

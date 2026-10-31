@@ -313,9 +313,10 @@ export function MatPick({ onMat, others = true }) {
 // réplicas, no Forge Play e na mesa livre)
 // réplicas (Coliseu): o tamanho escolhido é o MÍNIMO — o tabuleiro continua a encher a altura do ecrã (--fit, −/⤢/+), mas
 // nenhuma carta fica mais pequena do que isto (se não cabe, a página desliza). As fórmulas são as do Coliseu em index.css
-const minCardVars = px => ({ '--px': `${px}px`, '--cw': `max(${px}px, calc(min(220px, 7.4vw) * var(--fit, .8)))`,
-  '--ow': `max(${px}px, calc(min(170px, 5.8vw) * var(--fit, .8)))`, '--lw': `max(${px}px, calc(min(170px, 5.8vw) * var(--fit, .8)))`,
-  '--hw': `max(${px}px, calc(min(180px, 6.2vw) * var(--fit, .8)))`, '--ohw': `max(${Math.round(px * 0.8)}px, calc(min(120px, 4.4vw) * var(--fit, .8)))` })  // as mãos também (as dos outros a 80%)
+const minCardVars = px => { const m = k => `calc(${Math.round(px * k)}px * var(--pxf, 1))`  // --pxf: o encaixe no ecrã (Replay.fit)
+  return { '--px': `${px}px`, '--cw': `max(${m(1)}, calc(min(220px, 7.4vw) * var(--fit, .8)))`,
+  '--ow': `max(${m(1)}, calc(min(170px, 5.8vw) * var(--fit, .8)))`, '--lw': `max(${m(1)}, calc(min(170px, 5.8vw) * var(--fit, .8)))`,
+  '--hw': `max(${m(1)}, calc(min(180px, 6.2vw) * var(--fit, .8)))`, '--ohw': `max(${m(0.8)}, calc(min(120px, 4.4vw) * var(--fit, .8)))` } }  // as mãos também (as dos outros a 80%)
 export function CardPx({ onChange, className = '', min = false }) {  // min: nas réplicas o tamanho é um mínimo
   const [v, setV] = useState(() => fpPrefs().cardPx)
   return (
@@ -771,6 +772,17 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
       }
       if (narrow()) { setM(f); return el.style.setProperty('--fit', f) }
       el.style.setProperty('--fit', Math.max(0.35, Math.min(1.9, f * adj())))
+      // tamanho mínimo das cartas escolhido (.px): só vale enquanto o tabuleiro cabe no ecrã — se o mínimo o faz passar,
+      // encolhe-se o mínimo (--pxf) só o preciso para caber; o −/+ continua a mandar (o alvo é a altura × zoom)
+      el.style.setProperty('--pxf', 1)
+      if (el.classList.contains('px')) {
+        const want = a * adj() + 2
+        if (size() > want) {
+          let lo = 0.2, hi = 1
+          for (let n = 0; n < 7; n++) { const m = (lo + hi) / 2; el.style.setProperty('--pxf', m); if (size() > want) hi = m; else lo = m }
+          el.style.setProperty('--pxf', lo)
+        }
+      }
     }
     const KM = 'grimorio.zoomMob'
     const adjM = () => { try { return Math.max(0.4, Math.min(1.6, +localStorage.getItem(KM) || 1)) } catch { return 1 } }
