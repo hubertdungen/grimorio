@@ -62,6 +62,17 @@ if (window.GrimorioApp?.saveFile) {
   document.addEventListener('click', e => { const a = e.target.closest?.('a[download]'); if (a && mine(a)) { e.preventDefault(); save(a) } }, true)
 }
 
+// uma parte carregada a pedido (dados 3D, ecrãs) já não existe no servidor: a página é de antes de uma atualização.
+// Recarrega uma vez (no máximo de 5 em 5 min, para não entrar em ciclo); o jogo do Forge Play continua no servidor.
+addEventListener('vite:preloadError', e => {
+  let last = 0
+  try { last = +sessionStorage.getItem('grimorio.reloadAt') || 0 } catch { /* sem armazenamento */ }
+  if (Date.now() - last < 300000) return
+  e.preventDefault()
+  try { sessionStorage.setItem('grimorio.reloadAt', String(Date.now())) } catch { /* sem armazenamento */ }
+  location.reload()
+})
+
 // a app só carrega depois do dicionário da língua: as tabelas fixas dos módulos já nascem traduzidas
 // (o data.js também só aqui: as tabelas dele — tipos, cores — traduzem-se ao carregar o módulo)
 ready.catch(() => {}).then(() => Promise.all([import('./App.jsx'), import('./confirm.jsx'), import('./data.js')]))
