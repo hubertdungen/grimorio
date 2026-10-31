@@ -4,7 +4,7 @@
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks } from './Board.jsx'
 import { tx } from './i18n.js'
 import { Syms } from './ui.jsx'
 import { obviousPay } from './mana.js'
@@ -87,7 +87,7 @@ function toPerm(c, combat) {
     key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped,
     land: !!c.land, crewed: !!c.creature, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, damage: c.dmg || 0, counters,
     pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined, faceDown: !!c.faceDown, phased: !!c.phased, goaded: !!c.goad, copy: !!c.copy, merged: c.merged,
-    attacking: at ? 'x' : undefined, atkName: at?.defc, blocking: combat?.some(x => x.blockers?.includes(c.id)) || undefined,
+    attacking: at ? 'x' : undefined, atkName: at?.defc, blocking: (b => (b ? String(b.att) : undefined))(combat?.find(x => x.blockers?.includes(c.id))),  // a chave do atacante: o par (⚔ n / 🛡 n) e a linha
   }
 }
 function zoneOf(p, combat) {
@@ -683,6 +683,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
         </div>
         {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
           hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}
+        {bs && <CombatLinks s={bs} />}
       </div>
       </div><div className="fp-dice" ref={diceBox} /></div>
       <aside className="fp-side">

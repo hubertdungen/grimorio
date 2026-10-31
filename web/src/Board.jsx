@@ -242,7 +242,8 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
   const title = [short(p.face || p.name), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase (phasing): não conta como estando em jogo'), p.copy && tx('cópia'), p.merged?.length > 1 && tx('mutada: {x}', { x: p.merged.map(short).join(' + ') }), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.moon && tx('Blood Moon: é uma Montanha e só dá mana vermelha'), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
   tgt = tgt || (p.atkName ? ['x', short(p.atkName)] : null)  // ataca um planeswalker ou uma batalha
   return (
-    <div className={cls} data-z={`k:${p.key}`} title={title}>
+    <div className={cls} data-z={`k:${p.key}`} title={title} style={p.pair ? { '--pair': PAIR[(p.pair - 1) % PAIR.length] } : undefined}>
+      {p.pair && <span className="pc-pair" title={p.attacking ? tx('Atacante {n}: bloqueado pelos que têm 🛡 {n}', { n: p.pair }) : tx('Bloqueia o atacante ⚔ {n}', { n: p.pair })}>{p.attacking ? '⚔' : '🛡'} {p.pair}</span>}
       {p.moon && <span className="pc-dev" aria-hidden="true">⛰<img src={sf('https://svgs.scryfall.io/card-symbols/R.svg')} alt="" /></span>}
       {p.dormant && <span className="pc-dev" aria-hidden="true">{p.dormant.cols.map(k => <img key={k} src={sf(`https://svgs.scryfall.io/card-symbols/${k}.svg`)} alt="" />)}{p.dormant.d}/{p.dormant.need}</span>}
       {att?.length > 0 && <div className="pc-att">{att.map(a => <div key={a.key} className="pc-attc" data-z={`k:${a.key}`}><Face p={a} c={lookup(data, a.name)} /></div>)}</div>}
@@ -374,6 +375,45 @@ function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet, zone 
   )
 }
 
+// ---------- bloqueios à vista: o par (atacante ⚔ n, bloqueadores 🛡 n) com a mesma cor e uma linha entre eles ----------
+const PAIR = ['#f2b84b', '#4cc9f0', '#ff5c8a', '#80ed99', '#c77dff', '#ff9f43']
+// blocking = a chave do atacante (réplicas e Forge Play); true = bloqueia sem se saber quem (jogos antigos): sem par
+export function combatPairs(perms) {
+  const att = new Map()
+  for (const p of perms) if (typeof p.blocking === 'string' && !att.has(p.blocking)) att.set(p.blocking, att.size + 1)
+  const out = new Map(att)
+  for (const p of perms) if (typeof p.blocking === 'string') out.set(p.key, att.get(p.blocking))
+  return out
+}
+// as linhas por cima da mesa (sem apanhar cliques): medidas no ecrã e passadas para a mesa (que pode estar escalada e com
+// scroll); refeitas enquanto as cartas deslizam e de 300 em 300 ms enquanto há bloqueios (as filas mexem-se)
+export function CombatLinks({ s }) {
+  const ref = useRef(null), [ls, setLs] = useState([])
+  const pairs = s.sides.flatMap(k => s[k].perms).filter(p => typeof p.blocking === 'string').map(p => [p.key, p.blocking])
+  const sig = pairs.map(x => x.join('>')).join(','), num = combatPairs(s.sides.flatMap(k => s[k].perms))
+  useLayoutEffect(() => {
+    const root = ref.current?.parentElement
+    if (!root || !sig) { setLs([]); return }
+    const at = k => root.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect()
+    const measure = () => {
+      const r = root.getBoundingClientRect(), sc = r.width / (root.offsetWidth || r.width) || 1
+      const pt = q => [(q.left + q.width / 2 - r.left) / sc + root.scrollLeft, (q.top + q.height / 2 - r.top) / sc + root.scrollTop]
+      setLs(pairs.map(([b, a]) => { const qb = at(b), qa = at(a); return qb?.width && qa?.width ? { b, n: num.get(b), xy: [...pt(qb), ...pt(qa)] } : null }).filter(Boolean))
+    }
+    let raf, t0 = performance.now()
+    const anim = () => { measure(); if (performance.now() - t0 < 900) raf = requestAnimationFrame(anim) }
+    anim()
+    const iv = setInterval(measure, 300)
+    return () => { cancelAnimationFrame(raf); clearInterval(iv) }
+  }, [sig])  // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <svg ref={ref} className="clinks" aria-hidden="true">
+      {ls.map(({ b, n, xy: [x1, y1, x2, y2] }) => <g key={b} style={{ '--pair': PAIR[(n - 1) % PAIR.length] }}>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} /><circle cx={x1} cy={y1} r="5" /><circle cx={x2} cy={y2} r="5" /></g>)}
+    </svg>
+  )
+}
+
 // a biblioteca com o topo à vista (Courser of Kruphix, Future Sight, Vizier of the Menagerie…, Forge Play): a carta de cima
 // virada para cima; a minha, se dá para a jogar, brilha e agarra-se/duplo clique como as da mão (data-h, data-from)
 function LibTop({ k, z, data }) {
@@ -437,7 +477,8 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
 export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order, owns, free, mat }) {  // free: cartas pousadas à mão fora das filas (Forge Play: {key: {x, y}}, o centro em fração do lado)  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
   const z = s[k]  // compact: um de 3–4 jogadores (cartas mais pequenas); hit: está a ser atacado
   const all = s.sides.flatMap(x => s[x].perms)
-  const live = markMoon(data, markDormant(data, z.perms), all).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
+  const pairs = combatPairs(all)  // bloqueios: cada atacante bloqueado com um número e uma cor, os bloqueadores com os mesmos
+  const live = markMoon(data, markDormant(data, z.perms), all).map(p => (pairs.has(p.key) ? { ...p, pair: pairs.get(p.key) } : p)).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
   const creatures = [], lands = [], others = [], loose = []
   for (const p of live) { if (free?.[p.key]) { loose.push(p); continue } const r = place?.[p.key] || (isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'); (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
   if (order) for (const xs of [creatures, lands, others]) xs.sort((x, y) => (order[x.key] ?? 1e9) - (order[y.key] ?? 1e9))
@@ -821,6 +862,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
             const me = <Side k="a" name={deckName} {...sp} who={multi ? who : null} hit={hit.has('a')} hand={<Hand z={s.a} data={data} quiet={fast || pos.jump} exact={!!game.exact} hidden={hands === 'nenhuma'} />} />
             return mates.length ? <div className="mine withmate">{me}{mates.map(k => <Side key={k} k={k} name={who[k]} {...sp} compact who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div> : me
           })()}
+          <CombatLinks s={s} />
           {ended && (
             <div className={`endbanner ${game.stopped ? 'draw stopped' : !game.winner || game.winner === 'draw' ? 'draw' : pov === 'a' ? (game.winner === 'a' ? 'win' : 'loss') : !pov ? 'neutral' : game.winner === pov ? 'win' : 'loss'}`} role="status">
               <b>{game.stopped ? tx('⏹ Interrompido no turno {t} (não conta)', { t: game.turns || s.turn || 0 }) : pov !== 'a' ? (!game.winner || game.winner === 'draw' ? tx('Empate') : tx('«{d}» venceu no turno {t}', { d: who[game.winner], t: game.turns })) : game.winner === 'a' ? (mates.length ? tx('Vitória da equipa no turno {t}', { t: game.turns }) : tx('Vitória no turno {t}', { t: game.turns })) : !lost(game.winner) ? tx('Empate') : mates.length ? tx('Derrota da equipa no turno {t}', { t: game.turns }) : multi ? `${game.places ? tx('{p} lugar', { p: ord(game.places.indexOf('a') + 1) }) : tx('Derrota')}${s.a.out ? ` — ${tx('eliminado no turno {n}', { n: s.a.out })}` : ''}` : tx('Derrota no turno {t}', { t: game.turns })}</b>

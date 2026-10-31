@@ -3558,4 +3558,6 @@ export default {
   "Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.": "Nichts zählt: Du hast weder verloren noch gewonnen. In einem Turnier wartet die Partie wieder auf dich – öffne sie erneut, um neu zu beginnen.",
   "topo à vista: {c}": "oberste Karte offen: {c}",
   "podes jogá-la daqui (arrasta ou duplo clique)": "du kannst sie von hier spielen (ziehen oder Doppelklick)",
+  "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "Angreifer {n}: geblockt von den Karten mit 🛡 {n}",
+  "Bloqueia o atacante ⚔ {n}": "Blockt Angreifer ⚔ {n}",
 }

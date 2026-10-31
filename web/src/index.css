@@ -3024,3 +3024,12 @@ html { touch-action: manipulation; }
 .pile.libtop[data-h] { cursor: grab; touch-action: none; }
 .pile.libtop .pile-c img { border-radius: 4px; }
 .pile.libtop.play .pile-c { border-radius: 5px; box-shadow: 0 0 0 2px #4ade80, 0 0 14px #4ade8099; }
+
+/* bloqueios à vista (CombatLinks): linha da cor do par entre bloqueador e atacante, e o selo ⚔ n / 🛡 n nas cartas */
+.clinks { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 15; }
+.clinks line { stroke: var(--pair); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 9 6; filter: drop-shadow(0 0 3px #000c); animation: clinkdash 1s linear infinite; }
+.clinks circle { fill: var(--pair); stroke: #0d0f18; stroke-width: 2; }
+@keyframes clinkdash { to { stroke-dashoffset: -15; } }
+@media (prefers-reduced-motion: reduce) { .clinks line { animation: none; } }
+.pc[style*="--pair"] { box-shadow: 0 0 0 2px var(--pair), 0 0 12px color-mix(in srgb, var(--pair) 60%, transparent); border-radius: 6px; }
+.pc-pair { position: absolute; z-index: 4; top: -9px; left: 50%; transform: translateX(-50%); padding: 0 6px; border-radius: 99px; background: var(--pair); color: #0d0f18; font-size: 11px; font-weight: 800; line-height: 17px; white-space: nowrap; pointer-events: auto; box-shadow: 0 1px 4px #000a; }

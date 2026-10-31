@@ -3558,4 +3558,6 @@ export default {
   "Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.": "Nada cuenta: ni perdiste ni ganaste. En un torneo, la partida vuelve a esperarte: ábrela otra vez para empezar de nuevo.",
   "topo à vista: {c}": "carta superior a la vista: {c}",
   "podes jogá-la daqui (arrasta ou duplo clique)": "puedes jugarla desde aquí (arrastra o doble clic)",
+  "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "Atacante {n}: bloqueado por las que tienen 🛡 {n}",
+  "Bloqueia o atacante ⚔ {n}": "Bloquea al atacante ⚔ {n}",
 }
