@@ -31,6 +31,7 @@ import { similarity } from './DeckCompare.jsx'
 import './index.css'
 import { tx, LOCALE } from './i18n.js'
 import Settings from './Settings.jsx'
+import { ApkBanner } from './apkupdate.jsx'
 import { WhoPlays, ProfileChip } from './Profiles.jsx'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
@@ -530,6 +531,7 @@ export default function App() {
       {toast && <div className="toast">{toast.msg}{toast.undo && histN[0] > 0 && <button className="link toast-undo" onClick={undo}>↶ {tx('Desfazer')}</button>}</div>}
       {data && <KwPeek data={data} />}
       <LiveBar guest={guest} data={data} go={m => { setColMode(m); setSection('coliseu') }} />
+      {!guest && <ApkBanner />}
     </div>
   )
 }

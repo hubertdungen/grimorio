@@ -841,7 +841,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
         <span className="muted small">{i}/{evs.length}</span>
       </div>
       <div className="bwrap">
-        <div className={`table ${multi ? 'multi' : ''} ${track && pov ? `track-${pov}` : ''}`}>
+        <div className={`table ${multi ? 'multi' : ''} ${track && pov ? `track-${pov}` : ''} ${S.some(k => s[k]?.perms?.some(p => p.attacking)) ? 'combat-on' : ''}`}>
           {multi
             ? <div className="opps" style={{ '--np': tops.length }}>{tops.map(k => <Side key={k} k={k} name={who[k]} {...sp} top compact who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div>
             : <Side k="b" name={game.opp} {...sp} top hand={oppHand('b')} />}

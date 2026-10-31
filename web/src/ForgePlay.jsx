@@ -708,7 +708,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
       <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: STAGE[stage.shape][0], height: STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
-      <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
+      <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
         {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}

@@ -3563,4 +3563,9 @@ export default {
   "Para": "用于",
   "Jogo seguinte da partida (Bo{b})": "本场对决的下一局（Bo{b}）",
   "Este jogo perdeu-se: o servidor foi reiniciado": "这局游戏已丢失：服务器已重启",
+  "Não deu para verificar se há uma app nova: {e}": "无法检查是否有新版应用：{e}",
+  "A app está na versão mais recente.": "应用已是最新版本。",
+  "Descarregar a app {v}": "下载应用 {v}",
+  "Depois de descarregar, abre o ficheiro para instalar por cima: os dados ficam.": "下载后打开文件覆盖安装：数据会保留。",
+  "Há uma versão nova da app Android: {v}": "有新版 Android 应用：{v}",
 }

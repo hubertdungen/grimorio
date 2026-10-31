@@ -3571,4 +3571,9 @@ export default {
   "Para": "For",
   "Jogo seguinte da partida (Bo{b})": "Next game of the match (Bo{b})",
   "Este jogo perdeu-se: o servidor foi reiniciado": "This game was lost: the server was restarted",
+  "Não deu para verificar se há uma app nova: {e}": "Couldn't check for a new app: {e}",
+  "A app está na versão mais recente.": "The app is up to date.",
+  "Descarregar a app {v}": "Download app {v}",
+  "Depois de descarregar, abre o ficheiro para instalar por cima: os dados ficam.": "After downloading, open the file to install over the old one: your data stays.",
+  "Há uma versão nova da app Android: {v}": "A new Android app version is available: {v}",
 }

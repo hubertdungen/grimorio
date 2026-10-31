@@ -3563,4 +3563,9 @@ export default {
   "Para": "Für",
   "Jogo seguinte da partida (Bo{b})": "Nächstes Spiel des Matches (Bo{b})",
   "Este jogo perdeu-se: o servidor foi reiniciado": "Dieses Spiel ging verloren: der Server wurde neu gestartet",
+  "Não deu para verificar se há uma app nova: {e}": "Konnte nicht prüfen, ob es eine neue App gibt: {e}",
+  "A app está na versão mais recente.": "Die App ist auf dem neuesten Stand.",
+  "Descarregar a app {v}": "App {v} herunterladen",
+  "Depois de descarregar, abre o ficheiro para instalar por cima: os dados ficam.": "Nach dem Herunterladen die Datei öffnen und drüber installieren: deine Daten bleiben.",
+  "Há uma versão nova da app Android: {v}": "Eine neue Version der Android-App ist da: {v}",
 }

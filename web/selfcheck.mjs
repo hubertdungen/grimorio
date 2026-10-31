@@ -813,3 +813,11 @@ import { diffSounds } from './src/sfx.js'
   assert.deepEqual(k(st(), st({ top: { turn: 4, active: 'b' } })), ['turn'])
   console.log('selfcheck sons do forge play ok')
 }
+
+// app Android: versão nova só quando é mesmo maior (1.10.0 > 1.9.9; igual não conta)
+import { newer } from './src/apkver.js'
+{
+  assert.ok(newer('1.13.0', '1.12.0') && newer('v1.10.0', '1.9.9') && newer('2.0.0', '1.99.99'))
+  assert.ok(!newer('1.12.0', '1.12.0') && !newer('1.11.5', '1.12.0') && !newer('', '1.0.0'))
+  console.log('selfcheck atualização da app android ok')
+}

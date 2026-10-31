@@ -1,6 +1,7 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
 import { MatPick } from './Board.jsx'
+import { ApkUpdate } from './apkupdate.jsx'
 import { fpPrefs, setFpPrefs, CARD_PX } from './fpprefs.js'
 import { wakeOn, setWake, wakeSupported, fsOrientPref, setFsOrientPref } from './wakelock.js'
 import { sfMode, setSfMode } from './data.js'
@@ -291,7 +292,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card danger-zone"><h3>{tx('Recomeçar')}</h3><ResetStats /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
       <section className="card"><h3>{tx('Atualizações')}</h3><Updates /></section>
-      {window.GrimorioApp && <section className="card"><h3>{tx('App Android')}</h3><p className="muted small">{tx('Versão {v}. A app abre o teu servidor do Grimório.', { v: window.GrimorioApp.version?.() || '?' })}</p><button onClick={() => window.GrimorioApp.changeServer()}>{tx('Mudar de servidor')}</button></section>}
+      {window.GrimorioApp && <section className="card"><h3>{tx('App Android')}</h3><p className="muted small">{tx('Versão {v}. A app abre o teu servidor do Grimório.', { v: window.GrimorioApp.version?.() || '?' })}</p><button onClick={() => window.GrimorioApp.changeServer()}>{tx('Mudar de servidor')}</button><ApkUpdate /></section>}
       </div>
     </div>
   )
