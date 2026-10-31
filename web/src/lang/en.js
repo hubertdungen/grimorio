@@ -3568,4 +3568,5 @@ export default {
   "podes jogá-la daqui (arrasta ou duplo clique)": "you can play it from here (drag or double-click)",
   "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "Attacker {n}: blocked by the cards marked 🛡 {n}",
   "Bloqueia o atacante ⚔ {n}": "Blocks attacker ⚔ {n}",
+  "Para": "For",
 }

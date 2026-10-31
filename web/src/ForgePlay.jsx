@@ -238,6 +238,24 @@ export function BigCard({ name, data, onClose }) {
 // habilidade a usar (getAbilityToPlay): «Shattered Landscape - Play land» -> «Jogar como terreno»; o resto sem o nome da carta
 const abilityLabel = (l, name) => { const s = String(l || ''), p = `${name} - `, t = s.startsWith(p) ? s.slice(p.length) : s; return /^Play land$/i.test(t) ? tx('Jogar como terreno') : t.replace(/^Cycling\b/, tx('Ciclar')) }
 // escolhas que bloqueiam o motor: sim/não, uma opção, um número ou texto, ou escolher entre cartas/jogadores
+// para que é um pedido de escolha: a carta e o texto da habilidade — da 1.ª linha do Forge («Spider Umbra (4) - Enchant
+// creature…»), da carta que o pedido traz ou do topo da pilha (o que está a resolver). Sem nada disto: null
+function sourceOf(msg, card, cardName, st) {
+  const l0 = String(msg || '').split('\n')[0].trim(), m = /^(.+?) \((\d+)\)(?: - (.+))?$/.exec(l0)
+  if (m) return { id: +m[2], name: m[1], text: m[3] || '' }
+  if (card != null && cardName) return { id: card, name: cardName, text: '' }
+  const t = st?.stack?.[0]
+  return t?.name ? { id: t.card, name: t.name, text: t.text || '' } : null
+}
+function ForWhat({ src, data }) {
+  if (!src) return null
+  // «Spider Umbra (4) - Enchant creature…» → «Enchant creature…» (o nome já está ao lado)
+  const txt = !src.text || src.text === src.name ? '' : src.text.startsWith(src.name) ? src.text.slice(src.name.length).replace(/^\s*(\(\d+\))?\s*-?\s*/, '') : src.text
+  return (
+    <div className="fp-for"><FCard c={{ id: src.id, name: src.name }} data={data} />
+      <span><small>{tx('Para')}</small> <b>{src.name}</b>{txt && <em><Syms text={txt} /></em>}</span></div>
+  )
+}
 const MANA_ASK = /\bmana\b/i  // «Select Mana to Produce»
 function Ask({ a, st, data, answer, zoom, payCancel, undo }) {  // payCancel: o Forge está a meio de um pagamento (cancelá-lo desfaz tudo); undo: desfazer a última ação
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
@@ -283,6 +301,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo }) {  // payCancel: o 
   return (
     <div className="fp-ask"><p>{a.ability ? tx('Como queres usar {c}?', { c: a.msg }) : /^Select target /.test(a.msg || '') ? `${tx('Escolhe o alvo')}: ${a.msg.slice(14)}` : a.msg} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
       {head && <div className="fp-opts fp-reveal-c"><FCard c={head} data={data} big /></div>}
+      {!head && !a.ability && <ForWhat src={sourceOf(a.msg, a.card, a.cardName, st)} data={data} />}
       <div className="fp-opts">{(a.options || []).map((o, k) => { const c = cardOf(o); return c
         ? <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => toggle(k)} onZoom={zoom} />{o.stack && <small className="fp-stk-lbl"><Syms text={o.label} /></small>}</div>
         : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={a.ability ? abilityLabel(o.label, a.msg) : o.label} /></button> })}</div>
@@ -689,6 +708,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       <aside className="fp-side">
         <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
+          {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}
           <p><Syms text={promptText(pr?.msg, st, me)} /></p>
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (

@@ -3560,4 +3560,5 @@ export default {
   "podes jogá-la daqui (arrasta ou duplo clique)": "du kannst sie von hier spielen (ziehen oder Doppelklick)",
   "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "Angreifer {n}: geblockt von den Karten mit 🛡 {n}",
   "Bloqueia o atacante ⚔ {n}": "Blockt Angreifer ⚔ {n}",
+  "Para": "Für",
 }

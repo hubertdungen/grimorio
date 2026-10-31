@@ -3560,4 +3560,5 @@ export default {
   "podes jogá-la daqui (arrasta ou duplo clique)": "puedes jugarla desde aquí (arrastra o doble clic)",
   "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "Atacante {n}: bloqueado por las que tienen 🛡 {n}",
   "Bloqueia o atacante ⚔ {n}": "Bloquea al atacante ⚔ {n}",
+  "Para": "Para",
 }

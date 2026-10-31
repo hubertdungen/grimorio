@@ -3560,4 +3560,5 @@ export default {
   "podes jogá-la daqui (arrasta ou duplo clique)": "可以从这里使用（拖动或双击）",
   "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "攻击者 {n}：被标有 🛡 {n} 的牌阻挡",
   "Bloqueia o atacante ⚔ {n}": "阻挡攻击者 ⚔ {n}",
+  "Para": "用于",
 }
