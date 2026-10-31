@@ -3583,4 +3583,5 @@ export default {
   "O erro ficou registado para ser corrigido. Podes tentar outra vez ou recarregar a página.": "错误已记录以便修复。你可以重试或重新加载页面。",
   "Tentar outra vez": "重试",
   "Recarregar a página": "重新加载页面",
+  "Cartas: mín. {n} px": "卡牌：最小 {n} 像素",
 }

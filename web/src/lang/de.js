@@ -3583,4 +3583,5 @@ export default {
   "O erro ficou registado para ser corrigido. Podes tentar outra vez ou recarregar a página.": "Der Fehler wurde protokolliert, damit er behoben werden kann. Du kannst es erneut versuchen oder die Seite neu laden.",
   "Tentar outra vez": "Erneut versuchen",
   "Recarregar a página": "Seite neu laden",
+  "Cartas: mín. {n} px": "Karten: min. {n} px",
 }

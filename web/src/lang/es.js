@@ -3583,4 +3583,5 @@ export default {
   "O erro ficou registado para ser corrigido. Podes tentar outra vez ou recarregar a página.": "El error quedó registrado para corregirlo. Puedes intentarlo otra vez o recargar la página.",
   "Tentar outra vez": "Intentar otra vez",
   "Recarregar a página": "Recargar la página",
+  "Cartas: mín. {n} px": "Cartas: mín. {n} px",
 }

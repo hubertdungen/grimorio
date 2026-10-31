@@ -3591,4 +3591,5 @@ export default {
   "O erro ficou registado para ser corrigido. Podes tentar outra vez ou recarregar a página.": "The error was logged so it can be fixed. You can try again or reload the page.",
   "Tentar outra vez": "Try again",
   "Recarregar a página": "Reload the page",
+  "Cartas: mín. {n} px": "Cards: min. {n} px",
 }

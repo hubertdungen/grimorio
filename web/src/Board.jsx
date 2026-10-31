@@ -311,12 +311,16 @@ export function MatPick({ onMat, others = true }) {
 
 // tamanho das cartas na mesa em píxeis (0 = automático), guardado nas preferências da mesa (fpprefs: o mesmo nas
 // réplicas, no Forge Play e na mesa livre)
-export function CardPx({ onChange, className = '' }) {
+// réplicas (Coliseu): o tamanho escolhido é o MÍNIMO — o tabuleiro continua a encher a altura do ecrã (--fit, −/⤢/+), mas
+// nenhuma carta fica mais pequena do que isto (se não cabe, a página desliza). As fórmulas são as do Coliseu em index.css
+const minCardVars = px => ({ '--px': `${px}px`, '--cw': `max(${px}px, calc(min(220px, 7.4vw) * var(--fit, .8)))`,
+  '--ow': `max(${px}px, calc(min(170px, 5.8vw) * var(--fit, .8)))`, '--lw': `max(${px}px, calc(min(170px, 5.8vw) * var(--fit, .8)))` })
+export function CardPx({ onChange, className = '', min = false }) {  // min: nas réplicas o tamanho é um mínimo
   const [v, setV] = useState(() => fpPrefs().cardPx)
   return (
     <select className={`cardpx ${className}`} value={v} title={tx('Tamanho das cartas na mesa')} aria-label={tx('Tamanho das cartas na mesa')}
       onChange={e => { const n = +e.target.value; setV(n); setFpPrefs({ cardPx: n }); onChange?.(n) }}>
-      {CARD_PX.map(n => <option key={n} value={n}>{n ? tx('Cartas: {n} px', { n }) : tx('Cartas: automático')}</option>)}
+      {CARD_PX.map(n => <option key={n} value={n}>{n ? (min ? tx('Cartas: mín. {n} px', { n }) : tx('Cartas: {n} px', { n })) : tx('Cartas: automático')}</option>)}
     </select>
   )
 }
@@ -903,7 +907,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const sp = { formats, s: sD, data, fx, att, fast: fast || pos.jump, start, openZone, bets, bots, owns: own }
   const oppHand = k => game.exact && <Hand z={s[k]} data={data} quiet={fast || pos.jump} exact opp hidden={hands !== 'ambas'} label={mates.includes(k) ? tx('Mão do parceiro') : null} />
   return (
-    <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''} ${px ? 'px' : ''}`} style={px ? { ...sideVars, ...cardVars(px, 'var(--fit, 1)') } : sideVars}
+    <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''} ${px ? 'px' : ''}`} style={px ? { ...sideVars, ...minCardVars(px) } : sideVars}
       onPointerOver={onOver} onPointerLeave={() => zoom && !zoom.pin && setZoom(null)}
       onPointerDown={onPress} onPointerUp={unPress} onPointerCancel={unPress} onPointerMove={unPress} onClick={onTap} onContextMenu={e => { if (e.target.closest('[data-z]')) e.preventDefault() }}>
       <div className="rp-bar">
@@ -923,7 +927,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
         <button className="rp-more" onClick={() => setMore(!more)} aria-expanded={more} title={tx('Velocidade, mãos e turno')}>⚙</button>
         <label className="sl rp-speed"><span>{jsx(tx('Velocidade {x}'), { x: <b>{speed}×</b> })}</span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
         {onPlayFrom && !live && !multi && <button className="rp-x" onClick={() => { setPlaying(false); onPlayFrom(s, game) }} title={tx('Abre esta posição no Forge e jogas tu com o teu deck')}>{tx('🎮 Jogar daqui')}</button>}
-        <CardPx className="rp-x" onChange={setPx} />
+        <CardPx className="rp-x" onChange={setPx} min />
         <select className="rp-x" value={hands} onChange={e => setHands(e.target.value)} aria-label={tx('Mãos à vista')}>{HANDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
         <select className="rp-x" value={s.turn || ''} onChange={e => go(evs.findIndex(x => x.t === +e.target.value))} aria-label={tx('Ir para o turno')}>{turns.map(t => <option key={t} value={t}>{tx('Turno {t}', { t })}</option>)}</select>
         <div className="rp-time">
