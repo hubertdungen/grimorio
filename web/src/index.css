@@ -3000,3 +3000,21 @@ html { touch-action: manipulation; }
   .fp-table .pc.fp-over .pc-f { box-shadow: 0 0 0 4px #ffd98a, 0 0 24px #ffd98a; }
 }
 @media (pointer: coarse) { .ml-t, .fp.ml .ml-tools .ml-tg .ml-t { min-height: 44px; } }  /* mesa livre: barra de ferramentas confortável ao dedo */
+
+/* ---------- padrões da mesa (tapete de cada jogador): --mat desenhado por baixo das cartas; os mesmos nas amostras ---------- */
+[data-mat="pontos"] { --mat: radial-gradient(#ffffff26 1.3px, transparent 1.8px) 0 0 / 18px 18px; }
+[data-mat="riscas"] { --mat: repeating-linear-gradient(45deg, #ffffff12 0 6px, transparent 6px 18px); }
+[data-mat="xadrez"] { --mat: conic-gradient(#ffffff10 25%, transparent 0 50%, #ffffff10 0 75%, transparent 0) 0 0 / 40px 40px; }
+[data-mat="grelha"] { --mat: linear-gradient(#ffffff14 1px, transparent 1px) 0 0 / 26px 26px, linear-gradient(90deg, #ffffff14 1px, transparent 1px) 0 0 / 26px 26px; }
+[data-mat="linho"] { --mat: repeating-linear-gradient(0deg, #ffffff0b 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, #ffffff09 0 1px, transparent 1px 4px), linear-gradient(#c8b28a14, #c8b28a14); }
+[data-mat="escamas"] { --mat: radial-gradient(circle at 50% 100%, transparent 8px, #ffffff16 9px, transparent 10.5px) 0 0 / 20px 12px, radial-gradient(circle at 50% 100%, transparent 8px, #ffffff16 9px, transparent 10.5px) 10px 6px / 20px 12px; }
+[data-mat="arcano"] { --mat: radial-gradient(ellipse at 18% 28%, #8a63ff38, transparent 55%), radial-gradient(ellipse at 82% 72%, #f2b84b2a, transparent 55%), radial-gradient(#ffffff1a 1px, transparent 1.5px) 0 0 / 34px 34px; }
+[data-mat="oceano"] { --mat: radial-gradient(ellipse at 50% 120%, #1fa2ff38, transparent 65%), repeating-radial-gradient(circle at 50% 140%, transparent 0 14px, #9fd8ff12 14px 15px); }
+[data-mat="brasas"] { --mat: radial-gradient(ellipse at 30% 110%, #ff5a1f40, transparent 60%), radial-gradient(ellipse at 75% 105%, #ffb02e2c, transparent 55%), radial-gradient(#ffb02e30 1px, transparent 1.6px) 0 0 / 23px 29px; }
+[data-mat="floresta"] { --mat: radial-gradient(ellipse at 20% 0%, #2fbf6a30, transparent 60%), radial-gradient(ellipse at 85% 100%, #7fd16b24, transparent 55%), repeating-linear-gradient(100deg, #ffffff08 0 2px, transparent 2px 22px); }
+.bside[data-mat]:not(.fp-placing):not(.fp-over) { background: var(--mat); }  /* a arrumar ou a largar: o fundo próprio desses estados */
+.matpick { display: grid; gap: 6px; margin: 6px 0; }
+.matpick-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.matsw { width: 34px; height: 34px; padding: 0; border-radius: 8px; border: 1px solid #ffffff2e; background: var(--mat, none), #151a2b; color: #9aa3c0; font-size: 14px; cursor: pointer; }
+.matsw:hover { border-color: #ffffff66; }
+.matsw.on { border-color: var(--gold); box-shadow: 0 0 0 2px #f2b84b55; }

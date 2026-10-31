@@ -7,7 +7,7 @@ import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
-import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
+import { fpPrefs, setFpPrefs, cardVars, CARD_PX, MATS } from './fpprefs.js'
 import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, typeOf, markDormant, markMoon, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
@@ -271,6 +271,22 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
   )
 })
 
+// o padrão do tapete (o meu, guardado nas preferências da mesa) e se vejo os dos outros; onMat avisa a mesa (online: os outros veem-no)
+const MAT_NAME = { pontos: tx('Pontos'), riscas: tx('Riscas'), xadrez: tx('Xadrez'), grelha: tx('Grelha'), linho: tx('Linho'), escamas: tx('Escamas'), arcano: tx('Arcano'), oceano: tx('Oceano'), brasas: tx('Brasas'), floresta: tx('Floresta') }
+export function MatPick({ onMat, others = true }) {
+  const [p, setP] = useState(() => fpPrefs())
+  const save = v => { setFpPrefs(v); setP(fpPrefs()); onMat?.(fpPrefs()) }
+  return (
+    <div className="matpick">
+      <div className="matpick-row" role="radiogroup" aria-label={tx('Padrão da mesa')}>
+        {[null, ...MATS].map(m => <button key={m || '-'} type="button" role="radio" aria-checked={p.mat === m} className={`matsw ${p.mat === m ? 'on' : ''}`} data-mat={m || undefined}
+          title={m ? MAT_NAME[m] : tx('Sem padrão')} onClick={() => save({ mat: m })}>{m ? '' : '∅'}</button>)}
+      </div>
+      {others && <label className="chk small"><input type="checkbox" checked={p.mats} onChange={e => save({ mats: e.target.checked })} /> {tx('Ver o padrão de cada jogador (desligado: vês o teu em todos os lados)')}</label>}
+    </div>
+  )
+}
+
 // tamanho das cartas na mesa em píxeis (0 = automático), guardado nas preferências da mesa (fpprefs: o mesmo nas
 // réplicas, no Forge Play e na mesa livre)
 export function CardPx({ onChange, className = '' }) {
@@ -405,7 +421,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
   )
 }
 
-export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order, owns, free }) {  // free: cartas pousadas à mão fora das filas (Forge Play: {key: {x, y}}, o centro em fração do lado)  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
+export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order, owns, free, mat }) {  // free: cartas pousadas à mão fora das filas (Forge Play: {key: {x, y}}, o centro em fração do lado)  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
   const z = s[k]  // compact: um de 3–4 jogadores (cartas mais pequenas); hit: está a ser atacado
   const all = s.sides.flatMap(x => s[x].perms)
   const live = markMoon(data, markDormant(data, z.perms), all).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
@@ -423,7 +439,7 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
   const { arts } = useContext(Arts), art = useMemo(() => ({ arts, k }), [arts, k])
   useEffect(() => { const t = Date.now(); for (const p of z.perms) seenAt.set(p.key, t) })
   return (
-    <Arts.Provider value={art}><div className={`bside ${top ? 'top' : 'bottom'} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`}>
+    <Arts.Provider value={art}><div className={`bside ${top ? 'top' : 'bottom'} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`} data-mat={mat || undefined}>
       {top ? <>{hud}{back}{front}</> : <>{front}{back}{hud}</>}
       {loose.length > 0 && <div className="bfree">{loose.map(p => (
         <div key={p.key} className={`bfree-c ${isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'}`} style={{ left: `clamp(calc(var(--w) * .5), ${free[p.key].x * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${free[p.key].y * 100}%, calc(100% - var(--w) * .7))` }}>

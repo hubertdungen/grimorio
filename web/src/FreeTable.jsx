@@ -4,7 +4,7 @@
 // As cartas no campo têm x/y no lado de quem as controla: todos veem a mesma arrumação (o lado dos outros ao contrário).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Perm, Hud } from './Board.jsx'
+import { Perm, Hud, MatPick } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
@@ -74,6 +74,18 @@ function line(e, who) {
     case 'gf': return tx('Adversário imaginário: vida {v} ({d})', { v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
     default: return e.k
   }
+}
+
+function MatModal({ onClose, onMat }) {
+  useBackClose(true, onClose)
+  return (
+    <div className="fp-modal" onClick={onClose}><div className="fp-ask" onClick={e => e.stopPropagation()}>
+      <h3>🎨 {tx('Padrão da mesa')}</h3>
+      <p className="muted small">{tx('O teu lado da mesa fica com este padrão e os outros jogadores veem-no. Fica guardado neste aparelho.')}</p>
+      <MatPick onMat={onMat} />
+      <div className="row-btns"><button className="primary" onClick={onClose}>{tx('Feito')}</button></div>
+    </div></div>
+  )
 }
 
 function Help({ onClose }) {
@@ -259,6 +271,11 @@ export default function FreeTable({ id, data, onClose }) {
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
   })
 
+  // o meu tapete (guardado neste aparelho) vai para o meu lugar: os outros veem-no
+  const myMat = s?.seats?.[s.me]?.mat ?? null, hasSeat = !!s?.seats?.[s?.me]
+  useEffect(() => { if (hasSeat && myMat !== fpPrefs().mat) send({ c: 'mat', v: fpPrefs().mat }) }, [hasSeat, myMat])  // eslint-disable-line react-hooks/exhaustive-deps
+  const [matOpen, setMatOpen] = useState(false)
+
   if (!s) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted"><span className="spin-dot" /> {tx('A abrir a mesa…')}</p>}</div>
   const mine = seats[me], ended = s.status !== 'playing'
   const others = Array.from({ length: n - 1 }, (_, k) => (me + 1 + k) % n)
@@ -293,7 +310,7 @@ export default function FreeTable({ id, data, onClose }) {
       </div>
     )
     return (
-      <div key={i} className={`bside ml-side ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i}
+      <div key={i} className={`bside ml-side ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i} data-mat={(isMe || !P.mats ? P.mat : v.mat) || undefined}
         onClickCapture={e => { const z = e.target.closest('[data-zone]')?.dataset.zone; if (z === 'graveyard' || z === 'exile') { e.stopPropagation(); setZone({ seat: i, which: z }) } }}>
         {top ? <>{hud}{field}</> : <>{field}{hud}</>}
       </div>
@@ -342,6 +359,7 @@ export default function FreeTable({ id, data, onClose }) {
     if (menu.more) return [
       [P.persp ? tx('▭ Mesa sem perspetiva') : tx('⏢ Lado dos outros em perspetiva'), () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }],
       ['🂠 ' + tx('Tamanho das cartas: {x} (muda para o seguinte)', { x: P.cardPx ? `${P.cardPx} px` : tx('automático') }), () => { const i = CARD_PX.indexOf(fpPrefs().cardPx); setFpPrefs({ cardPx: CARD_PX[(i + 1) % CARD_PX.length] }); redraw(x => x + 1) }],
+      ['🎨 ' + tx('Padrão da mesa'), () => setMatOpen(true)],
       ['❓ ' + tx('Como se joga aqui'), () => setHelp(true)],
       [s.day === 'day' ? '☾ ' + tx('Passar a noite') : '☀ ' + tx('Passar a dia'), () => send({ c: 'day' })],
       ...(s.day ? [['◌ ' + tx('Tirar o dia/noite'), () => send({ c: 'day', v: null })]] : []),
@@ -478,6 +496,7 @@ export default function FreeTable({ id, data, onClose }) {
               <button className="small" onClick={() => mv(c.id, 'graveyard')} title={tx('Para o cemitério')}>⚰</button><button className="small" onClick={() => mv(c.id, 'exile')} title={tx('Para o exílio')}>⌀</button><button className="small" onClick={() => toField(c.id)} title={tx('Para o campo')}>▶</button></span></div>))}</div>
         <div className="row-btns"><button className="primary" onClick={() => send({ c: 'peek', n: 0 })}>{tx('Feito (as que sobram ficam no topo)')}</button></div></div></div>}
       {help && <Help onClose={() => { setHelp(false); lsSet(HELP_K, '1') }} />}
+      {matOpen && <MatModal onClose={() => setMatOpen(false)} onMat={p => { send({ c: 'mat', v: p.mat }); redraw(x => x + 1) }} />}
       {cardPop && lookup(data, cardPop) && <div className="fp-modal" onClick={() => setCardPop(null)}><img className="ml-pop" src={img(lookup(data, cardPop), 'normal')} alt={cardPop} /></div>}
       {s.result ? <p className="ml-ended win">{s.result.w == null ? tx('🤝 Empate') : tx('🏆 Ganhou {p}', { p: who(s.result.w) })}{onClose && <button className="small" onClick={onClose}>{tx('sair da mesa')}</button>}</p>
         : ended && <p className="ml-ended">{tx('Esta mesa terminou.')}</p>}

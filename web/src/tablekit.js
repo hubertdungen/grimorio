@@ -310,7 +310,7 @@ export function useTableDice(box, o = null) {
       const D = await import('./Dice3D.js')
       if (!box.current || tray.current) return tray.current
       const O = opt.current
-      tray.current = D.webglOk() ? D.createTray(box.current, { view: 13, cloth: true, colors: DICE_COL, words: [tx('Cara'), tx('Coroa')], onHit: a => play('diceHit', { amount: a }),
+      tray.current = D.webglOk() ? D.createTray(box.current, { view: 13, colors: DICE_COL, words: [tx('Cara'), tx('Coroa')], onHit: a => play('diceHit', { amount: a }),
         ...(O && { box: O.box, rot: O.rot || 0, onThrow: (types, thr) => opt.current?.onThrow?.(types, thr) }),
         onSettle: items => { setRes({ items }); play('tick', { amount: 1 }); if (items.some(x => x.type === 'moeda')) play('coin'); clearTimeout(clear.current); clear.current = setTimeout(() => { tray.current?.clear(); setRes(null) }, opt.current?.keep || 20000) } }) : 'flat'
     }

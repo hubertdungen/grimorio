@@ -4,7 +4,7 @@
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick } from './Board.jsx'
 import { tx } from './i18n.js'
 import { Syms } from './ui.jsx'
 import { obviousPay } from './mana.js'
@@ -575,7 +575,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
     const out = Object.keys(lay.free || {}).filter(k => players.some(p => [...(p.graveyard || []), ...(p.exile || [])].some(c => String(c.id) === k)))
     if (out.length) setLay(l => { const f = { ...l.free }; for (const k of out) delete f[k]; return { ...l, free: f } })
   }, [seqKey])  // eslint-disable-line react-hooks/exhaustive-deps
-  const [, redraw] = useState(0)
+  const [, redraw] = useState(0), [matOpen, setMatOpen] = useState(false)
   const persp = () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }
   const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null), peek = usePeek(), diceBox = useRef(null), dice = useTableDice(diceBox)
   const P = fpPrefs()
@@ -669,7 +669,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
-        {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone}
+        {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
           hand={nOpp > 0 && <Hand z={{ hand: nOpp, known: Array(nOpp).fill('?') }} data={data} exact opp hidden quiet />} />}
         <div className="fp-mid">
           <span className="fp-turn">{tx('Turno {n}', { n: st.turn })} · {myTurn ? tx('teu') : opp?.name}</span>
@@ -677,7 +677,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
           <span className="fp-phases">{PHASES.map(([k, l, ps]) => <i key={k} className={ps.includes(st.phase) ? 'on' : ''}>{l}</i>)}</span>
           <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={null} who={{ a: me?.name, b: opp?.name }} speed={1} />
         </div>
-        {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
+        {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
           hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}
       </div>
       </div><div className="fp-dice" ref={diceBox} /></div>
@@ -698,8 +698,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
             {(lay.free && Object.keys(lay.free).length > 0) || lay.order ? <button className="link small" onClick={() => setLay(l => ({ hand: l.hand }))} title={tx('As cartas do teu lado voltam às filas automáticas')}>▦ {tx('arrumar')}</button> : null}
             <button className="link small" onClick={persp} title={tx('Lado do adversário em perspetiva (mais espaço para o teu)')}>{P.persp ? '▭' : '⏢'} {tx('perspetiva')}</button>
             <CardPx className="small" onChange={() => redraw(x => x + 1)} />
+            <button className={`link small ${matOpen ? 'on' : ''}`} onClick={() => setMatOpen(x => !x)} aria-expanded={matOpen} title={tx('Padrão da mesa')}>🎨 {tx('tapete')}</button>
             <button className="link small" onClick={() => send({ c: 'concede' })}>🏳 {tx('desistir')}</button>
           </div>
+          {matOpen && <MatPick onMat={() => redraw(x => x + 1)} />}
           {err && <p className="small bad-t">{err}</p>}
         </div>
       </aside>

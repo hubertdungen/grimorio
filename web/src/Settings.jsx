@@ -1,5 +1,6 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
+import { MatPick } from './Board.jsx'
 import { fpPrefs, setFpPrefs, CARD_PX } from './fpprefs.js'
 import { wakeOn, setWake, wakeSupported, fsOrientPref, setFsOrientPref } from './wakelock.js'
 import { sfMode, setSfMode } from './data.js'
@@ -127,6 +128,7 @@ function TableKeys() {
           {CARD_PX.map(n => <option key={n} value={n}>{n ? tx('{n} px (terrenos também)', { n }) : tx('Automático (cabe no ecrã)')}</option>)}
         </select></label>
       <p className="muted small">{tx('Também nas réplicas e torneios. Quando as cartas não cabem no lado do jogador, encostam-se e empilham-se (terrenos iguais num monte ×N) em vez de saírem dele.')}</p>
+      <div className="fmt"><span>{tx('Padrão da mesa')}</span><MatPick /></div>
       <label className="fmt"><span>{tx('Cartas dos adversários na mesa')}</span>
         <select value={p.oppFace} onChange={e => save({ oppFace: e.target.value })}>
           <option value="me">{tx('Viradas para mim (legíveis)')}</option>

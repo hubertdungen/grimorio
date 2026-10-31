@@ -5,6 +5,8 @@
 // terrenos e as outras permanentes ficam todas com ele (no automático os terrenos são mais pequenos para caber tudo);
 // quando não cabem numa fila, encostam-se e empilham-se (useOverlap, groups) em vez de saírem do lado do jogador.
 export const CARD_PX = [0, 48, 56, 64, 72, 80, 96, 112, 128]
+// padrões do tapete (desenho em index.css, .bside[data-mat]; a mesma lista em freetable.py MATS)
+export const MATS = ['pontos', 'riscas', 'xadrez', 'grelha', 'linho', 'escamas', 'arcano', 'oceano', 'brasas', 'floresta']
 // --pk: no Forge Play e na mesa livre (mesa de tamanho fixo) o useOverlap encolhe um pouco se as filas não cabem na altura
 export const cardVars = px => (px ? { '--px': `calc(${px}px * var(--pk, 1))`, '--cw': `calc(${px}px * var(--pk, 1))`, '--ow': `calc(${px}px * var(--pk, 1))`, '--lw': `calc(${px}px * var(--pk, 1))` } : null)
 export const fpPrefs = () => {
@@ -13,6 +15,7 @@ export const fpPrefs = () => {
     autopay: o.autopay === true, autoresolve: o.autoresolve === true,  // pagar sozinho: desligado por omissão
     place: ['grid', 'free', 'rows'].includes(o.place) ? o.place : 'grid', persp: o.persp !== false, tilt: Number.isFinite(o.tilt) ? o.tilt : 30,
     oppFace: o.oppFace === 'far' ? 'far' : 'me',  // cartas dos adversários: viradas para mim (legíveis) ou para eles (180°, como numa mesa a sério)
-    cardPx: CARD_PX.includes(o.cardPx) ? o.cardPx : 0 }  // tamanho das cartas na mesa (0 = automático)
+    cardPx: CARD_PX.includes(o.cardPx) ? o.cardPx : 0,  // tamanho das cartas na mesa (0 = automático)
+    mat: MATS.includes(o.mat) ? o.mat : null, mats: o.mats !== false }  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
 }
 export const setFpPrefs = v => { try { const o = JSON.parse(localStorage.getItem('grimorio.fp.prefs') || '{}'); localStorage.setItem('grimorio.fp.prefs', JSON.stringify({ ...o, ...v })) } catch { /* sem armazenamento */ } }

@@ -21,6 +21,8 @@ PUBLIC = ("graveyard", "exile", "command")
 DICE = {"d6": 6, "d20": 20, "moeda": 2}
 PEN = ("#ffd166", "#ff5c8a", "#4cc9f0", "#80ed99", "#ffffff", "#c77dff")  # cores da caneta
 REACT = ("👍", "😂", "😮", "🔥", "😭", "🤝")
+# padrões do tapete de cada jogador (o desenho é CSS: .bside[data-mat] em index.css; MATS em web/src/Board.jsx)
+MATS = ("pontos", "riscas", "xadrez", "grelha", "linho", "escamas", "arcano", "oceano", "brasas", "floresta")
 PEN_LIFE = 8  # segundos que um traço da caneta fica no estado (o browser apaga-o antes, a desvanecer)
 PATH = re.compile(r"^/api/freetables/([a-f0-9]{12})$")
 RNG = random.SystemRandom()
@@ -173,7 +175,7 @@ def view(t, me):
     seats = []
     for i, s in enumerate(t["seats"]):
         z = t["zones"][i]
-        v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {},
+        v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {}, "mat": s.get("mat"),
              "mk": s.get("mk") or [], "me": i == me, "library": len(z["library"]),
              "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
         if i == me and s["peek"]:
@@ -517,6 +519,11 @@ def apply(t, me, d):
                 r["ok"].append(seat["by"])
             if {s2["by"] for s2 in t["seats"]} <= set(r["ok"]):
                 _decide(t, r["w"], me)
+    elif c0 == "mat":  # o tapete do meu lugar (todos o veem; cada um pode ver só o seu)
+        v = d.get("v")
+        if v is not None and v not in MATS:
+            raise ValueError("Padrão desconhecido.")
+        t["seats"][me]["mat"] = v
     elif c0 == "react":
         e = d.get("e")
         ent = next((x for x in t["log"] if x.get("id") == d.get("i")), None)
@@ -734,6 +741,8 @@ def selfcheck():
     assert t["seats"][0]["mk"] == ["blessing"] and t["seats"][1]["mk"] == ["monarch"]
     call("POST", "host", {"c": "day"}); call("POST", "host", {"c": "day"})
     assert call("GET", "guest:rui")[1]["day"] == "night"
+    call("POST", "host", {"c": "mat", "v": "arcano"})  # o tapete do anfitrião, visto pelo convidado
+    assert call("GET", "guest:rui")[1]["seats"][0]["mat"] == "arcano" and call("POST", "host", {"c": "mat", "v": "<x>"})[0] == 400
     call("POST", "guest:rui", {"c": "tax", "id": boss, "d": -1})
     assert "cc" not in t["cards"][str(boss)]
     h1 = t["zones"][0]["hand"][0]
