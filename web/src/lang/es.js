@@ -3561,4 +3561,6 @@ export default {
   "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "Atacante {n}: bloqueado por las que tienen 🛡 {n}",
   "Bloqueia o atacante ⚔ {n}": "Bloquea al atacante ⚔ {n}",
   "Para": "Para",
+  "Jogo seguinte da partida (Bo{b})": "Siguiente partida del enfrentamiento (Bo{b})",
+  "Este jogo perdeu-se: o servidor foi reiniciado": "Esta partida se perdió: el servidor se reinició",
 }

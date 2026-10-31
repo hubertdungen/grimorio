@@ -3569,4 +3569,6 @@ export default {
   "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "Attacker {n}: blocked by the cards marked 🛡 {n}",
   "Bloqueia o atacante ⚔ {n}": "Blocks attacker ⚔ {n}",
   "Para": "For",
+  "Jogo seguinte da partida (Bo{b})": "Next game of the match (Bo{b})",
+  "Este jogo perdeu-se: o servidor foi reiniciado": "This game was lost: the server was restarted",
 }

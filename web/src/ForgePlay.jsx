@@ -312,7 +312,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo }) {  // payCancel: o 
   )
 }
 
-export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd }) {
+export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, series, onEnd }) {  // againLabel: o texto do botão de voltar a jogar (torneios: o jogo seguinte da partida)
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [toast, setToast] = useState(null)
   const seen = useRef(0)
   useEffect(() => {  // espera longa: o servidor responde quando há novidades (ou ao fim de 20 s)
@@ -324,7 +324,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
           if (!live) return
           since = r.seq; setS(r); setErr('')
           if (r.ended) return
-        } catch (e) { if (!live) return; setErr(e.message); if (/não existe/.test(e.message)) return; await new Promise(ok => setTimeout(ok, 2000)) }
+        } catch (e) {
+          if (!live) return
+          // o jogo já não existe no servidor (reiniciado a meio: uma atualização): a janela do fim diz que nada conta
+          if (/não existe/.test(e.message)) { setS(x => (x ? { ...x, ended: true, lost: true } : x)); return }
+          setErr(e.message); await new Promise(ok => setTimeout(ok, 2000))
+        }
       }
     })()
     return () => { live = false }
@@ -751,10 +756,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
         <div className="fp-opts">{(players.find(p => p.id === zone.p.id)?.[zone.k] || []).map(c => <FCard key={c.id} c={c} data={data} big onClick={x => { send({ c: 'card', id: x.id }); setZone(null) }} />)}</div></div></div>}
       {toast && <div className={`fp-toast ${toast.out ? 'out' : ''}`} onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} <Syms text={toast.msg} />{toast.list && <ul>{toast.list.map((l, k) => <li key={k}><Syms text={l} /></li>)}</ul>}</div>}
       {s.ended && <div className="fp-modal"><div className="fp-ask fp-end">
-        <h3>{s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : s.crash ? tx('O Forge falhou a meio deste jogo') : tx('Jogo terminado')}</h3>
-        {s.crash && <p className="muted">{tx('Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.')}</p>}
+        <h3>{s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : s.crash ? tx('O Forge falhou a meio deste jogo') : s.lost ? tx('Este jogo perdeu-se: o servidor foi reiniciado') : tx('Jogo terminado')}</h3>
+        {(s.crash || s.lost) && <p className="muted">{tx('Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.')}</p>}
         {series && <p className="fp-series">{series.done ? (series.w[0] > series.w[1] ? tx('🏆 Ganhaste a série {a}–{b}', { a: series.w[0], b: series.w[1] }) : tx('Perdeste a série {a}–{b}', { a: series.w[0], b: series.w[1] })) : tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })}</p>}
-        <div className="row-btns">{onAgain && <button className="primary" onClick={onAgain}>▶ {series && !series.done ? tx('Jogo seguinte (sideboard)') : series ? tx('Nova série') : tx('Jogar outra vez')}</button>}<button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}
+        <div className="row-btns">{onAgain && <button className="primary" onClick={onAgain}>▶ {againLabel || (series && !series.done ? tx('Jogo seguinte (sideboard)') : series ? tx('Nova série') : tx('Jogar outra vez'))}</button>}<button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}
     </div>
   )
 }

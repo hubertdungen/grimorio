@@ -3561,4 +3561,6 @@ export default {
   "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "Angreifer {n}: geblockt von den Karten mit 🛡 {n}",
   "Bloqueia o atacante ⚔ {n}": "Blockt Angreifer ⚔ {n}",
   "Para": "Für",
+  "Jogo seguinte da partida (Bo{b})": "Nächstes Spiel des Matches (Bo{b})",
+  "Este jogo perdeu-se: o servidor foi reiniciado": "Dieses Spiel ging verloren: der Server wurde neu gestartet",
 }

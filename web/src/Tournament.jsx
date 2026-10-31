@@ -923,6 +923,7 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
   const [err, setErr] = useState('')
   const [watch, setWatch] = useState(null)  // {gid, game, deckName, score}
   const [playing, setPlaying] = useState(null)  // sessão do Forge Play do meu jogo (torneio em que jogo eu)
+  const playMid = useRef(null)  // a partida desse jogo (Bo3/Bo5: o «jogo seguinte» no fim de cada um)
   const [stick, setStick] = useState(null)  // {mid, gid}: à espera do jogo seguinte desta partida
   const [follow, setFollowS] = useState(() => ls('grimorio.torneio.seguir') !== '0')
   const setFollow = v => { setFollowS(v); ls('grimorio.torneio.seguir', v ? '1' : '0') }
@@ -1007,12 +1008,16 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
   if (!t) return <section className="card">{err ? <p className="bad-t">{err}</p> : <p><span className="spin-dot" /> {tx('A abrir o torneio…')}</p>}</section>
   const act = async a => { try { await post(`/api/tournaments/${tid}/${a}`); setT(await j(`/api/tournaments/${tid}`)) } catch (e) { setErr(e.message) } }
   // o meu jogo no Forge Play; sem lugar no servidor fica na fila e abre-se sozinho quando começar (efeito em cima)
-  const playMine = async mid => { setErr(''); try { const r = await post(`/api/tournaments/${tid}/play`, { mid, name: who || tx('Tu') }); if (r.sid) setPlaying(r.sid); else { queued.current.add(mid); setT(await j(`/api/tournaments/${tid}`)) } } catch (e) { setErr(e.message) } }
+  const playMine = async mid => { setErr(''); playMid.current = mid; try { const r = await post(`/api/tournaments/${tid}/play`, { mid, name: who || tx('Tu') }); if (r.sid) setPlaying(r.sid); else { queued.current.add(mid); setT(await j(`/api/tournaments/${tid}`)) } } catch (e) { setErr(e.message) } }
   if (playing) return <>{slot && createPortal(<button onClick={() => setPlaying(null)}>{tx('← Voltar ao torneio')}</button>, slot)}
     <div className="view play fp-view">
       <div className="row-btns fp-bar"><b>🏆 {t?.name}</b> <span className="muted small">{tx('o teu jogo do torneio')}</span>
         <button className="link small" onClick={async () => { if (!(await ask('abandonar', { title: tx('Abandonar este jogo?'), body: tx('O jogo não conta: a partida volta a ficar à tua espera. Para perder o jogo, usa «desistir» na mesa.'), ok: tx('Abandonar') }))) return; await post(`/api/playnet/${playing}/stop`).catch(() => {}); setPlaying(null) }}>■ {tx('Abandonar')}</button></div>
-      <ForgeTable key={playing} sid={playing} data={data} onClose={() => setPlaying(null)} /></div></>
+      {(() => {  // Bo3/Bo5 por decidir: no fim de cada jogo, o seguinte da mesma partida (o servidor diz se ainda está à minha espera)
+        const m = t.matches.find(x => x.id === playMid.current), more = (t.bo || 1) > 1 && m && m.st !== 'done'
+        return <ForgeTable key={playing} sid={playing} data={data} onClose={() => setPlaying(null)}
+          {...(more ? { onAgain: () => { setPlaying(null); playMine(m.id) }, againLabel: tx('Jogo seguinte da partida (Bo{b})', { b: t.bo }) } : {})} />
+      })()}</div></>
   const del = async () => { if (!(await ask('torneio', { title: tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: t.name }), ok: tx('Apagar') }))) return; await j(`/api/tournaments/${tid}`, { method: 'DELETE' }); onGone() }
   const nextOf = i => nextGame(fl, i, nextMode, home.current, mid => t.matches.find(m => m.id === mid)?.st === 'done')  // «Depois de um jogo»
   if (watch) {

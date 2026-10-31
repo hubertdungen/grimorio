@@ -3561,4 +3561,6 @@ export default {
   "Atacante {n}: bloqueado pelos que têm 🛡 {n}": "攻击者 {n}：被标有 🛡 {n} 的牌阻挡",
   "Bloqueia o atacante ⚔ {n}": "阻挡攻击者 ⚔ {n}",
   "Para": "用于",
+  "Jogo seguinte da partida (Bo{b})": "本场对决的下一局（Bo{b}）",
+  "Este jogo perdeu-se: o servidor foi reiniciado": "这局游戏已丢失：服务器已重启",
 }
