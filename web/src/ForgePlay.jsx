@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks } from './Board.jsx'
 import { tx } from './i18n.js'
+import { playDiff } from './sfx.js'
 import { Syms } from './ui.jsx'
 import { obviousPay } from './mana.js'
 import { useBackClose } from './backnav.js'
@@ -378,6 +379,19 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   })
   const ended = !!s?.ended, iWon = !!s?.winner && s.winner === me?.name
   useEffect(() => { if (ended) onEnd?.(s.winner ? iWon : null) }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
+  // sons: o Forge Play não manda eventos — soa a diferença entre o estado anterior e este (sfx.playDiff); o 1.º não soa
+  const snapRef = useRef(null)
+  useEffect(() => {
+    if (!st) return
+    const top = st.stack?.[0], tc = top?.name && (data.byName.get(top.name) || data.byLower?.get(top.name.toLowerCase()))
+    const side = p => p && { life: p.life, poison: ctrs(p.counters).poison || 0, hand: p.hand?.length || 0, library: p.library || 0, gy: p.graveyard?.length || 0, ex: p.exile?.length || 0,
+      perms: new Map((p.battlefield || []).map(c => [c.id, { land: !!c.land, token: !!c.token, tapped: !!c.tapped, ctr: Object.values(c.counters || {}).reduce((n, x) => n + (+x || 0), 0) }])) }
+    const snap = { turn: st.turn, active: st.active === me?.id ? 'a' : 'b', combat: /^COMBAT/.test(st.phase || ''), att: st.combat?.length || 0,
+      blk: (st.combat || []).reduce((n, x) => n + (x.blockers?.length || 0), 0), stack: st.stack?.length || 0, stackBy: top?.by === me?.id ? 'a' : 'b', stackCol: tc?.co ?? tc?.ci,
+      over: ended, won: iWon, sides: { a: side(me), b: side(opp) } }
+    if (snapRef.current) playDiff(snapRef.current, snap)
+    snapRef.current = snap
+  }, [s?.seq, ended])  // eslint-disable-line react-hooks/exhaustive-deps
   const byId = new Map(players.flatMap(p => [...['battlefield', 'hand', 'graveyard', 'exile'].flatMap(z => (p[z] || []).map(c => [c.id, c])), ...(p.top ? [[p.top.id, p.top]] : [])]))
   const lives = `${me?.life}|${opp?.life}`, prevLives = useRef(null), [lifeFx, setLifeFx] = useState(null)
   // veneno (infect, toxic, poisonous…): o ☠ ao lado da vida pulsa e sobe quando aumenta, como na arena

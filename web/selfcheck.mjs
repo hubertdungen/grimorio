@@ -799,3 +799,17 @@ import { markMoon } from './src/game.js'
   assert.deepEqual(markMoon(gm, mine, [...mine, { key: 9, name: 'Blood Moon' }]).map(p => !!p.moon), [true, false, false])
   console.log('selfcheck blood moon ok')
 }
+
+// sons do Forge Play pela diferença de estados: terreno jogado, compra, dano, feitiço na pilha; o fim do jogo cala o resto
+import { diffSounds } from './src/sfx.js'
+{
+  const side = (o = {}) => ({ life: 20, poison: 0, hand: 7, library: 53, gy: 0, ex: 0, perms: new Map(), ...o })
+  const st = (o = {}) => ({ turn: 3, active: 'a', combat: false, att: 0, blk: 0, stack: 0, over: false, sides: { a: side(o.a), b: side(o.b) }, ...o.top })
+  const k = (a, b) => diffSounds(a, b).map(x => x[0])
+  assert.deepEqual(k(st(), st({ a: { perms: new Map([[1, { land: true }]]), hand: 6 } })), ['land'])
+  assert.deepEqual(k(st(), st({ a: { hand: 8, library: 52 } })), ['draw'])
+  assert.deepEqual(k(st(), st({ b: { life: 17 }, top: { stack: 1, stackBy: 'a' } })), ['cast', 'damage'])
+  assert.deepEqual(k(st(), st({ top: { over: true, won: true }, b: { life: 0 } })), ['win'])
+  assert.deepEqual(k(st(), st({ top: { turn: 4, active: 'b' } })), ['turn'])
+  console.log('selfcheck sons do forge play ok')
+}

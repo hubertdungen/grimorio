@@ -12,7 +12,7 @@ import { lookup, isCreature, isLand, flipKind, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
 import { tx } from './i18n.js'
-import { play } from './sfx.js'
+import { play, playFreeLog } from './sfx.js'
 import TableChat from './TableChat.jsx'
 import { usePen, PEN_COLS } from './tablepen.js'
 import { useBackClose } from './backnav.js'
@@ -139,6 +139,14 @@ export default function FreeTable({ id, data, onClose }) {
   const send = c => j(`/api/freetables/${id}${seatQ('?')}`, c).then(r => { setS(x => (!x || r.seq >= x.seq ? r : x)); return r }).catch(e => { setErr(e.message); setTimeout(() => setErr(''), 4000) })
   const me = s?.me ?? 0, seats = s?.seats || [], n = seats.length
   const keyOf = i => KEYS[(i - me + n) % n]
+  // sons: cada entrada nova do registo (de quem for) soa como na réplica; ao abrir a mesa o histórico não soa
+  const heard = useRef(null)
+  useEffect(() => {
+    const log = s?.log || [], top = log.reduce((m, e) => Math.max(m, e.id || 0), 0)
+    if (heard.current == null) { heard.current = top; return }
+    for (const e of log) if ((e.id || 0) > heard.current) playFreeLog(e, keyOf(['life', 'poison', 'energy', 'cmdmg'].includes(e.k) ? e.p ?? e.s : e.s), name => isLand(data, { name }))  // p: o lugar afetado (vida…); no ataque é o atacado
+    heard.current = Math.max(heard.current, top)
+  }, [s?.log])  // eslint-disable-line react-hooks/exhaustive-deps
   const who = i => (i == null ? tx('A mesa') : seats[i]?.name || '?')
   // todas as cartas que vejo, pelo id: onde estão e de quem
   const byId = useMemo(() => {

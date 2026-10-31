@@ -276,6 +276,82 @@ export function playEvent(ev, s, data, { speed = 1 } = {}) {
   }
 }
 
+// ---------- mesas sem eventos: Forge Play (diferença entre dois estados) e mesa livre (o registo das jogadas) ----------
+// snapshot do Forge Play (ForgePlay.jsx sfxSnap): {turn, active, combat, att, blk, stack, stackBy, stackCol, over, won,
+// sides: {a|b: {life, poison, hand, library, gy, ex, perms: Map id -> {land, token, tapped, ctr}}}}. Cada diferença soa uma
+// vez; o admit() do play já corta as repetições em rajada.
+export function diffSounds(a, b) {
+  const r = [], play = (k, o = {}) => (r.push([k, o]), true)
+  if (!a || !b) return r
+  if (b.over && !a.over) { play(b.won ? 'win' : 'loss'); return r }
+  if (b.turn !== a.turn) play('turn', { side: b.active })
+  else if (b.combat && !a.combat) play('combat', { side: b.active })
+  if (b.stack > a.stack) play('cast', { side: b.stackBy, colour: b.stackCol })
+  else if (b.stack < a.stack) play('resolve', {})
+  if (b.att > a.att) play('attack', { side: b.active })
+  if (b.blk > a.blk) play('block', {})
+  for (const k of Object.keys(b.sides)) {
+    const x = a.sides[k], y = b.sides[k]
+    if (!x || !y) continue
+    const side = k
+    let gone = 0, tapped = 0, untapped = 0, ctr = 0
+    for (const [id, p] of y.perms) {
+      const q = x.perms.get(id)
+      if (!q) { if (p.token) play('token', { side }); else if (p.land) play('land', { side }); continue }
+      if (p.tapped && !q.tapped) tapped++
+      if (!p.tapped && q.tapped) untapped++
+      if (p.ctr !== q.ctr) ctr++
+    }
+    for (const id of x.perms.keys()) if (!y.perms.has(id)) gone++
+    if (gone) play(y.ex > x.ex ? 'exile' : y.hand > x.hand ? 'bounce' : 'destroy', { side })
+    if (tapped) play('tap', { side }); else if (untapped > 1) play('untap', { side })
+    if (ctr) play('counters', { amount: ctr, side })
+    if (y.life > x.life) play('lifegain', { side }); else if (y.life < x.life) play('damage', { amount: x.life - y.life, side })
+    if (y.poison > x.poison) play('poison', { side })
+    if (y.library < x.library && y.hand > x.hand) play('draw', { amount: x.library - y.library, side })
+    else if (y.library < x.library && y.gy > x.gy) play('mill', { amount: x.library - y.library, side })
+    if (y.hand < x.hand && y.gy > x.gy && !gone && b.stack <= a.stack) play('discard', { side })
+  }
+  return r
+}
+export const playDiff = (a, b) => cfg.on && diffSounds(a, b).forEach(([k, o]) => play(k, o))
+
+// mesa livre: uma entrada nova do registo (freetable.py _log) → o som da réplica. side: o lado da entrada ('a'…);
+// isLand(nome): para um terreno soar como terreno ao entrar no campo
+export function playFreeLog(e, side, isLand) {
+  if (!e || !cfg.on) return false
+  const n = Math.abs(+e.d || 0)
+  switch (e.k) {
+    case 'draw': return play('draw', { amount: e.n || 1, side })
+    case 'shuffle': return play('shuffle', { side })
+    case 'mulligan': return play('mulligan', { side })
+    case 'newturn': return play('turn', { side })
+    case 'untapall': return play('untap', { side })
+    case 'attack': return play('attack', { side })
+    case 'token': return play('token', { side })
+    case 'flip': return play('transform', { side })
+    case 'attach': return play('attach', { side })
+    case 'mark': return play('crown', { side })
+    case 'energy': return +e.d > 0 && play('energy', { side })
+    case 'poison': return +e.d > 0 && play('poison', { side })
+    case 'life': return +e.d > 0 ? play('lifegain', { side }) : +e.d < 0 && play('damage', { amount: n, side })
+    case 'cmdmg': return play('damage', { amount: n || 1, side })
+    case 'concede': return play('eliminated', { side })
+    case 'move': {
+      const fr = e.fr, to = e.to
+      if (to === 'battlefield') return play(e.tok ? 'token' : e.name && isLand?.(e.name) ? 'land' : 'resolve', { side })
+      if (fr === 'library' && to === 'graveyard') return play('mill', { side })
+      if (fr === 'hand' && to === 'graveyard') return play('discard', { side })
+      if (to === 'graveyard') return play('destroy', { side })
+      if (to === 'exile') return play('exile', { side })
+      if (fr === 'battlefield' && to === 'hand') return play('bounce', { side })
+      if (to === 'library') return play('shuffle', { side })
+      return false
+    }
+    default: return false
+  }
+}
+
 // ---------- preferências ----------
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)) } catch { /* sem armazenamento */ } }
 export const getSettings = () => ({ ...cfg })
