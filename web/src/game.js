@@ -91,6 +91,18 @@ export function powTough(data, perm) {
   return { p, t, boosted: plus > 0 || perm.pump?.[0] > 0 || perm.pump?.[1] > 0, hurt: plus < 0 || perm.pump?.[0] < 0 || perm.pump?.[1] < 0 }
 }
 
+// a conta do poder/resistência de uma criatura na mesa: o impresso, os marcadores +1/+1 e −1/−1 e o resto (auras,
+// anthems, até ao fim do turno) = o que falta para o total. printed/other null quando a carta não tem P/R impresso (fichas)
+export function ptExplain(data, perm) {
+  const pt = powTough(data, perm)
+  if (!pt) return null
+  const c = lookup(data, perm.name), m = /^(\d+)\/(\d+)$/.exec(c?.pt || '')
+  const printed = m && !perm.token ? [+m[1], +m[2]] : null
+  const k = perm.counters || {}, plus = k['+1/+1'] || 0, minus = k['-1/-1'] || 0
+  const other = printed ? [pt.p - printed[0] - plus + minus, pt.t - printed[1] - plus + minus] : null
+  return { printed, plus, minus, other, total: [pt.p, pt.t] }
+}
+
 function etbCounters(c) {
   const out = {}
   if (!c) return out

@@ -835,3 +835,12 @@ import { replayDmg } from './src/game.js'
   assert.deepEqual(replayDmg(evs, 5, states).out, {})  // já no main2: os selos saíram
   console.log('selfcheck dano do combate ok')
 }
+
+// a conta do P/R: Grizzly Bears 2/2 com dois +1/+1 e uma aura de +1/+0 (pt do Forge sem os marcadores: 3/2) = 5/4
+import { ptExplain } from './src/game.js'
+{
+  const gm = { byName: new Map([['Grizzly Bears', { n: 'Grizzly Bears', pt: '2/2', t: 'Creature — Bear' }]]), byLower: new Map() }
+  const x = ptExplain(gm, { name: 'Grizzly Bears', pt: '3/2', counters: { '+1/+1': 2 } })
+  assert.deepEqual([x.printed, x.plus, x.other, x.total], [[2, 2], 2, [1, 0], [5, 4]])
+  console.log('selfcheck conta do poder/resistência ok')
+}

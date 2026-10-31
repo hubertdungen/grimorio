@@ -3581,4 +3581,10 @@ export default {
   "Dano que fez neste combate: {n}": "Damage dealt this combat: {n}",
   "Passou {n} com atropelar": "{n} trampled through",
   "Dano que levou neste combate: {n}": "Damage taken this combat: {n}",
+  "Anulado": "Countered",
+  "Impresso": "Printed",
+  "Marcadores +1/+1 ×{n}": "+1/+1 counters ×{n}",
+  "Marcadores −1/−1 ×{n}": "−1/−1 counters ×{n}",
+  "Outros efeitos (auras, anthems, até ao fim do turno)": "Other effects (auras, anthems, until end of turn)",
+  "Total": "Total",
 }

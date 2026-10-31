@@ -3573,4 +3573,10 @@ export default {
   "Dano que fez neste combate: {n}": "In diesem Kampf zugefügter Schaden: {n}",
   "Passou {n} com atropelar": "{n} durch Trampelschaden",
   "Dano que levou neste combate: {n}": "In diesem Kampf erlittener Schaden: {n}",
+  "Anulado": "Neutralisiert",
+  "Impresso": "Aufgedruckt",
+  "Marcadores +1/+1 ×{n}": "+1/+1-Marken ×{n}",
+  "Marcadores −1/−1 ×{n}": "−1/−1-Marken ×{n}",
+  "Outros efeitos (auras, anthems, até ao fim do turno)": "Andere Effekte (Auren, Anthems, bis Zugende)",
+  "Total": "Gesamt",
 }

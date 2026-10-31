@@ -382,6 +382,16 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useEffect(() => { if (ended) onEnd?.(s.winner ? iWon : null) }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
   // sons: o Forge Play não manda eventos — soa a diferença entre o estado anterior e este (sfx.playDiff); o 1.º não soa
   const snapRef = useRef(null)
+  // feitiço anulado: sai da pilha um «counter target…» e logo a seguir (até 3 s) sai outro item → esse foi anulado
+  const stkPrev = useRef([]), ctrAt = useRef(0)
+  useEffect(() => {
+    const now = st?.stack || [], gone = stkPrev.current.filter(x => !now.some(y => y.card === x.card && y.text === x.text))
+    stkPrev.current = now
+    const ctr = gone.find(x => /\bcounter target\b/i.test(x.text || ''))
+    if (ctr) ctrAt.current = Date.now()
+    const hit = gone.filter(x => x !== ctr)
+    if (hit.length && Date.now() - ctrAt.current < 3000) { ctrAt.current = 0; setHits(hit.map((x, k) => ({ key: `c${s?.seq}-${k}`, kind: 'counter', to: { stack: true, name: x.name } }))) }
+  }, [s?.seq])  // eslint-disable-line react-hooks/exhaustive-deps
   // dano à vista: as entradas DAMAGE novas do registo do Forge («X (12) deals 3 combat damage to Y (20).»; Y = carta ou jogador)
   const logSeen = useRef(null), [hits, setHits] = useState(null), [dmg, setDmg] = useState(null)  // dmg: o dano do combate em curso
   useEffect(() => { if (!/^COMBAT/.test(st?.phase || '')) setDmg(null) }, [st?.phase, st?.turn])  // acaba o combate: os selos saem
@@ -390,14 +400,22 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (logSeen.current == null || n < logSeen.current) { logSeen.current = n; return }
     const fresh = lg.slice(Math.max(0, lg.length - (n - logSeen.current)))
     logSeen.current = n
-    const out = fresh.filter(e => e.y === 'DAMAGE').map((e, k) => {
-      const m = /^(.+?) \((\d+)\) deals (\d+) (combat )?damage to (.+?)(?: \((\d+)\))?\.?$/.exec((e.m || '').replace(/^Damage:\s*/, ''))
+    const sideOf = nm => (nm === me?.name ? 'a' : nm === opp?.name ? 'b' : null)
+    const out = fresh.map((e, k) => {
+      const msg = (e.m || '').replace(/^(Damage|Life):\s*/, '')
+      if (e.y === 'LIFE') {  // vida ganha por uma carta (laço de vida, Spike Feeder…): bolinha verde até ao orbe; sem carta de origem, só o orbe
+        const l = /^(.+) (-?\d+) > (-?\d+)$/.exec(msg), side = l && sideOf(l[1])
+        return l && side && e.c != null && +l[3] > +l[2] && { key: `${n}-${k}`, from: String(e.c), to: { side }, n: +l[3] - +l[2], kind: 'gain' }
+      }
+      if (e.y !== 'DAMAGE') return null
+      const m = /^(.+?) \((\d+)\) deals (\d+) (combat )?damage to (.+?)(?: \((\d+)\))?\.?$/.exec(msg)
       if (!m) return null
-      const side = m[6] ? null : m[5] === me?.name ? 'a' : m[5] === opp?.name ? 'b' : null
-      return (m[6] || side) && { key: `${n}-${k}`, from: String(e.c ?? m[2]), to: m[6] ? { card: m[6] } : { side }, n: +m[3], combat: !!m[4], psn: /poison|infect/i.test(e.m) }
+      const side = m[6] ? null : sideOf(m[5])
+      return (m[6] || side) && { key: `${n}-${k}`, from: String(e.c ?? m[2]), fromName: m[1], to: m[6] ? { card: m[6] } : { side }, n: +m[3], combat: !!m[4],
+        kind: /poison|infect/i.test(e.m) ? 'psn' : m[4] ? 'cmb' : 'spl' }
     }).filter(Boolean)
     if (out.length) setHits(out)
-    const cmb = out.filter(h => h.combat)
+    const cmb = out.filter(h => h.kind === 'cmb')
     if (cmb.length) setDmg(d => {
       const D = d ? { out: { ...d.out }, in: { ...d.in }, tr: { ...d.tr }, pl: { ...d.pl } } : { out: {}, in: {}, tr: {}, pl: {} }
       for (const h of cmb) addDmg(D, { ...h, trample: !!(h.to.side && st.combat?.some(x => String(x.att) === h.from && x.blockers?.length)) })

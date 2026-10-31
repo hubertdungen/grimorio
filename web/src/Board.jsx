@@ -2,13 +2,14 @@
 // (game.js) e anima só o que mudou em cada passo (a carta que entrou/virou/atacou/morreu, a vida que mudou).
 // Controlos: pausa, velocidade, passo, salto de turno, linha do tempo com marcas por tipo de evento.
 import { createContext, Fragment, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { img, artPick, artMapOf, basicSplit, sf } from './data.js'
 import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX, MATS } from './fpprefs.js'
-import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
+import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
 const PH_SHORT = { untap: tx('Desvirar'), upkeep: tx('Manut.'), draw: tx('fase§Compra'), main1: tx('Princ. 1'), combat: tx('Combate'), main2: tx('Princ. 2'), end: tx('fase§Final') }
@@ -230,7 +231,23 @@ function Face({ p, c, back, size = 'small' }) {
 const seenAt = new Map()
 // a outra face à vista: virada (transformar, carta flip) ou uma MDFC jogada pela face de trás (o nome é o da 2.ª face)
 const backUp = (c, p) => !!(p.flipped || (c?.df && p.name && c.n.split(' // ')[1]?.toLowerCase() === String(p.name).toLowerCase()))
+// a conta do P/R (rato por cima ou toque no número): impresso + marcadores + outros efeitos = total
+function PtExplain({ p, data, at }) {  // at: onde está o número (no ecrã): a conta fica por cima de tudo (até da carta em grande)
+  const x = ptExplain(data, p)
+  if (!x) return null
+  const f = ([a, b]) => `${a >= 0 ? '+' : ''}${a}/${b >= 0 ? '+' : ''}${b}`
+  return createPortal(
+    <span className="pt-ex" role="tooltip" style={{ left: at.left + at.width / 2, top: at.top }}>
+      {x.printed && <span>{tx('Impresso')} <b>{x.printed.join('/')}</b></span>}
+      {x.plus > 0 && <span className="up">{tx('Marcadores +1/+1 ×{n}', { n: x.plus })} <b>{f([x.plus, x.plus])}</b></span>}
+      {x.minus > 0 && <span className="down">{tx('Marcadores −1/−1 ×{n}', { n: x.minus })} <b>{f([-x.minus, -x.minus])}</b></span>}
+      {x.other && (x.other[0] || x.other[1]) ? <span className={x.other[0] + x.other[1] >= 0 ? 'up' : 'down'}>{tx('Outros efeitos (auras, anthems, até ao fim do turno)')} <b>{f(x.other)}</b></span> : null}
+      <span className="tot">{tx('Total')} <b>{x.total.join('/')}</b></span>
+    </span>, document.fullscreenElement || document.body)
+}
+
 export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // tgt: [lado, nome] do jogador atacado (3+ jogadores)
+  const [ex, setEx] = useState(null)  // a conta do P/R aberta: o retângulo do número
   const [enter] = useState(() => !quiet && !(Date.now() - (seenAt.get(p.key) || 0) < 600000))
   const c = lookup(data, p.name)
   const creature = isCreature(data, p)
@@ -257,7 +274,9 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
       </div>
       <div className="pc-ov">
         {p.damage > 0 && <b className="pc-dmg" title={tx('Dano marcado até ao fim do turno')}>{p.damage}</b>}
-        {pt && <b className={`pc-pt ${pt.boosted ? 'up' : ''} ${pt.hurt ? 'down' : ''}`}>{pt.p}/{pt.t}</b>}
+        {pt && <b className={`pc-pt ${pt.boosted ? 'up' : ''} ${pt.hurt ? 'down' : ''}`} onMouseEnter={e => setEx(e.currentTarget.getBoundingClientRect())} onMouseLeave={() => setEx(null)}
+          onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setEx(x => (x ? null : r)) }}>{pt.p}/{pt.t}</b>}
+        {ex && pt && <PtExplain p={p} data={data} at={ex} />}
         {p.counters?.loyalty != null && <b key={`l${p.counters.loyalty}`} className={`pc-loy ${pop?.ct === 'loyalty' && !quiet ? (pop.n > 0 ? 'up' : 'down') : ''}`} title={tx('Lealdade')}>{p.counters.loyalty}</b>}
         {p.counters?.defense != null && <b key={`d${p.counters.defense}`} className={`pc-loy def ${pop?.ct === 'defense' && !quiet ? 'down' : ''}`} title={tx('Defesa (batalha)')}>⛨{p.counters.defense}</b>}
         {ctr.length > 0 && <span className="pc-ctr">{ctr.map(([k, v]) => <b key={`${k}${v}`} className={`c-${k === '+1/+1' ? 'p1' : k === '-1/-1' ? 'm1' : k}`} title={tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[k] || k })}>{k === '+1/+1' ? `+${v}` : k === '-1/-1' ? `−${v}` : CT_ICON[k] ? `${CT_ICON[k]}${v}` : `${CT_SHORT[k] || (CT[k] || k).slice(0, 5)} ${v}`}</b>)}</span>}
@@ -416,9 +435,11 @@ export function CombatLinks({ s }) {
   )
 }
 
-// ---------- dano à vista: um projétil da carta que causa o dano até quem o recebe (carta ou orbe da vida) e o «−N» lá ----------
-// hits = [{key (único), from: chave da carta, to: {card} | {side}, n, combat, psn}]; cada um anima uma vez só. Medido no
-// ecrã e passado para a mesa (escalada/com scroll), como as linhas dos bloqueios.
+// ---------- dano/vida/anular à vista: um projétil da carta de origem até quem o recebe e o «−N»/«+N» lá ----------
+// hits = [{key (único), from: chave da carta, fromName (feitiço na pilha), to: {card} | {side} | {stack}, n, kind}]
+// kind: 'cmb' combate (laranja), 'spl' feitiço/habilidade (vermelho), 'psn' veneno (roxo), 'gain' vida (verde),
+// 'counter' feitiço anulado (azul/roxo: uma onda na pilha). Num jogador o número não salta aqui: o orbe já mostra a
+// mudança (antes saíam dois «−2»). Sem a carta de origem em jogo (feitiço já no cemitério): sai da pilha ou do centro.
 export function DamageFx({ hits }) {
   const ref = useRef(null), done = useRef(new Set())
   useLayoutEffect(() => {
@@ -426,21 +447,35 @@ export function DamageFx({ hits }) {
     if (!root || !hits?.length || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
     const r = root.getBoundingClientRect(), sc = r.width / (root.offsetWidth || r.width) || 1
     const at = el => { const q = el?.getBoundingClientRect(); return q?.width ? [(q.left + q.width / 2 - r.left) / sc + root.scrollLeft, (q.top + q.height / 2 - r.top) / sc + root.scrollTop] : null }
-    const elOf = t => (t?.card != null ? root.querySelector(`.pc[data-z="k:${t.card}"]`) : t?.side ? root.querySelector(`.bside.p-${t.side} .orb`) : null)
-    hits.forEach((h, i) => {
+    const mid = [root.clientWidth / 2 + root.scrollLeft, root.clientHeight / 2 + root.scrollTop]
+    const stk = name => root.querySelector(name ? `.stk[data-z="n:${CSS.escape(name)}"]` : '.stackfx') || root.querySelector('.stackfx')
+    const elOf = t => (t?.card != null ? root.querySelector(`.pc[data-z="k:${t.card}"]`) : t?.side ? root.querySelector(`.bside.p-${t.side} .orb`) : t?.stack ? stk(t.name) : null)
+    let lag = 0
+    hits.forEach(h => {
       if (done.current.has(h.key)) return
       done.current.add(h.key)
-      const b = at(elOf(h.to)), a = at(root.querySelector(`.pc[data-z="k:${h.from}"]`)) || b
+      const box = ref.current, kind = h.kind || 'spl'
+      if (kind === 'counter') {  // anular: uma onda azul/roxa e «Anulado» onde está o feitiço
+        const b = at(elOf(h.to)) || mid, w = document.createElement('i'), t = document.createElement('b')
+        w.className = 'dmgfx-wave counter'; t.className = 'dmgfx-pop counter'; t.textContent = tx('Anulado')
+        for (const e of [w, t]) Object.assign(e.style, { left: `${b[0]}px`, top: `${b[1]}px` })
+        setTimeout(() => { box.append(w, t); setTimeout(() => { w.remove(); t.remove() }, 1300) }, lag); lag += 150
+        return
+      }
+      const b = at(elOf(h.to))
       if (!b) return
-      const kind = h.psn ? 'psn' : h.combat ? 'cmb' : 'spl', box = ref.current
+      const a = at(h.from != null && root.querySelector(`.pc[data-z="k:${h.from}"]`)) || at(stk(h.fromName)) || mid
       const bolt = document.createElement('i'), pop = document.createElement('b')
-      bolt.className = `dmgfx-bolt ${kind}`; pop.className = `dmgfx-pop ${kind}`; pop.textContent = `${h.psn ? '☠' : '−'}${h.n}`
+      bolt.className = `dmgfx-bolt ${kind}`; pop.className = `dmgfx-pop ${kind}`; pop.textContent = `${kind === 'gain' ? '+' : kind === 'psn' ? '☠' : '−'}${h.n}`
       Object.assign(bolt.style, { left: `${a[0]}px`, top: `${a[1]}px` }); Object.assign(pop.style, { left: `${b[0]}px`, top: `${b[1]}px` })
       box.append(bolt)
       const go = bolt.animate([{ transform: 'translate(-50%,-50%) scale(.6)', opacity: 0 }, { opacity: 1, offset: 0.15 },
-        { transform: `translate(calc(-50% + ${b[0] - a[0]}px), calc(-50% + ${b[1] - a[1]}px)) scale(1.15)`, opacity: 1 }], { duration: a === b ? 1 : 460, delay: i * 120, easing: 'cubic-bezier(.5,0,.75,.4)', fill: 'forwards' })
+        { transform: `translate(calc(-50% + ${b[0] - a[0]}px), calc(-50% + ${b[1] - a[1]}px)) scale(1.15)`, opacity: 1 }], { duration: 460, delay: lag, easing: 'cubic-bezier(.5,0,.75,.4)', fill: 'forwards' })
+      lag += 120
       go.onfinish = () => {
-        bolt.remove(); box.append(pop); setTimeout(() => pop.remove(), 1100)
+        bolt.remove()
+        if (!h.to.side) { box.append(pop); setTimeout(() => pop.remove(), 1100) }
+        if (kind === 'gain') return
         // tremor de terra: a mesa abana ao bater, mais forte quanto maior o dano (até 8 px)
         const k = Math.min(8, 2 + h.n)
         root.animate([{ translate: '0 0' }, { translate: `${-k}px ${k / 2}px` }, { translate: `${k}px ${-k / 2}px` },
@@ -842,12 +877,14 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   // o dano do evento acabado de aplicar: de que carta para que carta/jogador (no estado de antes: a vítima pode já ter morrido)
   const dmgHits = (() => {
     const e = evs[i - 1]
-    if (!e || e.k !== 'damage' || fast || pos.jump) return null
+    if (!e || fast || pos.jump) return null
+    if (e.k === 'countered') return [{ key: `r${i}`, kind: 'counter', to: { stack: true, name: e.card } }]
+    if (e.k !== 'damage') return null
     const s0 = states[i - 1] || s, all = s0.sides.flatMap(k => s0[k].perms)
     const src = (e.id != null && all.find(p => p.fid === e.id)) || all.find(p => p.name === e.card)
     const tp = !s0.sides.includes(e.target) && ((e.tid != null && all.find(p => p.fid === e.tid)) || all.find(p => p.name === e.target))
     const to = s0.sides.includes(e.target) ? { side: e.target } : tp ? { card: tp.key } : null
-    return to ? [{ key: `r${i}`, from: src?.key, to, n: e.n, combat: !!e.combat, psn: !!e.psn }] : null
+    return to ? [{ key: `r${i}`, from: src?.key, fromName: e.card, to, n: e.n, kind: e.psn ? 'psn' : e.combat ? 'cmb' : 'spl' }] : null
   })()
   const actor = s.sides.includes(rev?.p) ? rev.p : null
   // 3–4 jogadores: adversários em colunas em cima; o parceiro de equipa (game.teams) ao lado do teu deck, em baixo

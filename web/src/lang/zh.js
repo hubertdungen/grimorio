@@ -3573,4 +3573,10 @@ export default {
   "Dano que fez neste combate: {n}": "本次战斗造成的伤害：{n}",
   "Passou {n} com atropelar": "践踏穿透 {n}",
   "Dano que levou neste combate: {n}": "本次战斗受到的伤害：{n}",
+  "Anulado": "被反击",
+  "Impresso": "印刷值",
+  "Marcadores +1/+1 ×{n}": "+1/+1 指示物 ×{n}",
+  "Marcadores −1/−1 ×{n}": "−1/−1 指示物 ×{n}",
+  "Outros efeitos (auras, anthems, até ao fim do turno)": "其他效果（灵气、全体增益、直到回合结束）",
+  "Total": "合计",
 }
