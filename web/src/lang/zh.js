@@ -3556,4 +3556,6 @@ export default {
   "tapete": "桌垫",
   "O Forge falhou a meio deste jogo": "Forge 在这局游戏中途出错",
   "Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.": "本局不计结果：你既没有输也没有赢。在锦标赛中，这场对战会重新等待你——再次打开即可重新开始。",
+  "topo à vista: {c}": "顶牌公开：{c}",
+  "podes jogá-la daqui (arrasta ou duplo clique)": "可以从这里使用（拖动或双击）",
 }

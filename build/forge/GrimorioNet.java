@@ -321,8 +321,9 @@ public class GrimorioNet {
             // a prioridade do jogo (a da vista do jogador atualiza-se depois do pedido e chegava tarde)
             if (g.getPhaseHandler().getPriorityPlayer() != me) return out;
             if (!waiting(me)) return out;  // o jogo não está parado à espera da minha prioridade
-            for (ZoneType z : new ZoneType[]{ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Command})
-                for (forge.game.card.Card c : new ArrayList<>(me.getCardsIn(z)))
+            forge.game.card.CardCollectionView lib = me.getCardsIn(ZoneType.Library);
+            for (ZoneType z : new ZoneType[]{ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Command, ZoneType.Library})
+                for (forge.game.card.Card c : z == ZoneType.Library ? (lib.isEmpty() ? List.<forge.game.card.Card>of() : List.of(lib.iterator().next())) : new ArrayList<>(me.getCardsIn(z)))  // da biblioteca, só o topo
                     for (forge.game.spellability.SpellAbility sa : new ArrayList<>(c.getAllPossibleAbilities(me, true))) {
                         if (sa.isManaAbility()) continue;
                         if (sa.isLandAbility() || forge.ai.ComputerUtilMana.canPayManaCost(sa, me, 0, false)) { out.add(c.getId()); break; }
@@ -357,6 +358,12 @@ public class GrimorioNet {
                 po.addProperty("me", me != null && p.getId() == me.getId());
                 if (p.getHasPriority()) po.addProperty("priority", true);
                 po.addProperty("library", p.getLibrary() == null ? 0 : p.getLibrary().size());
+                // o topo da biblioteca quando o posso ver (Courser of Kruphix, Future Sight, Experimental Frenzy revelam; Vizier of
+                // the Menagerie deixa olhar): vai com o estado e, se for meu e jogável, com «play» (playableOnce vê o topo)
+                if (p.getLibrary() != null && !p.getLibrary().isEmpty()) {
+                    CardView t = p.getLibrary().iterator().next();
+                    if (mayView(t)) po.add("top", card(t, false));
+                }
                 boolean mine = me != null && p.getId() == me.getId();
                 po.add("hand", cards(p.getHand(), !mine));
                 JsonObject mp = new JsonObject();  // reserva de mana: {"W": 1, "C": 2}

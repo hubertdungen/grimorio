@@ -3556,4 +3556,6 @@ export default {
   "tapete": "tapete",
   "O Forge falhou a meio deste jogo": "Forge falló a mitad de esta partida",
   "Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.": "Nada cuenta: ni perdiste ni ganaste. En un torneo, la partida vuelve a esperarte: ábrela otra vez para empezar de nuevo.",
+  "topo à vista: {c}": "carta superior a la vista: {c}",
+  "podes jogá-la daqui (arrasta ou duplo clique)": "puedes jugarla desde aquí (arrastra o doble clic)",
 }

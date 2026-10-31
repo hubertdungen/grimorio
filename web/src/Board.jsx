@@ -374,6 +374,19 @@ function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet, zone 
   )
 }
 
+// a biblioteca com o topo à vista (Courser of Kruphix, Future Sight, Vizier of the Menagerie…, Forge Play): a carta de cima
+// virada para cima; a minha, se dá para a jogar, brilha e agarra-se/duplo clique como as da mão (data-h, data-from)
+function LibTop({ k, z, data }) {
+  const t = z.libTop, c = lookup(data, t.name), im = useImg(), mine = k === 'a'
+  return (
+    <span className={`pile libtop ${mine && t.play ? 'play' : ''}`} data-zone="library" data-zid={t.id} {...(mine ? { 'data-h': t.id, 'data-from': 'library' } : {})}
+      title={`${tx('Biblioteca')}: ${z.library} · ${tx('topo à vista: {c}', { c: short(t.name) })}${mine && t.play ? ` · ${tx('podes jogá-la daqui (arrasta ou duplo clique)')}` : ''}`}>
+      <span className="pile-c">{c ? <img src={im(c, 'small')} alt={t.name} /> : <span className="pc-back" />}</span>
+      <small>▤ {z.library}</small>
+    </span>
+  )
+}
+
 // de onde vem o deck de cada lugar: meta, meu, de um amigo ou da comunidade (ao lado da etiqueta do bot)
 const OWN = { meta: ['📊', tx('Meta'), tx('Deck do meta (torneios reais)')], meu: ['🧙', tx('Meu'), tx('Um deck teu')], ami: ['🤝', tx('Amigo'), tx('Deck de um amigo')], com: ['🌐', tx('Comunidade'), tx('Deck da comunidade (de outra pessoa)')] }
 export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, bet, bot, own, openLib }) {  // openLib: clicar na biblioteca (mesa livre: comprar)  // bet: as minhas apostas neste deck (torneios)  // hand: a mão fica nesta linha, ao centro (em baixo a nossa, em cima a do adversário)
@@ -412,7 +425,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
             </div>
           )
         })}
-        <Pile label={tx('Biblioteca')} icon="▤" count={z.library} back est={!s.exact} data={data} zone="library" onOpen={openLib && (() => openLib(k))} />
+        {z.libTop ? <LibTop k={k} z={z} data={data} /> : <Pile label={tx('Biblioteca')} icon="▤" count={z.library} back est={!s.exact} data={data} zone="library" onOpen={openLib && (() => openLib(k))} />}
         {(k !== 'a' || top) && !s.exact && <div className="bhand" title={`${tx('{n} carta na mão|{n} cartas na mão', { n: z.hand })}${s.exact ? '' : ` ${tx('(estimativa)')}`}`}>{Array.from({ length: Math.min(8, z.hand) }).map((_, j) => <span key={j} className="back" />)}<small>✋ {s.exact ? '' : '≈'}{z.hand}</small></div>}
         <Pile label={tx('Cemitério')} icon="⚰" cards={z.graveyard} data={data} quiet={fast} onOpen={() => openZone(k, 'graveyard')} zone="graveyard" />
         <Pile label={tx('Exílio')} icon="⌀" cards={z.exile} data={data} quiet={fast} onOpen={() => openZone(k, 'exile')} zone="exile" />

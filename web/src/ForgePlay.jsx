@@ -93,7 +93,7 @@ function toPerm(c, combat) {
 function zoneOf(p, combat) {
   const { poison = 0, energy = 0, ...pctr } = ctrs(p.counters), cz = p.command || []
   return {
-    life: p.life, library: p.library, hand: p.hand?.length || 0, known: [], graveyard: (p.graveyard || []).map(c => c.name), exile: (p.exile || []).map(c => c.name),
+    life: p.life, library: p.library, libTop: p.top || null, hand: p.hand?.length || 0, known: [], graveyard: (p.graveyard || []).map(c => c.name), exile: (p.exile || []).map(c => c.name),
     command: cz.filter(c => !c.emblem).map(c => ({ name: c.name, room: c.room, casts: 0 })), cmdDmg: {}, poison, energy, pctr, emblems: cz.filter(c => c.emblem).map(c => c.name),
     monarch: !!p.monarch, initiative: !!p.initiative, blessing: !!p.blessing, speed: p.speed || 0, out: false, perms: (p.battlefield || []).map(c => toPerm(c, combat)),
   }
@@ -354,7 +354,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
   })
   const ended = !!s?.ended, iWon = !!s?.winner && s.winner === me?.name
   useEffect(() => { if (ended) onEnd?.(s.winner ? iWon : null) }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
-  const byId = new Map(players.flatMap(p => ['battlefield', 'hand', 'graveyard', 'exile'].flatMap(z => (p[z] || []).map(c => [c.id, c]))))
+  const byId = new Map(players.flatMap(p => [...['battlefield', 'hand', 'graveyard', 'exile'].flatMap(z => (p[z] || []).map(c => [c.id, c])), ...(p.top ? [[p.top.id, p.top]] : [])]))
   const lives = `${me?.life}|${opp?.life}`, prevLives = useRef(null), [lifeFx, setLifeFx] = useState(null)
   // veneno (infect, toxic, poisonous…): o ☠ ao lado da vida pulsa e sobe quando aumenta, como na arena
   const psns = `${ctrs(me?.counters).poison || 0}|${ctrs(opp?.counters).poison || 0}`, prevPsn = useRef(null), [psnFx, setPsnFx] = useState(null)
@@ -458,7 +458,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
       setLay(x => ({ ...x, hand: l })); return 'local'
     }
     const perm = target.closest('.pc[data-z^="k:"]'), pid = perm && +perm.dataset.z.slice(2), mine = st.active === me?.id
-    if (from === 'hand') {  // da mão para a mesa: jogar — só se o Forge diz que dá (mana e altura certas)
+    if (from === 'hand' || from === 'library') {  // da mão (ou do topo da biblioteca: Courser, Future Sight…) para a mesa: jogar — só se o Forge diz que dá
       if (!byId.get(id)?.play && !st.pfail) { setToast(whyNot(id)); return false }  // pfail: o Forge não conseguiu calcular, decide ele
       // largada em cima de uma permanente (aura, remoção, reforço…): esse é o alvo — a mesa responde ao Forge por ti
       const land = byId.get(id)?.land

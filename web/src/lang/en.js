@@ -3564,4 +3564,6 @@ export default {
   "tapete": "playmat",
   "O Forge falhou a meio deste jogo": "Forge failed in the middle of this game",
   "Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.": "Nothing counts: you neither lost nor won. In a tournament the match waits for you again — open it to start over.",
+  "topo à vista: {c}": "top card revealed: {c}",
+  "podes jogá-la daqui (arrasta ou duplo clique)": "you can play it from here (drag or double-click)",
 }

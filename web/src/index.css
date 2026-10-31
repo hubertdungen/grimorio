@@ -3018,3 +3018,9 @@ html { touch-action: manipulation; }
 .matsw { width: 34px; height: 34px; padding: 0; border-radius: 8px; border: 1px solid #ffffff2e; background: var(--mat, none), #151a2b; color: #9aa3c0; font-size: 14px; cursor: pointer; }
 .matsw:hover { border-color: #ffffff66; }
 .matsw.on { border-color: var(--gold); box-shadow: 0 0 0 2px #f2b84b55; }
+
+/* topo da biblioteca à vista (Courser of Kruphix, Future Sight…): a carta de cima; brilha quando dá para a jogar */
+.pile.libtop { cursor: zoom-in; }
+.pile.libtop[data-h] { cursor: grab; touch-action: none; }
+.pile.libtop .pile-c img { border-radius: 4px; }
+.pile.libtop.play .pile-c { border-radius: 5px; box-shadow: 0 0 0 2px #4ade80, 0 0 14px #4ade8099; }
