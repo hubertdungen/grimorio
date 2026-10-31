@@ -3101,3 +3101,18 @@ html { touch-action: manipulation; }
 .pt-ex .tot { border-top: 1px solid #ffffff22; padding-top: 3px; margin-top: 2px; font-weight: 700; }
 .pt-ex .tot b { color: var(--gold); }
 .pc-ov .pc-pt { pointer-events: auto; }  /* o número do P/R responde ao rato e ao toque: abre a conta */
+
+/* a mão é uma camada por cima da mesa (réplicas, Forge Play, mesa livre): não tira altura ao campo. Por preferência os
+   terrenos ficam à esquerda e as outras permanentes à direita, com o meio livre para a mão; se não houver espaço, a mão
+   tapa-os (vêem-se com o rato ou o dedo). Nas colunas estreitas (parceiro, adversários a 4) fica no sítio de sempre. */
+.board .bside:not(.compact) { position: relative; }
+.board .bside:not(.compact) > .bhud.withhand { min-height: 0 !important; }
+.board .bside.bottom:not(.compact) > .bhud.withhand > .myhand, .board .bside.bottom:not(.compact) > .bhud.withhand > .fp-hand {
+  position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%); z-index: 8; max-width: min(62%, calc(100% - 24px)); }
+.board .bside.top:not(.compact) > .bhud.withhand > .myhand { position: absolute; left: 50%; top: 2px; transform: translateX(-50%); z-index: 8; max-width: 52%; }
+/* o espaço que sobra fica onde está a mão (em baixo no teu lado, em cima no do adversário): as filas sobem e só ficam por
+   baixo da mão quando falta altura */
+.board .bside.bottom:not(.compact), .fp-stage.persp .board .bside.bottom:not(.compact) { grid-template-rows: auto auto minmax(0, 1fr); }
+.board .bside.bottom:not(.compact):not(.ml-side) > .bhud { align-self: end; }
+.board .bside.top:not(.compact) { grid-template-rows: minmax(0, 1fr) auto auto; }
+.board .bside.top:not(.compact):not(.ml-side) > .bhud { align-self: start; }

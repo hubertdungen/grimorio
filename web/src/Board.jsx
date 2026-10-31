@@ -314,7 +314,8 @@ export function MatPick({ onMat, others = true }) {
 // réplicas (Coliseu): o tamanho escolhido é o MÍNIMO — o tabuleiro continua a encher a altura do ecrã (--fit, −/⤢/+), mas
 // nenhuma carta fica mais pequena do que isto (se não cabe, a página desliza). As fórmulas são as do Coliseu em index.css
 const minCardVars = px => ({ '--px': `${px}px`, '--cw': `max(${px}px, calc(min(220px, 7.4vw) * var(--fit, .8)))`,
-  '--ow': `max(${px}px, calc(min(170px, 5.8vw) * var(--fit, .8)))`, '--lw': `max(${px}px, calc(min(170px, 5.8vw) * var(--fit, .8)))` })
+  '--ow': `max(${px}px, calc(min(170px, 5.8vw) * var(--fit, .8)))`, '--lw': `max(${px}px, calc(min(170px, 5.8vw) * var(--fit, .8)))`,
+  '--hw': `max(${px}px, calc(min(180px, 6.2vw) * var(--fit, .8)))`, '--ohw': `max(${Math.round(px * 0.8)}px, calc(min(120px, 4.4vw) * var(--fit, .8)))` })  // as mãos também (as dos outros a 80%)
 export function CardPx({ onChange, className = '', min = false }) {  // min: nas réplicas o tamanho é um mínimo
   const [v, setV] = useState(() => fpPrefs().cardPx)
   return (
