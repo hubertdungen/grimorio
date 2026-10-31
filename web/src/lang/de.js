@@ -3584,4 +3584,7 @@ export default {
   "Tentar outra vez": "Erneut versuchen",
   "Recarregar a página": "Seite neu laden",
   "Cartas: mín. {n} px": "Karten: min. {n} px",
+  "Indisponível em mesas e equipas: o Forge Play é um contra um (num Two-Headed Giant são quatro à mesma mesa).": "Nicht verfügbar bei Tischen und Teams: Forge Play ist eins gegen eins (bei Two-Headed Giant sitzen vier an einem Tisch).",
+  "Indisponível em Commander: o Forge Play é um contra um.": "In Commander nicht verfügbar: Forge Play ist eins gegen eins.",
+  "Marca um dos teus decks com ☆ «eu» na lista para o jogares tu.": "Markiere eines deiner Decks mit ☆ «ich» in der Liste, um es selbst zu spielen.",
 }

@@ -3122,3 +3122,6 @@ html { touch-action: manipulation; }
 .board .bside.top:not(.compact):not(.ml-side) > .bhud { align-self: start; }
 .board .bside.bottom:not(.compact) > .bhud.withhand > .bname { flex: 0 1 auto; max-width: 26%; }  /* o nome não corre por baixo da mão */
 .board .bside.top:not(.compact) > .bhud.withhand > .bname { flex: 0 1 auto; max-width: 30%; }  /* o nome do adversário não fica por baixo da mão dele */
+/* opção que não dá agora: esbatida, com a razão por baixo (Torneio › Criar: jogar eu no Forge Play) */
+label.chk.off { opacity: .6; cursor: not-allowed; flex-wrap: wrap; max-width: 520px; }
+label.chk.off .why { display: block; flex-basis: 100%; margin: 2px 0 0 24px; opacity: 1; color: var(--muted, #9aa3c0); font-size: 11.5px; }

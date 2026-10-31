@@ -3584,4 +3584,7 @@ export default {
   "Tentar outra vez": "重试",
   "Recarregar a página": "重新加载页面",
   "Cartas: mín. {n} px": "卡牌：最小 {n} 像素",
+  "Indisponível em mesas e equipas: o Forge Play é um contra um (num Two-Headed Giant são quatro à mesma mesa).": "多人桌和团队不可用：Forge Play 是一对一（双头巨人是四人同桌）。",
+  "Indisponível em Commander: o Forge Play é um contra um.": "指挥官不可用：Forge Play 是一对一。",
+  "Marca um dos teus decks com ☆ «eu» na lista para o jogares tu.": "在列表中用 ☆「我」标记你的一副套牌，即可亲自来打。",
 }
