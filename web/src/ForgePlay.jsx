@@ -238,10 +238,11 @@ export function BigCard({ name, data, onClose }) {
 // habilidade a usar (getAbilityToPlay): «Shattered Landscape - Play land» -> «Jogar como terreno»; o resto sem o nome da carta
 const abilityLabel = (l, name) => { const s = String(l || ''), p = `${name} - `, t = s.startsWith(p) ? s.slice(p.length) : s; return /^Play land$/i.test(t) ? tx('Jogar como terreno') : t.replace(/^Cycling\b/, tx('Ciclar')) }
 // escolhas que bloqueiam o motor: sim/não, uma opção, um número ou texto, ou escolher entre cartas/jogadores
-function Ask({ a, st, data, answer, zoom, payCancel }) {  // payCancel: o Forge está a meio de um pagamento (cancelá-lo desfaz tudo)
+const MANA_ASK = /\bmana\b/i  // «Select Mana to Produce»
+function Ask({ a, st, data, answer, zoom, payCancel, undo }) {  // payCancel: o Forge está a meio de um pagamento (cancelá-lo desfaz tudo); undo: desfazer a última ação
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
   const escRef = useRef(null)
-  useBackClose(a.kind === 'choose' && ((a.min === 0 && (a.max ?? 1) === 1) || !!payCancel), () => escRef.current?.())  // «voltar» = Cancelar, quando dá
+  useBackClose(a.kind === 'choose' && ((a.min === 0 && (a.max ?? 1) === 1) || !!payCancel || (!!undo && MANA_ASK.test(a.msg || ''))), () => escRef.current?.())  // «voltar» = Cancelar, quando dá
   useEffect(() => { const k = e => { if (e.key === 'Escape' && escRef.current) { e.preventDefault(); escRef.current() } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
   const all = (st?.players || []).flatMap(p => [...(p.battlefield || []), ...(p.hand || []), ...(p.graveyard || []), ...(p.exile || [])])
   const cardOf = o => (o.card != null ? all.find(c => c.id === o.card) || { id: o.card, name: o.name || o.label } : null)  // name: feitiço na pilha (o label é o texto dele)
@@ -272,7 +273,10 @@ function Ask({ a, st, data, answer, zoom, payCancel }) {  // payCancel: o Forge 
   const min = a.min ?? 1, max = a.max ?? 1, one = max === 1
   // «Cancelar» (Esc) sempre que o Forge deixa: escolha opcional de uma, ou uma escolha a meio de um pagamento (que cor de mana
   // produzir…): aí responde-se com a primeira e cancela-se o pagamento — o Forge desfaz o que já estava pago
-  const cancel = min === 0 && one ? () => answer(a, []) : a.kind === 'choose' && payCancel ? () => { answer(a, [0]); payCancel() } : null
+  // e a cor de mana de uma criatura/terreno ativado fora de um pagamento (Birds of Paradise…): o Forge obriga a escolher, por
+  // isso responde-se com a primeira e desfaz-se a habilidade de mana (desvira e a mana sai da reserva)
+  const cancel = min === 0 && one ? () => answer(a, []) : a.kind === 'choose' && payCancel ? () => { answer(a, [0]); payCancel() }
+    : a.kind === 'choose' && undo && MANA_ASK.test(a.msg || '') ? () => { answer(a, [0]); undo() } : null
   escRef.current = cancel
   const head = a.card != null && (all.find(c => c.id === a.card) || (a.cardName && { id: a.card, name: a.cardName }))  // jogar o terreno ou ciclar: a carta em grande
   const toggle = k => (one ? answer(a, [k]) : setPick(p => (p.includes(k) ? p.filter(x => x !== k) : p.length < max ? [...p, k] : p)))
@@ -705,7 +709,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, series, onEnd 
           {err && <p className="small bad-t">{err}</p>}
         </div>
       </aside>
-      {ask && <div className="fp-modal"><Ask key={ask.id} a={ask} st={st} data={data} answer={answer} zoom={setZoom} payCancel={/Pay Mana Cost/i.test(pr?.msg || '') && btns.some(b => b.label === 'Cancel') ? () => send({ c: 'cancel' }) : null} /></div>}
+      {ask && <div className="fp-modal"><Ask key={ask.id} a={ask} st={st} data={data} answer={answer} zoom={setZoom} payCancel={/Pay Mana Cost/i.test(pr?.msg || '') && btns.some(b => b.label === 'Cancel') ? () => send({ c: 'cancel' }) : null} undo={st.stack?.length ? null : () => send({ c: 'undo' })} /></div>}
       {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {act && <div className="fp-act-bg" onPointerDown={() => setAct(null)} />}
       {act && <div className={`fp-act ${act.up ? '' : 'below'}`} role="dialog" aria-label={tx('Ativar {c}', { c: act.name })} style={{ left: act.x, top: act.y }}>

@@ -108,12 +108,14 @@ public class GrimorioNet {
             ScheduledExecutorService ex = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "grimorio-state"); t.setDaemon(true); return t; });
             // também sem «dirty»: no fim do jogo o Forge corre as conquistas na EDT e rebenta sem a imagem do troféu
             // (IMG_COMMON_TROPHY, não há skin sem janela) antes de chamar o finishGame; o fim sai daqui pelo estado
-            ex.scheduleAtFixedRate(() -> { try { GameView gv = getGameView(); if (dirty || pfail || (!ended && gv != null && gv.isGameOver())) { dirty = false; sendState(); } } catch (Exception e) { e.printStackTrace(); } }, 300, 150, TimeUnit.MILLISECONDS);
+            ex.scheduleAtFixedRate(() -> { try { GameView gv = getGameView(); if (dirty || (!ended && gv != null && gv.isGameOver())) { dirty = false; sendState(); } } catch (Exception e) { e.printStackTrace(); } }, 300, 150, TimeUnit.MILLISECONDS);
         }
 
         IGameController ctl() { return getGameController(); }
 
         void command(JsonObject c, String line) {
+            busy.incrementAndGet();
+            calc.lock(); calc.unlock();  // um cálculo das jogáveis a meio acaba antes de o clique soltar o jogo
             try {
                 String k = c.get("c").getAsString();
                 switch (k) {
@@ -131,6 +133,8 @@ public class GrimorioNet {
             } catch (Exception e) {
                 System.err.println("comando inválido: " + line);
                 e.printStackTrace();
+            } finally {
+                busy.decrementAndGet();
             }
         }
 
@@ -259,13 +263,30 @@ public class GrimorioNet {
         // cartas que o humano pode jogar já, com mana para as pagar (mão, cemitério com flashback, exílio, comando).
         // Só com a prioridade do humano: aí a thread do jogo está parada à espera dele e o estado não muda a meio.
         Set<Integer> playable = new HashSet<>();
-        volatile boolean pfail;  // o cálculo falhou (a thread do jogo mexeu nas listas a meio): a mesa não bloqueia e voltamos a tentar
+        volatile boolean pfail;  // o cálculo falhou: a mesa não bloqueia (o Forge decide)
+        // O cálculo lê cartas que o Forge também mexe (getAllPossibleAbilities refaz as caches de palavras-chave): fora da
+        // thread do jogo só é seguro com ela parada à espera da prioridade do humano (InputPassPriority na fila). Antes
+        // corria a qualquer altura e, a meio da pilha, partiu a TreeMap das palavras-chave e matou a thread do jogo
+        // («o adversário está a pensar» para sempre). Um clique que chega a meio espera que o cálculo acabe (calc).
+        final java.util.concurrent.locks.ReentrantLock calc = new java.util.concurrent.locks.ReentrantLock();
+        final java.util.concurrent.atomic.AtomicInteger busy = new java.util.concurrent.atomic.AtomicInteger();
         Set<Integer> playableNow() {
-            for (int i = 0; i < 3; i++) {
-                try { pfail = false; return playableOnce(); }
-                catch (Exception e) { System.err.println("playable: " + e); pfail = true; }
+            if (!calc.tryLock()) return playable;
+            try {
+                if (busy.get() > 0) return playable;  // um clique está a soltar o jogo: fica o que havia
+                pfail = false;
+                return playableOnce();
+            } catch (Exception e) {
+                System.err.println("playable: " + e);
+                pfail = true;
+                return playable;
+            } finally {
+                calc.unlock();
             }
-            return new HashSet<>();
+        }
+        static boolean waiting(forge.game.player.Player me) {
+            return me.getController() instanceof forge.player.PlayerControllerHuman h
+                    && h.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputPassPriority;
         }
         Set<Integer> playableOnce() {
             Set<Integer> out = new HashSet<>();
@@ -277,6 +298,7 @@ public class GrimorioNet {
             if (me == null) return out;
             // a prioridade do jogo (a da vista do jogador atualiza-se depois do pedido e chegava tarde)
             if (g.getPhaseHandler().getPriorityPlayer() != me) return out;
+            if (!waiting(me)) return out;  // o jogo não está parado à espera da minha prioridade
             for (ZoneType z : new ZoneType[]{ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Command})
                 for (forge.game.card.Card c : new ArrayList<>(me.getCardsIn(z)))
                     for (forge.game.spellability.SpellAbility sa : new ArrayList<>(c.getAllPossibleAbilities(me, true))) {
