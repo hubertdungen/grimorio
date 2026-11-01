@@ -98,16 +98,19 @@ export function useOverlap(tableRef) {
     // tamanho de carta escolhido (Definições › Mesa) maior do que cabe na altura da mesa: as filas de um lado
     // encavalitavam-se (a dos terrenos por cima das criaturas) — encolhe-se aos poucos (--pk) até cada lado caber
     const root = tableRef.current
-    if (root?.classList.contains('px')) {
+    // a arrastar uma carta (o fantasma existe) não se mexe no tamanho: a carta no ar fazia uma fila parecer cheia, tudo
+    // encolhia de repente e depois voltava a crescer um passo por desenho (cartas a crescer e nunca alinhadas)
+    if (root?.classList.contains('px') && !document.querySelector('.fp-ghost')) {
       const tb = () => root.getBoundingClientRect().bottom
       const tight = () => [...root.querySelectorAll('.bside')].some(bs => {
-        const ks = [...bs.children].filter(k => k.offsetHeight && !k.classList.contains('bfree')).map(k => k.getBoundingClientRect())
+        // só as filas: o que flutua (o sítio onde a carta vai cair, .fp-slot, camadas absolutas) não conta como fila a encavalitar
+        const ks = [...bs.children].filter(k => k.offsetHeight && !k.classList.contains('bfree') && !k.classList.contains('fp-slot') && getComputedStyle(k).position !== 'absolute').map(k => k.getBoundingClientRect())
         return ks.some((q, i) => i && q.top < ks[i - 1].bottom - 4) || bs.getBoundingClientRect().bottom > tb() + 2
       })
       let k = +root.style.getPropertyValue('--pk') || 1  // parte do valor atual: cresce um passo de cada vez quando há espaço
       const set = v => root.style.setProperty('--pk', v.toFixed(2))
       if (tight()) while (k > 0.45 && tight()) { k -= 0.05; set(k) }
-      else if (k < 1) { set(Math.min(1, k + 0.05)); if (tight()) set(k) }
+      else while (k < 1) { const n = Math.min(1, k + 0.05); set(n); if (tight()) { set(k); break } k = n }  // cresce de uma vez até ao maior que cabe
     }
     for (const row of tableRef.current?.querySelectorAll('.brow.front, .brow.lands, .brow.others, .fp-hand') || []) {
       const kids = [...row.children].filter(k => k.offsetWidth), n = kids.length

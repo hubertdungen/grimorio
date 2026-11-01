@@ -468,6 +468,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (!side || target.closest('.bhud')) return null
     const kind = kindOf(byId.get(id)), P = fpPrefs(), sc = +side.closest('.fp-stage')?.dataset.sc || 1
     const rowOf = k => side.querySelector(`.brow.${k}`) || (k === 'others' ? side.querySelector('.brow.rear') : null)
+    // um terreno vai sempre para a fila dos terrenos, mesmo em Livre ou largado longe dela: só a ordem segue onde o largaste
+    if (kind === 'lands' && rowOf('lands')) {
+      const row = rowOf('lands'), keys = keysIn(row, '.pc[data-z^="k:"]', 'data-z').filter(k => k !== String(id))
+      const before = keys.find(k => { const e = row.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect(); return e && e.left + e.width / 2 > x }) ?? null
+      return { row: 'lands', before, box: row }
+    }
     const under = target.closest('.brow:not(.rear)') || (target.closest('.brow.rear') && rowOf(kind === 'front' ? 'lands' : kind))
     for (const row of [...new Set([under, rowOf(kind)])].filter(Boolean)) {
       const cs = [...row.querySelectorAll('.pc[data-z^="k:"]')].filter(e => e.dataset.z !== `k:${id}` && !e.closest('.bfree')).map(e => e.getBoundingClientRect())
