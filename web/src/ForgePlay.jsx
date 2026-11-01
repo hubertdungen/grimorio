@@ -665,6 +665,18 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (out.length) setLay(l => { const f = { ...l.free }; for (const k of out) delete f[k]; return { ...l, free: f } })
   }, [seqKey])  // eslint-disable-line react-hooks/exhaustive-deps
   const [, redraw] = useState(0), [matOpen, setMatOpen] = useState(false)
+  // ⟳ rodar (telemóvel/tablet): a app Android roda o ecrã ela própria; no browser, ecrã inteiro + bloquear a orientação
+  // (o Chrome do Android só deixa em ecrã inteiro). Sem nenhum dos dois: diz para ligar a rotação automática. Ao sair, volta ao normal.
+  const touchDev = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  const rotate = async () => {
+    const want = innerWidth < innerHeight ? 'landscape' : 'portrait'
+    if (window.GrimorioApp?.orientation) return window.GrimorioApp.orientation(want)
+    try {
+      if (!document.fullscreenElement) await (fitBox.current?.closest('.coliseu') || document.documentElement).requestFullscreen()
+      await screen.orientation.lock(want)
+    } catch { setToast({ title: tx('Não deu para rodar'), msg: tx('Liga a rotação automática do telemóvel (ou usa a app Android do Grimório).') }) }
+  }
+  useEffect(() => () => { try { window.GrimorioApp?.orientation?.('auto'); screen.orientation?.unlock?.() } catch { /* nada a desfazer */ } }, [])
   const persp = () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }
   const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null), peek = usePeek(), diceBox = useRef(null), dice = useTableDice(diceBox)
   const P = fpPrefs()
@@ -790,6 +802,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
             {(lay.free && Object.keys(lay.free).length > 0) || lay.order ? <button className="link small" onClick={() => setLay(l => ({ hand: l.hand }))} title={tx('As cartas do teu lado voltam às filas automáticas')}>▦ {tx('arrumar')}</button> : null}
             <button className="link small" onClick={persp} title={tx('Lado do adversário em perspetiva (mais espaço para o teu)')}>{P.persp ? '▭' : '⏢'} {tx('perspetiva')}</button>
             <CardPx className="small" onChange={() => redraw(x => x + 1)} />
+            {touchDev && <button className="link small" onClick={rotate} title={tx('Rodar a mesa (deitado / ao alto), mesmo com a rotação automática desligada')}>⟳ {tx('rodar')}</button>}
             <button className={`link small ${matOpen ? 'on' : ''}`} onClick={() => setMatOpen(x => !x)} aria-expanded={matOpen} title={tx('Padrão da mesa')}>🎨 {tx('tapete')}</button>
             <button className="link small" onClick={() => send({ c: 'concede' })}>🏳 {tx('desistir')}</button>
           </div>

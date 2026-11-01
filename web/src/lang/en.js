@@ -3595,4 +3595,8 @@ export default {
   "Indisponível em mesas e equipas: o Forge Play é um contra um (num Two-Headed Giant são quatro à mesma mesa).": "Not available for pods and teams: Forge Play is one against one (Two-Headed Giant puts four at one table).",
   "Indisponível em Commander: o Forge Play é um contra um.": "Not available in Commander: Forge Play is one against one.",
   "Marca um dos teus decks com ☆ «eu» na lista para o jogares tu.": "Mark one of your decks with ☆ «me» in the list to play it yourself.",
+  "rodar": "rotate",
+  "Rodar a mesa (deitado / ao alto), mesmo com a rotação automática desligada": "Rotate the table (landscape / portrait), even with auto-rotate off",
+  "Não deu para rodar": "Couldn't rotate",
+  "Liga a rotação automática do telemóvel (ou usa a app Android do Grimório).": "Turn on your phone's auto-rotate (or use the Grimório Android app).",
 }

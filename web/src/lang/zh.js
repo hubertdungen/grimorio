@@ -3587,4 +3587,8 @@ export default {
   "Indisponível em mesas e equipas: o Forge Play é um contra um (num Two-Headed Giant são quatro à mesma mesa).": "多人桌和团队不可用：Forge Play 是一对一（双头巨人是四人同桌）。",
   "Indisponível em Commander: o Forge Play é um contra um.": "指挥官不可用：Forge Play 是一对一。",
   "Marca um dos teus decks com ☆ «eu» na lista para o jogares tu.": "在列表中用 ☆「我」标记你的一副套牌，即可亲自来打。",
+  "rodar": "旋转",
+  "Rodar a mesa (deitado / ao alto), mesmo com a rotação automática desligada": "旋转牌桌（横屏 / 竖屏），即使关闭了自动旋转",
+  "Não deu para rodar": "无法旋转",
+  "Liga a rotação automática do telemóvel (ou usa a app Android do Grimório).": "请打开手机的自动旋转（或使用 Grimório 安卓应用）。",
 }

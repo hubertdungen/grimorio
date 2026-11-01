@@ -3587,4 +3587,8 @@ export default {
   "Indisponível em mesas e equipas: o Forge Play é um contra um (num Two-Headed Giant são quatro à mesma mesa).": "Nicht verfügbar bei Tischen und Teams: Forge Play ist eins gegen eins (bei Two-Headed Giant sitzen vier an einem Tisch).",
   "Indisponível em Commander: o Forge Play é um contra um.": "In Commander nicht verfügbar: Forge Play ist eins gegen eins.",
   "Marca um dos teus decks com ☆ «eu» na lista para o jogares tu.": "Markiere eines deiner Decks mit ☆ «ich» in der Liste, um es selbst zu spielen.",
+  "rodar": "drehen",
+  "Rodar a mesa (deitado / ao alto), mesmo com a rotação automática desligada": "Tisch drehen (quer / hoch), auch wenn die automatische Drehung aus ist",
+  "Não deu para rodar": "Drehen nicht möglich",
+  "Liga a rotação automática do telemóvel (ou usa a app Android do Grimório).": "Schalte die automatische Drehung des Handys ein (oder nutze die Grimório-Android-App).",
 }

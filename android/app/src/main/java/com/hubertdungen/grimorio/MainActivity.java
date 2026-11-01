@@ -164,6 +164,12 @@ public class MainActivity extends Activity {
     /** window.GrimorioApp no Grimório: mudar de servidor e saber a versão da app. */
     class Bridge {
         @JavascriptInterface public void changeServer() { runOnUiThread(() -> askServer(null)); }
+        // «⟳ rodar» do Forge Play: roda o ecrã mesmo com a rotação automática do Android desligada ("auto" volta ao normal)
+        @JavascriptInterface public void orientation(String o) {
+            final int v = "landscape".equals(o) ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                : "portrait".equals(o) ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+            runOnUiThread(() -> setRequestedOrientation(v));
+        }
         @JavascriptInterface public String version() { return BuildConfigVersion.name(MainActivity.this); }
         /** Ficheiros feitos no browser (PDF e ZIP dos proxies, cópias): ficam nas Transferências. */
         @JavascriptInterface public void saveFile(String name, String mime, String b64) {
