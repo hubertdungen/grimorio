@@ -3128,3 +3128,4 @@ label.chk.off .why { display: block; flex-basis: 100%; margin: 2px 0 0 24px; opa
 /* a mão em camada tem largura fixa: com a largura do próprio conteúdo, o useOverlap encostava as cartas um pouco mais a cada
    passagem do rato (a mão estreitava, encostava mais, estreitava…) até ficarem todas umas por cima das outras */
 .board .bside.bottom:not(.compact) > .bhud.withhand > .fp-hand { width: min(62%, calc(100% - 24px)); }
+@media (pointer: coarse) { body:has(.fp-stagebox) .live-bar, body:has(.fp-stagebox) .live-bar-pad { display: none; } }  /* telemóvel/tablet a jogar: a barra do torneio ao vivo tapava o fundo da mesa */

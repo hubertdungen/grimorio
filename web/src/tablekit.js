@@ -90,7 +90,7 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
 // 1280×820, ao alto 760×1180 — e escala-se inteira para caber no ecrã. As cartas têm tamanho fixo lá dentro, por isso uma
 // carta nova nunca empurra as zonas; num monte cheio as cartas encolhem dentro da fila. Só se volta a medir com mudanças a
 // sério (rodar, redimensionar, ecrã inteiro): a barra do browser a aparecer/desaparecer (≈ 60–100 px) não conta.
-export const STAGE = { wide: [1280, 820], tall: [760, 1180] }
+export const STAGE = { wide: [1280, 820], tall: [560, 1000] }  // ao alto mais estreita: no telemóvel as cartas saíam com ~47 px
 // filas cheias (muitas criaturas, terrenos, a mão): as cartas encostam-se umas às outras (--ov negativo) em vez de
 // saírem da mesa; mede-se depois de cada mudança, só dentro da mesa de tamanho fixo
 export function useOverlap(tableRef) {
@@ -141,13 +141,19 @@ export function useStage(boxRef, wrapRef, ready, own = false) {  // own: com o p
       // (fora do ecrã inteiro a página desce até ela); deitado cabe no espaço que sobra por baixo do cabeçalho
       const tall = innerWidth < innerHeight, side = box.querySelector('.fp-side'), below = getComputedStyle(box).gridTemplateRows.split(' ').length > 1
       const total = Math.max(380, Math.floor(vh - (tall && !fe ? 0 : top) - (fe ? 4 : 10)))
-      box.style.height = tall && !fe ? '' : `${total}px`
-      const h = below && !own ? total - (side?.offsetHeight || 0) - 8 : total
+      // com o painel por baixo a mesa fica com o que sobra — num ecrã baixo (telemóvel deitado) sobrava quase nada e a mesa
+      // ficava minúscula: aí a mesa fica com a altura toda e o painel vem a seguir, a rolar (a caixa cresce: altura automática)
+      // só em ecrãs de toque (telemóvel/tablet): no PC fica como estava
+      // telemóvel/tablet (ecrã de toque) com o painel por baixo: a mesa fica sempre com a altura toda e o painel vem a seguir
+      const rest = total - (side?.offsetHeight || 0) - 8, full = below && !own && matchMedia('(pointer: coarse)').matches
+      box.style.height = full ? `${total + (side?.offsetHeight || 0) + 8}px` : tall && !fe ? '' : `${total}px`
+      const h = below && !own && !full ? rest : total
       const shape = tall ? 'tall' : 'wide', [W, H] = STAGE[shape]
       const sc = Math.min(w / W, h / H)
       setSt({ shape, sc, left: Math.max(0, (w - W * sc) / 2), h: H * sc })
     }
     fit(true)
+    if (!document.fullscreenElement && matchMedia('(pointer: coarse)').matches) requestAnimationFrame(() => box.scrollIntoView({ block: 'start' }))  // telemóvel/tablet: a página desce até à mesa
     const again = () => fit(false), hard = () => fit(true)
     const tm = [150, 500].map(x => setTimeout(hard, x))
     addEventListener('resize', again); window.visualViewport?.addEventListener('resize', again)
