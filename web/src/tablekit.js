@@ -149,9 +149,13 @@ export function useStage(boxRef, wrapRef, ready, own = false) {  // own: com o p
       box.style.height = full ? `${total + (side?.offsetHeight || 0) + 8}px` : tall && !fe ? '' : `${total}px`
       const bar = full ? box.querySelector('.fp-actbar')?.offsetHeight || 0 : 0  // a barra fixa de OK/Cancelar (telemóvel) tapa o fundo do ecrã
       const h = below && !own && !full ? rest : total - bar
-      const shape = tall ? 'tall' : 'wide', [W, H] = STAGE[shape]
+      const shape = tall ? 'tall' : 'wide'
+      let [W, H] = STAGE[shape]
+      // ao alto num ecrã de toque a mesa fica com a forma do ecrã e pelo menos 1240 de altura (o teu lado + nome, vida,
+      // montes e mão por baixo); antes era 560×1000: no telemóvel sobravam ~150 px vazios e no tablet a mão tapava os montes
+      if (full && tall) { const a = h / w; H = Math.min(1700, Math.max(1240, Math.floor(W * a))); W = Math.max(W, Math.floor(H / a)) }
       const sc = Math.min(w / W, h / H)
-      setSt({ shape, sc, left: Math.max(0, (w - W * sc) / 2), h: H * sc })
+      setSt({ shape, sc, left: Math.max(0, (w - W * sc) / 2), h: H * sc, W, H })
     }
     fit(true)
     if (!document.fullscreenElement && matchMedia('(pointer: coarse)').matches) requestAnimationFrame(() => box.scrollIntoView({ block: 'start' }))  // telemóvel/tablet: a página desce até à mesa

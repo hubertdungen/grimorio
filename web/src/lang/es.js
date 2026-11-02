@@ -3595,4 +3595,5 @@ export default {
   "Não atacas com nenhuma criatura?": "¿No atacas con ninguna criatura?",
   "Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.": "Tienes {n} criatura(s) que pueden atacar. OK pasa el combate sin atacar.",
   "Não atacar": "No atacar",
+  "Começa {n}. Ficas com esta mão?": "Empieza {n}. ¿Te quedas con esta mano?",
 }

@@ -461,7 +461,7 @@ export default function FreeTable({ id, data, onClose }) {
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && (pen.down(e) || dice.grab(e))) e.stopPropagation() }}
       onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
-        <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: STAGE[stage.shape][0], height: STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
+        <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
           <div className={`fp-table board table ${P.cardPx ? 'px' : ''} ${seats.some(v => v.battlefield.some(c => c.atk != null)) ? 'combat-on' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onContextMenu={onCtx} onMouseMove={tilt} onPointerDown={down}>
             <div className="ml-opps" style={{ '--np': others.length }}>{others.map(i => side(i, true, others.length > 1))}</div>
             <div className="fp-mid">

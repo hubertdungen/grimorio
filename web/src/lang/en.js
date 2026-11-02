@@ -3603,4 +3603,5 @@ export default {
   "Não atacas com nenhuma criatura?": "Not attacking with any creature?",
   "Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.": "You have {n} creature(s) that can attack. OK skips combat without attacking.",
   "Não atacar": "Don't attack",
+  "Começa {n}. Ficas com esta mão?": "{n} goes first. Keep this hand?",
 }

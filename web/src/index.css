@@ -3144,6 +3144,9 @@ label.chk.off .why { display: block; flex-basis: 100%; margin: 2px 0 0 24px; opa
   .fp-side .fp-prompt > p:first-of-type, .fp-side .fp-prompt > .row-btns:not(.small) { display: none; }
   .fp { padding-bottom: 64px; }  /* o fim da página não fica por baixo da barra */
   .fp .board .bside.bottom:not(.compact) > .bhud.withhand > .fp-hand { width: calc(100% - 16px); max-width: none; }  /* mão quase à largura toda: no telemóvel encostava de mais */
+  /* ao alto a mão larga tapava o nome, a vida e os montes (biblioteca/cemitério/exílio): vai para uma linha só dela, por baixo */
+  .fp-stage.tall .board .bside.bottom:not(.compact) > .bhud.withhand { flex-wrap: wrap; row-gap: 2px; }
+  .fp-stage.tall .board .bside.bottom:not(.compact) > .bhud.withhand > .fp-hand { position: static; transform: none; order: 5; flex: 0 0 100%; width: 100%; }
   .fp-stage.tall .fp-table.board { grid-template-rows: minmax(0, 1fr) auto minmax(0, 1.3fr); }  /* ao alto: o teu lado já não fica muito maior do que o do adversário */
 }
 /* ---------- combate: a fase brilha logo ao entrar e a declaração de atacantes nota-se ---------- */

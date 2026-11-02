@@ -3595,4 +3595,5 @@ export default {
   "Não atacas com nenhuma criatura?": "Mit keiner Kreatur angreifen?",
   "Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.": "Du hast {n} Kreatur(en), die angreifen können. OK überspringt den Kampf ohne Angriff.",
   "Não atacar": "Nicht angreifen",
+  "Começa {n}. Ficas com esta mão?": "{n} beginnt. Behältst du diese Hand?",
 }

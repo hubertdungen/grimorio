@@ -3595,4 +3595,5 @@ export default {
   "Não atacas com nenhuma criatura?": "不用任何生物攻击吗？",
   "Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.": "你有 {n} 个可以攻击的生物。OK 会跳过战斗，不进行攻击。",
   "Não atacar": "不攻击",
+  "Começa {n}. Ficas com esta mão?": "{n} 先手。保留这手牌吗？",
 }

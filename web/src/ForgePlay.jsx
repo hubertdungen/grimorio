@@ -45,7 +45,12 @@ function promptText(msg, st, me) {
   if (sv) return tx('Vigiar: {c} fica no topo da biblioteca ou vai para o cemitério?', { c: sv[1] })
   if (sc) return tx('Vidência: {c} fica no topo ou vai para o fundo da biblioteca?', { c: sc[1] })
   if (/won the coin toss/.test(m)) return tx('Ganhaste a moeda ao ar: jogas primeiro ou vais em segundo?')
-  if (/keep your hand/.test(m)) return /going first/.test(m) ? tx('Começas tu. Ficas com esta mão?') : tx('Começa o adversário. Ficas com esta mão?')
+  // «you are going first!» = começas tu; «IA is going first.\nTu, you are going 2nd.» = começa outro (antes dava sempre «Começas tu»)
+  if (/keep your hand/.test(m)) {
+    if (/you are going first/i.test(m)) return tx('Começas tu. Ficas com esta mão?')
+    const who = m.match(/^(.+?) is going first/m)?.[1]
+    return who ? tx('Começa {n}. Ficas com esta mão?', { n: who }) : tx('Começa o adversário. Ficas com esta mão?')
+  }
   // descartar (mão cheia, Faithless Looting…): quantas já escolheste — as escolhidas sobem com moldura dourada
   const disc = m.match(/(?:Select|Choose) (\d+) cards?(?:\(s\))? to discard|Discard (\d+) cards?/i)
   const got = (me?.hand || []).filter(c => c.picked).length
@@ -775,7 +780,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     <div className={`fp ${dice.res ? 'dice-on' : ''}`} ref={fitBox} onMouseLeave={() => { setZoom(null); peek.hide() }} onMouseOver={onOver} onPointerDown={peek.hide}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
-      <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: STAGE[stage.shape][0], height: STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
+      <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
       <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''} ${declaring ? 'fp-declaring' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
