@@ -147,7 +147,8 @@ export function useStage(boxRef, wrapRef, ready, own = false) {  // own: com o p
       // telemóvel/tablet (ecrã de toque) com o painel por baixo: a mesa fica sempre com a altura toda e o painel vem a seguir
       const rest = total - (side?.offsetHeight || 0) - 8, full = below && !own && matchMedia('(pointer: coarse)').matches
       box.style.height = full ? `${total + (side?.offsetHeight || 0) + 8}px` : tall && !fe ? '' : `${total}px`
-      const h = below && !own && !full ? rest : total
+      const bar = full ? box.querySelector('.fp-actbar')?.offsetHeight || 0 : 0  // a barra fixa de OK/Cancelar (telemóvel) tapa o fundo do ecrã
+      const h = below && !own && !full ? rest : total - bar
       const shape = tall ? 'tall' : 'wide', [W, H] = STAGE[shape]
       const sc = Math.min(w / W, h / H)
       setSt({ shape, sc, left: Math.max(0, (w - W * sc) / 2), h: H * sc })

@@ -3591,4 +3591,8 @@ export default {
   "Rodar a mesa (deitado / ao alto), mesmo com a rotação automática desligada": "Tisch drehen (quer / hoch), auch wenn die automatische Drehung aus ist",
   "Não deu para rodar": "Drehen nicht möglich",
   "Liga a rotação automática do telemóvel (ou usa a app Android do Grimório).": "Schalte die automatische Drehung des Handys ein (oder nutze die Grimório-Android-App).",
+  "Declara os atacantes: toca nas criaturas que atacam e depois OK": "Angreifer erklären: tippe die angreifenden Kreaturen an, dann OK",
+  "Não atacas com nenhuma criatura?": "Mit keiner Kreatur angreifen?",
+  "Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.": "Du hast {n} Kreatur(en), die angreifen können. OK überspringt den Kampf ohne Angriff.",
+  "Não atacar": "Nicht angreifen",
 }

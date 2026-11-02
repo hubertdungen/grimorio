@@ -3591,4 +3591,8 @@ export default {
   "Rodar a mesa (deitado / ao alto), mesmo com a rotação automática desligada": "旋转牌桌（横屏 / 竖屏），即使关闭了自动旋转",
   "Não deu para rodar": "无法旋转",
   "Liga a rotação automática do telemóvel (ou usa a app Android do Grimório).": "请打开手机的自动旋转（或使用 Grimório 安卓应用）。",
+  "Declara os atacantes: toca nas criaturas que atacam e depois OK": "宣告攻击者：点选要攻击的生物，然后点 OK",
+  "Não atacas com nenhuma criatura?": "不用任何生物攻击吗？",
+  "Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.": "你有 {n} 个可以攻击的生物。OK 会跳过战斗，不进行攻击。",
+  "Não atacar": "不攻击",
 }

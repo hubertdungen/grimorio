@@ -3591,4 +3591,8 @@ export default {
   "Rodar a mesa (deitado / ao alto), mesmo com a rotação automática desligada": "Girar la mesa (horizontal / vertical), aunque la rotación automática esté desactivada",
   "Não deu para rodar": "No se pudo girar",
   "Liga a rotação automática do telemóvel (ou usa a app Android do Grimório).": "Activa la rotación automática del móvil (o usa la app Android de Grimório).",
+  "Declara os atacantes: toca nas criaturas que atacam e depois OK": "Declara atacantes: toca las criaturas que atacan y luego OK",
+  "Não atacas com nenhuma criatura?": "¿No atacas con ninguna criatura?",
+  "Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.": "Tienes {n} criatura(s) que pueden atacar. OK pasa el combate sin atacar.",
+  "Não atacar": "No atacar",
 }

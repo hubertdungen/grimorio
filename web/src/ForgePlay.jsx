@@ -7,6 +7,7 @@ import { img } from './data.js'
 import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, DamageFx } from './Board.jsx'
 import { tx } from './i18n.js'
 import { playDiff } from './sfx.js'
+import { ask as confirmAsk } from './confirm.jsx'
 import { addDmg } from './game.js'
 import { Syms } from './ui.jsx'
 import { obviousPay } from './mana.js'
@@ -374,7 +375,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       if (e.key.toLowerCase() === P.flip && hoverId.current != null && !e.ctrlKey && !e.metaKey) { e.preventDefault(); const k = hoverId.current; setFlipped(f => { const n = new Set(f); n.has(k) ? n.delete(k) : n.add(k); return n }); return }
       const end = btns.find(b => b.label === 'End Turn')
       const b = e.key === 'Enter' && e.shiftKey ? end : (e.key === ' ' && P.space) || e.key === 'Enter' ? btns[0] : e.key === 'Escape' ? btns[1] : null
-      if (b?.on) { e.preventDefault(); send({ c: b.c }) }
+      if (b?.on) { e.preventDefault(); pressBtn(b) }
     }
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
   })
@@ -668,6 +669,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // ⟳ rodar (telemóvel/tablet): a app Android roda o ecrã ela própria; no browser, ecrã inteiro + bloquear a orientação
   // (o Chrome do Android só deixa em ecrã inteiro). Sem nenhum dos dois: diz para ligar a rotação automática. Ao sair, volta ao normal.
   const touchDev = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  // a declarar atacantes; OK sem nenhum atacante com criaturas que podiam atacar = talvez um OK sem querer: pergunta antes
+  const declaring = /Declare attackers|Select creatures to attack/i.test(pr?.msg || '')
+  const pressBtn = async b => {
+    const can = (me?.battlefield || []).filter(c => (c.creature || c.pt) && !c.tapped && !c.sick).length
+    if (b.c === 'ok' && declaring && !st?.combat?.length && can > 0
+      && !(await confirmAsk('semataque', { title: tx('Não atacas com nenhuma criatura?'), body: tx('Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.', { n: can }), ok: tx('Não atacar'), danger: false }))) return
+    send({ c: b.c })
+  }
   const rotate = async () => {
     const want = innerWidth < innerHeight ? 'landscape' : 'portrait'
     if (window.GrimorioApp?.orientation) return window.GrimorioApp.orientation(want)
@@ -767,7 +776,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
       <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: STAGE[stage.shape][0], height: STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
-      <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
+      <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''} ${declaring ? 'fp-declaring' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
         {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
@@ -775,7 +784,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <div className="fp-mid">
           <span className="fp-turn">{tx('Turno {n}', { n: st.turn })} · {myTurn ? tx('teu') : opp?.name}</span>
           {st.day && <DayNight v={st.day} />}
-          <span className="fp-phases">{PHASES.map(([k, l, ps]) => <i key={k} className={ps.includes(st.phase) ? 'on' : ''}>{l}</i>)}</span>
+          <span className="fp-phases">{PHASES.map(([k, l, ps]) => <i key={k} className={ps.includes(st.phase) ? (/^COMBAT/.test(st.phase || '') ? 'on combat' : 'on') : ''}>{l}</i>)}</span>
+          {declaring && <span className="fp-declare" role="status">⚔ {tx('Declara os atacantes: toca nas criaturas que atacam e depois OK')}</span>}
           <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={null} who={{ a: me?.name, b: opp?.name }} speed={1} />
         </div>
         {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
@@ -784,12 +794,17 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <DamageFx hits={hits} />
       </div>
       </div><div className="fp-dice" ref={diceBox} /></div>
+      {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
+        <p><Syms text={promptText(pr?.msg, st, me)} /></p>
+        {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })}>{n}</button>)}</span>}
+        <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
+      </div>}
       <aside className="fp-side">
         <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}
           <p><Syms text={promptText(pr?.msg, st, me)} /></p>
-          <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
+          <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')}>{n}</button>))}</span>}
           <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')}</p>
@@ -824,7 +839,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <p>{btns.some(b => b.label === 'Graveyard') ? tx('Vigiar: {c} fica no topo da biblioteca ou vai para o cemitério?', { c: reveal.cardName })
           : btns.some(b => b.label === 'Bottom') ? tx('Vidência: {c} fica no topo ou vai para o fundo da biblioteca?', { c: reveal.cardName }) : <Syms text={reveal.msg} />}</p>
         <div className="fp-opts fp-reveal-c"><FCard c={{ id: reveal.card, name: reveal.cardName }} data={data} big /></div>
-        <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => send({ c: b.c })}>{BTN[b.label] || b.label} <kbd>{k ? 'Esc' : '⏎'}</kbd></button>)}</div>
+        <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label} <kbd>{k ? 'Esc' : '⏎'}</kbd></button>)}</div>
       </div></div>}
       {zone && <div className="fp-modal zone" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()} onPointerDown={e => { swipe.current = e.clientY }} onPointerUp={e => { if (e.pointerType !== 'mouse' && e.clientY - swipe.current > 90) setZone(null) }}>
         <p><b>{zone.k === 'graveyard' ? tx('Cemitério de {n}', { n: zone.p.name }) : tx('Exílio de {n}', { n: zone.p.name })}</b> <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
