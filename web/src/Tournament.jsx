@@ -406,7 +406,13 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
           {casual && <label className="chk" title={tx('Desligado: todos os decks são do formato escolhido, só que o torneio não conta para os ratings.')}><input type="checkbox" checked={mixOn} onChange={e => setMixOn(e.target.checked)} /> {tx('Misturar formatos')}</label>}
           {casual && <p className="small muted tc-info">{mixF ? CASUAL_INFO : tx('Casual sem misturar: decks só deste formato.')} {tx('Os torneios casuais não contam para os ratings.')}</p>}
           <label className="fmt"><span>{mixF ? tx('Regras base (vida e tipo de jogo de todos)') : tx('Formato (todos os decks jogam este)')}</span>
-            <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(defType(f)) }}>{FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited' && !(room && f.cmd && !free && !misto)).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</select></label>
+            <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(defType(f)) }}>{(() => {
+              // os formatos em que tens decks vêm primeiro, com a bolinha e quantos
+              const n = allMine.reduce((m, d) => ({ ...m, [d.format]: (m[d.format] || 0) + 1 }), {})
+              return FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited' && !(room && f.cmd && !free && !misto))
+                .map((f, k) => ({ f, k, c: n[f.key] || 0 })).sort((a, b) => (b.c > 0) - (a.c > 0) || b.c - a.c || a.k - b.k)
+                .map(({ f, c }) => <option key={f.key} value={f.key}>{c ? `● ${f.name} (${c})` : f.name}</option>)
+            })()}</select></label>
           {!mixF && CROSS[format] && <label className="chk small" title={tx('Os decks têm de ser legais carta a carta neste formato (o servidor confirma).')}><input type="checkbox" checked={crossOn} onChange={e => { setCrossOn(e.target.checked); ls('grimorio.torneio.cross', e.target.checked ? '1' : '0') }} /> {tx('Aceitar decks legais de outros formatos ({l})', { l: CROSS[format].map(f => FORMAT[f]?.name || f).join(', ') })}</label>}
           {misto && F.cmd && <p className="small muted tc-info">{tx('Commander só se todos jogarem eles mesmos (fica um torneio de mesa livre): com bots, o Forge Play é um contra um.')}</p>}
           {room !== 'jogo' && <div className="tc-types">{Object.entries(TYPES).filter(([k]) => k !== 'jogo' && !(misto && k === 'mesas')).map(([k, [l, lo, hi]]) => (
@@ -450,7 +456,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
               {tx('a')} <select value={smax} onChange={e => setSmax(+e.target.value)} aria-label={tx('Máximo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select></span>
             <label className="chk small"><input type="checkbox" checked={unrated} onChange={e => setUnrated(e.target.checked)} /> {tx('incluir decks sem rating')}</label></>}
             <label className="chk small" title={tx('Só os decks que marcaste com ★ na Biblioteca')}><input type="checkbox" checked={favOnly} onChange={e => setFavOnly(e.target.checked)} /> ★ {tx('só favoritos')}</label>
-            <button onClick={fill} disabled={n >= Math.min(fillN, max)}>{tx('Preencher')}</button>
+            <button className="primary fill-btn" onClick={fill} disabled={n >= Math.min(fillN, max)}>🎲 {tx('Preencher')}</button>
             <select className="tc-champ-from" value={champFrom} onChange={e => { setChampFrom(e.target.value); setChamps(false); setPods(false) }} aria-label={tx('Campeões de')} title={tx('De que torneios vêm os campeões')}>
               <option value="">{tx('Campeões de todos os tipos')}</option>
               <option value="campeoes">{tx('🏆 Campeões dos campeões (platinas)')}</option>

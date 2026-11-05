@@ -178,7 +178,9 @@ function draw(now) {
     const burstK = o.burstAt ? Math.min(1, (now - o.burstAt) / 700) : 0
     const crack = s.dead ? 1 : Math.max(s.low ? 0.32 : 0, burstK, (s.fx === 'crack' || s.fx === 'split') ? 0.75 * fxk : 0)
     for (const g of [r.glass, r.glassBack]) { g.material.uniforms.crack.value = crack; g.material.uniforms.tint.value.copy(s.core); g.material.uniforms.dim.value = s.dead ? 0.85 : 1 }
-    const beat = s.low && !s.dead ? 1 + 0.06 * Math.max(0, Math.sin(t * 7.5)) ** 8 : 1, fat = 1 + 0.25 * s.ab, wob = s.burst ? 1 + 0.035 * Math.sin(t * 60) : 1
+    const bt = o.el._beat, ph = bt ? ((now - bt.t0) % bt.P) / bt.P : 0  // o mesmo relógio do som do coração
+    const heart = ph < 0.05 ? ph / 0.05 * 0.07 : ph < 0.11 ? 0.07 - (ph - 0.05) / 0.06 * 0.08 : ph < 0.17 ? -0.01 + (ph - 0.11) / 0.06 * 0.06 : ph < 0.26 ? 0.05 - (ph - 0.17) / 0.09 * 0.05 : 0
+    const beat = s.low && !s.dead && bt ? 1 + heart : 1, fat = 1 + 0.25 * s.ab, wob = s.burst ? 1 + 0.035 * Math.sin(t * 60) : 1
     const sc = beat * fat * wob
     r.ball.scale.setScalar(sc); r.glass.scale.setScalar(sc); r.glassBack.scale.setScalar(sc)
     const split = s.fx === 'split' ? Math.sin(Math.min(1, fxk * 1.4) * Math.PI) * 0.12 : 0

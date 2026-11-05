@@ -3587,3 +3587,11 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .orb.has3d.dead { box-shadow: none !important; cursor: grab; }
 .orb.has3d.dead > b, .orb.has3d.dead > small, .orb.has3d.dead > .orb-in, .orb.has3d.dead > .orb-dmg, .orb.has3d.dead > .orb-halo, .orb.has3d.dead > .orb-rays, .orb.has3d.dead > .orb-sweat { opacity: 0; transition: opacity .3s; }
 .orb.has3d.dead-draw > b, .orb.has3d.dead-concede > b { opacity: .8; }
+
+/* o coração com pouca vida: o pulsar pelo mesmo relógio do som (--beat = o período; «lub» a 0 e «dub» ~0,17 s depois) */
+.orb.low { animation: orbbeat var(--beat, 1.25s) linear infinite; }
+@keyframes orbbeat { 0%, 26%, 100% { scale: 1; } 5% { scale: 1.07; } 11% { scale: .99; } 17% { scale: 1.05; } }
+/* «Preencher» bem à vista */
+.fill-btn { font-size: 15px; padding: 8px 18px; box-shadow: 0 0 0 2px #f2b84b55, 0 4px 14px #f2b84b44; }
+.fill-btn:not(:disabled) { animation: fillpulse 2.4s ease-in-out infinite; }
+@keyframes fillpulse { 50% { box-shadow: 0 0 0 3px #f2b84b99, 0 4px 20px #f2b84b77; } }

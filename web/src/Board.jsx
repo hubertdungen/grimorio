@@ -715,8 +715,13 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
   const rich = ab > 0 && !dead ? (ab >= 0.5 ? richPick : richPick.slice(0, 1)) : []
   useEffect(() => {  // o coração da esfera com pouca vida: bate, mais depressa e mais forte quanto mais perto do fim
     if (!low || dead || fast || life <= 0 || life >= 1e6) return
-    const k = 1 - Math.max(0, life - 1) / Math.max(4, Math.round(start / 4)), iv = setInterval(() => { if (document.visibilityState === 'visible') play('orbHeart', { side, amount: 0.4 + 0.6 * k }) }, Math.round(1250 - 450 * k))
-    return () => clearInterval(iv)
+    const k = 1 - Math.max(0, life - 1) / Math.max(4, Math.round(start / 4)), P = Math.round(1250 - 450 * k), el = orbRef.current
+    // o som e o pulsar (CSS e 3D) pelo mesmo relógio: o «lub» no início de cada período e o «dub» 0,17 s depois
+    const beat = () => { if (document.visibilityState === 'visible') play('orbHeart', { side, amount: 0.4 + 0.6 * k }) }
+    if (el) { el._beat = { t0: performance.now(), P }; el.style.setProperty('--beat', `${P}ms`); el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '' }
+    beat()
+    const iv = setInterval(beat, P)
+    return () => { clearInterval(iv); if (el) el._beat = null }
   }, [low, dead, fast, life <= 2, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
