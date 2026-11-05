@@ -232,6 +232,16 @@ function draw(now) {
 
 export function attachOrb3d(el, cv) {
   const o = { el, cv, seed: Math.random() * 10 }
+  // partida: arrastar empurra os cacos perto do dedo (em vez de mexer a esfera toda) — coordenadas do ecrã → da cena
+  el._poke = (x, y, vx, vy) => {
+    if (!o.fr || o.fr.mode !== 'shatter') return
+    const r = (el._proxy?.querySelector('canvas.orb3d') || cv).getBoundingClientRect(), span = 2 * Math.tan(Math.PI / 12) * 11.5
+    const wx = ((x - r.left) / r.width - 0.5) * span, wy = -((y - r.top) / r.height - 0.5) * span - 0.5
+    for (const b of o.fr.parts) {
+      const d = Math.hypot(b.p[0] - wx, b.p[1] - wy)
+      if (d < 0.9) { const k = (1 - d / 0.9) * 0.012; b.v[0] += vx * k; b.v[1] += Math.max(1, -vy * k); b.w = b.w.map(w => w + (Math.random() - 0.5) * 6) }
+    }
+  }
   orbs.add(o)
   if (!raf) raf = requestAnimationFrame(draw)
   return () => { orbs.delete(o) }

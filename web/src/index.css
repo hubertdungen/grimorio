@@ -3582,3 +3582,8 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 
 /* a carta a ir para a mão voa dentro da mesa: à frente do baralho, atrás da mão (que tem z-index 8) */
 .zfly.inner { position: absolute; z-index: 7; }
+
+/* a esfera 3D rebentada: vai-se tudo (sombra, número, camadas da clássica) — o número cai com os cacos (orbBurst) */
+.orb.has3d.dead { box-shadow: none !important; cursor: grab; }
+.orb.has3d.dead > b, .orb.has3d.dead > small, .orb.has3d.dead > .orb-in, .orb.has3d.dead > .orb-dmg, .orb.has3d.dead > .orb-halo, .orb.has3d.dead > .orb-rays, .orb.has3d.dead > .orb-sweat { opacity: 0; transition: opacity .3s; }
+.orb.has3d.dead-draw > b, .orb.has3d.dead-concede > b { opacity: .8; }

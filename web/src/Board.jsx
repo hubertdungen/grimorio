@@ -468,6 +468,13 @@ function useOrbPhysics(ref) {
     function down(e) {
       if (e.button > 0) return
       e.preventDefault()  // não seleciona o texto da página ao agarrar
+      if (el.classList.contains('dead') && el._poke) {  // partida em 3D: arrastar empurra os cacos, não a esfera
+        let last = [e.clientX, e.clientY, performance.now()]
+        const mv = ev => { const now = performance.now(), dt = Math.max(0.008, (now - last[2]) / 1000); el._poke(ev.clientX, ev.clientY, (ev.clientX - last[0]) / dt, (ev.clientY - last[1]) / dt); last = [ev.clientX, ev.clientY, now] }
+        const upp = () => { removeEventListener('pointermove', mv); removeEventListener('pointerup', upp) }
+        addEventListener('pointermove', mv); addEventListener('pointerup', upp)
+        return
+      }
       S.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: S.x, oy: S.y, h: [[performance.now(), e.clientX, e.clientY]], on: false }
     }
     const move = e => {
