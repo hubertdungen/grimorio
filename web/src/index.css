@@ -3521,7 +3521,7 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .orb.has3d.orb-proxy { box-shadow: 0 calc(10px + 26px * var(--lift, 0)) calc(12px + 16px * var(--lift, 0)) calc(-4px - 6px * var(--lift, 0)) #000b; }
 
 /* ---------- golpes na esfera à maneira de quem bateu (orbfx.js): camada centrada na esfera; --ang = de onde veio ---------- */
-.atkfx { position: fixed; z-index: 2147482700; pointer-events: none; transform: translate(-50%, -50%); }
+.atkfx { position: fixed; z-index: 2147482700; pointer-events: none; transform: translate(-50%, -50%) scale(1.7); }  /* maiores que a esfera: veem-se bem */
 .atkfx > i { position: absolute; left: 50%; top: 50%; font-style: normal; line-height: 1; }
 /* garras: três rasgões diagonais a vermelho */
 .atk-claws > i { width: 130%; height: 5px; margin: -2px 0 0 -65%; border-radius: 50%; background: linear-gradient(90deg, transparent, #fff 20%, #ff2a3a 50%, #fff 80%, transparent);
