@@ -893,11 +893,17 @@ export function DamageFx({ hits, data }) {
       if (done.current.has(h.key)) return
       done.current.add(h.key)
       const box = ref.current, kind = h.kind || 'spl'
-      if (kind === 'counter') {  // anular: uma onda azul/roxa e «Anulado» onde está o feitiço
-        const b = at(elOf(h.to)) || mid, w = document.createElement('i'), t = document.createElement('b')
-        w.className = 'dmgfx-wave counter'; t.className = 'dmgfx-pop counter'; t.textContent = tx('Anulado')
-        for (const e of [w, t]) Object.assign(e.style, { left: `${b[0]}px`, top: `${b[1]}px` })
-        setTimeout(() => { box.append(w, t); setTimeout(() => { w.remove(); t.remove() }, 1300) }, lag); lag += 150
+      if (kind === 'counter') {  // anular: carimbo «ANULADO» por cima de tudo, ondas azul/roxas e faíscas onde está o feitiço
+        const te = elOf(h.to), q = (te?._proxy || te)?.getBoundingClientRect(), rr = root.getBoundingClientRect()
+        const sx = q?.width ? q.left + q.width / 2 : rr.left + rr.width / 2, sy = q?.width ? q.top + q.height / 2 : rr.top + rr.height / 2
+        setTimeout(() => {
+          const host = document.fullscreenElement || document.webkitFullscreenElement || document.body, fx = document.createElement('div')
+          fx.className = 'counterfx'; Object.assign(fx.style, { left: `${sx}px`, top: `${sy}px` })
+          fx.innerHTML = `<i class="cw"></i><i class="cw w2"></i><b>${tx('Anulado')}</b>${'<i class="cs"></i>'.repeat(12)}`
+          fx.querySelectorAll('.cs').forEach((e, k) => { e.style.setProperty('--a', `${k * 30}deg`); e.style.setProperty('--d', `${40 + (k % 3) * 18}px`) })
+          host.append(fx); setTimeout(() => fx.remove(), 1700)
+          play('countered')
+        }, lag); lag += 150
         return
       }
       const b = at(elOf(h.to))

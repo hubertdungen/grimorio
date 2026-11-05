@@ -228,6 +228,7 @@ function draw(now) {
     const cv = (px && px.querySelector('canvas.orb3d')) || o.cv, g = cv.getContext('2d')
     if (cv.width !== SIZE) { cv.width = SIZE; cv.height = SIZE }
     g.clearRect(0, 0, SIZE, SIZE); g.drawImage(r.renderer.domElement, 0, 0)
+    if (!o.ready) { o.ready = true; o.el.dataset.o3 = '1' }  // já há desenho 3D: só agora a esfera clássica sai do caminho
   }
   if (orbs.size) raf = requestAnimationFrame(draw)
 }
