@@ -103,7 +103,29 @@ function init() {
   const caustic = sprite([[0, '#ffffffdd'], [0.5, '#ffffff22'], [1, '#ffffff00']], 0.9); caustic.position.set(0.18, -0.62, 0.8)
   const ball = new THREE.Group(); ball.add(core)
   scene.add(glow, glow2, ball, glassBack, caustic, glass)
-  R = { renderer, scene, cam, core, coreU, glass, glassBack, glow, glow2, caustic, ball }
+  // física a sério: a esfera parte-se em cacos que caem e saltam no chão (e lá ficam), ou cai inteira, rola e desfaz-se;
+  // partir ao meio abre duas metades; uma dentada verte gotas que fazem uma poça; o chão racha onde ela cai
+  const shards = new THREE.Group(), parts = []
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    const gg = new THREE.SphereGeometry(1, 6, 4, j * Math.PI / 2, Math.PI / 2, i * Math.PI / 4, Math.PI / 4)
+    const cg = new THREE.SphereGeometry(0.9, 6, 4, j * Math.PI / 2, Math.PI / 2, i * Math.PI / 4, Math.PI / 4)
+    const gm = glassMat(0); gm.side = THREE.DoubleSide
+    const piece = new THREE.Group(), g1 = new THREE.Mesh(gg, gm), c1 = new THREE.Mesh(cg, core.material)
+    piece.add(c1, g1); shards.add(piece); parts.push(piece)
+  }
+  shards.visible = false
+  const half = side => { const h = new THREE.Group(), gm = glassMat(0); gm.side = THREE.DoubleSide
+    h.add(new THREE.Mesh(new THREE.SphereGeometry(0.9, 32, 24, side * Math.PI, Math.PI), core.material), new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24, side * Math.PI, Math.PI), gm)); return h }
+  const halves = [half(0), half(1)]; halves.forEach(h => { h.visible = false })
+  const drops = new THREE.Group()
+  for (let i = 0; i < 10; i++) drops.add(new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshBasicMaterial({ color: '#ff2a3a' })))
+  drops.visible = false
+  const floorMat = new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, opacity: 0, depthWrite: false, color: '#ffffff' })
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(1.8, 40), floorMat); floor.rotation.x = -Math.PI / 2; floor.position.y = -1.12
+  const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.7, 32), new THREE.MeshBasicMaterial({ color: '#ff2a3a', transparent: true, opacity: 0, depthWrite: false }))
+  puddle.rotation.x = -Math.PI / 2; puddle.position.y = -1.11
+  scene.add(floor, puddle, shards, ...halves, drops)
+  R = { renderer, scene, cam, core, coreU, glass, glassBack, glow, glow2, caustic, ball, shards, parts, halves, drops, floor, puddle }
   return R
 }
 
@@ -122,6 +144,22 @@ function read(o) {
   o.at = performance.now()
 }
 
+const FLOOR = -1.1
+function startFracture(o, now) {  // ao acaso (com semente: igual em todos os ecrãs): estilhaça (cacos no chão) ou cai inteira, rola e desfaz-se
+  let h = [...String(o.el.dataset.seed || 'x')].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
+  const rnd = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296 }
+  const mode = rnd() < 0.6 ? 'shatter' : 'drop'
+  o.fr = { t0: now, last: now, mode, ball: { p: [0, 0, 0], v: [(rnd() - 0.5) * 2, 2.5, 0.4], rz: 0 },
+    parts: Array.from({ length: 16 }, (_, k) => { const i = Math.floor(k / 4), j = k % 4, th = (i + 0.5) * Math.PI / 4, ph = (j + 0.5) * Math.PI / 2
+      const n = [Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)], sp = 1.6 + rnd() * 2.4
+      return { p: [0, 0, 0], v: [n[0] * sp, n[1] * sp + 2.2, n[2] * sp * 0.6 + 0.6], r: [0, 0, 0], w: [(rnd() - 0.5) * 9, (rnd() - 0.5) * 9, (rnd() - 0.5) * 9] } }) }
+}
+function stepBody(b, dt, rad = 0.12) {  // gravidade, chão com ressalto e atrito
+  b.v[1] -= 9 * dt
+  for (let k = 0; k < 3; k++) b.p[k] += b.v[k] * dt
+  if (b.p[1] < FLOOR + rad) { b.p[1] = FLOOR + rad; if (b.v[1] < 0) b.v[1] *= -0.32; b.v[0] *= 0.82; b.v[2] *= 0.82; if (b.w) b.w = b.w.map(x => x * 0.75) }
+  if (b.w) for (let k = 0; k < 3; k++) b.r[k] += b.w[k] * dt
+}
 function draw(now) {
   raf = 0
   if (!orbs.size) return
@@ -153,6 +191,37 @@ function draw(now) {
     const ga = s.dead ? 0 : s.mood || s.react ? 0.95 : s.ab > 0 ? 0.55 + 0.35 * s.ab : 0.4
     r.glow.material.opacity = ga; r.glow2.material.opacity = cols && cols.length > 1 ? ga * 0.8 : 0
     r.caustic.material.color.copy(s.core).lerp(new THREE.Color('#ffffff'), 0.5); r.caustic.material.opacity = s.dead ? 0 : 0.55
+    // a casca rebentada: a física dos cacos (ou da esfera inteira a cair e rolar) e o chão rachado; câmara mais alta
+    if (s.dead && !o.fr) startFracture(o, now)
+    if (!s.dead) o.fr = null
+    const fr = o.fr, dt = fr ? Math.min(0.033, (now - fr.last) / 1000) : 0
+    if (fr) fr.last = now
+    r.cam.position.set(0, fr ? 2.4 : 0.2, fr ? 11.5 : 6); r.cam.lookAt(0, fr ? -0.5 : 0, 0)
+    r.shards.visible = !!fr && fr.mode === 'shatter'
+    const showWhole = !fr || fr.mode === 'drop'
+    r.ball.visible = r.glass.visible = r.glassBack.visible = showWhole
+    if (fr?.mode === 'shatter') fr.parts.forEach((b, k) => { stepBody(b, dt); const m = r.parts[k]; m.position.set(...b.p); m.rotation.set(...b.r)
+      const u2 = m.children[1].material.uniforms; u2.tint.value.copy(s.core); u2.crack.value = 1 })
+    r.halves.forEach(h => { const u2 = h.children[1].material.uniforms; u2.tint.value.copy(s.core); u2.crack.value = 0.6 })
+    if (fr?.mode === 'drop') {  // cai, salta, rola para o lado e desfaz-se em pó
+      const b = fr.ball; stepBody(b, dt, 1); b.rz -= b.v[0] * dt
+      const age = (now - fr.t0) / 1000, k = Math.max(0, 1 - Math.max(0, age - 1.6) / 1.2)
+      for (const m of [r.ball, r.glass, r.glassBack]) { m.position.set(...b.p); m.rotation.z = b.rz; m.scale.setScalar(Math.max(0.001, k) * sc) }
+      r.glass.material.uniforms.dim.value = k; r.glassBack.material.uniforms.dim.value = k
+    } else for (const m of [r.ball, r.glass, r.glassBack]) { m.position.set(0, 0, 0); m.rotation.z = 0 }
+    r.floor.material.opacity = fr ? Math.min(0.85, (now - fr.t0) / 600) : 0
+    r.glow.visible = r.glow2.visible = r.caustic.visible = !fr
+    // partir ao meio: as duas metades afastam-se e voltam a juntar-se
+    const opening = s.fx === 'split' && fxk > 0 && !fr
+    r.halves.forEach((h, k) => { h.visible = opening; if (opening) { h.position.x = (k ? 1 : -1) * Math.sin(Math.min(1, fxk * 1.3) * Math.PI) * 0.45; h.rotation.y = k ? 0 : 0; h.scale.setScalar(sc) } })
+    if (opening) r.ball.visible = r.glass.visible = r.glassBack.visible = false
+    // verter (dentada, sangue): gotas da cor do líquido caem pelo lado e fazem uma poça
+    const spill = s.fx === 'spill' && !fr
+    if (spill && !o.drops) o.drops = Array.from({ length: 10 }, () => ({ p: [0.75 + Math.random() * 0.2, Math.random() * 0.4, 0.4], v: [0.6 + Math.random(), 0.6 + Math.random(), (Math.random() - 0.5)] }))
+    if (!s.fx) o.drops = null
+    r.drops.visible = !!o.drops
+    if (o.drops) o.drops.forEach((b, k) => { stepBody(b, 0.016, 0.05); const m = r.drops.children[k]; m.position.set(...b.p); m.material.color.copy(s.core) })
+    r.puddle.material.opacity = o.drops ? 0.75 * Math.min(1, (1 - fxk) * 2) : 0; r.puddle.material.color.copy(s.core); r.puddle.position.x = 1.2
     r.renderer.render(r.scene, r.cam)
     const cv = (px && px.querySelector('canvas.orb3d')) || o.cv, g = cv.getContext('2d')
     if (cv.width !== SIZE) { cv.width = SIZE; cv.height = SIZE }

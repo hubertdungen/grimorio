@@ -7,9 +7,13 @@
 // espinhos).
 import { play } from './sfx.js'
 
+// acaso com semente (o mesmo golpe dá o mesmo estilo em todos os ecrãs: mesa online, réplicas)
+export function seeded(seed) { let h = [...String(seed ?? Math.random())].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
+  return () => { h = (h + 0x6D2B79F5) | 0; let t = Math.imul(h ^ (h >>> 15), 1 | h); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 } }
 const SUB = (c, re) => re.test(String(c?.t || '').split('—')[1] || '')
-export function attackStyle(c, kind, kw) {
-  if (!c || Math.random() < 0.3) return null
+export function attackStyle(c, kind, kw, seed) {
+  const rnd = seeded(seed)
+  if (!c || rnd() < 0.3) return null
   const o = String(c.o || ''), t = String(c.t || ''), cols = [...new Set(String(c.co ?? c.ci ?? '').replace(/[^WUBRG]/g, ''))]
   const opts = []
   if (kw === 'zap') opts.push('thunder', 'thunder')
@@ -28,7 +32,7 @@ export function attackStyle(c, kind, kw) {
   const bycol = { R: 'fire', U: 'ice', G: 'leaf', B: 'goo', W: 'holy' }
   for (const k of cols) opts.push(bycol[k])
   if (!opts.length) return null
-  return opts[Math.floor(Math.random() * opts.length)]
+  return opts[Math.floor(rnd() * opts.length)]
 }
 // o efeito na esfera 3D (e na clássica, por CSS) de cada estilo
 const FX3 = { claws: 'crack', sword: 'split', arrow: 'spikes', bite: 'spill', blood: 'spill', horn: 'crack', smash: 'split', dive: 'crack', thunder: 'crack',
@@ -37,7 +41,8 @@ const GLYPH = { claws: '', sword: '🗡', arrow: '➶', bite: '', blood: '🩸',
 const N = { claws: 3, sword: 2, arrow: 4, bite: 2, blood: 8, horn: 2, smash: 9, dive: 1, thunder: 3, fire: 8, ice: 9, leaf: 9, holy: 1, prism: 6, metal: 7, goo: 7, rot: 6 }
 
 // a camada do golpe por cima da esfera (posição do ecrã; dx/dy = de onde veio)
-export function attackFx(orb, style, dx = 0, dy = 1) {
+export function attackFx(orb, style, dx = 0, dy = 1, seed) {
+  const rnd = seeded(`${seed}|fx`)
   const el = orb?._proxy || orb, r = el?.getBoundingClientRect()
   if (!r?.width) return
   const host = document.fullscreenElement || document.webkitFullscreenElement || document.body, box = document.createElement('div')
@@ -47,7 +52,7 @@ export function attackFx(orb, style, dx = 0, dy = 1) {
   box.style.setProperty('--ang', `${ang}deg`)
   for (let i = 0; i < (N[style] || 4); i++) {
     const p = document.createElement('i')
-    p.style.setProperty('--i', i); p.style.setProperty('--rx', (Math.random() - 0.5).toFixed(2)); p.style.setProperty('--ry', (Math.random() - 0.5).toFixed(2))
+    p.style.setProperty('--i', i); p.style.setProperty('--rx', (rnd() - 0.5).toFixed(2)); p.style.setProperty('--ry', (rnd() - 0.5).toFixed(2))
     if (GLYPH[style]) p.textContent = GLYPH[style]
     box.append(p)
   }

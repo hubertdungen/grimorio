@@ -3577,3 +3577,5 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 /* a esfera 3D faz as rachas no vidro dela: as camadas CSS de rachas não se desenham por cima */
 .orb.has3d.low::before, .orb.has3d.dead::before, .orb.has3d.bursting::before, .orb.has3d[data-fx3="crack"]::before, .orb.has3d[data-fx3="split"]::before { display: none; }
 .orb.has3d[data-fx3="split"] .orb3d, .orb.has3d[data-fx3] .orb3d { animation: none; filter: none; }
+/* a esfera 3D rebentada: os cacos caem e ficam no chão à volta — o desenho alarga para caberem */
+.orb.has3d.dead .orb3d { left: -108%; top: -108%; width: 316%; height: 316%; }

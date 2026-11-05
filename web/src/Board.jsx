@@ -561,7 +561,7 @@ function orbBurst(el, cause) {
       { duration: 1100 + Math.random() * 600, easing: 'cubic-bezier(.1, .7, .3, 1)', fill: 'both' })
   }
   // cacos de vidro: o círculo cortado em fatias irregulares (ângulos ao acaso e um ponto de dentro deslocado)
-  const N = 16, cuts = Array.from({ length: N }, (_, i) => (i + 0.2 + Math.random() * 0.6) / N * 2 * Math.PI)
+  const N = el.classList.contains('has3d') ? 0 : 16, cuts = Array.from({ length: N }, (_, i) => (i + 0.2 + Math.random() * 0.6) / N * 2 * Math.PI)
   for (let i = 0; i < N; i++) {
     const a0 = cuts[i], a1 = cuts[(i + 1) % N] + (i === N - 1 ? 2 * Math.PI : 0), am = (a0 + a1) / 2, rim = 50 + 4
     const ins = 6 + Math.random() * 22, ix = 50 + Math.cos(am) * ins, iy = 50 + Math.sin(am) * ins
@@ -706,7 +706,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     return () => clearInterval(iv)
   }, [low, dead, fast, life <= 2, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} data-seed={`${side}|${start}`} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
       {three && <canvas ref={cvRef} className="orb3d" aria-hidden="true" />}
       {rich.includes('god') && <i className="orb-rays" aria-hidden="true" />}
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
@@ -901,8 +901,9 @@ export function DamageFx({ hits, data }) {
           orbReact(orb, kw)
           // às vezes (ao acaso) o golpe vem à maneira de quem bateu: garras, espadas, flechas, dentadas, raio com trovão, fogo,
           // gelo, folhas, metal, gosma… com som e efeito na esfera (rachar, partir, verter, apodrecer, espinhos) — orbfx.js
-          const st = kind !== 'gain' && attackStyle(nm && lookup(data, nm), kind, kw)
-          if (st) attackFx(orb, st, at2[0] - a[0], at2[1] - a[1])
+          const seed = `${h.key}|${nm}|${h.n}`  // o mesmo golpe → o mesmo estilo e as mesmas peças em todos os ecrãs
+          const st = kind !== 'gain' && attackStyle(nm && lookup(data, nm), kind, kw, seed)
+          if (st) attackFx(orb, st, at2[0] - a[0], at2[1] - a[1], seed)
           else play(KW_SFX[kw] || (kind === 'gain' ? 'orbGain' : kind === 'psn' ? 'orbPoison' : 'orbHit'), { amount: h.n })  // o vidro soa à maneira de quem bateu
           // o golpe empurra a esfera na direção em que veio (a vida ganha faz só um saltinho para cima)
           const f = kind === 'gain' ? 0 : Math.min(900, 220 + 60 * h.n)
