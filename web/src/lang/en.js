@@ -3804,4 +3804,7 @@ export default {
   "ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.": "full screen (in the table corner or the bottom bar; shortcut Shift+F) and rotating the table on phone/tablet.",
   "Esfera em 3D (desligado: a clássica)": "3D orb (off: the classic one)",
   "Tamanho das esferas": "Orb size",
+  "Atacar {d}: clica nas criaturas que atacam e depois OK.": "Attacking {d}: click the creatures that attack, then OK.",
+  "Para atacar um planeswalker ou uma batalha, toca nele primeiro (ou larga a criatura em cima dele); toca na esfera dele para voltar a atacar o jogador.": "To attack a planeswalker or a battle, tap it first (or drop the creature on it); tap their orb to go back to attacking the player.",
+  "Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).": "Not now: loyalty is used once per turn, in your main phase with an empty stack (and a \"−\" needs enough loyalty).",
 }

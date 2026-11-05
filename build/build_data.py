@@ -87,7 +87,7 @@ with gzip.open(os.path.join(RAW, "oracle.jsonl.gz"), "rt") as fh:
             "eur": float(prices["eur"]) if prices.get("eur") else None,
             "usd": float(prices["usd"]) if prices.get("usd") else None,
             "er": c.get("edhrec_rank"), "gc": 1 if c.get("game_changer") else 0,
-            "pt": f'{c["power"]}/{c["toughness"]}' if "power" in c else (c.get("loyalty") or ""),
+            "pt": f'{c["power"]}/{c["toughness"]}' if "power" in c else (c.get("loyalty") or c.get("defense") or ((c.get("card_faces") or [{}])[0].get("defense")) or ""),  # batalha: a defesa
             "tg": tags, "df": 1 if dfc else 0, "kw": c.get("keywords", []),
             "y": (c.get("released_at") or "")[:4], "un": 1 if not legal else 0,
         })

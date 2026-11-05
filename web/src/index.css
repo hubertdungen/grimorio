@@ -3632,3 +3632,28 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .zghost.to-exile { animation: exileout .95s ease-in forwards; }
 .zghost.to-hand, .zghost.to-library { animation: bounceout .8s cubic-bezier(.5, 0, .8, .4) forwards; }
 .zghost.to-graveyard { animation: shatter .9s ease-in forwards; filter: none; }
+
+/* Forge Play: as habilidades de lealdade de um planeswalker, cada uma um botão com o custo num escudo */
+.fp-act .pw-ab { display: flex; align-items: flex-start; gap: 8px; width: 100%; text-align: left; margin: 4px 0; padding: 6px 8px; border-radius: 8px; font-size: 12px; line-height: 1.35; }
+.fp-act .pw-ab:disabled { opacity: .45; cursor: not-allowed; }
+.fp-act .pw-cost { flex: none; min-width: 30px; padding: 2px 4px; text-align: center; border-radius: 6px 6px 12px 12px; background: #3b3f4a; color: #fff; font-size: 13px; }
+.fp-act .pw-ab.up .pw-cost { background: #2f6b3a; } .fp-act .pw-ab.down .pw-cost { background: #7a2a2a; }
+.pc-pop.ctr.loyalty.neg { color: #f2b84b; }  /* lealdade gasta numa habilidade «−N»: dourado (dano é vermelho) */
+/* atacante → o planeswalker/batalha que ataca: vermelho-dourado com uma marca ⚔ no alvo */
+.clinks g.atk line { stroke: #ff7a45; stroke-dasharray: 3 7; stroke-width: 3.5; }
+.clinks g.atk circle { fill: #3a0d0d; stroke: #ff7a45; stroke-width: 2; }
+.clinks g.atk text { font-size: 11px; text-anchor: middle; fill: #ffd2b8; }
+.chip.cmdd { display: inline-flex; align-items: center; gap: 4px; }
+.chip.cmdd img { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold, #f2b84b); }
+
+/* zona de comando: o comandante lançado (clarão dourado a subir) e o regresso (anel que se fecha no quadrado) */
+.cmdz { position: relative; }
+.cmdz.cast::after, .cmdz.back::after { content: ''; position: absolute; inset: -4px; border-radius: 8px; pointer-events: none; border: 2px solid #f2b84b; box-shadow: 0 0 14px #f2b84b, inset 0 0 10px #f2b84b88; }
+.cmdz.cast::after { animation: cmdcast 1.2s ease-out forwards; }
+.cmdz.back::after { animation: cmdback 1.2s ease-out forwards; }
+.cmdz.cast img, .cmdz.back img { animation: cmdglow 1.2s ease-out; }
+@keyframes cmdcast { 0% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-34px) scale(1.5); } }
+@keyframes cmdback { 0% { opacity: 0; transform: scale(2.4); } 55% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1); } }
+@keyframes cmdglow { 0%, 100% { filter: none; } 40% { filter: brightness(1.8) drop-shadow(0 0 8px #f2b84b); } }
+@media (prefers-reduced-motion: reduce) { .cmdz.cast::after, .cmdz.back::after, .cmdz.cast img, .cmdz.back img { animation: none; opacity: 0; } }
+.kwtip, .pt-ex { width: max-content; }  /* junto à borda direita encolhia em vez de ser empurrado (keepOnScreen) */

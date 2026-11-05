@@ -116,6 +116,7 @@ function etbCounters(c) {
   const w = o.match(/enters(?: the battlefield)? with (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+) ([+-]\d\/[+-]\d|[a-z]+) counters? on/)
   if (w) out[w[2]] = (out[w[2]] || 0) + (N[w[1]] || +w[1] || 0)
   if (/Planeswalker/.test(c.t.split(' // ')[0]) && /^\d+$/.test(c.pt)) out.loyalty = +c.pt
+  if (/\bBattle\b/.test(c.t.split(' // ')[0]) && /^\d+$/.test(c.pt)) out.defense = +c.pt  // batalha: entra com a defesa (dados novos)
   if (/Saga/.test(c.t)) out.lore = 1
   return out
 }
@@ -158,7 +159,7 @@ export function applyEvent(s0, ev, data) {
     const c = look(name)
     const perm = {
       key: `${k}${++s.seq}`, fid: null, name, tapped: false, counters: extra.token ? {} : etbCounters(c), damage: 0, pump: null,
-      token: false, flipped: false, attacking: null, blocking: null, sick: false, attachedTo: null, pt: null, kw: null, ...extra,
+      token: false, flipped: false, attacking: null, atkKey: null, atkName: null, blocking: null, sick: false, attachedTo: null, pt: null, kw: null, ...extra,
     }
     if (extra.sick == null) perm.sick = !perm.land && isCreature(data, perm) && !(c?.kw || perm.kw || []).includes('Haste')
     s[k].perms = [...s[k].perms, perm]
@@ -265,7 +266,7 @@ export function applyEvent(s0, ev, data) {
           const untap = mine && x.tapped && (!X || ut.has(x.fid))  // exato: só o que o Forge desvirou
           const lore = !X && mine && x.counters?.lore != null
           if (!x.damage && !x.pump && !x.attacking && !x.blocking && !x.crewed && !x.deathtouched && !untap && !(mine && x.sick) && !(x.goaded && x.goaded === ev.p) && !lore) return x
-          const y = { ...x, damage: 0, pump: null, attacking: null, blocking: null, crewed: false, deathtouched: false }
+          const y = { ...x, damage: 0, pump: null, attacking: null, atkKey: null, atkName: null, blocking: null, crewed: false, deathtouched: false }
           if (mine) y.sick = false
           if (untap) y.tapped = false
           if (y.goaded === ev.p) y.goaded = null
@@ -368,9 +369,9 @@ export function applyEvent(s0, ev, data) {
       const f = ensure(ev.id, ev.card, me)
       if (f) {
         const vig = (look(ev.card)?.kw || f[1].kw || []).includes('Vigilance')
-        upd(f[0], f[1].key, x => ({ ...x, attacking: ev.tid != null ? `#${ev.tid}` : ev.target || other(f[0]) || true, tapped: vig ? x.tapped : true, sick: false }))
+        const pw = ev.tid != null && find(ev.tid, ev.target)  // planeswalker ou batalha atacada: a etiqueta «⚔ nome» e a linha até ele
+        upd(f[0], f[1].key, x => ({ ...x, attacking: ev.tid != null ? `#${ev.tid}` : ev.target || other(f[0]) || true, atkKey: pw ? pw[1].key : null, atkName: pw ? pw[1].name : null, tapped: vig ? x.tapped : true, sick: false }))
         touch(f[1].key)
-        const pw = ev.tid != null && find(ev.tid, ev.target)  // planeswalker ou batalha atacada
         if (pw) touch(pw[1].key)
       }
       break

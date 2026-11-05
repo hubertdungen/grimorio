@@ -143,7 +143,12 @@ public class GrimorioNet {
                 switch (k) {
                     case "ok": ctl().selectButtonOk(); break;
                     case "cancel": ctl().selectButtonCancel(); break;
-                    case "card": { CardView cv = findCard(c.get("id").getAsInt()); if (cv != null) ctl().selectCard(cv, null, null); break; }
+                    case "card": {  // «ab»: a habilidade escolhida no browser (lealdade de um planeswalker) — o getAbilityToPlay usa-a sem perguntar
+                        CardView cv = findCard(c.get("id").getAsInt());
+                        wantAb = c.has("ab") ? c.get("ab").getAsString() : null;
+                        try { if (cv != null) ctl().selectCard(cv, null, null); } finally { wantAb = null; }
+                        break;
+                    }
                     case "player": { PlayerView pv = getGameView().getPlayers().get(c.get("i").getAsInt()); ctl().selectPlayer(pv, null); break; }
                     case "mana": { int mc = "WUBRGC".indexOf(c.get("color").getAsString()); if (mc >= 0) ctl().useMana(forge.card.MagicColor.WUBRGC[mc]); break; }
                     case "alpha": ctl().alphaStrike(); break;
@@ -233,6 +238,15 @@ public class GrimorioNet {
             if (s.isLand()) o.addProperty("land", true);
             if (s.isCreature()) o.addProperty("creature", true);
             if (s.isPlaneswalker()) o.addProperty("loyalty", s.getLoyalty());
+            if (s.isPlaneswalker() && rc != null && rc.getController() != null && rc.getController().getController() instanceof forge.player.PlayerControllerHuman) {
+                try {  // as habilidades de lealdade (custo + texto) e quais dá para ativar agora: o browser mostra-as e ativa a escolhida
+                    JsonArray ab = new JsonArray(); Set<String> ok = pwOk.getOrDefault(c.getId(), Set.of());
+                    for (forge.game.spellability.SpellAbility sa : new ArrayList<>(rc.getSpellAbilities())) if (sa.isPwAbility()) {
+                        JsonObject x = new JsonObject(); x.addProperty("d", sa.getDescription()); if (ok.contains(sa.getDescription())) x.addProperty("ok", true); ab.add(x);
+                    }
+                    o.add("pw", ab);
+                } catch (Exception e) { System.err.println("pw: " + e); }
+            }
             if (c.getDamage() > 0) o.addProperty("dmg", c.getDamage());
             if (c.isToken()) o.addProperty("token", true);
             if (c.isFaceDown()) o.addProperty("faceDown", true);
@@ -310,7 +324,10 @@ public class GrimorioNet {
             return me.getController() instanceof forge.player.PlayerControllerHuman h
                     && h.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputPassPriority;
         }
+        volatile String wantAb;
+        Map<Integer, Set<String>> pwOk = new HashMap<>();  // planeswalker meu -> descrições das habilidades de lealdade que dá para ativar agora
         Set<Integer> playableOnce() {
+            pwOk = new HashMap<>();
             Set<Integer> out = new HashSet<>();
             forge.game.Game g = HM == null ? null : HM.getGame();
             PlayerView pv = getCurrentPlayer();
@@ -328,6 +345,9 @@ public class GrimorioNet {
                         if (sa.isManaAbility()) continue;
                         if (sa.isLandAbility() || forge.ai.ComputerUtilMana.canPayManaCost(sa, me, 0, false)) { out.add(c.getId()); break; }
                     }
+            for (forge.game.card.Card c : new ArrayList<>(me.getCardsIn(ZoneType.Battlefield)))  // planeswalkers: brilham com uma habilidade de lealdade por usar
+                if (c.isPlaneswalker()) for (forge.game.spellability.SpellAbility sa : new ArrayList<>(c.getAllPossibleAbilities(me, true)))
+                    if (sa.isPwAbility() && forge.ai.ComputerUtilMana.canPayManaCost(sa, me, 0, false)) { out.add(c.getId()); pwOk.computeIfAbsent(c.getId(), k -> new HashSet<>()).add(sa.getDescription()); }
             return out;
         }
 
@@ -657,6 +677,7 @@ public class GrimorioNet {
         }
         @Override public SpellAbilityView getAbilityToPlay(CardView card, List<SpellAbilityView> abilities, ITriggerEvent ev) {
             if (abilities == null || abilities.isEmpty()) return null;
+            if (wantAb != null) for (SpellAbilityView a : abilities) if (wantAb.equals(a.getDescription())) return a;
             if (abilities.size() == 1) return abilities.get(0);
             JsonObject p = new JsonObject(); p.addProperty("msg", card.getCurrentState().getName()); p.addProperty("min", 0); p.addProperty("max", 1);
             p.addProperty("card", card.getId()); p.addProperty("cardName", card.getCurrentState().getName()); p.addProperty("ability", true);  // jogar o terreno ou ciclar, as formas de lançar…
@@ -675,7 +696,9 @@ public class GrimorioNet {
                 out.put(b, d);
                 left -= d;
             }
-            if (left > 0 && defender instanceof CardView) out.put((CardView) defender, left);
+            // o que sobra com atropelar vai para o defensor: no Forge é a chave null (jogador, planeswalker ou batalha);
+            // antes ia para o último bloqueador quando o defensor era um jogador e o dano perdia-se
+            if (left > 0 && defender != null) out.put(null, left);
             else if (left > 0 && !blockers.isEmpty()) out.merge(blockers.get(blockers.size() - 1), left, Integer::sum);
             return out;
         }

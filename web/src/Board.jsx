@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom'
 import { img, artPick, artMapOf, basicSplit, sf } from './data.js'
 import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
-import { useColors, sideColors, Syms } from './ui.jsx'
+import { useColors, sideColors, Syms, keepOnScreen } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { attackStyle, attackFx } from './orbfx.js'
 import { leaveGhost } from './tablekit.js'
@@ -241,7 +241,7 @@ function PtExplain({ p, data, at }) {  // at: onde está o número (no ecrã): a
   if (!x) return null
   const f = ([a, b]) => `${a >= 0 ? '+' : ''}${a}/${b >= 0 ? '+' : ''}${b}`
   return createPortal(
-    <span className="pt-ex" role="tooltip" style={{ left: at.left + at.width / 2, top: at.top }}>
+    <span ref={keepOnScreen} className="pt-ex" role="tooltip" style={{ left: at.left + at.width / 2, top: at.top }}>
       {x.printed && <span>{tx('Impresso')} <b>{x.printed.join('/')}</b></span>}
       {x.plus > 0 && <span className="up">{tx('Marcadores +1/+1 ×{n}', { n: x.plus })} <b>{f([x.plus, x.plus])}</b></span>}
       {x.minus > 0 && <span className="down">{tx('Marcadores −1/−1 ×{n}', { n: x.minus })} <b>{f([-x.minus, -x.minus])}</b></span>}
@@ -292,7 +292,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
         {tgt && <i className={`pc-tgt t-${tgt[0]}`} title={tx('Ataca {x}', { x: tgt[1] })}>⚔ {tgt[1]}</i>}
         {(p.est || p.hidden) && <i className="pc-est" title={p.hidden ? tx('Estimativa: terreno procurado na biblioteca; o registo deste jogo (antigo) não diz qual.') : EST}>≈</i>}
       </div>
-      {pop && !quiet && <i key={pop.i} className={`pc-pop ${pop.kind} ${pop.ct === 'loyalty' ? 'loyalty' : ''} ${pop.ct === '-1/-1' || pop.ct === 'poison' ? 'ct-m1' : ''}`}>{pop.kind === 'flip' ? '⟲' : pop.kind === 'enter' || pop.kind === 'attach' ? pop.txt : pop.kind === 'pump' ? pop.pt : `${pop.n > 0 ? '+' : '−'}${Math.abs(pop.n)}${pop.ct && pop.ct !== '+1/+1' && pop.ct !== 'loyalty' ? ` ${CT_ICON[pop.ct] || CT[pop.ct] || pop.ct}` : ''}`}</i>}
+      {pop && !quiet && <i key={pop.i} className={`pc-pop ${pop.kind} ${pop.ct === 'loyalty' ? 'loyalty' : ''} ${pop.n < 0 ? 'neg' : ''} ${pop.ct === '-1/-1' || pop.ct === 'poison' ? 'ct-m1' : ''}`}>{pop.kind === 'flip' ? '⟲' : pop.kind === 'enter' || pop.kind === 'attach' ? pop.txt : pop.kind === 'pump' ? pop.pt : `${pop.n > 0 ? '+' : '−'}${Math.abs(pop.n)}${pop.ct && pop.ct !== '+1/+1' && pop.ct !== 'loyalty' ? ` ${CT_ICON[pop.ct] || CT[pop.ct] || pop.ct}` : ''}`}</i>}
     </div>
   )
 })
@@ -821,7 +821,9 @@ export function StackLinks({ s, data }) {
 
 export function CombatLinks({ s }) {
   const ref = useRef(null), [ls, setLs] = useState([])
-  const pairs = s.sides.flatMap(k => s[k].perms).filter(p => typeof p.blocking === 'string').map(p => [p.key, p.blocking])
+  // bloqueador → atacante, e atacante → o planeswalker/batalha que ataca (linha a tracejado, «atk»)
+  const all = s.sides.flatMap(k => s[k].perms)
+  const pairs = [...all.filter(p => typeof p.blocking === 'string').map(p => [p.key, p.blocking]), ...all.filter(p => p.attacking && p.atkKey && !p.dying).map(p => [p.key, String(p.atkKey), 'atk'])]
   const sig = pairs.map(x => x.join('>')).join(','), num = combatPairs(s.sides.flatMap(k => s[k].perms))
   useLayoutEffect(() => {
     const root = ref.current?.parentElement
@@ -831,7 +833,7 @@ export function CombatLinks({ s }) {
     const measure0 = () => {
       const r = root.getBoundingClientRect(), sc = r.width / (root.offsetWidth || r.width) || 1
       const pt = q => [(q.left + q.width / 2 - r.left) / sc + root.scrollLeft, (q.top + q.height / 2 - r.top) / sc + root.scrollTop]
-      setLs(pairs.map(([b, a]) => { const qb = at(b), qa = at(a); return qb?.width && qa?.width ? { b, n: num.get(b), xy: [...pt(qb), ...pt(qa)] } : null }).filter(Boolean))
+      setLs(pairs.map(([b, a, atk]) => { const qb = at(b), qa = at(a); return qb?.width && qa?.width ? { b, atk, n: num.get(b), xy: [...pt(qb), ...pt(qa)] } : null }).filter(Boolean))
     }
     let raf, t0 = performance.now()
     const anim = () => { measure(); if (performance.now() - t0 < 900) raf = requestAnimationFrame(anim) }
@@ -841,8 +843,10 @@ export function CombatLinks({ s }) {
   }, [sig])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <svg ref={ref} className="clinks" aria-hidden="true">
-      {ls.map(({ b, n, xy: [x1, y1, x2, y2] }) => <g key={b} style={{ '--pair': PAIR[(n - 1) % PAIR.length] }}>
-        <line x1={x1} y1={y1} x2={x2} y2={y2} /><circle cx={x1} cy={y1} r="5" /><circle cx={x2} cy={y2} r="5" /></g>)}
+      {ls.map(({ b, n, atk, xy: [x1, y1, x2, y2] }) => atk
+        ? <g key={`a${b}`} className="atk"><line x1={x1} y1={y1} x2={x2} y2={y2} /><circle cx={x2} cy={y2} r="9" /><text x={x2} y={y2 + 4}>⚔</text></g>
+        : <g key={b} style={{ '--pair': PAIR[(n - 1) % PAIR.length] }}>
+          <line x1={x1} y1={y1} x2={x2} y2={y2} /><circle cx={x1} cy={y1} r="5" /><circle cx={x2} cy={y2} r="5" /></g>)}
     </svg>
   )
 }
@@ -1085,7 +1089,7 @@ export function ZoneFx({ s, data, quiet }) {
     const snap = {}
     for (const k of s.sides) {
       const z = s[k]
-      if (z) snap[k] = { lib: Number.isFinite(z.library) ? z.library : null, hand: Number.isFinite(z.hand) ? z.hand : null, gy: [...(z.graveyard || [])], ex: [...(z.exile || [])] }
+      if (z) snap[k] = { lib: Number.isFinite(z.library) ? z.library : null, hand: Number.isFinite(z.hand) ? z.hand : null, gy: [...(z.graveyard || [])], ex: [...(z.exile || [])], cmd: Object.fromEntries((z.command || []).map(c => [c.name, !!c.out])) }
     }
     const p = prev.current
     prev.current = snap
@@ -1108,6 +1112,11 @@ export function ZoneFx({ s, data, quiet }) {
       for (const k of s.sides) {
         const a = p[k], b = snap[k]
         if (!a || !b) continue
+        // comandante: sai da zona de comando (lançado) = clarão dourado que sobe do quadrado; volta = um anel que fecha nele
+        for (const [n, out] of Object.entries(b.cmd || {})) if (a.cmd && n in a.cmd && a.cmd[n] !== out) {
+          const t = document.querySelector(`.bside.p-${k} .cmdz[data-cmd="${CSS.escape(n)}"]`)
+          if (t) { t.classList.remove('cast', 'back'); void t.offsetWidth; t.classList.add(out ? 'cast' : 'back'); setTimeout(() => t.classList.remove('cast', 'back'), 1300) }
+        }
         const dl = (x, y) => (x != null && y != null ? y - x : 0)
         const src = { library: Math.max(0, -dl(a.lib, b.lib)), hand: Math.max(0, -dl(a.hand, b.hand)), graveyard: Math.max(0, a.gy.length - b.gy.length), exile: Math.max(0, a.ex.length - b.ex.length) }
         const sink = { graveyard: b.gy.length - a.gy.length - (deadTo[`${k}|graveyard`] || 0), exile: b.ex.length - a.ex.length - (deadTo[`${k}|exile`] || 0),
@@ -1161,7 +1170,8 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
           {z.speed > 0 && <span className="chip" title={tx('Velocidade (Start your engines!): sobe uma vez por turno, até 4')}>🏁 {z.speed}</span>}
           {Object.entries(z.pctr || {}).map(([k, v]) => <span key={k} className="chip" title={tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[k] || k })}>{k === 'rad' ? '☢' : k === 'experience' ? '✦' : '◆'} {v}</span>)}
           {z.emblems?.length > 0 && <span className="chip" title={z.emblems.map(short).join(', ')}>✦ {tx('{n} emblema|{n} emblemas', { n: z.emblems.length })}</span>}
-          {cmdDmg.map(([n, v]) => <span key={n} className={`chip ${v >= 15 ? 'psn' : ''}`} title={tx('Dano de comandante de {c} (21 = derrota)', { c: short(n) })}>⚔ {v}/21</span>)}
+          {cmdDmg.map(([n, v]) => { const cc = lookup(data, n)  // com a cara do comandante: dois parceiros já não são dois «⚔ 6/21» iguais
+            return <span key={n} className={`chip cmdd ${v >= 15 ? 'psn' : ''}`} title={tx('Dano de comandante de {c} (21 = derrota)', { c: short(n) })}>{cc ? <img src={im(cc, 'art_crop')} alt="" /> : '⚔'} {v}/21</span> })}
           {z.out ? <span className="chip psn">{tx('eliminado no turno {n}', { n: z.out })}</span> : s.over?.loser === k ? <span className="chip psn">{tx('derrota')}</span> : null}
         </span>
       </div>
@@ -1170,7 +1180,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
         {z.command.map(c => {
           const cc = lookup(data, c.name)
           return (
-            <div key={c.name} className={`cmdz ${c.out ? 'out' : ''}`} title={`${tx('Zona de comando: {c}', { c: short(c.name) })}${c.room ? ` · ${tx('sala: {r}', { r: c.room })}` : ''}${c.casts ? ` · ${tx('lançado {n}× · imposto +{x}', { n: c.casts, x: 2 * c.casts })}` : ''}${c.out ? ` ${tx('(está em jogo ou na pilha)')}` : ''}`} data-z={`n:${c.name}`}>
+            <div key={c.name} data-cmd={c.name} className={`cmdz ${c.out ? 'out' : ''}`} title={`${tx('Zona de comando: {c}', { c: short(c.name) })}${c.room ? ` · ${tx('sala: {r}', { r: c.room })}` : ''}${c.casts ? ` · ${tx('lançado {n}× · imposto +{x}', { n: c.casts, x: 2 * c.casts })}` : ''}${c.out ? ` ${tx('(está em jogo ou na pilha)')}` : ''}`} data-z={`n:${c.name}`}>
               {cc ? <img src={im(cc, 'art_crop')} alt={c.name} /> : <span>{short(c.name)}</span>}
               <small>{c.casts ? `+${2 * c.casts}` : c.room ? '⚑' : 'cmd'}</small>
             </div>
@@ -1192,7 +1202,10 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
   const D = s.dmg, dm = p => (D && (D.out[p.key] || D.in[p.key]) ? { ...p, dmgOut: D.out[p.key], dmgIn: D.in[p.key], trample: D.tr[p.key] } : p)  // dano do combate
   const live = markMoon(data, markDormant(data, z.perms), all).map(p => dm(pairs.has(p.key) ? { ...p, pair: pairs.get(p.key) } : p)).filter(p => !p.attachedTo || !all.some(x => x.key === p.attachedTo))  // deuses abaixo da devoção: não são criaturas
   const creatures = [], lands = [], others = [], loose = []
-  for (const p of live) { if (free?.[p.key]) { loose.push(p); continue } const r = place?.[p.key] || (isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'); (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
+  // planeswalkers e batalhas na fila da frente, no fim (à direita das criaturas): são o que se ataca, à vista de quem ataca
+  const walker = p => !isCreature(data, p) && (p.counters?.loyalty != null || /\b(Planeswalker|Battle)\b/.test(typeOf(data, p)))
+  for (const p of live) { if (free?.[p.key]) { loose.push(p); continue } const r = place?.[p.key] || (isCreature(data, p) || walker(p) ? 'front' : isLand(data, p) ? 'lands' : 'others'); (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
+  creatures.sort((x, y) => walker(x) - walker(y))  // estável: as criaturas pela ordem delas, os planeswalkers depois
   if (order) for (const xs of [creatures, lands, others]) xs.sort((x, y) => (order[x.key] ?? 1e9) - (order[y.key] ?? 1e9))
   const front = <Row perms={creatures} data={data} fx={fx} att={att} cls="front" groupable={p => p.token} empty={tx('sem criaturas')} quiet={fast} who={who} />
   const back = (

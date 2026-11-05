@@ -7,6 +7,16 @@ import { pointStars, perfStars, trophyStars } from './trophyvalue.js'
 
 const sym = s => sf(`https://svgs.scryfall.io/card-symbols/${s.replace(/\//g, '')}.svg`)
 
+// ref de um balão fixo (posto com left/top + translate(-50%, -100%)): depois de desenhado, empurra-o para dentro do ecrã
+// (perto das bordas saía fora) e, se não cabe por cima, passa para baixo do ponto
+export function keepOnScreen(el) {
+  if (!el) return
+  el.style.translate = ''
+  const r = el.getBoundingClientRect(), m = 8, W = innerWidth, H = innerHeight  // ponytail: medido uma vez ao aparecer
+  const dx = r.left < m ? m - r.left : r.right > W - m ? W - m - r.right : 0
+  const dy = r.top < m ? r.height + 36 : r.bottom > H - m ? H - m - r.bottom : 0  // 36: o balão passa para baixo do símbolo, sem o tapar
+  if (dx || dy) el.style.translate = `${Math.round(dx)}px ${Math.round(dy)}px`
+}
 export function Mana({ cost }) {
   if (!cost) return null
   return (

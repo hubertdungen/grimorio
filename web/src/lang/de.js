@@ -3796,4 +3796,7 @@ export default {
   "ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.": "Vollbild (in der Tischecke oder der unteren Leiste; Kürzel Umschalt+F) und Drehen des Tisches auf Handy/Tablet.",
   "Esfera em 3D (desligado: a clássica)": "3D-Kugel (aus: die klassische)",
   "Tamanho das esferas": "Größe der Kugeln",
+  "Atacar {d}: clica nas criaturas que atacam e depois OK.": "{d} angreifen: Klicke auf die angreifenden Kreaturen und dann auf OK.",
+  "Para atacar um planeswalker ou uma batalha, toca nele primeiro (ou larga a criatura em cima dele); toca na esfera dele para voltar a atacar o jogador.": "Um einen Planeswalker oder eine Schlacht anzugreifen, tippe ihn zuerst an (oder lass die Kreatur darauf fallen); tippe auf seine Kugel, um wieder den Spieler anzugreifen.",
+  "Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).": "Jetzt nicht: Loyalität wird einmal pro Zug genutzt, in deiner Hauptphase bei leerem Stapel (und ein „−“ braucht genug Loyalität).",
 }

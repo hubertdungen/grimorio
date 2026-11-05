@@ -247,7 +247,7 @@ export default function FreeTable({ id, data, onClose }) {
   const [, redraw] = useState(0)
   const P = fpPrefs()
   const myField = () => fitTable.current?.querySelector(`.ml-field[data-seat="${me}"]`)
-  const kindOf = c => (!c?.n ? 'front' : isLand(data, { name: c.n }) ? 'lands' : isCreature(data, { name: c.n, token: c.tok }) || c.tok ? 'front' : 'others')
+  const kindOf = c => (!c?.n ? 'front' : isLand(data, { name: c.n }) ? 'lands' : isCreature(data, { name: c.n, token: c.tok }) || c.tok || /\b(Planeswalker|Battle)\b/.test(lookup(data, c.n)?.t || '') ? 'front' : 'others')
   const spot = (c, x, y) => { const f = myField(); if (!f) return { x: 0.5, y: 0.5 }; const r = f.getBoundingClientRect(); return spotOn(f, x ?? r.left + r.width / 2, y ?? r.top + r.height * 0.45, kindOf(c), P.place !== 'free', c?.id) }
   const mv = (cid, to, extra) => send({ c: 'move', id: cid, to, ...extra })
   const toField = (cid, extra) => { const e = byId.get(cid), w = spot(e?.c); return mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me, ...extra }) }

@@ -65,7 +65,13 @@ function promptText(msg, st, me) {
   // «Spider Umbra (4) - Spider Umbra\n\nSelect target creature»: o pedido nem sempre vem na 1.ª linha
   const ask = m.split('\n').find(l => /^(Select|Choose)/i.test(l.trim()))
   if (ask && st?.players?.some(p => [...(p.hand || []), ...(p.battlefield || [])].some(c => c.sel))) return `${tx('Clica numa das cartas assinaladas.')} (${ask.trim()})`
-  if (/Declare attackers|Select creatures to attack/i.test(m)) return tx('Atacar: clica nas criaturas que atacam e depois OK.')
+  if (/Declare attackers|Select creatures to attack/i.test(m)) {
+    // «Select creatures to attack Jace, the Mind Sculptor (123) or select player/card you wish to attack.»
+    const d = (m.match(/Select creatures to attack (.+?) or select/i)?.[1] || '').replace(/\s*\(\d+\)$/, '')
+    const opp = st?.players?.find(p => p !== me && !p.me), pws = (opp?.battlefield || []).some(c => c.loyalty != null || c.counters?.DEFENSE != null)
+    const who = d && d !== opp?.name ? tx('Atacar {d}: clica nas criaturas que atacam e depois OK.', { d }) : tx('Atacar: clica nas criaturas que atacam e depois OK.')
+    return pws ? `${who} ${tx('Para atacar um planeswalker ou uma batalha, toca nele primeiro (ou larga a criatura em cima dele); toca na esfera dele para voltar a atacar o jogador.')}` : who
+  }
   if (/Declare blockers|Select creatures to block/i.test(m)) return tx('Bloquear: clica no atacante e depois na tua criatura que bloqueia; OK no fim.')
   if (/Pay Mana Cost|Pay mana cost/i.test(m)) return `${tx('Paga: toca nos terrenos ou na mana da reserva.')} ${m.split('\n').find(l => /\{/.test(l)) || ''}`
   return m
@@ -105,7 +111,7 @@ function toPerm(c, combat) {
     key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped,
     land: !!c.land, crewed: !!c.creature, notCre: !c.creature && !c.hidden && !c.faceDown, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, damage: c.dmg || 0, counters,
     pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined, faceDown: !!c.faceDown, phased: !!c.phased, goaded: !!c.goad, copy: !!c.copy, merged: c.merged,
-    attacking: at ? 'x' : undefined, atkName: at?.defc, blocking: (b => (b ? String(b.att) : undefined))(combat?.find(x => x.blockers?.includes(c.id))),  // a chave do atacante: o par (⚔ n / 🛡 n) e a linha
+    attacking: at ? 'x' : undefined, atkName: at?.defc, atkKey: at?.defc ? String(at.def) : undefined, pw: c.pw, blocking: (b => (b ? String(b.att) : undefined))(combat?.find(x => x.blockers?.includes(c.id))),  // a chave do atacante: o par (⚔ n / 🛡 n) e a linha
   }
 }
 function zoneOf(p, combat) {
@@ -391,7 +397,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useEffect(() => {  // Enter/Espaço = o botão principal (passar ao passo seguinte), Shift+Enter = acabar o turno, Esc = o outro botão
     const k = e => {
       if (ask || big || pressing.current || document.querySelector('.ask-bg') || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return  // carta em grande aberta: o Esc é dela
-      if (act) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() } else if (e.key === 'Escape') { e.preventDefault(); setAct(null) } return }
+      if (act) { if ((e.key === 'Enter' || e.key === ' ') && !act.pw?.length) { e.preventDefault(); activate() } else if (e.key === 'Escape') { e.preventDefault(); setAct(null) } return }
       const P = fpPrefs()
       if (e.key.toLowerCase() === P.tap && hoverId.current != null && !e.ctrlKey && !e.metaKey && document.querySelector(`.bside.bottom .pc[data-z="k:${hoverId.current}"]`)) { e.preventDefault(); permClick(hoverId.current, document.querySelector(`.bside.bottom .pc[data-z="k:${hoverId.current}"]`)); return }  // rato por cima de uma carta tua na mesa + T = virá-la (tap) / ativá-la, como o clique
       if (e.key.toLowerCase() === P.flip && hoverId.current != null && !e.ctrlKey && !e.metaKey) { e.preventDefault(); const k = hoverId.current; setFlipped(f => { const n = new Set(f); n.has(k) ? n.delete(k) : n.add(k); return n }); return }
@@ -489,7 +495,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const setLay = f => setLayS(x => { const y = f(x); try { localStorage.setItem(`grimorio.fp.${sid}`, JSON.stringify(y)) } catch { /* sem armazenamento */ } return y })
   const keysIn = (box, sel, attr) => [...box.querySelectorAll(sel)].map(e => e.getAttribute(attr).replace(/^k:/, ''))
   const moveBefore = (keys, k, before) => { const l = keys.filter(x => x !== k), i = before == null ? -1 : l.indexOf(before); l.splice(i < 0 ? l.length : i, 0, k); return l }
-  const kindOf = c => (c?.land ? 'lands' : c?.creature ? 'front' : 'others')  // pela palavra do Forge: uma Enduring de volta é encantamento
+  const kindOf = c => (c?.land ? 'lands' : c?.creature || c?.loyalty != null || c?.counters?.DEFENSE != null ? 'front' : 'others')  // pela palavra do Forge: uma Enduring de volta é encantamento
   // onde a carta vai ficar no teu lado: largada à altura das cartas de uma fila (a fila debaixo do dedo ou a dela —
   // criaturas, terrenos, outras) entra nessa fila, no sítio pela posição; largada longe das filas fica solta onde a
   // pousaste (Livre) ou na casa mais perto (Grelha). Com «Filas automáticas» vai sempre para uma fila.
@@ -599,13 +605,17 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       planBlock(id, att); return true
     }
     if (!mine && blocking && atts.length === 1 && target.closest('.bside.top')) { send1({ c: 'card', id: atts[0].att }).then(() => send1({ c: 'card', id })); return true }
-    if (mine && st.phase === 'COMBAT_DECLARE_ATTACKERS' && target.closest('.bside.top')) { send1({ c: 'card', id }); return true }  // largar no lado dele: atacar
+    if (mine && st.phase === 'COMBAT_DECLARE_ATTACKERS' && target.closest('.bside.top')) {  // largar no lado dele: atacar (quem: onde a largaste)
+      const d = defOf(pid), cur = st.combat?.find(x => x.att === id)
+      if (cur && d && String(cur.def) === String(d.c === 'card' ? d.id : opp?.id)) return true  // já ataca esse: um clique tirava-a do ataque
+      ;(d ? send1(d) : Promise.resolve()).then(() => send1({ c: 'card', id })); return true
+    }
     // ainda na fase principal: o gesto diz «ataca com esta» — passa-se ao combate e declara-se sozinho
     if (mine && st.phase === 'MAIN1' && target.closest('.bside.top') && byId.get(id)?.creature && /^Priority:/.test(pr?.msg || '') && !st.stack?.length) {
       if (byId.get(id)?.sick) { setToast({ title: tx('Esta criatura ainda não pode atacar'), msg: tx('Entrou neste turno (enjoo de invocação).') }); return false }
       const oracle = (data.byName.get(byId.get(id)?.name) || {}).o || ''
       if (/^Defender\b/im.test(oracle) || byId.get(id)?.tapped) { setToast({ title: tx('Esta criatura não pode atacar'), msg: byId.get(id)?.tapped ? tx('Está virada.') : tx('Tem a habilidade Defensor.') }); return false }
-      attackIntent.current = { ids: [...(attackIntent.current?.ids || []), id], until: Date.now() + 15000 }
+      attackIntent.current = { ids: [...(attackIntent.current?.ids || []), id], defs: { ...attackIntent.current?.defs, [id]: defOf(pid) }, until: Date.now() + 15000 }
       send1({ c: 'ok' }); return true
     }
     const w = whereOn(id, target, x, y)  // no teu lado: arrumar à vontade (numa fila pela posição, ou solta)
@@ -654,7 +664,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (ai && Date.now() < ai.until && /Declare attackers|Select creatures to attack/i.test(pr?.msg || '') && !s.asks?.length) {
       attackIntent.current = null
       const on = new Set((st.combat || []).map(x => x.att))
-      ai.ids.filter(x => !on.has(x)).reduce((q, x) => q.then(() => send({ c: 'card', id: x })), Promise.resolve())
+      ai.ids.filter(x => !on.has(x)).reduce((q, x) => q.then(() => ai.defs?.[x] && send(ai.defs[x])).then(() => send({ c: 'card', id: x })), Promise.resolve())
       return
     }
     const a = autoAct(s)
@@ -704,7 +714,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       const cn = toPerm(c).counters, co = toPerm(o).counters
       for (const k of new Set([...Object.keys(cn), ...Object.keys(co)])) {
         const d = (cn[k] || 0) - (co[k] || 0)
-        if (d) pops.set(String(id), { i: seqKey, kind: d < 0 && (k === 'loyalty' || k === 'defense') ? 'dmg' : 'ctr', n: d, ct: k })
+        // lealdade a descer com uma habilidade dele na pilha = o custo de um «−N» (dourado), não dano
+        const paid = k === 'loyalty' && (st.stack || []).some(x => x.card === id)
+        if (d) pops.set(String(id), { i: seqKey, kind: d < 0 && !paid && (k === 'loyalty' || k === 'defense') ? 'dmg' : 'ctr', n: d, ct: k })
       }
       if (!!c.flipped !== !!o.flipped || !!c.faceDown !== !!o.faceDown) pops.set(String(id), { i: seqKey, kind: 'flip' })  // transformar, virar para cima (morph)
       // equipar / encantar: a criatura que recebe brilha com uma corrente (equipamento) ou um selo (aura)
@@ -839,8 +851,16 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     }
     if (!prio || c?.sel || !mine || c?.land || !lines.length || (lines.every(l => /:\s*Add\b/.test(l)) && !(oppCombat && cre))) return send({ c: 'card', id })
     const r = el.getBoundingClientRect(), hint = oppCombat && cre ? tx('Ainda não é a altura de bloquear: para bloquear, carrega OK até o Forge pedir os bloqueadores.') : ''
-    setAct({ hint, id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top > 240 ? r.top - 8 : r.bottom + 8, up: r.top > 240, lines, name: c.name })
+    setAct({ hint, id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top > 240 ? r.top - 8 : r.bottom + 8, up: r.top > 240, lines, name: c.name, pw: c.pw })
   }
+  // atacar: largar (ou ter largado) a criatura num planeswalker/batalha do adversário = atacá-lo; noutro sítio do lado dele,
+  // com planeswalkers/batalhas à vista, o jogador (o Forge guarda o último defensor escolhido: assim nunca fica no errado)
+  const defOf = pid => {
+    const c = pid != null && (opp?.battlefield || []).find(x => x.id === pid)
+    if (c && (c.loyalty != null || c.counters?.DEFENSE != null || /\b(Planeswalker|Battle)\b/.test(typeOf(pid)))) return { c: 'card', id: pid }
+    return (opp?.battlefield || []).some(x => x.loyalty != null || x.counters?.DEFENSE != null) ? { c: 'player', i: players.indexOf(opp) } : null
+  }
+  const activateAb = d => { if (!act) return; castNow(act.id); send({ c: 'card', id: act.id, ab: d }); setAct(null) }  // a habilidade de lealdade escolhida
   const activate = () => { if (!act) return; castNow(act.id); send({ c: 'card', id: act.id }); setAct(null) }  // pedido explícito: o «pagar sozinho» pode pagar
   // as habilidades ativadas de uma carta (custo: efeito, Equip…), pelo texto
   function abilitiesOf(c) {
@@ -854,7 +874,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (!c || c.hidden) return
     if (!el.closest('.bside.bottom')) return setBig(c.name)
     const r = el.getBoundingClientRect()
-    setAct({ id, dbl: true, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top > 240 ? r.top - 8 : r.bottom + 8, up: r.top > 240, lines: abilitiesOf(c), name: c.name })
+    setAct({ id, dbl: true, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top > 240 ? r.top - 8 : r.bottom + 8, up: r.top > 240, lines: abilitiesOf(c), name: c.name, pw: c.pw })
   }
   const onDouble = e => {  // duplo clique numa carta da mão = jogá-la (atalho); numa permanente = as ações dela
     const pc = !e.target.closest('[data-h]') && e.target.closest('.fp-table .pc[data-z^="k:"]')
@@ -953,11 +973,19 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       {act && <div className="fp-act-bg" onPointerDown={() => setAct(null)} />}
       {act && <div className={`fp-act ${act.up ? '' : 'below'}`} role="dialog" aria-label={tx('Ativar {c}', { c: act.name })} style={{ left: act.x, top: act.y }}>
         <b>{act.dbl ? act.name : tx('Ativar {c}?', { c: act.name })}</b>
-        {act.lines.map((l, k) => <p key={k}><Syms text={l} /></p>)}
-        {!act.lines.length && <p className="muted small">{tx('Esta carta não tem habilidades para ativar.')}</p>}
-        {act.lines.length > 1 && <small className="muted">{tx('Com mais de uma, escolhes a seguir.')}</small>}
+        {act.pw?.length ? <>
+          {act.pw.map((a, k) => { const m = a.d.match(/^\[?([+−-]?(?:\d+|X))\]?\s*:\s*/), cost = m?.[1]?.replace('-', '−') || '', txt = m ? a.d.slice(m[0].length) : a.d
+            return <button key={k} type="button" className={`pw-ab ${/^\+/.test(cost) ? 'up' : /^[−]/.test(cost) ? 'down' : ''}`} disabled={!a.ok} onClick={() => activateAb(a.d)}
+              title={a.ok ? '' : tx('Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).')}>
+              {cost && <b className="pw-cost">{cost}</b>}<span><Syms text={txt} /></span></button> })}
+          {!act.pw.some(a => a.ok) && <small className="muted">{tx('Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).')}</small>}
+        </> : <>
+          {act.lines.map((l, k) => <p key={k}><Syms text={l} /></p>)}
+          {!act.lines.length && <p className="muted small">{tx('Esta carta não tem habilidades para ativar.')}</p>}
+          {act.lines.length > 1 && <small className="muted">{tx('Com mais de uma, escolhes a seguir.')}</small>}
+        </>}
         {act.hint && <small className="fp-act-hint">{act.hint}</small>}
-        <div className="row-btns">{act.lines.length > 0 && <button className="primary" autoFocus onClick={activate}>{tx('Ativar')} <kbd>⏎</kbd></button>}
+        <div className="row-btns">{act.lines.length > 0 && !act.pw?.length && <button className="primary" autoFocus onClick={activate}>{tx('Ativar')} <kbd>⏎</kbd></button>}
           {act.dbl && <button onClick={() => { setBig(act.name); setAct(null) }}>{tx('Ver a carta')}</button>}<button onClick={() => setAct(null)}>{act.lines.length ? tx('Cancelar') : tx('Fechar')} <kbd>Esc</kbd></button></div>
       </div>}
       {reveal && <div className="fp-modal"><div className="fp-ask fp-reveal" key={`${reveal.card}`}>

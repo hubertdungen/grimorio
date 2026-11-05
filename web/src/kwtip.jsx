@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { tx } from './i18n.js'
+import { keepOnScreen } from './ui.jsx'
 
 const DESC = {
   Flying: tx('Só pode ser bloqueada por criaturas com voar ou alcance.'),
@@ -44,7 +45,7 @@ export default function KwTip() {
   }, [])
   const lines = rule?.hit?.kind === 'rule' ? rule.hit.rules.slice(1, 4).map(([n, t]) => `${n} ${t}`) : rule?.hit?.text ? [rule.hit.text] : []
   return <>
-    {tip && createPortal(<div className="kwtip" role="tooltip" style={{ left: tip.x, top: tip.y }}>
+    {tip && createPortal(<div key={`${tip.k}|${tip.x}|${tip.y}`} ref={keepOnScreen} className="kwtip" role="tooltip" style={{ left: tip.x, top: tip.y }}>
       <b>{tip.label}</b><span>{DESC[tip.k] || ''}</span><small>{tx('Clica para ver as regras')}</small>
     </div>, host())}
     {rule && createPortal(<aside className="kwrule" role="dialog" aria-label={rule.label}>

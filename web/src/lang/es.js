@@ -3796,4 +3796,7 @@ export default {
   "ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.": "pantalla completa (en la esquina de la mesa o en la barra de abajo; atajo Shift+F) y girar la mesa en el móvil/tableta.",
   "Esfera em 3D (desligado: a clássica)": "Esfera en 3D (desactivado: la clásica)",
   "Tamanho das esferas": "Tamaño de las esferas",
+  "Atacar {d}: clica nas criaturas que atacam e depois OK.": "Atacar a {d}: haz clic en las criaturas que atacan y luego en OK.",
+  "Para atacar um planeswalker ou uma batalha, toca nele primeiro (ou larga a criatura em cima dele); toca na esfera dele para voltar a atacar o jogador.": "Para atacar a un planeswalker o una batalla, tócalo primero (o suelta la criatura encima); toca su esfera para volver a atacar al jugador.",
+  "Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).": "Ahora no: la lealtad se usa una vez por turno, en tu fase principal y con la pila vacía (y un «−» necesita lealtad suficiente).",
 }
