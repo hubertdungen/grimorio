@@ -22,6 +22,7 @@ export const fpPrefs = () => {
     cardPx: CARD_PX.includes(o.cardPx) ? o.cardPx : 0,  // tamanho das cartas na mesa (0 = automático)
     mat: MATS.includes(o.mat) ? o.mat : null, mats: o.mats !== false,  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
     orb: { t: ORB_T.includes(o.orb?.t) ? o.orb.t : 'auto', a: ORB_A.includes(o.orb?.a) ? o.orb.a : 'auto' },  // a minha esfera da vida
-    botOrb: o.botOrb === 'random' ? 'random' : 'deck' }  // a dos bots: pelo deck (cores e estilo) ou ao acaso (fixa por deck em cada torneio/jogo)  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
+    botOrb: o.botOrb === 'random' ? 'random' : 'deck',
+    orb3d: o.orb3d !== false }  // esfera em 3D (WebGL); desligado = a clássica  // a dos bots: pelo deck (cores e estilo) ou ao acaso (fixa por deck em cada torneio/jogo)  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
 }
 export const setFpPrefs = v => { try { const o = JSON.parse(localStorage.getItem('grimorio.fp.prefs') || '{}'); localStorage.setItem('grimorio.fp.prefs', JSON.stringify({ ...o, ...v })) } catch { /* sem armazenamento */ } }

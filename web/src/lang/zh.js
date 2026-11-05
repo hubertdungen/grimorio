@@ -3792,4 +3792,7 @@ export default {
   "Regras completas, n.º {n}": "完整规则第 {n} 条",
   "Só pode ser bloqueada por criaturas com voar ou alcance.": "只能被具飞行或延势的生物阻挡。",
   "Só pode ser bloqueada por duas ou mais criaturas.": "只能被两个或更多生物阻挡。",
+  "Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)": "全屏 — Shift+F（退出：此按钮、Shift+F 或 Esc）",
+  "ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.": "全屏（桌角或底部栏；快捷键 Shift+F）以及在手机/平板上旋转桌面。",
+  "Esfera em 3D (desligado: a clássica)": "3D 生命球（关闭：经典样式）",
 }

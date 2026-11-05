@@ -3792,4 +3792,7 @@ export default {
   "Regras completas, n.º {n}": "Umfassende Regeln, Nr. {n}",
   "Só pode ser bloqueada por criaturas com voar ou alcance.": "Kann nur von Kreaturen mit Flugfähigkeit oder Reichweite geblockt werden.",
   "Só pode ser bloqueada por duas ou mais criaturas.": "Kann nur von zwei oder mehr Kreaturen geblockt werden.",
+  "Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)": "Vollbild — Umschalt+F (beenden: diese Taste, Umschalt+F oder Esc)",
+  "ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.": "Vollbild (in der Tischecke oder der unteren Leiste; Kürzel Umschalt+F) und Drehen des Tisches auf Handy/Tablet.",
+  "Esfera em 3D (desligado: a clássica)": "3D-Kugel (aus: die klassische)",
 }

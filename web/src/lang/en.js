@@ -3800,4 +3800,7 @@ export default {
   "Regras completas, n.º {n}": "Comprehensive rules, no. {n}",
   "Só pode ser bloqueada por criaturas com voar ou alcance.": "Can only be blocked by creatures with flying or reach.",
   "Só pode ser bloqueada por duas ou mais criaturas.": "Can only be blocked by two or more creatures.",
+  "Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)": "Full screen — Shift+F (exit: this button, Shift+F or Esc)",
+  "ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.": "full screen (in the table corner or the bottom bar; shortcut Shift+F) and rotating the table on phone/tablet.",
+  "Esfera em 3D (desligado: a clássica)": "3D orb (off: the classic one)",
 }

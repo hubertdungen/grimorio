@@ -3512,3 +3512,9 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .kwrule b { color: var(--gold, #f2b84b); font-size: 15px; } .kwrule p { margin: 6px 0; } .kwrule ul { margin: 6px 0; padding-left: 16px; font-size: 12px; color: #cbd5e1; }
 .kwrule-x { position: absolute; right: 8px; top: 6px; background: none; border: 0; color: #fff; font-size: 16px; cursor: pointer; }
 @keyframes kwin2 { from { opacity: 0; transform: translateX(20px); } }
+
+/* ---------- esfera 3D (orb3d.js): o canvas desenha o vidro, o fumo e o halo do deck; o resto da esfera (número, rachas, auréola…) fica por cima ---------- */
+.orb.has3d, .orb.has3d.low { background: none; box-shadow: 0 7px 9px -3px #000c, 0 14px 16px -8px #0009; }
+.orb.has3d > .orb-in { display: none; }
+.orb3d { position: absolute; left: -30.5%; top: -30.5%; width: 161%; height: 161%; z-index: 1; pointer-events: none; }
+.orb.has3d.orb-proxy { box-shadow: 0 calc(10px + 26px * var(--lift, 0)) calc(12px + 16px * var(--lift, 0)) calc(-4px - 6px * var(--lift, 0)) #000b; }

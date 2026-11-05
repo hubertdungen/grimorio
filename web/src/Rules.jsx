@@ -23,7 +23,7 @@ const HOWTO = [
   [tx('Bloquear'), tx('arrasta a tua criatura para cima do atacante, ou toca nela e depois no atacante; feito antes de o Forge pedir os bloqueadores, o bloqueio fica marcado e entra sozinho.')],
   [tx('Esfera da vida'), tx('um clique escolhe esse jogador como alvo; arrasta-a para a atirar (volta sozinha). O estilo muda-se em «Padrão da mesa».')],
   [tx('Teclas'), tx('Enter ou Espaço = OK/passar, Shift+Enter = acabar o turno, Esc = cancelar, T = virar a carta debaixo do rato, F = ver a outra face.')],
-  [tx('⛶ e ⟳'), tx('ecrã inteiro (no canto da mesa ou na barra de baixo) e rodar a mesa no telemóvel/tablet.')],
+  [tx('⛶ e ⟳'), tx('ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.')],
 ]
 
 export default function Rules({ data, initial = '' }) {

@@ -391,7 +391,7 @@ function useOrbPhysics(ref) {
       const px = S.px
       if (!px) return
       px.className = `${el.className} orb-proxy flying`
-      for (const a of ['mood', 'react', 't', 'a', 'rich']) { if (el.dataset[a]) px.dataset[a] = el.dataset[a]; else delete px.dataset[a] }
+      for (const a of ['mood', 'react', 't', 'a', 'rich', 'cols']) { if (el.dataset[a]) px.dataset[a] = el.dataset[a]; else delete px.dataset[a] }
       const b = el.querySelector(':scope > b'), pb = px.querySelector(':scope > b')
       if (b && pb && pb.textContent !== b.textContent) pb.textContent = b.textContent
       px.style.translate = `${S.x.toFixed(1)}px ${S.y.toFixed(1)}px`
@@ -486,10 +486,21 @@ function useOrbPhysics(ref) {
       const sp = Math.hypot(S.vx, S.vy); if (sp > 400) play('orbThrow', { amount: Math.min(1, sp / 2600) })
     }
     const click = e => { if (el._dragged && performance.now() - el._dragged < 450) { e.stopPropagation(); e.preventDefault() } }  // largar não é clicar
+    // esfera contra esfera: a que vem a voar empurra a outra (e o vidro tilinta)
+    let hitAt = 0
+    const other = e => {
+      const d = e.detail
+      if (!d?.el || d.el === el || S.drag?.on || !d.r) return
+      const [x, y, r] = center(), dx = x - d.x, dy = y - d.y, L = Math.hypot(dx, dy) || 1, sp = Math.hypot(d.vx, d.vy)
+      if (L > r + d.r || sp < 60 || performance.now() - hitAt < 250) return
+      hitAt = performance.now(); clink(sp)
+      el._kick((dx / L) * sp * 0.8, (dy / L) * sp * 0.8)
+    }
+    addEventListener('grim-orb', other)
     el.addEventListener('pointerdown', down); el.addEventListener('click', click, true)
     addEventListener('pointermove', move, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', up)
     return () => {
-      cancelAnimationFrame(S.raf); land(); document.body.classList.remove('orb-grab')
+      cancelAnimationFrame(S.raf); land(); document.body.classList.remove('orb-grab'); removeEventListener('grim-orb', other)
       el.removeEventListener('pointerdown', down); el.removeEventListener('click', click, true)
       removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up)
     }
@@ -513,7 +524,7 @@ export function FsBtn({ className = '' }) {
     if (d.fullscreenElement || d.webkitFullscreenElement) return (d.exitFullscreen || d.webkitExitFullscreen).call(d)
     Promise.resolve((el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)).catch(() => {})
   }
-  return <button type="button" className={`fs-mini ${className}`} onClick={go} title={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')} aria-label={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')}>{on ? '🗗' : '⛶'}</button>
+  return <button type="button" className={`fs-mini ${className}`} onClick={go} title={`${on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')} (Shift+F)`} aria-label={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')}>{on ? '🗗' : '⛶'}</button>
 }
 
 // a esfera rebenta quando o jogador perde, à maneira da causa (dano = sangue, veneno = nuvem tóxica, moer = pó e folhas,
@@ -602,20 +613,18 @@ const deckLook = (z, data) => {  // pelas cartas que já se viram desse lado: a 
   const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]), many = top.filter(([, n]) => n >= Math.max(2, (top[0]?.[1] || 0) * 0.5)).length
   const t = !top.length ? 'gelo' : many >= 3 ? 'prisma' : COL_T[top[0][0]]
   const n = cs.length || 1, cre = cs.filter(c => c.mt === 'Creature').length / n, spl = cs.filter(c => c.mt === 'Instant' || c.mt === 'Sorcery').length / n
-  return { t, a: cre > 0.55 ? 'turbilhao' : spl > 0.45 ? 'faiscas' : cs.length > 3 ? 'calmo' : 'pulsar', n: cs.length }
+  return { t, a: cre > 0.55 ? 'turbilhao' : spl > 0.45 ? 'faiscas' : cs.length > 3 ? 'calmo' : 'pulsar', n: cs.length, cols: top.filter(([, n]) => n >= Math.max(1, (top[0]?.[1] || 0) * 0.34)).slice(0, 3).map(([k]) => k).join('') }
 }
 const locked = new Map()  // o aspeto «pelo deck» fixa-se quando já se viram 5 cartas (não muda a meio do jogo)
 export function orbLook(k, z, data, ctx, name) {
   const P = fpPrefs(), mine = ctx.mine === k, other = ctx.looks?.[k]  // other: a que outro jogador escolheu (online)
   let { t, a } = other || (mine ? P.orb : { t: 'auto', a: 'auto' })
   if (!mine && !other && P.botOrb === 'random') { const h = hashS(`${ctx.seed}|${name || k}`); t = ORB_T[h % ORB_T.length]; a = ORB_A[(h >>> 5) % ORB_A.length] }
-  if (t === 'auto' || a === 'auto') {
-    const key = `${ctx.seed}|${name || k}`, d = locked.get(key) || deckLook(z, data)
-    if (d.n >= 5 && !locked.has(key)) { locked.set(key, d); if (locked.size > 200) locked.delete(locked.keys().next().value) }
-    if (t === 'auto') t = d.t
-    if (a === 'auto') a = d.a
-  }
-  return { t, a }
+  const key = `${ctx.seed}|${name || k}`, d = locked.get(key) || deckLook(z, data)
+  if (d.n >= 5 && !locked.has(key)) { locked.set(key, d); if (locked.size > 200) locked.delete(locked.keys().next().value) }
+  if (t === 'auto') t = d.t
+  if (a === 'auto') a = d.a
+  return { t, a, cols: d.cols }  // cols: as cores do deck (o halo da esfera 3D)
 }
 export const ORB_T_NAME = { verde: tx('Floresta'), oceano: tx('Oceano'), brasa: tx('Brasa'), vazio: tx('Vazio'), ouro: tx('Ouro'), gelo: tx('Gelo'), prisma: tx('Prisma'), tempestade: tx('Tempestade'), sangue: tx('Sangue') }
 export const ORB_A_NAME = { calmo: tx('Calmo'), turbilhao: tx('Turbilhão'), pulsar: tx('Pulsar'), faiscas: tx('Faíscas') }
@@ -629,6 +638,7 @@ export function OrbPick({ onChange }) {
         {['auto', ...ORB_T].map(t => <button key={t} type="button" role="radio" aria-checked={p.orb.t === t} className={`orbsw ${p.orb.t === t ? 'on' : ''}`} title={t === 'auto' ? tx('Pelas cores do deck') : ORB_T_NAME[t]}
           onClick={() => save({ orb: { ...p.orb, t } })}><span className="orb" data-t={t === 'auto' ? undefined : t} data-a={p.orb.a === 'auto' ? undefined : p.orb.a}><span className="orb-in"><i className="orb-smoke" /><i className="orb-smoke s2" /></span>{t === 'auto' ? <b>A</b> : null}</span></button>)}
       </div>
+      <label className="chk small"><input type="checkbox" checked={p.orb3d} onChange={e => save({ orb3d: e.target.checked })} /> {tx('Esfera em 3D (desligado: a clássica)')}</label>
       <label className="small">{tx('Animação')} <select value={p.orb.a} onChange={e => save({ orb: { ...p.orb, a: e.target.value } })}>
         <option value="auto">{tx('Pelo estilo do deck')}</option>{ORB_A.map(a => <option key={a} value={a}>{ORB_A_NAME[a]}</option>)}</select></label>
       <label className="small">{tx('Esfera dos bots')} <select value={p.botOrb} onChange={e => save({ botOrb: e.target.value })}>
@@ -640,6 +650,14 @@ export function OrbPick({ onChange }) {
 function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look, dead = null, side }) {  // dead: a causa da derrota (endOut/ORB_DEATH: dmg, psn, mill, cmd, alt, lose, concede, draw)  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
   const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null), [broken, setBroken] = useState(!!dead), [charging, setCharging] = useState(false)
   useOrbPhysics(orbRef)
+  // esfera 3D (Definições › padrão da mesa): o mesmo elemento, desenhado pelo orb3d.js; sem WebGL fica a clássica
+  const [three, setThree] = useState(false), cvRef = useRef(null)
+  useEffect(() => {
+    if (!fpPrefs().orb3d) return
+    let off = null, live = true
+    import('./orb3d.js').then(m => { if (!live || !m.webgl3d()) return; setThree(true); requestAnimationFrame(() => { if (live && cvRef.current) off = m.attachOrb3d(orbRef.current, cvRef.current) }) }).catch(() => {})
+    return () => { live = false; off?.() }
+  }, [])
   useEffect(() => {  // perdeu: uns instantes depois a esfera rebenta (à maneira da causa) e fica a casca
     if (!dead) { setBroken(false); return }
     if (fast || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setBroken(true); return }
@@ -684,7 +702,8 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     return () => clearInterval(iv)
   }, [low, dead, fast, life <= 2, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''}`} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+      {three && <canvas ref={cvRef} className="orb3d" aria-hidden="true" />}
       {rich.includes('god') && <i className="orb-rays" aria-hidden="true" />}
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
       {rich.includes('halo') && <i className="orb-halo" aria-hidden="true" />}

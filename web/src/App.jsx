@@ -179,6 +179,10 @@ export default function App() {
     Promise.resolve((el.requestFullscreen || el.webkitRequestFullscreen)?.call(el))
       .then(() => { el.scrollTop = 0; return lockFsOrientation() }).catch(() => {})
   }
+  useEffect(() => {  // Shift+F: ecrã inteiro (o F sozinho vira a carta debaixo do rato)
+    const k = e => { if (e.shiftKey && !e.ctrlKey && !e.metaKey && (e.key === 'F' || e.key === 'f') && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && coliseuRef.current) { e.preventDefault(); fullscreen() } }
+    addEventListener('keydown', k); return () => removeEventListener('keydown', k)
+  })
   // da Biblioteca/Teste para outra área
   const goTab = t => { if (t === 'teste' || t === 'coliseu') return setSection('coliseu'); setSection('construir'); setTab(t) }
   const [artCard, setArtCard] = useState(null)
@@ -463,7 +467,7 @@ export default function App() {
           <div className="col-bar">
             <b>⚔ {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
             <span className="seg">{[['bots', `🤖 ${tx('Bots a testar')}`], ['jogar', `🎮 ${tx('Jogar contra o Forge')}`], ['torneio', `🏆 ${tx('Torneio')}`], ['draft', `🎴 ${tx('Draft')}`], ['online', `🌍 ${tx('Online')}`], ['ratings', `📊 ${tx('Ratings')}`]].filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
-            <button className="fs-btn" onClick={fullscreen} title={tx('Ecrã inteiro (sair: este botão ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
+            <button className="fs-btn" onClick={fullscreen} title={tx('Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
             <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>
           <div hidden={guest || colMode !== 'bots'}>{!guest && <LabView {...{ data, deck, fmt, act, ctx, playFrom }} />}</div>
