@@ -51,7 +51,11 @@ export const typeOf = (data, perm) => {
   const tl = c ? c.t.split(' // ')[perm.flipped && c.t.includes(' // ') ? 1 : 0] : ''
   return tl || (perm.token ? (perm.pt ? tx('Ficha de criatura') : tx('Ficha')) : '')
 }
-export const isCreature = (data, perm) => !perm.dormant && (perm.crewed || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt))
+// notCre: impressa como criatura mas agora não é — Enduring Vitality/Innocence/Curiosity… voltam do cemitério «It's an
+// enchantment. (It's not a creature.)»; no Forge Play o Forge diz-o sempre (Imprisoned in the Moon, deuses sem devoção…)
+export const isCreature = (data, perm) => !perm.dormant && !perm.notCre && (perm.crewed || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt))
+// volta do cemitério e o texto diz que deixa de ser criatura (o ciclo Enduring de Duskmourn e afins)
+const comesBackNonCreature = c => /It's not a creature/i.test(c?.o || '')
 // deuses de Theros: «As long as your devotion to blue is less than five, Thassa isn't a creature.» — devoção = símbolos
 // dessa(s) cor(es) nos custos das permanentes do dono (um híbrido conta uma vez)
 const COL_W = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }
@@ -239,7 +243,7 @@ export function applyEvent(s0, ev, data) {
     if (z.to === 'battlefield' && s[z.tp] && !find(z.id, null)) {
       const c = look(z.card), host = z.att != null ? find(z.att, null) : null
       const land = !!(c && /\bLand\b/.test(c.t.split(' // ')[0]))
-      make(z.tp, z.card, { src: z.tok ? ev.card || s.stack.at(-1)?.card : undefined, fid: z.id, token: !!z.tok, pt: z.pt || null, kw: z.kw || null, counters: { ...z.ctr }, land, tapped: land && etbTapped(z.tp, c), attachedTo: host ? host[1].key : null })
+      make(z.tp, z.card, { src: z.tok ? ev.card || s.stack.at(-1)?.card : undefined, fid: z.id, token: !!z.tok, pt: z.pt || null, kw: z.kw || null, counters: { ...z.ctr }, land, notCre: z.from === 'graveyard' && comesBackNonCreature(c), tapped: land && etbTapped(z.tp, c), attachedTo: host ? host[1].key : null })
     } else if ((z.to === 'graveyard' || z.to === 'exile') && s[z.tp] && !z.tok) s[z.tp][z.to] = [...s[z.tp][z.to], z.card]
     for (const [k, out] of [[z.fp, false], [z.tp, true]]) {
       const zone = out ? z.to : z.from
@@ -340,7 +344,7 @@ export function applyEvent(s0, ev, data) {
           const gy = [...s[k].graveyard]; gy.splice(gy.lastIndexOf(gy.includes(name) ? name : null), 1); s[k].graveyard = gy
         }
         const to = k || owner
-        if (dest === 'hand') { if (to) toZone(to, name, 'hand') } else if (to && !find(+fid, null)) make(owner || to, name, { fid: +fid })
+        if (dest === 'hand') { if (to) toZone(to, name, 'hand') } else if (to && !find(+fid, null)) make(owner || to, name, { fid: +fid, notCre: comesBackNonCreature(look(name)) })
       }
       // lealdade: a habilidade do planeswalker resolve agora (o Forge não diz o custo; lê-se do texto da carta)
       if (top?.kind === 'activate' && ev.card && !X) {

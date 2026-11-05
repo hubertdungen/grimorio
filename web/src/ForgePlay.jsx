@@ -95,6 +95,7 @@ export function FCard({ c, data, onClick, h, cls = '', big, flip, from, tag }) {
 // marcadores do Forge pelo nome («+1/+1», «Loyalty», «Lore», «Poison»…) -> as chaves do tabuleiro (minúsculas)
 const CTR = { P1P1: '+1/+1', M1M1: '-1/-1' }
 const ctrs = o => Object.fromEntries(Object.entries(o || {}).map(([k, n]) => [CTR[k] || (/^[+-]/.test(k) ? k : String(k).toLowerCase()), n]))
+// notCre: o Forge diz se é criatura agora (Enduring Vitality de volta do cemitério, deus sem devoção, Imprisoned in the Moon…)
 function toPerm(c, combat) {
   const counters = ctrs(c.counters)
   if (c.loyalty != null && counters.loyalty == null) counters.loyalty = +c.loyalty || 0  // o marcador «Loyalty» do Forge manda; «loyalty» da carta vem em texto («4»)
@@ -102,7 +103,7 @@ function toPerm(c, combat) {
   const at = combat?.find(x => x.att === c.id)
   return {
     key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped,
-    land: !!c.land, crewed: !!c.creature, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, damage: c.dmg || 0, counters,
+    land: !!c.land, crewed: !!c.creature, notCre: !c.creature && !c.hidden && !c.faceDown, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, damage: c.dmg || 0, counters,
     pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined, faceDown: !!c.faceDown, phased: !!c.phased, goaded: !!c.goad, copy: !!c.copy, merged: c.merged,
     attacking: at ? 'x' : undefined, atkName: at?.defc, blocking: (b => (b ? String(b.att) : undefined))(combat?.find(x => x.blockers?.includes(c.id))),  // a chave do atacante: o par (⚔ n / 🛡 n) e a linha
   }
@@ -483,7 +484,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const setLay = f => setLayS(x => { const y = f(x); try { localStorage.setItem(`grimorio.fp.${sid}`, JSON.stringify(y)) } catch { /* sem armazenamento */ } return y })
   const keysIn = (box, sel, attr) => [...box.querySelectorAll(sel)].map(e => e.getAttribute(attr).replace(/^k:/, ''))
   const moveBefore = (keys, k, before) => { const l = keys.filter(x => x !== k), i = before == null ? -1 : l.indexOf(before); l.splice(i < 0 ? l.length : i, 0, k); return l }
-  const kindOf = c => (c?.land ? 'lands' : c?.creature || c?.pt ? 'front' : 'others')
+  const kindOf = c => (c?.land ? 'lands' : c?.creature ? 'front' : 'others')  // pela palavra do Forge: uma Enduring de volta é encantamento
   // onde a carta vai ficar no teu lado: largada à altura das cartas de uma fila (a fila debaixo do dedo ou a dela —
   // criaturas, terrenos, outras) entra nessa fila, no sítio pela posição; largada longe das filas fica solta onde a
   // pousaste (Livre) ou na casa mais perto (Grelha). Com «Filas automáticas» vai sempre para uma fila.
@@ -581,7 +582,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       castNow(id); send1({ c: 'card', id }); return true
     }
     // equipamento teu largado numa criatura tua, no teu turno: equipar essa criatura
-    if (pid != null && pid !== id && mine && /Equipment/.test(typeOf(id)) && /Creature/.test(typeOf(pid)) && target.closest('.bside.bottom')) {
+    if (pid != null && pid !== id && mine && /Equipment/.test(typeOf(id)) && byId.get(pid)?.creature && target.closest('.bside.bottom')) {
       aim(pid, perm, /^Equip/i); castNow(id); send1({ c: 'card', id }); return true
     }
     // bloquear arrastando: só quando o Forge pede os bloqueadores (antes disso, com prioridade, o clique ativava habilidades)
@@ -595,7 +596,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (!mine && blocking && atts.length === 1 && target.closest('.bside.top')) { send1({ c: 'card', id: atts[0].att }).then(() => send1({ c: 'card', id })); return true }
     if (mine && st.phase === 'COMBAT_DECLARE_ATTACKERS' && target.closest('.bside.top')) { send1({ c: 'card', id }); return true }  // largar no lado dele: atacar
     // ainda na fase principal: o gesto diz «ataca com esta» — passa-se ao combate e declara-se sozinho
-    if (mine && st.phase === 'MAIN1' && target.closest('.bside.top') && /Creature/.test(typeOf(id)) && /^Priority:/.test(pr?.msg || '') && !st.stack?.length) {
+    if (mine && st.phase === 'MAIN1' && target.closest('.bside.top') && byId.get(id)?.creature && /^Priority:/.test(pr?.msg || '') && !st.stack?.length) {
       if (byId.get(id)?.sick) { setToast({ title: tx('Esta criatura ainda não pode atacar'), msg: tx('Entrou neste turno (enjoo de invocação).') }); return false }
       const oracle = (data.byName.get(byId.get(id)?.name) || {}).o || ''
       if (/^Defender\b/im.test(oracle) || byId.get(id)?.tapped) { setToast({ title: tx('Esta criatura não pode atacar'), msg: byId.get(id)?.tapped ? tx('Está virada.') : tx('Tem a habilidade Defensor.') }); return false }
