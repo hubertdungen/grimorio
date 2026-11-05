@@ -90,8 +90,8 @@ function MoveMenu({ label, to, onMove }) {
 function withBasicArt(d, n, q) {
   if (!q || !BASICS.includes(n) || d.prints?.[n] || d.art?.[n]) return d
   const favs = basicList(n), l = (d.split?.[n] || []).map(x => ({ ...x }))
-  if (favs.length < 2 && !l.length) return d
-  for (let k = 0; k < q && favs.length > 1; k++) {
+  if (!favs.length && !l.length) return d  // com uma só favorita também fica no deck (antes só se via neste browser: no telemóvel ou no jogo era outra)
+  for (let k = 0; k < q && favs.length; k++) {
     const id = favs[Math.floor(Math.random() * favs.length)].id, e = l.find(x => x.id === id)
     if (e) e.q++; else l.push({ id, q: 1 })
   }

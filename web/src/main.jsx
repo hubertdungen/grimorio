@@ -50,6 +50,13 @@ document.addEventListener('error', e => {
   const el = e.target
   if (el.tagName === 'IMG' && EXT.test(el.src) && !el.dataset.ext) { el.dataset.ext = '1'; el.src = el.src.replace(EXT, './ext/$1/') }
 }, true)
+// capa que é a carta inteira (TappedOut, arte própria, imagem carregada — p.ex. os decks importados de um amigo): vê-se só
+// a ilustração, como a art_crop da Scryfall. Reconhece-se pela forma (ao alto = carta inteira).
+// ponytail: zoom pensado para a moldura moderna; molduras antigas/full-art ficam ligeiramente desviadas
+document.addEventListener('load', e => {
+  const t = e.target
+  if (t.tagName === 'IMG' && t.closest('.dbox-art, .pv-art')) t.classList.toggle('card-full', t.naturalHeight > t.naturalWidth)
+}, true)
 
 // App Android (android/): os ficheiros feitos aqui (PDF/ZIP dos proxies, cópias) não passam pelo gestor de transferências
 // do Android; vão em base64 para a app, que os guarda nas Transferências

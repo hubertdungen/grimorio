@@ -19,6 +19,8 @@ export const CONFIRMS = [
   ['basicos', tx('Repor a arte dos terrenos básicos em todos os decks')],
   ['carteira', tx('Recomeçar a carteira das apostas')],
   ['amigo', tx('Revogar ou tirar um amigo')],
+  ['semataque', tx('Forge Play: passar o combate sem atacar')],
+  ['sembloqueio', tx('Forge Play: deixar passar um ataque sem bloquear')],
 ]
 const OFF0 = { ultimaSingleton: false }  // em Commander cada «−» tira a última cópia: perguntar sempre seria chato
 const K = 'grimorio.confirmar', subs = new Set()

@@ -8,7 +8,7 @@ import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
-import { fpPrefs, setFpPrefs, cardVars, CARD_PX, MATS } from './fpprefs.js'
+import { fpPrefs, setFpPrefs, CARD_PX, MATS } from './fpprefs.js'
 import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
@@ -115,9 +115,9 @@ function In({ as, quiet, className = '', ...p }) {
 
 // arte própria dos decks (ex.: alteradas no TappedOut): arts = {a: {nome: link}, b: …}; k = lado (o Side diz qual);
 // sem lado, a de qualquer deck que a tenha. Sem arte própria, a da Scryfall.
-const Arts = createContext({ arts: null, k: null })
-const artOf = (arts, k, c, inst) => c && artPick((arts && (k ? arts[k]?.[c.n] : Object.values(arts).map(x => x?.[c.n]).find(Boolean))) || basicSplit(c.n), inst)  // sem arte do deck: as várias artes por omissão dos básicos
-const useImg = () => { const { arts, k } = useContext(Arts); return (c, size, back, side = k, inst) => img(c, size, back, artOf(arts, side, c, inst)) }
+export const Arts = createContext({ arts: null, k: null })
+export const artOf = (arts, k, c, inst) => c && artPick((arts && (k ? arts[k]?.[c.n] : Object.values(arts).map(x => x?.[c.n]).find(Boolean))) || basicSplit(c.n), inst)  // sem arte do deck: as várias artes por omissão dos básicos
+export const useImg = () => { const { arts, k } = useContext(Arts); return (c, size, back, side = k, inst) => img(c, size, back, artOf(arts, side, c, inst)) }
 // srcset: a pequena (146 px) só quando a carta é mesmo pequena no ecrã, a normal (488 px) quando é grande, em monitores
 // 2K ou com mais densidade (Windows a 125–150%). A pequena declara-se com 100w (e não 146w) para a troca acontecer cedo:
 // a JPEG pequena da Scryfall já vem muito comprimida e nota-se mesmo reduzida. Cada imagem vem uma vez (cache).

@@ -2,9 +2,9 @@
 // build/forge/GrimorioNet.java) e manda o estado do jogo, o pedido atual (o que o motor espera de ti) e as escolhas
 // pendentes; aqui desenha-se a mesa e cada clique volta como comando (carta, jogador, OK/cancelar, mana, responder).
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, DamageFx } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, DamageFx, Arts, useImg, artOf } from './Board.jsx'
 import { tx } from './i18n.js'
 import { playDiff } from './sfx.js'
 import { ask as confirmAsk } from './confirm.jsx'
@@ -67,9 +67,10 @@ function promptText(msg, st, me) {
 // uma carta solta (mão, escolhas, cemitério): imagem da Scryfall com força/resistência por cima. h = id da carta na mão:
 // a mesa trata do clique e do arrastar pelo data-h. picked = já escolhida numa escolha do Forge (descartar 2…)
 export function FCard({ c, data, onClick, h, cls = '', big, flip }) {
+  const im = useImg()  // a arte escolhida no deck (edição, imagem própria, básicos), não a da Scryfall por omissão
   if (!c || c.hidden) return <div className={`fp-card back ${cls}`} />
   const card = data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase())
-  const src = card ? img(card, big ? 'normal' : 'small', !!(flip && card.df)) : null  // virada: a outra face (cartas de duas faces)
+  const src = card ? im(card, big ? 'normal' : 'small', !!(flip && card.df)) : null  // virada: a outra face (cartas de duas faces)
   return (
     <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${c.picked ? 'picked' : ''} ${flip && !card?.df ? 'upside' : ''} ${cls}`} title={c.name} data-h={h} data-zid={c.id}
       onClick={onClick && (() => onClick(c))} onContextMenu={e => e.preventDefault()}>
@@ -211,6 +212,7 @@ function GridAsk({ a, data, answer, zoom }) {
 // carta em grande para o toque (tocar e manter numa carta, Forge Play e mesa livre): ecrã escurecido com a carta ao centro;
 // dois dedos ampliam (até 3×), duplo toque amplia/volta, arrastar para baixo ou um toque fecha; Esc no teclado
 export function BigCard({ name, data, onClose }) {
+  const im = useImg()
   const card = name && (data.byName.get(name) || data.byLower?.get(String(name).toLowerCase()))
   const ref = useRef(null), g = useRef({ pts: new Map(), s: 1, s0: 1, d0: 0, dy: 0, y0: 0, t0: 0, moved: 0, last: 0 })
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
@@ -238,7 +240,7 @@ export function BigCard({ name, data, onClose }) {
   }
   return (
     <div className="fp-big" role="dialog" aria-label={card.n} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
-      <img ref={ref} src={img(card, 'large')} alt={card.n} draggable="false" />
+      <img ref={ref} src={im(card, 'large')} alt={card.n} draggable="false" />
       <small>{tx('Dois dedos ampliam · arrasta para baixo para fechar')}</small>
     </div>)
 }
@@ -352,10 +354,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     setToast(m.t === 'flash' ? { title: tx('O Forge recusou essa jogada'), msg: tx('Não há alvos válidos, falta mana ou não é a altura. Uma aura como Hardlight Containment precisa de um artefacto teu em jogo.') } : m)
   }, [s?.log])
   useEffect(() => {  // qualquer aviso some sozinho com fade (mais tempo se trouxer uma lista); um toque fecha logo
-    if (!toast) return
-    const ms = toast.list ? 8000 : 4000, a = setTimeout(() => setToast(t => (t === toast ? { ...t, out: true } : t)), ms), b = setTimeout(() => setToast(t => (t?.out ? null : t)), ms + 450)
-    return () => { clearTimeout(a); clearTimeout(b) }
-  }, [toast?.title, toast?.msg])  // eslint-disable-line react-hooks/exhaustive-deps
+    if (!toast) return  // (antes, o mesmo aviso dado outra vez ficava preso no ecrã: o temporizador comparava com o objeto antigo)
+    if (toast.out) { const b = setTimeout(() => setToast(t => (t === toast ? null : t)), 450); return () => clearTimeout(b) }
+    const a = setTimeout(() => setToast(t => (t === toast ? { ...t, out: true } : t)), toast.list ? 8000 : 4000)
+    return () => clearTimeout(a)
+  }, [toast])
   const send = c => j(`/api/playnet/${sid}/cmd`, c).catch(e => setErr(e.message))
   const answer = (a, v) => { setS(x => ({ ...x, asks: x.asks.filter(y => y.id !== a.id) })); send({ c: 'answer', id: a.id, v }) }
   const st = s?.state, players = st?.players || []
@@ -373,7 +376,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useEffect(() => { if (!/^Priority:/.test(pr?.msg || '')) setLift(null) }, [pr?.msg])  // o Forge pede uma escolha: a carta levantada desce (as escolhidas sobem com moldura)
   useEffect(() => {  // Enter/Espaço = o botão principal (passar ao passo seguinte), Shift+Enter = acabar o turno, Esc = o outro botão
     const k = e => {
-      if (ask || big || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return  // carta em grande aberta: o Esc é dela
+      if (ask || big || pressing.current || document.querySelector('.ask-bg') || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return  // carta em grande aberta: o Esc é dela
       if (act) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate() } else if (e.key === 'Escape') { e.preventDefault(); setAct(null) } return }
       const P = fpPrefs()
       if (e.key.toLowerCase() === P.tap && hoverId.current != null && !e.ctrlKey && !e.metaKey && document.querySelector(`.bside.bottom .pc[data-z="k:${hoverId.current}"]`)) { e.preventDefault(); permClick(hoverId.current, document.querySelector(`.bside.bottom .pc[data-z="k:${hoverId.current}"]`)); return }  // rato por cima de uma carta tua na mesa + T = virá-la (tap) / ativá-la, como o clique
@@ -480,7 +483,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       const before = keys.find(k => { const e = row.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect(); return e && e.left + e.width / 2 > x }) ?? null
       return { row: 'lands', before, box: row }
     }
-    const under = target.closest('.brow:not(.rear)') || (target.closest('.brow.rear') && rowOf(kind === 'front' ? 'lands' : kind))
+    let under = target.closest('.brow:not(.rear)') || (target.closest('.brow.rear') && rowOf(kind === 'front' ? 'lands' : kind))
+    // encantamento/artefacto (não criatura, não terreno) só entra na fila dele: largado no espaço vazio à direita (que é da
+    // fila dos terrenos ou das criaturas, esticadas) antes ia parar a essa fila; agora fica solto onde o largaste
+    if (kind === 'others' && under && !under.classList.contains('others')) under = null
     for (const row of [...new Set([under, rowOf(kind)])].filter(Boolean)) {
       const cs = [...row.querySelectorAll('.pc[data-z^="k:"]')].filter(e => e.dataset.z !== `k:${id}` && !e.closest('.bfree')).map(e => e.getBoundingClientRect())
       const q = cs.length ? { top: Math.min(...cs.map(r => r.top)), bottom: Math.max(...cs.map(r => r.bottom)) } : row.getBoundingClientRect()
@@ -565,7 +571,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     // bloquear arrastando: só quando o Forge pede os bloqueadores (antes disso, com prioridade, o clique ativava habilidades)
     if (!mine && blocking && pid && st.combat?.some(x => x.att === pid)) { send1({ c: 'card', id: pid }).then(() => send1({ c: 'card', id })); return true }  // largar num atacante: bloquear
     const atts = st.combat || []  // largar no lado dele com um só atacante: bloqueá-lo (não é preciso acertar na carta)
-    if (!mine && !blocking && atts.length && /^COMBAT/.test(st.phase) && target.closest('.bside.top')) { setToast({ title: tx('Ainda não é a altura de bloquear'), msg: tx('Carrega OK até aparecer o pedido de bloqueadores; aí arrasta a tua criatura para o atacante (ou clica no atacante e depois nela).') }); return false }
+    if (!mine && !blocking && atts.length && /^COMBAT/.test(st.phase) && target.closest('.bside.top')) {
+      const att = pid && atts.some(x => x.att === pid) ? pid : atts.length === 1 ? atts[0].att : null
+      if (!att) { setToast({ title: tx('Larga-a em cima do atacante que queres bloquear'), msg: '' }); return false }
+      planBlock(id, att); return true
+    }
     if (!mine && blocking && atts.length === 1 && target.closest('.bside.top')) { send1({ c: 'card', id: atts[0].att }).then(() => send1({ c: 'card', id })); return true }
     if (mine && st.phase === 'COMBAT_DECLARE_ATTACKERS' && target.closest('.bside.top')) { send1({ c: 'card', id }); return true }  // largar no lado dele: atacar
     // ainda na fase principal: o gesto diz «ataca com esta» — passa-se ao combate e declara-se sozinho
@@ -587,7 +597,15 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // jogo mais solto (Definições › Mesa): o que acabaste de lançar paga-se sozinho (o «Pagar sozinho» do Forge) e o que é
   // teu no topo da pilha resolve-se sem teres de carregar em OK; criaturas arrastadas para o ataque na fase principal
   // declaram-se quando o Forge chega aos atacantes
-  const lastCast = useRef(null), autoKey = useRef(''), attackIntent = useRef(null), sNow = useRef(null)
+  const lastCast = useRef(null), autoKey = useRef(''), attackIntent = useRef(null), sNow = useRef(null), blockIntent = useRef(null), pendBlk = useRef(null)
+  // bloquear antes de o Forge pedir os bloqueadores (ainda no passo dos atacantes, com prioridade): o bloqueio fica marcado,
+  // passa-se a prioridade (se a pilha está vazia) e, quando o pedido chega, o Forge recebe-o — confirmas com OK
+  const planBlock = (blk, att) => {
+    const pairs = (blockIntent.current?.pairs || []).filter(p => p.blk !== blk).concat({ att, blk })
+    blockIntent.current = { pairs, until: Date.now() + 30000 }
+    setToast({ title: tx('Bloqueio marcado'), msg: tx('Quando o Forge pedir os bloqueadores, este bloqueio entra sozinho; depois confirma com OK.') })
+    if (/^Priority:/.test(pr?.msg || '') && !st.stack?.length) send({ c: 'ok' })
+  }
   sNow.current = s
   const castNow = id => { lastCast.current = { id, t: Date.now() } }
   const autoAct = x => {  // o que a mesa faz sozinha neste estado: {k (uma vez só), c, ms} ou nada
@@ -600,6 +618,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   }
   useEffect(() => {
     if (!s) return
+    const bi = blockIntent.current
+    if (bi && Date.now() < bi.until && blocking && !s.asks?.length) {
+      blockIntent.current = null
+      bi.pairs.reduce((q, p) => q.then(() => send({ c: 'card', id: p.att })).then(() => send({ c: 'card', id: p.blk })), Promise.resolve())
+      return
+    }
     const ai = attackIntent.current
     if (ai && Date.now() < ai.until && /Declare attackers|Select creatures to attack/i.test(pr?.msg || '') && !s.asks?.length) {
       attackIntent.current = null
@@ -676,11 +700,21 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const touchDev = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
   // a declarar atacantes; OK sem nenhum atacante com criaturas que podiam atacar = talvez um OK sem querer: pergunta antes
   const declaring = /Declare attackers|Select creatures to attack/i.test(pr?.msg || '')
+  // um só toque conta: com a pergunta aberta (Enter no botão dela também chegava aqui) ou o mesmo pedido já respondido
+  // (toque duplo antes de o Forge mudar de passo) não se carrega outra vez — antes a pergunta aparecia 2x e o 2.º OK passava um passo a mais
+  const pressing = useRef(false), pressedAt = useRef(null)
   const pressBtn = async b => {
-    const can = (me?.battlefield || []).filter(c => (c.creature || c.pt) && !c.tapped && !c.sick).length
-    if (b.c === 'ok' && declaring && !st?.combat?.length && can > 0
-      && !(await confirmAsk('semataque', { title: tx('Não atacas com nenhuma criatura?'), body: tx('Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.', { n: can }), ok: tx('Não atacar'), danger: false }))) return
-    send({ c: b.c })
+    if (pressing.current || pressedAt.current === `${s?.seq}|${b.c}`) return
+    pressing.current = true
+    try {
+      const cre = (me?.battlefield || []).filter(c => (c.creature || c.pt) && !c.tapped), can = cre.filter(c => !c.sick).length
+      if (b.c === 'ok' && declaring && !st?.combat?.length && can > 0
+        && !(await confirmAsk('semataque', { title: tx('Não atacas com nenhuma criatura?'), body: tx('Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.', { n: can }), ok: tx('Não atacar'), danger: false }))) return
+      if (b.c === 'ok' && blocking && !(st?.combat || []).some(x => x.blockers?.length) && cre.length > 0
+        && !(await confirmAsk('sembloqueio', { title: tx('Não bloqueias?'), body: tx('Para bloquear, arrasta a tua criatura para o atacante (ou toca no atacante e depois nela). OK deixa passar o ataque todo.'), ok: tx('Não bloquear'), danger: false }))) return
+      pressedAt.current = `${s?.seq}|${b.c}`
+      send({ c: b.c })
+    } finally { pressing.current = false }
   }
   const rotate = async () => {
     const want = innerWidth < innerHeight ? 'landscape' : 'portrait'
@@ -695,6 +729,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null), peek = usePeek(), diceBox = useRef(null), dice = useTableDice(diceBox)
   const P = fpPrefs()
   const stage = useStage(fitBox, stageWrap, !!st)
+  // a arte escolhida em cada deck ({a: {carta: edição/imagem}, b: …}): estável entre estados para não redesenhar a mesa toda
+  const artsKey = JSON.stringify(s?.arts || null), artsCtx = useMemo(() => ({ arts: JSON.parse(artsKey), k: null }), [artsKey])
+  const im = (c, size) => img(c, size, false, artOf(artsCtx.arts, null, c))
   useOverlap(fitTable)
   // cartas que voltam do cemitério ou do exílio (reanimar, flashback de permanentes, exilar e devolver) e as que o adversário
   // joga da mão: voam do monte/mão de onde vieram (a tua mão e o campo já voam sozinhos pelo id)
@@ -746,7 +783,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     const prio = /^Priority:/.test(pr?.msg || ''), mine = !!el?.closest('.bside.bottom')
     const lines = String(d?.o || '').split('\n').map(l => l.replace(/\([^)]*\)/g, '').trim()).filter(l => /^[^"]{1,90}?:\s/.test(l) || /^Equip\b/i.test(l))
     const oppCombat = st.active !== me?.id && /^COMBAT/.test(st.phase || ''), cre = !!(c?.creature || c?.pt)
-    if (prio && mine && oppCombat && cre && !lines.length) return setToast({ title: tx('Ainda não é a altura de bloquear'), msg: tx('Carrega OK até aparecer o pedido de bloqueadores; aí arrasta a tua criatura para o atacante (ou clica no atacante e depois nela).') })
+    const atts = st.combat || []
+    if (!mine && pendBlk.current && oppCombat && atts.some(x => x.att === id)) { planBlock(pendBlk.current, id); pendBlk.current = null; return }  // 2.º toque: o atacante
+    if (prio && mine && oppCombat && cre && !lines.length && atts.length) {  // 1.º toque: a tua criatura (com um só atacante já fica)
+      if (atts.length === 1) return planBlock(id, atts[0].att)
+      pendBlk.current = id; return setToast({ title: tx('Agora toca no atacante que ela bloqueia'), msg: '' })
+    }
     if (!prio || c?.sel || !mine || c?.land || !lines.length || (lines.every(l => /:\s*Add\b/.test(l)) && !(oppCombat && cre))) return send({ c: 'card', id })
     const r = el.getBoundingClientRect(), hint = oppCombat && cre ? tx('Ainda não é a altura de bloquear: para bloquear, carrega OK até o Forge pedir os bloqueadores.') : ''
     setAct({ hint, id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top > 240 ? r.top - 8 : r.bottom + 8, up: r.top > 240, lines, name: c.name })
@@ -776,7 +818,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     const q = el.getBoundingClientRect()
     el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
   }
-  return (
+  return (<Arts.Provider value={artsCtx}>
     <div className={`fp ${dice.res ? 'dice-on' : ''}`} ref={fitBox} onMouseLeave={() => { setZoom(null); peek.hide() }} onMouseOver={onOver} onPointerDown={peek.hide}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
@@ -791,7 +833,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           {st.day && <DayNight v={st.day} />}
           <span className="fp-phases">{PHASES.map(([k, l, ps]) => <i key={k} className={ps.includes(st.phase) ? (/^COMBAT/.test(st.phase || '') ? 'on combat' : 'on') : ''}>{l}</i>)}</span>
           {declaring && <span className="fp-declare" role="status">⚔ {tx('Declara os atacantes: toca nas criaturas que atacam e depois OK')}</span>}
-          <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={null} who={{ a: me?.name, b: opp?.name }} speed={1} />
+          <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={artsCtx.arts} who={{ a: me?.name, b: opp?.name }} speed={1} />
         </div>
         {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
           hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}
@@ -805,7 +847,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
       </div>}
       <aside className="fp-side">
-        <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
+        <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={im(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}
           <p><Syms text={promptText(pr?.msg, st, me)} /></p>
@@ -855,6 +897,6 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         {(s.crash || s.lost) && <p className="muted">{tx('Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.')}</p>}
         {series && <p className="fp-series">{series.done ? (series.w[0] > series.w[1] ? tx('🏆 Ganhaste a série {a}–{b}', { a: series.w[0], b: series.w[1] }) : tx('Perdeste a série {a}–{b}', { a: series.w[0], b: series.w[1] })) : tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })}</p>}
         <div className="row-btns">{onAgain && <button className="primary" onClick={onAgain}>▶ {againLabel || (series && !series.done ? tx('Jogo seguinte (sideboard)') : series ? tx('Nova série') : tx('Jogar outra vez'))}</button>}<button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}
-    </div>
+    </div></Arts.Provider>
   )
 }

@@ -4,7 +4,7 @@
 // As cartas no campo têm x/y no lado de quem as controla: todos veem a mesma arrumação (o lado dos outros ao contrário).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Perm, Hud, MatPick } from './Board.jsx'
+import { Perm, Hud, MatPick, Arts, artOf } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
@@ -138,6 +138,7 @@ export default function FreeTable({ id, data, onClose }) {
   }, [id, seatSel]) // eslint-disable-line react-hooks/exhaustive-deps
   const send = c => j(`/api/freetables/${id}${seatQ('?')}`, c).then(r => { setS(x => (!x || r.seq >= x.seq ? r : x)); return r }).catch(e => { setErr(e.message); setTimeout(() => setErr(''), 4000) })
   const me = s?.me ?? 0, seats = s?.seats || [], n = seats.length
+  const allArts = Object.fromEntries(seats.map((v, i) => [i, v.arts]))  // a arte escolhida em cada deck (a carta em grande)
   const keyOf = i => KEYS[(i - me + n) % n]
   // sons: cada entrada nova do registo (de quem for) soa como na réplica; ao abrir a mesa o histórico não soa
   const heard = useRef(null)
@@ -317,11 +318,11 @@ export default function FreeTable({ id, data, onClose }) {
         {!v.battlefield.length && isMe && <span className="ml-empty">{tx('o teu lado da mesa: arrasta para aqui as cartas da mão')}</span>}
       </div>
     )
-    return (
-      <div key={i} className={`bside ml-side ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i} data-mat={(isMe || !P.mats ? P.mat : v.mat) || undefined}
+    return (<Arts.Provider key={i} value={{ arts: { [k]: v.arts }, k }}>
+      <div className={`bside ml-side ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i} data-mat={(isMe || !P.mats ? P.mat : v.mat) || undefined}
         onClickCapture={e => { const z = e.target.closest('[data-zone]')?.dataset.zone; if (z === 'graveyard' || z === 'exile') { e.stopPropagation(); setZone({ seat: i, which: z }) } }}>
         {top ? <>{hud}{field}</> : <>{field}{hud}</>}
-      </div>
+      </div></Arts.Provider>
     )
   }
 
@@ -481,7 +482,7 @@ export default function FreeTable({ id, data, onClose }) {
         <div className="fp-dice" ref={diceBox} />
       </div>
       <aside className="fp-side ml-aside">
-        <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={img(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
+        <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={img(zc, 'normal', false, artOf(allArts, null, zc))} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         {tools}
         {err && <p className="small bad-t ml-err">{err}</p>}
         {(!phone || chatOpen) && <TableChat log={s.log} who={who} keyOf={keyOf} me={me} data={data} send={send} fmt={e => line(e, who)} names={names} onSeen={setSeen} />}
@@ -505,7 +506,7 @@ export default function FreeTable({ id, data, onClose }) {
         <div className="row-btns"><button className="primary" onClick={() => send({ c: 'peek', n: 0 })}>{tx('Feito (as que sobram ficam no topo)')}</button></div></div></div>}
       {help && <Help onClose={() => { setHelp(false); lsSet(HELP_K, '1') }} />}
       {matOpen && <MatModal onClose={() => setMatOpen(false)} onMat={p => { send({ c: 'mat', v: p.mat }); redraw(x => x + 1) }} />}
-      {cardPop && lookup(data, cardPop) && <div className="fp-modal" onClick={() => setCardPop(null)}><img className="ml-pop" src={img(lookup(data, cardPop), 'normal')} alt={cardPop} /></div>}
+      {cardPop && lookup(data, cardPop) && <div className="fp-modal" onClick={() => setCardPop(null)}><img className="ml-pop" src={img(lookup(data, cardPop), 'normal', false, artOf(allArts, null, lookup(data, cardPop)))} alt={cardPop} /></div>}
       {s.result ? <p className="ml-ended win">{s.result.w == null ? tx('🤝 Empate') : tx('🏆 Ganhou {p}', { p: who(s.result.w) })}{onClose && <button className="small" onClick={onClose}>{tx('sair da mesa')}</button>}</p>
         : ended && <p className="ml-ended">{tx('Esta mesa terminou.')}</p>}
       {s.res && !ended && <p className="ml-ended res" role="status">{s.res.w == null ? tx('Proposta: empate') : tx('Proposta: ganhou {p}', { p: who(s.res.w) })}

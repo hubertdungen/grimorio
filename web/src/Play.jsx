@@ -109,7 +109,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
     setErr(''); setBusy(label)
     try { setSess(await j(url, body)); setSt(s => ({ ...s, running: true })) } catch (e) { setErr(e.message) } finally { setBusy('') }
   }
-  const mineDeck = { name: deck.name, commanders: deck.commanders || [], main: deck.main, side: deck.side || {} }
+  const mineDeck = { name: deck.name, commanders: deck.commanders || [], main: deck.main, side: deck.side || {}, prints: deck.prints, art: deck.art, split: deck.split }  // prints/art/split: a arte escolhida vai para o jogo
   const start = (cur = series) => {
     if (!opp) return
     let ser = cur

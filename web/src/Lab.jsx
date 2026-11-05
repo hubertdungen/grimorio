@@ -126,7 +126,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
   const toggle = o => setSel(s => (s.some(x => x.id === o.id) ? s.filter(x => x.id !== o.id) : [...s, o]))
   // 🎲 junta um adversário ao acaso (dos que ainda não estão escolhidos)
   const pickRandom = (list, extra = {}) => { const free = list.filter(o => !sel.some(x => x.id === o.id)); if (free.length) toggle({ ...free[Math.floor(Math.random() * free.length)], ...extra }) }
-  const deckA = { name: deck.name, commanders: deck.commanders, main: deck.main, side: deck.side, art: deck.art }  // art: para o tabuleiro
+  const deckA = { name: deck.name, commanders: deck.commanders, main: deck.main, side: deck.side, art: deck.art, prints: deck.prints, split: deck.split }  // art/prints/split: a arte escolhida, para o tabuleiro
   // modo casual: o formato de cada deck vai para o tabuleiro (chips ao lado dos nomes)
   const fmtOf = (id, d) => d.format || (/^edhrec-/.test(id) ? 'commander' : /^[a-z]+-\d+$/.test(id) ? id.split('-')[0] : '')
   const fmtsOf = g => (casual && g?.decks ? Object.fromEntries(Object.entries(g.decks).map(([k, d]) => { const f = k === 'a' ? deck.format : d.format; return [k, FORMAT[f]?.name || f || '?'] })) : undefined)

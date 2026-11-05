@@ -88,7 +88,7 @@ def create(con, owner, name, seats, solo=False):
             z[zone].append(cid)
         t["seats"].append({"by": s["by"], "name": str(s.get("name") or "?")[:40], "deck": str(d.get("name") or "")[:80],
                            "format": d.get("format"), "life": 40 if cmd else 20, "life0": 40 if cmd else 20, "poison": 0, "energy": 0, "cd": {}, "mk": [],
-                           "out": False, "peek": 0})
+                           "out": False, "peek": 0, "arts": sim.art_map(d)})  # a arte escolhida no deck
         _deal(t, i)
     _log(t, None, "start")
     with COND:
@@ -176,7 +176,7 @@ def view(t, me):
     for i, s in enumerate(t["seats"]):
         z = t["zones"][i]
         v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {}, "mat": s.get("mat"),
-             "mk": s.get("mk") or [], "me": i == me, "library": len(z["library"]),
+             "mk": s.get("mk") or [], "me": i == me, "library": len(z["library"]), "arts": s.get("arts") or {},
              "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
         if i == me and s["peek"]:
             v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]

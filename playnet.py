@@ -134,7 +134,8 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None
     with COND:
         S[sid] = {"owner": owner, "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
                   "ended": False, "winner": None, "ts": time.time(), "names": {"a": deck.get("name"), "b": opp.get("name")},
-                  "players": {"a": str(name)[:40] or "Tu", "b": oname}, "rate": rate}
+                  "players": {"a": str(name)[:40] or "Tu", "b": oname}, "rate": rate,
+                  "arts": {"a": sim.art_map(deck), "b": sim.art_map(opp)}}  # a arte escolhida de cada carta (edição, imagem própria, básicos divididos)
     threading.Thread(target=_reader, args=(sid, p), daemon=True).start()
     return sid
 
@@ -154,7 +155,8 @@ def poll(sid, owner, since=0, wait=20.0):
         while s["seq"] <= since and not s["ended"] and time.time() < end:
             COND.wait(timeout=end - time.time())
         return {"seq": s["seq"], "state": s["state"], "prompt": s["prompt"], "asks": list(s["asks"].values()), "log": s["log"][-12:],
-                "ended": s["ended"], "winner": s["winner"], "names": s["names"], "crash": bool(s.get("crash"))}
+                "ended": s["ended"], "winner": s["winner"], "names": s["names"], "crash": bool(s.get("crash")),
+                "arts": s.get("arts")}
 
 
 def cmd(sid, owner, c):
