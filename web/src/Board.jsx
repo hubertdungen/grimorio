@@ -651,13 +651,14 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
   const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null), [broken, setBroken] = useState(!!dead), [charging, setCharging] = useState(false)
   useOrbPhysics(orbRef)
   // esfera 3D (Definições › padrão da mesa): o mesmo elemento, desenhado pelo orb3d.js; sem WebGL fica a clássica
-  const [three, setThree] = useState(false), cvRef = useRef(null)
+  const [three, setThree] = useState(false), cvRef = useRef(null), o3 = useRef(null)
   useEffect(() => {
     if (!fpPrefs().orb3d) return
-    let off = null, live = true
-    import('./orb3d.js').then(m => { if (!live || !m.webgl3d()) return; setThree(true); requestAnimationFrame(() => { if (live && cvRef.current) off = m.attachOrb3d(orbRef.current, cvRef.current) }) }).catch(() => {})
-    return () => { live = false; off?.() }
+    let live = true
+    import('./orb3d.js').then(m => { if (live && m.webgl3d()) { o3.current = m; setThree(true) } }).catch(() => {})
+    return () => { live = false }
   }, [])
+  useEffect(() => (three && cvRef.current && o3.current ? o3.current.attachOrb3d(orbRef.current, cvRef.current) : undefined), [three])  // só depois de o canvas existir
   useEffect(() => {  // perdeu: uns instantes depois a esfera rebenta (à maneira da causa) e fica a casca
     if (!dead) { setBroken(false); return }
     if (fast || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setBroken(true); return }

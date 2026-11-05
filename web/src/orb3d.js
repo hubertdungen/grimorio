@@ -44,11 +44,11 @@ function init() {
   const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-2, 3, 4); scene.add(key)
   scene.add(new THREE.AmbientLight(0xffffff, 0.35))
   // o núcleo colorido (o líquido), o fumo (shader), o vidro (transmissão, reflexos) e o halo do deck
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.93, 48, 32), new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#0a3d1f', roughness: 0.5, transparent: true, opacity: 0.85 }))
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.74, 48, 32), new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 0.55, roughness: 0.35 }))
   const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.9, 48, 32), new THREE.ShaderMaterial({ vertexShader: SMOKE_VS, fragmentShader: SMOKE_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     uniforms: { t: { value: 0 }, c1: { value: new THREE.Color('#c8ffd9') }, c2: { value: new THREE.Color('#3ddc84') }, speed: { value: 1 }, dens: { value: 0.9 } } }))
-  const glass = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), new THREE.MeshPhysicalMaterial({ color: '#ffffff', metalness: 0, roughness: 0.04, transmission: 0.92, thickness: 0.6, ior: 1.45,
-    clearcoat: 1, clearcoatRoughness: 0.03, transparent: true, opacity: 0.55, envMapIntensity: 1.6, specularIntensity: 1 }))
+  const glass = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), new THREE.MeshPhysicalMaterial({ color: '#ffffff', metalness: 0, roughness: 0.03,
+    clearcoat: 1, clearcoatRoughness: 0.02, transparent: true, opacity: 0.18, envMapIntensity: 2.2, specularIntensity: 1, depthWrite: false }))  // vidro fino: deixa ver o líquido, guarda os reflexos
   const halo = new THREE.Group()
   for (let i = 0; i < 3; i++) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(1.32 + i * 0.07, 0.022, 10, 96), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }))
@@ -86,8 +86,8 @@ function draw(now) {
     if (!o.st || now - o.at > 220) read(o)
     const s = o.st, fast = s.anim === 'turbilhao' ? 3 : s.anim === 'calmo' ? 0.45 : 1
     // o núcleo e o fumo com as cores do estilo/estado; pouca vida bate, muita vida incha, rebentada fica escura
-    r.core.material.color.copy(s.core).lerp(s.deep, 0.45); r.core.material.emissive.copy(s.deep).multiplyScalar(s.dead ? 0.1 : 0.6)
-    r.core.material.opacity = s.dead ? 0.35 : 0.85
+    r.core.material.color.copy(s.core).lerp(s.deep, 0.35); r.core.material.emissive.copy(s.core).lerp(s.deep, 0.5)
+    r.core.material.emissiveIntensity = s.dead ? 0.05 : s.mood || s.react ? 1.1 : 0.55
     const u = r.smoke.material.uniforms
     u.t.value = t + o.seed; u.c1.value.copy(s.s1); u.c2.value.copy(s.s2)
     u.speed.value = (s.mood ? 3.5 : s.low ? 2.2 : 1) * fast; u.dens.value = s.dead ? 0.15 : s.mood ? 1.4 : 0.9
@@ -97,7 +97,7 @@ function draw(now) {
     // a esfera roda devagar e balança com o movimento (vem da física: --slx/--sly na cópia que voa)
     const px = o.el._proxy, sl = px ? [parseFloat(px.style.getPropertyValue('--slx')) || 0, parseFloat(px.style.getPropertyValue('--sly')) || 0] : [0, 0]
     r.ball.rotation.set(sl[1] * 0.05, t * 0.25 * fast + o.seed, -sl[0] * 0.05)
-    r.glass.material.roughness = s.dead ? 0.35 : 0.04; r.glass.material.opacity = s.dead ? 0.8 : 0.55
+    r.glass.material.roughness = s.dead ? 0.35 : 0.03; r.glass.material.opacity = s.dead ? 0.7 : 0.18
     // o halo do deck: um anel por cor do deck (as cores dos custos), a rodar ao ritmo do estilo; brilha mais com reações
     const cols = s.cols.length ? s.cols : ['C']
     r.halo.children.forEach((ring, i) => {
