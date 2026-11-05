@@ -363,43 +363,63 @@ function Row({ perms, data, fx, att, cls, groupable, empty, quiet, who }) {  // 
 // ---------- vida (o número conta até ao valor novo; o anel pisca vermelho/verde) ----------
 // 1 000 000 = vida infinita: o ciclo (Heliod + Spike Feeder…) repetido de uma vez pelo atalho do Forge
 export const lifeTxt = n => (n >= 1e6 ? '∞' : n)
-// física da esfera: agarra-se com o rato ou o dedo e atira-se; desliza com inércia, bate nas bordas da mesa, abana as
-// cartas por onde passa e empurra os dados (evento «grim-orb»), deixa rasto e, uns segundos depois, volta ao sítio com
-// uma mola. Um clique sem arrastar continua a ser um clique (escolher o jogador como alvo). el._kick(vx, vy): um golpe
-// (dano, vida) empurra-a — as bolinhas e as linhas seguem a posição dela a cada frame.
+// física da esfera: agarra-se com o rato ou o dedo e atira-se; desliza com inércia, bate nas bordas da mesa (com som de
+// vidro), abana as cartas por onde passa e empurra os dados (evento «grim-orb»), deixa rasto e, uns segundos depois, volta
+// ao sítio com uma mola. Enquanto voa sai do plano da mesa (que no lado do adversário está inclinado em perspetiva): uma
+// cópia viva (el._proxy) vai numa camada por cima de tudo e anda no ecrã a sério — antes, a do adversário deformava-se e
+// andava «dentro» da mesa inclinada. Um clique sem arrastar continua a ser um clique (escolher o jogador como alvo).
+// el._kick(vx, vy): um golpe empurra-a; el._remoteTo(x, y): mesa online, outro jogador está a mexer-lhe.
 function useOrbPhysics(ref) {
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const S = { x: 0, y: 0, vx: 0, vy: 0, drag: null, raf: 0, t0: 0, last: 0 }, bumped = new WeakMap()
-    let trailN = 0
-    const scale = () => { const r = el.getBoundingClientRect(); return r.width / (el.offsetWidth || r.width) || 1 }
-    const center = () => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, r.width / 2] }
-    const apply = () => {
-      const k = scale(), on = !!(S.drag?.on || Math.abs(S.x) > 0.5 || Math.abs(S.y) > 0.5)
-      el.style.translate = on ? `${(S.x / k).toFixed(1)}px ${(S.y / k).toFixed(1)}px` : ''
-      el.classList.toggle('flying', on)
+    const S = { x: 0, y: 0, vx: 0, vy: 0, drag: null, raf: 0, t0: 0, last: 0, base: null, px: null }, bumped = new WeakMap()
+    let trailN = 0, bounceAt = 0
+    const host = () => document.fullscreenElement || document.webkitFullscreenElement || document.body
+    const cur = () => S.px || el
+    const center = () => { const r = cur().getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, r.width / 2] }
+    const lift = () => {  // descola da mesa: a cópia fica por cima de tudo, no mesmo sítio e tamanho do ecrã
+      if (S.px) return
+      const r = el.getBoundingClientRect(), k = r.width / (el.offsetWidth || r.width) || 1, px = el.cloneNode(true)
+      px.classList.add('orb-proxy'); px.removeAttribute('title')
+      Object.assign(px.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${el.offsetWidth}px`, height: `${el.offsetHeight}px`, margin: '0', transformOrigin: '0 0', transform: `scale(${k})`, visibility: 'visible' })
+      px.addEventListener('pointerdown', down)
+      host().append(px); el.style.visibility = 'hidden'; el._proxy = px; S.px = px
+    }
+    const land = () => { S.px?.remove(); S.px = null; el._proxy = null; el.style.visibility = '' }
+    const sync = () => {  // a cópia mostra o que a esfera verdadeira mostra (vida, estado, reação, estilo)
+      const px = S.px
+      if (!px) return
+      px.className = `${el.className} orb-proxy flying`
+      for (const a of ['mood', 'react', 't', 'a']) { if (el.dataset[a]) px.dataset[a] = el.dataset[a]; else delete px.dataset[a] }
+      const b = el.querySelector(':scope > b'), pb = px.querySelector(':scope > b')
+      if (b && pb && pb.textContent !== b.textContent) pb.textContent = b.textContent
+      px.style.translate = `${S.x.toFixed(1)}px ${S.y.toFixed(1)}px`
+      const sv = v => Math.max(-9, Math.min(9, -v / 120)).toFixed(1)  // o fumo lá dentro fica para trás (inércia do líquido)
+      px.style.setProperty('--slx', `${sv(S.vx)}px`); px.style.setProperty('--sly', `${sv(S.vy)}px`)
+      px.style.setProperty('--lift', Math.min(1, Math.hypot(S.x, S.y) / 120 + (S.drag?.on ? 0.6 : 0)).toFixed(2))
     }
     const low = () => el.classList.contains('low')  // pouca vida: pesada, a tremer e a pingar sangue
     const trail = () => {
       if (++trailN % (low() ? 3 : 2)) return
-      const [x, y, r] = center(), d = document.createElement('i'), host = document.fullscreenElement || document.body
+      const [x, y, r] = center(), d = document.createElement('i')
       d.className = low() ? 'orb-trail drip' : 'orb-trail'
       const sz = low() ? r * 0.45 : r * 1.5
       Object.assign(d.style, { left: `${x + (low() ? (Math.random() - 0.5) * r : 0)}px`, top: `${y + (low() ? r * 0.6 : 0)}px`, width: `${sz}px`, height: `${sz}px` })
       d.style.setProperty('--tc', getComputedStyle(el).getPropertyValue('--glow') || '#22c55e88')
-      host.append(d); setTimeout(() => d.remove(), 460)
+      host().append(d); setTimeout(() => d.remove(), 460)
     }
+    const clink = sp => { const now = performance.now(); if (sp > 160 && now - bounceAt > 120) { bounceAt = now; play('orbBounce', { amount: Math.min(1, sp / 1800) }) } }
     const collide = () => {
       const [x, y, r] = center(), box = el.closest('.fp-table, .board, .ml, .view')?.getBoundingClientRect()
-      if (box) {  // as bordas da mesa: ressalta (perde um pouco)
-        if ((x - r < box.left && S.vx < 0) || (x + r > box.right && S.vx > 0)) S.vx = -S.vx * 0.72
-        if ((y - r < box.top && S.vy < 0) || (y + r > box.bottom && S.vy > 0)) S.vy = -S.vy * 0.72
+      if (box) {  // as bordas da mesa: ressalta (perde um pouco) e o vidro tilinta
+        if ((x - r < box.left && S.vx < 0) || (x + r > box.right && S.vx > 0)) { clink(Math.abs(S.vx)); S.vx = -S.vx * 0.72 }
+        if ((y - r < box.top && S.vy < 0) || (y + r > box.bottom && S.vy > 0)) { clink(Math.abs(S.vy)); S.vy = -S.vy * 0.72 }
       }
       const pc = document.elementsFromPoint(x, y).slice(0, 8).map(e => e.closest?.('.pc')).find(Boolean)
       if (pc && performance.now() - (bumped.get(pc) || 0) > 600) {  // passou por cima de uma carta: ela abana e a esfera abranda
         bumped.set(pc, performance.now()); pc.classList.remove('orb-bump'); void pc.offsetWidth; pc.classList.add('orb-bump')
-        setTimeout(() => pc.classList.remove('orb-bump'), 650); S.vx *= 0.82; S.vy *= 0.82
+        setTimeout(() => pc.classList.remove('orb-bump'), 650); clink(Math.hypot(S.vx, S.vy) * 0.6); S.vx *= 0.82; S.vy *= 0.82
       }
     }
     const step = now => {
@@ -415,32 +435,39 @@ function useOrbPhysics(ref) {
         S.x += S.vx * dt; S.y += S.vy * dt
         collide()
         if (home && Math.hypot(S.x, S.y) < 0.6 && Math.hypot(S.vx, S.vy) < 10) {
-          S.x = S.y = S.vx = S.vy = 0; S.raf = 0; S.last = 0; apply()
+          S.x = S.y = S.vx = S.vy = 0; S.raf = 0; S.last = 0; land()
           dispatchEvent(new CustomEvent('grim-orb', { detail: { x: center()[0], y: center()[1], vx: 0, vy: 0, el } }))
           return
         }
       }
       if (Math.hypot(S.vx, S.vy) > (low() ? 40 : 140)) trail()
-      apply()
+      sync()
       const [x, y, r] = center()
       // local: fui eu que a agarrei/atirei (a mesa online só manda isso; a volta ao sítio e os golpes acontecem em todos os ecrãs)
       dispatchEvent(new CustomEvent('grim-orb', { detail: { x, y, r, vx: S.vx, vy: S.vy, el, remote: !!S.remote, held: !!S.drag?.on, local: !!S.drag?.on || (S.thrown > 0 && now - S.thrown < 1900) } }))
       S.raf = requestAnimationFrame(step)
     }
-    const run = () => { if (!S.raf) { S.last = 0; S.raf = requestAnimationFrame(step) } }
+    const run = () => { lift(); if (!S.raf) { S.last = 0; S.raf = requestAnimationFrame(step) } }
     el._kick = (vx, vy) => { if (S.drag?.on) return; S.vx += vx; S.vy += vy; S.t0 = performance.now(); run() }
-    // mesa online: o centro da esfera (no ecrã) para onde o outro jogador a levou
     el._remoteTo = (sx, sy) => {
       if (S.drag?.on) return
+      lift()
       const [cx, cy] = center()
       S.remote = { x: sx - (cx - S.x), y: sy - (cy - S.y), t: performance.now() }; S.thrown = 0; run()
     }
-    const down = e => { if (e.button > 0) return; S.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: S.x, oy: S.y, h: [[performance.now(), e.clientX, e.clientY]], on: false } }
+    function down(e) {
+      if (e.button > 0) return
+      e.preventDefault()  // não seleciona o texto da página ao agarrar
+      S.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: S.x, oy: S.y, h: [[performance.now(), e.clientX, e.clientY]], on: false }
+    }
     const move = e => {
       const d = S.drag
       if (!d || e.pointerId !== d.id) return
       const dx = e.clientX - d.sx, dy = e.clientY - d.sy, now = performance.now()
-      if (!d.on) { if (Math.hypot(dx, dy) < 7) return; d.on = true; try { el.setPointerCapture(e.pointerId) } catch { /* já largado */ } run() }
+      if (!d.on) {
+        if (Math.hypot(dx, dy) < 7) return
+        d.on = true; document.body.classList.add('orb-grab'); play('orbGrab'); run()
+      }
       e.preventDefault(); e.stopPropagation()
       const p = d.h[d.h.length - 1], k = Math.max(0.008, (now - p[0]) / 1000)
       S.vx = (e.clientX - p[1]) / k; S.vy = (e.clientY - p[2]) / k
@@ -450,8 +477,8 @@ function useOrbPhysics(ref) {
     const up = e => {
       const d = S.drag
       if (!d || e.pointerId !== d.id) return
-      S.drag = null
-      if (!d.on) return
+      S.drag = null; document.body.classList.remove('orb-grab')
+      if (!d.on) { if (S.px) S.px.dispatchEvent(new MouseEvent('click', { bubbles: true })); return }  // clicar na cópia a voar = clicar na esfera
       const a = d.h[0], b = d.h[d.h.length - 1], k = Math.max(0.016, (b[0] - a[0]) / 1000), m = low() ? 1100 : 3200, cap = v => Math.max(-m, Math.min(m, v))
       S.vx = d.h.length > 1 ? cap((b[1] - a[1]) / k) : 0; S.vy = d.h.length > 1 ? cap((b[2] - a[2]) / k) : 0
       S.t0 = performance.now(); el._dragged = S.t0; S.thrown = S.t0; run()
@@ -460,7 +487,8 @@ function useOrbPhysics(ref) {
     el.addEventListener('pointerdown', down); el.addEventListener('click', click, true)
     addEventListener('pointermove', move, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', up)
     return () => {
-      cancelAnimationFrame(S.raf); el.removeEventListener('pointerdown', down); el.removeEventListener('click', click, true)
+      cancelAnimationFrame(S.raf); land(); document.body.classList.remove('orb-grab')
+      el.removeEventListener('pointerdown', down); el.removeEventListener('click', click, true)
       removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up)
     }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -486,42 +514,62 @@ export function FsBtn({ className = '' }) {
   return <button type="button" className={`fs-mini ${className}`} onClick={go} title={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')} aria-label={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')}>{on ? '🗗' : '⛶'}</button>
 }
 
-// a esfera rebenta quando o jogador perde, à maneira da causa: dano = o vidro estoura com sangue; veneno = nuvem tóxica;
-// moer (biblioteca vazia) = desfaz-se em pó e folhas; outra derrota = implode para o vazio. Fica a casca rachada.
+// a esfera rebenta quando o jogador perde, à maneira da causa (dano = sangue, veneno = nuvem tóxica, moer = pó e folhas,
+// comandante = ouro, vitória alternativa do outro = engolida pela luz, «perdes o jogo» = implode, desistir = apaga-se,
+// empate = pedra). Antes disto a esfera «carrega» (rachas a crescer, a tremer, a brilhar: .orb.bursting); aqui é a
+// explosão: clarão, onda de choque, cacos de vidro irregulares a rodar em 3D, a nuvem do que tinha dentro e o número a cair.
+const BURST_COL = { dmg: ['#ff2a3a', '#7a0010'], psn: ['#a855f7', '#65a30d'], mill: ['#d6d3d1', '#78716c'], cmd: ['#f2b84b', '#8a5a00'], alt: ['#ffffff', '#fde68a'], lose: ['#1e1b4b', '#000000'] }
 function orbBurst(el, cause) {
   const r = el.getBoundingClientRect(), host = document.fullscreenElement || document.webkitFullscreenElement || document.body
   if (!r.width) return
-  const box = document.createElement('div'), bg = getComputedStyle(el).backgroundImage, cx = r.width / 2
+  const box = document.createElement('div'), bg = getComputedStyle(el).backgroundImage, R = r.width / 2, add = (cls, css = {}) => { const e = document.createElement('i'); e.className = cls; Object.assign(e.style, css); box.append(e); return e }
   box.className = `oburst ${cause}`
   Object.assign(box.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` })
-  if (cause === 'draw' || cause === 'concede') {  // empate: fica de pedra; desistir: apaga-se devagar com a bandeira branca
-    const f = document.createElement('i'); f.className = `oflash ${cause}`; box.append(f)
-    if (cause === 'concede') { const fl = document.createElement('b'); fl.className = 'oflag'; fl.textContent = '🏳'; box.append(fl) }
-    host.append(box); setTimeout(() => box.remove(), 2000); return
-  }
-  const N = cause === 'lose' || cause === 'alt' ? 0 : 12
-  for (let i = 0; i < N; i++) {  // fatias de vidro (do centro para fora)
-    const a0 = (i / N) * 2 * Math.PI, a1 = ((i + 1) / N) * 2 * Math.PI, pt = a => `${50 + 60 * Math.cos(a)}% ${50 + 60 * Math.sin(a)}%`
-    const sh = document.createElement('i'), am = (a0 + a1) / 2, sp = cause === 'mill' ? 25 : 70 + Math.random() * 60
-    sh.className = 'oshard'; sh.style.backgroundImage = bg; sh.style.clipPath = `polygon(50% 50%, ${pt(a0)}, ${pt(a1)})`
-    box.append(sh)
-    const vx = Math.cos(am) * sp, vy = Math.sin(am) * sp, g = cause === 'mill' ? 120 : 180
-    sh.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${vx * 0.5}px, ${vy * 0.5 + g * 0.25}px) rotate(${(Math.random() - 0.5) * 200}deg)`, opacity: 1, offset: 0.4 },
-      { transform: `translate(${vx}px, ${vy + g}px) rotate(${(Math.random() - 0.5) * 420}deg) scale(.6)`, opacity: 0 }], { duration: 900 + Math.random() * 300, easing: 'ease-out', fill: 'both' })
-  }
-  const P = { dmg: 18, psn: 14, mill: 16, cmd: 16, lose: 0, alt: 14 }[cause] ?? 10
-  for (let i = 0; i < P; i++) {  // sangue, fumo tóxico, folhas/pó
-    const d = document.createElement('i'), a = Math.random() * 2 * Math.PI, sp = 40 + Math.random() * 90
-    d.className = `opart ${cause}`
-    Object.assign(d.style, { left: `${cx}px`, top: `${cx}px` })
-    box.append(d)
-    const fall = cause === 'dmg' ? 120 : cause === 'mill' ? 90 : cause === 'cmd' ? 60 : cause === 'alt' ? -90 : -40
-    d.animate([{ transform: 'translate(-50%, -50%) scale(.5)', opacity: 1 }, { transform: `translate(calc(-50% + ${Math.cos(a) * sp}px), calc(-50% + ${Math.sin(a) * sp + fall}px)) scale(${cause === 'psn' ? 3 : 1}) rotate(${cause === 'mill' ? (Math.random() - 0.5) * 540 : 0}deg)`, opacity: 0 }],
-      { duration: 900 + Math.random() * 700, delay: Math.random() * 120, easing: 'cubic-bezier(.2, .6, .4, 1)', fill: 'both' })
-  }
-  const flash = document.createElement('i'); flash.className = `oflash ${cause}`; box.append(flash)
   host.append(box)
-  setTimeout(() => box.remove(), 2000)
+  setTimeout(() => box.remove(), 2600)
+  if (cause === 'draw' || cause === 'concede') {  // empate: fica de pedra; desistir: apaga-se devagar com a bandeira branca
+    add(`oflash ${cause}`)
+    if (cause === 'concede') add('oflag').textContent = '🏳'
+    return
+  }
+  const [c1, c2] = BURST_COL[cause] || BURST_COL.dmg
+  box.style.setProperty('--c1', c1); box.style.setProperty('--c2', c2)
+  add(`oflash ${cause}`)
+  add('oring'); add('oring o2')  // onda de choque (duas)
+  if (cause === 'lose' || cause === 'alt') { add(`oflash ${cause} big`); return }  // implode / engolida pela luz: sem cacos
+  // a nuvem do que estava lá dentro
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * 2 * Math.PI + Math.random(), d = R * (0.6 + Math.random() * 0.8)
+    const p = add('ocloud', { left: `${R}px`, top: `${R}px` })
+    p.animate([{ transform: 'translate(-50%, -50%) scale(.3)', opacity: 0.9 }, { transform: `translate(calc(-50% + ${Math.cos(a) * d}px), calc(-50% + ${Math.sin(a) * d - (cause === 'psn' ? 30 : 0)}px)) scale(${2.2 + Math.random()})`, opacity: 0 }],
+      { duration: 1100 + Math.random() * 600, easing: 'cubic-bezier(.1, .7, .3, 1)', fill: 'both' })
+  }
+  // cacos de vidro: o círculo cortado em fatias irregulares (ângulos ao acaso e um ponto de dentro deslocado)
+  const N = 16, cuts = Array.from({ length: N }, (_, i) => (i + 0.2 + Math.random() * 0.6) / N * 2 * Math.PI)
+  for (let i = 0; i < N; i++) {
+    const a0 = cuts[i], a1 = cuts[(i + 1) % N] + (i === N - 1 ? 2 * Math.PI : 0), am = (a0 + a1) / 2, rim = 50 + 4
+    const ins = 6 + Math.random() * 22, ix = 50 + Math.cos(am) * ins, iy = 50 + Math.sin(am) * ins
+    const pt = (a, k = rim) => `${(50 + k * Math.cos(a)).toFixed(1)}% ${(50 + k * Math.sin(a)).toFixed(1)}%`
+    const sh = add('oshard', { backgroundImage: `linear-gradient(${Math.round(am * 57)}deg, #ffffff88, transparent 45%), ${bg}`, clipPath: `polygon(${ix.toFixed(1)}% ${iy.toFixed(1)}%, ${pt(a0)}, ${pt(am, rim + 3)}, ${pt(a1)})` })
+    const sp = cause === 'mill' ? 30 + Math.random() * 30 : 90 + Math.random() * 110, g = cause === 'mill' ? 140 : 230 + Math.random() * 120
+    const vx = Math.cos(am) * sp, vy = Math.sin(am) * sp - 40, rx = (Math.random() - 0.5) * 720, ry = (Math.random() - 0.5) * 720, rz = (Math.random() - 0.5) * 360
+    const at = k => `translate3d(${(vx * k).toFixed(1)}px, ${(vy * k + g * k * k).toFixed(1)}px, ${(40 * k).toFixed(1)}px) rotateX(${(rx * k).toFixed(0)}deg) rotateY(${(ry * k).toFixed(0)}deg) rotateZ(${(rz * k).toFixed(0)}deg)`
+    sh.animate([{ transform: 'none', opacity: 1 }, { transform: at(0.3), opacity: 1, offset: 0.25 }, { transform: at(0.65), opacity: 0.9, offset: 0.6 }, { transform: at(1), opacity: 0 }],
+      { duration: 1300 + Math.random() * 500, easing: 'linear', fill: 'both' })
+  }
+  // o número da vida cai (e roda)
+  const n = el.querySelector(':scope > b')?.textContent
+  if (n != null) {
+    const b = document.createElement('b'); b.className = 'onum'; b.textContent = n; box.append(b)
+    b.animate([{ transform: 'translate(-50%, -50%)', opacity: 1 }, { transform: `translate(-50%, ${R * 3}px) rotate(${(Math.random() - 0.5) * 120}deg)`, opacity: 0 }], { duration: 1400, easing: 'cubic-bezier(.5, 0, .9, .5)', fill: 'both' })
+  }
+  const P = { dmg: 22, psn: 16, mill: 18, cmd: 18 }[cause] ?? 10
+  for (let i = 0; i < P; i++) {  // sangue, fumo tóxico, folhas/pó, ouro
+    const a = Math.random() * 2 * Math.PI, sp = 50 + Math.random() * 120, d = add(`opart ${cause}`, { left: `${R}px`, top: `${R}px` })
+    const fall = cause === 'dmg' ? 160 : cause === 'mill' ? 110 : cause === 'cmd' ? 80 : -50
+    d.animate([{ transform: 'translate(-50%, -50%) scale(.5)', opacity: 1 }, { transform: `translate(calc(-50% + ${Math.cos(a) * sp}px), calc(-50% + ${Math.sin(a) * sp + fall}px)) scale(${cause === 'psn' ? 3 : 1}) rotate(${cause === 'mill' ? (Math.random() - 0.5) * 540 : 0}deg)`, opacity: 0 }],
+      { duration: 1000 + Math.random() * 800, delay: Math.random() * 120, easing: 'cubic-bezier(.2, .6, .4, 1)', fill: 'both' })
+  }
 }
 
 // como acabou um jogo entre bots (o «reason» do Forge) → a causa da derrota de cada lado (orbBurst):
@@ -588,13 +636,16 @@ export function OrbPick({ onChange }) {
 }
 
 function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look, dead = null }) {  // dead: a causa da derrota (endOut/ORB_DEATH: dmg, psn, mill, cmd, alt, lose, concede, draw)  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
-  const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null), [broken, setBroken] = useState(!!dead)
+  const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null), [broken, setBroken] = useState(!!dead), [charging, setCharging] = useState(false)
   useOrbPhysics(orbRef)
   useEffect(() => {  // perdeu: uns instantes depois a esfera rebenta (à maneira da causa) e fica a casca
     if (!dead) { setBroken(false); return }
     if (fast || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setBroken(true); return }
-    const t = setTimeout(() => { try { orbBurst(orbRef.current, dead) } catch (e) { console.warn('orbBurst', e) } setBroken(true) }, 420)
-    return () => clearTimeout(t)
+    play(dead === 'draw' ? 'orbStone' : 'orbBurst')
+    const calm = dead === 'draw' || dead === 'concede'
+    setCharging(!calm)  // antes de rebentar: rachas a crescer, a tremer e a brilhar
+    const t = setTimeout(() => { setCharging(false); try { orbBurst(orbRef.current?._proxy || orbRef.current, dead) } catch (e) { console.warn('orbBurst', e) } setBroken(true) }, calm ? 200 : 750)
+    return () => { clearTimeout(t); setCharging(false) }
   }, [dead])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (fast) return
@@ -621,7 +672,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
   }, [life, fast])
   const low = life <= Math.max(5, Math.round(start / 4))
   return (
-    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''}`} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''}`} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
       <b ref={ref}>{lifeTxt(life)}</b><small>{tx('vida')}</small>
       {dmg > 0 && <i className="orb-dmg" title={tx('Dano que levou neste combate: {n}', { n: dmg })}>−{dmg}</i>}
@@ -685,7 +736,7 @@ export function StackLinks({ s, data }) {
           const tos = [...(x.tc || []).map(k => root.querySelector(`.pc[data-z="k:${k}"]`) || root.querySelector(`.stk[data-si]:not([data-si="${j}"])`)),
             ...(x.tp || []).map(k => root.querySelector(`.bside.p-${k} .orb`)),
             ...(!x.tc?.length && !x.tp?.length && x.target ? [/^[a-d]$/.test(x.target) ? root.querySelector(`.bside.p-${x.target} .orb`) : byName(x.target)] : [])]
-          tos.forEach((e, i) => { const to = pt(e?.getBoundingClientRect()); if (to) out.push({ k: `${j}-${i}`, col, xy: [...from, ...to], top: j === items.length - 1 }) })
+          tos.forEach((e, i) => { const to = pt((e?._proxy || e)?.getBoundingClientRect()); if (to) out.push({ k: `${j}-${i}`, col, xy: [...from, ...to], top: j === items.length - 1 }) })
         })
         setLs(out)
       } catch (e) { console.warn('StackLinks', e) }
@@ -776,7 +827,7 @@ export function DamageFx({ hits, data }) {
   }, [hits])  // eslint-disable-line react-hooks/exhaustive-deps
   function fire(root) {
     const r = root.getBoundingClientRect(), sc = r.width / (root.offsetWidth || r.width) || 1
-    const at = el => { const q = el?.getBoundingClientRect(); return q?.width ? [(q.left + q.width / 2 - r.left) / sc + root.scrollLeft, (q.top + q.height / 2 - r.top) / sc + root.scrollTop] : null }
+    const at = el => { const q = (el?._proxy || el)?.getBoundingClientRect(); return q?.width ? [(q.left + q.width / 2 - r.left) / sc + root.scrollLeft, (q.top + q.height / 2 - r.top) / sc + root.scrollTop] : null }
     const mid = [root.clientWidth / 2 + root.scrollLeft, root.clientHeight / 2 + root.scrollTop]
     const stk = name => root.querySelector(name ? `.stk[data-z="n:${CSS.escape(name)}"]` : '.stackfx') || root.querySelector('.stackfx')
     const elOf = t => (t?.card != null ? root.querySelector(`.pc[data-z="k:${t.card}"]`) : t?.side ? root.querySelector(`.bside.p-${t.side} .orb`) : t?.stack ? stk(t.name) : null)
@@ -809,6 +860,7 @@ export function DamageFx({ hits, data }) {
           const kw = kind === 'gain' ? 'gain' : kind === 'psn' ? 'infect' : zap ? 'zap' : ORB_KW.find(([, re]) => re.test(o))?.[0] || (kind === 'spl' ? 'fire' : 'hit')
           const orb = elOf(h.to), at2 = at(orb) || b, L = Math.hypot(at2[0] - a[0], at2[1] - a[1]) || 1
           orbReact(orb, kw)
+          play(kind === 'gain' ? 'orbGain' : kind === 'psn' ? 'orbPoison' : 'orbHit', { amount: h.n })  // o vidro da esfera soa
           // o golpe empurra a esfera na direção em que veio (a vida ganha faz só um saltinho para cima)
           const f = kind === 'gain' ? 0 : Math.min(900, 220 + 60 * h.n)
           orb?._kick?.(((at2[0] - a[0]) / L) * f, kind === 'gain' ? -260 : ((at2[1] - a[1]) / L) * f)
@@ -911,9 +963,10 @@ function shatter(el, creature) {
     if (src) pc.style.backgroundImage = `url("${src}")`
     box.append(pc)
     const vx = (cx - 50) * (1.6 + Math.random()) + (Math.random() - 0.5) * 30, vy = (cy - 40) * 1.2 - 60 - Math.random() * 40, g = 260 + Math.random() * 80, spin = (Math.random() - 0.5) * 420
-    const at = k => `translate(${(vx * k).toFixed(1)}px, ${(vy * k + g * k * k).toFixed(1)}px) rotate(${(spin * k).toFixed(0)}deg)`
+    const rx = (Math.random() - 0.5) * 540, ry = (Math.random() - 0.5) * 540
+    const at = k => `translate3d(${(vx * k).toFixed(1)}px, ${(vy * k + g * k * k).toFixed(1)}px, ${(30 * k).toFixed(0)}px) rotateX(${(rx * k).toFixed(0)}deg) rotateY(${(ry * k).toFixed(0)}deg) rotateZ(${(spin * k).toFixed(0)}deg)`
     pc.animate([{ transform: 'none', opacity: 1 }, { transform: at(0.35), opacity: 1, offset: 0.3 }, { transform: at(0.7), opacity: 0.85, offset: 0.65 }, { transform: at(1), opacity: 0 }],
-      { duration: 1050 + Math.random() * 350, delay: 140, easing: 'linear', fill: 'both' })
+      { duration: 1250 + Math.random() * 450, delay: 300, easing: 'linear', fill: 'both' })
   }
   if (creature) {  // a alma sobe
     const s = document.createElement('i'); s.className = 'zsoul'; box.append(s)
@@ -925,9 +978,10 @@ function shatter(el, creature) {
     d.animate([{ transform: 'translate(0, 0) scale(.6)', opacity: 0.9 }, { transform: `translate(${(Math.random() - 0.5) * 70}px, ${-20 - Math.random() * 40}px) scale(1.6)`, opacity: 0 }],
       { duration: 800 + Math.random() * 500, delay: 120 + Math.random() * 150, easing: 'ease-out', fill: 'both' })
   }
-  host.append(box)
-  el.style.visibility = 'hidden'
-  setTimeout(() => box.remove(), 1700)
+  box.style.visibility = 'hidden'; host.append(box)
+  el.classList.add('pre-shatter')  // um instante a tremer e a avermelhar, depois desfaz-se
+  setTimeout(() => { el.style.visibility = 'hidden'; box.style.visibility = '' }, 170)
+  setTimeout(() => box.remove(), 2000)
 }
 // exilada: faíscas brancas a subir enquanto ela se desfaz em luz (o CSS faz o resto)
 function sparkle(el) {

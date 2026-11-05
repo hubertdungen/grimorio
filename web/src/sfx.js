@@ -157,6 +157,20 @@ const R = {
   dice: (c, out, t, o) => { const n = Math.min(o.amount || 1, 8); for (let i = 0; i < 6 + n * 2; i++) noise(c, out, t + i * 0.028 + Math.random() * 0.012, { f: 2200 + Math.random() * 1800, q: 4, dur: 0.03, a: 0.001, g: 0.05 }); thud(c, out, t, 0.06, 140, 0.12); return 0.25 + n * 0.05 },
   diceHit: (c, out, t, o) => (noise(c, out, t, { f: 2600 + Math.random() * 1400, q: 5, dur: 0.035, a: 0.001, g: 0.03 + 0.06 * Math.min(o.amount ?? 1, 1) }), thud(c, out, t, 0.04 * Math.min(o.amount ?? 1, 1), 160, 0.08), 0.06),
   coin: (c, out, t) => (tone(c, out, t, { type: 'triangle', f: 2350, f2: 2300, dur: 0.7, a: 0.002, g: 0.05 }), tone(c, out, t, { type: 'sine', f: 3520, dur: 0.45, a: 0.002, g: 0.03 }), 0.7),
+  // a esfera da vida (vidro): agarrar, bater nas bordas/cartas, golpes, vida, veneno, rebentar
+  orbGrab: (c, out, t) => (whoosh(c, out, t, 300, 1200, 0.14, 0.035), tone(c, out, t, { type: 'sine', f: 1180, f2: 1250, dur: 0.18, a: 0.004, g: 0.02 }), 0.18),
+  orbBounce: (c, out, t, o) => { const k = Math.min(1, o.amount ?? 0.5); clank(c, out, t, 0.025 + 0.05 * k, [2600, 4100, 5900]); thud(c, out, t, 0.04 * k, 180, 0.08); return 0.16 },
+  orbHit: (c, out, t, o) => { const k = Math.min(1, (o.amount ?? 3) / 8); thud(c, out, t, 0.1 + 0.12 * k, 85 - 25 * k, 0.25 + 0.2 * k); clank(c, out, t + 0.01, 0.04 + 0.05 * k, [1900, 3100, 4700]); noise(c, out, t, { type: 'lowpass', f: 900, f2: 200, dur: 0.3, a: 0.003, g: 0.05 * k }); return 0.35 },
+  orbGain: (c, out, t) => (magic(c, out, t, 'W', 0.03, 0.5), tone(c, out, t + 0.05, { type: 'sine', f: 1568, f2: 2093, dur: 0.4, a: 0.01, g: 0.025 }), 0.5),
+  orbPoison: (c, out, t) => { [0, 0.07, 0.15, 0.22].forEach((d, i) => tone(c, out, t + d, { type: 'sine', f: 300 + i * 70, f2: 520 + i * 90, dur: 0.09, a: 0.005, g: 0.05 })); return 0.32 },
+  orbBurst: (c, out, t, o) => {  // o vidro estoura: rachar, estalar e os cacos a cair
+    ticks(c, out, t, 5, 0.06, { f: 2600, q: 3, dur: 0.03, g: 0.04 })
+    noise(c, out, t + 0.32, { type: 'highpass', f: 2500, f2: 9000, dur: 0.5, a: 0.002, g: 0.16 })
+    thud(c, out, t + 0.32, 0.22, o.side === 'a' ? 60 : 70, 0.5)
+    ticks(c, out, t + 0.45, 12, 0.045, { f: 4200, q: 6, dur: 0.03, g: 0.05 })
+    return 1.1
+  },
+  orbStone: (c, out, t) => (thud(c, out, t, 0.14, 55, 0.6), noise(c, out, t, { type: 'lowpass', f: 600, f2: 120, dur: 0.6, a: 0.01, g: 0.06 }), 0.6),
   tick: (c, out, t, o) => (noise(c, out, t, { f: (o.amount ?? 1) >= 0 ? 3400 : 1900, q: 7, dur: 0.03, a: 0.001, g: 0.05 }), 0.04),
   champion: (c, out, t) => {
     brass(c, out, t, [60, 67], 0.18, 0.04); brass(c, out, t + 0.15, [60, 67], 0.18, 0.04); brass(c, out, t + 0.3, [64, 72], 0.18, 0.04)
