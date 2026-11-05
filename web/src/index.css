@@ -3666,3 +3666,28 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 
 /* o estilo do golpe numa criatura: do tamanho da carta (na esfera é 1.7×) */
 .atkfx.on-card { transform: translate(-50%, -50%) scale(.85); }
+
+/* palavras-chave em ação (Perm: .pc-kfx) */
+.pc-kfx { position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: 6px; }
+.pc.kw-haste .pc-kfx { box-shadow: 0 0 12px 3px #ffb02ecc; background: repeating-linear-gradient(90deg, transparent 0 7px, #ffd27a 7px 9px, transparent 9px 15px) 0 0 / 100% 100%;
+  -webkit-mask: linear-gradient(transparent 45%, #000c); mask: linear-gradient(transparent 45%, #000c); animation: hastetrail .3s linear infinite; }
+.bside.top .pc.kw-haste .pc-kfx { -webkit-mask: linear-gradient(#000c, transparent 55%); mask: linear-gradient(#000c, transparent 55%); }
+@keyframes hastetrail { from { background-position: 0 0; } to { background-position: 15px 0; } }
+.pc.kw-reach .pc-kfx { box-shadow: 0 0 0 2px #3f8f3a, 0 0 12px #4ade80aa; }
+.pc.kw-reach .pc-kfx::after { content: '🌿'; position: absolute; left: 50%; top: -12px; font-size: 15px; transform: translateX(-50%); animation: reachgrow 1.4s ease-in-out infinite alternate; }
+@keyframes reachgrow { from { transform: translateX(-50%) translateY(4px) scale(.8); } to { transform: translateX(-50%) translateY(-4px) scale(1.15); } }
+.pc.kw-indes .pc-kfx { background: linear-gradient(110deg, transparent 30%, #fff3c499 45%, #f2b84bcc 50%, #fff3c499 55%, transparent 70%) -150% 0 / 250% 100% no-repeat; box-shadow: inset 0 0 0 2px #f2b84b, 0 0 14px #f2b84b;
+  animation: indes 1s ease-out 2; }
+.pc.kw-indes .pc-kfx::after { content: '🛡'; position: absolute; left: 50%; top: 50%; font-size: 26px; transform: translate(-50%, -50%); animation: indesshield 1.2s ease-out both; }
+@keyframes indes { to { background-position: 150% 0; } }
+@keyframes indesshield { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2); } 30% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; } }
+.pc.kw-dt .pc-kfx { box-shadow: 0 0 10px 2px #14532dcc, inset 0 0 14px #052e16; animation: dtpulse 1.6s ease-in-out infinite; }
+@keyframes dtpulse { 50% { box-shadow: 0 0 16px 4px #22c55e88, inset 0 0 18px #052e16; } }
+.bside.lone-atk .pc.kw-exalted .pc-kfx { box-shadow: 0 0 14px 3px #fde68a; animation: exalt 1.2s ease-in-out infinite; }
+.bside.lone-atk .pc.kw-exalted .pc-kfx::after { content: '✦'; position: absolute; left: 50%; top: 0; color: #fff7d6; font-size: 16px; text-shadow: 0 0 8px #f2b84b; animation: exaltup 1.2s ease-out infinite; }
+@keyframes exalt { 50% { box-shadow: 0 0 22px 6px #fde68aaa; } }
+@keyframes exaltup { from { transform: translate(-50%, 20px); opacity: 1; } to { transform: translate(-50%, -22px); opacity: 0; } }
+.dtmark { position: fixed; z-index: 2147482600; transform: translate(-50%, -50%); font-size: 30px; color: #bbf7d0; text-shadow: 0 0 10px #16a34a, 0 0 2px #000; pointer-events: none; animation: dtstamp 1.4s ease-out both; }
+@keyframes dtstamp { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.4) rotate(-20deg); } 20% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -70%); } }
+.board.quiet .pc-kfx, .board.quiet .pc-kfx::after { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .pc-kfx, .pc-kfx::after, .dtmark { animation: none !important; } }

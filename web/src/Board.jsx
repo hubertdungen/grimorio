@@ -259,11 +259,17 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
   const kws = kwsOf(c, p)
   const back = backUp(c, p), upside = back && !c?.df && !p.hidden  // carta flip (Kamigawa): a mesma imagem, rodada 180°
   const ctr = Object.entries(p.counters || {}).filter(([k]) => k !== 'loyalty' && k !== 'defense')
-  const cls = ['pc', p.dmgIn > 0 && 'hurt', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', typeof p.dying === 'string' && `to-${p.dying}`, p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', p.phased && 'phased', p.faceDown && 'down', enter && 'in'].filter(Boolean).join(' ')
+  // palavras-chave em ação: pressa a atacar (rasto de velocidade), alcance a bloquear (ramos), indestrutível ferida
+  // (escudo dourado), toque mortal no combate (aura negra-esverdeada), exaltar quando uma criatura ataca sozinha (.bside.lone-atk)
+  const akw = new Set([...(c?.kw || []), ...(p.kw || [])])
+  const kfx = creature && [akw.has('Haste') && p.attacking && 'kw-haste', akw.has('Reach') && p.blocking && 'kw-reach', akw.has('Indestructible') && p.dmgIn > 0 && 'kw-indes',
+    akw.has('Deathtouch') && (p.attacking || p.blocking) && 'kw-dt', akw.has('Exalted') && 'kw-exalted'].filter(Boolean).join(' ')
+  const cls = ['pc', kfx, p.dmgIn > 0 && 'hurt', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', typeof p.dying === 'string' && `to-${p.dying}`, p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', p.phased && 'phased', p.faceDown && 'down', enter && 'in'].filter(Boolean).join(' ')
   const title = [short(p.face || p.name), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase (phasing): não conta como estando em jogo'), p.copy && tx('cópia'), p.merged?.length > 1 && tx('mutada: {x}', { x: p.merged.map(short).join(' + ') }), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.moon && tx('Blood Moon: é uma Montanha e só dá mana vermelha'), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
   tgt = tgt || (p.atkName ? ['x', short(p.atkName)] : null)  // ataca um planeswalker ou uma batalha
   return (
     <div className={cls} data-z={`k:${p.key}`} title={title} style={p.pair ? { '--pair': PAIR[(p.pair - 1) % PAIR.length] } : undefined}>
+      {kfx && <i className="pc-kfx" aria-hidden="true" />}
       {p.dmgOut > 0 && <span className="pc-dmgout" title={tx('Dano que fez neste combate: {n}', { n: p.dmgOut })}>⚔ {p.dmgOut}{p.trample > 0 && <em title={tx('Passou {n} com atropelar', { n: p.trample })}> ↠{p.trample}</em>}</span>}
       {p.dmgIn > 0 && <span className="pc-dmgin" title={tx('Dano que levou neste combate: {n}', { n: p.dmgIn })}>✕ {p.dmgIn}</span>}
       {p.pair && <span className="pc-pair" title={p.attacking ? tx('Atacante {n}: bloqueado pelos que têm 🛡 {n}', { n: p.pair }) : tx('Bloqueia o atacante ⚔ {n}', { n: p.pair })}>{p.attacking ? '⚔' : '🛡'} {p.pair}</span>}
@@ -958,6 +964,7 @@ export function DamageFx({ hits, data }) {
             const o = (data && nm && lookup(data, nm)?.o) || '', kw = zap ? 'zap' : ORB_KW.find(([, re]) => re.test(o))?.[0] || (kind === 'spl' ? 'fire' : 'hit')
             const seed = `${h.key}|${nm}|${h.n}|c`, st = attackStyle(nm && lookup(data, nm), kind, kw, seed), ce = elOf(h.to)
             if (st && ce) attackFx(ce, st, b[0] - a[0], b[1] - a[1], seed, true)
+            if (/\bDeathtouch\b/.test(o)) { const m = document.createElement('i'); m.className = 'dtmark'; m.textContent = '☠'; Object.assign(m.style, { left: `${b[0]}px`, top: `${b[1]}px` }); box.append(m); setTimeout(() => m.remove(), 1500) }
           }
         }
         else {  // a esfera reage a quem bateu (palavra-chave; feitiço = fogo; relâmpago = raio; vida = luz; veneno = fumo roxo)
@@ -1251,7 +1258,7 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
   const { arts } = useContext(Arts), art = useMemo(() => ({ arts, k }), [arts, k])
   useEffect(() => { const t = Date.now(); for (const p of z.perms) seenAt.set(p.key, t) })
   return (
-    <Arts.Provider value={art}><div className={`bside ${top ? 'top' : 'bottom'} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`} data-mat={mat || undefined}>
+    <Arts.Provider value={art}><div className={`bside ${top ? 'top' : 'bottom'} ${z.perms.filter(p => p.attacking).length === 1 ? 'lone-atk' : ''} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`} data-mat={mat || undefined}>
       {top ? <>{hud}{back}{front}</> : <>{front}{back}{hud}</>}
       {loose.length > 0 && <div className="bfree">{loose.map(p => (
         <div key={p.key} className={`bfree-c ${isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'}`} style={{ left: `clamp(calc(var(--w) * .5), ${free[p.key].x * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${free[p.key].y * 100}%, calc(100% - var(--w) * .7))` }}>
