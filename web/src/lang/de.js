@@ -3795,4 +3795,5 @@ export default {
   "Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)": "Vollbild — Umschalt+F (beenden: diese Taste, Umschalt+F oder Esc)",
   "ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.": "Vollbild (in der Tischecke oder der unteren Leiste; Kürzel Umschalt+F) und Drehen des Tisches auf Handy/Tablet.",
   "Esfera em 3D (desligado: a clássica)": "3D-Kugel (aus: die klassische)",
+  "Tamanho das esferas": "Größe der Kugeln",
 }

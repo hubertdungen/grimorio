@@ -9,6 +9,7 @@ import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { attackStyle, attackFx } from './orbfx.js'
+import { leaveGhost } from './tablekit.js'
 import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
 import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
@@ -644,6 +645,9 @@ export function orbLook(k, z, data, ctx, name) {
 }
 export const ORB_T_NAME = { verde: tx('Floresta'), oceano: tx('Oceano'), brasa: tx('Brasa'), vazio: tx('Vazio'), ouro: tx('Ouro'), gelo: tx('Gelo'), prisma: tx('Prisma'), tempestade: tx('Tempestade'), sangue: tx('Sangue') }
 export const ORB_A_NAME = { calmo: tx('Calmo'), turbilhao: tx('Turbilhão'), pulsar: tx('Pulsar'), faiscas: tx('Faíscas') }
+// o tamanho das esferas (Definições › padrão da mesa): uma variável no documento, as esferas usam-na (zoom no CSS)
+const orbScale = v => { try { document.documentElement.style.setProperty('--orbk', String(v)) } catch { /* sem documento */ } }
+orbScale(fpPrefs().orbScale)
 // escolher a minha esfera (estilo e animação) e a dos bots; onChange avisa a mesa (online: os outros veem a minha)
 export function OrbPick({ onChange }) {
   const [p, setP] = useState(() => fpPrefs())
@@ -655,6 +659,8 @@ export function OrbPick({ onChange }) {
           onClick={() => save({ orb: { ...p.orb, t } })}><span className="orb" data-t={t === 'auto' ? undefined : t} data-a={p.orb.a === 'auto' ? undefined : p.orb.a}><span className="orb-in"><i className="orb-smoke" /><i className="orb-smoke s2" /></span>{t === 'auto' ? <b>A</b> : null}</span></button>)}
       </div>
       <label className="chk small"><input type="checkbox" checked={p.orb3d} onChange={e => save({ orb3d: e.target.checked })} /> {tx('Esfera em 3D (desligado: a clássica)')}</label>
+      <label className="small orbsize">{tx('Tamanho das esferas')} <b>{Math.round(p.orbScale * 100)}%</b>
+        <input type="range" min={80} max={160} step={5} value={Math.round(p.orbScale * 100)} onChange={e => { const v = +e.target.value / 100; orbScale(v); save({ orbScale: v }) }} /></label>
       <label className="small">{tx('Animação')} <select value={p.orb.a} onChange={e => save({ orb: { ...p.orb, a: e.target.value } })}>
         <option value="auto">{tx('Pelo estilo do deck')}</option>{ORB_A.map(a => <option key={a} value={a}>{ORB_A_NAME[a]}</option>)}</select></label>
       <label className="small">{tx('Esfera dos bots')} <select value={p.botOrb} onChange={e => save({ botOrb: e.target.value })}>
@@ -1056,6 +1062,10 @@ function shatter(el, creature) {
   setTimeout(() => { el.style.visibility = 'hidden'; box.style.visibility = '' }, 170)
   setTimeout(() => box.remove(), 2000)
 }
+function ghostOut(el, to) {  // ver leaveGhost
+  leaveGhost((el.querySelector('.pc-rot') || el).getBoundingClientRect(), el.querySelector('.pc-f img')?.src, el.classList.contains('tapped'), to)
+  el.style.visibility = 'hidden'
+}
 // exilada: faíscas brancas a subir enquanto ela se desfaz em luz (o CSS faz o resto)
 function sparkle(el) {
   const r = el.getBoundingClientRect(), host = fxHost()
@@ -1090,7 +1100,8 @@ export function ZoneFx({ s, data, quiet }) {
         if (calm) continue
         const el = document.querySelector(`.bside.p-${k} .pc[data-z="k:${CSS.escape(String(perm.key))}"]`)
         if (el && to === 'graveyard') shatter(el, isCreature(data, perm))
-        else if (el && to === 'exile') sparkle(el)
+        else if (el && to === 'exile') { ghostOut(el, 'exile'); sparkle(el) }
+        else if (el && (to === 'hand' || to === 'library')) ghostOut(el, to)
       }
       if (seen.current.size > 600) seen.current = new Set([...seen.current].slice(-300))
       if (calm) return

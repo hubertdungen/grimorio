@@ -3622,3 +3622,13 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 /* as cartas a sair do campo (mão, exílio, cemitério) passam por cima das outras enquanto animam */
 .pc.dying { position: relative; z-index: 30; }
 @media (prefers-reduced-motion: reduce) { .counterfx .cw, .counterfx .cs { display: none; } .counterfx b { animation-duration: .01s; } }
+
+/* o tamanho das esferas escolhido (80–160 %): o zoom mexe também no lugar que ocupam (o nome ao lado não fica tapado) */
+.bhud > .orb:not(.orb-proxy) { zoom: var(--orbk, 1); }
+.orbsize { display: flex; align-items: center; gap: 8px; } .orbsize input { flex: 1; }
+
+/* a cópia da carta que sai (exílio / mão / biblioteca): anima até ao fim mesmo que a carta da mesa já tenha saído */
+.zghost { position: fixed; z-index: 2147481200; pointer-events: none; border-radius: 6px; background: #2a2140 center / 100% 100%; box-shadow: 0 6px 16px #000a; }
+.zghost.to-exile { animation: exileout .95s ease-in forwards; }
+.zghost.to-hand, .zghost.to-library { animation: bounceout .8s cubic-bezier(.5, 0, .8, .4) forwards; }
+.zghost.to-graveyard { animation: shatter .9s ease-in forwards; filter: none; }

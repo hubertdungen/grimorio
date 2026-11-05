@@ -226,11 +226,19 @@ export function useFlip(box, seq, lay) {
 // at(): Map id -> {z, src (seletor do sítio onde a zona se vê), fly (o sítio novo é seguido pelo useFlip)}. Corre antes
 // do useFlip (chamar este primeiro).
 export function useZoneFlights(box, seq, at) {
-  const prev = useRef(new Map())
+  const prev = useRef(new Map()), seen = useRef(new Map())
   useLayoutEffect(() => {
-    const now = at(), pv = prev.current
+    const now = at(), pv = prev.current, was = seen.current
     prev.current = now
-    if (!pv.size || !box.current) return
+    if (!box.current) return
+    // cartas que saíram do campo: a cópia faz a saída onde ela estava (o React já a tirou da mesa)
+    // ponytail: o retângulo é o do último estado; se a janela mudou de tamanho entretanto, a cópia nasce um pouco ao lado
+    for (const [id, o] of pv) if (o.z === 'battlefield' && now.get(id)?.z !== 'battlefield' && was.has(id)) { const g = was.get(id); leaveGhost(g.r, g.src, g.tapped, now.get(id)?.z || 'library') }
+    seen.current = new Map([...box.current.querySelectorAll('.pc[data-z^="k:"]')].filter(e => e.offsetWidth).map(e => {
+      const rot = e.querySelector('.pc-rot') || e
+      return [e.dataset.z.slice(2), { r: rot.getBoundingClientRect(), src: e.querySelector('.pc-f img')?.src, tapped: e.classList.contains('tapped') }]
+    }))
+    if (!pv.size) return
     for (const [id, w] of now) {
       const o = pv.get(id)
       if (!o || o.z === w.z || !w.fly || !o.src) continue
@@ -238,6 +246,18 @@ export function useZoneFlights(box, seq, at) {
       if (el?.offsetWidth) flipFrom.set(String(id), el.getBoundingClientRect())
     }
   }, [seq]) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+// a carta que sai do campo (exílio, mão, biblioteca, cemitério): uma cópia dela faz a animação toda numa camada própria,
+// porque a carta da mesa sai logo a seguir (o evento ou o estado seguinte tira-a) e antes desaparecia de repente a meio
+export function leaveGhost(r, src, tapped, to) {
+  if (!r?.width || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  const g = document.createElement('div'), W = tapped ? r.height : r.width, H = tapped ? r.width : r.height
+  g.className = `zghost to-${to}`
+  Object.assign(g.style, { left: `${r.left + r.width / 2 - W / 2}px`, top: `${r.top + r.height / 2 - H / 2}px`, width: `${W}px`, height: `${H}px`, rotate: tapped ? '90deg' : '0deg' })
+  if (src) g.style.backgroundImage = `url("${src}")`
+  ;(document.fullscreenElement || document.webkitFullscreenElement || document.body).append(g)
+  g.onanimationend = () => g.remove(); setTimeout(() => g.remove(), 2500)  // só sai quando acabou de desvanecer
 }
 
 // arrumação livre do teu lado: o centro da carta largada em (px, py) do ecrã, em px «lógicos» do teu lado e em fração

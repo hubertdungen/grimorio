@@ -3795,4 +3795,5 @@ export default {
   "Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)": "Pantalla completa — Shift+F (salir: este botón, Shift+F o Esc)",
   "ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.": "pantalla completa (en la esquina de la mesa o en la barra de abajo; atajo Shift+F) y girar la mesa en el móvil/tableta.",
   "Esfera em 3D (desligado: a clássica)": "Esfera en 3D (desactivado: la clásica)",
+  "Tamanho das esferas": "Tamaño de las esferas",
 }
