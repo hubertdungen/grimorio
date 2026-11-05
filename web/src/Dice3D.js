@@ -68,7 +68,7 @@ function meshOf(kind, colors, words, sw) {
 // box = [X, Z]: caixa fixa (mesa livre: igual em todos os ecrãs, para a mesma física dar o mesmo lançamento); rot: rodar a
 // vista (o adversário vê a mesa do lado dele); onThrow(types, {x, v}): agarrar e largar um dado não o lança já — pede o
 // lançamento (o servidor sorteia e devolve-o a todos) e o dado fica na mão até chegar
-export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSettle, view = VIEW, box = null, rot = 0, onThrow = null, cloth = false }) {  // cloth: o pano com aro onde os dados assentam (mesas do Forge Play e livre); view maior = dados mais pequenos
+export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSettle, view = VIEW, box = null, rot = 0, onThrow = null, cloth = false, onDrag = null }) {  // onDrag(x, y | null): o dado na mão (mesa online: os outros veem-no)  // cloth: o pano com aro onde os dados assentam (mesas do Forge Play e livre); view maior = dados mais pequenos
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1)); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap
   renderer.domElement.className = 'dc-gl'; el.appendChild(renderer.domElement)
@@ -191,10 +191,12 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
     const now = performance.now(), b = drag.b
     drag.hist.push([now, p.x, p.z]); drag.hist = drag.hist.filter((x, k, a) => now - x[0] < 90 || k >= a.length - 3)  // os últimos ~90 ms do gesto (pelo menos 3 pontos: num aparelho lento os eventos vêm espaçados)
     world.moveTo(b, [p.x, 2.4, p.z], [0, 0, 0])
+    onDrag?.(e.clientX, e.clientY)
     const w = 0.05; b.q = new THREE.Quaternion(...b.q).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(w, w * 0.7, 0))).toArray()  // a rodar na mão
   }
   const onUp = () => {
     if (!drag) return
+    onDrag?.(null)
     const h = drag.hist, b = drag.b
     let v = [0, 0, 0]
     if (h.length > 1) { const [t0, x0, z0] = h[0], [t1, x1, z1] = h[h.length - 1], dt = Math.max(0.016, (t1 - t0) / 1000); v = [(x1 - x0) / dt, 1.5, (z1 - z0) / dt] }

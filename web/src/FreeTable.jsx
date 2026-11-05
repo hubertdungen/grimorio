@@ -3,10 +3,11 @@
 // (tablekit.js + as peças do Board.jsx) e cada gesto vira um comando pequeno (mover, virar, marcadores, vida, dados…).
 // As cartas no campo têm x/y no lado de quem as controla: todos veem a mesma arrumação (o lado dos outros ao contrário).
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { img } from './data.js'
 import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
-import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
+import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
 import { lookup, isCreature, isLand, flipKind, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
@@ -136,6 +137,38 @@ export default function FreeTable({ id, data, onClose }) {
     })()
     return () => { live = false }
   }, [id, seatSel]) // eslint-disable-line react-hooks/exhaustive-deps
+  // ---------- ao vivo: o que eu agarro (a esfera de quem for, um dado, uma carta) os outros veem a mexer, e vice-versa ----------
+  // ~10 vezes por segundo pelo canal «live» (só em memória no servidor); posição em frações da mesa, na vista de quem mexe
+  const liveAt = useRef({}), liveOn = useRef(false)
+  const live = v => {
+    const now = Date.now()
+    if (v.k !== 'end' && now - (liveAt.current[v.k] || 0) < 90) return
+    if (v.k === 'end' && !liveOn.current) return
+    liveAt.current[v.k] = now; liveOn.current = v.k !== 'end'
+    j(`/api/freetables/${id}${seatQ('?')}`, { c: 'live', v }).catch(() => {})
+  }
+  const frac = (x, y) => { const r = fitTable.current?.getBoundingClientRect(); return r?.width ? { x: (x - r.left) / r.width, y: (y - r.top) / r.height } : null }
+  const toScreen = g => {  // na minha vista: quem mexe e está do outro lado da mesa vê-a rodada 180°
+    const r = fitTable.current?.getBoundingClientRect(), top = fitTable.current?.querySelector(`.bside[data-seat="${g.seat}"]`)?.classList.contains('top')
+    return r?.width ? { x: r.left + (top ? 1 - g.x : g.x) * r.width, y: r.top + (top ? 1 - g.y : g.y) * r.height } : null
+  }
+  useEffect(() => {  // a esfera que eu atiro/arrasto (a minha ou a dele)
+    let idle = 0
+    const f = e => {
+      const d = e.detail
+      if (!d?.el || d.remote || !d.local || !fitTable.current?.contains(d.el)) return
+      const p = frac(d.x, d.y)
+      if (p) live({ k: 'orb', id: +d.el.closest('.bside')?.dataset.seat || 0, ...p })
+      clearTimeout(idle); idle = setTimeout(() => live({ k: 'end' }), 400)
+    }
+    addEventListener('grim-orb', f)
+    return () => { removeEventListener('grim-orb', f); clearTimeout(idle) }
+  }, [id])  // eslint-disable-line react-hooks/exhaustive-deps
+  const ghosts = Object.entries(s?.live || {}).map(([seat, v]) => ({ seat: +seat, ...v }))
+  const ghostKey = JSON.stringify(s?.live || {})
+  useEffect(() => {  // a esfera que o outro está a mexer: segue o que ele manda
+    for (const g of ghosts) if (g.k === 'orb') { const p = toScreen(g); p && fitTable.current?.querySelector(`.bside[data-seat="${g.id}"] .orb`)?._remoteTo?.(p.x, p.y) }
+  }, [ghostKey])  // eslint-disable-line react-hooks/exhaustive-deps
   const send = c => j(`/api/freetables/${id}${seatQ('?')}`, c).then(r => { setS(x => (!x || r.seq >= x.seq ? r : x)); return r }).catch(e => { setErr(e.message); setTimeout(() => setErr(''), 4000) })
   const me = s?.me ?? 0, seats = s?.seats || [], n = seats.length
   const allArts = Object.fromEntries(seats.map((v, i) => [i, v.arts]))  // a arte escolhida em cada deck (a carta em grande)
@@ -191,7 +224,8 @@ export default function FreeTable({ id, data, onClose }) {
   // dados: o servidor sorteia; cada ecrã lança os dados 3D que assentam nesses valores
   // agarrar um dado e largá-lo pede ao servidor um lançamento com esse gesto; todos veem o mesmo, cada um do seu lado
   const throwDice = (types, thr) => j(`/api/freetables/${id}${seatQ('?')}`, { c: 'dice', types, thr }).then(r => setS(x => (!x || r.seq >= x.seq ? r : x)))
-  const diceBox = useRef(null), dice = useTableDice(diceBox, { box: [11, 10], rot: (s?.me || 0) ? Math.PI : 0, keep: 30000, onThrow: throwDice }), rollSeen = useRef(null)
+  const diceBox = useRef(null), dice = useTableDice(diceBox, { box: [11, 10], rot: (s?.me || 0) ? Math.PI : 0, keep: 30000, onThrow: throwDice,
+    onDrag: (x, y) => { const p = x != null && frac(x, y); if (p) live({ k: 'die', ...p }); else live({ k: 'end' }) } }), rollSeen = useRef(null)
   useEffect(() => {
     const r = s?.roll
     if (!s) return
@@ -264,7 +298,12 @@ export default function FreeTable({ id, data, onClose }) {
     return false
   }
   const [big, setBig] = useState(null)  // tocar e manter numa carta que não é tua: em grande (as tuas abrem o menu)
-  const { down, dragged } = useDrag(drop, cid => openMenu(cid, downAt.current.x, downAt.current.y), preview, '[data-h], .bside.bottom .pc[data-z^="k:"]', el => { const z = el?.dataset.z, id = z?.startsWith('k:') ? +z.slice(2) : +el?.dataset.zid, n = byId.get(id)?.c?.n; if (n) setBig(n) })
+  const previewLive = m => {  // a carta que arrasto: os outros veem-na a andar (de face se a podem ver, senão o verso)
+    preview(m)
+    const p = m && frac(m.x, m.y)
+    if (p) live({ k: 'card', id: m.id, ...p }); else if (!m) live({ k: 'end' })
+  }
+  const { down, dragged } = useDrag(drop, cid => openMenu(cid, downAt.current.x, downAt.current.y), previewLive, '[data-h], .bside.bottom .pc[data-z^="k:"]', el => { const z = el?.dataset.z, id = z?.startsWith('k:') ? +z.slice(2) : +el?.dataset.zid, n = byId.get(id)?.c?.n; if (n) setBig(n) })
   const [handOrder, setHandOrder] = useState(null)
   const openMenu = (cid, x, y) => { const e = byId.get(cid); if (!e || (e.z === 'hand' && e.c.o !== me)) return; setMenu({ id: cid, x, y }); setZoom(byId.get(cid)?.c.n || null); peek.hide() }
 
@@ -466,6 +505,11 @@ export default function FreeTable({ id, data, onClose }) {
       onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
       <FsBtn className="on-table" />
+      {ghosts.some(g => g.k !== 'orb') && createPortal(<div className="live-ghosts" aria-hidden="true">{ghosts.filter(g => g.k !== 'orb').map(g => {  // o que os outros estão a agarrar agora
+        const p = toScreen(g), n = g.k === 'card' && byId.get(g.id)?.c?.n, c = n && lookup(data, n)
+        return p && <div key={`${g.seat}${g.k}`} className={`live-ghost ${g.k}`} style={{ left: p.x, top: p.y }}>
+          {g.k === 'die' ? <span className="lg-die">🎲</span> : c ? <img src={img(c, 'small')} alt="" /> : <span className="lg-back" />}<small>{who(g.seat)}</small></div>
+      })}</div>, onTop())}
         <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
           <div className={`fp-table board table ${P.cardPx ? 'px' : ''} ${seats.some(v => v.battlefield.some(c => c.atk != null)) ? 'combat-on' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onContextMenu={onCtx} onMouseMove={tilt} onPointerDown={down}>
             <div className="ml-opps" style={{ '--np': others.length }}>{others.map(i => side(i, true, others.length > 1))}</div>

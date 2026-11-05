@@ -535,8 +535,29 @@ public class GrimorioNet {
         @Override public void flashIncorrectAction() { JsonObject o = new JsonObject(); o.addProperty("t", "flash"); send(o); }
         @Override public void alertUser() { }
         volatile boolean ended = false;  // o fim só se manda uma vez (pelo finishGame do Forge ou pelo estado que já diz «acabou»)
-        @Override public synchronized void finishGame() { if (ended) return; ended = true; dirty = true; sendState(); JsonObject o = new JsonObject(); o.addProperty("t", "end"); GameView gv = getGameView(); if (gv != null) o.addProperty("winner", gv.getWinningPlayerName()); send(o); new Thread(() -> { try { Thread.sleep(1500); } catch (InterruptedException e) { } System.exit(0); }).start(); }
+        @Override public synchronized void finishGame() { if (ended) return; ended = true; dirty = true; sendState(); JsonObject o = new JsonObject(); o.addProperty("t", "end"); GameView gv = getGameView(); if (gv != null) o.addProperty("winner", gv.getWinningPlayerName()); outcome(o); send(o); new Thread(() -> { try { Thread.sleep(1500); } catch (InterruptedException e) { } System.exit(0); }).start(); }
         @Override public void afterGameEnd() { finishGame(); }
+        // como acabou, por jogador: a causa do Forge (LifeReachedZero, Milled, Poisoned, SpellEffect, CommanderDamage,
+        // OpponentWon, Conceded, IntentionalDraw; «win», «altwin», «draw») e a carta que o fez; e se foi empate
+        void outcome(JsonObject o) {
+            try {
+                forge.game.Game game = HM == null ? null : HM.getGame();
+                if (game == null) return;
+                JsonArray out = new JsonArray();
+                for (forge.game.player.Player p : game.getRegisteredPlayers()) {
+                    forge.game.player.PlayerOutcome oc = p.getOutcome();
+                    if (oc == null) continue;
+                    JsonObject x = new JsonObject();
+                    x.addProperty("name", p.getName());
+                    x.addProperty("r", oc.lossState != null ? oc.lossState.name() : oc.altWinSourceName != null ? "altwin" : oc.hasWon() ? "win" : "draw");
+                    String card = oc.loseConditionSpell != null ? oc.loseConditionSpell : oc.altWinSourceName;
+                    if (card != null) x.addProperty("card", card);
+                    out.add(x);
+                }
+                o.add("out", out);
+                if (game.getOutcome() != null && game.getOutcome().isDraw()) o.addProperty("draw", true);
+            } catch (Exception e) { System.err.println("outcome: " + e); }
+        }
         @Override public GameState getGamestate() { return null; }
         @Override public boolean isUiSetToSkipPhase(PlayerView turn, PhaseType phase) {
             // pára só onde costuma haver decisões: as duas fases principais, atacar (no teu turno) e bloquear (no do outro)

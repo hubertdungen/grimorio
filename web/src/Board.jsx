@@ -380,11 +380,13 @@ function useOrbPhysics(ref) {
       el.style.translate = on ? `${(S.x / k).toFixed(1)}px ${(S.y / k).toFixed(1)}px` : ''
       el.classList.toggle('flying', on)
     }
+    const low = () => el.classList.contains('low')  // pouca vida: pesada, a tremer e a pingar sangue
     const trail = () => {
-      if (++trailN % 2) return
+      if (++trailN % (low() ? 3 : 2)) return
       const [x, y, r] = center(), d = document.createElement('i'), host = document.fullscreenElement || document.body
-      d.className = 'orb-trail'
-      Object.assign(d.style, { left: `${x}px`, top: `${y}px`, width: `${r * 1.5}px`, height: `${r * 1.5}px` })
+      d.className = low() ? 'orb-trail drip' : 'orb-trail'
+      const sz = low() ? r * 0.45 : r * 1.5
+      Object.assign(d.style, { left: `${x + (low() ? (Math.random() - 0.5) * r : 0)}px`, top: `${y + (low() ? r * 0.6 : 0)}px`, width: `${sz}px`, height: `${sz}px` })
       d.style.setProperty('--tc', getComputedStyle(el).getPropertyValue('--glow') || '#22c55e88')
       host.append(d); setTimeout(() => d.remove(), 460)
     }
@@ -403,9 +405,13 @@ function useOrbPhysics(ref) {
     const step = now => {
       const dt = S.last ? Math.min(0.033, (now - S.last) / 1000) : 0.016
       S.last = now
-      if (!S.drag?.on) {
+      if (S.remote && now - S.remote.t > 700) { S.remote = null; S.t0 = now }  // o outro jogador largou-a
+      if (S.remote) {  // mesa online: outro jogador está a mexer-lhe — segue a posição que ele manda, suavizada
+        const k = Math.min(1, dt * 14), ox = S.x, oy = S.y
+        S.x += (S.remote.x - S.x) * k; S.y += (S.remote.y - S.y) * k; S.vx = (S.x - ox) / dt; S.vy = (S.y - oy) / dt
+      } else if (!S.drag?.on) {
         const home = now - S.t0 > 1900  // uns segundos depois volta ao sítio (mola amortecida)
-        if (home) { S.vx += (-S.x * 55 - S.vx * 11) * dt; S.vy += (-S.y * 55 - S.vy * 11) * dt } else { const f = Math.pow(0.15, dt); S.vx *= f; S.vy *= f }
+        if (home) { S.vx += (-S.x * 55 - S.vx * 11) * dt; S.vy += (-S.y * 55 - S.vy * 11) * dt } else { const f = Math.pow(low() ? 0.03 : 0.15, dt); S.vx *= f; S.vy *= f }
         S.x += S.vx * dt; S.y += S.vy * dt
         collide()
         if (home && Math.hypot(S.x, S.y) < 0.6 && Math.hypot(S.vx, S.vy) < 10) {
@@ -414,14 +420,21 @@ function useOrbPhysics(ref) {
           return
         }
       }
-      if (Math.hypot(S.vx, S.vy) > 140) trail()
+      if (Math.hypot(S.vx, S.vy) > (low() ? 40 : 140)) trail()
       apply()
       const [x, y, r] = center()
-      dispatchEvent(new CustomEvent('grim-orb', { detail: { x, y, r, vx: S.vx, vy: S.vy, el } }))
+      // local: fui eu que a agarrei/atirei (a mesa online só manda isso; a volta ao sítio e os golpes acontecem em todos os ecrãs)
+      dispatchEvent(new CustomEvent('grim-orb', { detail: { x, y, r, vx: S.vx, vy: S.vy, el, remote: !!S.remote, held: !!S.drag?.on, local: !!S.drag?.on || (S.thrown > 0 && now - S.thrown < 1900) } }))
       S.raf = requestAnimationFrame(step)
     }
     const run = () => { if (!S.raf) { S.last = 0; S.raf = requestAnimationFrame(step) } }
     el._kick = (vx, vy) => { if (S.drag?.on) return; S.vx += vx; S.vy += vy; S.t0 = performance.now(); run() }
+    // mesa online: o centro da esfera (no ecrã) para onde o outro jogador a levou
+    el._remoteTo = (sx, sy) => {
+      if (S.drag?.on) return
+      const [cx, cy] = center()
+      S.remote = { x: sx - (cx - S.x), y: sy - (cy - S.y), t: performance.now() }; S.thrown = 0; run()
+    }
     const down = e => { if (e.button > 0) return; S.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: S.x, oy: S.y, h: [[performance.now(), e.clientX, e.clientY]], on: false } }
     const move = e => {
       const d = S.drag
@@ -431,7 +444,7 @@ function useOrbPhysics(ref) {
       e.preventDefault(); e.stopPropagation()
       const p = d.h[d.h.length - 1], k = Math.max(0.008, (now - p[0]) / 1000)
       S.vx = (e.clientX - p[1]) / k; S.vy = (e.clientY - p[2]) / k
-      S.x = d.ox + dx; S.y = d.oy + dy
+      if (low()) { S.x += (d.ox + dx - S.x) * 0.3; S.y += (d.oy + dy - S.y) * 0.3 } else { S.x = d.ox + dx; S.y = d.oy + dy }  // pouca vida: arrasta-se a custo
       d.h.push([now, e.clientX, e.clientY]); d.h = d.h.filter(q => now - q[0] < 110).slice(-6)
     }
     const up = e => {
@@ -439,9 +452,9 @@ function useOrbPhysics(ref) {
       if (!d || e.pointerId !== d.id) return
       S.drag = null
       if (!d.on) return
-      const a = d.h[0], b = d.h[d.h.length - 1], k = Math.max(0.016, (b[0] - a[0]) / 1000), cap = v => Math.max(-3200, Math.min(3200, v))
+      const a = d.h[0], b = d.h[d.h.length - 1], k = Math.max(0.016, (b[0] - a[0]) / 1000), m = low() ? 1100 : 3200, cap = v => Math.max(-m, Math.min(m, v))
       S.vx = d.h.length > 1 ? cap((b[1] - a[1]) / k) : 0; S.vy = d.h.length > 1 ? cap((b[2] - a[2]) / k) : 0
-      S.t0 = performance.now(); el._dragged = S.t0; run()
+      S.t0 = performance.now(); el._dragged = S.t0; S.thrown = S.t0; run()
     }
     const click = e => { if (el._dragged && performance.now() - el._dragged < 450) { e.stopPropagation(); e.preventDefault() } }  // largar não é clicar
     el.addEventListener('pointerdown', down); el.addEventListener('click', click, true)
@@ -472,6 +485,59 @@ export function FsBtn({ className = '' }) {
   }
   return <button type="button" className={`fs-mini ${className}`} onClick={go} title={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')} aria-label={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')}>{on ? '🗗' : '⛶'}</button>
 }
+
+// a esfera rebenta quando o jogador perde, à maneira da causa: dano = o vidro estoura com sangue; veneno = nuvem tóxica;
+// moer (biblioteca vazia) = desfaz-se em pó e folhas; outra derrota = implode para o vazio. Fica a casca rachada.
+function orbBurst(el, cause) {
+  const r = el.getBoundingClientRect(), host = document.fullscreenElement || document.webkitFullscreenElement || document.body
+  if (!r.width) return
+  const box = document.createElement('div'), bg = getComputedStyle(el).backgroundImage, cx = r.width / 2
+  box.className = `oburst ${cause}`
+  Object.assign(box.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` })
+  if (cause === 'draw' || cause === 'concede') {  // empate: fica de pedra; desistir: apaga-se devagar com a bandeira branca
+    const f = document.createElement('i'); f.className = `oflash ${cause}`; box.append(f)
+    if (cause === 'concede') { const fl = document.createElement('b'); fl.className = 'oflag'; fl.textContent = '🏳'; box.append(fl) }
+    host.append(box); setTimeout(() => box.remove(), 2000); return
+  }
+  const N = cause === 'lose' || cause === 'alt' ? 0 : 12
+  for (let i = 0; i < N; i++) {  // fatias de vidro (do centro para fora)
+    const a0 = (i / N) * 2 * Math.PI, a1 = ((i + 1) / N) * 2 * Math.PI, pt = a => `${50 + 60 * Math.cos(a)}% ${50 + 60 * Math.sin(a)}%`
+    const sh = document.createElement('i'), am = (a0 + a1) / 2, sp = cause === 'mill' ? 25 : 70 + Math.random() * 60
+    sh.className = 'oshard'; sh.style.backgroundImage = bg; sh.style.clipPath = `polygon(50% 50%, ${pt(a0)}, ${pt(a1)})`
+    box.append(sh)
+    const vx = Math.cos(am) * sp, vy = Math.sin(am) * sp, g = cause === 'mill' ? 120 : 180
+    sh.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${vx * 0.5}px, ${vy * 0.5 + g * 0.25}px) rotate(${(Math.random() - 0.5) * 200}deg)`, opacity: 1, offset: 0.4 },
+      { transform: `translate(${vx}px, ${vy + g}px) rotate(${(Math.random() - 0.5) * 420}deg) scale(.6)`, opacity: 0 }], { duration: 900 + Math.random() * 300, easing: 'ease-out', fill: 'both' })
+  }
+  const P = { dmg: 18, psn: 14, mill: 16, cmd: 16, lose: 0, alt: 14 }[cause] ?? 10
+  for (let i = 0; i < P; i++) {  // sangue, fumo tóxico, folhas/pó
+    const d = document.createElement('i'), a = Math.random() * 2 * Math.PI, sp = 40 + Math.random() * 90
+    d.className = `opart ${cause}`
+    Object.assign(d.style, { left: `${cx}px`, top: `${cx}px` })
+    box.append(d)
+    const fall = cause === 'dmg' ? 120 : cause === 'mill' ? 90 : cause === 'cmd' ? 60 : cause === 'alt' ? -90 : -40
+    d.animate([{ transform: 'translate(-50%, -50%) scale(.5)', opacity: 1 }, { transform: `translate(calc(-50% + ${Math.cos(a) * sp}px), calc(-50% + ${Math.sin(a) * sp + fall}px)) scale(${cause === 'psn' ? 3 : 1}) rotate(${cause === 'mill' ? (Math.random() - 0.5) * 540 : 0}deg)`, opacity: 0 }],
+      { duration: 900 + Math.random() * 700, delay: Math.random() * 120, easing: 'cubic-bezier(.2, .6, .4, 1)', fill: 'both' })
+  }
+  const flash = document.createElement('i'); flash.className = `oflash ${cause}`; box.append(flash)
+  host.append(box)
+  setTimeout(() => box.remove(), 2000)
+}
+
+// como acabou um jogo entre bots (o «reason» do Forge) → a causa da derrota de cada lado (orbBurst):
+// dmg vida a 0, psn veneno, mill sem cartas para comprar, cmd dano de comandante, alt vitória alternativa do outro,
+// lose «perdes o jogo» de uma carta, concede desistiu, draw empate
+export function endOut(game, sides = []) {
+  const r = String(game?.reason || '')
+  if (!game?.winner || /interromp|falh|Forge Play/i.test(r)) return null
+  if (game.winner === 'draw') return Object.fromEntries(sides.map(k => [k, 'draw']))
+  const cause = /life total/i.test(r) ? 'dmg' : /poison/i.test(r) ? 'psn' : /empty library|draw cards/i.test(r) ? 'mill' : /commander/i.test(r) ? 'cmd'
+    : /conced/i.test(r) ? 'concede' : /won by spell|opponent has won/i.test(r) ? 'alt' : 'lose'
+  const m = r.match(/Ai\(\d+\)-([A-D])/), losers = m ? [m[1].toLowerCase()] : sides.filter(k => k !== game.winner)
+  return Object.fromEntries(losers.map(k => [k, cause]))
+}
+// Forge Play: a causa que o Forge dá (PlayerOutcome.lossState) → a da esfera
+export const ORB_DEATH = { LifeReachedZero: 'dmg', Poisoned: 'psn', Milled: 'mill', CommanderDamage: 'cmd', SpellEffect: 'lose', OpponentWon: 'alt', Conceded: 'concede', IntentionalDraw: 'draw', draw: 'draw' }
 
 // ---------- o aspeto da esfera de cada lado ----------
 // OrbCtx: mine = o lado que é meu (as minhas preferências), seed = o torneio/jogo (a escolha ao acaso dos bots fica fixa
@@ -521,9 +587,15 @@ export function OrbPick({ onChange }) {
   )
 }
 
-function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look }) {  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
-  const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null)
+function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look, dead = null }) {  // dead: a causa da derrota (endOut/ORB_DEATH: dmg, psn, mill, cmd, alt, lose, concede, draw)  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
+  const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null), [broken, setBroken] = useState(!!dead)
   useOrbPhysics(orbRef)
+  useEffect(() => {  // perdeu: uns instantes depois a esfera rebenta (à maneira da causa) e fica a casca
+    if (!dead) { setBroken(false); return }
+    if (fast || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setBroken(true); return }
+    const t = setTimeout(() => { try { orbBurst(orbRef.current, dead) } catch (e) { console.warn('orbBurst', e) } setBroken(true) }, 420)
+    return () => clearTimeout(t)
+  }, [dead])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (fast) return
     const m = psnHit ? 'psn' : d < 0 || hit ? 'loss' : d > 0 ? 'gain' : ''
@@ -549,7 +621,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
   }, [life, fast])
   const low = life <= Math.max(5, Math.round(start / 4))
   return (
-    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''}`} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''}`} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
       <b ref={ref}>{lifeTxt(life)}</b><small>{tx('vida')}</small>
       {dmg > 0 && <i className="orb-dmg" title={tx('Dano que levou neste combate: {n}', { n: dmg })}>−{dmg}</i>}
@@ -766,6 +838,154 @@ export function DamageFx({ hits, data }) {
   return <div ref={ref} className="dmgfx" aria-hidden="true" />
 }
 
+// ---------- cartas entre zonas e morte à vista ----------
+// ZoneFx compara as zonas de cada lado de um estado para o seguinte e faz voar as cartas pelo caminho certo: moer
+// (biblioteca → cemitério: viram-se e caem com pó), exilar do topo ou do cemitério (luz branca), descartar (vermelho),
+// comprar (um verso rápido para a mão), recuperar do cemitério (verde). As permanentes que morrem ou são destruídas
+// (dying → cemitério) estilhaçam-se em pedaços que caem com gravidade; uma criatura solta a alma, que sobe.
+// Tudo em camadas fixas por cima da página (ou do ecrã inteiro): funciona com a mesa escalada.
+const ZROUTES = [['library', 'graveyard', 'mill'], ['library', 'exile', 'exile'], ['library', 'hand', 'draw'], ['hand', 'graveyard', 'discard'],
+  ['graveyard', 'exile', 'exile'], ['graveyard', 'hand', 'regrow'], ['graveyard', 'library', 'tuck'], ['hand', 'library', 'tuck'], ['hand', 'exile', 'exile'], ['exile', 'hand', 'regrow']]
+const fxHost = () => document.fullscreenElement || document.webkitFullscreenElement || document.body
+function zoneEl(k, zone) {
+  const side = document.querySelector(`.bside.p-${k}`)
+  if (!side) return null
+  if (zone === 'hand') return side.querySelector('.fp-hand, .myhand') || side.querySelector('.orb')
+  return side.querySelector(`[data-zone="${zone}"]`)
+}
+function zoneFly(k, from, to, n, kind, names, data) {
+  const A = zoneEl(k, from), B = zoneEl(k, to)
+  if (!A || !B) return
+  const ra = A.getBoundingClientRect(), rb = B.getBoundingClientRect()
+  if (!ra.width || !rb.width) return
+  const host = fxHost(), N = Math.min(n, 8), w = Math.max(30, Math.min(64, (to === 'hand' ? ra.width : rb.width) || 40)), h = w * 1.4
+  const ax = ra.left + ra.width / 2, ay = ra.top + ra.height / 2, dx = rb.left + rb.width / 2 - ax, dy = rb.top + rb.height / 2 - ay
+  const dur = kind === 'draw' ? 480 : 820, lift = -50 - Math.min(90, Math.abs(dx) * 0.2)
+  for (let i = 0; i < N; i++) {
+    setTimeout(() => {
+      const d = document.createElement('div'), nm = names?.[names.length - N + i], c = nm && lookup(data, nm)
+      d.className = `zfly ${kind}`
+      d.innerHTML = '<i class="zf-back"></i>'
+      if (c && (to === 'graveyard' || to === 'exile')) { const im = document.createElement('img'); im.src = img(c, 'small'); im.alt = ''; d.append(im) }
+      d.style.setProperty('--d', `${dur}ms`)
+      Object.assign(d.style, { left: `${ax - w / 2}px`, top: `${ay - h / 2}px`, width: `${w}px`, height: `${h}px` })
+      host.append(d)
+      const spin = kind === 'mill' ? 360 : kind === 'draw' ? 0 : 20
+      d.animate([{ transform: 'translate(0, 0) rotate(0deg) scale(.85)', opacity: 0 }, { opacity: 1, offset: 0.1 },
+        { transform: `translate(${dx * 0.5}px, ${dy * 0.5 + lift}px) rotate(${spin / 2}deg) scale(1.08)`, offset: 0.5 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(${spin}deg) scale(.82)`, opacity: 1, offset: 0.9 },
+        { transform: `translate(${dx}px, ${dy + 6}px) rotate(${spin}deg) scale(.7)`, opacity: 0 }], { duration: dur, easing: 'cubic-bezier(.45, .05, .55, .95)' }).onfinish = () => d.remove()
+    }, i * (kind === 'draw' ? 90 : 130))
+  }
+  const end = (N - 1) * (kind === 'draw' ? 90 : 130) + dur * 0.9
+  setTimeout(() => {
+    B.classList.remove('zf-hit'); void B.offsetWidth; B.classList.add('zf-hit'); setTimeout(() => B.classList.remove('zf-hit'), 650)
+    if (kind !== 'mill' && kind !== 'exile') return
+    const p = document.createElement('b'), q = B.getBoundingClientRect()
+    p.className = `zf-pop ${kind}`; p.textContent = kind === 'mill' ? `${tx('Moer')} ${n}` : `⌀ ${n}`
+    Object.assign(p.style, { left: `${q.left + q.width / 2}px`, top: `${q.top}px` })
+    fxHost().append(p); setTimeout(() => p.remove(), 1300)
+  }, end)
+}
+// estilhaçar: rachas por um instante e depois ~24 pedaços triangulares da carta a saltar e a cair; criatura → a alma sobe
+function shatter(el, creature) {
+  const rot = el.querySelector('.pc-rot') || el, r = rot.getBoundingClientRect()
+  if (!r.width) return
+  const src = el.querySelector('.pc-f img')?.src, tapped = el.classList.contains('tapped'), host = fxHost()
+  const W = tapped ? r.height : r.width, H = tapped ? r.width : r.height
+  const box = document.createElement('div')
+  box.className = 'zshatter'
+  Object.assign(box.style, { left: `${r.left + r.width / 2 - W / 2}px`, top: `${r.top + r.height / 2 - H / 2}px`, width: `${W}px`, height: `${H}px`, transform: tapped ? 'rotate(90deg)' : '' })
+  const crack = document.createElement('i'); crack.className = 'zcrack'; box.append(crack)
+  const C = 3, R = 4, j = () => (Math.random() - 0.5) * 14
+  const P = Array.from({ length: C + 1 }, (_, x) => Array.from({ length: R + 1 }, (_, y) => [x * 100 / C + (x && x < C ? j() : 0), y * 100 / R + (y && y < R ? j() : 0)]))
+  const tris = []
+  for (let x = 0; x < C; x++) for (let y = 0; y < R; y++) {
+    const a = P[x][y], b = P[x + 1][y], c = P[x + 1][y + 1], d = P[x][y + 1]
+    tris.push([a, b, c], [a, c, d])
+  }
+  for (const t of tris) {
+    const pc = document.createElement('i'), cx = (t[0][0] + t[1][0] + t[2][0]) / 3, cy = (t[0][1] + t[1][1] + t[2][1]) / 3
+    pc.className = 'zpiece'
+    pc.style.clipPath = `polygon(${t.map(p => `${p[0].toFixed(1)}% ${p[1].toFixed(1)}%`).join(',')})`
+    if (src) pc.style.backgroundImage = `url("${src}")`
+    box.append(pc)
+    const vx = (cx - 50) * (1.6 + Math.random()) + (Math.random() - 0.5) * 30, vy = (cy - 40) * 1.2 - 60 - Math.random() * 40, g = 260 + Math.random() * 80, spin = (Math.random() - 0.5) * 420
+    const at = k => `translate(${(vx * k).toFixed(1)}px, ${(vy * k + g * k * k).toFixed(1)}px) rotate(${(spin * k).toFixed(0)}deg)`
+    pc.animate([{ transform: 'none', opacity: 1 }, { transform: at(0.35), opacity: 1, offset: 0.3 }, { transform: at(0.7), opacity: 0.85, offset: 0.65 }, { transform: at(1), opacity: 0 }],
+      { duration: 1050 + Math.random() * 350, delay: 140, easing: 'linear', fill: 'both' })
+  }
+  if (creature) {  // a alma sobe
+    const s = document.createElement('i'); s.className = 'zsoul'; box.append(s)
+  }
+  for (let i = 0; i < 10; i++) {  // pó
+    const d = document.createElement('i'); d.className = 'zdust'
+    Object.assign(d.style, { left: `${20 + Math.random() * 60}%`, top: `${30 + Math.random() * 50}%` })
+    box.append(d)
+    d.animate([{ transform: 'translate(0, 0) scale(.6)', opacity: 0.9 }, { transform: `translate(${(Math.random() - 0.5) * 70}px, ${-20 - Math.random() * 40}px) scale(1.6)`, opacity: 0 }],
+      { duration: 800 + Math.random() * 500, delay: 120 + Math.random() * 150, easing: 'ease-out', fill: 'both' })
+  }
+  host.append(box)
+  el.style.visibility = 'hidden'
+  setTimeout(() => box.remove(), 1700)
+}
+// exilada: faíscas brancas a subir enquanto ela se desfaz em luz (o CSS faz o resto)
+function sparkle(el) {
+  const r = el.getBoundingClientRect(), host = fxHost()
+  if (!r.width) return
+  for (let i = 0; i < 14; i++) {
+    const d = document.createElement('i'); d.className = 'zspark'
+    Object.assign(d.style, { left: `${r.left + Math.random() * r.width}px`, top: `${r.top + r.height * (0.3 + Math.random() * 0.7)}px` })
+    host.append(d)
+    d.animate([{ transform: 'translate(-50%, -50%) scale(1)', opacity: 1 }, { transform: `translate(-50%, ${-60 - Math.random() * 60}px) scale(.2)`, opacity: 0 }],
+      { duration: 700 + Math.random() * 500, delay: Math.random() * 300, easing: 'ease-out', fill: 'both' }).onfinish = () => d.remove()
+  }
+}
+export function ZoneFx({ s, data, quiet }) {
+  const prev = useRef(null), seen = useRef(new Set())
+  useLayoutEffect(() => {
+    if (!s?.sides) return
+    const snap = {}
+    for (const k of s.sides) {
+      const z = s[k]
+      if (z) snap[k] = { lib: Number.isFinite(z.library) ? z.library : null, hand: Number.isFinite(z.hand) ? z.hand : null, gy: [...(z.graveyard || [])], ex: [...(z.exile || [])] }
+    }
+    const p = prev.current
+    prev.current = snap
+    const calm = quiet || !p || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    try {
+      const deadTo = {}
+      for (const k of s.sides) for (const perm of s[k]?.perms || []) {
+        if (!perm.dying || seen.current.has(perm.key)) continue
+        seen.current.add(perm.key)
+        const to = typeof perm.dying === 'string' ? perm.dying : 'graveyard'
+        if (!perm.token) deadTo[`${k}|${to}`] = (deadTo[`${k}|${to}`] || 0) + 1
+        if (calm) continue
+        const el = document.querySelector(`.bside.p-${k} .pc[data-z="k:${CSS.escape(String(perm.key))}"]`)
+        if (el && to === 'graveyard') shatter(el, isCreature(data, perm))
+        else if (el && to === 'exile') sparkle(el)
+      }
+      if (seen.current.size > 600) seen.current = new Set([...seen.current].slice(-300))
+      if (calm) return
+      for (const k of s.sides) {
+        const a = p[k], b = snap[k]
+        if (!a || !b) continue
+        const dl = (x, y) => (x != null && y != null ? y - x : 0)
+        const src = { library: Math.max(0, -dl(a.lib, b.lib)), hand: Math.max(0, -dl(a.hand, b.hand)), graveyard: Math.max(0, a.gy.length - b.gy.length), exile: Math.max(0, a.ex.length - b.ex.length) }
+        const sink = { graveyard: b.gy.length - a.gy.length - (deadTo[`${k}|graveyard`] || 0), exile: b.ex.length - a.ex.length - (deadTo[`${k}|exile`] || 0),
+          hand: dl(a.hand, b.hand) - (deadTo[`${k}|hand`] || 0), library: dl(a.lib, b.lib) - (deadTo[`${k}|library`] || 0) }
+        for (const [f, t, kind] of ZROUTES) {
+          const n = Math.min(src[f], Math.max(0, sink[t]))
+          if (n <= 0) continue
+          src[f] -= n; sink[t] -= n
+          zoneFly(k, f, t, n, kind, t === 'graveyard' ? b.gy : t === 'exile' ? b.ex : null, data)
+        }
+      }
+    } catch (e) { console.warn('ZoneFx', e) }  // um efeito nunca deita a mesa abaixo
+  })
+  return null
+}
+
 // a biblioteca com o topo à vista (Courser of Kruphix, Future Sight, Vizier of the Menagerie…, Forge Play): a carta de cima
 // virada para cima; a minha, se dá para a jogar, brilha e agarra-se/duplo clique como as da mão (data-h, data-from)
 function LibTop({ k, z, data }) {
@@ -785,7 +1005,8 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg(), oc = useContext(OrbCtx)
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
-      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} look={orbLook(k, z, data, oc, name)} />
+      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} look={orbLook(k, z, data, oc, name)}
+        dead={s.out?.[k] || (z.life <= 0 ? 'dmg' : (z.poison || 0) >= (s.giant ? 15 : 10) ? 'psn' : Object.values(z.cmdDmg || {}).some(n => n >= 21) ? 'cmd' : z.out || s.lost === k ? (z.library === 0 ? 'mill' : 'lose') : null)} />
       <div className="bname">
         <b title={name}>{name}</b>
         <span className="chips">
@@ -1115,7 +1336,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
     return () => clearTimeout(t)
   }, [playing, i, speed, evs])
   useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight }, [i])
-  const s = states[i]
+  const s = i === states.length - 1 && states[i] ? { ...states[i], out: endOut(game, states[i].sides) } : states[i]  // no fim: a esfera de quem perdeu rebenta à maneira
   // som de cada jogada (não ao saltar na linha do tempo; a alta velocidade o sfx.js corta o miúdo)
   useEffect(() => { if (!pos.jump && i > 0) playEvent(evs[i - 1], states[i], data, { speed }) }, [i])  // eslint-disable-line react-hooks/exhaustive-deps
   const ended = evs.length > 0 && i >= evs.length && !game.inProgress  // ao vivo: só acaba quando o Forge acaba
@@ -1242,6 +1463,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
           <CombatLinks s={s} />
           <StackLinks s={s} data={data} />
           <DamageFx hits={dmgHits} data={data} />
+          <ZoneFx s={s} data={data} quiet={fast || pos.jump} />
           {ended && (
             <div className={`endbanner ${game.stopped ? 'draw stopped' : !game.winner || game.winner === 'draw' ? 'draw' : pov === 'a' ? (game.winner === 'a' ? 'win' : 'loss') : !pov ? 'neutral' : game.winner === pov ? 'win' : 'loss'}`} role="status">
               <b>{game.stopped ? tx('⏹ Interrompido no turno {t} (não conta)', { t: game.turns || s.turn || 0 }) : pov !== 'a' ? (!game.winner || game.winner === 'draw' ? tx('Empate') : tx('«{d}» venceu no turno {t}', { d: who[game.winner], t: game.turns })) : game.winner === 'a' ? (mates.length ? tx('Vitória da equipa no turno {t}', { t: game.turns }) : tx('Vitória no turno {t}', { t: game.turns })) : !lost(game.winner) ? tx('Empate') : mates.length ? tx('Derrota da equipa no turno {t}', { t: game.turns }) : multi ? `${game.places ? tx('{p} lugar', { p: ord(game.places.indexOf('a') + 1) }) : tx('Derrota')}${s.a.out ? ` — ${tx('eliminado no turno {n}', { n: s.a.out })}` : ''}` : tx('Derrota no turno {t}', { t: game.turns })}</b>

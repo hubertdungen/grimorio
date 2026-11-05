@@ -56,6 +56,7 @@ def _reader(sid, p):
             elif k == "crash":  # a thread do jogo do Forge morreu (GrimorioNet.watchdog): acaba sem vencedor
                 s["crash"] = True
             elif k == "end":
+                s["out"], s["draw"] = m.get("out") or s.get("out"), bool(m.get("draw"))  # como perdeu cada um (a esfera rebenta à maneira) e empate
                 rate = _over(s, m.get("winner") or s.get("winner"))
             s["seq"] += 1
             s["ts"] = time.time()
@@ -156,7 +157,7 @@ def poll(sid, owner, since=0, wait=20.0):
             COND.wait(timeout=end - time.time())
         return {"seq": s["seq"], "state": s["state"], "prompt": s["prompt"], "asks": list(s["asks"].values()), "log": s["log"][-12:],
                 "ended": s["ended"], "winner": s["winner"], "names": s["names"], "crash": bool(s.get("crash")),
-                "arts": s.get("arts")}
+                "arts": s.get("arts"), "out": s.get("out"), "draw": s.get("draw", False)}
 
 
 def cmd(sid, owner, c):

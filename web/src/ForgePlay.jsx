@@ -4,7 +4,7 @@
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, Arts, useImg, artOf, OrbCtx, FsBtn } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, ORB_DEATH } from './Board.jsx'
 import { tx } from './i18n.js'
 import { playDiff } from './sfx.js'
 import { ask as confirmAsk } from './confirm.jsx'
@@ -32,6 +32,13 @@ const BTN = { OK: tx('OK'), Cancel: tx('Cancelar'), 'End Turn': tx('Acabar o tur
 const MANA = { W: '#f3ecd0', U: '#4a90d9', B: '#6d5b70', R: '#e0553b', G: '#3fa560', C: '#b7b2a8' }
 
 // o texto do Forge (inglês) passa a uma frase curta do Grimório; o que não se reconhece fica como vem
+// como acabou, em texto (a janela do fim): «Bot: 10 marcadores de veneno», «Vitória alternativa: Thassa's Oracle»
+const LOSS_TXT = { LifeReachedZero: tx('vida a 0'), Poisoned: tx('10 marcadores de veneno'), Milled: tx('sem cartas para comprar'), CommanderDamage: tx('21 de dano do mesmo comandante'),
+  SpellEffect: tx('uma carta disse que perdia o jogo'), OpponentWon: tx('o adversário ganhou por outra via'), Conceded: tx('desistiu'), IntentionalDraw: tx('empate combinado') }
+function endWhy(out) {
+  const lost = (out || []).filter(x => LOSS_TXT[x.r]), alt = (out || []).find(x => x.r === 'altwin')
+  return [...lost.map(x => `${x.name}: ${LOSS_TXT[x.r]}${x.card ? ` (${x.card})` : ''}`), ...(alt?.card ? [tx('Vitória alternativa: {c}', { c: alt.card })] : [])].join(' · ')
+}
 function promptText(msg, st, me) {
   const m = String(msg || '')
   if (!m) return ''
@@ -698,7 +705,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     for (const id of now.keys()) if (!a.perms.has(id) && backHand && (st.combat || []).some(x => x.att === id)) pops.set(String(id), { i: seqKey, kind: 'attach', txt: '🥷' })
     // para onde foi o que saiu do campo (o Forge mantém o id): cemitério = racha e desfaz-se, exílio = luz, mão/biblioteca = voa
     const destOf = id => { for (const p of st.players || []) for (const z of ['graveyard', 'exile', 'hand', 'library']) if ((p[z] || []).some?.(x => x.id === id)) return z; return 'graveyard' }
-    for (const [id, x] of a.perms) if (!now.has(id) && !x.c.hidden) gone.push({ ...x, to: destOf(id), until: Date.now() + 900 })
+    const idxIn = {}  // o lugar que tinha na fila (para morrer onde estava, não no fim)
+    for (const [id, x] of a.perms) { idxIn[x.side] = (idxIn[x.side] ?? -1) + 1; if (!now.has(id) && !x.c.hidden) gone.push({ ...x, idx: idxIn[x.side], to: destOf(id), until: Date.now() + 900 }) }
     // a pilha do Forge vem do topo para baixo; o que saiu dela resolveu (ou foi contrariado): fantasma «A resolver»
     const items = [...(st.stack || [])].reverse(), keyOf = x => `${x.card ?? ''}|${x.text}`
     const left = a.stack.find(x => !items.some(y => keyOf(y) === keyOf(x)))
@@ -764,7 +772,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const myTurn = st.active === me?.id
   const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true, dmg }
-  for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.push({ ...toPerm(g.c), dying: g.to || true })
+  bs.lost = s.ended && s.winner ? (s.winner === me?.name ? 'b' : 'a') : null  // quem perdeu: a esfera dele rebenta (Hud)
+  // como perdeu cada um (a causa do Forge) e o empate: a esfera rebenta à maneira (vida, veneno, moer, comandante, carta…)
+  bs.out = s.draw ? { a: 'draw', b: 'draw' } : Object.fromEntries((s.out || []).map(x => [x.name === me?.name ? 'a' : 'b', ORB_DEATH[x.r]]).filter(e => e[1]))
+  for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.splice(Math.min(g.idx ?? 1e9, bs[g.side].perms.length), 0, { ...toPerm(g.c), dying: g.to || true })
   const hashN = t => [...String(t)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
   const sideOfP = pid => (pid === me?.id ? 'a' : 'b')
   bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name,
@@ -862,6 +873,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         {bs && <CombatLinks s={bs} />}
         {bs && <StackLinks s={bs} data={data} />}
         <DamageFx hits={hits} data={data} />
+        {bs && <ZoneFx s={bs} data={data} />}
       </div>
       </div><div className="fp-dice" ref={diceBox} /></div>
       {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
@@ -917,7 +929,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <div className="fp-opts">{(players.find(p => p.id === zone.p.id)?.[zone.k] || []).map(c => <FCard key={c.id} c={c} data={data} big onClick={x => { send({ c: 'card', id: x.id }); setZone(null) }} />)}</div></div></div>}
       {toast && <div className={`fp-toast ${toast.out ? 'out' : ''}`} onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} <Syms text={toast.msg} />{toast.list && <ul>{toast.list.map((l, k) => <li key={k}><Syms text={l} /></li>)}</ul>}</div>}
       {s.ended && endShown && <div className="fp-modal"><div className="fp-ask fp-end">
-        <h3>{s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : s.crash ? tx('O Forge falhou a meio deste jogo') : s.lost ? tx('Este jogo perdeu-se: o servidor foi reiniciado') : tx('Jogo terminado')}</h3>
+        <h3>{s.draw ? tx('🤝 Empate') : s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : s.crash ? tx('O Forge falhou a meio deste jogo') : s.lost ? tx('Este jogo perdeu-se: o servidor foi reiniciado') : tx('Jogo terminado')}</h3>
+        {endWhy(s.out) && <p className="fp-why">{endWhy(s.out)}</p>}
         {(s.crash || s.lost) && <p className="muted">{tx('Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.')}</p>}
         {series && <p className="fp-series">{series.done ? (series.w[0] > series.w[1] ? tx('🏆 Ganhaste a série {a}–{b}', { a: series.w[0], b: series.w[1] }) : tx('Perdeste a série {a}–{b}', { a: series.w[0], b: series.w[1] })) : tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })}</p>}
         <div className="row-btns">{onAgain && <button className="primary" onClick={onAgain}>▶ {againLabel || (series && !series.done ? tx('Jogo seguinte (sideboard)') : series ? tx('Nova série') : tx('Jogar outra vez'))}</button>}<button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}

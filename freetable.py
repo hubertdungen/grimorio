@@ -26,6 +26,16 @@ MATS = ("pontos", "riscas", "xadrez", "grelha", "linho", "escamas", "arcano", "o
 # a esfera da vida de cada jogador (estilo e animação; «auto» = pelo deck): ORB_T/ORB_A em web/src/fpprefs.js
 ORB_T = ("auto", "verde", "oceano", "brasa", "vazio", "ouro", "gelo", "prisma", "tempestade", "sangue")
 ORB_A = ("auto", "calmo", "turbilhao", "pulsar", "faiscas")
+LIVE_K = ("orb", "die", "card", "end")  # o que se mostra ao vivo aos outros enquanto alguém lhe mexe
+
+
+def _frac(x):
+    try:
+        return max(-0.2, min(1.2, round(float(x), 4)))
+    except (TypeError, ValueError):
+        return 0.5
+
+
 PEN_LIFE = 8  # segundos que um traço da caneta fica no estado (o browser apaga-o antes, a desvanecer)
 PATH = re.compile(r"^/api/freetables/([a-f0-9]{12})$")
 RNG = random.SystemRandom()
@@ -107,7 +117,7 @@ def _clean(c):
 
 
 def _save(con, t):
-    st = {k: v for k, v in t.items() if k != "pen"}  # os traços da caneta são passageiros: não se gravam
+    st = {k: v for k, v in t.items() if k not in ("pen", "live")}  # a caneta e o «ao vivo» são passageiros: não se gravam
     con.execute("INSERT OR REPLACE INTO freetables VALUES (?,?,?,?)", (t["id"], t["owner"], t["ts"], json.dumps(st, ensure_ascii=False)))
 
 
@@ -187,7 +197,9 @@ def view(t, me):
     return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
             "me": me, "host": t["seats"][me]["by"] == "host", "mine": [i for i, s in enumerate(t["seats"]) if s["by"] == t["seats"][me]["by"]],
             "res": t.get("res"), "result": t.get("result"), "solo": bool(t.get("solo")), "gf": t.get("gf"), "day": t.get("day"), "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
-            "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE]}
+            "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE],
+            # o que os outros estão a agarrar agora (esfera, dado, carta): posição em frações da mesa, na vista de quem mexe
+            "live": {str(i): {k: v for k, v in x.items() if k != "ts"} for i, x in (t.get("live") or {}).items() if i != me and x["ts"] > time.time() - 2}}
 
 
 def _log(t, seat, k, **kw):
@@ -586,6 +598,19 @@ def route(db, method, path, owner, body, who, since=0, seat=None):
             return 200, view(t, me)
     if not isinstance(body, dict):
         return 400, {"erro": "Comando inválido."}
+    if body.get("c") == "live":  # ao vivo (várias vezes por segundo): só em memória e uma resposta pequena
+        v = body.get("v") or {}
+        if not isinstance(v, dict) or v.get("k") not in LIVE_K:
+            return 400, {"erro": "Comando inválido."}
+        with COND:
+            live = t.setdefault("live", {})
+            if v["k"] == "end":
+                live.pop(me, None)
+            else:
+                live[me] = {"k": v["k"], "x": _frac(v.get("x")), "y": _frac(v.get("y")), "id": _num(v.get("id"), 0, 2 ** 31, 0), "ts": time.time()}
+            t["seq"] += 1
+            COND.notify_all()
+        return 200, {"ok": True}
     with COND:
         try:
             apply(t, me, body)
@@ -768,6 +793,14 @@ def selfcheck():
     # o registo nunca diz o nome de uma carta escondida
     hidden = [e for e in t["log"] if e["k"] == "move" and e["fr"] in ("hand", "library") and e["to"] in ("hand", "library")]
     assert hidden and not any(e["name"] for e in hidden), t["log"]
+    # ao vivo: o que um agarra o outro vê (e quem agarra não se vê a si), sem ir para a base de dados
+    assert call("POST", "host", {"c": "live", "v": {"k": "orb", "x": 0.3, "y": 0.9, "id": 0}}) == (200, {"ok": True})
+    assert call("GET", "guest:rui")[1]["live"]["0"]["k"] == "orb" and not call("GET", "host")[1]["live"]
+    with db() as con:
+        _save(con, t)
+        assert '"live"' not in con.execute("SELECT state FROM freetables WHERE id=?", (tid,)).fetchone()[0]
+    call("POST", "host", {"c": "live", "v": {"k": "end"}})
+    assert not call("GET", "guest:rui")[1]["live"] and call("POST", "host", {"c": "live", "v": {"k": "x"}})[0] == 400
     print("selfcheck mesa livre ok")
 
 
