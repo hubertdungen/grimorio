@@ -567,6 +567,13 @@ function orbBurst(el, cause) {
   add(`oflash ${cause}`)
   add('oring'); add('oring o2')  // onda de choque (duas)
   if (cause === 'lose' || cause === 'alt') { add(`oflash ${cause} big`); return }  // implode / engolida pela luz: sem cacos
+  if (cause === 'mill') for (let i = 0; i < 14; i++) {  // moer: a biblioteca vazia — páginas (costas de carta) a sair e a cair a esvoaçar
+    const pg = add('opage', { left: `${R}px`, top: `${R}px` }), a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, up = 60 + Math.random() * 70, sx = Math.cos(a) * (40 + Math.random() * 60)
+    pg.animate([{ transform: 'translate(-50%, -50%) scale(.3) rotate(0deg)', opacity: 1 }, { transform: `translate(calc(-50% + ${sx * 0.6}px), calc(-50% - ${up}px)) scale(1) rotate(${(Math.random() - 0.5) * 200}deg)`, opacity: 1, offset: 0.35 },
+      { transform: `translate(calc(-50% + ${sx}px), calc(-50% + ${R * 2.5}px)) scale(.9) rotate(${(Math.random() - 0.5) * 720}deg) rotateY(${360 + Math.random() * 360}deg)`, opacity: 0 }],
+      { duration: 1800 + Math.random() * 700, delay: 250 + i * 50, easing: 'cubic-bezier(.25, .6, .5, 1)', fill: 'both' })
+  }
+  if (cause === 'cmd') add('oslash')  // dano de comandante: um corte dourado que a parte ao meio
   // a nuvem do que estava lá dentro
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * 2 * Math.PI + Math.random(), d = R * (0.6 + Math.random() * 0.8)

@@ -144,15 +144,21 @@ function read(o) {
   o.at = performance.now()
 }
 
-const FLOOR = -1.1
-function startFracture(o, now) {  // ao acaso (com semente: igual em todos os ecrãs): estilhaça (cacos no chão) ou cai inteira, rola e desfaz-se
+const FLOOR = -1.1, GREY = new THREE.Color('#9a958f'), TOXIC = new THREE.Color('#5fd13a'), STONE = new THREE.Color('#6b6b70')
+// cada derrota morre à sua maneira: vida a 0 estilhaça (cacos no chão) ou cai inteira e rola (ao acaso, com semente:
+// igual em todos os ecrãs); veneno derrete numa poça verde; moer escoa o líquido e o vidro vazio desfaz-se em pó;
+// comandante corta-a em duas metades que caem; «perdes o jogo»/vitória do outro implode; desistir rola para longe;
+// empate fica de pedra
+const DEATH3 = { psn: 'melt', mill: 'drain', cmd: 'split', lose: 'implode', alt: 'implode', concede: 'drop', draw: 'stone' }
+function startFracture(o, now) {
   let h = [...String(o.el.dataset.seed || 'x')].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
   const rnd = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296 }
-  const mode = rnd() < 0.6 ? 'shatter' : 'drop'
+  const mode = DEATH3[(o.el.className.match(/\bdead-(\w+)/) || [])[1]] || (rnd() < 0.6 ? 'shatter' : 'drop'), slow = mode === 'drain' ? 0.22 : 1
   o.fr = { t0: now, last: now, mode, ball: { p: [0, 0, 0], v: [(rnd() - 0.5) * 2, 2.5, 0.4], rz: 0 },
     parts: Array.from({ length: 16 }, (_, k) => { const i = Math.floor(k / 4), j = k % 4, th = (i + 0.5) * Math.PI / 4, ph = (j + 0.5) * Math.PI / 2
-      const n = [Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)], sp = 1.6 + rnd() * 2.4
-      return { p: [0, 0, 0], v: [n[0] * sp, n[1] * sp + 2.2, n[2] * sp * 0.6 + 0.6], r: [0, 0, 0], w: [(rnd() - 0.5) * 9, (rnd() - 0.5) * 9, (rnd() - 0.5) * 9] } }) }
+      const n = [Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)], sp = (1.6 + rnd() * 2.4) * slow
+      return { p: [0, 0, 0], v: [n[0] * sp, (n[1] * sp + 2.2) * slow, n[2] * sp * 0.6 + 0.6 * slow], r: [0, 0, 0], w: [(rnd() - 0.5) * 9 * slow, (rnd() - 0.5) * 9 * slow, (rnd() - 0.5) * 9 * slow] } }),
+    halves: [-1, 1].map(k => ({ p: [0, 0, 0], v: [k * (0.9 + rnd() * 0.4), 1.2, 0.3], r: [0, 0, 0], w: [0, 0, k * (1.5 + rnd())] })) }
 }
 function stepBody(b, dt, rad = 0.12) {  // gravidade, chão com ressalto e atrito
   b.v[1] -= 9 * dt
@@ -199,31 +205,60 @@ function draw(now) {
     const fr = o.fr, dt = fr ? Math.min(0.033, (now - fr.last) / 1000) : 0
     if (fr) fr.last = now
     r.cam.position.set(0, fr ? 2.4 : 0.2, fr ? 11.5 : 6); r.cam.lookAt(0, fr ? -0.5 : 0, 0)
-    r.shards.visible = !!fr && fr.mode === 'shatter'
-    const showWhole = !fr || fr.mode === 'drop'
+    const age = fr ? (now - fr.t0) / 1000 : 0, md = fr?.mode
+    r.glass.rotation.y = r.glassBack.rotation.y = 0  // as malhas são partilhadas: o rodopio do implodir não passa para a esfera seguinte
+    const crumble = md === 'shatter' || (md === 'drain' && age > 1.5)  // moer: primeiro escoa, depois o vidro vazio desfaz-se
+    r.shards.visible = !!fr && crumble
+    const showWhole = !fr || md === 'drop' || md === 'melt' || md === 'implode' || md === 'stone' || (md === 'drain' && !crumble)
     r.ball.visible = r.glass.visible = r.glassBack.visible = showWhole
-    if (fr?.mode === 'shatter') fr.parts.forEach((b, k) => { stepBody(b, dt); const m = r.parts[k]; m.position.set(...b.p); m.rotation.set(...b.r)
-      const u2 = m.children[1].material.uniforms; u2.tint.value.copy(s.core); u2.crack.value = 1 })
+    r.parts.forEach(m => { m.children[0].visible = md !== 'drain' })  // os cacos do moer já não têm líquido
+    if (fr && crumble) fr.parts.forEach((b, k) => { stepBody(b, dt); const m = r.parts[k]; m.position.set(...b.p); m.rotation.set(...b.r)
+      const u2 = m.children[1].material.uniforms; u2.tint.value.copy(md === 'drain' ? GREY : s.core); u2.crack.value = 1
+      if (md === 'drain') m.scale.setScalar(Math.max(0.001, 1 - Math.max(0, age - 2.6) / 1.4)); else m.scale.setScalar(1) })
+    if (md === 'drain' && !crumble) {  // o líquido escoa: fica ralo e cinzento até ao vidro vazio, que estala
+      const k = Math.min(1, age / 1.4)
+      u.dens.value = 0.1 * (1 - k); for (const c of [u.c1, u.c2, u.core, u.deep]) c.value.lerp(GREY, k)
+      r.ball.scale.setScalar(sc * (1 - 0.85 * k)); r.ball.position.y = -0.55 * k
+      for (const g of [r.glass, r.glassBack]) { g.material.uniforms.crack.value = 0.4 + 0.6 * k; g.material.uniforms.tint.value.copy(GREY) }
+    }
+    if (md === 'melt' || md === 'stone') {  // veneno: o líquido fica tóxico e derrete; empate: pedra cinzenta, parada
+      const k = md === 'stone' ? Math.min(1, age / 0.8) : Math.min(1, age / 2.4), to = md === 'stone' ? STONE : TOXIC
+      for (const c of [u.c1, u.c2, u.core, u.deep]) c.value.lerp(to, k)
+      u.speed.value = md === 'stone' ? 0.0001 : 4 * (1 - k) + 0.3
+      if (md === 'melt') { const y = 1 - 0.78 * k, w = 1 + 0.45 * k
+        for (const m of [r.ball, r.glass, r.glassBack]) { m.scale.set(sc * w, sc * y, sc * w); m.position.y = -(1 - y) * 0.95 }
+        for (const g of [r.glass, r.glassBack]) g.material.uniforms.dim.value = Math.max(0.05, 1 - k) }
+      else for (const g of [r.glass, r.glassBack]) { g.material.uniforms.crack.value = 0.35; g.material.uniforms.tint.value.copy(STONE); g.material.uniforms.dim.value = 0.55 }
+    }
+    if (md === 'implode') {  // engolida: roda cada vez mais depressa e encolhe até um ponto
+      const k = Math.min(1, age / 1.1), z = Math.max(0.001, 1 - k * k)
+      for (const m of [r.ball, r.glass, r.glassBack]) { m.scale.setScalar(sc * z); m.rotation.y = age * age * 14 }
+    }
     r.halves.forEach(h => { const u2 = h.children[1].material.uniforms; u2.tint.value.copy(s.core); u2.crack.value = 0.6 })
     if (fr?.mode === 'drop') {  // cai, salta, rola para o lado e desfaz-se em pó
       const b = fr.ball; stepBody(b, dt, 1); b.rz -= b.v[0] * dt
       const age = (now - fr.t0) / 1000, k = Math.max(0, 1 - Math.max(0, age - 1.6) / 1.2)
       for (const m of [r.ball, r.glass, r.glassBack]) { m.position.set(...b.p); m.rotation.z = b.rz; m.scale.setScalar(Math.max(0.001, k) * sc) }
       r.glass.material.uniforms.dim.value = k; r.glassBack.material.uniforms.dim.value = k
-    } else for (const m of [r.ball, r.glass, r.glassBack]) { m.position.set(0, 0, 0); m.rotation.z = 0 }
-    r.floor.material.opacity = fr ? Math.min(0.85, (now - fr.t0) / 600) : 0
+    } else if (md !== 'melt' && md !== 'drain') for (const m of [r.ball, r.glass, r.glassBack]) { m.position.set(0, 0, 0); m.rotation.z = 0 }
+    if (!fr) r.ball.position.y = 0
+    r.floor.material.opacity = fr && md !== 'implode' && md !== 'stone' ? Math.min(0.85, (now - fr.t0) / 600) : 0
     r.glow.visible = r.glow2.visible = r.caustic.visible = !fr
     // partir ao meio: as duas metades afastam-se e voltam a juntar-se
     const opening = s.fx === 'split' && fxk > 0 && !fr
-    r.halves.forEach((h, k) => { h.visible = opening; if (opening) { h.position.x = (k ? 1 : -1) * Math.sin(Math.min(1, fxk * 1.3) * Math.PI) * 0.45; h.rotation.y = k ? 0 : 0; h.scale.setScalar(sc) } })
-    if (opening) r.ball.visible = r.glass.visible = r.glassBack.visible = false
+    r.halves.forEach((h, k) => { h.visible = opening || md === 'split'; if (opening) { h.position.set((k ? 1 : -1) * Math.sin(Math.min(1, fxk * 1.3) * Math.PI) * 0.45, 0, 0); h.rotation.set(0, 0, 0); h.scale.setScalar(sc) } })
+    if (md === 'split') r.halves.forEach((h, k) => {  // comandante: cortada ao meio, as metades caem para os lados e ficam no chão
+      const b = fr.halves[k]; if (age > 0.25) stepBody(b, dt, 0.5); h.position.set(...b.p); h.rotation.set(...b.r); h.scale.setScalar(sc)
+      const u2 = h.children[1].material.uniforms; u2.tint.value.copy(s.core); u2.crack.value = 0.5 })
+    if (opening || md === 'split') r.ball.visible = r.glass.visible = r.glassBack.visible = false
     // verter (dentada, sangue): gotas da cor do líquido caem pelo lado e fazem uma poça
     const spill = s.fx === 'spill' && !fr
     if (spill && !o.drops) o.drops = Array.from({ length: 10 }, () => ({ p: [0.75 + Math.random() * 0.2, Math.random() * 0.4, 0.4], v: [0.6 + Math.random(), 0.6 + Math.random(), (Math.random() - 0.5)] }))
     if (!s.fx) o.drops = null
     r.drops.visible = !!o.drops
     if (o.drops) o.drops.forEach((b, k) => { stepBody(b, 0.016, 0.05); const m = r.drops.children[k]; m.position.set(...b.p); m.material.color.copy(s.core) })
-    r.puddle.material.opacity = o.drops ? 0.75 * Math.min(1, (1 - fxk) * 2) : 0; r.puddle.material.color.copy(s.core); r.puddle.position.x = 1.2
+    r.puddle.material.opacity = o.drops ? 0.75 * Math.min(1, (1 - fxk) * 2) : 0; r.puddle.material.color.copy(s.core); r.puddle.position.x = 1.2; r.puddle.scale.setScalar(1)
+    if (md === 'melt') { const k = Math.min(1, age / 2.4); r.puddle.material.opacity = 0.85 * k; r.puddle.material.color.copy(TOXIC); r.puddle.position.x = 0; r.puddle.scale.setScalar(0.4 + 1.6 * k) }
     r.renderer.render(r.scene, r.cam)
     const cv = (px && px.querySelector('canvas.orb3d')) || o.cv, g = cv.getContext('2d')
     if (cv.width !== SIZE) { cv.width = SIZE; cv.height = SIZE }

@@ -3657,3 +3657,9 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 @keyframes cmdglow { 0%, 100% { filter: none; } 40% { filter: brightness(1.8) drop-shadow(0 0 8px #f2b84b); } }
 @media (prefers-reduced-motion: reduce) { .cmdz.cast::after, .cmdz.back::after, .cmdz.cast img, .cmdz.back img { animation: none; opacity: 0; } }
 .kwtip, .pt-ex { width: max-content; }  /* junto à borda direita encolhia em vez de ser empurrado (keepOnScreen) */
+/* derrota por moer: páginas (costas de carta) a sair da esfera; dano de comandante: o corte dourado */
+.oburst .opage { position: absolute; width: 14px; height: 19px; border-radius: 2px; background: linear-gradient(135deg, #6b4a2a, #3a2412); border: 1px solid #c8a46a; box-shadow: 0 1px 4px #000a; }
+.oburst .oslash { position: absolute; left: -30%; top: 50%; width: 160%; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent, #fff6d0 30%, #f2b84b 50%, #fff6d0 70%, transparent);
+  box-shadow: 0 0 14px #f2b84b; transform: rotate(-28deg) scaleX(0); animation: oslash .5s cubic-bezier(.2, .9, .3, 1) .05s forwards, ofade .6s ease-in 1s forwards; }
+@keyframes oslash { to { transform: rotate(-28deg) scaleX(1); } }
+@keyframes ofade { to { opacity: 0; } }
