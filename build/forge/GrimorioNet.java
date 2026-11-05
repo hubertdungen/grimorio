@@ -394,6 +394,16 @@ public class GrimorioNet {
                 if (si.getSourceCard() != null) { so.addProperty("card", si.getSourceCard().getId()); so.addProperty("name", si.getSourceCard().getCurrentState().getName()); }
                 if (si.getActivatingPlayer() != null) so.addProperty("by", si.getActivatingPlayer().getId());
                 so.addProperty("ability", si.isAbility());
+                // os alvos (cartas e jogadores, também os das partes modais/encadeadas): a mesa liga o feitiço a cada um com uma linha
+                JsonArray tc = new JsonArray(), tp = new JsonArray();
+                try {
+                    for (StackItemView x = si; x != null; x = x.getSubInstance()) {
+                        if (x.getTargetCards() != null) for (CardView c : x.getTargetCards()) tc.add(c.getId());
+                        if (x.getTargetPlayers() != null) for (PlayerView pv : x.getTargetPlayers()) tp.add(pv.getId());
+                    }
+                } catch (Exception e) { System.err.println("alvos da pilha: " + e); }
+                if (tc.size() > 0) so.add("tc", tc);
+                if (tp.size() > 0) so.add("tp", tp);
                 st.add(so);
             }
             o.add("stack", st);

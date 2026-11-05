@@ -186,13 +186,13 @@ export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
       {/* a carta a resolver também conta para a largura (senão ficava por cima da legenda); com muitas, o leque aperta */}
       <div className="stk-pile" style={{ '--n': n + (ghost ? 1 : 0), '--sg': `${n + (ghost ? 1 : 0) > 4 ? Math.max(10, Math.round(104 / (n + (ghost ? 1 : 0) - 1))) : 26}px` }}>
         {s.stack.map((x, j) => (
-          <In key={x.uid} quiet={quiet} className={`stk ${x.p || ''} ${x.kind} ${j === n - 1 ? 'top' : ''}`} style={{ '--j': j, '--r': `${tilt(x.uid)}deg` }} data-z={x.card ? `n:${x.card}` : undefined}>
+          <In key={x.uid} quiet={quiet} className={`stk ${x.p || ''} ${x.kind} ${j === n - 1 ? 'top' : ''}`} style={{ '--j': j, '--r': `${tilt(x.uid)}deg` }} data-z={x.card ? `n:${x.card}` : undefined} data-si={j}>
             {pic(x.card, x.p, x.kind)}
           </In>
         ))}
         {ghost && <div key={`g${ghost.key}`} className={`stk resolving ${ghost.p || ''}`} style={{ '--j': n, '--d': `${ghost.ms}ms` }}>{pic(ghost.card, ghost.p)}</div>}
       {(top || ghost) && (
-        <div key={top ? `t${top.uid}` : `g${ghost.key}`} className={`stk-cap ${(top || ghost).p || ''} ${top ? '' : 'res'}`}>
+        <div key={top ? `t${top.uid}` : `g${ghost.key}`} className={`stk-cap ${(top || ghost).p || ''} ${top ? '' : 'res'}`} style={{ '--spell': spellCol(lookup(data, (top || ghost).card)) }}>
           {top ? <>
             <small>{KIND_L[top.kind] || top.kind}{n > 1 ? ` · ${tx('{n} na pilha', { n })}` : ''}</small>
             <b>{short(top.card) || tx('habilidade')}{tgt ? <span className="muted"> → {tgt}</span> : null}</b>
@@ -255,7 +255,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
   const kws = kwsOf(c, p)
   const back = backUp(c, p), upside = back && !c?.df && !p.hidden  // carta flip (Kamigawa): a mesma imagem, rodada 180°
   const ctr = Object.entries(p.counters || {}).filter(([k]) => k !== 'loyalty' && k !== 'defense')
-  const cls = ['pc', p.dmgIn > 0 && 'hurt', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', p.phased && 'phased', p.faceDown && 'down', enter && 'in'].filter(Boolean).join(' ')
+  const cls = ['pc', p.dmgIn > 0 && 'hurt', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', typeof p.dying === 'string' && `to-${p.dying}`, p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', p.phased && 'phased', p.faceDown && 'down', enter && 'in'].filter(Boolean).join(' ')
   const title = [short(p.face || p.name), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase (phasing): não conta como estando em jogo'), p.copy && tx('cópia'), p.merged?.length > 1 && tx('mutada: {x}', { x: p.merged.map(short).join(' + ') }), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.moon && tx('Blood Moon: é uma Montanha e só dá mana vermelha'), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
   tgt = tgt || (p.atkName ? ['x', short(p.atkName)] : null)  // ataca um planeswalker ou uma batalha
   return (
@@ -288,7 +288,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
         {tgt && <i className={`pc-tgt t-${tgt[0]}`} title={tx('Ataca {x}', { x: tgt[1] })}>⚔ {tgt[1]}</i>}
         {(p.est || p.hidden) && <i className="pc-est" title={p.hidden ? tx('Estimativa: terreno procurado na biblioteca; o registo deste jogo (antigo) não diz qual.') : EST}>≈</i>}
       </div>
-      {pop && !quiet && <i key={pop.i} className={`pc-pop ${pop.kind} ${pop.ct === 'loyalty' ? 'loyalty' : ''}`}>{pop.kind === 'flip' ? '⟲' : pop.kind === 'enter' ? pop.txt : pop.kind === 'pump' ? pop.pt : `${pop.n > 0 ? '+' : '−'}${Math.abs(pop.n)}${pop.ct && pop.ct !== '+1/+1' && pop.ct !== 'loyalty' ? ` ${CT_ICON[pop.ct] || CT[pop.ct] || pop.ct}` : ''}`}</i>}
+      {pop && !quiet && <i key={pop.i} className={`pc-pop ${pop.kind} ${pop.ct === 'loyalty' ? 'loyalty' : ''} ${pop.ct === '-1/-1' || pop.ct === 'poison' ? 'ct-m1' : ''}`}>{pop.kind === 'flip' ? '⟲' : pop.kind === 'enter' || pop.kind === 'attach' ? pop.txt : pop.kind === 'pump' ? pop.pt : `${pop.n > 0 ? '+' : '−'}${Math.abs(pop.n)}${pop.ct && pop.ct !== '+1/+1' && pop.ct !== 'loyalty' ? ` ${CT_ICON[pop.ct] || CT[pop.ct] || pop.ct}` : ''}`}</i>}
     </div>
   )
 })
@@ -361,8 +361,20 @@ function Row({ perms, data, fx, att, cls, groupable, empty, quiet, who }) {  // 
 // ---------- vida (o número conta até ao valor novo; o anel pisca vermelho/verde) ----------
 // 1 000 000 = vida infinita: o ciclo (Heliod + Spike Feeder…) repetido de uma vez pelo atalho do Forge
 export const lifeTxt = n => (n >= 1e6 ? '∞' : n)
-function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10 }) {  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
-  const ref = useRef(null), prev = useRef(life)
+// a vida é uma esfera de vidro com fumo lá dentro, sempre a rodar devagar; reage ao que acontece (data-mood): dano = fumo de
+// sangue, vida ganha = luz dourada/verde, veneno = fumo roxo, vida baixa = vermelho a pulsar. O DamageFx junta a reação de
+// quem bateu (data-react: voar, atropelar, toque mortal, vínculo vital, infetar, golpe duplo, feitiço = fogo…).
+// dmg: o dano levado no combate em curso — fica por cima da esfera (antes ocupava lugar na barra e empurrava a vida e os montes)
+function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0 }) {  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
+  const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState('')
+  useEffect(() => {
+    if (fast) return
+    const m = psnHit ? 'psn' : d < 0 || hit ? 'loss' : d > 0 ? 'gain' : ''
+    if (!m) return
+    setMood(m)
+    const t = setTimeout(() => setMood(''), 1600)
+    return () => clearTimeout(t)
+  }, [step, d, hit, psnHit, fast])
   useEffect(() => {
     const el = ref.current, from = prev.current
     prev.current = life
@@ -380,8 +392,10 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10 })
   }, [life, fast])
   const low = life <= Math.max(5, Math.round(start / 4))
   return (
-    <div className={`orb ${low ? 'low' : ''}`} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''}`} data-mood={mood || undefined} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+      <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
       <b ref={ref}>{lifeTxt(life)}</b><small>{tx('vida')}</small>
+      {dmg > 0 && <i className="orb-dmg" title={tx('Dano que levou neste combate: {n}', { n: dmg })}>−{dmg}</i>}
       {d && !fast ? <i key={step} className={`orb-flash ${d < 0 ? 'loss' : 'gain'}`} /> : null}
       {d && !fast ? <i key={`f${step}`} className={`float ${d < 0 ? 'loss' : 'gain'}`}>{d > 0 ? '+' : '−'}{lifeTxt(Math.abs(d))}</i> : null}
       {hit && !fast ? <i key={`h${step}`} className="orb-hit" /> : null}
@@ -414,6 +428,53 @@ export function combatPairs(perms) {
 }
 // as linhas por cima da mesa (sem apanhar cliques): medidas no ecrã e passadas para a mesa (que pode estar escalada e com
 // scroll); refeitas enquanto as cartas deslizam e de 300 em 300 ms enquanto há bloqueios (as filas mexem-se)
+// a cor de um feitiço pela cor da carta (o efeito brilha nessa cor na legenda e a linha até ao alvo também)
+const SPELL_COL = { W: '#f5e6a8', U: '#4cc9f0', B: '#b07cff', R: '#ff5c3a', G: '#4ade80' }
+export function spellCol(c) {
+  const k = [...new Set(String(c?.co ?? c?.ci ?? '').toUpperCase().replace(/[^WUBRG]/g, ''))]
+  return k.length > 1 ? '#f2b84b' : SPELL_COL[k[0]] || '#cbd5e1'
+}
+// ---------- a pilha aponta para os alvos: uma linha tracejada a correr, na cor do feitiço, de cada carta da pilha até cada
+// alvo (permanente, jogador ou outro feitiço na pilha), com um anel a pulsar no alvo ----------
+// s.stack[j] = {card, tc: [chave da carta], tp: ['a'|'b'], target: nome} — sem chaves (réplicas), procura-se pelo nome
+export function StackLinks({ s, data }) {
+  const ref = useRef(null), [ls, setLs] = useState([])
+  const items = s.stack || [], sig = items.map((x, j) => `${j}:${x.card}>${(x.tc || []).join('.')}|${(x.tp || []).join('.')}|${x.tc || x.tp ? '' : x.target || ''}`).join(',')
+  useLayoutEffect(() => {
+    const root = ref.current?.parentElement
+    if (!root || !items.some(x => x.tc?.length || x.tp?.length || x.target)) { setLs([]); return }
+    const measure = () => {
+      try {
+        const r = root.getBoundingClientRect(), sc = r.width / (root.offsetWidth || r.width) || 1
+        const pt = q => q?.width ? [(q.left + q.width / 2 - r.left) / sc + root.scrollLeft, (q.top + q.height / 2 - r.top) / sc + root.scrollTop] : null
+        const byName = nm => [...root.querySelectorAll('.pc[data-z^="k:"] img')].find(i => i.alt === nm)?.closest('.pc')
+        const out = []
+        items.forEach((x, j) => {
+          const from = pt(root.querySelector(`.stk[data-si="${j}"]`)?.getBoundingClientRect())
+          if (!from) return
+          const col = spellCol(lookup(data, x.card))
+          const tos = [...(x.tc || []).map(k => root.querySelector(`.pc[data-z="k:${k}"]`) || root.querySelector(`.stk[data-si]:not([data-si="${j}"])`)),
+            ...(x.tp || []).map(k => root.querySelector(`.bside.p-${k} .orb`)),
+            ...(!x.tc?.length && !x.tp?.length && x.target ? [/^[a-d]$/.test(x.target) ? root.querySelector(`.bside.p-${x.target} .orb`) : byName(x.target)] : [])]
+          tos.forEach((e, i) => { const to = pt(e?.getBoundingClientRect()); if (to) out.push({ k: `${j}-${i}`, col, xy: [...from, ...to], top: j === items.length - 1 }) })
+        })
+        setLs(out)
+      } catch (e) { console.warn('StackLinks', e) }
+    }
+    let raf, t0 = performance.now()
+    const anim = () => { measure(); if (performance.now() - t0 < 900) raf = requestAnimationFrame(anim) }
+    anim()
+    const iv = setInterval(measure, 300)
+    return () => { cancelAnimationFrame(raf); clearInterval(iv) }
+  }, [sig])  // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <svg ref={ref} className="slinks" aria-hidden="true">
+      {ls.map(({ k, col, top, xy: [x1, y1, x2, y2] }) => <g key={k} className={top ? 'top' : ''} style={{ '--spell': col }}>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} /><circle className="sl-from" cx={x1} cy={y1} r="4" /><circle className="sl-to" cx={x2} cy={y2} r="16" /></g>)}
+    </svg>
+  )
+}
+
 export function CombatLinks({ s }) {
   const ref = useRef(null), [ls, setLs] = useState([])
   const pairs = s.sides.flatMap(k => s[k].perms).filter(p => typeof p.blocking === 'string').map(p => [p.key, p.blocking])
@@ -447,7 +508,35 @@ export function CombatLinks({ s }) {
 // kind: 'cmb' combate (laranja), 'spl' feitiço/habilidade (vermelho), 'psn' veneno (roxo), 'gain' vida (verde),
 // 'counter' feitiço anulado (azul/roxo: uma onda na pilha). Num jogador o número não salta aqui: o orbe já mostra a
 // mudança (antes saíam dois «−2»). Sem a carta de origem em jogo (feitiço já no cemitério): sai da pilha ou do centro.
-export function DamageFx({ hits }) {
+// a reação da esfera da vida a quem lhe bateu: a 1.ª palavra-chave que se vê (ordem = a que mais conta), feitiço = fogo
+const ORB_KW = [['deathtouch', /\bDeathtouch\b/i], ['infect', /\bInfect\b/i], ['lifelink', /\bLifelink\b/i], ['trample', /\bTrample\b/i],
+  ['double', /\bDouble strike\b/i], ['flying', /\bFlying\b/i], ['first', /\bFirst strike\b/i], ['menace', /\bMenace\b/i]]
+// relâmpagos: o easter egg do Lightning Bolt (e das cartas iguais) — um raio em zigue-zague, clarão e um tremor forte
+const ZAP = /\b(lightning|bolt|thunder|electr|shock|storm(?! crow)|zap|voltaic|galvanic|thunderbolt)/i
+function quake(root, k) {  // translate: não mexe no transform (escala da mesa)
+  root.animate([{ translate: '0 0' }, { translate: `${-k}px ${k / 2}px` }, { translate: `${k}px ${-k / 2}px` },
+    { translate: `${-k / 2}px ${k / 3}px` }, { translate: `${k / 3}px 0` }, { translate: '0 0' }], { duration: 120 + 25 * k, easing: 'ease-out' })
+}
+function lightning(box, a, b, delay) {
+  setTimeout(() => {
+    const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg'), n = 9, pts = []
+    for (let i = 0; i <= n; i++) {
+      const t = i / n, j = i && i < n ? (Math.random() - 0.5) * 46 : 0, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1
+      pts.push(`${a[0] + dx * t - (dy / L) * j},${a[1] + dy * t + (dx / L) * j}`)
+    }
+    svg.setAttribute('class', 'dmgfx-zap')
+    for (const c of ['glow', 'core']) { const pl = document.createElementNS(ns, 'polyline'); pl.setAttribute('points', pts.join(' ')); pl.setAttribute('class', c); svg.append(pl) }
+    const flash = document.createElement('i'); flash.className = 'dmgfx-flash'
+    box.append(svg, flash)
+    setTimeout(() => { svg.remove(); flash.remove() }, 650)
+  }, delay)
+}
+export function orbReact(orb, kind) {  // data-react na esfera durante 1,4 s (o CSS faz o resto)
+  if (!orb || !kind) return
+  orb.dataset.react = kind
+  clearTimeout(orb._rt); orb._rt = setTimeout(() => { delete orb.dataset.react }, 1400)
+}
+export function DamageFx({ hits, data }) {
   const ref = useRef(null), done = useRef(new Set())
   useLayoutEffect(() => {
     const root = ref.current?.parentElement
@@ -476,21 +565,29 @@ export function DamageFx({ hits }) {
       if (!b) return
       const a = at(h.from != null && root.querySelector(`.pc[data-z="k:${h.from}"]`)) || at(stk(h.fromName)) || mid
       const bolt = document.createElement('i'), pop = document.createElement('b')
-      bolt.className = `dmgfx-bolt ${kind}`; pop.className = `dmgfx-pop ${kind}`; pop.textContent = `${kind === 'gain' ? '+' : kind === 'psn' ? '☠' : '−'}${h.n}`
-      Object.assign(bolt.style, { left: `${a[0]}px`, top: `${a[1]}px` }); Object.assign(pop.style, { left: `${b[0]}px`, top: `${b[1]}px` })
+      // feitiços vermelhos de dano: o projétil é fogo; os relâmpagos (Lightning Bolt e companhia) têm o raio a sério
+      const src = kind === 'spl' && data && h.fromName ? lookup(data, h.fromName) : null
+      const zap = src && ZAP.test(h.fromName), fire = src && !zap && /R/.test(String(src.co ?? src.ci ?? ''))
+      pop.className = `dmgfx-pop ${kind}`; pop.textContent = `${kind === 'gain' ? '+' : kind === 'psn' ? '☠' : '−'}${h.n}`
+      Object.assign(pop.style, { left: `${b[0]}px`, top: `${b[1]}px` })
+      const arrive = big => {  // chegou: o número na carta, ou a esfera da vida reage; e a mesa treme
+        if (!h.to.side) { box.append(pop); setTimeout(() => pop.remove(), 1100) }
+        else {  // a esfera reage a quem bateu (palavra-chave; feitiço = fogo; relâmpago = raio; vida = luz; veneno = fumo roxo)
+          const se = h.from != null && root.querySelector(`.pc[data-z="k:${h.from}"]`), nm = h.fromName || se?.querySelector('img')?.alt
+          const o = (data && nm && lookup(data, nm)?.o) || ''
+          const kw = kind === 'gain' ? 'gain' : kind === 'psn' ? 'infect' : zap ? 'zap' : ORB_KW.find(([, re]) => re.test(o))?.[0] || (kind === 'spl' ? 'fire' : 'hit')
+          orbReact(elOf(h.to), kw)
+        }
+        if (kind !== 'gain') quake(root, big || Math.min(8, 2 + h.n))
+      }
+      if (zap) { lightning(box, a, b, lag); setTimeout(() => arrive(13), lag + 230); lag += 160; return }
+      bolt.className = `dmgfx-bolt ${kind} ${fire ? 'fire' : ''}`
+      Object.assign(bolt.style, { left: `${a[0]}px`, top: `${a[1]}px` })
       box.append(bolt)
       const go = bolt.animate([{ transform: 'translate(-50%,-50%) scale(.6)', opacity: 0 }, { opacity: 1, offset: 0.15 },
         { transform: `translate(calc(-50% + ${b[0] - a[0]}px), calc(-50% + ${b[1] - a[1]}px)) scale(1.15)`, opacity: 1 }], { duration: 460, delay: lag, easing: 'cubic-bezier(.5,0,.75,.4)', fill: 'forwards' })
       lag += 120
-      go.onfinish = () => {
-        bolt.remove()
-        if (!h.to.side) { box.append(pop); setTimeout(() => pop.remove(), 1100) }
-        if (kind === 'gain') return
-        // tremor de terra: a mesa abana ao bater, mais forte quanto maior o dano (até 8 px)
-        const k = Math.min(8, 2 + h.n)
-        root.animate([{ translate: '0 0' }, { translate: `${-k}px ${k / 2}px` }, { translate: `${k}px ${-k / 2}px` },
-          { translate: `${-k / 2}px ${k / 3}px` }, { translate: '0 0' }], { duration: 320, easing: 'ease-out' })  // translate: não mexe no transform (escala da mesa)
-      }
+      go.onfinish = () => { bolt.remove(); arrive() }
     })
     if (done.current.size > 400) done.current = new Set([...done.current].slice(-200))
   }
@@ -516,8 +613,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg()
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
-      {s.dmg?.pl?.[k] > 0 && <span className="orb-dmg" title={tx('Dano que levou neste combate: {n}', { n: s.dmg.pl[k] })}>−{s.dmg.pl[k]}</span>}
-      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} />
+      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} />
       <div className="bname">
         <b title={name}>{name}</b>
         <span className="chips">
@@ -972,7 +1068,8 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
             return mates.length ? <div className="mine withmate">{me}{mates.map(k => <Side key={k} k={k} name={who[k]} {...sp} compact={mates.length > 1} who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div> : me
           })()}
           <CombatLinks s={s} />
-          <DamageFx hits={dmgHits} />
+          <StackLinks s={s} data={data} />
+          <DamageFx hits={dmgHits} data={data} />
           {ended && (
             <div className={`endbanner ${game.stopped ? 'draw stopped' : !game.winner || game.winner === 'draw' ? 'draw' : pov === 'a' ? (game.winner === 'a' ? 'win' : 'loss') : !pov ? 'neutral' : game.winner === pov ? 'win' : 'loss'}`} role="status">
               <b>{game.stopped ? tx('⏹ Interrompido no turno {t} (não conta)', { t: game.turns || s.turn || 0 }) : pov !== 'a' ? (!game.winner || game.winner === 'draw' ? tx('Empate') : tx('«{d}» venceu no turno {t}', { d: who[game.winner], t: game.turns })) : game.winner === 'a' ? (mates.length ? tx('Vitória da equipa no turno {t}', { t: game.turns }) : tx('Vitória no turno {t}', { t: game.turns })) : !lost(game.winner) ? tx('Empate') : mates.length ? tx('Derrota da equipa no turno {t}', { t: game.turns }) : multi ? `${game.places ? tx('{p} lugar', { p: ord(game.places.indexOf('a') + 1) }) : tx('Derrota')}${s.a.out ? ` — ${tx('eliminado no turno {n}', { n: s.a.out })}` : ''}` : tx('Derrota no turno {t}', { t: game.turns })}</b>

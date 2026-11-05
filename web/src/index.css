@@ -3158,3 +3158,124 @@ label.chk.off .why { display: block; flex-basis: 100%; margin: 2px 0 0 24px; opa
 .fp-declaring .bside.bottom .pc.cre:not(.tapped):not(.sick) .pc-rot { box-shadow: 0 0 0 2px #ff9f43, 0 0 14px #ff9f43aa; border-radius: 6px; animation: canattack 1.1s ease-in-out infinite; }
 @keyframes canattack { 50% { box-shadow: 0 0 0 3px #ffb347, 0 0 22px #ff9f43; } }
 @media (prefers-reduced-motion: reduce) { .fp-phases i.on.combat, .fp-declare, .fp-declaring .pc .pc-rot { animation: none; } }
+
+/* ---------- a vida: esfera de vidro com fumo lá dentro, a rodar devagar; reage ao que acontece ---------- */
+.orb { --core: #5ee08a; --deep: #06301a; --smoke: #c8ffd9; --smoke2: #3ddc84; --glow: #22c55e66; isolation: isolate; }
+.orb, .orb.low { background: radial-gradient(circle at 50% 118%, var(--core) 0 26%, var(--deep) 80%);
+  box-shadow: inset 0 -9px 14px #000a, inset 0 3px 7px #ffffff45, 0 0 0 1px #ffffff2e, 0 0 16px var(--glow), 0 6px 14px #0007; transition: box-shadow .4s; }
+.orb > b, .orb > small { position: relative; z-index: 3; color: #fff; text-shadow: 0 1px 3px #000d, 0 0 8px #000a; }
+.orb-in { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; z-index: 1; pointer-events: none; }
+.orb-in::before { content: ''; position: absolute; inset: 0; border-radius: 50%; z-index: 4; background: radial-gradient(circle at 50% 104%, #ffffff38, transparent 42%); }  /* luz a atravessar o vidro, em baixo */
+.orb-in::after { content: ''; position: absolute; left: 15%; top: 8%; width: 48%; height: 30%; border-radius: 50%; z-index: 4; transform: rotate(-22deg);
+  background: radial-gradient(ellipse at 45% 45%, #ffffffc0, #ffffff00 70%); }  /* o reflexo do vidro */
+.orb-smoke { position: absolute; inset: -38%; opacity: .55; mix-blend-mode: screen; filter: blur(5px); animation: orbswirl 11s linear infinite;
+  background: radial-gradient(circle at 32% 38%, var(--smoke) 0 9%, transparent 30%), radial-gradient(circle at 68% 62%, var(--smoke2) 0 11%, transparent 34%),
+    radial-gradient(circle at 50% 84%, var(--smoke) 0 7%, transparent 27%), radial-gradient(circle at 22% 70%, var(--smoke2) 0 6%, transparent 24%); }
+.orb-smoke.s2 { animation-duration: 17s; animation-direction: reverse; opacity: .4; }
+@keyframes orbswirl { 0% { transform: rotate(0) scale(1); } 50% { transform: rotate(180deg) scale(1.18); } 100% { transform: rotate(360deg) scale(1); } }
+.orb-fx { position: absolute; inset: 0; border-radius: 50%; opacity: 0; z-index: 2; }
+.orb.low { --core: #ff6b81; --deep: #3f0410; --smoke: #ffb3c0; --smoke2: #e11d48; --glow: #f43f5e99; animation: orbbeat 1.3s ease-in-out infinite; }
+.orb.low .orb-smoke { animation-duration: 5s; }
+@keyframes orbbeat { 0%, 100% { scale: 1; } 12% { scale: 1.06; } 24% { scale: .99; } 36% { scale: 1.04; } }
+.orb.psnd { --smoke2: #a855f7; }  /* já com veneno: um fio roxo no fumo */
+/* dano: fumo de sangue e uma mancha vermelha que escorre */
+.orb[data-mood="loss"] { --smoke: #ff2a3a; --smoke2: #7a0010; --glow: #ff2a4acc; }
+.orb[data-mood="loss"] .orb-smoke { opacity: .95; animation-duration: 2.2s; }
+.orb[data-mood="loss"] .orb-fx { background: radial-gradient(circle at 50% 28%, #ff1a2e 0 18%, #8b0010 52%, transparent 74%); animation: orbblood 1.5s ease-out; }
+@keyframes orbblood { 0% { opacity: 0; transform: translateY(-35%) scale(.55); } 20% { opacity: .95; } 100% { opacity: 0; transform: translateY(38%) scale(1.3); } }
+/* vida ganha: luz dourada e verde, em raios */
+.orb[data-mood="gain"] { --smoke: #fff7b0; --smoke2: #7cff9b; --glow: #fde047dd; }
+.orb[data-mood="gain"] .orb-smoke { opacity: .9; }
+.orb[data-mood="gain"] .orb-fx { background: repeating-conic-gradient(#fff6a8d0 0 7deg, transparent 7deg 30deg); mix-blend-mode: screen; animation: orbrays 1.5s ease-out; }
+@keyframes orbrays { 0% { opacity: 0; transform: rotate(0) scale(.5); } 25% { opacity: 1; } 100% { opacity: 0; transform: rotate(80deg) scale(1.45); } }
+/* veneno: fumo roxo espesso */
+.orb[data-mood="psn"] { --smoke: #d8b4fe; --smoke2: #6b21a8; --glow: #a855f7dd; }
+.orb[data-mood="psn"] .orb-smoke { opacity: 1; animation-duration: 3s; filter: blur(3px); }
+/* quem bateu (o DamageFx põe data-react quando a bolinha chega): um símbolo e a cor dessa palavra-chave */
+.orb[data-react]::after { content: var(--glyph, ''); position: absolute; left: 50%; top: 50%; z-index: 6; font-size: 26px; line-height: 1; pointer-events: none;
+  filter: drop-shadow(0 0 6px var(--rc, #fff)); animation: orbglyph 1.3s ease-out forwards; }
+@keyframes orbglyph { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.4); } 25% { opacity: 1; transform: translate(-50%, -50%) scale(1.3); } 100% { opacity: 0; transform: translate(-50%, -150%) scale(1); } }
+.orb[data-react="hit"], .orb[data-react="trample"], .orb[data-react="double"], .orb[data-react="menace"] { animation: orbshake .45s ease-out; }
+@keyframes orbshake { 0%, 100% { translate: 0 0; } 20% { translate: -4px 2px; } 40% { translate: 4px -2px; } 60% { translate: -2px 1px; } 80% { translate: 2px 0; } }
+.orb[data-react="flying"] { --glyph: '🪶'; --rc: #bfe3ff; --smoke: #eef8ff; --smoke2: #9fd3ff; }
+.orb[data-react="flying"] .orb-fx { background: repeating-conic-gradient(#ffffffb0 0 4deg, transparent 4deg 45deg); mix-blend-mode: screen; animation: orbwind 1.2s ease-out; }
+@keyframes orbwind { 0% { opacity: 0; transform: rotate(0) scale(.6); } 30% { opacity: .9; } 100% { opacity: 0; transform: rotate(-200deg) scale(1.3) translateY(-20%); } }
+.orb[data-react="trample"] { --glyph: '🦶'; --rc: #d39b55; --smoke: #d39b55; --smoke2: #5b3410; }
+.orb[data-react="trample"] .orb-fx { background: repeating-linear-gradient(62deg, transparent 0 9px, #1a0d03cc 9px 10px), repeating-linear-gradient(-48deg, transparent 0 13px, #1a0d03aa 13px 14px); animation: orbcrack 1.3s ease-out; }
+@keyframes orbcrack { 0% { opacity: 0; } 15% { opacity: 1; } 70% { opacity: .8; } 100% { opacity: 0; } }
+.orb[data-react="deathtouch"] { --glyph: '☠'; --rc: #000; --smoke: #1b1b1b; --smoke2: #3b0a45; }
+.orb[data-react="deathtouch"] .orb-smoke { mix-blend-mode: normal; opacity: .9; }
+.orb[data-react="gain"] { --glyph: '✨'; --rc: #fde047; }
+.orb[data-react="lifelink"] { --glyph: '✚'; --rc: #fde047; }
+.orb[data-react="infect"] { --glyph: '☣'; --rc: #a3e635; --smoke: #bef264; --smoke2: #581c87; }
+.orb[data-react="first"] { --glyph: '⚔'; --rc: #fff; }
+.orb[data-react="double"] { --glyph: '⚔⚔'; --rc: #fff; }
+.orb[data-react="menace"] { --glyph: '👹'; --rc: #ff5c5c; }
+.orb[data-react="fire"] { --glyph: '🔥'; --rc: #ff8a00; --smoke: #ffb347; --smoke2: #ff3d00; }
+.orb[data-react="fire"] .orb-fx { background: radial-gradient(circle at 50% 100%, #ffd166 0 15%, #ff6a00 40%, transparent 72%); animation: orbblood 1.2s ease-out reverse; }
+/* o dano levado no combate: por cima da esfera, sem ocupar lugar na barra (antes empurrava a vida e os montes) */
+.orb-dmg { position: absolute; left: -16px; top: -10px; z-index: 7; align-self: auto; font-style: normal; line-height: 1.2; padding: 1px 6px; font-size: 12px; pointer-events: none; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .orb-smoke, .orb.low, .orb-fx, .orb[data-react], .orb[data-react]::after { animation: none !important; } }
+
+/* ---------- a pilha aponta para os alvos (StackLinks): linha na cor do feitiço e um anel a pulsar no alvo ---------- */
+.slinks { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 16; }
+.slinks line { stroke: var(--spell); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 9; opacity: .55; filter: drop-shadow(0 0 4px var(--spell)); animation: slinkdash .7s linear infinite; }
+.slinks g.top line { stroke-width: 4; opacity: .95; }
+.slinks .sl-from { fill: var(--spell); }
+.slinks .sl-to { fill: none; stroke: var(--spell); stroke-width: 3; opacity: .5; filter: drop-shadow(0 0 6px var(--spell)); transform-box: fill-box; transform-origin: center; animation: slinkring 1.1s ease-in-out infinite; }
+.slinks g.top .sl-to { opacity: 1; }
+@keyframes slinkdash { to { stroke-dashoffset: -11; } }
+@keyframes slinkring { 0%, 100% { transform: scale(.8); } 50% { transform: scale(1.15); } }
+/* a legenda da pilha: o efeito brilha na cor do feitiço */
+.stk-cap p { text-shadow: 0 0 10px color-mix(in srgb, var(--spell, #fff) 45%, transparent); }
+.stk-cap p b { text-shadow: 0 0 8px var(--spell, transparent), 0 0 2px #000; }
+.stk-cap b .muted { color: var(--spell, inherit); opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .slinks line, .slinks .sl-to { animation: none; } }
+
+/* ---------- para onde vai a carta que sai do campo ---------- */
+/* destruída/sacrificada (cemitério): racha, treme e desfaz-se em pedaços a cair */
+.pc.dying.to-graveyard .pc-rot { position: relative; }
+.pc.dying.to-graveyard .pc-rot::after { content: ''; position: absolute; inset: 0; z-index: 4; border-radius: 6px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 140' preserveAspectRatio='none'%3E%3Cpath d='M48 0 L44 30 L56 48 L42 70 L58 92 L47 140 M44 30 L20 40 L6 62 M56 48 L80 44 L96 28 M42 70 L18 88 L2 96 M58 92 L84 104 L98 120 M20 40 L26 18' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  filter: drop-shadow(0 0 3px #ff2a2a) drop-shadow(0 0 1px #000); animation: crackin .25s ease-out both; }
+@keyframes crackin { from { opacity: 0; clip-path: inset(0 0 100% 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
+.pc.dying.to-graveyard, .fp .pc.dying.to-graveyard { animation: shatter .9s ease-in forwards; }
+@keyframes shatter { 0% { transform: none; filter: none; } 15% { transform: translateX(-3px) rotate(-1deg); } 30% { transform: translateX(3px) rotate(1deg); filter: grayscale(.5) brightness(.9); }
+  100% { transform: translateY(26px) rotate(7deg) scale(.88); opacity: 0; filter: grayscale(1) brightness(.5) blur(1px); } }
+/* exilada: desfaz-se em luz branca/azul e sobe */
+.pc.dying.to-exile, .fp .pc.dying.to-exile { animation: exileout .9s ease-in forwards; }
+@keyframes exileout { 0% { filter: none; } 30% { filter: brightness(2.2) saturate(.3) drop-shadow(0 0 12px #bfe3ff); transform: scale(1.04); }
+  100% { opacity: 0; transform: translateY(-30px) scale(1.12); filter: brightness(3) blur(6px) drop-shadow(0 0 20px #fff); } }
+/* devolvida à mão ou à biblioteca: encolhe e voa */
+.pc.dying.to-hand, .fp .pc.dying.to-hand, .pc.dying.to-library, .fp .pc.dying.to-library { animation: bounceout .7s cubic-bezier(.5, 0, .8, .4) forwards; }
+@keyframes bounceout { 0% { transform: none; } 25% { transform: translateY(-8px) scale(1.05); } 100% { opacity: 0; transform: translateY(70px) scale(.45) rotate(-8deg); } }
+/* equipar / encantar: a criatura que recebe brilha e o símbolo cai em cima dela; ninjutsu: uma nuvem */
+.pc-pop.attach { color: #ffe08a; font-size: 24px; top: 40%; text-shadow: 0 0 10px #ffcf40, 0 0 2px #000; }
+.pc:has(> .pc-pop.attach) .pc-rot { animation: attachglow 1.1s ease-out; border-radius: 6px; }
+@keyframes attachglow { 0% { box-shadow: 0 0 0 0 #ffd36a00; } 30% { box-shadow: 0 0 0 3px #ffd36a, 0 0 22px #ffcf40; } 100% { box-shadow: 0 0 0 0 #ffd36a00; } }
+/* marcadores -1/-1 ou veneno numa criatura: escorre roxo */
+.pc-pop.ct-m1 { color: #d8b4fe; text-shadow: 0 0 8px #7e22ce, 0 0 2px #000; }
+.pc:has(> .pc-pop.ct-m1) .pc-rot { animation: psndrip 1.2s ease-out; border-radius: 6px; }
+@keyframes psndrip { 0% { box-shadow: inset 0 0 0 0 #7e22ce00; filter: none; } 35% { box-shadow: inset 0 -30px 30px -10px #7e22cecc, 0 0 16px #a855f7; filter: hue-rotate(-30deg) saturate(1.3); } 100% { box-shadow: inset 0 0 0 0 #7e22ce00; filter: none; } }
+/* feitiço vermelho: o projétil é uma bola de fogo com rasto */
+.dmgfx-bolt.fire { width: 22px; height: 22px; background: radial-gradient(circle at 40% 40%, #fff6c2 0 18%, #ffb347 35%, #ff4d00 62%, #ff4d0000 72%);
+  box-shadow: 0 0 18px 6px #ff6a00aa, -10px 0 18px 2px #ff3d0066, -22px 0 22px 0 #ff3d0033; }
+/* relâmpago (Lightning Bolt e companhia): o raio, um clarão e (no código) um tremor forte */
+.dmgfx-zap { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 30; animation: zapflick .6s steps(6) forwards; }
+.dmgfx-zap polyline { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.dmgfx-zap .glow { stroke: #7dd3fc; stroke-width: 10; opacity: .55; filter: blur(4px); }
+.dmgfx-zap .core { stroke: #fff; stroke-width: 3; filter: drop-shadow(0 0 6px #bae6fd); }
+@keyframes zapflick { 0%, 30%, 55% { opacity: 1; } 15%, 45% { opacity: .35; } 100% { opacity: 0; } }
+.dmgfx-flash { position: absolute; inset: 0; z-index: 29; pointer-events: none; background: radial-gradient(circle, #e0f2fe88, #e0f2fe00 70%); animation: zapflash .45s ease-out forwards; }
+@keyframes zapflash { 0% { opacity: 0; } 15% { opacity: 1; } 100% { opacity: 0; } }
+.orb[data-react="zap"] { --glyph: '⚡'; --rc: #7dd3fc; --smoke: #e0f2fe; --smoke2: #38bdf8; animation: orbshake .45s ease-out; }
+.orb[data-react="zap"] .orb-fx { background: radial-gradient(circle, #ffffffee 0 25%, #7dd3fc 45%, transparent 70%); animation: zapflash .5s ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .pc.dying.to-graveyard, .pc.dying.to-exile, .pc.dying.to-hand, .pc.dying.to-library, .pc-pop.attach, .dmgfx-zap, .dmgfx-flash { animation-duration: .01s !important; }
+  .pc:has(> .pc-pop.attach) .pc-rot, .pc:has(> .pc-pop.ct-m1) .pc-rot { animation: none; }
+}
+
+/* o topo da biblioteca jogável (Courser of Kruphix, Future Sight, Bolas's Citadel…): também na mão, com etiqueta e outra moldura */
+.fp-card.libtop-h .fp-cin { box-shadow: 0 0 0 2px #38bdf8, 0 0 16px #38bdf8aa; border-radius: 7px; }
+.fp-tag { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); z-index: 2; white-space: nowrap; font-style: normal; font-size: 10px; font-weight: 800;
+  padding: 1px 7px; border-radius: 99px; background: #0c4a6e; color: #e0f2fe; border: 1px solid #38bdf8; }

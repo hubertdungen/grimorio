@@ -4,7 +4,7 @@
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, DamageFx, Arts, useImg, artOf } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, Arts, useImg, artOf } from './Board.jsx'
 import { tx } from './i18n.js'
 import { playDiff } from './sfx.js'
 import { ask as confirmAsk } from './confirm.jsx'
@@ -66,17 +66,18 @@ function promptText(msg, st, me) {
 
 // uma carta solta (mão, escolhas, cemitério): imagem da Scryfall com força/resistência por cima. h = id da carta na mão:
 // a mesa trata do clique e do arrastar pelo data-h. picked = já escolhida numa escolha do Forge (descartar 2…)
-export function FCard({ c, data, onClick, h, cls = '', big, flip }) {
+export function FCard({ c, data, onClick, h, cls = '', big, flip, from, tag }) {  // from: de onde se arrasta (topo da biblioteca); tag: etiqueta por cima
   const im = useImg()  // a arte escolhida no deck (edição, imagem própria, básicos), não a da Scryfall por omissão
   if (!c || c.hidden) return <div className={`fp-card back ${cls}`} />
   const card = data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase())
   const src = card ? im(card, big ? 'normal' : 'small', !!(flip && card.df)) : null  // virada: a outra face (cartas de duas faces)
   return (
-    <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${c.picked ? 'picked' : ''} ${flip && !card?.df ? 'upside' : ''} ${cls}`} title={c.name} data-h={h} data-zid={c.id}
+    <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${c.picked ? 'picked' : ''} ${flip && !card?.df ? 'upside' : ''} ${cls}`} title={c.name} data-h={h} data-from={from} data-zid={c.id}
       onClick={onClick && (() => onClick(c))} onContextMenu={e => e.preventDefault()}>
       <span className="fp-cin">{/* na mão só o interior sobe com o rato: o botão (a zona do clique) fica parado */}
         {src ? <img src={src} alt={c.name} loading="lazy" draggable="false" /> : <span className="fp-name">{c.name}</span>}
         {c.pt && <i className="fp-pt">{c.pt[0]}/{c.pt[1]}</i>}
+        {tag && <i className="fp-tag">{tag}</i>}
       </span>
     </button>
   )
@@ -388,6 +389,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
   })
   const ended = !!s?.ended, iWon = !!s?.winner && s.winner === me?.name
+  // a janela do fim espera que o último golpe se veja (bolinhas, tremor, a esfera a reagir): antes aparecia no mesmo instante
+  // e a animação de quem ganhou passava por baixo dela
+  const [endShown, setEndShown] = useState(false)
+  useEffect(() => {
+    if (!ended) { setEndShown(false); return }
+    const t = setTimeout(() => setEndShown(true), s?.crash ? 0 : 2600)
+    return () => clearTimeout(t)
+  }, [ended])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (ended) onEnd?.(s.winner ? iWon : null) }, [ended]) // eslint-disable-line react-hooks/exhaustive-deps
   // sons: o Forge Play não manda eventos — soa a diferença entre o estado anterior e este (sfx.playDiff); o 1.º não soa
   const snapRef = useRef(null)
@@ -681,8 +690,15 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         if (d) pops.set(String(id), { i: seqKey, kind: d < 0 && (k === 'loyalty' || k === 'defense') ? 'dmg' : 'ctr', n: d, ct: k })
       }
       if (!!c.flipped !== !!o.flipped || !!c.faceDown !== !!o.faceDown) pops.set(String(id), { i: seqKey, kind: 'flip' })  // transformar, virar para cima (morph)
+      // equipar / encantar: a criatura que recebe brilha com uma corrente (equipamento) ou um selo (aura)
+      if (c.attachedTo != null && c.attachedTo !== o.attachedTo) pops.set(String(c.attachedTo), { i: seqKey, kind: 'attach', txt: /Equipment/.test(data.byName.get(c.name)?.t || '') ? '⛓' : '✦' })
     }
-    for (const [id, x] of a.perms) if (!now.has(id) && !x.c.hidden) gone.push({ ...x, until: Date.now() + 700 })
+    // ninjutsu (e afins): entra já a atacar enquanto outro atacante voltou para a mão
+    const backHand = [...a.perms.keys()].some(id => !now.has(id) && (st.players || []).some(p => (p.hand || []).some(h => h.id === id)))
+    for (const id of now.keys()) if (!a.perms.has(id) && backHand && (st.combat || []).some(x => x.att === id)) pops.set(String(id), { i: seqKey, kind: 'attach', txt: '🥷' })
+    // para onde foi o que saiu do campo (o Forge mantém o id): cemitério = racha e desfaz-se, exílio = luz, mão/biblioteca = voa
+    const destOf = id => { for (const p of st.players || []) for (const z of ['graveyard', 'exile', 'hand', 'library']) if ((p[z] || []).some?.(x => x.id === id)) return z; return 'graveyard' }
+    for (const [id, x] of a.perms) if (!now.has(id) && !x.c.hidden) gone.push({ ...x, to: destOf(id), until: Date.now() + 900 })
     // a pilha do Forge vem do topo para baixo; o que saiu dela resolveu (ou foi contrariado): fantasma «A resolver»
     const items = [...(st.stack || [])].reverse(), keyOf = x => `${x.card ?? ''}|${x.text}`
     const left = a.stack.find(x => !items.some(y => keyOf(y) === keyOf(x)))
@@ -747,10 +763,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const myTurn = st.active === me?.id
   const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true, dmg }
-  for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.push({ ...toPerm(g.c), dying: true })
+  for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.push({ ...toPerm(g.c), dying: g.to || true })
   const hashN = t => [...String(t)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
+  const sideOfP = pid => (pid === me?.id ? 'a' : 'b')
   bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name,
-    kind: !x.ability ? 'cast' : /^(When|Whenever|At)\b/.test(x.text || '') ? 'trigger' : 'activate' }))
+    kind: !x.ability ? 'cast' : /^(When|Whenever|At)\b/.test(x.text || '') ? 'trigger' : 'activate',
+    // alvos: as linhas da pilha (StackLinks) e o «→ alvo» da legenda
+    tc: (x.tc || []).map(String), tp: (x.tp || []).map(sideOfP),
+    target: x.tp?.length ? sideOfP(x.tp[0]) : x.tc?.length ? byId.get(x.tc[0])?.name : undefined }))
   const att = new Map()
   for (const p of [...bs.a.perms, ...bs.b.perms]) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
   const sel = new Set([...byId.values()].filter(c => c.sel).map(c => String(c.id)))
@@ -836,9 +856,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={artsCtx.arts} who={{ a: me?.name, b: opp?.name }} speed={1} />
         </div>
         {me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
-          hand={<div className="fp-hand">{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}
+          hand={<div className="fp-hand">{me.top?.play && <FCard key={`t${me.top.id}`} c={me.top} h={me.top.id} from="library" data={data} big cls={`play libtop-h ${lift === me.top.id ? 'lift' : ''}`} tag={`▲ ${tx('topo da biblioteca')}`} />}{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}
         {bs && <CombatLinks s={bs} />}
-        <DamageFx hits={hits} />
+        {bs && <StackLinks s={bs} data={data} />}
+        <DamageFx hits={hits} data={data} />
       </div>
       </div><div className="fp-dice" ref={diceBox} /></div>
       {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
@@ -892,7 +913,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <p><b>{zone.k === 'graveyard' ? tx('Cemitério de {n}', { n: zone.p.name }) : tx('Exílio de {n}', { n: zone.p.name })}</b> <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
         <div className="fp-opts">{(players.find(p => p.id === zone.p.id)?.[zone.k] || []).map(c => <FCard key={c.id} c={c} data={data} big onClick={x => { send({ c: 'card', id: x.id }); setZone(null) }} />)}</div></div></div>}
       {toast && <div className={`fp-toast ${toast.out ? 'out' : ''}`} onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} <Syms text={toast.msg} />{toast.list && <ul>{toast.list.map((l, k) => <li key={k}><Syms text={l} /></li>)}</ul>}</div>}
-      {s.ended && <div className="fp-modal"><div className="fp-ask fp-end">
+      {s.ended && endShown && <div className="fp-modal"><div className="fp-ask fp-end">
         <h3>{s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : s.crash ? tx('O Forge falhou a meio deste jogo') : s.lost ? tx('Este jogo perdeu-se: o servidor foi reiniciado') : tx('Jogo terminado')}</h3>
         {(s.crash || s.lost) && <p className="muted">{tx('Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.')}</p>}
         {series && <p className="fp-series">{series.done ? (series.w[0] > series.w[1] ? tx('🏆 Ganhaste a série {a}–{b}', { a: series.w[0], b: series.w[1] }) : tx('Perdeste a série {a}–{b}', { a: series.w[0], b: series.w[1] })) : tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })}</p>}

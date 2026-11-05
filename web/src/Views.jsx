@@ -1577,7 +1577,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
             {fmt.cmd && canBeCommander(c, fmt) && <button onClick={() => act.setCommander(c)}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : tx('Comandante')}</button>}
             <button onClick={() => act.toggleSeed(c)}>{deck.seeds.includes(c.n) ? `★ ${tx('É semente')}` : `☆ ${tx('Semente')}`}</button>
             <button onClick={() => act.showOnMap(c)}>{tx('Ver no universo')}</button>
-            {(deck.main[c.n] || deck.side[c.n]) && <button className={subs ? 'on' : ''} onClick={() => setSubs(!subs)}>🔁 {tx('Substitutos neste deck')}</button>}
+            {(deck.main[c.n] || deck.side[c.n]) && <button className={`subs-btn ${subs ? 'on' : ''}`} onClick={() => setSubs(!subs)}>🔁 {tx('Sugerir substituto')}</button>}
           </div>
           {subs && <Subs c={c} data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} />}
           {combos.length > 0 && (
@@ -1598,6 +1598,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
   )
 }
 
+const MT_LABEL = { Creature: tx('criatura'), Instant: tx('instantâneo'), Sorcery: tx('feitiço'), Artifact: tx('artefacto'), Enchantment: tx('encantamento'), Planeswalker: tx('planeswalker'), Land: tx('terreno'), Battle: tx('batalha') }
 // 🔁 Substitutos de uma carta do deck: as sugestões que o motor das trocas põe no lugar DELA (o porquê de cada), e a
 // mesma pergunta à IA, só sobre esta carta
 function Subs({ c, data, deck, fmt, ctx, act }) {
@@ -1614,6 +1615,26 @@ function Subs({ c, data, deck, fmt, ctx, act }) {
     }
     return out.sort((a, b) => b.score - a.score).slice(0, 6)
   }, [recs, swaps, data, c, ctx, deck.main])
+  // mesmo quando a carta funciona bem há quem a queira trocar: alternativas que fazem o mesmo (papel, tipo, custo) e
+  // cartas que mudam o jogo do deck (combos, sinergias, staples de outro papel), cada uma com o porquê
+  const { alts, changers } = useMemo(() => {
+    const taken = new Set([c.n, ...list.map(x => x.S.n)]), mine = new Set(c.tg), lbl = t => (TAG_LABEL[t] || t).toLowerCase()
+    const alts = similar(data, c.i, ctx, 40).map(x => x.c).filter(x => !taken.has(x.n) && !deck.main[x.n] && (x.mt === 'Land') === land).map(x => {
+      const same = x.tg.filter(t => mine.has(t) && TAG_LABEL[t]), d = (x.cmc || 0) - (c.cmc || 0), why = []
+      if (same.length) why.push(tx('Mesmo papel: {r}', { r: same.slice(0, 3).map(lbl).join(', ') }))
+      else if (x.mt === c.mt) why.push(tx('Também {t}, com um efeito parecido', { t: MT_LABEL[x.mt] || x.mt }))
+      if (d < 0) why.push(tx('Custa {n} a menos', { n: -d })); else if (d > 0) why.push(tx('Custa {n} a mais', { n: d }))
+      if (x.er && x.er <= 2000 && (!c.er || x.er < c.er * 0.7)) why.push(tx('Mais jogada: n.º {n} do EDHREC', { n: x.er }))
+      const extra = x.tg.filter(t => !mine.has(t) && TAG_LABEL[t]).slice(0, 2)
+      if (extra.length) why.push(tx('E ainda: {r}', { r: extra.map(lbl).join(', ') }))
+      return { S: x, why, sc: same.length * 2 + (x.mt === c.mt ? 1 : 0) - Math.abs(d) * 0.4 + (x.er ? 2 / Math.log10(x.er + 10) : 0) }
+    }).filter(x => x.why.length > 1 || x.sc > 1.5).sort((a, b) => b.sc - a.sc).slice(0, 6)
+    alts.forEach(x => taken.add(x.S.n))
+    const changers = recs.filter(r => !taken.has(r.c.n) && !deck.main[r.c.n] && !r.c.tg.some(t => mine.has(t)))
+      .filter(r => r.why.some(w => /combo|cmd|tema|tribo|kw/.test(w.k)) || r.c.gc).slice(0, 5)
+      .map(r => ({ S: r.c, why: [...(r.c.gc ? [tx('Game Changer: muda o rumo do jogo')] : []), ...r.why.slice(0, 2).map(w => w.txt)] }))
+    return { alts, changers }
+  }, [data, c, ctx, deck.main, recs, list, land])
   const [ia, setIa] = useState(null), [busy, setBusy] = useState(false), [err, setErr] = useState('')
   const askIA = async () => {
     setBusy(true); setErr('')
@@ -1629,13 +1650,31 @@ function Subs({ c, data, deck, fmt, ctx, act }) {
   return (
     <div className="subs">
       <h4>🔁 {tx('Substitutos para {c} neste deck', { c: c.n })}</h4>
-      {!list.length ? <p className="small muted">{tx('O motor não encontra uma substituta claramente melhor: a carta está a cumprir o seu papel neste deck.')}</p>
+      {!list.length ? <p className="small muted">{tx('Nenhuma é claramente melhor: a carta está a cumprir o seu papel neste deck. Se a quiseres trocar na mesma, aqui ficam alternativas.')}</p>
         : <ul className="subs-list">{list.map(x => (
           <li key={x.S.n}>
             <button className="cutp-card in" onClick={() => act.open(x.S)}><img src={img(x.S, 'art_crop')} alt="" loading="lazy" /><span><b>{x.S.n}</b><Mana cost={x.S.mc} /></span></button>
             <ul className="why">{x.why.slice(0, 3).map((w, k) => <li key={k} className="falta">{w}</li>)}</ul>
             {q > 0 && <button className="primary small" onClick={() => act.swap(x.S, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button>}
           </li>))}</ul>}
+      {alts.length > 0 && <>
+        <h4>{tx('Fazem o mesmo (para variar ou melhorar)')}</h4>
+        <ul className="subs-list">{alts.map(x => (
+          <li key={x.S.n}>
+            <button className="cutp-card in" onClick={() => act.open(x.S)}><img src={img(x.S, 'art_crop')} alt="" loading="lazy" /><span><b>{x.S.n}</b><Mana cost={x.S.mc} /></span></button>
+            <ul className="why">{x.why.map((w, k) => <li key={k} className="edh">{w}</li>)}</ul>
+            {q > 0 && <button className="small" onClick={() => { act.add(c, 'main', -q); act.add(x.S, 'main', q) }}>⇄ {tx('Trocar {n}×', { n: q })}</button>}
+          </li>))}</ul>
+      </>}
+      {changers.length > 0 && <>
+        <h4>{tx('Mudam o jogo (outro papel, para o lugar desta)')}</h4>
+        <ul className="subs-list">{changers.map(x => (
+          <li key={x.S.n}>
+            <button className="cutp-card in" onClick={() => act.open(x.S)}><img src={img(x.S, 'art_crop')} alt="" loading="lazy" /><span><b>{x.S.n}</b><Mana cost={x.S.mc} /></span></button>
+            <ul className="why">{x.why.map((w, k) => <li key={k} className="tema">{w}</li>)}</ul>
+            {q > 0 && <button className="small" onClick={() => { act.add(c, 'main', -Math.min(q, 1)); act.add(x.S, 'main', 1) }}>⇄ {tx('Trocar 1×')}</button>}
+          </li>))}</ul>
+      </>}
       <div className="row-btns"><button onClick={askIA} disabled={busy}>{busy ? tx('A pensar…') : `✦ ${tx('Perguntar à IA')}`}</button>{err && <span className="small bad-t">{err}</span>}</div>
       {ia && <div className="subs-ia">
         {ia.resumo && <p className="small">{ia.resumo}</p>}
