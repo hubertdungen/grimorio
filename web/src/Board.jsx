@@ -933,7 +933,15 @@ export function DamageFx({ hits, data }) {
       pop.className = `dmgfx-pop ${kind}`; pop.textContent = `${kind === 'gain' ? '+' : kind === 'psn' ? '☠' : '−'}${h.n}`
       Object.assign(pop.style, { left: `${b[0]}px`, top: `${b[1]}px` })
       const arrive = big => {  // chegou: o número na carta, ou a esfera da vida reage; e a mesa treme
-        if (!h.to.side) { box.append(pop); setTimeout(() => pop.remove(), 1100) }
+        if (!h.to.side) {
+          box.append(pop); setTimeout(() => pop.remove(), 1100)
+          if (kind === 'cmb' || kind === 'spl') {  // numa criatura (ou planeswalker): o mesmo estilo de golpe de quem bateu, mais pequeno, na carta
+            const se = h.from != null && root.querySelector(`.pc[data-z="k:${h.from}"]`), nm = h.fromName || se?.querySelector('img')?.alt
+            const o = (data && nm && lookup(data, nm)?.o) || '', kw = zap ? 'zap' : ORB_KW.find(([, re]) => re.test(o))?.[0] || (kind === 'spl' ? 'fire' : 'hit')
+            const seed = `${h.key}|${nm}|${h.n}|c`, st = attackStyle(nm && lookup(data, nm), kind, kw, seed), ce = elOf(h.to)
+            if (st && ce) attackFx(ce, st, b[0] - a[0], b[1] - a[1], seed, true)
+          }
+        }
         else {  // a esfera reage a quem bateu (palavra-chave; feitiço = fogo; relâmpago = raio; vida = luz; veneno = fumo roxo)
           const se = h.from != null && root.querySelector(`.pc[data-z="k:${h.from}"]`), nm = h.fromName || se?.querySelector('img')?.alt
           const o = (data && nm && lookup(data, nm)?.o) || ''

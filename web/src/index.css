@@ -3663,3 +3663,6 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
   box-shadow: 0 0 14px #f2b84b; transform: rotate(-28deg) scaleX(0); animation: oslash .5s cubic-bezier(.2, .9, .3, 1) .05s forwards, ofade .6s ease-in 1s forwards; }
 @keyframes oslash { to { transform: rotate(-28deg) scaleX(1); } }
 @keyframes ofade { to { opacity: 0; } }
+
+/* o estilo do golpe numa criatura: do tamanho da carta (na esfera é 1.7×) */
+.atkfx.on-card { transform: translate(-50%, -50%) scale(.85); }

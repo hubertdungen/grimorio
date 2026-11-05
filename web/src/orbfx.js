@@ -41,12 +41,12 @@ const GLYPH = { claws: '', sword: '🗡', arrow: '➶', bite: '', blood: '🩸',
 const N = { claws: 3, sword: 2, arrow: 4, bite: 2, blood: 8, horn: 2, smash: 9, dive: 1, thunder: 3, fire: 8, ice: 9, leaf: 9, holy: 1, prism: 6, metal: 7, goo: 7, rot: 6 }
 
 // a camada do golpe por cima da esfera (posição do ecrã; dx/dy = de onde veio)
-export function attackFx(orb, style, dx = 0, dy = 1, seed) {
+export function attackFx(orb, style, dx = 0, dy = 1, seed, card = false) {  // card: numa criatura (mais pequeno, sem mexer na esfera)
   const rnd = seeded(`${seed}|fx`)
   const el = orb?._proxy || orb, r = el?.getBoundingClientRect()
   if (!r?.width) return
   const host = document.fullscreenElement || document.webkitFullscreenElement || document.body, box = document.createElement('div')
-  box.className = `atkfx atk-${style}`
+  box.className = `atkfx atk-${style} ${card ? 'on-card' : ''}`
   const L = Math.hypot(dx, dy) || 1, ang = Math.atan2(dy / L, dx / L) * 180 / Math.PI
   Object.assign(box.style, { left: `${r.left + r.width / 2}px`, top: `${r.top + r.height / 2}px`, width: `${r.width}px`, height: `${r.height}px` })
   box.style.setProperty('--ang', `${ang}deg`)
@@ -60,6 +60,6 @@ export function attackFx(orb, style, dx = 0, dy = 1, seed) {
   setTimeout(() => box.remove(), 1600)
   // a esfera reage (3D e clássica): rachar, partir ao meio, verter, apodrecer, espinhos, gelar, arder, brilhar
   const fx = FX3[style]
-  if (fx && orb) { orb.dataset.fx3 = fx; clearTimeout(orb._fx3); orb._fx3 = setTimeout(() => { delete orb.dataset.fx3 }, 1500) }
+  if (fx && orb && !card) { orb.dataset.fx3 = fx; clearTimeout(orb._fx3); orb._fx3 = setTimeout(() => { delete orb.dataset.fx3 }, 1500) }
   play(`atk_${style}`)
 }
