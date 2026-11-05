@@ -391,7 +391,7 @@ function useOrbPhysics(ref) {
       const px = S.px
       if (!px) return
       px.className = `${el.className} orb-proxy flying`
-      for (const a of ['mood', 'react', 't', 'a']) { if (el.dataset[a]) px.dataset[a] = el.dataset[a]; else delete px.dataset[a] }
+      for (const a of ['mood', 'react', 't', 'a', 'rich']) { if (el.dataset[a]) px.dataset[a] = el.dataset[a]; else delete px.dataset[a] }
       const b = el.querySelector(':scope > b'), pb = px.querySelector(':scope > b')
       if (b && pb && pb.textContent !== b.textContent) pb.textContent = b.textContent
       px.style.translate = `${S.x.toFixed(1)}px ${S.y.toFixed(1)}px`
@@ -404,6 +404,7 @@ function useOrbPhysics(ref) {
       if (++trailN % (low() ? 3 : 2)) return
       const [x, y, r] = center(), d = document.createElement('i')
       d.className = low() ? 'orb-trail drip' : 'orb-trail'
+      if (low() && trailN % 9 === 0) play('orbDrip')
       const sz = low() ? r * 0.45 : r * 1.5
       Object.assign(d.style, { left: `${x + (low() ? (Math.random() - 0.5) * r : 0)}px`, top: `${y + (low() ? r * 0.6 : 0)}px`, width: `${sz}px`, height: `${sz}px` })
       d.style.setProperty('--tc', getComputedStyle(el).getPropertyValue('--glow') || '#22c55e88')
@@ -482,6 +483,7 @@ function useOrbPhysics(ref) {
       const a = d.h[0], b = d.h[d.h.length - 1], k = Math.max(0.016, (b[0] - a[0]) / 1000), m = low() ? 1100 : 3200, cap = v => Math.max(-m, Math.min(m, v))
       S.vx = d.h.length > 1 ? cap((b[1] - a[1]) / k) : 0; S.vy = d.h.length > 1 ? cap((b[2] - a[2]) / k) : 0
       S.t0 = performance.now(); el._dragged = S.t0; S.thrown = S.t0; run()
+      const sp = Math.hypot(S.vx, S.vy); if (sp > 400) play('orbThrow', { amount: Math.min(1, sp / 2600) })
     }
     const click = e => { if (el._dragged && performance.now() - el._dragged < 450) { e.stopPropagation(); e.preventDefault() } }  // largar não é clicar
     el.addEventListener('pointerdown', down); el.addEventListener('click', click, true)
@@ -635,7 +637,7 @@ export function OrbPick({ onChange }) {
   )
 }
 
-function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look, dead = null }) {  // dead: a causa da derrota (endOut/ORB_DEATH: dmg, psn, mill, cmd, alt, lose, concede, draw)  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
+function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look, dead = null, side }) {  // dead: a causa da derrota (endOut/ORB_DEATH: dmg, psn, mill, cmd, alt, lose, concede, draw)  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
   const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null), [broken, setBroken] = useState(!!dead), [charging, setCharging] = useState(false)
   useOrbPhysics(orbRef)
   useEffect(() => {  // perdeu: uns instantes depois a esfera rebenta (à maneira da causa) e fica a casca
@@ -671,9 +673,22 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     return () => { cancelAnimationFrame(raf); el.textContent = lifeTxt(life) }
   }, [life, fast])
   const low = life <= Math.max(5, Math.round(start / 4))
+  // muita vida (dos 40 aos 100, aos poucos): a esfera ganha um ou dois «excessos» escolhidos ao acaso — auréola a crescer,
+  // a engordar (gelatina), a transpirar gotas de luz, raios de luz divina à volta; a partir de 70 junta o segundo
+  const ab = life >= 1e6 ? 1 : life > 40 ? Math.min(1, (life - 40) / 60) : 0
+  const [richPick] = useState(() => { const all = ['halo', 'fat', 'sweat', 'god'], a = all[Math.floor(Math.random() * 4)], b = all[(all.indexOf(a) + 1 + Math.floor(Math.random() * 3)) % 4]; return [a, b] })
+  const rich = ab > 0 && !dead ? (ab >= 0.5 ? richPick : richPick.slice(0, 1)) : []
+  useEffect(() => {  // o coração da esfera com pouca vida: bate, mais depressa e mais forte quanto mais perto do fim
+    if (!low || dead || fast || life <= 0 || life >= 1e6) return
+    const k = 1 - Math.max(0, life - 1) / Math.max(4, Math.round(start / 4)), iv = setInterval(() => { if (document.visibilityState === 'visible') play('orbHeart', { side, amount: 0.4 + 0.6 * k }) }, Math.round(1250 - 450 * k))
+    return () => clearInterval(iv)
+  }, [low, dead, fast, life <= 2, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''}`} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''}`} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+      {rich.includes('god') && <i className="orb-rays" aria-hidden="true" />}
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
+      {rich.includes('halo') && <i className="orb-halo" aria-hidden="true" />}
+      {rich.includes('sweat') && <i className="orb-sweat" aria-hidden="true"><b /><b /><b /><b /><b /></i>}
       <b ref={ref}>{lifeTxt(life)}</b><small>{tx('vida')}</small>
       {dmg > 0 && <i className="orb-dmg" title={tx('Dano que levou neste combate: {n}', { n: dmg })}>−{dmg}</i>}
       {d && !fast ? <i key={step} className={`orb-flash ${d < 0 ? 'loss' : 'gain'}`} /> : null}
@@ -813,6 +828,7 @@ function lightning(box, a, b, delay) {
     setTimeout(() => { svg.remove(); flash.remove() }, 650)
   }, delay)
 }
+const KW_SFX = { zap: 'orbZap', flying: 'orbWind', fire: 'orbFire', trample: 'orbStomp', deathtouch: 'orbDark', infect: 'orbPoison', lifelink: 'orbGain', gain: 'orbGain' }
 export function orbReact(orb, kind) {  // data-react na esfera durante 1,4 s (o CSS faz o resto)
   if (!orb || !kind) return
   orb.dataset.react = kind
@@ -860,7 +876,7 @@ export function DamageFx({ hits, data }) {
           const kw = kind === 'gain' ? 'gain' : kind === 'psn' ? 'infect' : zap ? 'zap' : ORB_KW.find(([, re]) => re.test(o))?.[0] || (kind === 'spl' ? 'fire' : 'hit')
           const orb = elOf(h.to), at2 = at(orb) || b, L = Math.hypot(at2[0] - a[0], at2[1] - a[1]) || 1
           orbReact(orb, kw)
-          play(kind === 'gain' ? 'orbGain' : kind === 'psn' ? 'orbPoison' : 'orbHit', { amount: h.n })  // o vidro da esfera soa
+          play(KW_SFX[kw] || (kind === 'gain' ? 'orbGain' : kind === 'psn' ? 'orbPoison' : 'orbHit'), { amount: h.n })  // o vidro soa à maneira de quem bateu
           // o golpe empurra a esfera na direção em que veio (a vida ganha faz só um saltinho para cima)
           const f = kind === 'gain' ? 0 : Math.min(900, 220 + 60 * h.n)
           orb?._kick?.(((at2[0] - a[0]) / L) * f, kind === 'gain' ? -260 : ((at2[1] - a[1]) / L) * f)
@@ -1059,7 +1075,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg(), oc = useContext(OrbCtx)
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
-      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} look={orbLook(k, z, data, oc, name)}
+      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} look={orbLook(k, z, data, oc, name)} side={k}
         dead={s.out?.[k] || (z.life <= 0 ? 'dmg' : (z.poison || 0) >= (s.giant ? 15 : 10) ? 'psn' : Object.values(z.cmdDmg || {}).some(n => n >= 21) ? 'cmd' : z.out || s.lost === k ? (z.library === 0 ? 'mill' : 'lose') : null)} />
       <div className="bname">
         <b title={name}>{name}</b>

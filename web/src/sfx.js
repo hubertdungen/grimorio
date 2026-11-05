@@ -8,7 +8,7 @@
 
 const KEY = 'grimorio.sfx'
 const HAS = typeof window !== 'undefined'
-let cfg = { on: true, vol: 0.5 }
+let cfg = { on: true, vol: 0.5, g: {} }  // g: volume de cada grupo (0 = calado), Definições › Som
 try { cfg = { ...cfg, ...JSON.parse(localStorage.getItem(KEY)) } } catch { /* sem armazenamento */ }
 let ctx = null, master = null
 
@@ -170,6 +170,15 @@ const R = {
     ticks(c, out, t + 0.45, 12, 0.045, { f: 4200, q: 6, dur: 0.03, g: 0.05 })
     return 1.1
   },
+  // o coração da esfera com pouca vida («lub-dub»), atirar, pingar sangue e cada golpe à maneira de quem bateu
+  orbHeart: (c, out, t, o) => { const k = Math.min(1, o.amount ?? 0.6); thud(c, out, t, 0.12 + 0.1 * k, 52, 0.16); thud(c, out, t + 0.17, 0.08 + 0.07 * k, 46, 0.18); return 0.4 },
+  orbThrow: (c, out, t, o) => (whoosh(c, out, t, 400, 2200 + 1600 * Math.min(1, o.amount ?? 0.5), 0.3, 0.05 + 0.05 * Math.min(1, o.amount ?? 0.5), 1.6), 0.3),
+  orbDrip: (c, out, t) => (tone(c, out, t, { type: 'sine', f: 1400 + Math.random() * 500, f2: 600, dur: 0.07, a: 0.002, g: 0.03 }), 0.08),
+  orbZap: (c, out, t) => (noise(c, out, t, { type: 'highpass', f: 3000, dur: 0.18, a: 0.001, g: 0.12 }), ticks(c, out, t, 8, 0.018, { f: 5200, q: 3, dur: 0.02, g: 0.06 }), thud(c, out, t + 0.05, 0.16, 60, 0.4), 0.45),
+  orbWind: (c, out, t) => (whoosh(c, out, t, 1800, 500, 0.45, 0.07, 0.8), 0.45),
+  orbFire: (c, out, t) => (noise(c, out, t, { type: 'lowpass', f: 2500, f2: 600, dur: 0.5, a: 0.03, g: 0.09 }), ticks(c, out, t + 0.05, 6, 0.05, { f: 1800, q: 2, dur: 0.03, g: 0.04 }), 0.5),
+  orbStomp: (c, out, t) => (thud(c, out, t, 0.24, 48, 0.4), thud(c, out, t + 0.09, 0.12, 40, 0.3), 0.45),
+  orbDark: (c, out, t) => (tone(c, out, t, { type: 'sawtooth', f: 110, f2: 55, dur: 0.6, a: 0.05, g: 0.05, lp: 500, lp2: 200 }), whoosh(c, out, t, 900, 200, 0.6, 0.04), 0.6),
   orbStone: (c, out, t) => (thud(c, out, t, 0.14, 55, 0.6), noise(c, out, t, { type: 'lowpass', f: 600, f2: 120, dur: 0.6, a: 0.01, g: 0.06 }), 0.6),
   tick: (c, out, t, o) => (noise(c, out, t, { f: (o.amount ?? 1) >= 0 ? 3400 : 1900, q: 7, dur: 0.03, a: 0.001, g: 0.05 }), 0.04),
   champion: (c, out, t) => {
@@ -241,10 +250,19 @@ function voice(c, dest, side) {  // panorâmica por jogador; liga ao seco e à s
 
 // play('damage', {amount: 3, side: 'b'}); opts: amount, colour ('R', 'WU'…), type (linha de tipo), side ('a'…'d')
 export function play(kind, opts = {}) {
-  const fn = R[kind], c = fn && ensure()
+  const fn = R[kind], gv = cfg.g?.[groupOf(kind)] ?? 1
+  if (!fn || gv <= 0) return false  // esse tipo de som está calado
+  const c = ensure()
   if (!c || c.state !== 'running') return false  // suspenso: não se acumula para soar tudo de uma vez depois
   if (!admit(kind, performance.now())) return false
-  try { fn(c, voice(c, master, opts.side), c.currentTime + 0.005, opts) } catch { return false }
+  try {
+    let dest = master
+    if (gv < 1) {  // o volume do grupo: um ganho entre a voz e o resto (seco e sala)
+      dest = c.createGain(); dest.gain.value = gv; dest.connect(master)
+      if (master.send) { dest.send = c.createGain(); dest.send.gain.value = gv; dest.send.connect(master.send) }
+    }
+    fn(c, voice(c, dest, opts.side), c.currentTime + 0.005, opts)
+  } catch { return false }
   return true
 }
 
@@ -368,7 +386,16 @@ export function playFreeLog(e, side, isLand) {
 
 // ---------- preferências ----------
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)) } catch { /* sem armazenamento */ } }
-export const getSettings = () => ({ ...cfg })
+// grupos de sons (cada um com volume e calar, Definições › Som)
+export const SOUND_GROUPS = ['mesa', 'combate', 'esfera', 'dados', 'fim']
+const GROUP_OF = {
+  combate: ['attack', 'block', 'damage', 'combat', 'destroy', 'exile', 'bounce', 'counter', 'countered', 'lifeloss', 'lifegain', 'poison', 'goad', 'eliminated'],
+  dados: ['dice', 'diceHit', 'coin', 'tick'],
+  fim: ['win', 'loss', 'tie', 'match', 'champion', 'crown'],
+}
+export const groupOf = kind => (/^orb/.test(kind) ? 'esfera' : Object.keys(GROUP_OF).find(g => GROUP_OF[g].includes(kind)) || 'mesa')
+export function setGroupVolume(g, v) { cfg = { ...cfg, g: { ...(cfg.g || {}), [g]: Math.max(0, Math.min(1, +v || 0)) } }; save() }
+export const getSettings = () => ({ ...cfg, g: { ...(cfg.g || {}) } })
 export function setEnabled(on) {
   cfg.on = !!on; save()
   if (!ctx) { if (on) ensure(); return }

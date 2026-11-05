@@ -372,8 +372,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const answer = (a, v) => { setS(x => ({ ...x, asks: x.asks.filter(y => y.id !== a.id) })); send({ c: 'answer', id: a.id, v }) }
   const st = s?.state, players = st?.players || []
   const me = players.find(p => p.me) || players.find(p => !p.ai), opp = players.find(p => p !== me)
-  const pr = s?.prompt, btns = (pr?.buttons || []).filter(b => b.label)
-  const blocking = /Declare blockers|Select creatures to block/i.test(pr?.msg || '')  // o Forge pede os bloqueadores (cliques = bloquear)
+  // o servidor guarda a última mensagem do Forge, que no turno da IA nem sempre é trocada: um «Declare attackers» do teu
+  // turno anterior ficava lá (e depois de recarregar a página a meio do combate aparecia «Declara os atacantes» quando
+  // eram os bloqueadores). No turno dele, isso é só «à espera».
+  const theirTurn = !!st && st.active !== me?.id
+  const pr = theirTurn && /Declare attackers|Select creatures to attack/i.test(s?.prompt?.msg || '') ? { msg: `Waiting for ${opp?.name || ''}`, buttons: [] } : s?.prompt
+  const btns = (pr?.buttons || []).filter(b => b.label)
+  const blocking = theirTurn && /declare blockers|Select creatures to block/i.test(pr?.msg || '')  // o Forge pede os bloqueadores (cliques = bloquear)
   const ask = s?.asks?.[0]
   const hoverId = useRef(null), [flipped, setFlipped] = useState(() => new Set()), [lift, setLift] = useState(null)  // carta debaixo do rato; viradas; levantada na mão
   // «voltar» do telemóvel: fecha primeiro o que está aberto por cima; com o jogo a decorrer nunca sai da mesa (avisa e fica)
@@ -614,13 +619,17 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // jogo mais solto (Definições › Mesa): o que acabaste de lançar paga-se sozinho (o «Pagar sozinho» do Forge) e o que é
   // teu no topo da pilha resolve-se sem teres de carregar em OK; criaturas arrastadas para o ataque na fase principal
   // declaram-se quando o Forge chega aos atacantes
-  const lastCast = useRef(null), autoKey = useRef(''), attackIntent = useRef(null), sNow = useRef(null), blockIntent = useRef(null), pendBlk = useRef(null)
+  // os bloqueios marcados antes do pedido do Forge (à vista: a linha na mesa e a lista «A bloquear», com ✕ para desfazer)
+  const [planned, setPlanned] = useState([])
+  const unplan = blk => { const pairs = (blockIntent.current?.pairs || []).filter(p => p.blk !== blk); blockIntent.current = pairs.length ? { ...blockIntent.current, pairs } : null; setPlanned(pairs) }
+  useEffect(() => { if (planned.length && !/^COMBAT/.test(st?.phase || '')) { blockIntent.current = null; setPlanned([]) } }, [st?.phase])  // eslint-disable-line react-hooks/exhaustive-deps
+  const lastCast = useRef(null), autoKey = useRef(''), attackIntent = useRef(null), sNow = useRef(null), blockIntent = useRef(null), pendBlk = useRef(null), blkWait = useRef(0)
   // bloquear antes de o Forge pedir os bloqueadores (ainda no passo dos atacantes, com prioridade): o bloqueio fica marcado,
   // passa-se a prioridade (se a pilha está vazia) e, quando o pedido chega, o Forge recebe-o — confirmas com OK
   const planBlock = (blk, att) => {
     const pairs = (blockIntent.current?.pairs || []).filter(p => p.blk !== blk).concat({ att, blk })
-    blockIntent.current = { pairs, until: Date.now() + 30000 }
-    setToast({ title: tx('Bloqueio marcado'), msg: tx('Quando o Forge pedir os bloqueadores, este bloqueio entra sozinho; depois confirma com OK.') })
+    blockIntent.current = { pairs, until: Date.now() + 30000 }; setPlanned(pairs)
+    setToast({ title: tx('Bloqueio marcado: {b} bloqueia {a}', { b: byId.get(blk)?.name || '?', a: byId.get(att)?.name || '?' }), msg: tx('Quando o Forge pedir os bloqueadores, este bloqueio entra sozinho; depois confirma com OK.') })
     if (/^Priority:/.test(pr?.msg || '') && !st.stack?.length) send({ c: 'ok' })
   }
   sNow.current = s
@@ -637,7 +646,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (!s) return
     const bi = blockIntent.current
     if (bi && Date.now() < bi.until && blocking && !s.asks?.length) {
-      blockIntent.current = null
+      blockIntent.current = null; setPlanned([])
       bi.pairs.reduce((q, p) => q.then(() => send({ c: 'card', id: p.att })).then(() => send({ c: 'card', id: p.blk })), Promise.resolve())
       return
     }
@@ -724,7 +733,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // (o Chrome do Android só deixa em ecrã inteiro). Sem nenhum dos dois: diz para ligar a rotação automática. Ao sair, volta ao normal.
   const touchDev = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
   // a declarar atacantes; OK sem nenhum atacante com criaturas que podiam atacar = talvez um OK sem querer: pergunta antes
-  const declaring = /Declare attackers|Select creatures to attack/i.test(pr?.msg || '')
+  const declaring = !theirTurn && /Declare attackers|Select creatures to attack/i.test(pr?.msg || '')
   // um só toque conta: com a pergunta aberta (Enter no botão dela também chegava aqui) ou o mesmo pedido já respondido
   // (toque duplo antes de o Forge mudar de passo) não se carrega outra vez — antes a pergunta aparecia 2x e o 2.º OK passava um passo a mais
   const pressing = useRef(false), pressedAt = useRef(null), saidNo = useRef('')  // saidNo: já disse «não ataco/não bloqueio» neste passo
@@ -776,6 +785,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const myTurn = st.active === me?.id
   const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true, dmg }
+  for (const x of planned) { const p = bs.a.perms.find(q => q.key === String(x.blk)); if (p && !p.blocking) Object.assign(p, { blocking: String(x.att), planned: true }) }
   bs.lost = s.ended && s.winner ? (s.winner === me?.name ? 'b' : 'a') : null  // quem perdeu: a esfera dele rebenta (Hud)
   // como perdeu cada um (a causa do Forge) e o empate: a esfera rebenta à maneira (vida, veneno, moer, comandante, carta…)
   bs.out = s.draw ? { a: 'draw', b: 'draw' } : Object.fromEntries((s.out || []).map(x => [x.name === me?.name ? 'a' : 'b', ORB_DEATH[x.r]]).filter(e => e[1]))
@@ -815,14 +825,15 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // um clique numa permanente: se o Forge pede uma escolha (alvo, sacrificar…) ou é tua e só dá mana (terreno, Sol Ring),
   // vai direto; se é tua e tem uma habilidade ativada que não é só mana, pergunta primeiro (antes ativava e pagava sozinho)
   const permClick = (id, el) => {
-    const c = byId.get(id), d = c && (data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase()))
+    const c = byId.get(id)
     const prio = /^Priority:/.test(pr?.msg || ''), mine = !!el?.closest('.bside.bottom')
-    const lines = String(d?.o || '').split('\n').map(l => l.replace(/\([^)]*\)/g, '').trim()).filter(l => /^[^"]{1,90}?:\s/.test(l) || /^Equip\b/i.test(l))
+    const lines = abilitiesOf(c)
     const oppCombat = st.active !== me?.id && /^COMBAT/.test(st.phase || ''), cre = !!(c?.creature || c?.pt)
     const atts = st.combat || []
     if (!mine && pendBlk.current && oppCombat && atts.some(x => x.att === id)) { planBlock(pendBlk.current, id); pendBlk.current = null; return }  // 2.º toque: o atacante
     if (prio && mine && oppCombat && cre && !lines.length && atts.length) {  // 1.º toque: a tua criatura (com um só atacante já fica)
-      if (atts.length === 1) return planBlock(id, atts[0].att)
+      // um duplo clique (abrir as ações da carta) começa por dois cliques: espera um instante antes de marcar o bloqueio
+      if (atts.length === 1) { clearTimeout(blkWait.current); blkWait.current = setTimeout(() => planBlock(id, atts[0].att), 280); return }
       pendBlk.current = id; return setToast({ title: tx('Agora toca no atacante que ela bloqueia'), msg: '' })
     }
     if (!prio || c?.sel || !mine || c?.land || !lines.length || (lines.every(l => /:\s*Add\b/.test(l)) && !(oppCombat && cre))) return send({ c: 'card', id })
@@ -830,7 +841,23 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     setAct({ hint, id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top > 240 ? r.top - 8 : r.bottom + 8, up: r.top > 240, lines, name: c.name })
   }
   const activate = () => { if (!act) return; castNow(act.id); send({ c: 'card', id: act.id }); setAct(null) }  // pedido explícito: o «pagar sozinho» pode pagar
-  const onDouble = e => {  // duplo clique numa carta da mão = jogá-la (atalho)
+  // as habilidades ativadas de uma carta (custo: efeito, Equip…), pelo texto
+  function abilitiesOf(c) {
+    const d = c && (data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase()))
+    return String(d?.o || '').split('\n').map(l => l.replace(/\([^)]*\)/g, '').trim()).filter(l => /^[^"]{1,90}?:\s/.test(l) || /^Equip\b/i.test(l))
+  }
+  // duplo clique numa carta TUA na mesa, em qualquer fase (também a atacar e a bloquear): as ações dessa carta; numa do
+  // adversário: a carta em grande
+  const permActions = (id, el) => {
+    const c = byId.get(id)
+    if (!c || c.hidden) return
+    if (!el.closest('.bside.bottom')) return setBig(c.name)
+    const r = el.getBoundingClientRect()
+    setAct({ id, dbl: true, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top > 240 ? r.top - 8 : r.bottom + 8, up: r.top > 240, lines: abilitiesOf(c), name: c.name })
+  }
+  const onDouble = e => {  // duplo clique numa carta da mão = jogá-la (atalho); numa permanente = as ações dela
+    const pc = !e.target.closest('[data-h]') && e.target.closest('.fp-table .pc[data-z^="k:"]')
+    if (pc && !dragged.current) { clearTimeout(blkWait.current); pendBlk.current = null; return permActions(+pc.dataset.z.slice(2), pc) }
     const h = e.target.closest('[data-h]')
     if (!h || dragged.current) return
     const id = +h.dataset.h
@@ -845,6 +872,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     const c = z?.startsWith('k:') ? byId.get(+z.slice(2)) : el?.dataset.zid ? byId.get(+el.dataset.zid) || (el.dataset.zn && { name: el.dataset.zn }) : z?.startsWith('n:') ? { name: z.slice(2) } : null
     if (c && !c.hidden) setZoom(c)
   }
+  // quem bloqueia quem: os marcados (ainda à espera do pedido do Forge) e os que o Forge já aceitou; ✕ desfaz
+  const blockList = st?.active !== me?.id ? [...planned.map(x => ({ ...x, planned: true })), ...(st?.combat || []).flatMap(x => (x.blockers || []).filter(b => !planned.some(p => p.blk === b)).map(b => ({ att: x.att, blk: b })))] : []
+  const blockBox = blockList.length > 0 && <span className="fp-blocks" role="list" aria-label={tx('A bloquear')}>
+    <b>🛡 {tx('A bloquear')}:</b>{blockList.map(x => <span key={`${x.blk}`} role="listitem" className={`fp-blk ${x.planned ? 'planned' : ''}`}>
+      {byId.get(x.blk)?.name || '?'} → {byId.get(x.att)?.name || '?'}{x.planned && <i> ({tx('marcado')})</i>}
+      {(x.planned || blocking) && <button type="button" className="link small" title={tx('Desfazer este bloqueio')} onClick={() => (x.planned ? unplan(x.blk) : send({ c: 'card', id: x.blk }))}>✕</button>}</span>)}
+  </span>
   const zc = zoom && (data.byName.get(zoom.name) || data.byLower?.get(String(zoom.name).toLowerCase()))
   const nOpp = opp?.hand?.length || 0, mana = Object.entries(me?.mana || {})
   const handIn = cs => (lay.hand ? [...cs].sort((x, y) => { const i = lay.hand.indexOf(String(x.id)), k = lay.hand.indexOf(String(y.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : cs)
@@ -881,7 +915,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       </div>
       </div><div className="fp-dice" ref={diceBox} /></div>
       {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
-        <p><Syms text={promptText(pr?.msg, st, me)} /></p>
+        <p><Syms text={promptText(pr?.msg, st, me)} />{blockBox}</p>
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })}>{n}</button>)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
         <FsBtn />
@@ -891,10 +925,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}
           <p><Syms text={promptText(pr?.msg, st, me)} /></p>
+          {blockBox}
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')}>{n}</button>))}</span>}
-          <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')}</p>
+          <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')} {tx('Duplo clique numa carta tua na mesa abre as ações dela, em qualquer fase (também a atacar e a bloquear).')}</p>
           <div className="fp-dicebar"><span className="muted small">🎲</span>
             {[['d6', ['d6']], ['2d6', ['d6', 'd6']], ['d20', ['d20']], [tx('moeda'), ['moeda']]].map(([l, t]) => <button key={l} type="button" className="link small" onClick={() => dice.roll(t)} title={tx('Lançar na mesa')}>{l}</button>)}
             {dice.res?.items && <button type="button" className="fp-dres" onClick={dice.off} title={tx('Tirar os dados da mesa')}>{dice.res.items.map(x => (x.type === 'moeda' ? (x.v === 1 ? tx('Cara') : tx('Coroa')) : x.v)).join(' + ')}{dice.res.items.length > 1 && dice.res.items.every(x => x.type !== 'moeda') ? ` = ${dice.res.items.reduce((a, x) => a + x.v, 0)}` : ''} ✕</button>}</div>
@@ -916,11 +951,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {act && <div className="fp-act-bg" onPointerDown={() => setAct(null)} />}
       {act && <div className={`fp-act ${act.up ? '' : 'below'}`} role="dialog" aria-label={tx('Ativar {c}', { c: act.name })} style={{ left: act.x, top: act.y }}>
-        <b>{tx('Ativar {c}?', { c: act.name })}</b>
+        <b>{act.dbl ? act.name : tx('Ativar {c}?', { c: act.name })}</b>
         {act.lines.map((l, k) => <p key={k}><Syms text={l} /></p>)}
+        {!act.lines.length && <p className="muted small">{tx('Esta carta não tem habilidades para ativar.')}</p>}
         {act.lines.length > 1 && <small className="muted">{tx('Com mais de uma, escolhes a seguir.')}</small>}
         {act.hint && <small className="fp-act-hint">{act.hint}</small>}
-        <div className="row-btns"><button className="primary" autoFocus onClick={activate}>{tx('Ativar')} <kbd>⏎</kbd></button><button onClick={() => setAct(null)}>{tx('Cancelar')} <kbd>Esc</kbd></button></div>
+        <div className="row-btns">{act.lines.length > 0 && <button className="primary" autoFocus onClick={activate}>{tx('Ativar')} <kbd>⏎</kbd></button>}
+          {act.dbl && <button onClick={() => { setBig(act.name); setAct(null) }}>{tx('Ver a carta')}</button>}<button onClick={() => setAct(null)}>{act.lines.length ? tx('Cancelar') : tx('Fechar')} <kbd>Esc</kbd></button></div>
       </div>}
       {reveal && <div className="fp-modal"><div className="fp-ask fp-reveal" key={`${reveal.card}`}>
         <p>{btns.some(b => b.label === 'Graveyard') ? tx('Vigiar: {c} fica no topo da biblioteca ou vai para o cemitério?', { c: reveal.cardName })

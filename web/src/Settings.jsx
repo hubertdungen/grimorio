@@ -10,7 +10,7 @@ import { ask, ConfirmSettings } from './confirm.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 import { LangPick, ProfileManage } from './Profiles.jsx'
 import { getStarLayers, setStarLayers, useColors, setColors, COLORS0 } from './ui.jsx'
-import { getSettings, setEnabled, setVolume, play } from './sfx.js'
+import { getSettings, setEnabled, setVolume, play, setGroupVolume, SOUND_GROUPS } from './sfx.js'
 import { NextMode, HighlightMine } from './Tournament.jsx'
 import Friends from './Friends.jsx'
 import AIKeys from './AIKeys.jsx'
@@ -161,6 +161,8 @@ function ScreenAwake() {
   )
 }
 
+const GROUP_NAME = { mesa: tx('Cartas e mesa'), combate: tx('Combate e vida'), esfera: tx('Esfera da vida (golpes, coração…)'), dados: tx('Dados e moeda'), fim: tx('Fim do jogo') }
+const GROUP_DEMO = { mesa: 'land', combate: 'attack', esfera: 'orbHeart', dados: 'dice', fim: 'win' }
 function Sound() {
   const [s, setS] = useState(getSettings)
   return (
@@ -169,6 +171,12 @@ function Sound() {
       <label className="sl"><span>{tx('Volume')} <b>{Math.round(s.vol * 100)}%</b></span>
         <input type="range" min={0} max={100} value={Math.round(s.vol * 100)} disabled={!s.on}
           onChange={e => { setVolume(e.target.value / 100); setS(getSettings()) }} onPointerUp={() => play('click')} onKeyUp={() => play('click')} /></label>
+      {/* cada tipo de som com o seu volume (0 = calado) e um botão para o ouvir */}
+      {SOUND_GROUPS.map(g => { const v = s.g?.[g] ?? 1; return (
+        <label key={g} className="sl sl-group"><span>{GROUP_NAME[g]} <b>{v > 0 ? `${Math.round(v * 100)}%` : tx('calado')}</b></span>
+          <input type="range" min={0} max={100} value={Math.round(v * 100)} disabled={!s.on} onChange={e => { setGroupVolume(g, e.target.value / 100); setS(getSettings()) }} />
+          <button type="button" className="link small" disabled={!s.on} onClick={() => { setGroupVolume(g, v > 0 ? 0 : 1); setS(getSettings()) }} title={v > 0 ? tx('Calar') : tx('Ligar')}>{v > 0 ? '🔇' : '🔊'}</button>
+          <button type="button" className="link small" disabled={!s.on || v <= 0} onClick={() => play(GROUP_DEMO[g], { amount: 4 })} title={tx('Ouvir')}>▶</button></label>) })}
     </div>
   )
 }

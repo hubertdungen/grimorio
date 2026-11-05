@@ -14,6 +14,18 @@ async function j(url, opts) {
   return d
 }
 
+// os gestos da mesa (Forge Play, online, mesa livre), explicados num sítio só
+const HOWTO = [
+  [tx('Arrastar da mão para a mesa'), tx('joga a carta (ou duplo clique nela na mão). Um terreno vai sempre para a fila dos terrenos.')],
+  [tx('Duplo clique numa carta tua na mesa'), tx('abre as ações dessa carta (habilidades para ativar), em qualquer fase — também a atacar e a bloquear. Numa carta do adversário, mostra-a em grande.')],
+  [tx('Tocar e manter'), tx('a carta em grande (no telemóvel, onde não há painel ao lado).')],
+  [tx('Atacar'), tx('na fase principal ou ao declarar atacantes, arrasta a criatura para o lado do adversário (ou toca nela e depois OK).')],
+  [tx('Bloquear'), tx('arrasta a tua criatura para cima do atacante, ou toca nela e depois no atacante; feito antes de o Forge pedir os bloqueadores, o bloqueio fica marcado e entra sozinho.')],
+  [tx('Esfera da vida'), tx('um clique escolhe esse jogador como alvo; arrasta-a para a atirar (volta sozinha). O estilo muda-se em «Padrão da mesa».')],
+  [tx('Teclas'), tx('Enter ou Espaço = OK/passar, Shift+Enter = acabar o turno, Esc = cancelar, T = virar a carta debaixo do rato, F = ver a outra face.')],
+  [tx('⛶ e ⟳'), tx('ecrã inteiro (no canto da mesa ou na barra de baixo) e rodar a mesa no telemóvel/tablet.')],
+]
+
 export default function Rules({ data, initial = '' }) {
   const [q, setQ] = useState(initial), [res, setRes] = useState(null), [busy, setBusy] = useState(false), [err, setErr] = useState('')
   const [card, setCard] = useState(null), [rulings, setRulings] = useState(null), [scan, setScan] = useState(false), [ai, setAi] = useState(null), [aiBusy, setAiBusy] = useState(false)
@@ -91,6 +103,10 @@ export default function Rules({ data, initial = '' }) {
         <div className="row-btns"><button onClick={askAI} disabled={aiBusy}>{aiBusy ? tx('A pensar…') : `✦ ${tx('Explicar com a IA')}`}</button><span className="small muted">{tx('Usa as regras encontradas e cita os números.')}</span></div>
         {ai?.resumo && <div className="rules-ai">{ai.resumo.split(/\n+/).map((p, k) => <p key={k}>{p}</p>)}<small className="muted">{ai.modelo}</small></div>}
       </section>}
+      <details className="card rules-howto">
+        <summary><b>🎮 {tx('Comandos da mesa')}</b> <span className="muted small">{tx('Forge Play, jogo online e mesa livre')}</span></summary>
+        <ul>{HOWTO.map((x, k) => <li key={k}><b>{x[0]}</b> — {x[1]}</li>)}</ul>
+      </details>
       {scan && <CardScan data={data} onPick={c => { setScan(false); setQ(c.n); go(c.n); openCard(c) }} onClose={() => setScan(false)} />}
     </div>
   )
