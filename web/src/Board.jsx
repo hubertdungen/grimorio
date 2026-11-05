@@ -402,7 +402,13 @@ function useOrbPhysics(ref) {
       px.style.setProperty('--slx', `${sv(S.vx)}px`); px.style.setProperty('--sly', `${sv(S.vy)}px`)
       px.style.setProperty('--lift', Math.min(1, Math.hypot(S.x, S.y) / 120 + (S.drag?.on ? 0.6 : 0)).toFixed(2))
     }
-    const low = () => el.classList.contains('low')  // pouca vida: pesada, a tremer e a pingar sangue
+    const low = () => el.classList.contains('low')  // pouca vida: pesada de arrastar, a tremer e a pingar sangue
+    // atrito (quanto da velocidade fica ao fim de 1 s) pela vida: até ~6 quase nenhum (um golpe atira-a longe), aos 20
+    // normal (algum peso) e cada vez mais pesada acima disso
+    const grip = () => {
+      const v = +el.dataset.life || 20
+      return v <= 6 ? 0.85 : v <= 20 ? 0.85 - (0.7 * (v - 6)) / 14 : Math.max(0.02, 0.15 * (20 / v) ** 1.3)
+    }
     const trail = () => {
       if (++trailN % (low() ? 3 : 2)) return
       const [x, y, r] = center(), d = document.createElement('i')
@@ -435,7 +441,7 @@ function useOrbPhysics(ref) {
         S.x += (S.remote.x - S.x) * k; S.y += (S.remote.y - S.y) * k; S.vx = (S.x - ox) / dt; S.vy = (S.y - oy) / dt
       } else if (!S.drag?.on) {
         const home = now - S.t0 > 1900  // uns segundos depois volta ao sítio (mola amortecida)
-        if (home) { S.vx += (-S.x * 55 - S.vx * 11) * dt; S.vy += (-S.y * 55 - S.vy * 11) * dt } else { const f = Math.pow(low() ? 0.03 : 0.15, dt); S.vx *= f; S.vy *= f }
+        if (home) { S.vx += (-S.x * 55 - S.vx * 11) * dt; S.vy += (-S.y * 55 - S.vy * 11) * dt } else { const f = Math.pow(grip(), dt); S.vx *= f; S.vy *= f }
         S.x += S.vx * dt; S.y += S.vy * dt
         collide()
         if (home && Math.hypot(S.x, S.y) < 0.6 && Math.hypot(S.vx, S.vy) < 10) {
@@ -706,7 +712,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     return () => clearInterval(iv)
   }, [low, dead, fast, life <= 2, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={orbRef} data-seed={`${side}|${start}`} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
       {three && <canvas ref={cvRef} className="orb3d" aria-hidden="true" />}
       {rich.includes('god') && <i className="orb-rays" aria-hidden="true" />}
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
@@ -954,13 +960,18 @@ function zoneFly(k, from, to, n, kind, names, data) {
   if (!A || !B) return
   const ra = A.getBoundingClientRect(), rb = B.getBoundingClientRect()
   if (!ra.width || !rb.width) return
-  const host = fxHost(), N = Math.min(n, 8), w = Math.max(30, Math.min(64, (to === 'hand' ? ra.width : rb.width) || 40)), h = w * 1.4
-  const ax = ra.left + ra.width / 2, ay = ra.top + ra.height / 2, dx = rb.left + rb.width / 2 - ax, dy = rb.top + rb.height / 2 - ay
+  // para a mão (comprar, mulligan): a carta voa DENTRO da mesa, à frente do baralho e atrás da mão (a mão está por cima);
+  // as outras voam numa camada por cima de tudo
+  const inner = to === 'hand' && B.closest('.table, .fp-table')
+  const host = inner || fxHost(), hr = inner ? inner.getBoundingClientRect() : null, zs = inner ? (hr.width / (inner.offsetWidth || hr.width) || 1) : 1
+  const L = (x, y) => (inner ? [(x - hr.left) / zs, (y - hr.top) / zs] : [x, y])
+  const N = Math.min(n, 8), w = Math.max(30, Math.min(64, (to === 'hand' ? ra.width : rb.width) || 40)) / zs, h = w * 1.4
+  const [ax, ay] = L(ra.left + ra.width / 2, ra.top + ra.height / 2), [bx, by] = L(rb.left + rb.width / 2, rb.top + rb.height / 2), dx = bx - ax, dy = by - ay
   const dur = kind === 'draw' ? 480 : 820, lift = -50 - Math.min(90, Math.abs(dx) * 0.2)
   for (let i = 0; i < N; i++) {
     setTimeout(() => {
       const d = document.createElement('div'), nm = names?.[names.length - N + i], c = nm && lookup(data, nm)
-      d.className = `zfly ${kind}`
+      d.className = `zfly ${kind} ${inner ? 'inner' : ''}`
       d.innerHTML = '<i class="zf-back"></i>'
       if (c && (to === 'graveyard' || to === 'exile')) { const im = document.createElement('img'); im.src = img(c, 'small'); im.alt = ''; d.append(im) }
       d.style.setProperty('--d', `${dur}ms`)
@@ -1333,22 +1344,38 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
     // telemóvel: o placar e os botões ficam no topo do ecrã e a mesa ocupa o resto da altura
     const narrow = () => innerWidth < 901
     const tbl = () => el.querySelector('.bwrap > .table') || el
-    const size = () => narrow() ? tbl().getBoundingClientRect().height : el.offsetHeight  // com zoom, a altura que se vê
+    // a altura do que está lá dentro, também o que transborda: em ecrã inteiro o tabuleiro tem altura limitada e o
+    // offsetHeight não via a mesa a sair por baixo — o ajuste achava que cabia, a barra dos turnos ficava enorme e o teu
+    // lado cortado
+    const size = () => {  // com zoom, a altura que se vê: do topo do tabuleiro ao fundo da mesa (sem os efeitos que saem dela)
+      if (narrow()) return tbl().getBoundingClientRect().height
+      const t = tbl()
+      return t === el ? Math.max(el.offsetHeight, el.scrollHeight) : t.getBoundingClientRect().bottom - el.getBoundingClientRect().top + (parseFloat(getComputedStyle(el).paddingBottom) || 0)
+    }
+    // em ecrã inteiro (e numa janela) o tabuleiro vive numa caixa da altura do ecrã: quando a mesa não cabe ele é espremido
+    // até à altura que tem de facto (clientHeight < scrollHeight). Essa é a altura máxima a sério (antes contava-se até ao
+    // fundo do ecrã e a mesa passava uns 30–40 px por baixo); guarda-se até a janela/ecrã inteiro mudar
+    let cap = null
+    const capNow = () => { if (!narrow() && el.scrollHeight > el.clientHeight + 2) cap = el.clientHeight }
     const avail = () => {
       // dentro de uma janela (ver ao vivo, repetições do torneio) mede-se na janela; em ecrã inteiro no elemento; senão na página
       const md = el.closest('.modal'), fe = document.fullscreenElement || document.webkitFullscreenElement
       const sc = md || (fe?.contains(el) ? fe : null), vh = window.visualViewport?.height || innerHeight  // altura visível real (tablet)
       if (narrow()) return (md ? Math.min(vh, innerHeight - 24) : vh) - (tbl().getBoundingClientRect().top - el.getBoundingClientRect().top) - 8
       const top = el.getBoundingClientRect().top + (sc ? sc.scrollTop - sc.getBoundingClientRect().top : scrollY)
-      return (md ? Math.min(vh, innerHeight - 24) : vh) - top - 8
+      const free = (md ? Math.min(vh, innerHeight - 24) : vh) - top - 8
+      return cap ? Math.min(free, cap - (parseFloat(getComputedStyle(el).paddingBottom) || 0)) : free
     }
     const fit = (force = false) => {
       // telemóvel: tamanho normal (ou o zoom escolhido em −/+); o ajuste ao ecrã só com ⤢ (encolhia tudo até ficar ilegível)
       if (narrow() && !force) return el.style.setProperty('--fit', adjM())
       // a altura é fixa (barras, etiquetas) + proporcional ao --fit: com a secante acerta em 2–3 medições
       // (o f × livre/altura parava a 6–10px do alvo e o resultado dependia do caminho: janela, ecrã inteiro, zoom do sistema)
-      const a = avail(), h = f => { el.style.setProperty('--fit', f); return size() }
-      let f0 = 1, h0 = h(1), f = Math.max(0.4, Math.min(1.6, a / h0))
+      const h = f => { el.style.setProperty('--fit', f); return size() }
+      let f0 = 1, h0 = h(1)
+      capNow()  // com as cartas no tamanho 1 a mesa transborda: vê-se a altura que o tabuleiro tem de facto
+      const a = avail()
+      let f = Math.max(0.4, Math.min(1.6, a / h0))
       for (let n = 0; n < 5; n++) {
         const h1 = h(f)
         if (Math.abs(h1 - a) < 2 || h1 === h0) break
@@ -1399,7 +1426,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
     // o tamanho final chega atrasado (imagens e mão a desenhar; no tablet: ecrã inteiro, rodar, barra do browser):
     // volta a medir pouco depois, também ao abrir
     let tm = []
-    const later = () => { fit(); tm.forEach(clearTimeout); tm = [150, 450, 1000].map(t => setTimeout(fit, t)) }
+    const later = () => { cap = null; fit(); tm.forEach(clearTimeout); tm = [150, 450, 1000].map(t => setTimeout(fit, t)) }
     later()
     const evs = ['fullscreenchange', 'webkitfullscreenchange']
     addEventListener('resize', later); addEventListener('orientationchange', later); window.visualViewport?.addEventListener('resize', later)

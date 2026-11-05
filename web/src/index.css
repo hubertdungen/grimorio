@@ -1387,7 +1387,7 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
   .coliseu .brow > .grp:last-child { flex-shrink: 0; }
   .coliseu .brow.rear > .brow { min-width: calc(var(--w) * 1.15); }  /* terrenos e outras: pelo menos uma carta inteira cada */  /* as outras encolhem por baixo dela: a última fica inteira e a fila não passa da borda */
   .coliseu .ribbon > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .coliseu .bmid { height: calc(var(--cw) * .85 + 14px); min-height: 0; }  /* cabe a pilha (cartas lançadas) sem a faixa crescer */
+  .coliseu .bmid { height: calc(var(--cw) * .42 + 12px); min-height: 0; }  /* faixa dos turnos fina: a pilha flutua por cima do centro da mesa, não precisa do lugar todo (era .85 e roubava altura aos jogadores) */
   .coliseu .stack .stk { width: calc(var(--cw) * .6); }
   /* a zona de cada jogador guarda o lugar da mão mesmo vazia */
   .coliseu .bside.top .bhud { min-height: calc(var(--ohw) * 1.4 + 34px); }
@@ -3579,3 +3579,6 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .orb.has3d[data-fx3="split"] .orb3d, .orb.has3d[data-fx3] .orb3d { animation: none; filter: none; }
 /* a esfera 3D rebentada: os cacos caem e ficam no chão à volta — o desenho alarga para caberem */
 .orb.has3d.dead .orb3d { left: -108%; top: -108%; width: 316%; height: 316%; }
+
+/* a carta a ir para a mão voa dentro da mesa: à frente do baralho, atrás da mão (que tem z-index 8) */
+.zfly.inner { position: absolute; z-index: 7; }
