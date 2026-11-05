@@ -251,6 +251,17 @@ def safe_extract(archive, dest):
             t.extractall(dest)
 
 
+def update_loop(d, ver):
+    """Check at start and then every 30 min while Grimório is open (10 min after a failure: a release that was just
+    published only gets its packages about an hour later, and the download should start as soon as they are there)."""
+    while True:
+        check_update(d, ver)
+        st = jread(os.path.join(d, UPD))
+        if st.get("ready"):
+            return  # already downloaded: it starts on the next launch
+        time.sleep(600 if st.get("err") else 1800)
+
+
 def check_update(d, ver):
     """Background: is there a newer release? Download it, check its sha256 and unpack it into versions/ (unless the
     person turned automatic updates off in Settings). The state goes to update.json for the Settings page."""
@@ -373,7 +384,7 @@ def main():
     prune_versions(d, ver)
     install_data(d, ver)
     os.environ["GRIMORIO_VERSION"] = ver
-    threading.Thread(target=check_update, args=(d, ver), daemon=True).start()
+    threading.Thread(target=update_loop, args=(d, ver), daemon=True).start()
 
     # Forge without Docker: bundled Java and Forge (sim.py reads these)
     java = os.path.join(BASE, "jre", "bin", "java.exe" if os.name == "nt" else "java")

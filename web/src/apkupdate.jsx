@@ -5,22 +5,29 @@ import { useEffect, useState } from 'react'
 import { tx } from './i18n.js'
 import { newer } from './apkver.js'
 
-const REL = 'https://api.github.com/repos/hubertdungen/grimorio/releases/latest', K = 'grimorio.apk.latest', DAY = 86400000
+const REL = 'https://api.github.com/repos/hubertdungen/grimorio/releases/latest', K = 'grimorio.apk.latest', KEEP = 3 * 3600000
 const mine = () => window.GrimorioApp?.version?.() || ''
 
-// {v, url} da release mais recente (guardada um dia neste aparelho: o GitHub limita os pedidos sem conta)
+// {v, url} da release mais recente (guardada 3 h neste aparelho: o GitHub limita os pedidos sem conta). Uma release
+// acabada de publicar ainda não tem o .apk (o GitHub gera-o em ~1 h): sem .apk não se guarda e volta-se a ver mais tarde
 async function latest(force) {
-  try { const c = JSON.parse(localStorage.getItem(K) || 'null'); if (!force && c && Date.now() - c.at < DAY) return c } catch { /* sem armazenamento */ }
+  try { const c = JSON.parse(localStorage.getItem(K) || 'null'); if (!force && c?.url && Date.now() - c.at < KEEP) return c } catch { /* sem armazenamento */ }
   const r = await fetch(REL, { headers: { Accept: 'application/vnd.github+json' } })
   if (!r.ok) throw new Error(`GitHub ${r.status}`)
   const j = await r.json(), apk = (j.assets || []).find(a => /-android\.apk$/.test(a.name))
   const c = { v: String(j.tag_name || '').replace(/^v/, ''), url: apk?.browser_download_url || null, at: Date.now() }
-  try { localStorage.setItem(K, JSON.stringify(c)) } catch { /* sem armazenamento */ }
+  try { if (c.url) localStorage.setItem(K, JSON.stringify(c)) } catch { /* sem armazenamento */ }
   return c
 }
 function useLatest(force) {
   const [l, setL] = useState(null)
-  useEffect(() => { if (window.GrimorioApp) latest(force).then(setL).catch(e => setL({ err: e.message })) }, [force])
+  useEffect(() => {  // ao abrir e depois de meia em meia hora (a app fica aberta dias): o aviso aparece sem a reiniciar
+    if (!window.GrimorioApp) return
+    const get = () => latest(force).then(setL).catch(e => setL({ err: e.message }))
+    get()
+    const iv = setInterval(get, 30 * 60000)
+    return () => clearInterval(iv)
+  }, [force])
   return l
 }
 
