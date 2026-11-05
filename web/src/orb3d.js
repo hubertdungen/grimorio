@@ -10,7 +10,7 @@
 // Sem WebGL: fica a esfera clássica (CSS).
 import * as THREE from 'three'
 
-const COL = { W: '#fff3c4', U: '#4cc9f0', B: '#a78bfa', R: '#ff5c3a', G: '#4ade80', C: '#cbd5e1' }
+const COL = { W: '#f5c451', U: '#4cc9f0', B: '#a78bfa', R: '#ff5c3a', G: '#4ade80', C: '#cbd5e1' }
 const SIZE = 192
 let R = null
 const orbs = new Set()
@@ -28,15 +28,69 @@ const VS = 'varying vec3 vN; varying vec3 vP; varying vec2 vUv; varying vec3 vO;
 // o líquido: cor do estilo com fumo a mexer, brilho de dentro (mais forte no centro) e mais escuro para as bordas
 const CORE_FS = `${NOISE}
 uniform float t; uniform vec3 c1; uniform vec3 c2; uniform vec3 core; uniform vec3 deep; uniform float speed; uniform float dens; uniform float glow; uniform float rot; uniform float frost;
+uniform float elem; uniform vec3 wA; uniform vec3 wB; uniform float wlite; uniform float tox; uniform vec3 ink; uniform vec4 inkP; uniform float inkK;
 varying vec3 vN; varying vec3 vP; varying vec3 vO;
+float ridge(float x){ return 1. - abs(2.*x - 1.); }
+// um líquido por cor de mana, cada um com a sua viscosidade (tt já vem com a velocidade da mistura)
+vec3 lightF(vec3 q, float tt){  // branco: luz dourada líquida em ondas (honra, cura); os feitiços puxam para branco
+  float w = .5 + .5*sin(q.y*5.5 + q.x*1.4 + tt*1.7 + fbm(q*1.3 + tt*.12)*4.);
+  vec3 a = mix(vec3(.55,.37,.07), vec3(.82,.8,.74), wlite), b = mix(vec3(1.,.8,.34), vec3(1.,.98,.92), wlite);
+  return mix(a, b, w) + smoothstep(.6, 1., w)*vec3(1.,.93,.7)*.6; }
+vec3 waterF(vec3 q, float tt){  // azul: água a correr, com cristas claras
+  vec3 f = q + vec3(tt*.6, sin(q.x*1.3 + tt)*.18, 0.);
+  float a = fbm(f*1.3 + fbm(f*.9 - tt*.25)), c = pow(ridge(n(f*3.1 + vec3(0., tt*.9, 0.))), 6.);
+  return mix(vec3(.02,.1,.3), vec3(.12,.58,.95), a) + c*vec3(.55,.85,1.)*.7; }
+vec3 swampF(vec3 q, float tt){  // preto: pântano — fumo escuro, água lamacenta castanha, manchas de fungos verde-escuro e roxo
+  vec3 f = q*.9 + vec3(0., tt*.1, tt*.06);
+  float sm = fbm(f + fbm(f*1.7 + tt*.07)), mud = fbm(q*2.2 - tt*.04), spots = smoothstep(.56, .68, n(q*6.5 + tt*.06));
+  vec3 c = mix(vec3(.03,.02,.03), vec3(.26,.16,.07), smoothstep(.25, .7, mud));
+  c = mix(c, vec3(.27,.23,.31), smoothstep(.45, .85, sm)*.8);
+  return mix(c, mix(vec3(.07,.2,.06), vec3(.3,.09,.36), n(q*3. + 7.)), spots*.75); }
+vec3 lavaF(vec3 q, float tt){  // vermelho: lava a subir, veios incandescentes
+  vec3 f = q*1.4 + vec3(0., -tt*.7, 0.);
+  float a = fbm(f + fbm(f*1.5)), c = pow(ridge(fbm(q*2.6 - vec3(0., tt*1., 0.))), 5.);
+  return mix(vec3(.22,.03,0.), vec3(1.,.32,.06), a) + c*vec3(1.,.78,.38); }
+vec3 mossF(vec3 q, float tt){  // verde: pastoso, devagar, como plantas a mexer, com veios de seiva
+  vec3 f = q*1.1 + vec3(sin(tt*.3)*.3, tt*.05, 0.);
+  float a = fbm(f + .6*fbm(f*1.3 + tt*.05)), v = 1. - smoothstep(0., .045, abs(n(q*3.5 + vec3(tt*.06)) - .5));
+  return mix(mix(vec3(.04,.18,.06), vec3(.3,.78,.36), a), vec3(.02,.09,.03), v*.8) + vec3(.6,1.,.3)*pow(a, 4.)*.4; }
+vec3 metalF(vec3 q, float tt){  // incolor: cinzentos e metal escovado (artefactos, mechs, eldrazi)
+  float b = .5 + .5*sin(q.y*9. + q.x*2. + fbm(q*2.2 + tt*.06)*6.), a = fbm(q*1.6 + tt*.08);
+  return mix(vec3(.2,.21,.25), vec3(.68,.71,.78), a*.85 + b*.12) + pow(b, 18.)*vec3(.22); }
+// a mistura: cada cor ocupa correntes próprias que se enrolam umas nas outras (não uma média lamacenta);
+// o peso de cada uma é o que está em campo
+vec3 elemCol(vec3 q, float tt){
+  vec3 g = q*1.2 + vec3(fbm(q*.8 + tt*.05), fbm(q*.8 + 3.1 - tt*.04), 0.)*1.6;
+  float k = 7.;
+  float e0 = wA.x > 0. ? exp(k*(fbm(g + vec3(1.7,0.,0.)) + .35*log(wA.x))) : 0.;
+  float e1 = wA.y > 0. ? exp(k*(fbm(g + vec3(0.,4.3,0.)) + .35*log(wA.y))) : 0.;
+  float e2 = wA.z > 0. ? exp(k*(fbm(g + vec3(0.,0.,8.9)) + .35*log(wA.z))) : 0.;
+  float e3 = wB.x > 0. ? exp(k*(fbm(g + vec3(5.2,2.,0.)) + .35*log(wB.x))) : 0.;
+  float e4 = wB.y > 0. ? exp(k*(fbm(g + vec3(2.,7.5,1.)) + .35*log(wB.y))) : 0.;
+  float e5 = wB.z > 0. ? exp(k*(fbm(g + vec3(9.,1.,3.)) + .35*log(wB.z))) : 0.;
+  float S = e0 + e1 + e2 + e3 + e4 + e5 + 1e-5;
+  vec3 c = vec3(0.);
+  if (e0 > 0.) c += lightF(q, tt) * e0; if (e1 > 0.) c += waterF(q, tt) * e1; if (e2 > 0.) c += swampF(q, tt) * e2;
+  if (e3 > 0.) c += lavaF(q, tt) * e3; if (e4 > 0.) c += mossF(q, tt) * e4; if (e5 > 0.) c += metalF(q, tt) * e5;
+  return c / S; }
 void main(){
   vec3 V = normalize(-vP); float facing = max(dot(normalize(vN), V), 0.);
   vec3 p = vO*2.4 + vec3(0., t*speed*.35, t*speed*.2);
   float s = fbm(p + fbm(p + t*speed*.15));
   vec3 col = mix(deep, core, .3 + .7*facing);
   col = mix(col, mix(c2, c1, s), smoothstep(.35, .9, s) * dens);
-  col += core * pow(facing, 3.) * glow * .9;                           // brilho de dentro, no centro
+  if (elem > .5) { vec3 e = elemCol(vO*2.2, t*speed*.5); col = e * (.45 + .55*facing) * (dens > .2 ? 1. : .35); }
+  col += core * pow(facing, 3.) * glow * (elem > .5 ? .45 : .9);       // brilho de dentro, no centro
   col *= .5 + glow*.8;
+  // veneno: veios tóxicos e bolhas a subir, mais com mais veneno; o líquido puxa para verde-roxo
+  if (tox > 0.) {
+    float tv = 1. - smoothstep(0., .05, abs(fbm(vO*2.5 + t*.2) - .5)), bub = smoothstep(.78, .82, n(vO*7. + vec3(0., -t*(1. + 2.*tox), 0.)));
+    col = mix(col, vec3(.3,.12,.42), tox*.25); col = mix(col, vec3(.38,.95,.22), tv*tox*.7) + bub*tox*vec3(.45,1.,.3)*.7; }
+  // o que entrou com um golpe (sangue, pedra, lascas de metal, brasas…): uma pluma da cor dele a espalhar-se e a assentar
+  if (inkK > 0.) {
+    float d = distance(vO, inkP.xyz) - inkP.w + (fbm(vO*4. + t*.3) - .5)*.7, pl = 1. - smoothstep(0., .35, d);
+    float fl = smoothstep(.9, .95, n(vO*10. + vec3(0., t*1.4, 0.)));
+    col = mix(col, ink, pl*inkK*.8) + fl*pl*inkK*ink*.5; }
   float spots = smoothstep(.55, .75, fbm(vO*5. + 3.));
   col = mix(col, mix(vec3(.18,.24,.05), vec3(.03,.02,.02), spots), rot*.85);
   col = mix(col, vec3(.75,.9,1.), frost*.6);
@@ -90,7 +144,8 @@ function init() {
   const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50)
   cam.position.set(0, 0.2, 6); cam.lookAt(0, 0, 0)
   const coreU = { t: { value: 0 }, c1: { value: new THREE.Color() }, c2: { value: new THREE.Color() }, core: { value: new THREE.Color() }, deep: { value: new THREE.Color() },
-    speed: { value: 1 }, dens: { value: 0.9 }, glow: { value: 0.6 }, rot: { value: 0 }, frost: { value: 0 } }
+    speed: { value: 1 }, dens: { value: 0.9 }, glow: { value: 0.6 }, rot: { value: 0 }, frost: { value: 0 },
+    elem: { value: 0 }, wA: { value: new THREE.Vector3() }, wB: { value: new THREE.Vector3() }, wlite: { value: 0 }, tox: { value: 0 }, ink: { value: new THREE.Color() }, inkP: { value: new THREE.Vector4() }, inkK: { value: 0 } }
   const core = new THREE.Mesh(new THREE.SphereGeometry(0.9, 64, 48), new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: CORE_FS, uniforms: coreU }))
   const crackTex = crackTexture(), glassU = back => ({ tint: { value: new THREE.Color() }, crack: { value: 0 }, crackTex: { value: crackTex }, back: { value: back }, dim: { value: 1 } })
   const glassMat = back => new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: GLASS_FS, uniforms: glassU(back), transparent: true, depthWrite: false, side: back ? THREE.BackSide : THREE.FrontSide })
@@ -136,7 +191,10 @@ function read(o) {
     core: col(v('--core'), '#5ee08a'), deep: col(v('--deep'), '#06301a'), s1: col(v('--smoke'), '#c8ffd9'), s2: col(v('--smoke2'), '#3ddc84'), glow: col(v('--glow'), '#22c55e'),
     low: el.classList.contains('low'), dead: el.classList.contains('dead'), burst: el.classList.contains('bursting'), mood: el.dataset.mood || '', react: el.dataset.react || '',
     anim: el.dataset.a || 'calmo', ab: +(cs.getPropertyValue('--ab') || 0) || 0, cols: (el.dataset.cols || '').split('').filter(c => COL[c]), fx: el.dataset.fx3 || '',
+    w: el.dataset.w ? el.dataset.w.split(',').map(Number) : null, tox: +el.dataset.psn || 0, ink: el.dataset.ink || '',
   }
+  if (o.st.ink && o.st.ink !== o.ink) { o.inkAt = performance.now(); o.inkDir = el._inkDir || [0, 0] }
+  o.ink = o.st.ink
   if (o.st.burst && !o.burstAt) o.burstAt = performance.now()
   if (!o.st.burst) o.burstAt = 0
   if (o.st.fx && o.st.fx !== o.fx) o.fxAt = performance.now()
@@ -144,6 +202,10 @@ function read(o) {
   o.at = performance.now()
 }
 
+// a cor do que entra no líquido com cada estilo de golpe (orbfx.js)
+const INK = { bite: '#7a0010', blood: '#8a0012', claws: '#5a0a0a', sword: '#9ca3af', arrow: '#6b4423', horn: '#5c4033', smash: '#6b5b4b', dive: '#475569', thunder: '#e0f2fe',
+  fire: '#ff7a1a', ice: '#bfe9ff', leaf: '#2f7a2f', holy: '#ffe08a', prism: '#f0abfc', metal: '#a1a1aa', goo: '#3f6212', rot: '#4d5d1a' }
+const ECOL = ['#f2b84b', '#38a8f0', '#4a3a2a', '#ff6a2a', '#4caf50', '#9aa3ad'].map(c => new THREE.Color(c)), MIX = new THREE.Color(), TMP = new THREE.Color()
 const FLOOR = -1.1, GREY = new THREE.Color('#9a958f'), TOXIC = new THREE.Color('#5fd13a'), STONE = new THREE.Color('#6b6b70')
 // cada derrota morre à sua maneira: vida a 0 estilhaça (cacos no chão) ou cai inteira e rola (ao acaso, com semente:
 // igual em todos os ecrãs); veneno derrete numa poça verde; moer escoa o líquido e o vidro vazio desfaz-se em pó;
@@ -181,9 +243,22 @@ function draw(now) {
     u.glow.value = s.dead ? 0.05 : s.mood || s.react ? 1.2 : (s.ab > 0 ? 0.7 + 0.45 * s.ab : 0.6) + breath
     const fxk = s.fx && now - (o.fxAt || 0) < 1500 ? 1 - (now - o.fxAt) / 1500 : 0
     u.rot.value = s.fx === 'rot' ? fxk : 0; u.frost.value = s.fx === 'frost' ? fxk : 0
+    // os fluidos por cor (estilo automático): pesos W U B R G C do que está em campo, a viscosidade é a da mistura
+    const w = s.w && s.w.length >= 6 ? s.w : null
+    u.elem.value = w ? 1 : 0
+    if (w) { u.wA.value.set(w[0], w[1], w[2]); u.wB.value.set(w[3], w[4], w[5]); u.wlite.value = w[6] || 0
+      const visc = w[0] * 0.8 + w[1] * 1.25 + w[2] * 0.5 + w[3] * 1 + w[4] * 0.3 + w[5] * 0.4
+      u.speed.value *= Math.max(0.25, visc)
+      // o brilho de dentro com a cor da mistura (antes vinha do estilo CSS: o pântano ficava roxo)
+      MIX.setRGB(0, 0, 0); w.slice(0, 6).forEach((x, i) => { if (x) MIX.add(TMP.copy(ECOL[i]).multiplyScalar(x)) }); u.core.value.copy(MIX); u.deep.value.copy(MIX).multiplyScalar(0.25) }
+    u.tox.value = s.dead ? 0 : Math.min(1, s.tox)
+    const ik = o.inkAt ? (now - o.inkAt) / 1000 : 9  // o que entrou espalha-se ~6 s e assenta
+    u.inkK.value = ik < 6 ? Math.min(1, ik * 4) * (1 - ik / 6) : 0
+    if (u.inkK.value > 0) { u.ink.value.set(INK[o.ink] || '#7a0010'); const d = o.inkDir, L = Math.hypot(d[0], d[1]) || 1
+      u.inkP.value.set(-d[0] / L * 0.75, d[1] / L * 0.75, 0.45, 0.15 + ik * 0.22) }
     const burstK = o.burstAt ? Math.min(1, (now - o.burstAt) / 700) : 0
     const crack = s.dead ? 1 : Math.max(s.low ? 0.32 : 0, burstK, (s.fx === 'crack' || s.fx === 'split') ? 0.75 * fxk : 0)
-    for (const g of [r.glass, r.glassBack]) { g.material.uniforms.crack.value = crack; g.material.uniforms.tint.value.copy(s.core); g.material.uniforms.dim.value = s.dead ? 0.85 : 1 }
+    for (const g of [r.glass, r.glassBack]) { g.material.uniforms.crack.value = crack; g.material.uniforms.tint.value.copy(w ? MIX : s.core); g.material.uniforms.dim.value = s.dead ? 0.85 : 1 }
     const bt = o.el._beat, ph = bt ? ((now - bt.t0) % bt.P) / bt.P : 0  // o mesmo relógio do som do coração
     const heart = ph < 0.05 ? ph / 0.05 * 0.07 : ph < 0.11 ? 0.07 - (ph - 0.05) / 0.06 * 0.08 : ph < 0.17 ? -0.01 + (ph - 0.11) / 0.06 * 0.06 : ph < 0.26 ? 0.05 - (ph - 0.17) / 0.09 * 0.05 : 0
     const beat = s.low && !s.dead && bt ? 1 + heart : 1, fat = 1 + 0.25 * s.ab, wob = s.burst ? 1 + 0.035 * Math.sin(t * 60) : 1
@@ -198,7 +273,7 @@ function draw(now) {
     r.glow2.material.color.set(cols ? COL[cols[1] || cols[0]] : '#000000')
     const ga = s.dead ? 0 : s.mood || s.react ? 0.95 : s.ab > 0 ? 0.55 + 0.35 * s.ab : 0.4
     r.glow.material.opacity = ga; r.glow2.material.opacity = cols && cols.length > 1 ? ga * 0.8 : 0
-    r.caustic.material.color.copy(s.core).lerp(new THREE.Color('#ffffff'), 0.5); r.caustic.material.opacity = s.dead ? 0 : 0.55
+    r.caustic.material.color.copy(w ? MIX : s.core).lerp(new THREE.Color('#ffffff'), 0.5); r.caustic.material.opacity = s.dead ? 0 : 0.55
     // a casca rebentada: a física dos cacos (ou da esfera inteira a cair e rolar) e o chão rachado; câmara mais alta
     if (s.dead && !o.fr) startFracture(o, now)
     if (!s.dead) o.fr = null

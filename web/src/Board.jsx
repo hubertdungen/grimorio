@@ -639,6 +639,23 @@ const deckLook = (z, data) => {  // pelas cartas que já se viram desse lado: a 
   const n = cs.length || 1, cre = cs.filter(c => c.mt === 'Creature').length / n, spl = cs.filter(c => c.mt === 'Instant' || c.mt === 'Sorcery').length / n
   return { t, a: cre > 0.55 ? 'turbilhao' : spl > 0.45 ? 'faiscas' : cs.length > 3 ? 'calmo' : 'pulsar', n: cs.length, cols: top.filter(([, n]) => n >= Math.max(1, (top[0]?.[1] || 0) * 0.34)).slice(0, 3).map(([k]) => k).join('') }
 }
+// a mistura dos fluidos (W U B R G C + quanto do branco vem de feitiços), viva: muda com o que está em campo. Terrenos
+// pelas cores que dão, permanentes inteiras, cemitério/exílio um pouco; incolores (artefactos, eldrazi) = C
+const fieldMix = (z, data) => {
+  const w = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 }
+  let wsp = 0
+  const add = (n, k) => { const c = lookup(data, n); if (!c) return
+    const land = /Land/.test(c.t), cs = String((land ? c.ci : c.co) ?? '').replace(/[^WUBRG]/g, '')
+    const f = k * (land ? 0.6 : 1)
+    if (!cs) { w.C += f * (land ? 0.6 : 1); return }
+    for (const x of cs) { w[x] += f / cs.length; if (x === 'W' && /Instant|Sorcery/.test(c.t)) wsp += f / cs.length } }
+  for (const p of z.perms || []) if (!p.hidden && !p.faceDown) add(p.name, 1)
+  for (const n of [...(z.graveyard || []), ...(z.exile || [])]) add(n, 0.3)
+  const tot = Object.values(w).reduce((a, b) => a + b, 0)
+  if (tot < 0.5) return undefined
+  const v = ['W', 'U', 'B', 'R', 'G', 'C'].map(k => (w[k] / tot >= 0.08 ? w[k] / tot : 0))
+  return [...v.map(x => x.toFixed(2)), (w.W ? Math.min(1, wsp / w.W) : 0).toFixed(2)].join(',')
+}
 const locked = new Map()  // o aspeto «pelo deck» fixa-se quando já se viram 5 cartas (não muda a meio do jogo)
 export function orbLook(k, z, data, ctx, name) {
   const P = fpPrefs(), mine = ctx.mine === k, other = ctx.looks?.[k]  // other: a que outro jogador escolheu (online)
@@ -646,9 +663,10 @@ export function orbLook(k, z, data, ctx, name) {
   if (!mine && !other && P.botOrb === 'random') { const h = hashS(`${ctx.seed}|${name || k}`); t = ORB_T[h % ORB_T.length]; a = ORB_A[(h >>> 5) % ORB_A.length] }
   const key = `${ctx.seed}|${name || k}`, d = locked.get(key) || deckLook(z, data)
   if (d.n >= 5 && !locked.has(key)) { locked.set(key, d); if (locked.size > 200) locked.delete(locked.keys().next().value) }
+  const auto = t === 'auto'
   if (t === 'auto') t = d.t
   if (a === 'auto') a = d.a
-  return { t, a, cols: d.cols }  // cols: as cores do deck (o halo da esfera 3D)
+  return { t, a, cols: d.cols, w: auto ? fieldMix(z, data) : undefined }  // w: os fluidos por cor (só no estilo automático)  // cols: as cores do deck (o halo da esfera 3D)
 }
 export const ORB_T_NAME = { verde: tx('Floresta'), oceano: tx('Oceano'), brasa: tx('Brasa'), vazio: tx('Vazio'), ouro: tx('Ouro'), gelo: tx('Gelo'), prisma: tx('Prisma'), tempestade: tx('Tempestade'), sangue: tx('Sangue') }
 export const ORB_A_NAME = { calmo: tx('Calmo'), turbilhao: tx('Turbilhão'), pulsar: tx('Pulsar'), faiscas: tx('Faíscas') }
@@ -737,7 +755,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     return () => { clearInterval(iv); if (el) el._beat = null }
   }, [low, dead, fast, life <= 2, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-w={look?.w} data-psn={poison > 0 ? Math.min(1, poison / pmax).toFixed(2) : undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
       {three && <canvas ref={cvRef} className="orb3d" aria-hidden="true" />}
       {rich.includes('god') && <i className="orb-rays" aria-hidden="true" />}
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>

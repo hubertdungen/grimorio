@@ -60,6 +60,7 @@ export function attackFx(orb, style, dx = 0, dy = 1, seed, card = false) {  // c
   setTimeout(() => box.remove(), 1600)
   // a esfera reage (3D e clássica): rachar, partir ao meio, verter, apodrecer, espinhos, gelar, arder, brilhar
   const fx = FX3[style]
+  if (orb && !card) { orb._inkDir = [dx, dy]; orb.dataset.ink = ''; void orb.offsetWidth; orb.dataset.ink = style; clearTimeout(orb._ink); orb._ink = setTimeout(() => { delete orb.dataset.ink }, 6500) }
   if (fx && orb && !card) { orb.dataset.fx3 = fx; clearTimeout(orb._fx3); orb._fx3 = setTimeout(() => { delete orb.dataset.fx3 }, 1500) }
   play(`atk_${style}`)
 }
