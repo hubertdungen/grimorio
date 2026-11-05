@@ -719,9 +719,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     for (const [id, x] of a.perms) { idxIn[x.side] = (idxIn[x.side] ?? -1) + 1; if (!now.has(id) && !x.c.hidden) gone.push({ ...x, idx: idxIn[x.side], to: destOf(id), until: Date.now() + 900 }) }
     // a pilha do Forge vem do topo para baixo; o que saiu dela resolveu (ou foi contrariado): fantasma «A resolver»
     const items = [...(st.stack || [])].reverse(), keyOf = x => `${x.card ?? ''}|${x.text}`
-    const left = a.stack.find(x => !items.some(y => keyOf(y) === keyOf(x)))
+    // várias de uma vez (resolveram seguidas entre dois estados): todas saem a desvanecer, não só a primeira
+    const lefts = a.stack.filter(x => !items.some(y => keyOf(y) === keyOf(x))), left = lefts.at(-1), side = x => (x.by === me?.id ? 'a' : 'b')
     a.perms = now; a.stack = items
-    setFxs(f => ({ pops, gone: [...f.gone.filter(g => g.until > Date.now()), ...gone], rev: left ? { k: 'resolve', card: left.name, p: left.by === me?.id ? 'a' : 'b', txt: left.text } : f.rev, ri: left ? f.ri + 1 : f.ri }))
+    setFxs(f => ({ pops, gone: [...f.gone.filter(g => g.until > Date.now()), ...gone], rev: left ? { k: 'resolve', card: left.name, p: side(left), txt: left.text, more: lefts.slice(0, -1).map(x => ({ card: x.name, p: side(x) })) } : f.rev, ri: left ? f.ri + 1 : f.ri }))
   }, [seqKey]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!fxs.gone.length && !fxs.pops.size) return; const t = setTimeout(() => setFxs(f => ({ ...f, pops: new Map(), gone: f.gone.filter(g => g.until > Date.now()) })), 1200); return () => clearTimeout(t) }, [fxs.gone.length, fxs.pops])
   useEffect(() => {  // cartas que foram para o cemitério ou o exílio esquecem o sítio onde estavam (se voltarem, vão para as filas)

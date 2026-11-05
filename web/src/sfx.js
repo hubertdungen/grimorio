@@ -173,12 +173,31 @@ const R = {
   // o coração da esfera com pouca vida («lub-dub»), atirar, pingar sangue e cada golpe à maneira de quem bateu
   orbHeart: (c, out, t, o) => { const k = Math.min(1, o.amount ?? 0.6); thud(c, out, t, 0.12 + 0.1 * k, 52, 0.16); thud(c, out, t + 0.17, 0.08 + 0.07 * k, 46, 0.18); return 0.4 },
   orbThrow: (c, out, t, o) => (whoosh(c, out, t, 400, 2200 + 1600 * Math.min(1, o.amount ?? 0.5), 0.3, 0.05 + 0.05 * Math.min(1, o.amount ?? 0.5), 1.6), 0.3),
-  orbDrip: (c, out, t) => (tone(c, out, t, { type: 'sine', f: 1400 + Math.random() * 500, f2: 600, dur: 0.07, a: 0.002, g: 0.03 }), 0.08),
+  // pingo de sangue: um «plop» grave e molhado (antes era um tom agudo a descer — parecia um passarinho a piar)
+  orbDrip: (c, out, t) => (tone(c, out, t, { type: 'sine', f: 190 + Math.random() * 40, f2: 85, dur: 0.09, a: 0.003, g: 0.06 }), noise(c, out, t, { type: 'lowpass', f: 700, f2: 250, dur: 0.06, a: 0.002, g: 0.03 }), 0.1),
   orbZap: (c, out, t) => (noise(c, out, t, { type: 'highpass', f: 3000, dur: 0.18, a: 0.001, g: 0.12 }), ticks(c, out, t, 8, 0.018, { f: 5200, q: 3, dur: 0.02, g: 0.06 }), thud(c, out, t + 0.05, 0.16, 60, 0.4), 0.45),
   orbWind: (c, out, t) => (whoosh(c, out, t, 1800, 500, 0.45, 0.07, 0.8), 0.45),
   orbFire: (c, out, t) => (noise(c, out, t, { type: 'lowpass', f: 2500, f2: 600, dur: 0.5, a: 0.03, g: 0.09 }), ticks(c, out, t + 0.05, 6, 0.05, { f: 1800, q: 2, dur: 0.03, g: 0.04 }), 0.5),
   orbStomp: (c, out, t) => (thud(c, out, t, 0.24, 48, 0.4), thud(c, out, t + 0.09, 0.12, 40, 0.3), 0.45),
   orbDark: (c, out, t) => (tone(c, out, t, { type: 'sawtooth', f: 110, f2: 55, dur: 0.6, a: 0.05, g: 0.05, lp: 500, lp2: 200 }), whoosh(c, out, t, 900, 200, 0.6, 0.04), 0.6),
+  // golpes na esfera à maneira de quem bateu (orbfx.js)
+  atk_claws: (c, out, t) => { [0, 0.07, 0.14].forEach(d => noise(c, out, t + d, { type: 'bandpass', f: 3800, f2: 1200, q: 2, dur: 0.12, a: 0.004, g: 0.08 })); return 0.3 },
+  atk_sword: (c, out, t) => (whoosh(c, out, t, 900, 4200, 0.18, 0.08, 2), clank(c, out, t + 0.16, 0.08, [2200, 3700, 5200]), 0.45),
+  atk_arrow: (c, out, t) => { [0, 0.08, 0.16, 0.24].forEach(d => { whoosh(c, out, t + d, 2400, 900, 0.1, 0.04, 3); thud(c, out, t + d + 0.1, 0.06, 160, 0.06) }); return 0.4 },
+  atk_bite: (c, out, t) => (noise(c, out, t, { type: 'lowpass', f: 900, dur: 0.08, a: 0.002, g: 0.14 }), ticks(c, out, t + 0.05, 5, 0.02, { f: 1500, q: 3, dur: 0.02, g: 0.06 }), 0.2),
+  atk_blood: (c, out, t) => { R.atk_bite(c, out, t); for (let i = 0; i < 4; i++) R.orbDrip(c, out, t + 0.12 + i * 0.1 + Math.random() * 0.04); return 0.6 },
+  atk_horn: (c, out, t) => (thud(c, out, t, 0.2, 70, 0.3), noise(c, out, t, { type: 'lowpass', f: 600, dur: 0.15, a: 0.002, g: 0.08 }), 0.3),
+  atk_smash: (c, out, t) => (thud(c, out, t, 0.26, 45, 0.45), ticks(c, out, t + 0.03, 9, 0.03, { f: 900, q: 1.5, dur: 0.05, g: 0.07 }), 0.45),
+  atk_dive: (c, out, t) => (whoosh(c, out, t, 300, 2600, 0.4, 0.09, 1), thud(c, out, t + 0.36, 0.12, 90, 0.2), 0.55),
+  atk_thunder: (c, out, t) => { R.orbZap(c, out, t); thud(c, out, t + 0.25, 0.2, 38, 1.2); noise(c, out, t + 0.25, { type: 'lowpass', f: 300, f2: 60, dur: 1.4, a: 0.05, g: 0.12 }); return 1.5 },
+  atk_fire: (c, out, t) => R.orbFire(c, out, t),
+  atk_ice: (c, out, t) => { for (let i = 0; i < 7; i++) tone(c, out, t + i * 0.04, { type: 'triangle', f: 2400 + Math.random() * 2400, dur: 0.06, a: 0.001, g: 0.03 }); return 0.35 },
+  atk_leaf: (c, out, t) => (noise(c, out, t, { type: 'bandpass', f: 2600, q: 0.7, dur: 0.5, a: 0.08, g: 0.05 }), 0.5),
+  atk_holy: (c, out, t) => (magic(c, out, t, 'W', 0.04, 0.7), 0.7),
+  atk_prism: (c, out, t) => (magic(c, out, t, 'WUBRG', 0.035, 0.6), 0.6),
+  atk_metal: (c, out, t) => (clank(c, out, t, 0.12, [1100, 1900, 2900]), clank(c, out, t + 0.12, 0.08, [1500, 2600]), 0.35),
+  atk_goo: (c, out, t) => (tone(c, out, t, { type: 'sine', f: 140, f2: 60, dur: 0.35, a: 0.03, g: 0.1 }), noise(c, out, t, { type: 'lowpass', f: 500, dur: 0.3, a: 0.05, g: 0.05 }), 0.35),
+  atk_rot: (c, out, t) => R.orbPoison(c, out, t),
   orbStone: (c, out, t) => (thud(c, out, t, 0.14, 55, 0.6), noise(c, out, t, { type: 'lowpass', f: 600, f2: 120, dur: 0.6, a: 0.01, g: 0.06 }), 0.6),
   tick: (c, out, t, o) => (noise(c, out, t, { f: (o.amount ?? 1) >= 0 ? 3400 : 1900, q: 7, dur: 0.03, a: 0.001, g: 0.05 }), 0.04),
   champion: (c, out, t) => {
@@ -393,7 +412,7 @@ const GROUP_OF = {
   dados: ['dice', 'diceHit', 'coin', 'tick'],
   fim: ['win', 'loss', 'tie', 'match', 'champion', 'crown'],
 }
-export const groupOf = kind => (/^orb/.test(kind) ? 'esfera' : Object.keys(GROUP_OF).find(g => GROUP_OF[g].includes(kind)) || 'mesa')
+export const groupOf = kind => (/^(orb|atk_)/.test(kind) ? 'esfera' : Object.keys(GROUP_OF).find(g => GROUP_OF[g].includes(kind)) || 'mesa')
 export function setGroupVolume(g, v) { cfg = { ...cfg, g: { ...(cfg.g || {}), [g]: Math.max(0, Math.min(1, +v || 0)) } }; save() }
 export const getSettings = () => ({ ...cfg, g: { ...(cfg.g || {}) } })
 export function setEnabled(on) {

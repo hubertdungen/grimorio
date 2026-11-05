@@ -1,79 +1,124 @@
 // Esfera da vida em 3D (WebGL, three.js como os dados). Um só renderizador para todas as esferas do ecrã: a cada frame
 // desenha cada esfera e copia a imagem para o <canvas> dela (no telemóvel não se abre um contexto WebGL por esfera).
 // O que a esfera mostra vem do elemento .orb que já existe (estilo, estado, reação, pouca/muita vida, rebentada): as
-// cores lêem-se das variáveis CSS (--core, --deep, --smoke, --smoke2, --glow) e as classes/data-* dizem o resto. Assim a
-// lógica toda (golpes, física, online) continua a mesma e o 3D só a desenha.
-// O halo do deck: anéis à volta com as cores do deck (data-cols, p.ex. «WG») e o movimento do estilo (data-a).
+// cores lêem-se das variáveis CSS (--core, --deep, --smoke, --smoke2, --glow) e as classes/data-* dizem o resto.
+// Vidro: shader próprio — borda luminosa (fresnel), reflexo de janela e brilho especular, a face de trás para dar
+// espessura; rachas desenhadas NA superfície (seguem a curva da esfera) a crescer do ponto de impacto: um pouco com
+// pouca vida, todas na casca, a crescer enquanto carrega para rebentar e num golpe que racha/parte (data-fx3).
+// Dentro: o líquido luminoso (mais escuro para as bordas) e o fumo; uma cáustica clara em baixo. À volta: o brilho com
+// as cores do deck (data-cols). As reações por cima (sangue, luz, vento…) continuam a ser as da esfera clássica.
 // Sem WebGL: fica a esfera clássica (CSS).
 import * as THREE from 'three'
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
 const COL = { W: '#fff3c4', U: '#4cc9f0', B: '#a78bfa', R: '#ff5c3a', G: '#4ade80', C: '#cbd5e1' }
-const SIZE = 192  // px do desenho (a esfera tem ~56 px; com halo e densidade de ecrã chega)
-let R = null  // {renderer, scene, cam, glass, smoke, halo, glow, env}
+const SIZE = 192
+let R = null
 const orbs = new Set()
 let raf = 0, t0 = performance.now()
 
 export const webgl3d = () => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')) } catch { return false } }
 
-const SMOKE_FS = `
-uniform float t; uniform vec3 c1; uniform vec3 c2; uniform float speed; uniform float dens; varying vec3 vp;
+const NOISE = `
 float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719))) * 43758.5453); }
 float n(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.-2.*f);
   return mix(mix(mix(h(i),h(i+vec3(1,0,0)),f.x),mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),
              mix(mix(h(i+vec3(0,0,1)),h(i+vec3(1,0,1)),f.x),mix(h(i+vec3(0,1,1)),h(i+vec3(1,1,1)),f.x),f.y),f.z); }
-float fbm(vec3 p){ float a=.5, s=0.; for(int k=0;k<4;k++){ s+=a*n(p); p*=2.1; a*=.5; } return s; }
+float fbm(vec3 p){ float a=.5, s=0.; for(int k=0;k<4;k++){ s+=a*n(p); p*=2.1; a*=.5; } return s; }`
+const VS = 'varying vec3 vN; varying vec3 vP; varying vec2 vUv; varying vec3 vO; void main(){ vUv = uv; vO = position; vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position,1.); vP = mv.xyz; gl_Position = projectionMatrix * mv; }'
+// o líquido: cor do estilo com fumo a mexer, brilho de dentro (mais forte no centro) e mais escuro para as bordas
+const CORE_FS = `${NOISE}
+uniform float t; uniform vec3 c1; uniform vec3 c2; uniform vec3 core; uniform vec3 deep; uniform float speed; uniform float dens; uniform float glow; uniform float rot; uniform float frost;
+varying vec3 vN; varying vec3 vP; varying vec3 vO;
 void main(){
-  vec3 p = vp*2.2 + vec3(0., t*speed*.35, t*speed*.2);
+  vec3 V = normalize(-vP); float facing = max(dot(normalize(vN), V), 0.);
+  vec3 p = vO*2.4 + vec3(0., t*speed*.35, t*speed*.2);
   float s = fbm(p + fbm(p + t*speed*.15));
-  float edge = smoothstep(1.0, .55, length(vp));
-  float a = smoothstep(.35, .85, s) * edge * dens;
-  gl_FragColor = vec4(mix(c2, c1, s), a);
+  vec3 col = mix(deep, core, .3 + .7*facing);
+  col = mix(col, mix(c2, c1, s), smoothstep(.35, .9, s) * dens);
+  col += core * pow(facing, 3.) * glow * .9;                           // brilho de dentro, no centro
+  col *= .5 + glow*.8;
+  float spots = smoothstep(.55, .75, fbm(vO*5. + 3.));
+  col = mix(col, mix(vec3(.18,.24,.05), vec3(.03,.02,.02), spots), rot*.85);
+  col = mix(col, vec3(.75,.9,1.), frost*.6);
+  gl_FragColor = vec4(col, 1.);
 }`
-const SMOKE_VS = 'varying vec3 vp; void main(){ vp = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }'
+const GLASS_FS = `
+uniform vec3 tint; uniform float crack; uniform sampler2D crackTex; uniform float back; uniform float dim;
+varying vec3 vN; varying vec3 vP; varying vec2 vUv;
+void main(){
+  vec3 N = normalize(vN) * (back > .5 ? -1. : 1.), V = normalize(-vP), R = reflect(-V, N);
+  float fr = pow(1. - max(dot(N, V), 0.), 2.6);
+  float win = smoothstep(.82, .97, dot(R, normalize(vec3(-.55, .62, .55)))) * smoothstep(.0, .3, abs(R.y - R.x * .3));
+  float spec = pow(max(dot(R, normalize(vec3(-.35, .75, .6))), 0.), 90.);
+  float spec2 = pow(max(dot(R, normalize(vec3(.6, -.5, .6))), 0.), 40.) * .5;
+  vec3 col = mix(tint * .35, vec3(1.), fr * .85) + win * .9 + spec * 1.6 + spec2;
+  float a = .05 + fr * (back > .5 ? .35 : .8) + win * .55 + spec + spec2;
+  vec4 c = texture2D(crackTex, vUv);
+  float on = step(c.r, crack) * step(.01, crack);
+  float line = c.g * on, dark = c.b * on * (1. - c.g);
+  col = mix(col, vec3(.02), dark * .7) + line * vec3(1.15);
+  a = clamp(a + line * .95 + dark * .55, 0., 1.) * dim;
+  gl_FragColor = vec4(col, a);
+}`
+
+function crackTexture() {
+  const W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H
+  const g = c.getContext('2d'), u0 = 0.28 * W, v0 = 0.44 * H, segs = []
+  const branch = (x, y, ang, len, d, depth) => {
+    for (let k = 0; k < len; k++) {
+      const step = 14 + Math.random() * 18, nx = x + Math.cos(ang) * step, ny = y + Math.sin(ang) * step * 0.6
+      segs.push([x, y, nx, ny, Math.min(1, d / 260)]); d += step; x = nx; y = ny; ang += (Math.random() - 0.5) * 0.9
+      if (depth < 2 && Math.random() < 0.18) branch(x, y, ang + (Math.random() < 0.5 ? 0.9 : -0.9), Math.floor(len * 0.5), d, depth + 1)
+      if (y < 30 || y > H - 30) break
+    }
+  }
+  for (let i = 0; i < 9; i++) branch(u0, v0, (i / 9) * Math.PI * 2 + Math.random() * 0.4, 9 + Math.floor(Math.random() * 6), 0, 0)
+  for (let i = 0; i < 14; i++) { const a0 = (i / 14) * Math.PI * 2, a1 = a0 + Math.PI / 7, rr = 26 + Math.random() * 10
+    segs.push([u0 + Math.cos(a0) * rr, v0 + Math.sin(a0) * rr * 0.6, u0 + Math.cos(a1) * rr, v0 + Math.sin(a1) * rr * 0.6, 0.05]) }
+  g.lineCap = 'round'; g.lineJoin = 'round'
+  for (const [w, gch, bch] of [[7, 0, 255], [2.2, 255, 0]]) for (const [x, y, nx, ny, d] of segs) {
+    g.strokeStyle = `rgb(${Math.round(d * 255)},${gch},${bch})`; g.lineWidth = w; g.beginPath(); g.moveTo(x, y); g.lineTo(nx, ny); g.stroke()
+  }
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.NoColorSpace; tex.minFilter = THREE.LinearFilter
+  return tex
+}
 
 function init() {
   if (R) return R
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
   renderer.setSize(SIZE, SIZE, false); renderer.setPixelRatio(1)
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.outputColorSpace = THREE.SRGBColorSpace
   const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50)
-  cam.position.set(0, 0.35, 6); cam.lookAt(0, 0, 0)
-  const pm = new THREE.PMREMGenerator(renderer), env = pm.fromScene(new RoomEnvironment(), 0.04).texture
-  scene.environment = env
-  const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(-2, 3, 4); scene.add(key)
-  scene.add(new THREE.AmbientLight(0xffffff, 0.35))
-  // o núcleo colorido (o líquido), o fumo (shader), o vidro (transmissão, reflexos) e o halo do deck
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.74, 48, 32), new THREE.MeshStandardMaterial({ color: '#22c55e', emissive: '#22c55e', emissiveIntensity: 0.55, roughness: 0.35 }))
-  const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.9, 48, 32), new THREE.ShaderMaterial({ vertexShader: SMOKE_VS, fragmentShader: SMOKE_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    uniforms: { t: { value: 0 }, c1: { value: new THREE.Color('#c8ffd9') }, c2: { value: new THREE.Color('#3ddc84') }, speed: { value: 1 }, dens: { value: 0.9 } } }))
-  const glass = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), new THREE.MeshPhysicalMaterial({ color: '#ffffff', metalness: 0, roughness: 0.03,
-    clearcoat: 1, clearcoatRoughness: 0.02, transparent: true, opacity: 0.18, envMapIntensity: 2.2, specularIntensity: 1, depthWrite: false }))  // vidro fino: deixa ver o líquido, guarda os reflexos
-  const halo = new THREE.Group()
-  for (let i = 0; i < 3; i++) {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.32 + i * 0.07, 0.022, 10, 96), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }))
-    ring.rotation.x = Math.PI / 2 + (i - 1) * 0.35; ring.rotation.y = (i - 1) * 0.5; halo.add(ring)
-  }
-  const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32)
-    gr.addColorStop(0, '#ffffffff'); gr.addColorStop(0.35, '#ffffff66'); gr.addColorStop(1, '#ffffff00'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c) })()
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: '#22c55e', transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }))
-  glow.scale.set(3.6, 3.6, 1); glow.position.z = -1.2
-  const ball = new THREE.Group(); ball.add(core, smoke, glass)
-  scene.add(glow, ball, halo)
-  R = { renderer, scene, cam, core, smoke, glass, halo, glow, ball }
+  cam.position.set(0, 0.2, 6); cam.lookAt(0, 0, 0)
+  const coreU = { t: { value: 0 }, c1: { value: new THREE.Color() }, c2: { value: new THREE.Color() }, core: { value: new THREE.Color() }, deep: { value: new THREE.Color() },
+    speed: { value: 1 }, dens: { value: 0.9 }, glow: { value: 0.6 }, rot: { value: 0 }, frost: { value: 0 } }
+  const core = new THREE.Mesh(new THREE.SphereGeometry(0.9, 64, 48), new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: CORE_FS, uniforms: coreU }))
+  const crackTex = crackTexture(), glassU = back => ({ tint: { value: new THREE.Color() }, crack: { value: 0 }, crackTex: { value: crackTex }, back: { value: back }, dim: { value: 1 } })
+  const glassMat = back => new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: GLASS_FS, uniforms: glassU(back), transparent: true, depthWrite: false, side: back ? THREE.BackSide : THREE.FrontSide })
+  const glassBack = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), glassMat(1)), glass = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), glassMat(0))
+  const sprite = (stops, sz) => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64)
+    stops.forEach(([o, col]) => gr.addColorStop(o, col)); g.fillStyle = gr; g.fillRect(0, 0, 128, 128)
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); s.scale.set(sz, sz, 1); return s }
+  const glow = sprite([[0, '#ffffffcc'], [0.4, '#ffffff44'], [1, '#ffffff00']], 3.4); glow.position.z = -1.5
+  const glow2 = sprite([[0, '#ffffffaa'], [0.45, '#ffffff33'], [1, '#ffffff00']], 3); glow2.position.set(0.35, -0.2, -1.4)
+  const caustic = sprite([[0, '#ffffffdd'], [0.5, '#ffffff22'], [1, '#ffffff00']], 0.9); caustic.position.set(0.18, -0.62, 0.8)
+  const ball = new THREE.Group(); ball.add(core)
+  scene.add(glow, glow2, ball, glassBack, caustic, glass)
+  R = { renderer, scene, cam, core, coreU, glass, glassBack, glow, glow2, caustic, ball }
   return R
 }
 
-// cores e estado de cada esfera, relidos do elemento de vez em quando (o CSS manda: estilos, humor, reações)
 function read(o) {
   const el = o.el, cs = getComputedStyle(el), v = k => cs.getPropertyValue(k).trim()
-  const safe = (x, d) => { try { return new THREE.Color(x || d) } catch { return new THREE.Color(d) } }
-  const strip = x => (x || '').replace(/^(#[0-9a-f]{6})[0-9a-f]{2}$/i, '$1')
+  const col = (x, d) => { try { return new THREE.Color((x || d).replace(/^(#[0-9a-f]{6})[0-9a-f]{2}$/i, '$1')) } catch { return new THREE.Color(d) } }
   o.st = {
-    core: safe(strip(v('--core')), '#5ee08a'), deep: safe(strip(v('--deep')), '#06301a'), s1: safe(strip(v('--smoke')), '#c8ffd9'), s2: safe(strip(v('--smoke2')), '#3ddc84'), glow: safe(strip(v('--glow')), '#22c55e'),
+    core: col(v('--core'), '#5ee08a'), deep: col(v('--deep'), '#06301a'), s1: col(v('--smoke'), '#c8ffd9'), s2: col(v('--smoke2'), '#3ddc84'), glow: col(v('--glow'), '#22c55e'),
     low: el.classList.contains('low'), dead: el.classList.contains('dead'), burst: el.classList.contains('bursting'), mood: el.dataset.mood || '', react: el.dataset.react || '',
-    anim: el.dataset.a || 'calmo', ab: +(cs.getPropertyValue('--ab') || 0) || 0, cols: (el.dataset.cols || '').split('').filter(c => COL[c]),
+    anim: el.dataset.a || 'calmo', ab: +(cs.getPropertyValue('--ab') || 0) || 0, cols: (el.dataset.cols || '').split('').filter(c => COL[c]), fx: el.dataset.fx3 || '',
   }
+  if (o.st.burst && !o.burstAt) o.burstAt = performance.now()
+  if (!o.st.burst) o.burstAt = 0
+  if (o.st.fx && o.st.fx !== o.fx) o.fxAt = performance.now()
+  o.fx = o.st.fx
   o.at = performance.now()
 }
 
@@ -83,33 +128,32 @@ function draw(now) {
   const r = init(), t = (now - t0) / 1000
   for (const o of orbs) {
     if (!o.el.isConnected) { orbs.delete(o); continue }
-    if (!o.st || now - o.at > 220) read(o)
-    const s = o.st, fast = s.anim === 'turbilhao' ? 3 : s.anim === 'calmo' ? 0.45 : 1
-    // o núcleo e o fumo com as cores do estilo/estado; pouca vida bate, muita vida incha, rebentada fica escura
-    r.core.material.color.copy(s.core).lerp(s.deep, 0.35); r.core.material.emissive.copy(s.core).lerp(s.deep, 0.5)
-    r.core.material.emissiveIntensity = s.dead ? 0.05 : s.mood || s.react ? 1.1 : 0.55
-    const u = r.smoke.material.uniforms
-    u.t.value = t + o.seed; u.c1.value.copy(s.s1); u.c2.value.copy(s.s2)
-    u.speed.value = (s.mood ? 3.5 : s.low ? 2.2 : 1) * fast; u.dens.value = s.dead ? 0.15 : s.mood ? 1.4 : 0.9
-    const beat = s.low && !s.dead ? 1 + 0.06 * Math.max(0, Math.sin(t * 7.5)) ** 8 : 1
-    const fat = 1 + 0.25 * s.ab, wob = s.burst ? 1 + 0.04 * Math.sin(t * 60) : 1
-    r.ball.scale.setScalar(beat * fat * wob)
-    // a esfera roda devagar e balança com o movimento (vem da física: --slx/--sly na cópia que voa)
+    if (!o.st || now - o.at > 160) read(o)
+    const s = o.st, fast = s.anim === 'turbilhao' ? 3 : s.anim === 'calmo' ? 0.45 : 1, u = r.coreU
+    u.t.value = t + o.seed; u.c1.value.copy(s.s1); u.c2.value.copy(s.s2); u.core.value.copy(s.core); u.deep.value.copy(s.deep)
+    u.speed.value = (s.mood ? 3.5 : s.low ? 2.2 : 1) * fast; u.dens.value = s.dead ? 0.1 : s.mood ? 1.3 : 0.85
+    // o brilho de dentro reage: golpe/vida/veneno acende, pulsar respira, muita vida brilha mais, a casca apaga-se
+    const breath = s.anim === 'pulsar' ? 0.25 * (0.5 + 0.5 * Math.sin(t * 2.6)) : 0
+    u.glow.value = s.dead ? 0.05 : s.mood || s.react ? 1.2 : (s.ab > 0 ? 0.7 + 0.45 * s.ab : 0.6) + breath
+    const fxk = s.fx && now - (o.fxAt || 0) < 1500 ? 1 - (now - o.fxAt) / 1500 : 0
+    u.rot.value = s.fx === 'rot' ? fxk : 0; u.frost.value = s.fx === 'frost' ? fxk : 0
+    const burstK = o.burstAt ? Math.min(1, (now - o.burstAt) / 700) : 0
+    const crack = s.dead ? 1 : Math.max(s.low ? 0.32 : 0, burstK, (s.fx === 'crack' || s.fx === 'split') ? 0.75 * fxk : 0)
+    for (const g of [r.glass, r.glassBack]) { g.material.uniforms.crack.value = crack; g.material.uniforms.tint.value.copy(s.core); g.material.uniforms.dim.value = s.dead ? 0.85 : 1 }
+    const beat = s.low && !s.dead ? 1 + 0.06 * Math.max(0, Math.sin(t * 7.5)) ** 8 : 1, fat = 1 + 0.25 * s.ab, wob = s.burst ? 1 + 0.035 * Math.sin(t * 60) : 1
+    const sc = beat * fat * wob
+    r.ball.scale.setScalar(sc); r.glass.scale.setScalar(sc); r.glassBack.scale.setScalar(sc)
+    const split = s.fx === 'split' ? Math.sin(Math.min(1, fxk * 1.4) * Math.PI) * 0.12 : 0
+    r.ball.scale.x = sc * (1 + split); r.glass.scale.x = sc * (1 + split * 0.6)
     const px = o.el._proxy, sl = px ? [parseFloat(px.style.getPropertyValue('--slx')) || 0, parseFloat(px.style.getPropertyValue('--sly')) || 0] : [0, 0]
-    r.ball.rotation.set(sl[1] * 0.05, t * 0.25 * fast + o.seed, -sl[0] * 0.05)
-    r.glass.material.roughness = s.dead ? 0.35 : 0.03; r.glass.material.opacity = s.dead ? 0.7 : 0.18
-    // o halo do deck: um anel por cor do deck (as cores dos custos), a rodar ao ritmo do estilo; brilha mais com reações
-    const cols = s.cols.length ? s.cols : ['C']
-    r.halo.children.forEach((ring, i) => {
-      const c = COL[cols[i % cols.length]] || COL.C
-      ring.visible = !s.dead && i < Math.max(1, Math.min(3, cols.length))
-      ring.material.color.set(c); ring.material.opacity = (s.react || s.mood ? 1 : 0.65) * (0.7 + 0.3 * Math.sin(t * 2 + i))
-      ring.rotation.z = t * (0.4 + 0.25 * i) * fast * (i % 2 ? -1 : 1)
-    })
-    r.halo.scale.setScalar(fat * (s.ab > 0 ? 1.08 : 1))
-    r.glow.material.color.copy(s.glow); r.glow.material.opacity = s.dead ? 0 : s.mood || s.react ? 0.95 : s.ab > 0 ? 0.6 + 0.35 * s.ab : 0.45
+    r.ball.rotation.set(sl[1] * 0.06, t * 0.3 * fast + o.seed, -sl[0] * 0.06)
+    const cols = s.cols.length ? s.cols : null
+    if (cols) r.glow.material.color.set(COL[cols[0]]); else r.glow.material.color.copy(s.glow)
+    r.glow2.material.color.set(cols ? COL[cols[1] || cols[0]] : '#000000')
+    const ga = s.dead ? 0 : s.mood || s.react ? 0.95 : s.ab > 0 ? 0.55 + 0.35 * s.ab : 0.4
+    r.glow.material.opacity = ga; r.glow2.material.opacity = cols && cols.length > 1 ? ga * 0.8 : 0
+    r.caustic.material.color.copy(s.core).lerp(new THREE.Color('#ffffff'), 0.5); r.caustic.material.opacity = s.dead ? 0 : 0.55
     r.renderer.render(r.scene, r.cam)
-    // a imagem vai para o canvas da esfera (ou da cópia que está a voar)
     const cv = (px && px.querySelector('canvas.orb3d')) || o.cv, g = cv.getContext('2d')
     if (cv.width !== SIZE) { cv.width = SIZE; cv.height = SIZE }
     g.clearRect(0, 0, SIZE, SIZE); g.drawImage(r.renderer.domElement, 0, 0)
@@ -117,7 +161,6 @@ function draw(now) {
   if (orbs.size) raf = requestAnimationFrame(draw)
 }
 
-// liga uma esfera (o elemento .orb e o seu canvas); devolve a função para a desligar
 export function attachOrb3d(el, cv) {
   const o = { el, cv, seed: Math.random() * 10 }
   orbs.add(o)

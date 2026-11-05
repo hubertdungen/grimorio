@@ -3515,6 +3515,65 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 
 /* ---------- esfera 3D (orb3d.js): o canvas desenha o vidro, o fumo e o halo do deck; o resto da esfera (número, rachas, auréola…) fica por cima ---------- */
 .orb.has3d, .orb.has3d.low { background: none; box-shadow: 0 7px 9px -3px #000c, 0 14px 16px -8px #0009; }
-.orb.has3d > .orb-in { display: none; }
+/* em 3D a camada de dentro da clássica fica só com as reações (sangue, luz, vento, fogo…) por cima do vidro 3D */
+.orb.has3d > .orb-in { z-index: 2; } .orb.has3d > .orb-in > .orb-smoke, .orb.has3d > .orb-in::before, .orb.has3d > .orb-in::after { display: none; }
 .orb3d { position: absolute; left: -30.5%; top: -30.5%; width: 161%; height: 161%; z-index: 1; pointer-events: none; }
 .orb.has3d.orb-proxy { box-shadow: 0 calc(10px + 26px * var(--lift, 0)) calc(12px + 16px * var(--lift, 0)) calc(-4px - 6px * var(--lift, 0)) #000b; }
+
+/* ---------- golpes na esfera à maneira de quem bateu (orbfx.js): camada centrada na esfera; --ang = de onde veio ---------- */
+.atkfx { position: fixed; z-index: 2147482700; pointer-events: none; transform: translate(-50%, -50%); }
+.atkfx > i { position: absolute; left: 50%; top: 50%; font-style: normal; line-height: 1; }
+/* garras: três rasgões diagonais a vermelho */
+.atk-claws > i { width: 130%; height: 5px; margin: -2px 0 0 -65%; border-radius: 50%; background: linear-gradient(90deg, transparent, #fff 20%, #ff2a3a 50%, #fff 80%, transparent);
+  box-shadow: 0 0 8px #ff2a3a; rotate: -38deg; translate: 0 calc((var(--i) - 1) * 12px); transform-origin: 0 50%; animation: atkslash .45s ease-out calc(var(--i) * 60ms) both; }
+@keyframes atkslash { 0% { transform: scaleX(0); opacity: 1; } 40% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+/* espada: a lâmina corta na diagonal e salta uma faísca */
+.atk-sword > i { font-size: 34px; margin: -17px; filter: drop-shadow(0 0 6px #fff); animation: atksword .55s cubic-bezier(.6, 0, .3, 1) calc(var(--i) * 140ms) both; }
+@keyframes atksword { 0% { transform: translate(-60px, -60px) rotate(-90deg); opacity: 0; } 30% { opacity: 1; } 60% { transform: translate(20px, 20px) rotate(45deg); opacity: 1; } 100% { transform: translate(40px, 40px) rotate(60deg); opacity: 0; } }
+/* flechas: chegam da direção do atacante e ficam espetadas */
+.atk-arrow > i { font-size: 22px; margin: -11px; color: #e5e7eb; rotate: var(--ang); animation: atkarrow .5s ease-in calc(var(--i) * 90ms) both; }
+@keyframes atkarrow { 0% { translate: calc(-90px * cos(var(--ang))) calc(-90px * sin(var(--ang))); opacity: 0; } 30% { opacity: 1; }
+  80% { translate: calc(var(--rx) * 22px) calc(var(--ry) * 22px); opacity: 1; } 100% { translate: calc(var(--rx) * 22px) calc(var(--ry) * 22px); opacity: 0; } }
+/* dentada: duas fiadas de dentes a fechar */
+.atk-bite > i { width: 120%; height: 28%; margin-left: -60%; background: repeating-linear-gradient(90deg, #fff 0 6px, transparent 6px 12px);
+  clip-path: polygon(0 0, 100% 0, 100% 40%, 95% 100%, 90% 40%, 85% 100%, 80% 40%, 75% 100%, 70% 40%, 65% 100%, 60% 40%, 55% 100%, 50% 40%, 45% 100%, 40% 40%, 35% 100%, 30% 40%, 25% 100%, 20% 40%, 15% 100%, 10% 40%, 5% 100%, 0 40%);
+  filter: drop-shadow(0 0 4px #ff2a3a); animation: atkbiteT .45s ease-in both; }
+.atk-bite > i:nth-child(2) { rotate: 180deg; animation-name: atkbiteB; }
+@keyframes atkbiteT { 0% { top: -40%; opacity: 0; } 50% { top: 22%; opacity: 1; } 70% { top: 26%; } 100% { top: 22%; opacity: 0; } }
+@keyframes atkbiteB { 0% { top: 110%; opacity: 0; } 50% { top: 50%; opacity: 1; } 70% { top: 46%; } 100% { top: 50%; opacity: 0; } }
+/* sangue, gelo, folhas, metal, fogo, gosma, pedra, prisma: partículas que saltam da esfera */
+.atk-blood > i, .atk-ice > i, .atk-leaf > i, .atk-metal > i, .atk-fire > i, .atk-goo > i, .atk-smash > i, .atk-prism > i, .atk-rot > i {
+  font-size: 16px; margin: -8px; animation: atkburst .9s cubic-bezier(.2, .7, .4, 1) calc(var(--i) * 25ms) both; }
+@keyframes atkburst { 0% { transform: translate(0, 0) scale(.4); opacity: 0; } 15% { opacity: 1; }
+  100% { transform: translate(calc(var(--rx) * 110px), calc(var(--ry) * 110px + 30px)) scale(1.1) rotate(calc(var(--rx) * 540deg)); opacity: 0; } }
+.atk-fire > i { animation-name: atkfire; } @keyframes atkfire { 0% { transform: translate(0, 0) scale(.5); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(calc(var(--rx) * 50px), -70px) scale(1.3); opacity: 0; } }
+.atk-goo > i, .atk-blood > i:not(:empty) { width: 10px; height: 13px; border-radius: 50% 50% 50% 0; rotate: 135deg; background: radial-gradient(circle at 40% 40%, #3b0764, #000 70%); font-size: 0; }
+.atk-blood > i { filter: hue-rotate(0deg); }
+.atk-goo > i { animation-name: atkgoo; } @keyframes atkgoo { 0% { transform: translate(calc(var(--rx) * 30px), 0) scale(.5); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(calc(var(--rx) * 40px), 60px) scale(1.2, 1.8); opacity: 0; } }
+.atk-ice > i { color: #bae6fd; text-shadow: 0 0 6px #7dd3fc; } .atk-metal > i { color: #cbd5e1; text-shadow: 0 0 4px #000; } .atk-leaf > i { color: #4ade80; }
+.atk-prism > i:nth-child(5n+1) { color: #fff3c4; } .atk-prism > i:nth-child(5n+2) { color: #4cc9f0; } .atk-prism > i:nth-child(5n+3) { color: #a78bfa; } .atk-prism > i:nth-child(5n+4) { color: #ff5c3a; } .atk-prism > i:nth-child(5n) { color: #4ade80; }
+/* cornada / voo picado / raio / halo: um só golpe grande */
+.atk-horn > i { width: 46%; height: 18%; margin: -9% 0 0 -23%; background: linear-gradient(90deg, #e7e5e4, #78716c); clip-path: polygon(0 30%, 100% 50%, 0 70%); rotate: var(--ang);
+  animation: atkhorn .4s cubic-bezier(.7, 0, .3, 1) calc(var(--i) * 120ms) both; }
+@keyframes atkhorn { 0% { translate: calc(-80px * cos(var(--ang))) calc(-80px * sin(var(--ang))); opacity: 0; } 60% { translate: 0 0; opacity: 1; } 100% { translate: 0 0; opacity: 0; } }
+.atk-dive > i { font-size: 30px; margin: -15px; animation: atkdive .6s cubic-bezier(.6, 0, .4, 1) both; }
+@keyframes atkdive { 0% { transform: translate(-90px, -110px) scale(.6) rotate(30deg); opacity: 0; } 70% { transform: translate(0, 0) scale(1.2) rotate(60deg); opacity: 1; } 100% { transform: translate(30px, 30px) scale(.8); opacity: 0; } }
+.atk-thunder > i { font-size: 30px; margin: -15px; color: #fef08a; text-shadow: 0 0 12px #7dd3fc; animation: atkthunder .7s steps(5) calc(var(--i) * 90ms) both; }
+@keyframes atkthunder { 0%, 40%, 80% { opacity: 1; transform: translate(calc(var(--rx) * 30px), -10px) scale(1.2); } 20%, 60%, 100% { opacity: 0; } }
+.atk-holy > i { width: 160%; height: 160%; margin: -80%; border-radius: 50%; border: 3px solid #fff1b8; box-shadow: 0 0 20px #ffd36a, inset 0 0 14px #ffd36a; font-size: 0; animation: atkholy .9s ease-out both; }
+@keyframes atkholy { 0% { transform: scale(.4); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+/* o efeito na esfera clássica (a 3D faz o seu): rachar, partir, verter, apodrecer, espinhos, gelar, arder, brilhar */
+.orb[data-fx3="crack"]::before, .orb[data-fx3="split"]::before { content: ''; position: absolute; inset: 0; z-index: 6; border-radius: 50%;
+  background: linear-gradient(115deg, transparent 47%, #000c 48%, #fff 49.5%, #000c 51%, transparent 52%); animation: orbseam 1.4s ease-out forwards; }
+.orb[data-fx3="split"] .orb-in, .orb[data-fx3="split"] .orb3d { animation: orbsplit 1.2s ease-out; }
+@keyframes orbseam { 0% { opacity: 0; clip-path: inset(0 100% 0 0); } 20% { opacity: 1; clip-path: inset(0 0 0 0); } 100% { opacity: 0; } }
+@keyframes orbsplit { 0%, 100% { clip-path: none; } 25%, 60% { clip-path: polygon(0 0, 46% 0, 54% 100%, 0 100%, 0 0, 100% 0, 100% 100%, 56% 100%, 48% 0); } }
+.orb[data-fx3="rot"] .orb-in, .orb[data-fx3="rot"] .orb3d { filter: hue-rotate(70deg) saturate(.6) brightness(.7); transition: filter .3s; }
+.orb[data-fx3="frost"] .orb-in, .orb[data-fx3="frost"] .orb3d { filter: saturate(.3) brightness(1.4) hue-rotate(160deg); }
+.orb[data-fx3="burn"] .orb-in, .orb[data-fx3="burn"] .orb3d { filter: sepia(1) saturate(4) hue-rotate(-20deg); }
+.orb[data-fx3="glow"] { box-shadow: 0 0 30px #fff3c4, 0 0 60px #ffd36a99; }
+@media (prefers-reduced-motion: reduce) { .atkfx { display: none; } }
+
+/* a esfera 3D faz as rachas no vidro dela: as camadas CSS de rachas não se desenham por cima */
+.orb.has3d.low::before, .orb.has3d.dead::before, .orb.has3d.bursting::before, .orb.has3d[data-fx3="crack"]::before, .orb.has3d[data-fx3="split"]::before { display: none; }
+.orb.has3d[data-fx3="split"] .orb3d, .orb.has3d[data-fx3] .orb3d { animation: none; filter: none; }

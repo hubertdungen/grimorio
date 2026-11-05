@@ -8,6 +8,7 @@ import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
+import { attackStyle, attackFx } from './orbfx.js'
 import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
 import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
@@ -160,7 +161,7 @@ function hiText(t) {  // texto → pedaços com <b class> nas frases-chave (a pr
   return out
 }
 export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
-  const [ghost, setGhost] = useState(null), [nudge, setNudge] = useState(false), n = s.stack.length, prevN = useRef(n), gT = useRef(null)
+  const [ghost, setGhost] = useState(null), [more, setMore] = useState([]), [nudge, setNudge] = useState(false), n = s.stack.length, prevN = useRef(n), gT = useRef(null)
   // resolver: a carta brilha e a legenda mostra o efeito real o tempo de o ler (pelo tamanho do texto e pela velocidade
   // escolhida); o temporizador é só dele, por isso o evento seguinte já não o cancela (a legenda ficava lá para sempre)
   useEffect(() => {
@@ -168,10 +169,11 @@ export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
     const named = String(rev.txt || '').replace(/^.*? - /, '').replace(/Ai\(\d+\)-([A-D])\b/g, (m, k) => short(who[k.toLowerCase()]) || m)  // «Ai(2)-B» → nome do deck
     const txt = clean(named), ms = Math.round(Math.min(7000, 1400 + txt.length * 28) / Math.max(0.5, speed || 1))
     setGhost({ key: ri, card: rev.card, p: rev.p, txt, ms })
+    setMore((rev.more || []).map((x, k) => ({ ...x, key: `${ri}-${k}`, ms: Math.min(ms, 1800) })))  // as outras que saíram ao mesmo tempo
     clearTimeout(gT.current)
-    gT.current = setTimeout(() => setGhost(null), ms)
+    gT.current = setTimeout(() => { setGhost(null); setMore([]) }, ms)
   }, [ri]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (quiet) { clearTimeout(gT.current); setGhost(null) } }, [quiet])
+  useEffect(() => { if (quiet) { clearTimeout(gT.current); setGhost(null); setMore([]) } }, [quiet])
   useEffect(() => () => clearTimeout(gT.current), [])
   useEffect(() => {  // chega uma carta nova: as de baixo abanam
     if (n > prevN.current && n > 1 && !quiet) { setNudge(true); const t = setTimeout(() => setNudge(false), 380); prevN.current = n; return () => clearTimeout(t) }
@@ -190,7 +192,8 @@ export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
             {pic(x.card, x.p, x.kind)}
           </In>
         ))}
-        {ghost && <div key={`g${ghost.key}`} className={`stk resolving ${ghost.p || ''}`} style={{ '--j': n, '--d': `${ghost.ms}ms` }}>{pic(ghost.card, ghost.p)}</div>}
+        {more.map((x, k) => <div key={`m${x.key}`} className={`stk resolving ${x.p || ''}`} style={{ '--j': n + k, '--d': `${x.ms}ms` }}>{pic(x.card, x.p)}</div>)}
+        {ghost && <div key={`g${ghost.key}`} className={`stk resolving ${ghost.p || ''}`} style={{ '--j': n + more.length, '--d': `${ghost.ms}ms` }}>{pic(ghost.card, ghost.p)}</div>}
       {(top || ghost) && (
         <div key={top ? `t${top.uid}` : `g${ghost.key}`} className={`stk-cap ${(top || ghost).p || ''} ${top ? '' : 'res'}`} style={{ '--spell': spellCol(lookup(data, (top || ghost).card)) }}>
           {top ? <>
@@ -896,7 +899,11 @@ export function DamageFx({ hits, data }) {
           const kw = kind === 'gain' ? 'gain' : kind === 'psn' ? 'infect' : zap ? 'zap' : ORB_KW.find(([, re]) => re.test(o))?.[0] || (kind === 'spl' ? 'fire' : 'hit')
           const orb = elOf(h.to), at2 = at(orb) || b, L = Math.hypot(at2[0] - a[0], at2[1] - a[1]) || 1
           orbReact(orb, kw)
-          play(KW_SFX[kw] || (kind === 'gain' ? 'orbGain' : kind === 'psn' ? 'orbPoison' : 'orbHit'), { amount: h.n })  // o vidro soa à maneira de quem bateu
+          // às vezes (ao acaso) o golpe vem à maneira de quem bateu: garras, espadas, flechas, dentadas, raio com trovão, fogo,
+          // gelo, folhas, metal, gosma… com som e efeito na esfera (rachar, partir, verter, apodrecer, espinhos) — orbfx.js
+          const st = kind !== 'gain' && attackStyle(nm && lookup(data, nm), kind, kw)
+          if (st) attackFx(orb, st, at2[0] - a[0], at2[1] - a[1])
+          else play(KW_SFX[kw] || (kind === 'gain' ? 'orbGain' : kind === 'psn' ? 'orbPoison' : 'orbHit'), { amount: h.n })  // o vidro soa à maneira de quem bateu
           // o golpe empurra a esfera na direção em que veio (a vida ganha faz só um saltinho para cima)
           const f = kind === 'gain' ? 0 : Math.min(900, 220 + 60 * h.n)
           orb?._kick?.(((at2[0] - a[0]) / L) * f, kind === 'gain' ? -260 : ((at2[1] - a[1]) / L) * f)
