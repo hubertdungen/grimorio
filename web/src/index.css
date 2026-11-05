@@ -3340,7 +3340,10 @@ label.chk.off .why { display: block; flex-basis: 100%; margin: 2px 0 0 24px; opa
 .zfly.regrow { box-shadow: 0 0 14px 5px #4ade8099; }
 .zfly.draw { box-shadow: 0 4px 10px #0008; }
 .zf-hit { animation: zfhit .6s ease-out; }
-@keyframes zfhit { 0% { filter: none; } 30% { filter: brightness(1.8) drop-shadow(0 0 10px #ffd36a); transform: scale(1.12); } 100% { filter: none; transform: none; } }
+/* só scale e filter: a mão está centrada com transform (translateX(-50%)) e um transform aqui atirava-a para o lado durante o pulso */
+@keyframes zfhit { 0% { filter: none; scale: 1; } 30% { filter: brightness(1.6) drop-shadow(0 0 10px #ffd36a); scale: 1.06; } 100% { filter: none; scale: 1; } }
+.fp-hand.zf-hit, .myhand.zf-hit { animation-name: zfhand; }
+@keyframes zfhand { 0% { filter: none; } 30% { filter: drop-shadow(0 0 12px #ffd36a); } 100% { filter: none; } }  /* a mão só brilha (não cresce) */
 .zf-pop { position: fixed; z-index: 2147482001; pointer-events: none; transform: translate(-50%, -100%); font-weight: 900; font-size: 15px; padding: 2px 9px; border-radius: 99px;
   color: #fff; text-shadow: 0 1px 2px #000; animation: zfpop 1.3s ease-out forwards; white-space: nowrap; }
 .zf-pop.mill { background: #4b5563e6; box-shadow: 0 0 12px #9ca3af; } .zf-pop.exile { background: #0c4a6ee6; box-shadow: 0 0 12px #bae6fd; }
