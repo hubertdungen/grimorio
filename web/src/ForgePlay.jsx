@@ -4,7 +4,7 @@
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, Arts, useImg, artOf } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, Arts, useImg, artOf, OrbCtx, FsBtn } from './Board.jsx'
 import { tx } from './i18n.js'
 import { playDiff } from './sfx.js'
 import { ask as confirmAsk } from './confirm.jsx'
@@ -748,6 +748,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // a arte escolhida em cada deck ({a: {carta: edição/imagem}, b: …}): estável entre estados para não redesenhar a mesa toda
   const artsKey = JSON.stringify(s?.arts || null), artsCtx = useMemo(() => ({ arts: JSON.parse(artsKey), k: null }), [artsKey])
   const im = (c, size) => img(c, size, false, artOf(artsCtx.arts, null, c))
+  const orbCtx = useMemo(() => ({ mine: 'a', seed: sid, looks: null }), [sid])  // a minha esfera = as minhas preferências; a do Forge pelo deck ou ao acaso
   useOverlap(fitTable)
   // cartas que voltam do cemitério ou do exílio (reanimar, flashback de permanentes, exilar e devolver) e as que o adversário
   // joga da mão: voam do monte/mão de onde vieram (a tua mão e o campo já voam sozinhos pelo id)
@@ -838,10 +839,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     const q = el.getBoundingClientRect()
     el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
   }
-  return (<Arts.Provider value={artsCtx}>
+  return (<Arts.Provider value={artsCtx}><OrbCtx.Provider value={orbCtx}>
     <div className={`fp ${dice.res ? 'dice-on' : ''}`} ref={fitBox} onMouseLeave={() => { setZoom(null); peek.hide() }} onMouseOver={onOver} onPointerDown={peek.hide}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
+      <FsBtn className="on-table" />
       <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
       <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''} ${declaring ? 'fp-declaring' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
@@ -866,6 +868,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <p><Syms text={promptText(pr?.msg, st, me)} /></p>
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })}>{n}</button>)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
+        <FsBtn />
       </div>}
       <aside className="fp-side">
         <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={im(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
@@ -918,6 +921,6 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         {(s.crash || s.lost) && <p className="muted">{tx('Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.')}</p>}
         {series && <p className="fp-series">{series.done ? (series.w[0] > series.w[1] ? tx('🏆 Ganhaste a série {a}–{b}', { a: series.w[0], b: series.w[1] }) : tx('Perdeste a série {a}–{b}', { a: series.w[0], b: series.w[1] })) : tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })}</p>}
         <div className="row-btns">{onAgain && <button className="primary" onClick={onAgain}>▶ {againLabel || (series && !series.done ? tx('Jogo seguinte (sideboard)') : series ? tx('Nova série') : tx('Jogar outra vez'))}</button>}<button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}
-    </div></Arts.Provider>
+    </div></OrbCtx.Provider></Arts.Provider>
   )
 }

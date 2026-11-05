@@ -342,5 +342,10 @@ export function useTableDice(box, o = null) {
   const grab = e => { const t = live(); if (t?.has() && t.grab(e)) { clearTimeout(clear.current); return true } return false }  // agarrar um dado que está na mesa
   const throwFrom = async () => { const t = await ensure(); return t && t !== 'flat' ? t.throwFrom() : null }
   const setRot = a => live()?.setRot(a)
+  // a esfera da vida atirada pela mesa empurra os dados (Board.jsx manda «grim-orb» a cada frame enquanto voa)
+  useEffect(() => {
+    const f = e => { const d = e.detail; if (d && Math.hypot(d.vx, d.vy) > 120) live()?.push?.(d.x, d.y, d.vx, d.vy) }
+    addEventListener('grim-orb', f); return () => removeEventListener('grim-orb', f)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
   return { roll, res, off, grab, throwFrom, setRot }
 }

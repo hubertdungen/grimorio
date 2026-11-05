@@ -8,7 +8,7 @@ import { tx, num, LANG } from './i18n.js'
 import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
-import { fpPrefs, setFpPrefs, CARD_PX, MATS } from './fpprefs.js'
+import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
 import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
@@ -305,6 +305,8 @@ export function MatPick({ onMat, others = true }) {
           title={m ? MAT_NAME[m] : tx('Sem padrão')} onClick={() => save({ mat: m })}>{m ? '' : '∅'}</button>)}
       </div>
       {others && <label className="chk small"><input type="checkbox" checked={p.mats} onChange={e => save({ mats: e.target.checked })} /> {tx('Ver o padrão de cada jogador (desligado: vês o teu em todos os lados)')}</label>}
+      <b className="small">{tx('Esfera da vida')}</b>
+      <OrbPick onChange={onMat} />
     </div>
   )
 }
@@ -361,12 +363,167 @@ function Row({ perms, data, fx, att, cls, groupable, empty, quiet, who }) {  // 
 // ---------- vida (o número conta até ao valor novo; o anel pisca vermelho/verde) ----------
 // 1 000 000 = vida infinita: o ciclo (Heliod + Spike Feeder…) repetido de uma vez pelo atalho do Forge
 export const lifeTxt = n => (n >= 1e6 ? '∞' : n)
+// física da esfera: agarra-se com o rato ou o dedo e atira-se; desliza com inércia, bate nas bordas da mesa, abana as
+// cartas por onde passa e empurra os dados (evento «grim-orb»), deixa rasto e, uns segundos depois, volta ao sítio com
+// uma mola. Um clique sem arrastar continua a ser um clique (escolher o jogador como alvo). el._kick(vx, vy): um golpe
+// (dano, vida) empurra-a — as bolinhas e as linhas seguem a posição dela a cada frame.
+function useOrbPhysics(ref) {
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const S = { x: 0, y: 0, vx: 0, vy: 0, drag: null, raf: 0, t0: 0, last: 0 }, bumped = new WeakMap()
+    let trailN = 0
+    const scale = () => { const r = el.getBoundingClientRect(); return r.width / (el.offsetWidth || r.width) || 1 }
+    const center = () => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, r.width / 2] }
+    const apply = () => {
+      const k = scale(), on = !!(S.drag?.on || Math.abs(S.x) > 0.5 || Math.abs(S.y) > 0.5)
+      el.style.translate = on ? `${(S.x / k).toFixed(1)}px ${(S.y / k).toFixed(1)}px` : ''
+      el.classList.toggle('flying', on)
+    }
+    const trail = () => {
+      if (++trailN % 2) return
+      const [x, y, r] = center(), d = document.createElement('i'), host = document.fullscreenElement || document.body
+      d.className = 'orb-trail'
+      Object.assign(d.style, { left: `${x}px`, top: `${y}px`, width: `${r * 1.5}px`, height: `${r * 1.5}px` })
+      d.style.setProperty('--tc', getComputedStyle(el).getPropertyValue('--glow') || '#22c55e88')
+      host.append(d); setTimeout(() => d.remove(), 460)
+    }
+    const collide = () => {
+      const [x, y, r] = center(), box = el.closest('.fp-table, .board, .ml, .view')?.getBoundingClientRect()
+      if (box) {  // as bordas da mesa: ressalta (perde um pouco)
+        if ((x - r < box.left && S.vx < 0) || (x + r > box.right && S.vx > 0)) S.vx = -S.vx * 0.72
+        if ((y - r < box.top && S.vy < 0) || (y + r > box.bottom && S.vy > 0)) S.vy = -S.vy * 0.72
+      }
+      const pc = document.elementsFromPoint(x, y).slice(0, 8).map(e => e.closest?.('.pc')).find(Boolean)
+      if (pc && performance.now() - (bumped.get(pc) || 0) > 600) {  // passou por cima de uma carta: ela abana e a esfera abranda
+        bumped.set(pc, performance.now()); pc.classList.remove('orb-bump'); void pc.offsetWidth; pc.classList.add('orb-bump')
+        setTimeout(() => pc.classList.remove('orb-bump'), 650); S.vx *= 0.82; S.vy *= 0.82
+      }
+    }
+    const step = now => {
+      const dt = S.last ? Math.min(0.033, (now - S.last) / 1000) : 0.016
+      S.last = now
+      if (!S.drag?.on) {
+        const home = now - S.t0 > 1900  // uns segundos depois volta ao sítio (mola amortecida)
+        if (home) { S.vx += (-S.x * 55 - S.vx * 11) * dt; S.vy += (-S.y * 55 - S.vy * 11) * dt } else { const f = Math.pow(0.15, dt); S.vx *= f; S.vy *= f }
+        S.x += S.vx * dt; S.y += S.vy * dt
+        collide()
+        if (home && Math.hypot(S.x, S.y) < 0.6 && Math.hypot(S.vx, S.vy) < 10) {
+          S.x = S.y = S.vx = S.vy = 0; S.raf = 0; S.last = 0; apply()
+          dispatchEvent(new CustomEvent('grim-orb', { detail: { x: center()[0], y: center()[1], vx: 0, vy: 0, el } }))
+          return
+        }
+      }
+      if (Math.hypot(S.vx, S.vy) > 140) trail()
+      apply()
+      const [x, y, r] = center()
+      dispatchEvent(new CustomEvent('grim-orb', { detail: { x, y, r, vx: S.vx, vy: S.vy, el } }))
+      S.raf = requestAnimationFrame(step)
+    }
+    const run = () => { if (!S.raf) { S.last = 0; S.raf = requestAnimationFrame(step) } }
+    el._kick = (vx, vy) => { if (S.drag?.on) return; S.vx += vx; S.vy += vy; S.t0 = performance.now(); run() }
+    const down = e => { if (e.button > 0) return; S.drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: S.x, oy: S.y, h: [[performance.now(), e.clientX, e.clientY]], on: false } }
+    const move = e => {
+      const d = S.drag
+      if (!d || e.pointerId !== d.id) return
+      const dx = e.clientX - d.sx, dy = e.clientY - d.sy, now = performance.now()
+      if (!d.on) { if (Math.hypot(dx, dy) < 7) return; d.on = true; try { el.setPointerCapture(e.pointerId) } catch { /* já largado */ } run() }
+      e.preventDefault(); e.stopPropagation()
+      const p = d.h[d.h.length - 1], k = Math.max(0.008, (now - p[0]) / 1000)
+      S.vx = (e.clientX - p[1]) / k; S.vy = (e.clientY - p[2]) / k
+      S.x = d.ox + dx; S.y = d.oy + dy
+      d.h.push([now, e.clientX, e.clientY]); d.h = d.h.filter(q => now - q[0] < 110).slice(-6)
+    }
+    const up = e => {
+      const d = S.drag
+      if (!d || e.pointerId !== d.id) return
+      S.drag = null
+      if (!d.on) return
+      const a = d.h[0], b = d.h[d.h.length - 1], k = Math.max(0.016, (b[0] - a[0]) / 1000), cap = v => Math.max(-3200, Math.min(3200, v))
+      S.vx = d.h.length > 1 ? cap((b[1] - a[1]) / k) : 0; S.vy = d.h.length > 1 ? cap((b[2] - a[2]) / k) : 0
+      S.t0 = performance.now(); el._dragged = S.t0; run()
+    }
+    const click = e => { if (el._dragged && performance.now() - el._dragged < 450) { e.stopPropagation(); e.preventDefault() } }  // largar não é clicar
+    el.addEventListener('pointerdown', down); el.addEventListener('click', click, true)
+    addEventListener('pointermove', move, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', up)
+    return () => {
+      cancelAnimationFrame(S.raf); el.removeEventListener('pointerdown', down); el.removeEventListener('click', click, true)
+      removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up)
+    }
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 // a vida é uma esfera de vidro com fumo lá dentro, sempre a rodar devagar; reage ao que acontece (data-mood): dano = fumo de
 // sangue, vida ganha = luz dourada/verde, veneno = fumo roxo, vida baixa = vermelho a pulsar. O DamageFx junta a reação de
 // quem bateu (data-react: voar, atropelar, toque mortal, vínculo vital, infetar, golpe duplo, feitiço = fogo…).
 // dmg: o dano levado no combate em curso — fica por cima da esfera (antes ocupava lugar na barra e empurrava a vida e os montes)
-function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0 }) {  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
-  const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState('')
+// ⛶ ecrã inteiro direto na mesa (Forge Play, mesa livre): o Coliseu inteiro (ou a página) entra/sai do ecrã inteiro
+export function FsBtn({ className = '' }) {
+  const [on, setOn] = useState(() => !!(document.fullscreenElement || document.webkitFullscreenElement))
+  useEffect(() => {
+    const f = () => setOn(!!(document.fullscreenElement || document.webkitFullscreenElement))
+    document.addEventListener('fullscreenchange', f); document.addEventListener('webkitfullscreenchange', f)
+    return () => { document.removeEventListener('fullscreenchange', f); document.removeEventListener('webkitfullscreenchange', f) }
+  }, [])
+  const go = e => {
+    const d = document, el = e.currentTarget.closest('.coliseu') || d.documentElement
+    if (d.fullscreenElement || d.webkitFullscreenElement) return (d.exitFullscreen || d.webkitExitFullscreen).call(d)
+    Promise.resolve((el.requestFullscreen || el.webkitRequestFullscreen)?.call(el)).catch(() => {})
+  }
+  return <button type="button" className={`fs-mini ${className}`} onClick={go} title={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')} aria-label={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')}>{on ? '🗗' : '⛶'}</button>
+}
+
+// ---------- o aspeto da esfera de cada lado ----------
+// OrbCtx: mine = o lado que é meu (as minhas preferências), seed = o torneio/jogo (a escolha ao acaso dos bots fica fixa
+// por deck dentro dele), looks = {lado: {t, a}} escolhidos por outros jogadores (online: o do amigo)
+export const OrbCtx = createContext({ mine: null, seed: '', looks: null })
+const COL_T = { W: 'ouro', U: 'oceano', B: 'vazio', R: 'brasa', G: 'verde' }
+const hashS = t => [...String(t)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
+const deckLook = (z, data) => {  // pelas cartas que já se viram desse lado: a cor que mais aparece e o estilo do deck
+  const cs = [...(z.perms || []).map(p => p.name), ...(z.graveyard || []), ...(z.exile || [])].map(n => lookup(data, n)).filter(c => c && c.mt !== 'Land')
+  const cnt = {}
+  for (const c of cs) for (const k of new Set(String(c.co ?? '').replace(/[^WUBRG]/g, ''))) cnt[k] = (cnt[k] || 0) + 1
+  const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]), many = top.filter(([, n]) => n >= Math.max(2, (top[0]?.[1] || 0) * 0.5)).length
+  const t = !top.length ? 'gelo' : many >= 3 ? 'prisma' : COL_T[top[0][0]]
+  const n = cs.length || 1, cre = cs.filter(c => c.mt === 'Creature').length / n, spl = cs.filter(c => c.mt === 'Instant' || c.mt === 'Sorcery').length / n
+  return { t, a: cre > 0.55 ? 'turbilhao' : spl > 0.45 ? 'faiscas' : cs.length > 3 ? 'calmo' : 'pulsar', n: cs.length }
+}
+const locked = new Map()  // o aspeto «pelo deck» fixa-se quando já se viram 5 cartas (não muda a meio do jogo)
+export function orbLook(k, z, data, ctx, name) {
+  const P = fpPrefs(), mine = ctx.mine === k, other = ctx.looks?.[k]  // other: a que outro jogador escolheu (online)
+  let { t, a } = other || (mine ? P.orb : { t: 'auto', a: 'auto' })
+  if (!mine && !other && P.botOrb === 'random') { const h = hashS(`${ctx.seed}|${name || k}`); t = ORB_T[h % ORB_T.length]; a = ORB_A[(h >>> 5) % ORB_A.length] }
+  if (t === 'auto' || a === 'auto') {
+    const key = `${ctx.seed}|${name || k}`, d = locked.get(key) || deckLook(z, data)
+    if (d.n >= 5 && !locked.has(key)) { locked.set(key, d); if (locked.size > 200) locked.delete(locked.keys().next().value) }
+    if (t === 'auto') t = d.t
+    if (a === 'auto') a = d.a
+  }
+  return { t, a }
+}
+export const ORB_T_NAME = { verde: tx('Floresta'), oceano: tx('Oceano'), brasa: tx('Brasa'), vazio: tx('Vazio'), ouro: tx('Ouro'), gelo: tx('Gelo'), prisma: tx('Prisma'), tempestade: tx('Tempestade'), sangue: tx('Sangue') }
+export const ORB_A_NAME = { calmo: tx('Calmo'), turbilhao: tx('Turbilhão'), pulsar: tx('Pulsar'), faiscas: tx('Faíscas') }
+// escolher a minha esfera (estilo e animação) e a dos bots; onChange avisa a mesa (online: os outros veem a minha)
+export function OrbPick({ onChange }) {
+  const [p, setP] = useState(() => fpPrefs())
+  const save = v => { setFpPrefs(v); setP(fpPrefs()); onChange?.(fpPrefs()) }
+  return (
+    <div className="orbpick">
+      <div className="matpick-row" role="radiogroup" aria-label={tx('Esfera da vida')}>
+        {['auto', ...ORB_T].map(t => <button key={t} type="button" role="radio" aria-checked={p.orb.t === t} className={`orbsw ${p.orb.t === t ? 'on' : ''}`} title={t === 'auto' ? tx('Pelas cores do deck') : ORB_T_NAME[t]}
+          onClick={() => save({ orb: { ...p.orb, t } })}><span className="orb" data-t={t === 'auto' ? undefined : t} data-a={p.orb.a === 'auto' ? undefined : p.orb.a}><span className="orb-in"><i className="orb-smoke" /><i className="orb-smoke s2" /></span>{t === 'auto' ? <b>A</b> : null}</span></button>)}
+      </div>
+      <label className="small">{tx('Animação')} <select value={p.orb.a} onChange={e => save({ orb: { ...p.orb, a: e.target.value } })}>
+        <option value="auto">{tx('Pelo estilo do deck')}</option>{ORB_A.map(a => <option key={a} value={a}>{ORB_A_NAME[a]}</option>)}</select></label>
+      <label className="small">{tx('Esfera dos bots')} <select value={p.botOrb} onChange={e => save({ botOrb: e.target.value })}>
+        <option value="deck">{tx('Pelas cores e pelo estilo do deck')}</option><option value="random">{tx('Ao acaso (fixa em cada torneio)')}</option></select></label>
+    </div>
+  )
+}
+
+function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look }) {  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
+  const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null)
+  useOrbPhysics(orbRef)
   useEffect(() => {
     if (fast) return
     const m = psnHit ? 'psn' : d < 0 || hit ? 'loss' : d > 0 ? 'gain' : ''
@@ -392,7 +549,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
   }, [life, fast])
   const low = life <= Math.max(5, Math.round(start / 4))
   return (
-    <div className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''}`} data-mood={mood || undefined} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''}`} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
       <b ref={ref}>{lifeTxt(life)}</b><small>{tx('vida')}</small>
       {dmg > 0 && <i className="orb-dmg" title={tx('Dano que levou neste combate: {n}', { n: dmg })}>−{dmg}</i>}
@@ -461,11 +618,13 @@ export function StackLinks({ s, data }) {
         setLs(out)
       } catch (e) { console.warn('StackLinks', e) }
     }
-    let raf, t0 = performance.now()
+    let raf, t0 = performance.now(), orbRaf = 0
     const anim = () => { measure(); if (performance.now() - t0 < 900) raf = requestAnimationFrame(anim) }
     anim()
     const iv = setInterval(measure, 300)
-    return () => { cancelAnimationFrame(raf); clearInterval(iv) }
+    const onOrb = () => { if (!orbRaf) orbRaf = requestAnimationFrame(() => { orbRaf = 0; measure() }) }  // a esfera mexeu-se: a linha segue-a
+    addEventListener('grim-orb', onOrb)
+    return () => { cancelAnimationFrame(raf); cancelAnimationFrame(orbRaf); clearInterval(iv); removeEventListener('grim-orb', onOrb) }
   }, [sig])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <svg ref={ref} className="slinks" aria-hidden="true">
@@ -576,18 +735,31 @@ export function DamageFx({ hits, data }) {
           const se = h.from != null && root.querySelector(`.pc[data-z="k:${h.from}"]`), nm = h.fromName || se?.querySelector('img')?.alt
           const o = (data && nm && lookup(data, nm)?.o) || ''
           const kw = kind === 'gain' ? 'gain' : kind === 'psn' ? 'infect' : zap ? 'zap' : ORB_KW.find(([, re]) => re.test(o))?.[0] || (kind === 'spl' ? 'fire' : 'hit')
-          orbReact(elOf(h.to), kw)
+          const orb = elOf(h.to), at2 = at(orb) || b, L = Math.hypot(at2[0] - a[0], at2[1] - a[1]) || 1
+          orbReact(orb, kw)
+          // o golpe empurra a esfera na direção em que veio (a vida ganha faz só um saltinho para cima)
+          const f = kind === 'gain' ? 0 : Math.min(900, 220 + 60 * h.n)
+          orb?._kick?.(((at2[0] - a[0]) / L) * f, kind === 'gain' ? -260 : ((at2[1] - a[1]) / L) * f)
         }
         if (kind !== 'gain') quake(root, big || Math.min(8, 2 + h.n))
       }
       if (zap) { lightning(box, a, b, lag); setTimeout(() => arrive(13), lag + 230); lag += 160; return }
       bolt.className = `dmgfx-bolt ${kind} ${fire ? 'fire' : ''}`
-      Object.assign(bolt.style, { left: `${a[0]}px`, top: `${a[1]}px` })
+      Object.assign(bolt.style, { left: `${a[0]}px`, top: `${a[1]}px`, opacity: 0 })
       box.append(bolt)
-      const go = bolt.animate([{ transform: 'translate(-50%,-50%) scale(.6)', opacity: 0 }, { opacity: 1, offset: 0.15 },
-        { transform: `translate(calc(-50% + ${b[0] - a[0]}px), calc(-50% + ${b[1] - a[1]}px)) scale(1.15)`, opacity: 1 }], { duration: 460, delay: lag, easing: 'cubic-bezier(.5,0,.75,.4)', fill: 'forwards' })
+      // voa até onde o alvo ESTÁ a cada frame (a esfera pode estar a ser arrastada ou a voltar ao sítio)
+      const t0 = performance.now() + lag, dur = 460, tgt = elOf(h.to)
+      const fly = now => {
+        const k = (now - t0) / dur
+        if (k >= 0) {
+          const bb = at(tgt) || b, e = Math.min(1, k) ** 2  // acelera até bater
+          Object.assign(bolt.style, { left: `${a[0] + (bb[0] - a[0]) * e}px`, top: `${a[1] + (bb[1] - a[1]) * e}px`, opacity: Math.min(1, k * 6), transform: `translate(-50%, -50%) scale(${0.6 + 0.55 * e})` })
+          if (k >= 1) { bolt.remove(); Object.assign(pop.style, { left: `${bb[0]}px`, top: `${bb[1]}px` }); arrive(); return }
+        }
+        requestAnimationFrame(fly)
+      }
+      requestAnimationFrame(fly)
       lag += 120
-      go.onfinish = () => { bolt.remove(); arrive() }
     })
     if (done.current.size > 400) done.current = new Set([...done.current].slice(-200))
   }
@@ -610,10 +782,10 @@ function LibTop({ k, z, data }) {
 // de onde vem o deck de cada lugar: meta, meu, de um amigo ou da comunidade (ao lado da etiqueta do bot)
 const OWN = { meta: ['📊', tx('Meta'), tx('Deck do meta (torneios reais)')], meu: ['🧙', tx('Meu'), tx('Um deck teu')], ami: ['🤝', tx('Amigo'), tx('Deck de um amigo')], com: ['🌐', tx('Comunidade'), tx('Deck da comunidade (de outra pessoa)')] }
 export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, bet, bot, own, openLib }) {  // openLib: clicar na biblioteca (mesa livre: comprar)  // bet: as minhas apostas neste deck (torneios)  // hand: a mão fica nesta linha, ao centro (em baixo a nossa, em cima a do adversário)
-  const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg()
+  const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg(), oc = useContext(OrbCtx)
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
-      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} />
+      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} look={orbLook(k, z, data, oc, name)} />
       <div className="bname">
         <b title={name}>{name}</b>
         <span className="chips">

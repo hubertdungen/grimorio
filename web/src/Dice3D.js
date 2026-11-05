@@ -222,11 +222,24 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
     return { x: p.toArray().map(n => +n.toFixed(3)), v: v.toArray().map(n => +n.toFixed(3)) }
   }
   const setRot = a => { if (table.rotation.y !== a) { table.rotation.y = a; fit() } }
+  // a esfera da vida a passar por cima (ecrã: ponto e velocidade em px/s): os dados perto levam um empurrão nessa direção
+  // (só nos lançamentos locais: nos partilhados o servidor manda e um empurrão local desencontrava os ecrãs)
+  const push = (cx, cy, vx, vy) => {
+    if (!meshes.length || pending || onThrow || drag) return false
+    pick({ clientX: cx, clientY: cy }); const p = onPlane()
+    pick({ clientX: cx + vx * 0.05, clientY: cy + vy * 0.05 }); const p2 = onPlane()
+    if (!p || !p2) return false
+    const v = [(p2.x - p.x) / 0.05, 4, (p2.z - p.z) / 0.05]
+    let hit = false
+    for (const { b } of meshes) if (Math.hypot(b.x[0] - p.x, b.x[2] - p.z) < b.S.R * 2.5 + 0.6) { world.hold(b); world.release(b, v); hit = true }
+    if (hit) { onHit?.(0.6); kick() }
+    return hit
+  }
   const cv = renderer.domElement
   cv.addEventListener('pointerdown', onDown); cv.addEventListener('pointermove', onMove); cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp)
   const ro = new ResizeObserver(fit); ro.observe(el); fit()
   return {
-    roll, clear, grab, throwFrom, setRot, has: () => meshes.length > 0,
+    roll, clear, grab, throwFrom, setRot, push, has: () => meshes.length > 0,
     dispose: () => { clear(); ro.disconnect(); renderer.dispose(); cv.remove() },
   }
 }

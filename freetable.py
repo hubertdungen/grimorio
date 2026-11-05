@@ -23,6 +23,9 @@ PEN = ("#ffd166", "#ff5c8a", "#4cc9f0", "#80ed99", "#ffffff", "#c77dff")  # core
 REACT = ("👍", "😂", "😮", "🔥", "😭", "🤝")
 # padrões do tapete de cada jogador (o desenho é CSS: .bside[data-mat] em index.css; MATS em web/src/Board.jsx)
 MATS = ("pontos", "riscas", "xadrez", "grelha", "linho", "escamas", "arcano", "oceano", "brasas", "floresta")
+# a esfera da vida de cada jogador (estilo e animação; «auto» = pelo deck): ORB_T/ORB_A em web/src/fpprefs.js
+ORB_T = ("auto", "verde", "oceano", "brasa", "vazio", "ouro", "gelo", "prisma", "tempestade", "sangue")
+ORB_A = ("auto", "calmo", "turbilhao", "pulsar", "faiscas")
 PEN_LIFE = 8  # segundos que um traço da caneta fica no estado (o browser apaga-o antes, a desvanecer)
 PATH = re.compile(r"^/api/freetables/([a-f0-9]{12})$")
 RNG = random.SystemRandom()
@@ -175,7 +178,7 @@ def view(t, me):
     seats = []
     for i, s in enumerate(t["seats"]):
         z = t["zones"][i]
-        v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {}, "mat": s.get("mat"),
+        v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {}, "mat": s.get("mat"), "orb": s.get("orb"),
              "mk": s.get("mk") or [], "me": i == me, "library": len(z["library"]), "arts": s.get("arts") or {},
              "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
         if i == me and s["peek"]:
@@ -524,6 +527,11 @@ def apply(t, me, d):
         if v is not None and v not in MATS:
             raise ValueError("Padrão desconhecido.")
         t["seats"][me]["mat"] = v
+    elif c0 == "orb":  # a minha esfera da vida (todos a veem)
+        v = d.get("v") or {}
+        if not isinstance(v, dict) or v.get("t", "auto") not in ORB_T or v.get("a", "auto") not in ORB_A:
+            raise ValueError("Esfera desconhecida.")
+        t["seats"][me]["orb"] = None if v.get("t", "auto") == "auto" and v.get("a", "auto") == "auto" else {"t": v.get("t", "auto"), "a": v.get("a", "auto")}
     elif c0 == "react":
         e = d.get("e")
         ent = next((x for x in t["log"] if x.get("id") == d.get("i")), None)

@@ -7,6 +7,9 @@
 export const CARD_PX = [0, 48, 56, 64, 72, 80, 96, 112, 128]
 // padrões do tapete (desenho em index.css, .bside[data-mat]; a mesma lista em freetable.py MATS)
 export const MATS = ['pontos', 'riscas', 'xadrez', 'grelha', 'linho', 'escamas', 'arcano', 'oceano', 'brasas', 'floresta']
+// a esfera da vida: estilo (cores) e animação; «auto» = pelas cores e pelo estilo do deck (a mesma lista em freetable.py)
+export const ORB_T = ['verde', 'oceano', 'brasa', 'vazio', 'ouro', 'gelo', 'prisma', 'tempestade', 'sangue']
+export const ORB_A = ['calmo', 'turbilhao', 'pulsar', 'faiscas']
 // --pk: no Forge Play e na mesa livre (mesa de tamanho fixo) o useOverlap encolhe um pouco se as filas não cabem na altura
 // k: o fator que escala o tamanho escolhido — na mesa fixa o --pk do useOverlap; nas réplicas do Coliseu o --fit do zoom (−/⤢/+)
 export const cardVars = (px, k = 'var(--pk, 1)') => (px ? { '--px': `calc(${px}px * ${k})`, '--cw': `calc(${px}px * ${k})`, '--ow': `calc(${px}px * ${k})`, '--lw': `calc(${px}px * ${k})` } : null)
@@ -17,6 +20,8 @@ export const fpPrefs = () => {
     place: ['grid', 'free', 'rows'].includes(o.place) ? o.place : 'grid', persp: o.persp !== false, tilt: Number.isFinite(o.tilt) ? o.tilt : 30,
     oppFace: o.oppFace === 'far' ? 'far' : 'me',  // cartas dos adversários: viradas para mim (legíveis) ou para eles (180°, como numa mesa a sério)
     cardPx: CARD_PX.includes(o.cardPx) ? o.cardPx : 0,  // tamanho das cartas na mesa (0 = automático)
-    mat: MATS.includes(o.mat) ? o.mat : null, mats: o.mats !== false }  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
+    mat: MATS.includes(o.mat) ? o.mat : null, mats: o.mats !== false,  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
+    orb: { t: ORB_T.includes(o.orb?.t) ? o.orb.t : 'auto', a: ORB_A.includes(o.orb?.a) ? o.orb.a : 'auto' },  // a minha esfera da vida
+    botOrb: o.botOrb === 'random' ? 'random' : 'deck' }  // a dos bots: pelo deck (cores e estilo) ou ao acaso (fixa por deck em cada torneio/jogo)  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
 }
 export const setFpPrefs = v => { try { const o = JSON.parse(localStorage.getItem('grimorio.fp.prefs') || '{}'); localStorage.setItem('grimorio.fp.prefs', JSON.stringify({ ...o, ...v })) } catch { /* sem armazenamento */ } }

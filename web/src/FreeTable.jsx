@@ -4,7 +4,7 @@
 // As cartas no campo têm x/y no lado de quem as controla: todos veem a mesma arrumação (o lado dos outros ao contrário).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Perm, Hud, MatPick, Arts, artOf } from './Board.jsx'
+import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
@@ -283,6 +283,9 @@ export default function FreeTable({ id, data, onClose }) {
   // o meu tapete (guardado neste aparelho) vai para o meu lugar: os outros veem-no
   const myMat = s?.seats?.[s.me]?.mat ?? null, hasSeat = !!s?.seats?.[s?.me]
   useEffect(() => { if (hasSeat && myMat !== fpPrefs().mat) send({ c: 'mat', v: fpPrefs().mat }) }, [hasSeat, myMat])  // eslint-disable-line react-hooks/exhaustive-deps
+  // a minha esfera da vida também (o amigo vê a que escolhi)
+  const myOrb = JSON.stringify(s?.seats?.[s.me]?.orb || { t: 'auto', a: 'auto' })
+  useEffect(() => { if (hasSeat && myOrb !== JSON.stringify(fpPrefs().orb)) send({ c: 'orb', v: fpPrefs().orb }) }, [hasSeat, myOrb])  // eslint-disable-line react-hooks/exhaustive-deps
   const [matOpen, setMatOpen] = useState(false)
 
   if (!s) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted"><span className="spin-dot" /> {tx('A abrir a mesa…')}</p>}</div>
@@ -318,11 +321,11 @@ export default function FreeTable({ id, data, onClose }) {
         {!v.battlefield.length && isMe && <span className="ml-empty">{tx('o teu lado da mesa: arrasta para aqui as cartas da mão')}</span>}
       </div>
     )
-    return (<Arts.Provider key={i} value={{ arts: { [k]: v.arts }, k }}>
+    return (<Arts.Provider key={i} value={{ arts: { [k]: v.arts }, k }}><OrbCtx.Provider value={{ mine: isMe ? k : null, seed: s?.id || '', looks: !isMe && v.orb ? { [k]: v.orb } : null }}>
       <div className={`bside ml-side ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i} data-mat={(isMe || !P.mats ? P.mat : v.mat) || undefined}
         onClickCapture={e => { const z = e.target.closest('[data-zone]')?.dataset.zone; if (z === 'graveyard' || z === 'exile') { e.stopPropagation(); setZone({ seat: i, which: z }) } }}>
         {top ? <>{hud}{field}</> : <>{field}{hud}</>}
-      </div></Arts.Provider>
+      </div></OrbCtx.Provider></Arts.Provider>
     )
   }
 
@@ -462,6 +465,7 @@ export default function FreeTable({ id, data, onClose }) {
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && (pen.down(e) || dice.grab(e))) e.stopPropagation() }}
       onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
+      <FsBtn className="on-table" />
         <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
           <div className={`fp-table board table ${P.cardPx ? 'px' : ''} ${seats.some(v => v.battlefield.some(c => c.atk != null)) ? 'combat-on' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onContextMenu={onCtx} onMouseMove={tilt} onPointerDown={down}>
             <div className="ml-opps" style={{ '--np': others.length }}>{others.map(i => side(i, true, others.length > 1))}</div>
@@ -505,7 +509,7 @@ export default function FreeTable({ id, data, onClose }) {
               <button className="small" onClick={() => mv(c.id, 'graveyard')} title={tx('Para o cemitério')}>⚰</button><button className="small" onClick={() => mv(c.id, 'exile')} title={tx('Para o exílio')}>⌀</button><button className="small" onClick={() => toField(c.id)} title={tx('Para o campo')}>▶</button></span></div>))}</div>
         <div className="row-btns"><button className="primary" onClick={() => send({ c: 'peek', n: 0 })}>{tx('Feito (as que sobram ficam no topo)')}</button></div></div></div>}
       {help && <Help onClose={() => { setHelp(false); lsSet(HELP_K, '1') }} />}
-      {matOpen && <MatModal onClose={() => setMatOpen(false)} onMat={p => { send({ c: 'mat', v: p.mat }); redraw(x => x + 1) }} />}
+      {matOpen && <MatModal onClose={() => setMatOpen(false)} onMat={p => { send({ c: 'mat', v: p.mat }); send({ c: 'orb', v: p.orb }); redraw(x => x + 1) }} />}
       {cardPop && lookup(data, cardPop) && <div className="fp-modal" onClick={() => setCardPop(null)}><img className="ml-pop" src={img(lookup(data, cardPop), 'normal', false, artOf(allArts, null, lookup(data, cardPop)))} alt={cardPop} /></div>}
       {s.result ? <p className="ml-ended win">{s.result.w == null ? tx('🤝 Empate') : tx('🏆 Ganhou {p}', { p: who(s.result.w) })}{onClose && <button className="small" onClick={onClose}>{tx('sair da mesa')}</button>}</p>
         : ended && <p className="ml-ended">{tx('Esta mesa terminou.')}</p>}

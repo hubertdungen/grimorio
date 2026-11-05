@@ -3279,3 +3279,52 @@ label.chk.off .why { display: block; flex-basis: 100%; margin: 2px 0 0 24px; opa
 .fp-card.libtop-h .fp-cin { box-shadow: 0 0 0 2px #38bdf8, 0 0 16px #38bdf8aa; border-radius: 7px; }
 .fp-tag { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); z-index: 2; white-space: nowrap; font-style: normal; font-size: 10px; font-weight: 800;
   padding: 1px 7px; border-radius: 99px; background: #0c4a6e; color: #e0f2fe; border: 1px solid #38bdf8; }
+
+/* ---------- a esfera com física: agarrar, atirar, rasto, cartas a abanar ---------- */
+.orb { touch-action: none; cursor: grab; }
+.orb.flying { z-index: 60; cursor: grabbing; }
+.orb-trail { position: fixed; z-index: 2147483000; border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, var(--tc, #22c55e88), transparent 70%); animation: orbtrail .45s ease-out forwards; }
+@keyframes orbtrail { from { opacity: .8; } to { opacity: 0; transform: translate(-50%, -50%) scale(.3); } }
+.pc.orb-bump .pc-rot { animation: orbbump .6s ease-out; }
+@keyframes orbbump { 0%, 100% { rotate: 0deg; translate: 0 0; } 20% { rotate: -7deg; translate: 0 -4px; } 45% { rotate: 5deg; } 70% { rotate: -2deg; } }
+/* o abanão de um golpe não mexe no translate (é da física) */
+@keyframes orbshake { 0%, 100% { rotate: 0deg; } 20% { rotate: -9deg; } 40% { rotate: 8deg; } 60% { rotate: -4deg; } 80% { rotate: 2deg; } }
+@media (prefers-reduced-motion: reduce) { .orb-trail, .pc.orb-bump .pc-rot { animation: none; display: none; } }
+
+/* ---------- esfera da vida: estilos (data-t) e animações (data-a) escolhidos; os estados (dano, vida…) passam por cima ---------- */
+.orb { --core: var(--t-core, #5ee08a); --deep: var(--t-deep, #06301a); --smoke: var(--t-smoke, #c8ffd9); --smoke2: var(--t-smoke2, #3ddc84); --glow: var(--t-glow, #22c55e66); }
+.orb[data-t="oceano"] { --t-core: #38bdf8; --t-deep: #04223d; --t-smoke: #cfefff; --t-smoke2: #0ea5e9; --t-glow: #38bdf866; }
+.orb[data-t="brasa"] { --t-core: #ff8a3d; --t-deep: #3a0a00; --t-smoke: #ffd0a0; --t-smoke2: #ff4d00; --t-glow: #ff6a0077; }
+.orb[data-t="vazio"] { --t-core: #8b5cf6; --t-deep: #07040f; --t-smoke: #6d28d9; --t-smoke2: #1e1b4b; --t-glow: #7c3aed77; }
+.orb[data-t="ouro"] { --t-core: #fde68a; --t-deep: #4a3500; --t-smoke: #fff7d6; --t-smoke2: #f59e0b; --t-glow: #fbbf2477; }
+.orb[data-t="gelo"] { --t-core: #e0f2fe; --t-deep: #1e3a5f; --t-smoke: #ffffff; --t-smoke2: #93c5fd; --t-glow: #bae6fd77; }
+.orb[data-t="prisma"] { --t-core: #f0abfc; --t-deep: #1e1b4b; --t-smoke: #67e8f9; --t-smoke2: #f472b6; --t-glow: #c084fc77; }
+.orb[data-t="prisma"] .orb-smoke { animation-name: orbswirl, orbhue; animation-duration: 11s, 6s; animation-iteration-count: infinite; animation-timing-function: linear; }
+@keyframes orbhue { to { filter: blur(5px) hue-rotate(360deg); } }
+.orb[data-t="tempestade"] { --t-core: #64748b; --t-deep: #0b1220; --t-smoke: #e2e8f0; --t-smoke2: #334155; --t-glow: #94a3b877; }
+.orb[data-t="tempestade"]:not([data-mood]):not([data-react]) .orb-fx { background: radial-gradient(circle at 60% 35%, #e0f2fe 0 10%, #7dd3fc55 30%, transparent 55%); animation: orbstorm 4.3s steps(1) infinite; }
+@keyframes orbstorm { 0%, 61%, 66%, 100% { opacity: 0; } 62%, 65% { opacity: .9; } 63% { opacity: .2; } }
+.orb[data-t="sangue"] { --t-core: #dc2626; --t-deep: #2a0000; --t-smoke: #ff6b6b; --t-smoke2: #7f1d1d; --t-glow: #ef444477; }
+/* animações */
+.orb[data-a="calmo"] .orb-smoke { animation-duration: 21s; } .orb[data-a="calmo"] .orb-smoke.s2 { animation-duration: 29s; }
+.orb[data-a="turbilhao"] .orb-smoke { animation-duration: 3.4s; opacity: .7; } .orb[data-a="turbilhao"] .orb-smoke.s2 { animation-duration: 4.8s; }
+.orb[data-a="pulsar"] .orb-in { animation: orbbreath 2.4s ease-in-out infinite; }
+@keyframes orbbreath { 0%, 100% { filter: brightness(.9); } 50% { filter: brightness(1.35) saturate(1.2); } }
+.orb[data-a="faiscas"] .orb-smoke.s2 { mix-blend-mode: screen; opacity: .95; filter: none; animation: orbswirl 9s linear infinite, orbtwinkle 1.4s steps(2) infinite;
+  background: radial-gradient(circle at 30% 34%, #fff 0 1.2%, transparent 2.2%), radial-gradient(circle at 64% 28%, #fff 0 1%, transparent 2%), radial-gradient(circle at 52% 62%, #fff 0 1.4%, transparent 2.4%),
+    radial-gradient(circle at 36% 70%, var(--smoke) 0 1.1%, transparent 2.1%), radial-gradient(circle at 70% 56%, var(--smoke) 0 1.2%, transparent 2.2%), radial-gradient(circle at 44% 44%, #fff 0 .8%, transparent 1.8%); }
+@keyframes orbtwinkle { 50% { opacity: .35; } }
+/* o seletor (Definições › Mesa, o padrão da mesa no jogo) */
+.orbpick { display: grid; gap: 6px; margin-top: 4px; }
+.orbsw { padding: 2px; border: 2px solid transparent; border-radius: 50%; background: none; cursor: pointer; }
+.orbsw.on { border-color: var(--gold); }
+.orbsw .orb { width: 34px; height: 34px; cursor: pointer; }
+.orbsw .orb b { font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .orb .orb-in, .orb[data-t] .orb-smoke, .orb[data-t] .orb-fx { animation: none !important; } }
+
+/* ⛶ ecrã inteiro direto: no canto da mesa e na barra do telemóvel */
+.fs-mini { flex: none; min-width: 36px; min-height: 36px; padding: 0 8px; border-radius: 9px; border: 1px solid #ffffff2e; background: #10131fcc; color: #fff; font-size: 17px; line-height: 1; cursor: pointer; }
+.fs-mini.on-table { position: absolute; right: 8px; top: 8px; z-index: 30; opacity: .65; }
+.fs-mini.on-table:hover, .fs-mini.on-table:focus-visible { opacity: 1; }
+.fp:has(.fp-actbar) .fs-mini.on-table { display: none; }  /* Forge Play no telemóvel/tablet: já está na barra de baixo */
