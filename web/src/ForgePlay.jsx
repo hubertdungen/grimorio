@@ -726,16 +726,19 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const declaring = /Declare attackers|Select creatures to attack/i.test(pr?.msg || '')
   // um só toque conta: com a pergunta aberta (Enter no botão dela também chegava aqui) ou o mesmo pedido já respondido
   // (toque duplo antes de o Forge mudar de passo) não se carrega outra vez — antes a pergunta aparecia 2x e o 2.º OK passava um passo a mais
-  const pressing = useRef(false), pressedAt = useRef(null)
+  const pressing = useRef(false), pressedAt = useRef(null), saidNo = useRef('')  // saidNo: já disse «não ataco/não bloqueio» neste passo
   const pressBtn = async b => {
     if (pressing.current || pressedAt.current === `${s?.seq}|${b.c}`) return
     pressing.current = true
     try {
       const cre = (me?.battlefield || []).filter(c => (c.creature || c.pt) && !c.tapped), can = cre.filter(c => !c.sick).length
-      if (b.c === 'ok' && declaring && !st?.combat?.length && can > 0
+      const step = `${st?.turn}|${st?.phase}`  // o Forge pode repetir o pedido no mesmo passo (bloqueio inválido…): pergunta-se uma vez só
+      if (b.c === 'ok' && declaring && !st?.combat?.length && can > 0 && saidNo.current !== `${step}|atk`
         && !(await confirmAsk('semataque', { title: tx('Não atacas com nenhuma criatura?'), body: tx('Tens {n} criatura(s) que podem atacar. OK passa o combate sem atacar.', { n: can }), ok: tx('Não atacar'), danger: false }))) return
-      if (b.c === 'ok' && blocking && !(st?.combat || []).some(x => x.blockers?.length) && cre.length > 0
+      if (b.c === 'ok' && declaring && !st?.combat?.length) saidNo.current = `${step}|atk`
+      if (b.c === 'ok' && blocking && !(st?.combat || []).some(x => x.blockers?.length) && cre.length > 0 && saidNo.current !== `${step}|blk`
         && !(await confirmAsk('sembloqueio', { title: tx('Não bloqueias?'), body: tx('Para bloquear, arrasta a tua criatura para o atacante (ou toca no atacante e depois nela). OK deixa passar o ataque todo.'), ok: tx('Não bloquear'), danger: false }))) return
+      if (b.c === 'ok' && blocking && !(st?.combat || []).some(x => x.blockers?.length)) saidNo.current = `${step}|blk`
       pressedAt.current = `${s?.seq}|${b.c}`
       send({ c: b.c })
     } finally { pressing.current = false }
