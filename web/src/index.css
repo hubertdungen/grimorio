@@ -3500,3 +3500,15 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .orb-sweat b:nth-child(4) { left: 66%; animation-delay: 1.6s; } .orb-sweat b:nth-child(5) { left: 48%; top: 6%; animation-delay: 2s; }
 @keyframes sweat { 0% { opacity: 0; transform: translateY(0) scale(.6); } 15% { opacity: 1; } 70% { opacity: 1; transform: translateY(26px) scale(1); } 100% { opacity: 0; transform: translateY(40px) scale(.7); } }
 @media (prefers-reduced-motion: reduce) { .orb-halo, .orb[data-rich~="fat"], .orb-rays, .orb-sweat b { animation: none; } }
+
+/* ---------- palavras-chave das cartas: o que é (ao passar/tocar) e o resumo das regras (ao clicar), à direita ---------- */
+.pc-kw i[data-kw] { cursor: help; pointer-events: auto; }
+.kwtip { position: fixed; z-index: 2147483100; transform: translate(-50%, calc(-100% - 8px)); max-width: 240px; display: grid; gap: 2px; padding: 8px 11px; border-radius: 10px;
+  background: #10131ff2; border: 1px solid #f2b84b88; box-shadow: 0 10px 24px #000b; color: #fff; font-size: 12px; pointer-events: none; animation: kwin .15s ease-out; }
+.kwtip b { color: var(--gold, #f2b84b); font-size: 13px; } .kwtip small { color: #9ca3af; font-size: 10px; }
+@keyframes kwin { from { opacity: 0; transform: translate(-50%, calc(-100% - 2px)); } }
+.kwrule { position: fixed; right: 14px; bottom: 80px; z-index: 2147483100; width: min(360px, calc(100vw - 28px)); max-height: 50vh; overflow: auto; padding: 12px 14px; border-radius: 12px;
+  background: #10131ff5; border: 1px solid #f2b84b; box-shadow: 0 14px 30px #000c; color: #e5e7eb; font-size: 13px; animation: kwin2 .2s ease-out; }
+.kwrule b { color: var(--gold, #f2b84b); font-size: 15px; } .kwrule p { margin: 6px 0; } .kwrule ul { margin: 6px 0; padding-left: 16px; font-size: 12px; color: #cbd5e1; }
+.kwrule-x { position: absolute; right: 8px; top: 6px; background: none; border: 0; color: #fff; font-size: 16px; cursor: pointer; }
+@keyframes kwin2 { from { opacity: 0; transform: translateX(20px); } }

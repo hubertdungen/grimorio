@@ -82,12 +82,12 @@ addEventListener('vite:preloadError', e => {
 
 // a app só carrega depois do dicionário da língua: as tabelas fixas dos módulos já nascem traduzidas
 // (o data.js também só aqui: as tabelas dele — tipos, cores — traduzem-se ao carregar o módulo)
-ready.catch(() => {}).then(() => Promise.all([import('./App.jsx'), import('./confirm.jsx'), import('./data.js'), import('./boundary.jsx')]))
-  .then(([m, c, d, b]) => {
+ready.catch(() => {}).then(() => Promise.all([import('./App.jsx'), import('./confirm.jsx'), import('./data.js'), import('./boundary.jsx'), import('./kwtip.jsx')]))
+  .then(([m, c, d, b, kw]) => {
     // erros fora do desenho (eventos, promessas) também vão para o registo do servidor
     addEventListener('error', e => e.error && b.reportError(e.message, e.error?.stack))
     addEventListener('unhandledrejection', e => b.reportError(e.reason?.message || e.reason, e.reason?.stack))
-    return initWake() || d.probeScryfall() || createRoot(document.getElementById('root')).render(createElement(StrictMode, null, createElement(b.Boundary, null, createElement(m.default)), createElement(c.ConfirmHost)))
+    return initWake() || d.probeScryfall() || createRoot(document.getElementById('root')).render(createElement(StrictMode, null, createElement(b.Boundary, null, createElement(m.default)), createElement(c.ConfirmHost), createElement(kw.default)))
   })
 
 // Sliders: a parte preenchida do trilho segue o valor (--p); o Firefox tem ::-moz-range-progress, o Chrome precisa disto

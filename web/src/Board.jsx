@@ -281,7 +281,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
         {p.counters?.defense != null && <b key={`d${p.counters.defense}`} className={`pc-loy def ${pop?.ct === 'defense' && !quiet ? 'down' : ''}`} title={tx('Defesa (batalha)')}>⛨{p.counters.defense}</b>}
         {ctr.length > 0 && <span className="pc-ctr">{ctr.map(([k, v]) => <b key={`${k}${v}`} className={`c-${k === '+1/+1' ? 'p1' : k === '-1/-1' ? 'm1' : k}`} title={tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[k] || k })}>{k === '+1/+1' ? `+${v}` : k === '-1/-1' ? `−${v}` : CT_ICON[k] ? `${CT_ICON[k]}${v}` : `${CT_SHORT[k] || (CT[k] || k).slice(0, 5)} ${v}`}</b>)}</span>}
         {(p.copy || p.merged?.length > 1 || (p.faceDown && !p.hidden)) && <span className="pc-tags">{p.faceDown && !p.hidden && <i title={tx('Virada para baixo: só tu sabes qual é')}>👁</i>}{p.copy && <i title={tx('Cópia')}>⎘</i>}{p.merged?.length > 1 && <i title={tx('mutada: {x}', { x: p.merged.map(short).join(' + ') })}>⧉{p.merged.length}</i>}</span>}
-        {kws.length > 0 && <span className="pc-kw">{kws.map(k => <i key={k} title={KW[k][1]}>{KW[k][0]}</i>)}</span>}
+        {kws.length > 0 && <span className="pc-kw">{kws.map(k => <i key={k} data-kw={k} aria-label={KW[k][1]}>{KW[k][0]}</i>)}</span>}
         {p.sick && <i className="pc-zz" title={tx('Enjoo de invocação: entrou neste turno')}>z<sup>z</sup></i>}
         {p.goaded && <i className="pc-goad" title={tx('Incitada')}>⚑</i>}
         {n > 1 && <b className="pc-n">×{n}</b>}
