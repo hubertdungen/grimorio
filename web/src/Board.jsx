@@ -1738,7 +1738,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   // o dano do evento acabado de aplicar: de que carta para que carta/jogador (no estado de antes: a vítima pode já ter morrido)
   const dmgHits = (() => {
     const e = evs[i - 1]
-    if (!e || fast || pos.jump) return null
+    if (!e || speed >= 6 || pos.jump) return null  // são leves: veem-se até 5,5× (as outras animações param aos 4×; ao vivo acelera-se para apanhar o jogo)
     if (e.k === 'countered') return [{ key: `r${i}`, kind: 'counter', to: { stack: true, name: e.card } }]
     if (e.k !== 'damage') return null
     const s0 = states[i - 1] || s, all = s0.sides.flatMap(k => s0[k].perms)
