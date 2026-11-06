@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { img } from './data.js'
 import { parseList } from './deck.js'
-import { Mana, Empty } from './ui.jsx'
+import { Mana, Empty, SymTxt } from './ui.jsx'
 import { tx, num } from './i18n.js'
 
 const ratingsCache = new Map()
@@ -81,7 +81,7 @@ export default function DraftView({ data, setDeck, act }) {
     if (main.length && cols.length) {
       const fit = cols.every(k => main.includes(k))
       s += fit ? 0.4 * commit : -0.6 * commit
-      why.push({ k: fit ? 'inter' : 'falta', txt: tx(fit ? 'Nas tuas cores ({c})' : 'Fora das tuas cores ({c})', { c: main.join('/') }) })
+      why.push({ k: fit ? 'inter' : 'falta', txt: tx(fit ? 'Nas tuas cores ({c})' : 'Fora das tuas cores ({c})', { c: main.map(k => `{${k}}`).join('') }) })
     } else if (!cols.length) { s += 0.1; why.push({ k: 'tema', txt: tx('Incolor: entra em qualquer deck') }) }
     if (c.tg.includes('removal') && removalN < 4) { s += 0.25; why.push({ k: 'falta', txt: tx('Remoção: tens {n}', { n: removalN }) }) }
     if (c.mt !== 'Land' && c.cmc <= 2 && curve[0] + curve[1] < picks.length * 0.3 && picks.length >= 8) { s += 0.15; why.push({ k: 'falta', txt: tx('Curva: faltam cartas baratas') }) }
@@ -139,7 +139,7 @@ export default function DraftView({ data, setDeck, act }) {
           {rank.length ? <ol className="draft-rank">{rank.map(({ c, why }, k) => (
             <li key={`${c.i}-${k}`}>
               <img src={img(c, 'art_crop')} alt="" />
-              <div><b>{c.n}</b> <Mana cost={c.mc} /><ul className="why">{why.map((w, j) => <li key={j} className={w.k}>{w.txt}</li>)}</ul></div>
+              <div><b>{c.n}</b> <Mana cost={c.mc} /><ul className="why">{why.map((w, j) => <li key={j} className={w.k}><SymTxt text={w.txt} /></li>)}</ul></div>
               <button className={k === 0 ? 'primary' : ''} onClick={() => pick(c)}>{tx('Escolher')}</button>
             </li>
           ))}</ol> : <Empty>{tx('Clica nas cartas do set que estão no teu pack; o Grimório ordena-as e diz porquê.')}</Empty>}

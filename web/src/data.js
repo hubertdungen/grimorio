@@ -3,6 +3,7 @@
 import { testsBoost, wrDelta } from './tests.js'
 import { landInfo, offColorLand } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
+import { deckThemes } from './synergy.js'
 
 // funções a mais, tiradas do texto ao carregar (os dados só trazem as 20 do build_data): moer, dano direto, reforço,
 // piscar, devolver à mão, copiar, roubar, drenar, escolher cartas, reduzir custos, desvirar, turno extra, landfall, taxar
@@ -58,7 +59,7 @@ const ROLE_RE = {
   lifePayoff: /whenever you gain life/,
   spellPayoff: /whenever you cast (an|a|your first) (instant|sorcery|noncreature)|magecraft|prowess|copy target instant or sorcery/,
   artifactMaker: /create[^.]*(treasure|clue|food|blood|map|artifact)/,
-  artifactPayoff: /artifacts? you control|whenever[^.]*artifact[^.]*enters|affinity for artifacts|improvise|metalcraft/,
+  artifactPayoff: /(?<!enchant )artifacts? you control|whenever[^.]*artifact[^.]*enters|affinity for artifacts|improvise|metalcraft/,
   extraLands: /play an additional land|you may play (two|three) additional lands|put (a|that|up to \w+)[^.]*land cards?[^.]* onto the battlefield/,
   landfall: /landfall|whenever a land (you control )?enters/,
   drawPayoff: /whenever you draw/,
@@ -90,6 +91,7 @@ export function rolesOf(c) {
   for (const r of ROLES) if (ROLE_RE[r].test(o)) m |= RB[r]
   if (/Instant|Sorcery/.test(c.t)) m |= RB.spells
   if (/Artifact/.test(c.t.split(' // ')[0])) m |= RB.artifactMaker
+  else if (/\bLand\b/.test(c.t.split(' // ')[0])) m &= ~RB.artifactMaker  // a Food da The Shire, a cópia da Adagia: um terreno não faz um deck de artefactos
   if (!/Creature/.test(c.t)) m &= ~RB.etb // blink só serve para permanentes que entram com efeito
   if (/Creature/.test(c.t) && ((c.kw || []).some(k => EVASIVE_KW.includes(k)) || /can't be blocked/.test(o))) m |= RB.evasive // abre caminho ao ninjutsu
   if (/Equipment/.test(c.t)) m = (m | RB.equipment) & ~RB.equipped
@@ -582,7 +584,7 @@ export function termsOf(data) {
   return list
 }
 
-export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTerms = [], commanders = [], needs = {}, co = null, deckStats = null, bracket = null, gcCount = 0, meta = null, archetype = null, prefs = null, tastes = [], deckSize = 99, turn = 8 }) {
+export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTerms = [], commanders = [], needs = {}, co = null, deckStats = null, bracket = null, gcCount = 0, meta = null, archetype = null, prefs = null, tastes = [], deckSize = 99, turn = 8, profile = null }) {
   const pf = prefs?.on ? prefs : null
   const nivel = pf?.nivel ?? 3
   const metaW = pf ? 0.3 + 1.4 * (pf.meta ?? 0.5) : 1
@@ -629,10 +631,19 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
   }
   const themes = new Set(Object.entries(tagCount).filter(([, n]) => n >= Math.max(2, seeds.length * 0.25)).map(([t]) => t))
   const [tribe, tribeN] = Object.entries(tribeCount).sort((a, b) => b[1] - a[1])[0] || []
-  const hasTribe = tribe && tribeN >= Math.max(3, creatures * 0.3)
+  // Perfil do deck (synergy.js deckThemes): os temas com quem ativa e quem beneficia, em cópias. É o plano do deck:
+  // uma sugestão vale pelo que dispara ou aproveita nele (um encantamento num deck de constelação), não por ser parecida.
+  const prof = profile || deckThemes(data, { main: Object.fromEntries(seeds.map(i => [cards[i].n, 1])) }).cats
+  const maxRaw = Math.max(0, ...prof.map(x => x.raw))
+  // fm/pm: o lado escasso vale até 1,5× (combustível quando há mais quem beneficie, e vice-versa; Mesa Enchantress com 32 encantamentos)
+  const scarce = (a, b) => 1 + 0.5 * Math.min(1, Math.max(0, a / Math.max(1, b) - 1))
+  const plan = prof.map(x => ({ x, w: Math.min(1, x.raw) * Math.min(1, x.raw / (0.5 * maxRaw)), fm: scarce(x.P, x.E), pm: scarce(x.E, x.P) })).filter(p => p.w >= 0.1)
+  const hasPlan = maxRaw >= 0.6, SAT = 6  // SAT: cópias do outro lado que já fazem do tema um motivo inteiro
+  // tribo a sério: é um tema do deck (tem quem fale dela: lords, «Sliver you control»); Human por acaso não conta
+  const hasTribe = tribe && tribeN >= Math.max(3, creatures * 0.3) && prof.some(x => x.s.tribe === tribe)
   // (?!) nunca casa; o antigo «$^» casava com o texto vazio e dava «Tribo X» a todas as criaturas sem texto (Alpha Myr)
   const tribeRe = hasTribe ? new RegExp(`\\b${tribe.toLowerCase()}s?\\b|${tribe === 'Elf' ? 'elves' : '(?!)'}`) : null
-  const topKw = Object.entries(kwCount).filter(([, n]) => n >= Math.max(3, spells * 0.15)).map(([k]) => k)
+  const topKw = Object.entries(kwCount).filter(([k, n]) => n >= Math.max(3, spells * 0.15) && k !== 'Enchant' && k !== 'Equip').map(([k]) => k)  // «Enchant»/«Equip» já estão nos temas
 
   // Probabilidade de montar combos (peças fora do comandante, tutores no deck).
   const cmdSet = new Set(commanders)
@@ -649,7 +660,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
   // Torneios: núcleo do arquétipo provável e parceiras das cartas do deck.
   const archCore = new Map((archetype?.core || []).map(x => [x.i, x]))
   const metaPartner = new Map()
-  if (meta) for (const h of haveSet) for (const p of meta.pairs.get(h) || []) {
+  if (meta) for (const h of haveSet) if (cards[h].mt !== 'Land') for (const p of meta.pairs.get(h) || []) {  // terrenos (fetches) não dizem nada do plano
     if (!metaPartner.has(p.i)) metaPartner.set(p.i, [])
     metaPartner.get(p.i).push({ from: cards[h].n, lift: p.lift, cond: p.cond })
   }
@@ -702,7 +713,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     for (const s of commanders) cmd = Math.max(cmd, dotInt8(E, D, s, i))
     // Cada fator guarda o seu peso: é o que o «Porquê?» mostra.
     const P = {}
-    P.texto = commanders.length ? 0.4 * sem + 0.35 * mx : 0.55 * sem + 0.45 * mx
+    P.texto = (commanders.length ? 0.4 * sem + 0.35 * mx : 0.55 * sem + 0.45 * mx) * (hasPlan ? 0.6 : 1)  // texto parecido: desempate quando há plano
     const stm = seedTerms.length ? seedTerms.filter(t => termMatch(c, t)) : []  // sementes-termo (Flying, Rat…) que a carta tem
     if (seedTerms.length) P.semente = stm.length ? 0.22 + 0.08 * (stm.length - 1) : 0
     P.comandante = commanders.length ? 0.25 * cmd : 0
@@ -727,7 +738,10 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
       const n = needs[t]
       if (n && n[0] < n[1] && (!need || n[1] - n[0] > need[1][1] - need[1][0])) need = [t, n]
     }
-    P.falta = need ? 0.08 * Math.min(1, (need[1][1] - need[1][0]) / need[1][1]) : 0
+    // lacuna de função (remoção, compra…): pesa a sério, mais se for barata/instantânea; criaturas e «vitória» são genéricas
+    const softNeed = need && (need[0] === 'creature' || need[0] === 'wincon')
+    const needQ = need && !softNeed ? [...(/Instant/.test(c.t) || /\bflash\b/i.test(c.o) ? [tx('instantânea')] : []), ...(c.cmc <= 2 ? [tx('barata (MV {mv})', { mv: c.cmc })] : [])] : []
+    P.falta = need ? (softNeed ? 0.06 : 0.16 * (1 + 0.12 * needQ.length)) * Math.min(1, (need[1][1] - need[1][0]) / need[1][1]) : 0
     const tribal = hasTribe && (subtypes(c).includes(tribe) || tribeRe.test(c.o.toLowerCase()) || /changeling/i.test(c.o))
     const kws = topKw.filter(k => c.kw.includes(k))
     P.tribo = (tribal ? 0.07 : 0) + Math.min(0.04, kws.length * 0.02)
@@ -739,13 +753,23 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     if (reanTarget) P.tribo += 0.1
     // Respostas de sideboard contam pouco como cartas do deck principal.
     if (c.tg.includes('hate')) P.texto *= 0.5
-    // Interações: esta carta aproveita o que o deck gera, ou gera o que o deck aproveita.
+    // Plano: quantas cartas do deck esta dispara (é «en» de um tema com quem beneficie) ou aproveita (é «pay» com combustível);
+    // o lado em falta de um tema desequilibrado vale mais. inter = os motivos, do mais forte para o mais fraco.
     const inter = []
-    for (const [a, b] of PAIRS) {
-      if (c.ro & RB[b] && byRole[a].length >= 2) inter.push({ side: 'usa', role: a, who: byRole[a] })
-      else if (c.ro & RB[a] && byRole[b].length >= 2) inter.push({ side: 'alimenta', role: b, who: byRole[b] })
+    let pv = 0
+    for (const { x, w, fm, pm } of plan) {
+      const tr = x.trig(c), us = x.uses(c)
+      const tq = tr.reduce((a, y) => a + y.q, 0), uq = us.reduce((a, y) => a + y.q, 0)
+      const vt = w * Math.min(1, tq / SAT) * fm, vu = w * Math.min(1, uq / SAT) * pm
+      if (vt + vu < 0.04) continue
+      pv += vt + vu
+      if (tr.length) inter.push({ side: 'alimenta', x, who: tr.map(y => y.c.i), v: vt })
+      if (us.length) inter.push({ side: 'usa', x, who: us.map(y => y.c.i), v: vu })
     }
-    P.interacoes = Math.min(0.12, inter.reduce((s, x) => s + 0.03 + 0.01 * Math.min(4, x.who.length), 0))
+    inter.sort((a, b) => b.v - a.v)
+    // sem teto baixo: um motor que dispara e aproveita (Enchantress's Presence) vale mais do que só combustível (Snake Umbra);
+    // fechar um combo conta como servir o plano (Walking Ballista com o Heliod), senão mil encantamentos tapavam-no
+    P.plano = 0.16 * Math.min(4, pv + (completes ? 2 * Math.min(1, cw / 0.18) : 0))
     // Decks reais (EDHREC): inclusão e sinergia com o comandante, lift com as outras cartas.
     const edh = co?.get(i)
     let edhCmd = null
@@ -787,6 +811,15 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
       const gives = needColors.filter(k => any || c.o.includes(`{${k}}`))
       if (gives.length) { P.falta += 0.05 * gives.length; fix = gives }
     }
+    // Com plano: popularidade (torneios, decks reais) só desempata, e o que não serve o plano, nem tapa uma lacuna, nem
+    // fecha um combo, desce (uma carta de artefactos num deck de encantamentos). O núcleo do arquétipo do meta fica.
+    let offPlan = false
+    if (hasPlan) {
+      if (!mArch && P.torneios > 0) P.torneios *= 0.6
+      if (!edhCmd) P.decksReais *= 0.6
+      offPlan = pv < 0.15 && !completes && !tribal && !reanTarget && !mArch && !fix && !(need && !softNeed) && !(edhCmd && edhCmd.syn >= 0.2)
+      if (offPlan) P.plano -= 0.12
+    }
     // Personalização (opcional): nível, peso do meta, estilo e gosto pelos decks do utilizador.
     const stHit = []
     let tasteBest = 0, tasteName = ''
@@ -817,7 +850,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     const score = Object.values(P).reduce((a, b) => a + b, 0)
     allSem.push(sem)
     if (commanders.length) allCmd.push(cmd)
-    res.push({ i, score, P, sem, near, cmd, stm, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mInc, mArch, mPart, stHit, tasteBest, tasteName, tb, dead })
+    res.push({ i, score, P, sem, near, cmd, stm, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, needQ, softNeed, offPlan, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mInc, mArch, mPart, stHit, tasteBest, tasteName, tb, dead })
   }
   res.sort((a, b) => b.score - a.score)
   const name = i => cards[i].n
@@ -836,6 +869,18 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
       const other = h.missing.find(x => x !== r.i)
       why.push({ k: 'combo2', txt: tx('Quase-combo com {with}: falta também {c}', { with: cb[1].filter(x => haveSet.has(x)).map(name).join(' + '), c: name(other) }), combo: cb[0] })
     }
+    // o plano do deck: o que dispara e o que aproveita (os dois mais fortes)
+    const names = l => l.slice(0, 2).map(i => name(i).split(' // ')[0].split(', ')[0]).join(', ') + (l.length > 2 ? ` +${l.length - 2}` : '')  // «Heliod, Sythis +5»
+    // um motivo por tema, e nada de repetir as mesmas cartas (Enchantress's Presence: «encantamentos» e «sempre que lanças» são os 14)
+    const shown = []
+    for (const x of r.inter) {
+      const set = new Set(x.who)
+      if (shown.length < 2 && !shown.some(y => y.x === x.x || (y.side === x.side && y.who.length === set.size && y.who.every(i => set.has(i))))) shown.push(x)
+    }
+    for (const x of shown) why.push({ k: 'inter', txt: x.side === 'alimenta' ? tx('Dispara {n} carta tua ({names}) · {t}|Dispara {n} cartas tuas ({names}) · {t}', { n: x.who.length, names: names(x.who), t: x.x.s.name })
+      : tx('Aproveita {n} carta tua ({names}) · {t}|Aproveita {n} cartas tuas ({names}) · {t}', { n: x.who.length, names: names(x.who), t: x.x.s.name }) })
+    if (r.need && !r.softNeed) why.push({ k: 'falta', txt: tx('Lacuna — {what}: o deck tem {h} de {n}', { what: TAG_LABEL[r.need[0]].toLowerCase(), h: r.need[1][0], n: r.need[1][1] }) + (r.needQ.length ? tx('; esta é {q}', { q: r.needQ.join(tx(' e ')) }) : '') })
+    if (r.offPlan) why.push({ k: 'perto', txt: tx('Fora do plano ({p}); nenhuma sinergia no deck', { p: prof[0].s.name }) })
     if (r.tb) why.push({ k: 'testes', txt: r.tb.txt })
     if (r.mArch) why.push({ k: 'meta', txt: tx('Peça de {a}: em {p}% das listas, {q} cópias', { a: archetype.name, p: Math.round(r.mArch.incl * 100), q: num(r.mArch.copies, 1) }) })
     else if (r.mRow && r.mInc >= 0.03) why.push({ k: 'meta', txt: tx('Em {p}% dos decks de {f} (MTGTop8, {n} listas)', { p: Math.round(r.mRow.incl * 100), f: meta.fmtName, n: meta.decks }) })
@@ -849,18 +894,14 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
       const top = r.edhCards.slice(0, 2)
       why.push({ k: 'edh', txt: tx('Jogada com {with} em decks reais ({x}× mais do que o normal)', { with: top.map(e => e.from).join(tx(' e ')), x: num(top[0].lift, 1) }) })
     }
-    for (const x of r.inter.slice(0, 2)) {
-      const names = x.who.slice(0, 2).map(name).join(', ') + (x.who.length > 2 ? ` (+${x.who.length - 2})` : '')
-      why.push({ k: 'inter', txt: x.side === 'usa' ? tx('Aproveita {names}, que {role}', { names, role: ROLE_LABEL[x.role] }) : tx('Alimenta {names}, que {role}', { names, role: ROLE_LABEL[x.role] }) })
-    }
     if (r.stm?.length) why.unshift({ k: 'semente', txt: tx('Semente: {t}', { t: r.stm.map(t => t.v).join(', ') }) })
-    if (r.need) why.push({ k: 'falta', txt: tx('O deck precisa de {what} ({h}/{n})', { what: r.need[0] === 'wincon' ? tx('condições de vitória') : TAG_LABEL[r.need[0]].toLowerCase(), h: r.need[1][0], n: r.need[1][1] }) })
+    if (r.need && r.softNeed) why.push({ k: 'falta', txt: tx('O deck precisa de {what} ({h}/{n})', { what: r.need[0] === 'wincon' ? tx('condições de vitória') : TAG_LABEL[r.need[0]].toLowerCase(), h: r.need[1][0], n: r.need[1][1] }) })
     if (r.reanTarget) why.push({ k: 'inter', txt: tx('Alvo de reanimação (poder {p}) para {who}', { p: r.pw, who: reanimators.slice(0, 2).map(name).join(', ') }) })
     if (c.tg.includes('wincon') && !r.need) why.push({ k: 'tema', txt: tx('Condição de vitória') })
-    if (r.fix) why.push({ k: 'falta', txt: tx('Dá {c}, as cores com menos fontes no deck', { c: r.fix.join('/') }) })
+    if (r.fix) why.push({ k: 'falta', txt: tx('Dá {c}, as cores com menos fontes no deck', { c: r.fix.map(k => `{${k}}`).join('') }) })
     if (r.curveNote) why.push({ k: 'falta', txt: r.curveNote })
     if (commanders.length && r.cmd >= 0.5) why.push({ k: 'cmd', txt: tx('Sinergia com {c}', { c: commanders.map(name).join(tx(' e ')) }) })
-    if (r.tribal) why.push({ k: 'tribo', txt: tx('Tribo {t}: {n} no deck', { t: tribe, n: tribeN }) })
+    if (r.tribal && !shown.some(x => x.x.s.tribe)) why.push({ k: 'tribo', txt: tx('Tribo {t}: {n} no deck', { t: tribe, n: tribeN }) })
     if (r.kws.length) why.push({ k: 'kw', txt: tx('{kw}, como várias cartas do deck', { kw: r.kws.join(', ') }) })
     const shared = c.tg.filter(t => themes.has(t)).map(t => TAG_LABEL[t])
     if (shared.length && !r.inter.length) why.push({ k: 'tema', txt: tx('Reforça: {t}', { t: shared.slice(0, 3).join(', ') }) })
@@ -877,7 +918,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
         return { id: cb[0], with: cb[1].filter(x => x !== r.i).map(name), missing: h.missing.filter(x => x !== r.i).map(name), produces: cb[2], requires: cb[3], decks: cb[5] }
       }),
       edhCmd: r.edhCmd, edhCards: r.edhCards.slice(0, 5), mRow: r.mRow, mArch: r.mArch ? { ...r.mArch, name: archetype.name } : null, mPart: r.mPart.slice(0, 4), metaName: meta?.fmtName, metaDecks: meta?.decks,
-      inter: r.inter.map(x => ({ side: x.side, label: ROLE_LABEL[x.role], who: x.who.map(name) })),
+      inter: r.inter.map(x => ({ side: x.side, label: x.x.s.name, who: x.who.map(name) })),
       roles: ALL_ROLES.filter(k => c.ro & RB[k]).map(k => ROLE_LABEL[k]),
       near: r.near >= 0 ? name(r.near) : null, simPct: rank(allSem, r.sem), cmdPct: commanders.length ? rank(allCmd, r.cmd) : null,
     }

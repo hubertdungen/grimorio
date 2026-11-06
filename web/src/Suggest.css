@@ -1,0 +1,6 @@
+/* Sugestões: o «→ MB» (guardar no maybeboard) cabe na barra da carta; sem espaço, o preço passa para baixo */
+.act.mb { white-space: nowrap; padding-inline: 5px; font-size: 12px; }
+.tile-bar { flex-wrap: wrap; row-gap: 2px; }
+.tile-bar .tile-price { white-space: nowrap; }
+/* «Trocar no deck»/«Terrenos»: o custo numa linha (o «.cutp-card span { display: grid }» empilhava os símbolos) */
+.cutp-card .mana { display: inline-flex; justify-self: start; gap: 1px; }

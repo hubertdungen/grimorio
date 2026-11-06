@@ -568,6 +568,50 @@ console.log('selfcheck universo ok')
   const dh = deckCuts(sdata, kn, { ctx: { bit: -1, allowUn: true, identity: 'W' }, meta }).find(x => x.c.n === 'Dragon Hunter')
   assert.ok(dh && /Carta de sideboard/.test(dh.why[0]), JSON.stringify(dh?.why))
   console.log('selfcheck sugestões ok') }
+// Sugestões pelo plano do deck (synergy.js deckThemes): num deck de encantamentos (constelação/enchantress) um encantamento
+// sobe e um artefacto sem sinergia desce com «Fora do plano»; num deck de artefactos é ao contrário; uma lacuna de remoção e
+// a peça que fecha um combo passam mesmo fora do tipo do deck. Embeddings iguais: o texto parecido não decide nada.
+{ const { prepData, recommend } = await import('./src/data.js')
+  const all = (1 << F.length) - 1
+  const K = (n, t, o, mc, ci, extra = {}) => ({ n, t, o, mc, cmc: (+(mc.match(/\{(\d+)\}/)?.[1] || 0)) + (mc.match(/\{[WUBRGC]\}/g) || []).length, ci, co: ci, lg: all, rs: 0, r: 'c', kw: [], pt: '', er: 5000, tg: [], ...extra })
+  const ec = (n, o = '') => K(n, 'Enchantment Creature — Spirit', o, '{1}{G}', 'G', { pt: '2/2' })
+  const ac = (n, o = '') => K(n, 'Artifact Creature — Golem', o, '{2}', '', { pt: '2/2' })
+  const cards = [
+    ...[1, 2, 3, 4, 5, 6].map(k => ec(`Nymph ${k}`)),
+    K('Enchantress A', 'Enchantment Creature — Human', 'Whenever you cast an enchantment spell, draw a card.', '{G}', 'G', { pt: '0/1' }),
+    K('Enchantress B', 'Enchantment Creature — Nymph', 'Constellation — Whenever an enchantment you control enters, you gain 1 life.', '{1}{G}', 'G', { pt: '1/3' }),
+    K('Aura One', 'Enchantment — Aura', 'Enchant creature\nEnchanted creature gets +1/+1 for each enchantment you control.', '{G}', 'G'),
+    ...[1, 2, 3, 4, 5, 6].map(k => ac(`Golem ${k}`)),
+    K('Foundry', 'Artifact Creature — Construct', 'This creature gets +1/+1 for each artifact you control.', '{2}', '', { pt: '0/0' }),
+    K('Workshop', 'Artifact', 'Whenever an artifact you control enters, scry 1.', '{1}', ''),
+    K('Candidate Ench', 'Enchantment Creature — Spirit', 'Vigilance', '{1}{G}', 'G', { pt: '2/2' }),
+    K('Candidate Art', 'Artifact Creature — Golem', 'Vigilance', '{2}', '', { pt: '2/2' }),
+    K('Candidate Kill', 'Instant', 'Destroy target creature.', '{G}', 'G', { tg: ['removal'] }),
+    K('Combo Piece', 'Artifact', 'Untap target creature.', '{1}', ''),
+    K('Forest', 'Basic Land — Forest', '({T}: Add {G}.)', '', 'G', { tg: ['land'] }),
+  ]
+  const D = 8, emb = new Int8Array(cards.length * D).fill(50)
+  const iOf = n => cards.findIndex(c => c.n === n)
+  const combos = [['cx', [iOf('Nymph 1'), iOf('Combo Piece')], ['Infinite mana'], [], 0, 900]]
+  const sd = prepData({ formats: F, dim: D }, cards, combos, emb.buffer, new Float32Array(cards.length * 2).buffer)
+  const ctx = { bit: -1, allowUn: true, identity: null }
+  const run = (main, needs = {}) => {
+    const have = Object.keys(main).map(n => sd.byName.get(n).i)
+    const recs = recommend(sd, { seeds: have.filter(i => sd.cards[i].mt !== 'Land'), have, ctx, filters: null, limit: 40, deckSize: 60, turn: 6, needs })
+    return { recs, rank: n => recs.findIndex(r => r.c.n === n), r: n => recs.find(r => r.c.n === n) }
+  }
+  const ench = run({ ...Object.fromEntries([1, 2, 3, 4, 5, 6].map(k => [`Nymph ${k}`, 4])), 'Enchantress A': 4, 'Enchantress B': 4, 'Aura One': 4, Forest: 20 }, { removal: [0, 6] })
+  assert.ok(ench.rank('Candidate Ench') >= 0 && ench.rank('Candidate Ench') < ench.rank('Candidate Art'), ench.recs.map(r => r.c.n).join())
+  assert.ok(ench.r('Candidate Ench').why.some(w => /^Dispara \d+ cartas tuas/.test(w.txt)), JSON.stringify(ench.r('Candidate Ench').why))
+  assert.ok(ench.r('Candidate Art').why.some(w => /Fora do plano/.test(w.txt)))
+  assert.ok(ench.rank('Workshop') > ench.rank('Candidate Ench'))  // payoff de artefactos num deck sem artefactos
+  assert.ok(ench.r('Candidate Kill').why.some(w => /Lacuna — remoção: o deck tem 0 de 6; esta é instantânea e barata/.test(w.txt)), JSON.stringify(ench.r('Candidate Kill').why))
+  assert.ok(ench.rank('Candidate Kill') < ench.rank('Candidate Art'))
+  const cp = ench.r('Combo Piece')  // artefacto, mas fecha um combo com Nymph 1: passa, com o combo como motivo
+  assert.ok(cp.why[0].k === 'combo' && !cp.why.some(w => /Fora do plano/.test(w.txt)) && ench.rank('Combo Piece') < ench.rank('Candidate Art'))
+  const art = run({ ...Object.fromEntries([1, 2, 3, 4, 5, 6].map(k => [`Golem ${k}`, 4])), Foundry: 4, Workshop: 4, Forest: 20 })
+  assert.ok(art.rank('Candidate Art') >= 0 && art.rank('Candidate Art') < art.rank('Candidate Ench'), art.recs.map(r => r.c.n).join())
+  console.log('selfcheck sugestões pelo plano ok') }
 { const { fillPlan } = await import('./src/universe.js')  // «Preencher o deck»: fecha a diferença com cartas novas, por estratégia
   const mk = (n, t, tg = [], cmc = 2) => ({ n, t, mt: t.includes('Land') ? 'Land' : 'Creature', tg, cmc, o: '' })
   const L = [mk('Plains', 'Basic Land — Plains'), mk('Island', 'Basic Land — Island'), mk('Tundra', 'Land')]

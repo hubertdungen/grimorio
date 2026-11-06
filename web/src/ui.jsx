@@ -48,6 +48,9 @@ export function Syms({ text }) {
   return t.split(SYM).map((p, k) => (k % 2 ? <img key={k} className="sym" src={sym(p.slice(1, -1))} alt={p} /> : p))
 }
 
+// textos gerados (motivos das sugestões e das trocas): «{G}» e «(G)» viram símbolos
+export const SymTxt = ({ text }) => <Syms text={String(text ?? '').replace(/\(([WUBRGCTQ])\)/g, '{$1}')} />
+
 export const price = c => (c.eur != null ? `${num(c.eur, 2)} €` : c.usd != null ? `$${num(c.usd, 2)}` : '—')
 
 export function Tags({ c, onTag }) {

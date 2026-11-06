@@ -237,7 +237,7 @@ export function landPlan(data, deck, fmt, ctx, { fn = null, recs = [], co = null
   const rlx = recommendLands(data, { deck, fmt, ctx, co, meta, need: N, limit: 60 })
   const colOf = c => Object.keys(BASIC).find(k => BASIC[k] === c.n)
   for (const [k, v] of Object.entries(N.cols).filter(([, x]) => x.have < x.need).sort((a, b) => (b[1].need - b[1].have) - (a[1].need - a[1].have))) {
-    const miss = v.need - v.have, why = [tx('Só {h} fontes de {k} para {n} precisas', { h: v.have, k, n: v.need })]
+    const miss = v.need - v.have, why = [tx('Só {h} fontes de {k} para {n} precisas', { h: v.have, k: `{${k}}`, n: v.need })]
     let left = miss, made = 0
     for (let t = 0; t < 2 && left > 0; t++) {  // até dois pares por cor (ex.: Island → U/G e Plains → W/G)
       let pair = null
@@ -249,7 +249,7 @@ export function landPlan(data, deck, fmt, ctx, { fn = null, recs = [], co = null
       if (!pair) break
       const q = Math.max(1, Math.min(left, pair.have, fmt.copies === 1 ? 1 : 4))
       used.add(pair.inn.n); used.add(pair.o.n); left -= q; made++
-      acts.push({ kind: 'cor', out: pair.o.n, in: pair.inn, q, why: [...why, tx('{in} dá {k} e continua a dar {k2}: trocar {out} não perde fontes', { in: pair.inn.n, k, k2: colOf(pair.o), out: pair.o.n })] })
+      acts.push({ kind: 'cor', out: pair.o.n, in: pair.inn, q, why: [...why, tx('{in} dá {k} e continua a dar {k2}: trocar {out} não perde fontes', { in: pair.inn.n, k: `{${k}}`, k2: `{${colOf(pair.o)}}`, out: pair.o.n })] })
     }
     if (made) continue
     const inn = rl.find(r => !used.has(r.c.n) && (r.land.any || r.land.colors.has(k)))?.c || get(BASIC[k])
@@ -464,8 +464,8 @@ function build(data, deck, fmt, ctx, opts) {
       const why = []
       let gain = vS - landVal(X)
       const short = gS.filter(k => N.cols[k].have < N.cols[k].need)
-      if (short.length) why.push(tx('{c} dá {k}, cor com fontes a menos ({s})', { c: S.n, k: short.join('/'), s: short.map(k => `${N.cols[k].have}/${N.cols[k].need}`).join(', ') }))
-      if (/\bBasic\b/.test(X.t) && gives.length === 1) { const k = gives[0]; if (N.cols[k].have >= N.cols[k].need) why.push(tx('Básico de {k}: já tens {h} fontes de {k} (alvo ~{n})', { k, h: N.cols[k].have, n: N.cols[k].need })) }
+      if (short.length) why.push(tx('{c} dá {k}, cor com fontes a menos ({s})', { c: S.n, k: short.map(k => `{${k}}`).join(''), s: short.map(k => `${N.cols[k].have}/${N.cols[k].need}`).join(', ') }))
+      if (/\bBasic\b/.test(X.t) && gives.length === 1) { const k = gives[0]; if (N.cols[k].have >= N.cols[k].need) why.push(tx('Básico de {k}: já tens {h} fontes de {k} (alvo ~{n})', { k: `{${k}}`, h: N.cols[k].have, n: N.cols[k].need })) }
       if (L.tapped === 'sim' && landGives(S).L.tapped !== 'sim') why.push(tx('{c} entra sempre virado', { c: X.n }))
       if (deckCols.length >= 2 && !gives.length && !L.any) why.push(tx('Só dá mana incolor'))
       const d = deadOf(X.n)
@@ -541,7 +541,7 @@ function build(data, deck, fmt, ctx, opts) {
       if (role && X.cmc > S.cmc && !(reanTarget(X) && reanTarget(S)) && !altCost(X)) push(Math.min(0.45, 0.15 * (X.cmc - S.cmc)), 'mais caro', null)
       const pX = castProb(X)
       const hard = deckCols.find(k => pipsOf(X, k) >= 2 && pipsOf(X, k) > pipsOf(S, k) && N.cols[k].have < 0.9 * needFor(k, pipsOf(X, k)))
-      if (hard) push(0.12, 'linha fraca', tx('Pede {p} com só {h} fontes de {k}', { p: `{${hard}}`.repeat(pipsOf(X, hard)), h: N.cols[hard].have, k: hard }))
+      if (hard) push(0.12, 'linha fraca', tx('Pede {p} com só {h} fontes de {k}', { p: `{${hard}}`.repeat(pipsOf(X, hard)), h: N.cols[hard].have, k: `{${hard}}` }))
       else if (pS - pX >= 0.15) push(0.12, 'curva', tx('A tempo em {x} dos jogos; a sugestão em {s}', { x: pct(pX), s: pct(pS) }))
       const lr = Math.log(X.er || 40000) - lerS
       if (edhOk && lr > Math.log(2.5) && (X.er || 40000) > 1500) push(0.06 * Math.min(3, lr), 'mesmo papel', tx('Pouco usada (EDHREC {x}) face a {s}', { x: erT(X), s: erT(S) }))
@@ -557,7 +557,7 @@ function build(data, deck, fmt, ctx, opts) {
         if (crowd(slotX) && !crowd(slotS) && slotX !== slotS) push(0.15, 'curva', tx('Curva: já tens {n} cartas de {mv} de mana', { n: s.curve[slotX], mv: slotX }))
         else if (s.avgMv > 3.8 && X.cmc >= 5 && X.cmc > S.cmc && !reanTarget(X) && !altCost(X)) push(0.1, 'curva', tx('Deck pesado (MV médio {m}); esta custa {mv}', { m: num(s.avgMv, 1), mv: X.cmc }))
         const k = strain(X)
-        if (k && !strain(S) && !hard) push(0.12, 'linha fraca', tx('Pede {k}, a cor de splash do deck', { k }))
+        if (k && !strain(S) && !hard) push(0.12, 'linha fraca', tx('Pede {k}, a cor de splash do deck', { k: `{${k}}` }))
         if (opts.co && cmds.length) {  // só com comandante: fora disso o EDHREC não diz nada sobre a carta
           const e = cmdE(X), eS = cmdE(S)
           if (!e) push(0.08, 'fora do plano', tx('Fora das cartas mais jogadas com o comandante (EDHREC)'))

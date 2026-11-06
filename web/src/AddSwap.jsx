@@ -3,7 +3,7 @@
 // «⇄ carta» ao lado (com 2+ opções abre o mesmo menu). As trocas só se calculam com o rato em cima ou o menu aberto.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Mana } from './ui.jsx'
+import { SymTxt } from './ui.jsx'
 import { KIND_LABEL } from './swap.js'
 import { tx } from './i18n.js'
 import './AddSwap.css'
@@ -11,7 +11,7 @@ import { hlProps } from './hl.js'
 
 const coarse = () => matchMedia('(pointer: coarse)').matches
 // motivos com símbolos de mana («Pede {U}{U}{U} com só 2 fontes de U») → os símbolos do Scryfall
-const Reason = ({ t }) => t.split(/(\{[WUBRGCSX0-9/]+\})/).map((p, k) => (p.startsWith('{') ? <Mana key={k} cost={p} /> : p))
+const Reason = ({ t }) => <SymTxt text={t} />
 
 function Menu({ anchor, c, opts, act, close }) {
   const ref = useRef(null)

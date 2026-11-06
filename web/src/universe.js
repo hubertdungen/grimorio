@@ -146,7 +146,7 @@ export function fillPlan(data, deck, { min, recs = [], lands = [], need = null, 
     put(c, 1, [lw, tx('a cor com menos fontes')]); cols[0].gap--; lg--; left--
   }
   // 2) conforme a estratégia: funções em falta, interação ou curva; 3) as melhores sugestões
-  const syn = r => Object.entries(r.parts || {}).filter(([k]) => /texto|comandante|tribo|combo|inter|semente/.test(k)).reduce((a, [, v]) => a + v, 0)  // sinergia com o deck
+  const syn = r => Object.entries(r.parts || {}).filter(([k]) => /texto|comandante|tribo|combo|inter|semente|plano/.test(k)).reduce((a, [, v]) => a + v, 0)  // sinergia com o deck
   const pool = strategy === 'curva' ? [...recs.slice(0, 40)].sort((a, b) => a.c.cmc - b.c.cmc) : strategy === 'plano' ? [...recs.slice(0, 60)].sort((a, b) => syn(b) - syn(a)) : recs
   if (strategy === 'interacao') for (const r of pool) {
     if (left <= 0) break

@@ -71,7 +71,7 @@ export const SYN = [
   { k: 'auras', ic: '✧', name: tx('Auras e encantamentos'), core: 'pay',
     why: tx('Auras e encantamentos alimentam quem gosta de estar encantado, constellation e as «enchantress» que compram por cada um.'),
     en: c => nonland(c) && isT(c, /Enchantment/),
-    pay: (c, o) => /\bis enchanted|enchanted creatures you control|auras? you control|aura spells|auras? attached|for each aura|whenever you cast an? (aura|enchantment)|enchantments? you control|\bconstellation\b|whenever an? (aura|enchantment) (you control )?enters|search your library for an aura/.test(o) },
+    pay: (c, o) => /\bis enchanted|enchanted creatures you control|auras? you control|aura spells|auras? attached|for each aura|whenever you cast an? (aura|enchantment)|enchantments? you control|\bconstellation\b|whenever an? (aura|enchantment) (you control )?enters|search your library for an aura|\bheroic\b/.test(o) },
   { k: 'discard', ic: '✋', name: tx('Descarte e madness'), core: 'pay',
     why: tx('Descartar de propósito (rummage, cycling, custos) dispara madness e quem paga por descartar.'),
     en: (c, o) => kw(c, 'Cycling') || kw(c, 'Connive') || /(^|[.:,•—]\s*|then |, )discard (a|an|two|three|x|one or more|any number of|your hand)/m.test(o),
@@ -110,7 +110,7 @@ function index(data) {
 }
 
 const subOf = c => c.t.split(' // ').flatMap(f => (f.includes('—') ? f.split('—')[1].trim().split(/\s+/) : []))
-const word = s => new RegExp(`\\b${s.toLowerCase()}s?\\b`)
+const word = s => new RegExp(`(?<!non-)\\b${s.toLowerCase()}s?\\b`)  // «non-Demon» (Power Word Kill) não fala de Demons
 const LAND_SUB = /^(Plains|Island|Swamp|Mountain|Forest|Desert|Gate|Cave|Town|Sphere|Locus|Lair|Mine|Tower|Power-Plant|Urza's)$/
 
 // Tribos do deck: tipos de criatura com cópias suficientes. «Wall» fica para os defensores.
@@ -124,16 +124,35 @@ const tribeCat = T => {
   return { k: `tribe:${T}`, ic: '👑', name: tx('Tribal: {t}', { t: T }), core: 'pay', tribe: T,
     why: tx('Lords e cartas que falam de {t} melhoram cada {t} em jogo; quantos mais membros, mais forte cada lord.', { t: T }),
     en: c => (creature(c) && (subOf(c).includes(T) || kw(c, 'Changeling'))) || new RegExp(`create[^.]*\\b${T.toLowerCase()}\\b[^.]*token`).test(txt(c)),
-    pay: c => { const o = txt(c).replace(/create[^.]*/g, '').replace(/this \w+/g, ''); return re.test(o) || /choose a creature type|creatures? (cards? )?of the chosen type|creature type of your choice|share a creature type/.test(o) } }
+    pay: c => { const o = txt(c).replace(/create[^.]*|becomes? [^.]*/g, '').replace(/this \w+/g, ''); return re.test(o) || /choose a creature type|creatures? (cards? )?of the chosen type|creature type of your choice|share a creature type/.test(o) } }
 }
 
+// «Sempre que lanças um feitiço de encantamento/criatura/histórico…»: que tipos pede o gatilho (null = qualquer feitiço).
+// Uma criatura-artefacto barata não dispara a Sythis nem o Generous Visitor (só encantamentos), mas dispara a Karametra.
+const COLOR_W = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }
+const WORD_OK = {
+  creature: c => isT(c, /Creature/), noncreature: c => !isT(c, /Creature/), artifact: c => isT(c, /Artifact/), enchantment: c => isT(c, /Enchantment/),
+  aura: c => isT(c, /\bAura\b/), equipment: c => isT(c, /Equipment/), legendary: c => isT(c, /Legendary/), historic: c => isT(c, /Artifact|Legendary|Saga/),
+  planeswalker: c => isT(c, /Planeswalker/), instant: c => isT(c, /Instant/), sorcery: c => isT(c, /Sorcery/), multicolored: c => (c.co || c.ci || '').length > 1,
+  colorless: c => !(c.co ?? c.ci), nonartifact: c => !isT(c, /Artifact/), nonenchantment: c => !isT(c, /Enchantment/),
+}
+const castWants = c => {
+  const m = txt(c).match(/whenever you cast (?:a|an|your first|your second|another) ((?:[a-z-]+(?:,? (?:or|and) |, | ))*?)spell( that targets)?/)
+  if (!m) return null
+  const alts = m[1].trim() ? m[1].trim().split(/,? or |, /).map(a => a.split(/\s+/).filter(Boolean)) : [[]]
+  return { alts, targets: !!m[2] }
+}
+const castOk = (w, c) => !w || ((!w.targets || isT(c, /\bAura\b/) || /target creature/.test(txt(c)))
+  && w.alts.some(ws => ws.every(x => (COLOR_W[x] ? (c.co ?? c.ci ?? '').includes(COLOR_W[x]) : WORD_OK[x] ? WORD_OK[x](c) : c.t.toLowerCase().includes(x)))))  // Spirit, Arcane, Dragon…
+
 /**
- * Sinergias de um deck: {cats, pairs}.
- * cats: [{s, en:[{c,q}], pay:[{c,q}], E, P, strength 0..1, reasons, sug:[{c, side}]}] por força.
+ * Perfil do deck: os temas (categorias acima e tribos) com quem ativa (en) e quem beneficia (pay), em cópias.
  * strength = (média harmónica das cópias dos dois lados + ¼ das cópias do lado estreito) / (¼ das não-terreno):
  * premeia ter as duas metades equilibradas; um lado sozinho fica fraco.
+ * Cada tema traz test(c, side), trig(c): as cartas «pay» do deck que a carta c dispara, e uses(c): as «en» que c aproveita
+ * (no «cast», só as do tipo pedido).
  */
-export function deckSynergy(data, deck, ctx, { perCat = 6 } = {}) {
+export function deckThemes(data, deck) {
   const { en: EN, pay: PAY } = index(data)
   const q = {}
   for (const [n, k] of [...Object.entries(deck.main || {}), ...(deck.commanders || []).map(n => [n, 1]), ...(deck.signature ? [[deck.signature, 1]] : [])]) q[n] = (q[n] || 0) + k
@@ -160,9 +179,24 @@ export function deckSynergy(data, deck, ctx, { perCat = 6 } = {}) {
     else if (P * 4 < E) reasons.push(tx('Muito combustível para poucas que beneficiam.'))
     else if (E * 4 < P) reasons.push(tx('Muitas que beneficiam para pouco combustível.'))
     const byQ = (a, b) => b.q - a.q || (a.c.er ?? 1e9) - (b.c.er ?? 1e9)
-    cats.push({ s, test, en: en.sort(byQ), pay: pay.sort(byQ), E, P, raw, strength, reasons, sug: [] })
+    const x = { s, test, en: en.sort(byQ), pay: pay.sort(byQ), E, P, raw, strength, reasons, sug: [] }
+    if (s.k === 'cast') {  // dispara quem pede o tipo dela; aproveita as cartas do deck do tipo que pede
+      const wants = new Map(x.pay.map(y => [y.c, castWants(y.c)])), spells = entries.filter(([c]) => nonland(c)).map(([c, k]) => ({ c, q: k }))
+      x.trig = c => (nonland(c) ? x.pay.filter(y => castOk(wants.get(y.c), c)) : [])
+      x.uses = c => { if (!test(c, 1)) return []; const w = castWants(c); return spells.filter(y => castOk(w, y.c)) }
+    } else { x.trig = c => (test(c, 0) ? x.pay : []); x.uses = c => (test(c, 1) ? x.en : []) }
+    cats.push(x)
   }
-  cats.sort((a, b) => b.raw - a.raw)
+  return { cats: cats.sort((a, b) => b.raw - a.raw), entries }
+}
+
+/**
+ * Sinergias de um deck: {cats, pairs}.
+ * cats: [{s, en:[{c,q}], pay:[{c,q}], E, P, strength 0..1, reasons, sug:[{c, side}]}] por força.
+ */
+export function deckSynergy(data, deck, ctx, { perCat = 6 } = {}) {
+  const { cats, entries } = deckThemes(data, deck)
+  const q = Object.fromEntries(entries.map(([c, k]) => [c.n, k]))
   // Sugestões: uma passagem pelas cartas; legais no formato, dentro das cores, fora do deck.
   // Ordem = rank EDHREC ÷ (1 + encaixe noutras categorias do deck); se um lado está em falta, esse primeiro.
   const cols = ctx?.identity ?? colorsOf(deck, data).join('')
@@ -192,7 +226,7 @@ export function deckSynergy(data, deck, ctx, { perCat = 6 } = {}) {
       const a = l.filter(y => y.side === 'en'), b = l.filter(y => y.side === 'pay')
       l.splice(0, l.length, ...a.flatMap((y, j) => [y, b[j]]).filter(Boolean), ...b.slice(a.length))
     }
-    x.sug = l.slice(0, perCat); delete x.test
+    x.sug = l.slice(0, perCat); delete x.test; delete x.trig; delete x.uses
   })
   return { cats, pairs: pairsOf(entries) }
 }

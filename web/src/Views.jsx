@@ -4,12 +4,12 @@ import { HATE, CAT_LABEL } from './tests.js'
 import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
-import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll } from './ui.jsx'
+import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll, SymTxt } from './ui.jsx'
 import { showCardPeek, hideCardPeek, pressPeek, useFolded } from './deckview.js'
 import { deckPoints, deckSplit, trophyStars, perfOf as troPerf } from './trophyvalue.js'
 import Map3D from './Map3D.jsx'
 import { autoBuild } from './autobuild.js'
-import { deckSynergy } from './synergy.js'
+import { deckSynergy, deckThemes } from './synergy.js'
 import { manaNeeds, recommendLands, reanimTargets } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 import { prepareSwaps, cutPlan, landPlan } from './swap.js'
@@ -19,6 +19,7 @@ import { hlProps, pin } from './hl.js'
 import { parseQuery } from './nlsearch.js'
 import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
 import { useBackClose } from './backnav.js'
+import './Suggest.css'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -116,7 +117,7 @@ function LandPanel({ data, deck, fmt, ctx, act, swaps, recs, co, meta }) {
                   <span className="cutp-arrow">→</span>
                   <button className="cutp-card in" onClick={() => act.open(i)}><img src={img(i, 'art_crop')} alt="" loading="lazy" /><span><b>+ {x.q > 1 ? `${x.q}× ` : ''}{i.n}</b><Mana cost={i.mc} /></span></button>
                 </div>
-                <ul className="why">{x.why.map((w, k) => <li key={k} className="falta">{w}</li>)}</ul>
+                <ul className="why">{x.why.map((w, k) => <li key={k} className="falta"><SymTxt text={w} /></li>)}</ul>
                 <div className="row-btns"><button className="primary small" onClick={() => act.swap(i, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button></div>
               </li>
             ) })}</ul>}
@@ -152,7 +153,7 @@ function FillPanel({ data, deck, fmt, ctx, act, recs, needs, meta }) {
         <ul className="fill-list">{plan.items.map(x => (
           <li key={x.c.n} {...hlProps([{ n: x.c.n, tone: 'in' }])}>
             <button className="cutp-card in" onClick={() => act.open(x.c)}><img src={img(x.c, 'art_crop')} alt="" loading="lazy" /><span><b>+{x.k} {x.c.n}</b><Mana cost={x.c.mc} /></span></button>
-            <ul className="why">{x.why.filter(Boolean).map((w, k) => <li key={k} className={k ? 'tema' : 'falta'}>{w}</li>)}</ul>
+            <ul className="why">{x.why.filter(Boolean).map((w, k) => <li key={k} className={k ? 'tema' : 'falta'}><SymTxt text={w} /></li>)}</ul>
             <QtyPick c={x.c} deck={deck} fmt={fmt} act={act}><button className="small" onClick={() => act.add(x.c, 'main', x.k)}>＋ {x.k > 1 ? `${x.k} ` : ''}{tx('juntar')}</button></QtyPick>
           </li>))}</ul>
         {plan.items.length > 0 && <button className="primary" onClick={() => plan.items.forEach(x => act.add(x.c, 'main', x.k))}>✓ {tx('Juntar todas ({n})', { n })}</button>}
@@ -175,7 +176,7 @@ function AdjustPanel({ data, deck, fmt, ctx, act, needs }) {
   if (fmt.copies === 1 && !sz.gap) return null  // singleton (Commander, Gladiator…) com o tamanho certo: não há cópias a ajustar
   const Row = ({ r, sign, k }) => (
     <button className={`cutp-card ${sign > 0 ? 'in' : ''}`} onClick={() => act.open(r.c)}><img src={img(r.c, 'art_crop', false, pidOf(deck, r.c.n))} alt="" loading="lazy" />
-      <span><b>{sign > 0 ? '+' : '−'}{k}× {r.c.n}</b><small className="muted">{tx('tens {q}', { q: r.q })} · {r.why}</small></span></button>
+      <span><b>{sign > 0 ? '+' : '−'}{k}× {r.c.n}</b><small className="muted">{tx('tens {q}', { q: r.q })} · <SymTxt text={r.why} /></small></span></button>
   )
   return (
     <div className={`prefs cutp ${open ? 'on' : ''}`}>
@@ -346,8 +347,8 @@ function CutPanel({ data, deck, fmt, ctx, act, swaps, recs, co, cmdIdx, needs, m
                     <span className="cutp-arrow">→</span>
                     <button className="cutp-card in" onClick={() => act.open(x.inc)}><img src={img(x.inc, 'art_crop')} alt="" loading="lazy" /><span><b>{x.q > 1 ? `${x.q}× ` : ''}{x.inc.n}</b><Mana cost={x.inc.mc} /></span></button>
                   </div>
-                  <ul className="why">{x.why.map((w, k) => <li key={k} className="falta">{w}</li>)}</ul>
-                  <div className="row-btns"><button className="primary small" onClick={() => act.swap(x.inc, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button>{fmt.side > 0 && x.zone !== 'side' && o && <button className="small" onClick={() => act.move(o, 'main', 'side')} title={tx('Não corta: passa para o sideboard (fica para jogos 2 e 3)')}>→ SB</button>}{x.alts.length > 0 && <span className="muted small">{tx('ou:')} {x.alts.map((c, k) => <span key={c.n}>{k ? ', ' : ''}<button className="link plain" onClick={() => act.swap(c, x)} title={tx('Trocar por esta')}>{c.n}</button></span>)}</span>}</div>
+                  <ul className="why">{x.why.map((w, k) => <li key={k} className="falta"><SymTxt text={w} /></li>)}</ul>
+                  <div className="row-btns"><button className="primary small" onClick={() => act.swap(x.inc, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button>{fmt.side > 0 && x.zone !== 'side' && o && <button className="small" onClick={() => act.move(o, 'main', 'side')} title={tx('Não corta: passa para o sideboard (fica para jogos 2 e 3)')}>→ SB</button>}{o && <button className="small" onClick={() => act.move(o, x.zone === 'side' ? 'side' : 'main', 'maybe')} title={tx('Mover para o maybeboard')}>→ MB</button>}{x.alts.length > 0 && <span className="muted small">{tx('ou:')} {x.alts.map((c, k) => <span key={c.n}>{k ? ', ' : ''}<button className="link plain" onClick={() => act.swap(c, x)} title={tx('Trocar por esta')}>{c.n}</button></span>)}</span>}</div>
                 </li>
               ) })}</ul>}
           {byText.length > 0 && <>
@@ -359,10 +360,11 @@ function CutPanel({ data, deck, fmt, ctx, act, swaps, recs, co, cmdIdx, needs, m
                   {x.swap && <><span className="cutp-arrow">→</span>
                     <button className="cutp-card in" onClick={() => act.open(x.swap.c)}><img src={img(x.swap.c, 'art_crop')} alt="" loading="lazy" /><span><b>{x.swap.c.n}</b><Mana cost={x.swap.c.mc} />{x.swap.fn.length ? <small className="muted">{tx('mesma função:')} {x.swap.fn.join(', ')}</small> : null}</span></button></>}
                 </div>
-                <ul className="why">{x.why.map((w, k) => <li key={k} className={w.startsWith(tx('Mas')) ? 'tema' : 'falta'}>{w}</li>)}{x.swap?.why && <li className="edh">{x.swap.why}</li>}</ul>
+                <ul className="why">{x.why.map((w, k) => <li key={k} className={w.startsWith(tx('Mas')) ? 'tema' : 'falta'}><SymTxt text={w} /></li>)}{x.swap?.why && <li className="edh"><SymTxt text={x.swap.why} /></li>}</ul>
                 <div className="row-btns">
                   {x.swap && <button className="primary small" onClick={() => swapText(x.c, x.swap.c)}>⇄ {tx('Trocar')}</button>}
                   {fmt.side > 0 && <button className={`small ${!x.swap && x.sb ? 'primary' : ''}`} onClick={() => act.move(x.c, 'main', 'side')} title={tx('Não corta: passa para o sideboard (fica para jogos 2 e 3)')}>→ SB</button>}
+                  <button className="small" onClick={() => act.move(x.c, 'main', 'maybe')} title={tx('Mover para o maybeboard')}>→ MB</button>
                   {!x.swap && (x.force || x.sb) && <button className="small" onClick={() => act.add(x.c, 'main', -(deck.main[x.c.n] || 1))}>{tx('Cortar')}</button>}
                 </div>
               </li>
@@ -465,17 +467,25 @@ function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
   const archetype = useMemo(() => detectArchetype(meta, have), [meta, have])
   const bracket = fmt.cmd === 'commander' ? (deck.bracket ? +deck.bracket : pf?.nivel && pf.nivel <= 3 ? pf.nivel : null) : null
   const gcCount = useMemo(() => have.filter(i => data.cards[i].gc).length, [have, data])
-  const recs = useMemo(() => recommend(data, { seeds, seedTerms, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt) }),
-    [data, seeds, seedTerms, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt])
+  // plano do deck (temas com cópias reais); com sementes escolhidas, recommend tira-o das sementes
+  const profile = useMemo(() => (seedsIdx.length ? null : deckThemes(data, deck).cats), [data, deck, seedsIdx.length])
+  const recs = useMemo(() => recommend(data, { seeds, seedTerms, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt), profile }),
+    [data, seeds, seedTerms, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt, profile])
   const plan = useMemo(() => deckPlan(data, have), [data, have])
   // trocas: preparadas só quando um «+» as pede (o rato em cima ou o menu aberto); swap.js guarda-as por deck
   const swaps = useMemo(() => (c, o) => prepareSwaps(data, deck, fmt, ctx, { co, archetype, meta, evidence: ctx.tests })(c, o), [data, deck, fmt, ctx, co, archetype, meta])
-  return { recs, seeds, seedsIdx, have, usingDeck: !seedsIdx.length, plan, co, cmdIdx, needs, bracket, meta, archetype, tastes, swaps }
+  return { recs, seeds, seedsIdx, have, usingDeck: !seedsIdx.length, plan, profile, co, cmdIdx, needs, bracket, meta, archetype, tastes, swaps }
 }
 
-const Why = ({ why }) => <ul className="why">{why.map((w, k) => <li key={k} className={w.k}>{w.combo ? <a href={`https://commanderspellbook.com/combo/${w.combo}/`} target="_blank" rel="noreferrer">{w.txt}</a> : w.txt}</li>)}</ul>
+// o plano que as sugestões servem: os temas do deck (synergy.js), com as cartas que ativam e as que beneficiam
+function PlanLine({ profile, plan }) {
+  const l = profile ? profile.filter(x => x.raw >= 0.3).slice(0, 4).map(x => ({ label: x.s.name, n: new Set([...x.en, ...x.pay].map(y => y.c.n)).size })) : plan.map(x => ({ label: x.label, n: x.n }))
+  return l.length > 0 && <p className="small"><span className="muted">{tx('Plano detetado:')}</span> {l.map(x => <span key={x.label} className="plan-chip">{x.label} <b>{x.n}</b></span>)}</p>
+}
 
-const PART_LABEL = { estilo: tx('Estilo escolhido'), gosto: tx('O teu gosto'), original: tx('Originalidade'), torneios: tx('Torneios (MTGTop8)'), texto: tx('Texto parecido'), comandante: tx('Comandante'), decksReais: tx('Decks reais (EDHREC)'), combos: 'Combos', interacoes: tx('Interações'), falta: tx('O que falta ao deck'), tribo: tx('Tribo e palavras-chave'), popular: tx('Popularidade'), testes: tx('Testes do Laboratório') }
+const Why = ({ why }) => <ul className="why">{why.map((w, k) => <li key={k} className={w.k}>{w.combo ? <a href={`https://commanderspellbook.com/combo/${w.combo}/`} target="_blank" rel="noreferrer">{w.txt}</a> : <SymTxt text={w.txt} />}</li>)}</ul>
+
+const PART_LABEL = { estilo: tx('Estilo escolhido'), gosto: tx('O teu gosto'), original: tx('Originalidade'), torneios: tx('Torneios (MTGTop8)'), texto: tx('Texto parecido'), comandante: tx('Comandante'), decksReais: tx('Decks reais (EDHREC)'), combos: 'Combos', interacoes: tx('Interações'), falta: tx('O que falta ao deck'), plano: tx('Plano do deck'), tribo: tx('Tribo e palavras-chave'), popular: tx('Popularidade'), testes: tx('Testes do Laboratório') }
 const pct = x => `${Math.min(99, Math.round(x * 100))}%`
 
 // O raciocínio inteiro de uma sugestão: peso de cada fator e os dados por trás.
@@ -495,7 +505,7 @@ function WhyDetail({ r }) {
       {d.combos.map(cb => (
         <p key={cb.id}><a href={`https://commanderspellbook.com/combo/${cb.id}/`} target="_blank" rel="noreferrer">Combo</a> {tx('com {c}', { c: cb.with.join(' + ') })}{cb.missing.length ? <> ({tx('falta {x}', { x: cb.missing.join(', ') })})</> : null}: {cb.produces.join(', ')}{cb.requires.length ? `; ${tx('precisa também de {x}', { x: cb.requires.join(', ') })}` : ''}{cb.decks ? ` · ${cb.decks.toLocaleString(LOCALE)} decks` : ''}.</p>
       ))}
-      {d.inter.map((x, k) => <p key={k}>{x.side === 'usa' ? tx('Aproveita {n} carta que {l}|Aproveita {n} cartas que {l}', { n: x.who.length, l: x.label }) : tx('Alimenta {n} carta que {l}|Alimenta {n} cartas que {l}', { n: x.who.length, l: x.label })}: {x.who.slice(0, 6).join(', ')}{x.who.length > 6 ? '…' : ''}.</p>)}
+      {d.inter.map((x, k) => { const names = x.who.slice(0, 6).join(', ') + (x.who.length > 6 ? '…' : ''); return <p key={k}>{x.side === 'usa' ? tx('Aproveita {n} carta tua ({names}) · {t}|Aproveita {n} cartas tuas ({names}) · {t}', { n: x.who.length, names, t: x.label }) : tx('Dispara {n} carta tua ({names}) · {t}|Dispara {n} cartas tuas ({names}) · {t}', { n: x.who.length, names, t: x.label })}</p> })}
       {d.roles.length > 0 && <p className="muted">{tx('Papéis desta carta:')} {d.roles.join(', ')}.</p>}
       <p className="muted">{tx('Pelo texto, está mais perto do deck do que {p} das cartas', { p: pct(d.simPct) })}{d.near ? ` (${tx('a mais próxima é {c}', { c: d.near })})` : ''}{d.cmdPct != null ? `, ${tx('e mais perto do comandante do que {p}', { p: pct(d.cmdPct) })}` : ''}.</p>
     </div>
@@ -581,7 +591,7 @@ function ManaBlock({ data, deck, fmt, ctx, act, co, meta, swaps, limit = 4, full
           </span>
         ))}
       </div>
-      {short.length > 0 && <p className="small bad-t">{lands.length ? tx('Faltam fontes de {c}: os terrenos abaixo dão prioridade a essas cores.', { c: short.map(([k]) => k).join(', ') }) : tx('Faltam fontes de {c}.', { c: short.map(([k]) => k).join(', ') })}</p>}
+      {short.length > 0 && <p className="small bad-t"><SymTxt text={lands.length ? tx('Faltam fontes de {c}: os terrenos abaixo dão prioridade a essas cores.', { c: short.map(([k]) => `{${k}}`).join('') }) : tx('Faltam fontes de {c}.', { c: short.map(([k]) => `{${k}}`).join('') })} /></p>}
       {lands.length > 0 && <ul className="land-list">
         {lands.map(r => (
           <li key={r.c.i} {...hoverPeek(r.c)}>
@@ -604,7 +614,7 @@ function LivePanel({ data, deck, fmt, ctx, act, onSwaps }) {
   const [kind, setKind] = useState('')
   const [tag, setTag] = useState('')
   const [exp, setExp] = useState(null)
-  const { recs: all, seeds, plan, bracket, co, archetype, meta, needs, swaps } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
+  const { recs: all, seeds, plan, profile, bracket, co, archetype, meta, needs, swaps } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 60)
   useEffect(() => { onSwaps?.(() => swaps) }, [onSwaps, swaps]) // a grelha da pesquisa usa as mesmas trocas
   const need = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
   const landsFirst = need.deficit > 2 || Object.values(need.cols).some(x => x.have < x.need * 0.7)
@@ -617,7 +627,7 @@ function LivePanel({ data, deck, fmt, ctx, act, onSwaps }) {
       {open && <div className="live-prefs"><PrefsPanel {...{ deck, fmt, act }} compact /></div>}
       {open && seeds.length > 0 && (
         <div className="live-meta">
-          {plan.length > 0 && <p className="small"><span className="muted">{tx('Plano detetado:')}</span> {plan.map(x => <span key={x.label} className="plan-chip">{x.label} <b>{x.n}</b></span>)}</p>}
+          <PlanLine profile={profile} plan={plan} />
           {archetype && <p className="small"><span className="muted">{tx('Arquétipo provável:')}</span> <span className="plan-chip arch">{archetype.name}</span> <span className="muted">{tx('{a}% do núcleo · {b}% do meta', { a: Math.round(archetype.fit * 100), b: Math.round(archetype.share * 100) })}</span></p>}
           {meta && !archetype && seeds.length >= 4 && <p className="small muted">{tx('Ainda não parece nenhum arquétipo do meta de {f}.', { f: fmt.name })}</p>}
           {bracket && <p className="small muted">Bracket {bracket}: {bracket <= 2 ? tx('sem Game Changers nem combos') : bracket === 3 ? tx('até 3 Game Changers') : tx('sem limites')}.</p>}
@@ -640,7 +650,7 @@ function LivePanel({ data, deck, fmt, ctx, act, onSwaps }) {
                 <button className="link small whyb" onClick={() => setExp(exp === r.c.i ? null : r.c.i)}>{exp === r.c.i ? tx('esconder') : tx('porquê? ▾')}</button>
                 {exp === r.c.i && <WhyDetail r={r} />}
               </div>
-              <span className="live-acts"><AddOrSwap c={r.c} act={act} swaps={swaps}><button className="act add" onClick={() => act.add(r.c)} title={tx('Juntar ao deck')}>+</button></AddOrSwap><button className="act art" onClick={() => act.pickArt(r.c)} title={tx('Escolher arte')}>🎨</button></span>
+              <span className="live-acts"><AddOrSwap c={r.c} act={act} swaps={swaps}><button className="act add" onClick={() => act.add(r.c)} title={tx('Juntar ao deck')}>+</button></AddOrSwap><button className="act mb" onClick={() => act.add(r.c, 'maybe')} title={tx('Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes')}>→ MB</button><button className="act art" onClick={() => act.pickArt(r.c)} title={tx('Escolher arte')}>🎨</button></span>
             </li>
           ))}
           {!recs.length && <li className="muted small">{tx('Nenhuma sugestão com este tipo de razão.')}</li>}
@@ -720,7 +730,7 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
           : res.msg ? <p>{res.msg}</p> : (
             <>
               <p className="muted small">{tx('Proposta de {n} cartas. Desmarca o que não quiseres; nada muda no deck até carregares em Aplicar.', { n: res.adds.reduce((s, a) => s + a.q, 0) })}</p>
-              {res.offColor?.length > 0 && <p className="small bad-t">{tx('Cores principais: {c}. Fora delas (pedem splash ou saem): {o}.', { c: res.colors, o: res.offColor.join(', ') })}</p>}
+              {res.offColor?.length > 0 && <p className="small bad-t"><SymTxt text={tx('Cores principais: {c}. Fora delas (pedem splash ou saem): {o}.', { c: [...(res.colors || '')].map(k => `{${k}}`).join(''), o: res.offColor.join(', ') })} /></p>}
               {res.combos?.length > 0 && (
                 <div className="auto-combos">
                   <b>{tx('Combos no deck final')}</b> <span className="muted small">{tx('probabilidade de os ter montado até ao turno {t} ({n} tutor; aproximação)|probabilidade de os ter montado até ao turno {t} ({n} tutores; aproximação)', { t: res.turn, n: res.tutors })}</span>
@@ -735,7 +745,7 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
                       <li key={a.c.i} className={off.has(a.c.i) ? 'off' : ''}>
                         <input type="checkbox" checked={!off.has(a.c.i)} onChange={() => setOff(o => { const x = new Set(o); x.has(a.c.i) ? x.delete(a.c.i) : x.add(a.c.i); return x })} aria-label={a.c.n} />
                         <b className="q">{a.q}</b>
-                        <div><button className="link plain" onMouseEnter={e => showCardPeek(e, a.c)} onMouseLeave={hideCardPeek}>{a.c.n}</button> <Mana cost={a.c.mc} /><small className="muted">{a.why}</small></div>
+                        <div><button className="link plain" onMouseEnter={e => showCardPeek(e, a.c)} onMouseLeave={hideCardPeek}>{a.c.n}</button> <Mana cost={a.c.mc} /><small className="muted"><SymTxt text={a.why} /></small></div>
                       </li>
                     ))}</ul>
                   </section>
@@ -749,7 +759,7 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
                       <li key={x.c.i} className={sideOff.has(x.c.i) ? 'off' : ''}>
                         <input type="checkbox" checked={!sideOff.has(x.c.i)} onChange={() => setSideOff(o => { const y = new Set(o); y.has(x.c.i) ? y.delete(x.c.i) : y.add(x.c.i); return y })} aria-label={x.c.n} />
                         <b className="q">{x.q}</b>
-                        <div><button className="link plain" onMouseEnter={e => showCardPeek(e, x.c)} onMouseLeave={hideCardPeek}>{x.c.n}</button> <Mana cost={x.c.mc} /><small className="muted">{x.why}</small></div>
+                        <div><button className="link plain" onMouseEnter={e => showCardPeek(e, x.c)} onMouseLeave={hideCardPeek}>{x.c.n}</button> <Mana cost={x.c.mc} /><small className="muted"><SymTxt text={x.why} /></small></div>
                       </li>
                     ))}</ul>
                   </section>
@@ -789,6 +799,7 @@ function Actions({ c, deck, fmt, act, swaps }) {
     <>
       <QtyPick c={c} deck={deck} fmt={fmt} act={act}><AddOrSwap c={c} act={act} swaps={swaps} up><button className="act add" onClick={() => act.add(c)} title={tx('Juntar ao deck')}>+{q ? <sup>{q}</sup> : null}</button></AddOrSwap></QtyPick>
       {fmt.side > 0 && <button className="act" onClick={() => act.add(c, 'side')} title={tx('Juntar ao sideboard')}>SB</button>}
+      <button className={`act mb ${deck.maybe?.[c.n] ? 'on' : ''}`} onClick={() => act.add(c, 'maybe')} title={tx('Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes')}>→ MB</button>
       {fmt.cmd && canBeCommander(c, fmt) && <button className={`act ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)} title={fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}>♛</button>}
       {fmt.cmd === 'oathbreaker' && /Instant|Sorcery/.test(c.t) && <button className={`act ${deck.signature === c.n ? 'on' : ''}`} onClick={() => act.setSignature(c)} title={tx('Feitiço de assinatura')}>✦</button>}
       <button className={`act seed ${deck.seeds.includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSeed(c)} title={tx('Semente das sugestões')}>★</button>
@@ -954,7 +965,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
   const df = useDeferredValue(f)
   const [kind, setKind] = useState('')
   const filtering = ['type', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].some(k => df[k] !== '' && df[k] != null) || df.colors.length > 0 || !!df.legendary
-  const { recs: allSug, seeds, usingDeck, needs, swaps, co, cmdIdx, meta, archetype, have } = useDeckRecs(data, deck, fmt, ctx, df, filtering ? 200 : 80)  // com filtros: mais cartas (senão as melhores pontuadas tapam o resto)
+  const { recs: allSug, seeds, usingDeck, needs, swaps, co, cmdIdx, meta, archetype, have, profile, plan } = useDeckRecs(data, deck, fmt, ctx, df, filtering ? 200 : 80)  // com filtros: mais cartas (senão as melhores pontuadas tapam o resto)
   const [sort, setSortS] = useState(() => { try { return localStorage.getItem('grimorio.sug.ordem') || 'score' } catch { return 'score' } })
   const setSort = v => { setSortS(v); try { localStorage.setItem('grimorio.sug.ordem', v) } catch { /* sem armazenamento */ } }
   const recs = useMemo(() => sortRecs(applyFilter(allSug, kind, ''), sort), [allSug, kind, sort])
@@ -984,7 +995,8 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
         <option value="cor">{tx('Cor')}</option><option value="tipo">{tx('Tipo')}</option><option value="nome">{tx('Nome')}</option><option value="preco">{tx('Preço')}</option></select>
         <span className="muted">{tx('{n} cartas', { n: recs.length })}</span></label>
       <ReasonFilter recs={allSug} kind={kind} setKind={setKind} tag={f.tag} setTag={t => { setSugTag(''); setF(x => ({ ...x, tag: t })) }} needs={needs} />
-      {seeds.length > 0 && <p className="muted small">{tx('Classificadas por semelhança mecânica (modelo de texto local), combos do Commander Spellbook e popularidade.')} <button className="link" onClick={() => act.showOnMap(recs[0]?.c || data.cards[seeds[0]])}>{tx('Ver no universo →')}</button></p>}
+      {seeds.length > 0 && <PlanLine profile={profile} plan={plan} />}
+      {seeds.length > 0 && <p className="muted small">{tx('Classificadas pelo plano do deck (o que cada carta dispara ou aproveita nele), pelas lacunas de funções e pelos combos do Commander Spellbook; a popularidade só desempata.')} <button className="link" onClick={() => act.showOnMap(recs[0]?.c || data.cards[seeds[0]])}>{tx('Ver no universo →')}</button></p>}
       <div className="grid">
         {recs.map(r => (
           <CardTile key={r.c.i} c={r.c} onOpen={act.open} actions={<Actions {...{ c: r.c, deck, fmt, act, swaps }} />}
@@ -1654,7 +1666,7 @@ function Subs({ c, data, deck, fmt, ctx, act }) {
         : <ul className="subs-list">{list.map(x => (
           <li key={x.S.n}>
             <button className="cutp-card in" onClick={() => act.open(x.S)}><img src={img(x.S, 'art_crop')} alt="" loading="lazy" /><span><b>{x.S.n}</b><Mana cost={x.S.mc} /></span></button>
-            <ul className="why">{x.why.slice(0, 3).map((w, k) => <li key={k} className="falta">{w}</li>)}</ul>
+            <ul className="why">{x.why.slice(0, 3).map((w, k) => <li key={k} className="falta"><SymTxt text={w} /></li>)}</ul>
             {q > 0 && <button className="primary small" onClick={() => act.swap(x.S, x)}>⇄ {tx('Trocar {n}×', { n: x.q })}</button>}
           </li>))}</ul>}
       {alts.length > 0 && <>
@@ -1662,7 +1674,7 @@ function Subs({ c, data, deck, fmt, ctx, act }) {
         <ul className="subs-list">{alts.map(x => (
           <li key={x.S.n}>
             <button className="cutp-card in" onClick={() => act.open(x.S)}><img src={img(x.S, 'art_crop')} alt="" loading="lazy" /><span><b>{x.S.n}</b><Mana cost={x.S.mc} /></span></button>
-            <ul className="why">{x.why.map((w, k) => <li key={k} className="edh">{w}</li>)}</ul>
+            <ul className="why">{x.why.map((w, k) => <li key={k} className="edh"><SymTxt text={w} /></li>)}</ul>
             {q > 0 && <button className="small" onClick={() => { act.add(c, 'main', -q); act.add(x.S, 'main', q) }}>⇄ {tx('Trocar {n}×', { n: q })}</button>}
           </li>))}</ul>
       </>}
@@ -1671,7 +1683,7 @@ function Subs({ c, data, deck, fmt, ctx, act }) {
         <ul className="subs-list">{changers.map(x => (
           <li key={x.S.n}>
             <button className="cutp-card in" onClick={() => act.open(x.S)}><img src={img(x.S, 'art_crop')} alt="" loading="lazy" /><span><b>{x.S.n}</b><Mana cost={x.S.mc} /></span></button>
-            <ul className="why">{x.why.map((w, k) => <li key={k} className="tema">{w}</li>)}</ul>
+            <ul className="why">{x.why.map((w, k) => <li key={k} className="tema"><SymTxt text={w} /></li>)}</ul>
             {q > 0 && <button className="small" onClick={() => { act.add(c, 'main', -Math.min(q, 1)); act.add(x.S, 'main', 1) }}>⇄ {tx('Trocar 1×')}</button>}
           </li>))}</ul>
       </>}
@@ -1857,10 +1869,10 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
 // texto com nomes de cartas: cada nome mostra a carta com o rato por cima e abre-a com um toque/clique (tablet)
 function Linked({ txt, names, data, deck, act }) {
   const ns = (names || []).filter(Boolean).sort((a, b) => b.length - a.length)
-  if (!ns.length) return txt
+  if (!ns.length) return <SymTxt text={txt} />
   const re = new RegExp(`(${ns.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`)
   return txt.split(re).map((part, k) => { const c = ns.includes(part) && data.byName.get(part); return c
-    ? <button key={k} className="link plain cardref" {...hoverPeek(c, pidOf(deck, c.n))} onClick={() => { hideCardPeek(); act.open(c) }}>{part}</button> : part })
+    ? <button key={k} className="link plain cardref" {...hoverPeek(c, pidOf(deck, c.n))} onClick={() => { hideCardPeek(); act.open(c) }}>{part}</button> : <SymTxt key={k} text={part} /> })
 }
 
 export function PriorityCard({ data, deck, fmt, ctx, act, issues, cuts, needs }) {
@@ -1871,7 +1883,7 @@ export function PriorityCard({ data, deck, fmt, ctx, act, issues, cuts, needs })
   for (const i of issues.filter(x => x.nivel === 'erro').slice(0, 3)) items.push({ k: 'erro', txt: i.msg })
   if (need.deficit > 2) items.push({ k: 'mana', txt: tx('Faltam ~{n} terrenos para esta fase do deck (alvo ~{a} em {b}).', { n: need.deficit, a: need.target, b: need.total }), go: () => act.suggestFor('') })
   if (need.deficit < -3) items.push({ k: 'mana', txt: tx('Terrenos a mais: {n} para um alvo de ~{a} nesta fase.', { n: need.lands, a: need.expectedNow }) })
-  for (const [k, x] of Object.entries(need.cols)) if (x.have < x.need) items.push({ k: 'mana', txt: tx('Poucas fontes de {k}: {h} para ~{w} (o custo mais exigente tem {n} símbolo).|Poucas fontes de {k}: {h} para ~{w} (o custo mais exigente tem {n} símbolos).', { k, h: x.have, w: x.need, n: x.maxPips }) })
+  for (const [k, x] of Object.entries(need.cols)) if (x.have < x.need) items.push({ k: 'mana', txt: tx('Poucas fontes de {k}: {h} para ~{w} (o custo mais exigente tem {n} símbolo).|Poucas fontes de {k}: {h} para ~{w} (o custo mais exigente tem {n} símbolos).', { k: `{${k}}`, h: x.have, w: x.need, n: x.maxPips }) })
   for (const [t, [h, n]] of Object.entries(needs).filter(([, [h, n]]) => h < n).sort((a, b) => (b[1][1] - b[1][0]) - (a[1][1] - a[1][0])).slice(0, 3))
     items.push({ k: 'falta', txt: tx('{t}: {h} de {w} recomendadas.', { t: TAG_LABEL[t], h, w: n }), go: () => act.suggestFor(t), goL: tx('ver sugestões') })
   for (const x of cuts.slice(0, 3)) items.push({ k: 'corte', cards: [x.c.n, x.swap?.c.n], txt: `${x.c.n}: ${x.why[0] || tx('encaixa pouco')}${x.swap ? ` → ${tx('trocar por {c}', { c: x.swap.c.n })}` : ''}`, go: x.swap ? () => { act.add(x.c, 'main', -(deck.main[x.c.n] || 1)); act.add(x.swap.c) } : null, goL: tx('trocar') })

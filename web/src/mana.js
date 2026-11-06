@@ -133,12 +133,12 @@ export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, n
       const x = N.cols[k]
       const gap = Math.max(0, x.full - x.have) / x.full
       fix += gap * (L.any ? L.anyQ : 1)
-      if (x.have < x.need) short.push(`${k} ${x.have}/${x.need}`)
+      if (x.have < x.need) short.push(`{${k}} ${x.have}/${x.need}`)
     }
     // «qualquer cor» com condições (Sliver Hive, Plaza of Heroes, Mirrex) não é um terreno duplo
     P.cores = Math.min(0.4, 0.22 * fix) + (gives.length >= 2 && (!L.any || L.anyQ >= 1) ? 0.04 : 0)
-    if (short.length) why.push({ k: 'falta', txt: tx('Dá {c}, cores com fontes a menos ({s})', { c: gives.join('/'), s: short.join(', ') }) })
-    else if (gives.length >= 2) why.push({ k: 'tema', txt: tx('Dá {c}', { c: gives.join('/') }) })
+    if (short.length) why.push({ k: 'falta', txt: tx('Dá {c}, cores com fontes a menos ({s})', { c: gives.map(k => `{${k}}`).join(''), s: short.join(', ') }) })
+    else if (gives.length >= 2) why.push({ k: 'tema', txt: tx('Dá {c}', { c: gives.map(k => `{${k}}`).join('') }) })
     if (deckCols.length >= 3 && !gives.length && !L.any) { P.cores -= 0.1; why.push({ k: 'perto', txt: tx('Só dá mana incolor num deck de várias cores') }) }
     else if (deckCols.length && !gives.length && !L.any) { P.cores -= 0.06; why.push({ k: 'perto', txt: tx('Só dá mana incolor') }) }  // no lugar de um básico, tira uma fonte da cor
     // 2) ritmo: virado ou destapado
