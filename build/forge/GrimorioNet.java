@@ -249,7 +249,12 @@ public class GrimorioNet {
                 } catch (Exception e) { System.err.println("pw: " + e); }
             }
             if (c.getDamage() > 0) o.addProperty("dmg", c.getDamage());
-            if (c.isToken()) o.addProperty("token", true);
+            if (c.isToken()) {
+                o.addProperty("token", true);
+                // as cores da ficha (WUBRG): o browser escolhe a imagem certa entre as homónimas (Cat 1/1 verde ≠ branco)
+                forge.card.ColorSet cs = s.getColors();
+                if (cs != null) o.addProperty("col", (cs.hasWhite() ? "W" : "") + (cs.hasBlue() ? "U" : "") + (cs.hasBlack() ? "B" : "") + (cs.hasRed() ? "R" : "") + (cs.hasGreen() ? "G" : ""));
+            }
             if (c.isFaceDown()) o.addProperty("faceDown", true);
             String stn = s.getState().toString();  // a outra face à vista: transformada, flip (Kamigawa), MDFC jogada por trás, fundida
             if (c.isFlipped() || stn.equals("Transformed") || stn.equals("Flipped") || stn.equals("Modal") || stn.equals("Meld")) o.addProperty("flipped", true);

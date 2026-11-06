@@ -89,7 +89,7 @@ function promptText(msg, st, me) {
 export function FCard({ c, data, onClick, h, cls = '', big, flip, from, tag }) {  // from: de onde se arrasta (topo da biblioteca); tag: etiqueta por cima
   const im = useImg()  // a arte escolhida no deck (edição, imagem própria, básicos), não a da Scryfall por omissão
   if (!c || c.hidden) return <div className={`fp-card back ${cls}`} />
-  const card = data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase())
+  const card = lookup(data, c.name)
   const src = card ? im(card, big ? 'normal' : 'small', !!(flip && card.df)) : null  // virada: a outra face (cartas de duas faces)
   return (
     <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${c.picked ? 'picked' : ''} ${flip && !card?.df ? 'upside' : ''} ${cls}`} title={c.name} data-h={h} data-from={from} data-zid={c.id}
@@ -137,7 +137,7 @@ function toPerm(c, combat) {
   const plus = (counters['+1/+1'] || 0) - (counters['-1/-1'] || 0)  // o Forge já soma os marcadores ao P/R; o tabuleiro volta a somá-los
   const at = combat?.find(x => x.att === c.id)
   return {
-    key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped,
+    key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped, col: c.col,  // col: as cores da ficha (escolher a imagem certa)
     land: !!c.land, crewed: !!c.creature, notCre: !c.creature && !c.hidden && !c.faceDown, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, damage: c.dmg || 0, counters,
     pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined, faceDown: !!c.faceDown, phased: !!c.phased, goaded: !!c.goad, copy: !!c.copy, merged: c.merged,
     attacking: at ? 'x' : undefined, atkName: at?.defc, atkKey: at?.defc ? String(at.def) : undefined, pw: c.pw, prot: c.prot, blocking: (b => (b ? String(b.att) : undefined))(combat?.find(x => x.blockers?.includes(c.id))),  // a chave do atacante: o par (⚔ n / 🛡 n) e a linha
@@ -234,7 +234,7 @@ function PileAsk({ a, data, answer, zoom, dest }) {
 function GridAsk({ a, data, answer, zoom }) {
   const [q, setQ] = useState(''), [pick, setPick] = useState([])
   const min = a.min ?? 1, max = a.max ?? 1, one = max === 1
-  const card = o => data.byName.get(o.label) || data.byLower?.get(String(o.label).toLowerCase())
+  const card = o => lookup(data, o.label)
   const n = q.trim().toLowerCase()
   // cartas iguais (7 Islands) num só monte com «×7»: um toque escolhe a próxima desse nome
   const groups = [...a.options.reduce((m, o, k) => m.set(o.label, [...(m.get(o.label) || []), k]), new Map())]
@@ -259,7 +259,7 @@ function GridAsk({ a, data, answer, zoom }) {
 // dois dedos ampliam (até 3×), duplo toque amplia/volta, arrastar para baixo ou um toque fecha; Esc no teclado
 export function BigCard({ name, data, onClose }) {
   const im = useImg()
-  const card = name && (data.byName.get(name) || data.byLower?.get(String(name).toLowerCase()))
+  const card = name && (lookup(data, name))
   const ref = useRef(null), g = useRef({ pts: new Map(), s: 1, s0: 1, d0: 0, dy: 0, y0: 0, t0: 0, moved: 0, last: 0 })
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha a carta
@@ -493,7 +493,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   }, [st?.logN])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!st) return
-    const top = st.stack?.[0], tc = top?.name && (data.byName.get(top.name) || data.byLower?.get(top.name.toLowerCase()))
+    const top = st.stack?.[0], tc = top?.name && (lookup(data, top.name))
     const side = p => p && { life: p.life, poison: ctrs(p.counters).poison || 0, hand: p.hand?.length || 0, library: p.library || 0, gy: p.graveyard?.length || 0, ex: p.exile?.length || 0,
       perms: new Map((p.battlefield || []).map(c => [c.id, { land: !!c.land, token: !!c.token, tapped: !!c.tapped, ctr: Object.values(c.counters || {}).reduce((n, x) => n + (+x || 0), 0) }])) }
     const snap = { turn: st.turn, active: st.active === me?.id ? 'a' : 'b', combat: /^COMBAT/.test(st.phase || ''), att: st.combat?.length || 0,
@@ -602,7 +602,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // porque é que esta carta da mão não dá para jogar agora (o Forge só diz que não está na lista do que se pode jogar):
   // pela fase, de quem é o turno, a pilha, os terrenos por virar e o tipo da carta; o que não se percebe fica dito como talvez
   const whyNot = id => {
-    const c = byId.get(id), d = c && (data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase())), t = d?.t || '', o = d?.o || ''
+    const c = byId.get(id), d = c && (lookup(data, c.name)), t = d?.t || '', o = d?.o || ''
     const title = tx('Agora não dá para jogar {c}', { c: c?.name || tx('esta carta') }), say = msg => ({ title, msg })
     if (s.asks?.length) return say(tx('Primeiro responde à escolha que está aberta.'))
     const myTurn = st.active === me?.id, main = st.phase === 'MAIN1' || st.phase === 'MAIN2', empty = !st.stack?.length
@@ -632,6 +632,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       // largada em cima de uma permanente (aura, remoção, reforço…): esse é o alvo — a mesa responde ao Forge por ti
       const land = byId.get(id)?.land
       if (pid != null && !land) { aim(pid, perm) }
+      else if (!land && target.closest('.orb')) { const ob = target.closest('.orb'); aim(null, ob, null, players.indexOf(ob.closest('.bside')?.classList.contains('top') ? opp : me)) }  // na esfera: esse jogador
       // largada no teu lado (um terreno, mesmo por cima de outra carta): quando entrar em jogo fica nesse sítio/fila
       putAt(id, (pid == null || land) && whereOn(id, target, x, y))
       castNow(id); send1({ c: 'card', id }); return true
@@ -657,7 +658,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     // ainda na fase principal: o gesto diz «ataca com esta» — passa-se ao combate e declara-se sozinho
     if (mine && st.phase === 'MAIN1' && target.closest('.bside.top') && byId.get(id)?.creature && /^Priority:/.test(pr?.msg || '') && !st.stack?.length) {
       if (byId.get(id)?.sick) { setToast({ title: tx('Esta criatura ainda não pode atacar'), msg: tx('Entrou neste turno (enjoo de invocação).') }); return false }
-      const oracle = (data.byName.get(byId.get(id)?.name) || {}).o || ''
+      const oracle = lookup(data, byId.get(id)?.name)?.o || ''
       if (/^Defender\b/im.test(oracle) || byId.get(id)?.tapped) { setToast({ title: tx('Esta criatura não pode atacar'), msg: byId.get(id)?.tapped ? tx('Está virada.') : tx('Tem a habilidade Defensor.') }); return false }
       attackIntent.current = { ids: [...(attackIntent.current?.ids || []), id], defs: { ...attackIntent.current?.defs, [id]: defOf(pid) }, until: Date.now() + 15000 }
       send1({ c: 'ok' }); return true
@@ -691,7 +692,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const autoAct = x => {  // o que a mesa faz sozinha neste estado: {k (uma vez só), c, ms} ou nada
     const p = x?.prompt, b0 = (p?.buttons || []).filter(b => b.label)[0], P = fpPrefs(), lc = lastCast.current, msg = p?.msg || ''
     if (!p || x.asks?.length || x.ended) return null
-    if (P.autopay && /Pay Mana Cost/i.test(msg) && b0?.label === 'Auto' && b0.on && lc && p.card === lc.id && Date.now() - lc.t < 20000 && obviousPay(msg, (x.state?.players || []).find(q => q.me), n => data.byName.get(n) || data.byLower?.get(String(n).toLowerCase()))) return { k: `pay${lc.t}`, c: { c: 'ok' }, ms: 120 }
+    if (P.autopay && /Pay Mana Cost/i.test(msg) && b0?.label === 'Auto' && b0.on && lc && p.card === lc.id && Date.now() - lc.t < 20000 && obviousPay(msg, (x.state?.players || []).find(q => q.me), n => lookup(data, n))) return { k: `pay${lc.t}`, c: { c: 'ok' }, ms: 120 }
     const top = x.state?.stack?.[0], meId = (x.state?.players || []).find(q => q.me)?.id
     if (P.autoresolve && /^Priority:/.test(msg) && top && top.by === meId && b0?.c === 'ok' && b0.on) return { k: `res${x.state.stack.length}|${top.card}|${top.text}`, c: { c: 'ok' }, ms: 650 }
     return null
@@ -762,11 +763,20 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   }, [s?.asks?.[0]?.id])  // eslint-disable-line react-hooks/exhaustive-deps
   // intenção do gesto (alvo largado em cima): quando o Forge pergunta a habilidade ou o alvo, responde-se sozinho
   const intent = useRef(null)
-  const typeOf = id => { const c = byId.get(id); return (c && (data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase()))?.t) || '' }
-  const aim = (pid, el, ability = null) => {
-    intent.current = { target: pid, ability, until: Date.now() + 20000 }
+  const typeOf = id => { const c = byId.get(id); return (c && (lookup(data, c.name))?.t) || '' }
+  const aim = (pid, el, ability = null, player = null) => {
+    intent.current = { target: pid, ability, player, el, until: Date.now() + 20000 }
     el?.classList.add('fp-hit'); setTimeout(() => el?.classList.remove('fp-hit'), 700)
   }
+  // quando o Forge pede o alvo, o que largaste pisca um instante (0,9 s) antes de a mesa responder: tocar noutro alvo
+  // nesse instante cancela e a escolha é tua
+  const aimT = useRef(0)
+  const aimFire = (fn, it) => {
+    if (it.pending) return
+    it.pending = true; it.el?.classList.add('fp-aim')
+    aimT.current = setTimeout(() => { it.el?.classList.remove('fp-aim'); if (intent.current === it) { intent.current = null; fn() } }, 900)
+  }
+  const aimCancel = () => { if (!intent.current?.pending) return; clearTimeout(aimT.current); intent.current.el?.classList.remove('fp-aim'); intent.current = null }
   useEffect(() => {
     const it = intent.current
     if (!it || !s) return
@@ -775,11 +785,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (a) {
       const opts = a.options || []
       if (it.ability) { const k = opts.findIndex(o => it.ability.test(o.label || '')); if (k >= 0) { it.ability = null; answer(a, [k]); return } }
-      const k = a.kind === 'choose' ? opts.findIndex(o => o.card === it.target) : -1
-      if (k >= 0) { intent.current = null; answer(a, [k]) }
+      const k = a.kind === 'choose' && it.target != null ? opts.findIndex(o => o.card === it.target) : -1
+      if (k >= 0) aimFire(() => answer(a, [k]), it)
       return
     }
-    if (byId.get(it.target)?.sel) { intent.current = null; send({ c: 'card', id: it.target }) }  // o Forge pede o alvo: é este
+    const m = s.prompt?.msg || ''
+    if (it.player != null) { if (it.player >= 0 && !/^Priority:/.test(m) && /target/i.test(m)) aimFire(() => send({ c: 'player', i: it.player }), it); return }  // o Forge pede o alvo: esse jogador
+    if (byId.get(it.target)?.sel) aimFire(() => send({ c: 'card', id: it.target }), it)  // o Forge pede o alvo: é este
   }, [s?.seq, s?.asks?.length])  // eslint-disable-line react-hooks/exhaustive-deps
   // animações como no tabuleiro dos bots: a pilha (StackFx) com «A resolver», números de dano/marcadores nas cartas e as
   // cartas que saem do campo a desaparecer (dying) — tudo a partir da diferença entre um estado do Forge e o seguinte
@@ -803,7 +815,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       }
       if (!!c.flipped !== !!o.flipped || !!c.faceDown !== !!o.faceDown) pops.set(String(id), { i: seqKey, kind: 'flip' })  // transformar, virar para cima (morph)
       // equipar / encantar: a criatura que recebe brilha com uma corrente (equipamento) ou um selo (aura)
-      if (c.attachedTo != null && c.attachedTo !== o.attachedTo) pops.set(String(c.attachedTo), { i: seqKey, kind: 'attach', txt: /Equipment/.test(data.byName.get(c.name)?.t || '') ? '⛓' : '✦' })
+      if (c.attachedTo != null && c.attachedTo !== o.attachedTo) pops.set(String(c.attachedTo), { i: seqKey, kind: 'attach', txt: /Equipment/.test(lookup(data, c.name)?.t || '') ? '⛓' : '✦' })
     }
     // ninjutsu (e afins): entra já a atacar enquanto outro atacante voltou para a mão
     const backHand = [...a.perms.keys()].some(id => !now.has(id) && (st.players || []).some(p => (p.hand || []).some(h => h.id === id)))
@@ -943,6 +955,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const openZone = (k, z) => setZone({ p: k === 'a' ? me : opp, k: z })
   const onClick = e => {  // um clique numa carta da mesa ou da mão = o mesmo que no Forge; no orbe = escolher o jogador
     if (dragged.current) return
+    aimCancel()  // um toque teu enquanto o alvo largado pisca: escolhes tu
     const h = e.target.closest('[data-h]')
     if (h) {  // na mão, um clique só levanta a carta (jogar = arrastá-la para a mesa ou duplo clique); se o Forge pede uma carta da mão, escolhe-a
       const id = +h.dataset.h
@@ -983,7 +996,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const activate = () => { if (!act) return; castNow(act.id); send({ c: 'card', id: act.id }); setAct(null) }  // pedido explícito: o «pagar sozinho» pode pagar
   // as habilidades ativadas de uma carta (custo: efeito, Equip…), pelo texto
   function abilitiesOf(c) {
-    const d = c && (data.byName.get(c.name) || data.byLower?.get(String(c.name).toLowerCase()))
+    const d = c && (lookup(data, c.name))
     return String(d?.o || '').split('\n').map(l => l.replace(/\([^)]*\)/g, '').trim()).filter(l => /^[^"]{1,90}?:\s/.test(l) || /^Equip\b/i.test(l))
   }
   // duplo clique numa carta TUA na mesa, em qualquer fase (também a atacar e a bloquear): as ações dessa carta; numa do
@@ -1019,7 +1032,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       {byId.get(x.blk)?.name || '?'} → {byId.get(x.att)?.name || '?'}{x.planned && <i> ({tx('marcado')})</i>}
       {(x.planned || blocking) && <button type="button" className="link small" title={tx('Desfazer este bloqueio')} onClick={() => (x.planned ? unplan(x.blk) : send({ c: 'card', id: x.blk }))}>✕</button>}</span>)}
   </span>
-  const zc = zoom && (data.byName.get(zoom.name) || data.byLower?.get(String(zoom.name).toLowerCase()))
+  const zc = zoom && (lookup(data, zoom.name))
   const nOpp = opp?.hand?.length || 0, mana = Object.entries(me?.mana || {})
   const handIn = cs => (lay.hand ? [...cs].sort((x, y) => { const i = lay.hand.indexOf(String(x.id)), k = lay.hand.indexOf(String(y.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : cs)
   const tilt = e => {  // inclinação 3D da carta debaixo do rato (e o brilho a segui-lo)

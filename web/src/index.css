@@ -3895,3 +3895,17 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .zland.l-quake::before { content: ''; position: absolute; left: -15%; right: -15%; bottom: -12%; height: 40%; background: radial-gradient(ellipse at 50% 100%, #a68a6488, transparent 70%); filter: blur(2px); animation: ldust 1.2s ease-out both; }
 @keyframes ldust { from { scale: .4 .5; opacity: 0; } 30% { opacity: 1; } to { scale: 1.4 1; opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .zland[class*=" l-"] { display: none; } }
+
+/* nitidez com a mesa ampliada (1080p: a mesa de 1280 é ampliada) — o Chrome rasteriza as camadas 3D/animadas à escala de
+   quando começam e amplia a imagem: ficava pixelizado.
+   - mão: o hover inclina em 2D (rodar + ampliar) em vez de 3D; o Chrome redesenha à escala final
+   - esfera do adversário em perspetiva: sem as animações CSS da esfera clássica (a 3D tem o seu próprio batimento) e o canvas
+     numa camada própria (a textura de 300px fica nítida) */
+.fp-hand .fp-card:hover .fp-cin { transform: translateY(-14%) rotate(calc(var(--tx) * 3deg)) scale(1.32); }
+.fp-stage.persp .bside.top .bhud > .orb.has3d[data-o3]:not(.orb-proxy), .fp-stage.persp .bside.top .bhud > .orb.has3d[data-o3] > .orb-in, .fp-stage.persp .bside.top .bhud > .orb.has3d[data-o3] > .orb-in * { animation: none !important; }
+.fp-stage.persp .bside.top .bhud > .orb.has3d canvas.orb3d { will-change: transform; }
+
+/* o alvo largado em cima (Forge Play): pisca a dourado o instante antes de a mesa responder por ti */
+.fp-aim { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 8px; animation: fpaim .3s ease-in-out infinite alternate; }
+.orb.fp-aim { border-radius: 50%; }
+@keyframes fpaim { from { outline-color: #f2b84b; box-shadow: 0 0 0 0 #f2b84b88; } to { outline-color: #fff3c4; box-shadow: 0 0 18px 4px #f2b84b88; } }

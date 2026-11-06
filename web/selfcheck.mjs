@@ -844,3 +844,24 @@ import { ptExplain } from './src/game.js'
   assert.deepEqual([x.printed, x.plus, x.other, x.total], [[2, 2], 2, [1, 0], [5, 4]])
   console.log('selfcheck conta do poder/resistência ok')
 }
+// fichas (tokens.js + permCard): nome sem «Token» e sem maiúsculas, P/R e cores desempatam, a carta que a criou manda,
+// uma ficha «Blood» não é a face de «Flesh // Blood», e o lookup pelo nome também chega às fichas
+{
+  const { setTokens } = await import('./src/tokens.js'), { permCard, lookup } = await import('./src/game.js')
+  setTokens({ tokens: { w: ['Cat', '1/1', 'W', 'Token Creature — Cat', '', [], 0], g: ['Cat', '1/1', 'G', 'Token Creature — Cat', '', [], 0], b2: ['Cat', '2/2', 'B', 'Token Creature — Cat', '', [], 0],
+    bl: ['Blood', '', '', 'Token Artifact — Blood', '', [], 0], r: ['Wicked // Cursed', '', '', 'Token Enchantment — Aura Role // Token Enchantment — Aura Role', '', [], [['Wicked', '', ''], ['Cursed', '', '']]] },
+  byName: { cat: ['w', 'g', 'b2'], blood: ['bl'], wicked: ['r'], cursed: ['r'] }, byCard: { 'Cat Maker': ['g'] } })
+  const fb = { n: 'Flesh // Blood', t: 'Sorcery // Instant', o: '', kw: [] }, gm = { byName: new Map([[fb.n, fb]]), byLower: new Map([['blood', fb]]) }
+  const id = p => permCard(gm, { token: true, ...p })?.id
+  assert.equal(id({ name: 'Cat Token', pt: '1/1', col: 'G' }), 'g')
+  assert.equal(id({ name: 'cat token', pt: '2/2' }), 'b2')
+  assert.equal(id({ name: 'Cat Token', src: 'Cat Maker' }), 'g')
+  assert.equal(id({ name: 'Blood Token' }), 'bl')
+  assert.equal(id({ name: 'Cursed' }), 'r')
+  assert.equal(id({ name: 'Dog Token' }), undefined)
+  assert.equal(lookup(gm, 'Cat Token')?.tok, 1)
+  const w = { name: 'Cat Token', pt: '1/1', col: 'W', token: true }
+  assert.equal(permCard(gm, w), permCard(gm, { ...w }))  // o mesmo objeto de cada vez (memo do React)
+  setTokens(null)
+  console.log('selfcheck fichas ok')
+}

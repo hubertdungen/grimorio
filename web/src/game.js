@@ -15,6 +15,7 @@
 // registo só animam a pilha e o combate; as zonas mudam só pelo zn.
 
 import { tx } from './i18n.js'
+import { tokenCard, bareToken } from './tokens.js'
 
 export const PHASES = ['untap', 'upkeep', 'draw', 'main1', 'combat', 'main2', 'end']
 const N = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }
@@ -36,13 +37,19 @@ export function initialState(life = 20, setup = null) {
   return { i: 0, turn: 0, active: null, phase: null, first: null, sides, ...Object.fromEntries(sides.map(k => [k, side(k)])), stack: [], seq: 0, last: null, fx: null, over: null }
 }
 
-export const lookup = (data, n) => (n ? data.byName.get(n) || data.byLower.get(String(n).toLowerCase()) : null)
+const real = (data, n) => (n ? data.byName.get(n) || data.byLower?.get(String(n).toLowerCase()) : null)
+// pelo nome: a carta e, se não há carta com esse nome, a ficha do índice (build/tokens.py): «Goblin Shaman Token», «Jace
+// Token», masmorras… têm imagem em todo o lado (pilha, zonas, carta em grande), não só na mesa
+export const lookup = (data, n) => real(data, n) || (n ? tokenCard(n) : null)
 // a carta de uma permanente: numa ficha só conta a carta real com o nome inteiro igual (uma ficha «Blood» apanhava a
-// face de «Flesh // Blood», com a imagem e o tipo de feitiço dela); senão é a ficha desenhada/do índice de fichas
+// face de «Flesh // Blood», com a imagem e o tipo de feitiço dela); senão a ficha do índice que bate com nome, P/R,
+// carta que a criou (src) e cores (col, do Forge Play); null = a ficha desenhada
 export const permCard = (data, p) => {
   // uma ficha que é cópia de uma carta («Jace, Cunning Castaway Token»): a carta verdadeira, sem o « Token»
-  const c = lookup(data, p?.name) || (p?.token && /\sToken$/.test(String(p.name)) ? lookup(data, String(p.name).replace(/\s+Token$/, '')) : null)
-  return c && p.token && c.n.toLowerCase() !== String(p.name).replace(/ Token$/, '').toLowerCase() ? null : c
+  const nm = String(p?.name || ''), bare = bareToken(nm)
+  const c = real(data, nm) || (p?.token && bare !== nm.toLowerCase() ? real(data, bare) : null)
+  if (c && !(p.token && c.n.toLowerCase() !== bare)) return c
+  return p?.token ? tokenCard(nm, p.pt, p.src, p.col) : null
 }
 // nomes dos marcadores (tabuleiro e menus da mesa livre)
 export const CT = { '+1/+1': '+1/+1', '-1/-1': '−1/−1', loyalty: tx('lealdade'), lore: tx('capítulo'), charge: tx('carga'), stun: tx('atordoamento'), shield: tx('escudo'), oil: tx('óleo'), time: tx('tempo'), defense: tx('defesa'), poison: tx('veneno'),
