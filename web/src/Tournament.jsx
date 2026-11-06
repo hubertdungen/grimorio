@@ -1,5 +1,6 @@
 // Torneio no Coliseu: vários decks jogam entre si no Forge. O servidor (tournament.py) agenda as partidas e guarda tudo;
 // aqui cria-se o torneio, vê-se a chave/classificação a mexer ao vivo, revêem-se os jogos e consulta-se o registo.
+import { Icon, IL } from './icons.jsx'
 import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
@@ -132,12 +133,12 @@ export default function TournamentView({ data, fmt, deckId, guest, online }) {
     <OwnCtx.Provider value={own}><div className={`view tour ${hlOn() ? 'hl-mine' : ''}`}>
       {online && !guest && <NetBar />}
       <div className="tour-top"><div className="seg tour-nav">
-        {!guest && <button className={view === 'criar' ? 'on' : ''} onClick={() => setView('criar')}>{online ? tx('✦ Nova sala') : tx('✦ Criar')}</button>}
-        {!guest && !online && <button className={view === 'gerar' ? 'on' : ''} onClick={() => setView('gerar')}>{tx('🎲 Gerador')}</button>}
-        {online && <button className={view === 'salas' ? 'on' : ''} onClick={() => setView('salas')}>{tx('🚪 Salas')}</button>}
-        <button className={view === 'ver' ? 'on' : ''} onClick={() => setView('ver')} disabled={!tid}>{tx('🏆 Ao vivo')}</button>
-        {!online && <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}>{tx('📜 Registo')} <b>{list.length}</b></button>}
-        <button className={view === 'apostas' ? 'on' : ''} onClick={() => setView('apostas')}>{tx('🪙 Apostas')}</button>
+        {!guest && <button className={view === 'criar' ? 'on' : ''} onClick={() => setView('criar')}><IL n="criar" t={online ? tx('✦ Nova sala') : tx('✦ Criar')} /></button>}
+        {!guest && !online && <button className={view === 'gerar' ? 'on' : ''} onClick={() => setView('gerar')}><IL n="dados" t={tx('🎲 Gerador')} /></button>}
+        {online && <button className={view === 'salas' ? 'on' : ''} onClick={() => setView('salas')}><IL n="porta" t={tx('🚪 Salas')} /></button>}
+        <button className={view === 'ver' ? 'on' : ''} onClick={() => setView('ver')} disabled={!tid}><IL n="torneio" t={tx('🏆 Ao vivo')} /></button>
+        {!online && <button className={view === 'registo' ? 'on' : ''} onClick={() => { loadList(); setView('registo') }}><IL n="registo" t={tx('📜 Registo')} /> <b>{list.length}</b></button>}
+        <button className={view === 'apostas' ? 'on' : ''} onClick={() => setView('apostas')}><IL n="moeda" t={tx('🪙 Apostas')} /></button>
       </div><span className="tour-slot" ref={setSlot} /></div>
       {view === 'criar' && !guest && (online ? <NewRoom data={data} fmt={fmt} deckId={deckId} onRoom={() => setView('salas')} openTable={setTable} />
         : <Create data={data} fmt0={fmt} deckId={deckId} onCreated={id => { loadList(); open(id) }} />)}

@@ -1,4 +1,5 @@
 import Home from './Home.jsx'
+import { Icon } from './icons.jsx'
 import KwPeek from './KwPeek.jsx'
 import Mesa from './Mesa.jsx'
 import ProxyDialog from './Proxies.jsx'
@@ -37,7 +38,9 @@ import { WhoPlays, ProfileChip } from './Profiles.jsx'
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
 const FROM_ROOM = window.location.hash === '#online'  // veio pelo link de uma sala (guests.room_link): vai direto ao Online
 const GUEST_MODES = ['online', 'torneio', 'ratings']  // o que um convidado vê no Coliseu
-const SECTIONS = [['construir', '✎', tx('Construir')], ['biblioteca', '▤', tx('Biblioteca')], ['coliseu', '⚔', tx('Coliseu')], ['regras', '📖', tx('Regras')]]
+const SECTIONS = [['construir', tx('Construir')], ['biblioteca', tx('Biblioteca')], ['coliseu', tx('Coliseu')], ['regras', tx('Regras')]]
+// os modos do Coliseu e o ícone de cada um (icons.jsx)
+const COL_MODES = [['bots', 'bots', tx('Bots a testar')], ['jogar', 'forge', tx('Jogar contra o Forge')], ['torneio', 'torneio', tx('Torneio')], ['draft', 'draft', tx('Draft')], ['online', 'online', tx('Online')], ['ratings', 'ratings', tx('Ratings')]]
 const ZONE_L = { main: tx('deck'), side: tx('sideboard'), maybe: tx('maybeboard') }
 // Desfazer: só o conteúdo do deck (nome, notas, formato, preferências e sementes ficam de fora)
 const CONTENT = ['main', 'side', 'maybe', 'commanders', 'signature', 'prints', 'cover', 'coverImg']
@@ -442,8 +445,8 @@ export default function App() {
     <div className={`app tab-${tab} sec-${section}`}>
       <header className="top">
         <button className="brand" onClick={() => setHome(true)} title={tx('Página inicial')}><Logo /><div><b>Grimório</b><small>{tx('construtor de decks de Magic')}</small></div></button>
-        <nav className="sections" aria-label={tx('Áreas')}>{SECTIONS.map(([k, ic, l]) => (
-          <button key={k} className={section === k ? 'on' : ''} onClick={() => setSection(k)}><i>{ic}</i><span>{l}</span></button>
+        <nav className="sections" aria-label={tx('Áreas')}>{SECTIONS.map(([k, l]) => (
+          <button key={k} className={section === k ? 'on' : ''} onClick={() => setSection(k)}><Icon n={k} /><span>{l}</span></button>
         ))}</nav>
         {section !== 'biblioteca' && <div className="deck-pick">
           <DeckPicker decks={decks} deck={deck} data={data} onOpen={openDeck} onClose={newDeck} />
@@ -451,7 +454,7 @@ export default function App() {
           <span className="save">{saveState}</span>
         </div>}
         <ProfileChip prof={prof} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />
-        {!guest && <a className="gear" href="#definicoes" title={tx('Definições')} aria-label={tx('Definições')}>⚙</a>}
+        {!guest && <a className="gear" href="#definicoes" title={tx('Definições')} aria-label={tx('Definições')}><Icon n="gear" /></a>}
         {section === 'construir' && <nav className="tabs">
           <button className={`tab-deck ${tab === 'deck' ? 'on' : ''}`} onClick={() => setTab('deck')}>{tx('Deck')} <b>{total}</b></button>
           {TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
@@ -465,8 +468,8 @@ export default function App() {
         <div className="area coliseu" ref={coliseuRef}>
           <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>
           <div className="col-bar">
-            <b>⚔ {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
-            <span className="seg">{[['bots', `🤖 ${tx('Bots a testar')}`], ['jogar', `🎮 ${tx('Jogar contra o Forge')}`], ['torneio', `🏆 ${tx('Torneio')}`], ['draft', `🎴 ${tx('Draft')}`], ['online', `🌍 ${tx('Online')}`], ['ratings', `📊 ${tx('Ratings')}`]].filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}>{l}</button>)}</span>
+            <b className="col-title"><Icon n="coliseu" /> {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
+            <span className="seg">{COL_MODES.filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, ic, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}><Icon n={ic} />{l}</button>)}</span>
             <button className="fs-btn" onClick={fullscreen} title={tx('Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
             <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>

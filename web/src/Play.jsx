@@ -2,6 +2,7 @@
 // os formatos) e a dificuldade, e jogas na mesa do Grimório (ForgePlay.jsx, Forge Play nativo) ou no Forge clássico
 // (play.py: o Forge desktop num contentor, mostrado por noVNC em play.html). O clássico também retoma uma posição de
 // uma repetição: `fromState` = toForgeState(...) (forgeState.js).
+import { Icon } from './icons.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { tx } from './i18n.js'
 import { DIFF_INFO } from './difficulty.js'
@@ -29,6 +30,7 @@ const TIPS = [
   [tx('Imagens'), tx('chegam à medida que as cartas aparecem. Na primeira vez o Forge pergunta se descarrega o índice de imagens: aceita, fica guardado.')],
   [tx('Fim'), tx('pára sozinho ao fim de 20 min sem mexeres no jogo. No fim de cada partida o Forge volta ao menu, com os dois decks nas listas do Constructed.')],
 ]
+const SRC_IC = { meu: 'mago', ami: 'amigos', com: 'online', meta: 'meta' }  // icons.jsx
 const SRC = [['meta', '📊', tx('Meta')], ['meu', '🧙', tx('Meus')], ['ami', '🤝', tx('Amigos')], ['com', '🌐', tx('Comunidade')]]
 const kindOf = d => (d.friend ? 'ami' : d.community ? 'com' : 'meu')
 const metaDecks = new Map()  // id -> deck do meta (para a capa e as cores), uma vez por sessão
@@ -194,7 +196,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
       <section className="card">
         <h3>{tx('Adversário')}</h3>
         <div className="pv-bar">
-          <span className="seg">{SRC.map(([k, i, l]) => <button key={k} className={src === k ? 'on' : ''} disabled={!lists[k].length} onClick={() => setSrc(k)}>{i} {l} <b>{lists[k].length}</b></button>)}</span>
+          <span className="seg">{SRC.map(([k, , l]) => <button key={k} className={src === k ? 'on' : ''} disabled={!lists[k].length} onClick={() => setSrc(k)}><Icon n={SRC_IC[k]} />{l} <b>{lists[k].length}</b></button>)}</span>
           <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar deck…')} aria-label={tx('Procurar deck')} />
           <label className="chk" title={tx('Decks de todos os formatos, 1 contra 1 com as regras base do teu deck; o comandante entra como carta do deck.')}><input type="checkbox" checked={casual} onChange={e => setCasual(e.target.checked)} /> 🎲 {tx('Casual (todos os decks)')}</label>
           <button onClick={random} disabled={!pool.length}>🎲 {tx('ao acaso')}</button>
