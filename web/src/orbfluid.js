@@ -93,7 +93,8 @@ let H = 0.24, H2 = H * H, GN = 12  // raio da esfera (por dentro do vidro), alca
 const NAMES = Object.keys(MAT), CRUST = NAMES.indexOf('crust'), FLASH = NAMES.indexOf('flash')
 // como cada matéria se desenha: 0 líquido (superfície contínua), 1 sólido (grãos/formas), 2 gás (baforadas), 3 luz (somada)
 const LIQ = ['water', 'mud', 'lava', 'paste', 'blood', 'magma', 'dirty', 'oil', 'quicksand'], GAS = ['smoke', 'poison', 'cloud', 'darkcloud', 'steam', 'voidm']
-export const KIND = NAMES.map(k => (LIQ.includes(k) ? 0 : GAS.includes(k) ? 2 : MAT[k].glow >= 0.5 ? 3 : 1))
+// 4: líquido em brasa (lava, magma): superfície à parte, crosta escura com fendas a arder (senão a cor fundia-se com a água)
+export const KIND = NAMES.map(k => (k === 'lava' || k === 'magma' ? 4 : LIQ.includes(k) ? 0 : GAS.includes(k) ? 2 : MAT[k].glow >= 0.5 ? 3 : 1))
 const SHAPE_GAS = 4, SHAPE_FIRE = 5
 const TK = NAMES.map(k => MAT[k].k), TKN = NAMES.map(k => MAT[k].kn), TRHO = NAMES.map(k => MAT[k].rho), TS = NAMES.map(k => MAT[k].s), TB = NAMES.map(k => MAT[k].b)
 

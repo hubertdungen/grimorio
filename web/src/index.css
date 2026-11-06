@@ -2530,11 +2530,11 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .fp-grid .fp-opt { position: relative; } .fp-many { position: absolute; right: 6px; bottom: 6px; padding: 1px 7px; border-radius: 99px; background: #000c; color: var(--gold2); font-size: 12px; }
 
 /* Forge Play: mesa de tamanho fixo (useStage). Lá dentro tudo em px «lógicos»: nada depende do vw/vh do ecrã */
-.fp-stagebox { position: relative; min-width: 0; overflow: hidden; }
+.fp-stagebox { position: relative; min-width: 0; overflow: clip; overflow-clip-margin: 100px; }  /* a margem: o halo e o que verte da esfera no canto passam a borda (antes cortava a direito) */
 .fp-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .fp-stage .fp-table.board, .coliseu .fp-stage .fp-table.board, .coliseu:fullscreen .fp-stage .fp-table.board, .coliseu:-webkit-full-screen .fp-stage .fp-table.board {
   --k: 1; --cw: 80px; --ow: 66px; --lw: 60px; --hw: 92px; --ohw: 50px;  /* terrenos a 3/4 das criaturas (eram 0,6: pequenos demais) */
-  width: 100%; height: 100%; max-height: none; overflow: hidden; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; align-content: space-between; }
+  width: 100%; height: 100%; max-height: none; overflow: clip; overflow-clip-margin: 100px; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; align-content: space-between; }
 .fp-stage.tall .fp-table.board, .coliseu .fp-stage.tall .fp-table.board, .coliseu:fullscreen .fp-stage.tall .fp-table.board, .coliseu:-webkit-full-screen .fp-stage.tall .fp-table.board { --cw: 118px; --ow: 90px; --lw: 84px; --hw: 132px; --ohw: 64px; }
 /* a fila das criaturas guarda sempre espaço para auras/equipamentos presos: prender uma não empurra nada */
 .fp-stage .brow.front { min-height: calc(var(--cw) * 1.4 + 28px); }
