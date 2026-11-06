@@ -868,7 +868,7 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .coliseu .view.board { padding-bottom: 8px; }
 
 /* Placar da série e da sessão */
-.score { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 4px 14px; flex: 1 1 100%; padding: 6px 12px; border-radius: 12px; background: linear-gradient(90deg, #6ee7f914, #ffffff05 40%, #ffffff05 60%, #ff6b8a14); border: 1px solid var(--line); }
+.score { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 4px 14px; flex: 0 0 auto; width: 100%; align-self: start; box-sizing: border-box; padding: 6px 12px; border-radius: 12px; background: linear-gradient(90deg, #6ee7f914, #ffffff05 40%, #ffffff05 60%, #ff6b8a14); border: 1px solid var(--line); }
 .sc-n { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); transition: color .3s; }
 .sc-n.a { text-align: right; } .sc-n.a.lead { color: var(--pa); } .sc-n.b.lead { color: var(--pb); }
 .sc-box { display: flex; align-items: center; gap: 8px; padding: 2px 14px; border-radius: 10px; background: #0b0a14; border: 1px solid #ffffff22; font-size: 26px; font-variant-numeric: tabular-nums; }

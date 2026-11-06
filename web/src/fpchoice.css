@@ -1,0 +1,41 @@
+/* Forge Play: escolhas (cartas escolhíveis escondidas, «Continuar» de um pedido sem saída, formas de lançar uma carta) */
+
+/* escolha do Forge com a escolhível presa a outra carta (aura, bestow): sobe e brilha como as outras assinaladas */
+.fp .pc-attc.sel { position: relative; z-index: 3; translate: 0 -24%; box-shadow: 0 0 0 3px var(--cyan), 0 0 16px var(--cyan); animation: fp-sel 1.2s ease-in-out infinite alternate; transition: translate .25s ease-out; }
+
+/* as escolhíveis que não estão à vista na mesa, em botões no pedido */
+.fp-selpick { display: grid; gap: 6px; }
+.fp-selpick > small { color: var(--muted); }
+.fp-selpick > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.fp-selb { display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 10px 4px 4px; border-radius: 10px; border: 1px solid var(--cyan); background: #38bdf814; cursor: pointer; }
+.fp-selb:hover, .fp-selb:focus-visible { background: #38bdf833; outline: none; }
+.fp-selb .fp-card { --cw: 40px; flex: none; pointer-events: none; animation: none; box-shadow: none !important; }
+.fp-selb span { display: grid; min-width: 0; font-size: 13px; line-height: 1.25; text-align: left; }
+.fp-selb b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-selb em { font-size: 11.5px; color: var(--muted); font-style: normal; }
+.fp-unstick { justify-self: start; }
+.fp-actbar .fp-selpick, .fp-actbar .fp-unstick { margin: 4px 0; }
+
+/* formas de lançar uma carta: uma lista de linhas da mesma largura — custo | nome + texto (3 linhas no máximo) | tecla */
+.fp-ways-ask { width: min(620px, 100%); }
+.fp-ways-head { display: flex; justify-content: center; }
+.fp-ways-head .fp-card { --cw: clamp(110px, 17vh, 170px); box-shadow: 0 10px 30px #000b; }
+.fp-ways { display: grid; gap: 8px; }
+.fp-way { display: grid; grid-template-columns: 4.6em minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; min-height: 54px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid #f2b84b55; background: linear-gradient(180deg, #ffffff0a, #00000014); text-align: left; white-space: normal; transition: border-color .15s, background .15s, translate .15s; }
+.fp-way:hover, .fp-way:focus-visible { border-color: var(--gold); background: #f2b84b1c; translate: 0 -1px; outline: none; }
+.fp-way-cost { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1px; min-height: 26px; padding: 3px 4px; border-radius: 8px; background: #0005; }
+.fp-way-cost .sym { width: 18px; height: 18px; }
+.fp-way-cost i { color: var(--muted); font-style: normal; }
+.fp-way-body { display: grid; gap: 2px; min-width: 0; }
+.fp-way-body b { font-size: 14.5px; line-height: 1.25; overflow-wrap: anywhere; }
+.fp-way-body b small { font-weight: 500; color: var(--muted); font-size: 12.5px; }
+.fp-way-extra { font-style: normal; font-size: 12.5px; color: var(--gold2); overflow-wrap: anywhere; }
+.fp-way-txt { font-size: 12.5px; line-height: 1.35; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.fp-way-txt .sym, .fp-way-extra .sym { width: 13px; height: 13px; vertical-align: -2px; }
+.fp-way-k { align-self: center; opacity: .55; }
+@media (pointer: coarse) { .fp-way-k { display: none; } .fp-way { grid-template-columns: 4.2em minmax(0, 1fr); min-height: 58px; } }
+
+/* outras escolhas só de texto (opções do Forge): colunas da mesma largura, o texto parte em linhas — nenhuma enche a janela */
+.fp-opts:not(:has(> :not(.fp-optl))) { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
+.fp-opts > .fp-optl { white-space: normal; overflow-wrap: anywhere; min-height: 44px; line-height: 1.3; }

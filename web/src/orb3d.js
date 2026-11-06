@@ -576,8 +576,9 @@ const DEATH3 = { psn: 'melt', mill: 'drain', cmd: 'split', lose: 'implode', alt:
 function startFracture(o, now) {
   let h = [...String(o.el.dataset.seed || 'x')].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
   const rnd = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296 }
-  const mode = DEATH3[(o.el.className.match(/\bdead-(\w+)/) || [])[1]] || (rnd() < 0.6 ? 'shatter' : 'drop'), slow = mode === 'drain' ? 0.22 : 1
-  o.fr = { t0: now, last: now, mode, ball: { p: [0, 0, 0], v: [(rnd() - 0.5) * 2, 2.5, 0.4], rz: 0 },
+  const mode = DEATH3[(o.el.className.match(/\bdead-(\w+)/) || [])[1]] || (rnd() < 0.6 ? 'shatter' : 'drop')
+  const ok = Math.max(0, Math.min(1, -(+o.el.dataset.life || 0) / 10)), slow = (mode === 'drain' ? 0.22 : 1) * (1 + 1.2 * ok)  // ok: obliteração (vida abaixo de 0)
+  o.fr = { t0: now, last: now, mode, ok, ball: { p: [0, 0, 0], v: [(rnd() - 0.5) * 2, 2.5, 0.4], rz: 0 },
     parts: Array.from({ length: 16 }, (_, k) => { const i = Math.floor(k / 4), j = k % 4, th = (i + 0.5) * Math.PI / 4, ph = (j + 0.5) * Math.PI / 2
       const n = [Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph)], sp = (1.6 + rnd() * 2.4) * slow
       return { p: [0, 0, 0], v: [n[0] * sp, (n[1] * sp + 2.2) * slow, n[2] * sp * 0.6 + 0.6 * slow], r: [0, 0, 0], w: [(rnd() - 0.5) * 9 * slow, (rnd() - 0.5) * 9 * slow, (rnd() - 0.5) * 9 * slow] } }),
@@ -726,7 +727,14 @@ function draw(now) {
       r.glass.material.uniforms.dim.value = k; r.glassBack.material.uniforms.dim.value = k
     } else if (md !== 'melt' && md !== 'drain') for (const m of [r.ball, r.glass, r.glassBack]) { m.position.set(0, 0, 0); m.rotation.z = 0 }
     if (!fr) r.ball.position.y = 0
-    r.floor.material.opacity = fr && md !== 'implode' && md !== 'stone' ? Math.min(0.85, (now - fr.t0) / 600) : 0
+    // muito obliterada (vida ≤ −5): ao fim de uns segundos esvai-se tudo — os cacos encolhem, o que verteu desvanece, o chão some
+    const gone = fr && fr.ok >= 0.5 ? Math.min(1, Math.max(0, age - (3 + (1 - fr.ok) * 4)) / 1.5) : 0
+    if (gone > 0) {
+      r.shards.children.forEach(m => m.scale.multiplyScalar(1 - gone)); r.halves.forEach(h => h.scale.multiplyScalar(1 - gone))
+      for (const m of [r.ball, r.glass, r.glassBack]) m.scale.multiplyScalar(1 - gone)
+      if (o.fs && !fr.faded) { fr.faded = true; for (let i = 0; i < o.fs.count; i++) if (o.fs.alive[i] && !o.fs.fade[i]) o.fs.fade[i] = 1e-3 }
+    }
+    r.floor.material.opacity = fr && md !== 'implode' && md !== 'stone' ? Math.min(0.85, (now - fr.t0) / 600) * (1 - gone) : 0
     r.shadow.visible = !fr
     r.glow.visible = r.glow2.visible = r.caustic.visible = !fr
     // partir ao meio: as duas metades afastam-se e voltam a juntar-se
@@ -758,8 +766,11 @@ function draw(now) {
     if (fsOn && o.fs) {
       const fs = o.fs, frac = {}, put = (k, f) => { if (f > 0) frac[k] = (frac[k] || 0) + f }
       const dk = 'WUBRGC'.split('').map(c => (s.cols.includes(c) ? 1 / s.cols.length : 0))
-      const cw = w && s.cols.length ? w.slice(0, 6).map((x, i) => 0.55 * x + 0.45 * dk[i]) : w ? w.slice(0, 6) : s.cols.length ? 'WUBRGC'.split('').map(c => (s.cols.includes(c) ? 1 / s.cols.length : 0)) : [0, 1, 0, 0, 0, 0]
-      'WUBRGC'.split('').forEach((c, i) => { if (cw[i] > 0) for (const [m, f] of MANA_MAT[c]) put(m, cw[i] * f) })
+      const cw = w && s.cols.length ? w.slice(0, 6).map((x, i) => 0.55 * x + 0.45 * dk[i]) : w ? w.slice(0, 6) : s.cols.length ? 'WUBRGC'.split('').map(c => (s.cols.includes(c) ? 1 / s.cols.length : 0)) : null
+      // sem nada conhecido (antes das cartas e sem as cores do deck): a centelha de planeswalker — luz dourada, faíscas,
+      // brasas e cristal — em vez do azul genérico (era água, nuvens e gelo por omissão)
+      if (cw) 'WUBRGC'.split('').forEach((c, i) => { if (cw[i] > 0) for (const [m, f] of MANA_MAT[c]) put(m, cw[i] * f) })
+      else { put('light', 0.45); put('holy', 0.2); put('ember', 0.2); put('crystal', 0.15) }
       put('blood', E[0] * 0.3); put('poison', Math.min(0.4, (s.tox || 0) * 0.5)); put('rock', E[3] * 0.12); put('light', E[4] * 0.1)
       const sum = Object.values(frac).reduce((a, b) => a + b, 0) || 1
       for (const k in frac) frac[k] /= sum
@@ -791,7 +802,7 @@ function draw(now) {
       let g3 = [gx, gy, 0], opt = { dead: s.dead, stir: s.mood ? 5 : s.react ? 2 : 0 }, xf = null
       if (fr) {  // a morte: cada modo trata o líquido à sua maneira; quando o vidro deixa de o segurar, solta-se onde está
         const F = fr.fl || (fr.fl = {}), bx = { o: r.ball.position.toArray(), s: r.ball.scale.toArray() }
-        const go = (k, m) => { if (!F.rel) { F.rel = true; fs.release(bx, k, m); o.gr?.release(bx) } }
+        const go = (k, m) => { if (!F.rel) { F.rel = true; fs.release(bx, k * (1 + 1.2 * fr.ok), m); o.gr?.release(bx) } }
         g3 = [0, 0, 0]; opt = { hold: true, dead: false }
         if (md === 'shatter') go(1.3)  // rebenta: tudo para fora com o empurrão dos cacos
         else if (md === 'split') { if (age > 0.25) go(1, 'split') }  // cortada: verte para os dois lados

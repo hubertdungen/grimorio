@@ -179,14 +179,26 @@ export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
   // escolhida); o temporizador é só dele, por isso o evento seguinte já não o cancela (a legenda ficava lá para sempre)
   useEffect(() => {
     if (quiet || rev?.k !== 'resolve' || !rev.card) return
+    const cd = lookup(data, rev.card), perm = cd && !/\b(Instant|Sorcery)\b/.test(cd.t)
+    // Forge Play: a própria carta do campo já voa do sítio dela na pilha (useZoneFlights + useFlip marcam-na com _stk) —
+    // sem a cópia «A resolver» nem um 2.º voo (era a carta a aparecer no campo, a sumir e a voar outra vez da pilha)
+    // (sem prazo: uma escolha a meio da resolução — «escolhe um alvo» de um gatilho de entrar — deixa o feitiço na pilha
+    // muito mais do que 2,5 s, e depois a carta já no campo sumia e voava outra vez: parecia teletransportar-se)
+    const flown = perm && fieldCards(rev.card).find(e => e._stk && !e._stkSeen)
+    if (flown) { flown._stkSeen = true; return }
     const named = String(rev.txt || '').replace(/^.*? - /, '').replace(/Ai\(\d+\)-([A-D])\b/g, (m, k) => short(who[k.toLowerCase()]) || m)  // «Ai(2)-B» → nome do deck
     const txt = clean(named), ms = Math.round(Math.min(7000, 1400 + txt.length * 28) / Math.max(0.5, speed || 1))
     setGhost({ key: ri, card: rev.card, p: rev.p, txt, ms })
     setMore((rev.more || []).map((x, k) => ({ ...x, key: `${ri}-${k}`, ms: Math.min(ms, 1800) })))  // as outras que saíram ao mesmo tempo
     clearTimeout(gT.current)
-    gT.current = setTimeout(() => { setGhost(null); setMore([]) }, ms)
-    const cd = lookup(data, rev.card)
-    if (cd && !/\b(Instant|Sorcery)\b/.test(cd.t)) setTimeout(() => stackToField(rev.card), 380)
+    const end = () => { setGhost(null); setMore([]) }
+    // instantâneo/feitiço: a 80% (antes de a cópia desvanecer) voa para o cemitério; o resto desvanece como antes
+    // o cemitério já tem a carta (o estado chega antes de a leres): a imagem do topo fica escondida até ela lá chegar a
+    // voar — antes aparecia logo no monte e a cópia da pilha voava depois para lá (duas)
+    const gy = cd && !perm && zoneEl(rev.p, 'graveyard')?.querySelector('.pile-c img')
+    if (gy) { gy.style.visibility = 'hidden'; setTimeout(() => gy.style.removeProperty('visibility'), ms + 1600) }
+    gT.current = cd && !perm ? setTimeout(() => { stackToGrave(rev.card, rev.p); gT.current = setTimeout(end, ms * 0.2) }, ms * 0.8) : setTimeout(end, ms)
+    if (perm) { const to = newField(rev.card); if (to) to.style.visibility = 'hidden'; setTimeout(() => stackToField(rev.card, to), 380) }  // escondida já: não aparece no sítio antes de voar
   }, [ri]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (quiet) { clearTimeout(gT.current); setGhost(null); setMore([]) } }, [quiet])
   useEffect(() => () => clearTimeout(gT.current), [])
@@ -289,7 +301,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
       {p.pair && <span className="pc-pair" title={p.attacking ? tx('Atacante {n}: bloqueado pelos que têm 🛡 {n}', { n: p.pair }) : tx('Bloqueia o atacante ⚔ {n}', { n: p.pair })}>{p.attacking ? '⚔' : '🛡'} {p.pair}</span>}
       {p.moon && <span className="pc-dev" aria-hidden="true">⛰<img src={sf('https://svgs.scryfall.io/card-symbols/R.svg')} alt="" /></span>}
       {p.dormant && <span className="pc-dev" aria-hidden="true">{p.dormant.cols.map(k => <img key={k} src={sf(`https://svgs.scryfall.io/card-symbols/${k}.svg`)} alt="" />)}{p.dormant.d}/{p.dormant.need}</span>}
-      {att?.length > 0 && <div className="pc-att">{att.map(a => <div key={a.key} className="pc-attc" data-z={`k:${a.key}`}><Face p={a} c={lookup(data, a.name)} /></div>)}</div>}
+      {att?.length > 0 && <div className="pc-att">{att.map(a => <div key={a.key} className={`pc-attc ${a.sel ? 'sel' : ''}`} data-z={`k:${a.key}`}><Face p={a} c={lookup(data, a.name)} /></div>)}</div>}
       <div className="pc-rot">
         <div className={`pc-flip ${back && c?.df ? 'on' : ''} ${upside ? 'up' : ''}`}>
           <div className="pc-f">{p.faceDown && !p.hidden ? <div className="pc-back pc-known" /> : <Face p={p} c={c} />}</div>
@@ -496,7 +508,7 @@ function useOrbPhysics(ref) {
       S.raf = requestAnimationFrame(step)
     }
     const run = () => { lift(); if (!S.raf) { S.last = 0; S.raf = requestAnimationFrame(step) } }
-    el._kick = (vx, vy) => { if (S.drag?.on) return; S.vx += vx; S.vy += vy; S.t0 = performance.now(); run() }
+    el._kick = (vx, vy) => { if (S.drag?.on || el.classList.contains('dead')) return; S.vx += vx; S.vy += vy; S.t0 = performance.now(); run() }
     el._remoteTo = (sx, sy) => {
       if (S.drag?.on) return
       lift()
@@ -606,9 +618,10 @@ function orbBurst(el, cause) {
   if (cause === 'lose' || cause === 'alt') { add(`oflash ${cause} big`); return }  // implode / engolida pela luz: sem cacos
   if (cause === 'mill') for (let i = 0; i < 14; i++) {  // moer: a biblioteca vazia — páginas (costas de carta) a sair e a cair a esvoaçar
     const pg = add('opage', { left: `${R}px`, top: `${R}px` }), a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4, up = 60 + Math.random() * 70, sx = Math.cos(a) * (40 + Math.random() * 60)
-    pg.animate([{ transform: 'translate(-50%, -50%) scale(.3) rotate(0deg)', opacity: 1 }, { transform: `translate(calc(-50% + ${sx * 0.6}px), calc(-50% - ${up}px)) scale(1) rotate(${(Math.random() - 0.5) * 200}deg)`, opacity: 1, offset: 0.35 },
-      { transform: `translate(calc(-50% + ${sx}px), calc(-50% + ${R * 2.5}px)) scale(.9) rotate(${(Math.random() - 0.5) * 720}deg) rotateY(${360 + Math.random() * 360}deg)`, opacity: 0 }],
-      { duration: 1800 + Math.random() * 700, delay: 250 + i * 50, easing: 'cubic-bezier(.25, .6, .5, 1)', fill: 'both' })
+    // sobe e cai numa parábola (passa por −up a 35% do tempo e acaba R·2,5 abaixo), sem o bico no ponto alto
+    const Y = R * 2.5, bq = (up + 0.35 * Y) / 0.2275, aq = Y - bq, rz = (Math.random() - 0.5) * 720, ry = 360 + Math.random() * 360
+    pg.animate(curve(t => ({ transform: `translate(calc(-50% + ${(sx * (1 - (1 - t) ** 2)).toFixed(1)}px), calc(-50% + ${(aq * t + bq * t * t).toFixed(1)}px)) scale(${(0.3 + 0.7 * Math.min(1, t / 0.35) - 0.1 * Math.max(0, t - 0.35) / 0.65).toFixed(3)}) rotate(${(rz * t).toFixed(0)}deg) rotateY(${(ry * Math.max(0, t - 0.35) / 0.65).toFixed(0)}deg)`, opacity: Math.min(1, (1 - t) / 0.65) })),
+      { duration: 1800 + Math.random() * 700, delay: 250 + i * 50, easing: 'linear', fill: 'both' })
   }
   if (cause === 'cmd') add('oslash')  // dano de comandante: um corte dourado que a parte ao meio
   // a nuvem do que estava lá dentro
@@ -628,7 +641,7 @@ function orbBurst(el, cause) {
     const sp = cause === 'mill' ? 30 + Math.random() * 30 : 90 + Math.random() * 110, g = cause === 'mill' ? 140 : 230 + Math.random() * 120
     const vx = Math.cos(am) * sp, vy = Math.sin(am) * sp - 40, rx = (Math.random() - 0.5) * 720, ry = (Math.random() - 0.5) * 720, rz = (Math.random() - 0.5) * 360
     const at = k => `translate3d(${(vx * k).toFixed(1)}px, ${(vy * k + g * k * k).toFixed(1)}px, ${(40 * k).toFixed(1)}px) rotateX(${(rx * k).toFixed(0)}deg) rotateY(${(ry * k).toFixed(0)}deg) rotateZ(${(rz * k).toFixed(0)}deg)`
-    sh.animate([{ transform: 'none', opacity: 1 }, { transform: at(0.3), opacity: 1, offset: 0.25 }, { transform: at(0.65), opacity: 0.9, offset: 0.6 }, { transform: at(1), opacity: 0 }],
+    sh.animate(curve(t => ({ transform: at(t), opacity: t < 0.6 ? 1 - 0.1 * t / 0.6 : 0.9 * (1 - t) / 0.4 }), 12),  // a parábola amostrada: sem bicos
       { duration: 1300 + Math.random() * 500, easing: 'linear', fill: 'both' })
   }
   // o número da vida cai (e roda)
@@ -641,8 +654,10 @@ function orbBurst(el, cause) {
   for (let i = 0; i < P; i++) {  // sangue, fumo tóxico, folhas/pó, ouro
     const a = Math.random() * 2 * Math.PI, sp = 50 + Math.random() * 120, d = add(`opart ${cause}`, { left: `${R}px`, top: `${R}px` })
     const fall = cause === 'dmg' ? 160 : cause === 'mill' ? 110 : cause === 'cmd' ? 80 : -50
-    d.animate([{ transform: 'translate(-50%, -50%) scale(.5)', opacity: 1 }, { transform: `translate(calc(-50% + ${Math.cos(a) * sp}px), calc(-50% + ${Math.sin(a) * sp + fall}px)) scale(${cause === 'psn' ? 3 : 1}) rotate(${cause === 'mill' ? (Math.random() - 0.5) * 540 : 0}deg)`, opacity: 0 }],
-      { duration: 1000 + Math.random() * 800, delay: Math.random() * 120, easing: 'cubic-bezier(.2, .6, .4, 1)', fill: 'both' })
+    const sc = cause === 'psn' ? 3 : 1, rz = cause === 'mill' ? (Math.random() - 0.5) * 540 : 0
+    // salta e trava (1 − (1 − t)²) e a queda (ou a subida do fumo) acelera (t²): uma parábola, não uma reta
+    d.animate(curve(t => { const e = 1 - (1 - t) ** 2; return { transform: `translate(calc(-50% + ${(Math.cos(a) * sp * e).toFixed(1)}px), calc(-50% + ${(Math.sin(a) * sp * e + fall * t * t).toFixed(1)}px)) scale(${(0.5 + (sc - 0.5) * e).toFixed(3)}) rotate(${(rz * e).toFixed(0)}deg)`, opacity: 1 - t } }, 16),
+      { duration: 1000 + Math.random() * 800, delay: Math.random() * 120, easing: 'linear', fill: 'both' })
   }
 }
 
@@ -721,7 +736,11 @@ export function orbLook(k, z, data, ctx, name) {
   const P = fpPrefs(), mine = ctx.mine === k, other = ctx.looks?.[k]  // other: a que outro jogador escolheu (online)
   let { t, a } = other || (mine ? P.orb : { t: 'auto', a: 'auto' })
   if (!mine && !other && P.botOrb === 'random') { const h = hashS(`${ctx.seed}|${name || k}`); t = ORB_T[h % ORB_T.length]; a = ORB_A[(h >>> 5) % ORB_A.length] }
-  const key = `${ctx.seed}|${name || k}`, d = locked.get(key) || deckLook(z, data)
+  const key = `${ctx.seed}|${name || k}`
+  let d = locked.get(key) || deckLook(z, data)
+  // no início ainda não se viu nenhuma carta (o estilo caía em «gelo», cinzento-azulado): valem as cores do deck, se se sabem
+  const fb = ctx.cols?.[k]
+  if (!d.n && fb) d = { ...d, cols: fb, t: fb.length >= 3 ? 'prisma' : COL_T[fb[0]] || d.t }
   if (d.n >= 5 && !locked.has(key)) { locked.set(key, d); if (locked.size > 200) locked.delete(locked.keys().next().value) }
   const auto = t === 'auto'
   if (t === 'auto') t = d.t
@@ -1102,6 +1121,12 @@ export function DamageFx({ hits, data }) {
 const ZROUTES = [['library', 'graveyard', 'mill'], ['library', 'exile', 'exile'], ['library', 'hand', 'draw'], ['hand', 'graveyard', 'discard'],
   ['graveyard', 'exile', 'exile'], ['graveyard', 'hand', 'regrow'], ['graveyard', 'library', 'tuck'], ['hand', 'library', 'tuck'], ['hand', 'exile', 'exile'], ['exile', 'hand', 'regrow']]
 const fxHost = () => document.fullscreenElement || document.webkitFullscreenElement || document.body
+// caminhos curvos para o WAAPI: f(t) → keyframe, amostrado em n + 1 pontos (t de 0 a 1). Com 3 keyframes (início, ponto
+// alto, fim) o caminho era uma linha partida com um bico a meio; amostrado de uma curva fica liso. A easing do animate()
+// continua a dar o ritmo ao longo do caminho
+const curve = (f, n = 24) => Array.from({ length: n + 1 }, (_, i) => ({ offset: i / n, ...f(i / n) }))
+const arc = (b, m, t) => 2 * (1 - t) * t * (2 * m - b / 2) + t * t * b  // Bézier quadrática de 0 a b que passa por m em t = .5
+const hump = t => Math.sin(Math.PI * t)  // 0 → 1 → 0, sem bico
 function zoneEl(k, zone) {
   const side = document.querySelector(`.bside.p-${k}`)
   if (!side) return null
@@ -1131,10 +1156,10 @@ function zoneFly(k, from, to, n, kind, names, data) {
       Object.assign(d.style, { left: `${ax - w / 2}px`, top: `${ay - h / 2}px`, width: `${w}px`, height: `${h}px` })
       host.append(d)
       const spin = kind === 'mill' ? 360 : kind === 'draw' ? 0 : 20
-      d.animate([{ transform: 'translate(0, 0) rotate(0deg) scale(.85)', opacity: 0 }, { opacity: 1, offset: 0.1 },
-        { transform: `translate(${dx * 0.5}px, ${dy * 0.5 + lift}px) rotate(${spin / 2}deg) scale(1.08)`, offset: 0.5 },
-        { transform: `translate(${dx}px, ${dy}px) rotate(${spin}deg) scale(.82)`, opacity: 1, offset: 0.9 },
-        { transform: `translate(${dx}px, ${dy + 6}px) rotate(${spin}deg) scale(.7)`, opacity: 0 }], { duration: dur, easing: 'cubic-bezier(.45, .05, .55, .95)' }).onfinish = () => d.remove()
+      // em arco (chega ao sítio a 90% e assenta 6 px a desvanecer)
+      d.animate(curve(t => { const u = Math.min(1, t / 0.9), z = Math.max(0, t - 0.9) / 0.1
+        return { transform: `translate(${arc(dx, dx * 0.5, u).toFixed(1)}px, ${(arc(dy, dy * 0.5 + lift, u) + 6 * z).toFixed(1)}px) rotate(${(spin * u).toFixed(1)}deg) scale(${(0.85 - 0.15 * t + 0.3 * hump(t)).toFixed(3)})`, opacity: Math.min(1, t * 10, 1 - z) } }),
+      { duration: dur, easing: 'cubic-bezier(.45, .05, .55, .95)' }).onfinish = () => d.remove()
     }, i * (kind === 'draw' ? 90 : 130))
   }
   const end = (N - 1) * (kind === 'draw' ? 90 : 130) + dur * 0.9
@@ -1173,7 +1198,7 @@ function shatter(el, creature) {
     const vx = (cx - 50) * (1.6 + Math.random()) + (Math.random() - 0.5) * 30, vy = (cy - 40) * 1.2 - 60 - Math.random() * 40, g = 260 + Math.random() * 80, spin = (Math.random() - 0.5) * 420
     const rx = (Math.random() - 0.5) * 540, ry = (Math.random() - 0.5) * 540
     const at = k => `translate3d(${(vx * k).toFixed(1)}px, ${(vy * k + g * k * k).toFixed(1)}px, ${(30 * k).toFixed(0)}px) rotateX(${(rx * k).toFixed(0)}deg) rotateY(${(ry * k).toFixed(0)}deg) rotateZ(${(spin * k).toFixed(0)}deg)`
-    pc.animate([{ transform: 'none', opacity: 1 }, { transform: at(0.35), opacity: 1, offset: 0.3 }, { transform: at(0.7), opacity: 0.85, offset: 0.65 }, { transform: at(1), opacity: 0 }],
+    pc.animate(curve(t => ({ transform: at(t), opacity: t < 0.65 ? 1 - 0.15 * t / 0.65 : 0.85 * (1 - t) / 0.35 }), 12),  // a parábola amostrada: sem bicos
       { duration: 1250 + Math.random() * 450, delay: 300, easing: 'linear', fill: 'both' })
   }
   if (creature) {  // a alma sobe
@@ -1193,25 +1218,43 @@ function shatter(el, creature) {
 }
 // uma permanente que resolveu: a carta da pilha voa até onde ela entrou (antes ficava na pilha a desvanecer enquanto a
 // permanente já tinha aparecido do outro lado: pareciam duas)
-function stackToField(name) {
-  const from = [...document.querySelectorAll('.stackfx .stk.resolving')].pop(), sn = short(name)
-  const to = [...document.querySelectorAll('.bside .pc.in')].reverse().find(e => e.querySelector('.pc-f img')?.alt === sn || e.title?.split('\n')[0] === sn)
-  if (!from || !to) return
-  const a = from.getBoundingClientRect(), rot = to.querySelector('.pc-rot') || to, b = rot.getBoundingClientRect()
-  if (!a.width || !b.width) return
-  const g = document.createElement('div'), src = from.querySelector('img')?.src || to.querySelector('.pc-f img')?.src
+const fieldCards = name => { const sn = short(name); return [...document.querySelectorAll('.bside .pc')].filter(e => e.querySelector('.pc-f img')?.alt === sn || e.title?.split('\n')[0] === sn) }
+const newField = name => fieldCards(name).filter(e => e.classList.contains('in')).pop()
+// uma cópia da carta da pilha (from) voa num arco até ao retângulo b do ecrã, encolhendo para caber nele; tira a da pilha
+function stackGhost(from, b, ms) {
+  const a = from.getBoundingClientRect()
+  if (!a.width || !b?.width) return null
+  const g = document.createElement('div'), src = from.querySelector('img')?.src
   g.className = 'zghost fly'
-  Object.assign(g.style, { left: `${a.left}px`, top: `${a.top}px`, width: `${a.width}px`, height: `${a.height}px` })
+  Object.assign(g.style, { left: `${a.left}px`, top: `${a.top}px`, width: `${a.width}px`, height: `${a.height}px`, transformOrigin: '50% 50%' })
   if (src) g.style.backgroundImage = `url("${src}")`
-  fxHost().append(g)
+  fxHost().append(g); from.classList.add('flown')
+  const ex = b.left + b.width / 2 - a.left - a.width / 2, ey = b.top + b.height / 2 - a.top - a.height / 2, s = Math.min(b.width / a.width, b.height / a.height)
+  const lift = Math.min(70, Math.hypot(ex, ey) * 0.18)
+  return g.animate(curve(t => ({ transform: `translate(${arc(ex, ex / 2, t).toFixed(1)}px, ${arc(ey, ey / 2 - lift, t).toFixed(1)}px) scale(${(1 + (s - 1) * t).toFixed(3)})` })),
+    { duration: ms, easing: 'cubic-bezier(.45, 0, .25, 1)', fill: 'forwards' })
+}
+// uma permanente que resolveu: a carta da pilha voa até onde ela entrou (antes ficava na pilha a desvanecer enquanto a
+// permanente já tinha aparecido do outro lado: pareciam duas). to: a carta do campo (já escondida), se já lá estava
+function stackToField(name, to = newField(name)) {
+  const from = [...document.querySelectorAll('.stackfx .stk.resolving')].pop()
+  if (!to?.isConnected) return
   // a carta da pilha manda: se o FLIP (do sítio onde a largaste) estiver a correr, pára
-  clearTimeout(to._flipT); to.classList.remove('flipping'); to.style.transition = 'none'; to.style.transform = ''; to.style.zIndex = ''
-  from.classList.add('flown'); to.style.visibility = 'hidden'
-  const an = g.animate([{ transform: 'none' }, { transform: `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${b.width / a.width}, ${b.height / a.height})` }],
-    { duration: 420, easing: 'cubic-bezier(.45, 0, .25, 1)', fill: 'forwards' })
-  g.style.transformOrigin = '0 0'
-  const done = () => { to.style.visibility = ''; g.remove() }
+  clearTimeout(to._flipT); to._flipAn?.cancel(); to.classList.remove('flipping'); to.style.transition = 'none'; to.style.transform = ''; to.style.zIndex = ''
+  const an = from && stackGhost(from, (to.querySelector('.pc-rot') || to).getBoundingClientRect(), 420)
+  if (!an) { to.style.visibility = ''; return }
+  to.style.visibility = 'hidden'
+  const done = () => { to.style.visibility = ''; an.effect.target.remove() }
   an.onfinish = done; setTimeout(done, 900)
+}
+// um instantâneo/feitiço que resolveu: depois de lido, a carta sai da pilha num arco até ao cemitério de quem o lançou
+function stackToGrave(name, k) {
+  const from = [...document.querySelectorAll('.stackfx .stk.resolving')].reverse().find(e => e.querySelector('img')?.alt === name), pile = zoneEl(k, 'graveyard')
+  const an = from && pile && stackGhost(from, pile.getBoundingClientRect(), 520)
+  const show = () => pile?.querySelector('.pile-c img')?.style.removeProperty('visibility')  // o topo escondido à espera dela
+  if (!an) { show(); return }
+  const done = () => { if (!an.effect.target.isConnected) return; an.effect.target.remove(); show(); pile.classList.remove('zf-hit'); void pile.offsetWidth; pile.classList.add('zf-hit'); setTimeout(() => pile.classList.remove('zf-hit'), 650) }
+  an.onfinish = done; setTimeout(done, 1000)
 }
 // exilada por uma permanente que a guarda (Journey to Nowhere, Oblivion Ring, Banishing Light, Sheltered by Ghosts,
 // Fiend Hunter…): em vez de se desfazer em luz, a carta sobe, brilha e é sugada para dentro de quem a exilou, com um feixe
@@ -1232,9 +1275,10 @@ function ghostInto(el, holder) {
     beam.className = 'zbeam'
     Object.assign(beam.style, { left: `${r.left + r.width / 2}px`, top: `${r.top + r.height / 2}px`, width: `${L}px`, rotate: `${Math.atan2(dy, dx)}rad` })
     host.append(beam); setTimeout(() => beam.remove(), 900)
-    g.animate([{ transform: 'translateY(-14px) scale(1.06)', opacity: 1, filter: 'brightness(1.8)' },
-      { transform: `translate(${dx}px, ${dy}px) scale(.12) rotate(200deg)`, opacity: 0.2, filter: 'brightness(2.6) blur(1px)' }],
-      { duration: 650, easing: 'cubic-bezier(.6, 0, .9, .5)', fill: 'forwards' }).onfinish = () => g.remove()
+    const up = Math.min(60, L * 0.2)  // numa curva lisa (sobe um pouco e cai em quem a guarda), não em linha reta
+    g.animate(curve(t => ({ transform: `translate(${arc(dx, dx / 2, t).toFixed(1)}px, ${(arc(dy, dy / 2 - up, t) - 14 * (1 - t)).toFixed(1)}px) scale(${(1.06 - 0.94 * t * t).toFixed(3)}) rotate(${(200 * t * t).toFixed(1)}deg)`,
+      opacity: +(1 - 0.8 * t * t).toFixed(3), filter: `brightness(${(1.8 + 0.8 * t).toFixed(2)})${t > 0.6 ? ' blur(1px)' : ''}` })),
+      { duration: 650, easing: 'cubic-bezier(.5, 0, .75, .6)', fill: 'forwards' }).onfinish = () => g.remove()
     setTimeout(() => g.remove(), 1200)
     holder.classList.remove('holds'); void holder.offsetWidth; holder.classList.add('holds'); setTimeout(() => holder.classList.remove('holds'), 1400)
   }
@@ -1257,13 +1301,15 @@ const landCols = c => {
 function ribbon(a, b, cols, delay = 0, N = 16) {
   if (!a?.width || !b?.width) return
   const host = fxHost(), ax = a.left + a.width / 2, ay = a.top + a.height / 2, bx = b.left + b.width / 2, by = b.top + b.height / 2, my = Math.min(ay, by) - 70
+  const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy) || 1
   for (let i = 0; i < N; i++) {
     const d = document.createElement('i'), col = LCOL[cols[i % cols.length]]
     d.className = 'zrib'; Object.assign(d.style, { left: `${ax}px`, top: `${ay}px`, background: col, boxShadow: `0 0 10px ${col}` })
     host.append(d)
-    d.animate([{ transform: 'translate(-50%, -50%) scale(.3)', opacity: 0 }, { transform: `translate(calc(-50% + ${(bx - ax) / 2}px), calc(-50% + ${my - ay}px)) scale(1.1)`, opacity: 1, offset: 0.5 },
-      { transform: `translate(calc(-50% + ${bx - ax}px), calc(-50% + ${by - ay}px)) scale(.5)`, opacity: 0 }],
-      { duration: 760, delay: delay + i * 32, easing: 'ease-in-out', fill: 'both' }).onfinish = () => d.remove()
+    // cada mota no seu arco liso: o ponto alto desvia-se um pouco para os lados e na altura, e o tempo também varia
+    const w = (Math.random() - 0.5) * Math.min(70, L * 0.3), mx = dx / 2 - (dy / L) * w, mh = my - ay + (dx / L) * w - Math.random() * 18
+    d.animate(curve(t => ({ transform: `translate(calc(-50% + ${arc(dx, mx, t).toFixed(1)}px), calc(-50% + ${arc(dy, mh, t).toFixed(1)}px)) scale(${(0.3 + 0.2 * t + 0.7 * hump(t)).toFixed(3)})`, opacity: +hump(t).toFixed(3) })),
+      { duration: 700 + Math.random() * 140, delay: delay + i * 32, easing: 'ease-in-out', fill: 'both' }).onfinish = () => d.remove()
   }
 }
 // a camada por cima da carta do terreno: relâmpagos (shock) ou rasto de velocidade (fast)
@@ -1276,8 +1322,9 @@ function shockFx(el, cols, orbEl) {
   const o = orbEl?.getBoundingClientRect(), lag = o?.width ? 380 : 0
   if (o?.width) {  // a vida que se paga
     const w = document.createElement('i'); w.className = 'zwisp'; Object.assign(w.style, { left: `${o.left + o.width / 2}px`, top: `${o.top + o.height / 2}px` }); host.append(w)
-    w.animate([{ transform: 'translate(-50%, -50%) scale(.6)', opacity: 0 }, { transform: `translate(calc(-50% + ${(cx - o.left - o.width / 2) * 0.5}px), calc(-50% + ${(cy - o.top - o.height / 2) * 0.5 - 50}px)) scale(1.2)`, opacity: 1, offset: 0.45 },
-      { transform: `translate(calc(-50% + ${cx - o.left - o.width / 2}px), calc(-50% + ${cy - o.top - o.height / 2}px)) scale(.4)`, opacity: 0.9 }], { duration: lag, easing: 'ease-in', fill: 'forwards' }).onfinish = () => w.remove()
+    const dx = cx - o.left - o.width / 2, dy = cy - o.top - o.height / 2
+    w.animate(curve(t => ({ transform: `translate(calc(-50% + ${arc(dx, dx * 0.5, t).toFixed(1)}px), calc(-50% + ${arc(dy, dy * 0.5 - 50, t).toFixed(1)}px)) scale(${(0.6 - 0.2 * t + 0.7 * hump(t)).toFixed(3)})`, opacity: Math.min(1, t * 3) })),
+      { duration: lag, easing: 'ease-in', fill: 'forwards' }).onfinish = () => w.remove()
   }
   setTimeout(() => {
     const W = rot.offsetWidth, H = rot.offsetHeight, g = document.createElement('div'), NS = 'http://www.w3.org/2000/svg'  // na carta: px dela, sem a escala da mesa
@@ -1312,8 +1359,8 @@ function fetchFx(el, cols, lib) {
   g.className = 'zghost'; Object.assign(g.style, { left: `${cx - W / 2}px`, top: `${cy - H / 2}px`, width: `${W}px`, height: `${H}px`, rotate: tapped ? '90deg' : '0deg' })
   if (src) g.style.backgroundImage = `url("${src}")`
   host.append(g); el.style.visibility = 'hidden'
-  g.animate([{ transform: 'none', opacity: 1, filter: 'none' }, { transform: 'rotate(160deg) scale(.7)', opacity: 1, filter: 'brightness(1.6)', offset: 0.4 },
-    { transform: 'rotate(560deg) scale(.04)', opacity: 0, filter: 'brightness(3)' }], { duration: 760, easing: 'cubic-bezier(.5, 0, .9, .6)', fill: 'forwards' }).onfinish = () => g.remove()
+  g.animate(curve(t => ({ transform: `rotate(${(560 * t * t).toFixed(1)}deg) scale(${(1 - 0.96 * t * t * (3 - 2 * t)).toFixed(3)})`, opacity: +Math.min(1, 2.4 * (1 - t)).toFixed(3), filter: `brightness(${(1 + 2 * t).toFixed(2)})` })),
+    { duration: 760, easing: 'linear', fill: 'forwards' }).onfinish = () => g.remove()  // a espiral acelera lisa (antes: um bico a 40%)
   setTimeout(() => {
     const L = lib?.getBoundingClientRect()
     if (!L?.width) return
@@ -1330,8 +1377,8 @@ function fetchedFly(el, lib, cols) {
   g.style.setProperty('--c1', LCOL[cols[0]]); g.style.setProperty('--c2', LCOL[cols[1] || cols[0]])
   if (src) g.style.backgroundImage = `url("${src}")`
   host.append(g); el.style.visibility = 'hidden'
-  const mx = (b.left - a.left) / 2, my = Math.min(0, b.top - a.top) - 80
-  g.animate([{ transform: 'scale(.6) rotateY(180deg)' }, { transform: `translate(${mx}px, ${my}px) scale(1.15) rotateY(90deg)`, offset: 0.5 }, { transform: `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(1) rotateY(0deg)` }],
+  const ex = b.left - a.left, ey = b.top - a.top, my = Math.min(0, ey) - 80
+  g.animate(curve(t => ({ transform: `translate(${arc(ex, ex / 2, t).toFixed(1)}px, ${arc(ey, my, t).toFixed(1)}px) scale(${(0.6 + 0.4 * t + 0.35 * hump(t)).toFixed(3)}) rotateY(${(180 * (1 - t)).toFixed(1)}deg)` })),
     { duration: 620, easing: 'cubic-bezier(.4, 0, .3, 1)', fill: 'forwards' }).onfinish = () => {
     g.remove(); el.style.visibility = ''
     const w = document.createElement('i'); w.className = 'zring'; Object.assign(w.style, { left: `${b.left + b.width / 2}px`, top: `${b.top + b.height / 2}px` }); w.style.setProperty('--c1', LCOL[cols[0]])

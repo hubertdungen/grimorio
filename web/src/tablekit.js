@@ -100,9 +100,13 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
       // res 'leave': a carta do campo vai sair (mesa livre: para um monte ou a mão) — espera pela resposta como uma da mão;
       // com os 250 ms das que ficam (atacar, equipar) voltava ao sítio antes de o servidor responder e só depois sumia
       const t0 = Date.now(), field = el.matches('.pc') && res !== 'leave'
+      // a carta saiu de onde estava: o elemento foi-se (mão) ou passou a mostrar outra carta — o monte da biblioteca
+      // (Courser of Kruphix, Future Sight) fica no DOM com o topo novo, e o React reaproveita o mesmo elemento
+      const left = () => !el.isConnected || (el.dataset.h != null && el.dataset.h !== String(id)) || (el.dataset.h == null && el.dataset.z !== `k:${id}`)
       const wait = () => {
         if (!g.isConnected) return  // o useFlip já lhe pegou
-        if (!el.isConnected) {  // foi para outra zona: se aparece na pilha (Forge Play) voa até lá; senão desvanece onde está
+        if (left()) {  // foi para outra zona: se aparece na pilha (Forge Play) voa até lá; senão desvanece onde está
+          el.style.visibility = ''  // o monte (se ainda cá está) volta a ver-se, já com a carta de baixo
           const sk = stkOf(g)
           if (sk) { flipFrom.delete(String(id)); return toStack(g, sk, r) }
           if (!g._gone) { g._gone = Date.now(); g.style.transition = 'transform .25s ease-out, opacity .25s ease-out'; g.style.transform = flat(0.9); g.style.opacity = '0' }
@@ -126,9 +130,14 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
 const stkOf = g => (g.title ? [...document.querySelectorAll(`.stackfx .stk[data-z="n:${CSS.escape(g.title)}"]`)].filter(e => e.offsetWidth).pop() : null)
 function toStack(g, sk, r) {
   sk.style.animation = 'none'; sk.style.visibility = 'hidden'
-  const q = sk.getBoundingClientRect()
-  g.style.transition = 'transform .4s cubic-bezier(.3, .7, .3, 1), opacity .12s ease-out'; g.style.opacity = '1'
-  g.style.transform = `translate(${q.left + q.width / 2 - r.width / 2}px, ${q.top + q.height / 2 - r.height / 2}px) perspective(700px) rotateX(0deg) rotate(0deg) scale(${(q.width / r.width).toFixed(3)})`
+  const q = sk.getBoundingClientRect(), m = new DOMMatrixReadOnly(getComputedStyle(g).transform)
+  // de onde o fantasma está até à carta da pilha, numa curva (antes em linha reta por transição)
+  const x0 = m.m41, y0 = m.m42, x1 = q.left + q.width / 2 - r.width / 2, y1 = q.top + q.height / 2 - r.height / 2, k0 = Math.hypot(m.a, m.b) || 1, k1 = q.width / r.width
+  const lift = Math.min(60, Math.hypot(x1 - x0, y1 - y0) * 0.15)
+  g.style.transition = 'opacity .12s ease-out'; g.style.opacity = '1'
+  g.style.transform = `translate(${x1}px, ${y1}px) scale(${k1.toFixed(3)})`
+  g.animate(arcPath(x0 - x1, y0 - y1, lift, 20, t => `scale(${(k0 + (k1 - k0) * t).toFixed(4)})`).map(f => ({ ...f, transform: `translate(${x1}px, ${y1}px) ${f.transform}` })),
+    { duration: 400, easing: 'cubic-bezier(.3, .7, .3, 1)' })
   setTimeout(() => { sk.style.visibility = ''; g.remove() }, 420)
 }
 
@@ -242,6 +251,65 @@ const layoutPos = (el, stop, cache = new Map()) => {
   }
   return { x, y, w: el.offsetWidth, h: el.offsetHeight }
 }
+// caminho curvo e suave (bezier quadrática amostrada): pontos de (dx, dy) até (0, 0), com o ponto de controlo a meio e
+// levantado (lift, para cima no ecrã). As animações dos voos (useFlip, fantasmas da pilha, bolinhas, mana) usam isto em
+// vez de 2–3 keyframes em linha reta, que davam caminhos com esquinas. f(t) acrescenta o resto (escala, rotação, opacidade)
+export function arcPath(dx, dy, lift, n = 24, f = () => '') {
+  const cx = dx / 2, cy = dy / 2 - lift, out = []
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, u = 1 - t, x = u * u * dx + 2 * u * t * cx, y = u * u * dy + 2 * u * t * cy
+    out.push({ offset: t, transform: `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) ${f(t)}`.trim() })
+  }
+  return out
+}
+// voo FLIP de uma carta: parte de (dx, dy, escala k) em relação ao sítio dela e chega lá por uma curva (os voos longos
+// sobem um pouco a meio; os pequenos ajustes de fila vão direitos). Por WAAPI: um voo novo a meio de outro parte de onde
+// ela está agora (antes recomeçava do sítio antigo: a carta dava um salto); o fim é o transform dela (CSS), sem saltos
+export function flyEl(el, dx, dy, k = 1, ms = 520) {
+  el._flipAn?.cancel(); clearTimeout(el._flipT)
+  el.classList.add('flipping'); el.style.zIndex = '6'
+  const d = Math.hypot(dx, dy), lift = d > 140 ? Math.min(70, d * 0.16) : 0
+  const kf = arcPath(dx, dy, lift, d > 140 ? 24 : 2, t => `scale(${(k + (1 - k) * t).toFixed(4)})`)
+  // o fim: o transform que ela tem por CSS (a mão em leque, a casa livre…) — com «none» explícito ficava torta no último frame
+  const base = getComputedStyle(el).transform
+  kf[kf.length - 1].transform = base === 'none' ? 'none' : base
+  const an = el.animate(kf, { duration: ms, easing: 'cubic-bezier(.2, 1.12, .35, 1)' })
+  el._flipAn = an
+  const done = () => { if (el._flipAn !== an) return; el._flipAn = null; el.style.zIndex = ''; el.classList.remove('flipping') }
+  an.onfinish = done; an.oncancel = () => { if (el._flipAn === an) el._flipAn = null }
+  return an
+}
+// uma cópia (a imagem da carta) voa no ecrã de `from` até à carta `el` (a .pc-rot dela), numa curva, enquanto ela fica
+// escondida; no fim cruzam-se (a cópia desvanece e a carta aparece). Para quando o FLIP no espaço da carta não serve
+export function ghostToCard(el, from, ms = 600) {
+  el._flipAn?.cancel(); el.classList.add('flipping')  // sem o «aparecer» (.pc.in): mede-se o sítio final, em tamanho real
+  const rot = el.querySelector('.pc-rot') || el, b = rot.getBoundingClientRect()
+  if (!b.width || !from?.width || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { el.classList.remove('flipping'); return false }
+  const g = document.createElement('div'), ax = from.left + from.width / 2, ay = from.top + from.height / 2, bx = b.left + b.width / 2, by = b.top + b.height / 2
+  g.className = 'zghost fly'
+  Object.assign(g.style, { left: `${bx - from.width / 2}px`, top: `${by - from.height / 2}px`, width: `${from.width}px`, height: `${from.height}px`, transformOrigin: '50% 50%' })
+  const src = from.src || el.querySelector('.pc-f img')?.src
+  if (src) g.style.backgroundImage = `url("${src}")`
+  onTop().append(g)
+  const d = Math.hypot(bx - ax, by - ay), k = Math.min(b.width / from.width, b.height / from.height)
+  const an = g.animate(arcPath(ax - bx, ay - by, Math.min(70, d * 0.16), 24, t => `scale(${(1 + (k - 1) * t).toFixed(4)})`), { duration: ms, easing: 'cubic-bezier(.35, 0, .25, 1)', fill: 'forwards' })
+  el.style.visibility = 'hidden'
+  let over = false
+  const done = () => {
+    if (over) return
+    over = true; el.style.visibility = ''; el.classList.remove('flipping')
+    el.animate([{ opacity: 0.2 }, { opacity: 1 }], { duration: 140, easing: 'ease-out' })
+    g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 140, fill: 'forwards' }).onfinish = () => g.remove()
+  }
+  an.onfinish = done; setTimeout(done, ms + 300)
+  return true
+}
+// onde a carta está agora, a meio de um voo: o deslocamento e a escala do transform atual (no espaço dela, também em perspetiva)
+const flightNow = el => {
+  if (!el._flipAn) return null
+  const m = new DOMMatrixReadOnly(getComputedStyle(el).transform)
+  return { x: m.m41, y: m.m42, k: Math.hypot(m.a, m.b) || 1 }
+}
 export function useFlip(box, seq, lay) {
   const last = useRef(new Map()), was = useRef(null)
   useLayoutEffect(() => {  // mede a cada desenho (o ponto de partida fica sempre em dia); só anima quando o estado mudou
@@ -266,11 +334,12 @@ export function useFlip(box, seq, lay) {
       if (drop?.nodeType) {  // o fantasma do arrastar: a carta parte dele e ele sai no mesmo frame (sem vazio nem salto)
         const g = drop
         drop = g._any || (el !== g._src && el.matches('.pc, .pc-attc, .fp-hand [data-h]')) ? g.getBoundingClientRect() : null  // (do campo largada na mão: parte de onde a largaste)
-        if (drop) { g.remove(); el.style.visibility = '' }
+        if (drop) { g.remove(); el.style.visibility = ''; if (g._src?.isConnected) g._src.style.visibility = '' }  // o monte da biblioteca (topo jogado) fica no DOM: volta a ver-se
       }
       if (att && !drop && (!o || o.att)) continue
       if (!fly && !drop) continue
       if (drop) flipFrom.delete(id)
+      if (drop?.stk) el._stk = performance.now()  // veio da pilha (ver StackFx)
       if (!drop && !o && !reduce && last.current.size) {  // nova sem origem conhecida (ficha criada…): aparece por WAAPI (não compete com nada)
         el.animate([{ opacity: 0, transform: 'scale(.7) translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 450, easing: 'ease-out' })
         continue
@@ -278,26 +347,29 @@ export function useFlip(box, seq, lay) {
       if (reduce || (!drop && !o)) continue
       let dx, dy, k
       // pelos centros: a escala é em volta do centro da carta (pelos cantos, com escala ≠ 1, partia uns px ao lado)
-      if (drop) {  // vem do sítio do ecrã onde a largaste: compara com o retângulo atual no ecrã
+      // da pilha para o lado de cima em perspetiva: a carta lá está inclinada (um trapézio) e um FLIP no espaço dela não
+      // parte do retângulo direito da pilha — voa uma cópia no ecrã, numa curva, e a carta aparece quando ela chega
+      if (drop?.stk && el.closest('.fp-stage.persp .bside.top') && ghostToCard(el, drop)) continue
+      if (drop) {  // vem do sítio do ecrã onde a largaste (ou da carta na pilha): compara com o retângulo atual no ecrã
         // sem o voo que ainda leve a meio (e sem o «aparecer»): medido com ele, o novo partia muito ao lado — no lado de
         // cima em perspetiva, a carta do outro que já voava da mão dele surgia enorme na borda da mesa
-        el.classList.add('flipping'); el.style.transition = 'none'; el.style.transform = ''
+        el._flipAn?.cancel(); el.classList.add('flipping'); el.style.transition = 'none'; el.style.transform = ''
         const r = el.getBoundingClientRect()
-        dx = (drop.left + drop.width / 2 - r.left - r.width / 2) / sc; dy = (drop.top + drop.height / 2 - r.top - r.height / 2) / sc; k = drop.width / r.width
+        // px do ecrã -> px da carta: pela escala a que ela se vê (a mesa escalada e, no lado de cima, a perspetiva que a
+        // encolhe — dividir só pela escala da mesa fazia a carta da pilha partir uns 30 px ao lado e mais pequena)
+        const fx = r.width / (el.offsetWidth || r.width) || sc, fy = r.height / (el.offsetHeight || r.height) || sc
+        dx = (drop.left + drop.width / 2 - r.left - r.width / 2) / fx; dy = (drop.top + drop.height / 2 - r.top - r.height / 2) / fy; k = drop.width / r.width
         if (Math.abs(dx) < 3 && Math.abs(dy) < 3) { el.classList.remove('flipping'); el.style.transition = '' }  // já está lá: não voa
-      } else { dx = o.x + o.w / 2 - p.x - p.w / 2; dy = o.y + o.h / 2 - p.y - p.h / 2; k = o.w / p.w }
+      } else {
+        dx = o.x + o.w / 2 - p.x - p.w / 2; dy = o.y + o.h / 2 - p.y - p.h / 2; k = o.w / p.w
+        const cur = flightNow(el)  // a meio de outro voo: parte de onde está agora, não do sítio antigo
+        if (cur) { dx += cur.x; dy += cur.y; k *= cur.k }
+      }
       if (Math.abs(dx) < 3 && Math.abs(dy) < 3) continue  // não se mexeu (ou quase): deixa-a como está, a meio do que estiver a fazer
       // .flipping: sem o «aparecer» (.pc.in anima o transform e, por ser animação CSS, ganhava ao voo: a carta aparecia
       // logo no sítio e depois dava um salto a meio do caminho) e com sombra de quem vai no ar
-      el.classList.add('flipping'); clearTimeout(el._flipT)
-      el.style.transition = 'none'
-      el.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`
-      el.style.zIndex = '6'
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        el.style.transition = 'transform .5s cubic-bezier(.2, 1.25, .35, 1)'
-        el.style.transform = ''
-        el._flipT = setTimeout(() => { el.style.transition = ''; el.style.zIndex = ''; el.classList.remove('flipping') }, 520)
-      }))
+      el.style.transition = ''
+      flyEl(el, dx, dy, k, drop?.stk ? 620 : 520)
     }
     last.current = now
   })
@@ -321,10 +393,20 @@ export function useZoneFlights(box, seq, at) {
       const rot = e.querySelector('.pc-rot') || e
       return [e.dataset.z.slice(2), { r: rot.getBoundingClientRect(), src: e.querySelector('.pc-f img')?.src, tapped: e.classList.contains('tapped') }]
     }))
+    // na pilha (z 'stack', Forge Play): guarda-se já o sítio dela, pelo layout dentro do monte (sem a animação de entrada
+    // nem o abanar) — quando resolver, a carta da pilha já saiu do DOM
+    for (const w of now.values()) {
+      const e = w.z === 'stack' && box.current.querySelector(w.src), pile = e?.offsetParent
+      if (!pile) continue
+      const q = pile.getBoundingClientRect(), s = q.width / (pile.offsetWidth || q.width) || 1
+      w.r = { left: q.left + e.offsetLeft * s, top: q.top + e.offsetTop * s, width: e.offsetWidth * s, height: e.offsetHeight * s, src: e.querySelector('img')?.src }
+    }
     if (!pv.size) return
     for (const [id, w] of now) {
       // w.from: de onde vem uma carta que antes não se via (a mesa livre: a comprada voa da biblioteca para a mão)
       const o = pv.get(id), src = o ? o.src : w.from
+      // resolveu para o campo: a carta do campo voa do sítio onde estava na pilha (stk: o StackFx não faz a cópia «A resolver»)
+      if (o?.z === 'stack') { if (o.r && w.z === 'battlefield' && w.fly) flipFrom.set(String(id), { ...o.r, stk: true }); continue }
       if ((o && o.z === w.z) || !w.fly || !src) continue
       const el = box.current.querySelector(src)
       // de uma mão em leque: parte de uma carta do meio (o leque inteiro fazia-a começar quase 3× maior)

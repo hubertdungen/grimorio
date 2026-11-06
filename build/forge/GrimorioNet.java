@@ -445,6 +445,8 @@ public class GrimorioNet {
                 st.add(so);
             }
             o.add("stack", st);
+            JsonArray sl = selList;
+            if (sl.size() > 0) o.add("selc", sl);
             CombatView cb = gv.getCombat();
             if (cb != null) {
                 JsonArray ca = new JsonArray();
@@ -562,13 +564,28 @@ public class GrimorioNet {
             lastPrompt = o;
             send(o);
         }
+        // as escolhíveis também em lista (id + nome, a zona): o browser mostra-as como botões quando não estão à vista na mesa
+        // (aura presa a uma criatura, Hopeful Eidolon com bestow, cartas da biblioteca/zona de comando): sem isto a mesa
+        // pedia «clica numa das assinaladas» com a única escolhível escondida e o jogo não seguia (Calix, Guided by Fate)
+        volatile JsonArray selList = new JsonArray();
         @Override public void setSelectables(Iterable<CardView> cs, int min, int max) {
             super.setSelectables(cs, min, max);
             selectable.clear();
-            if (cs != null) for (CardView c : cs) selectable.add(c.getId());
+            JsonArray l = new JsonArray();
+            if (cs != null) for (CardView c : cs) {
+                selectable.add(c.getId());
+                JsonObject o = new JsonObject(); o.addProperty("id", c.getId());
+                try {
+                    if (mayView(c)) o.addProperty("name", c.getCurrentState().getName());
+                    if (c.getZone() != null) o.addProperty("zone", c.getZone().name());
+                    if (c.getAttachedTo() != null) o.addProperty("attachedTo", c.getAttachedTo().getId());
+                } catch (Exception e) { System.err.println("selc: " + e); }
+                l.add(o);
+            }
+            selList = l;
             dirty = true;
         }
-        @Override public void clearSelectables() { super.clearSelectables(); selectable.clear(); dirty = true; }
+        @Override public void clearSelectables() { super.clearSelectables(); selectable.clear(); selList = new JsonArray(); dirty = true; }
         @Override public void setHighlighted(Iterable<GameEntityView> ges, boolean on) { super.setHighlighted(ges, on); dirty = true; }
         @Override public void flashIncorrectAction() { JsonObject o = new JsonObject(); o.addProperty("t", "flash"); send(o); }
         @Override public void alertUser() { }
@@ -720,9 +737,53 @@ public class GrimorioNet {
             if (abilities.size() == 1) return abilities.get(0);
             JsonObject p = new JsonObject(); p.addProperty("msg", card.getCurrentState().getName()); p.addProperty("min", 0); p.addProperty("max", 1);
             p.addProperty("card", card.getId()); p.addProperty("cardName", card.getCurrentState().getName()); p.addProperty("ability", true);  // jogar o terreno ou ciclar, as formas de lançar…
-            p.add("options", options(abilities, null));
+            JsonArray os = options(abilities, null);
+            try { ways(card, abilities, os); } catch (Exception e) { System.err.println("ways: " + e); }
+            p.add("options", os);
             List<Integer> r = idx(ask("choose", p));
             return r.isEmpty() || r.get(0) < 0 || r.get(0) >= abilities.size() ? null : abilities.get(r.get(0));
+        }
+        // as formas de lançar/usar uma carta (normal, bestow, aventura, flashback, evoke, dash, face de trás, jogar como
+        // terreno…): a vista só traz a descrição (às vezes vazia, às vezes com o texto todo); a habilidade a sério (pelo id,
+        // ou pela descrição nas de custo alternativo, que o Forge refaz a cada pedido) dá o custo, o tipo e a face —
+        // o browser desenha cada forma como uma linha igual às outras: custo em símbolos, nome curto, texto
+        void ways(CardView card, List<SpellAbilityView> abilities, JsonArray os) {
+            forge.game.Game g = HM == null ? null : HM.getGame();
+            if (g == null) return;
+            forge.game.card.Card host = null;
+            for (forge.game.zone.ZoneType z : new forge.game.zone.ZoneType[]{ZoneType.Hand, ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Command, ZoneType.Library, ZoneType.Stack})
+                for (forge.game.card.Card x : new ArrayList<>(g.getCardsIn(z))) if (x.getId() == card.getId()) host = x;
+            if (host == null) return;
+            forge.game.player.Player me = host.getController();
+            List<forge.game.spellability.SpellAbility> pool = new ArrayList<>(host.getAllPossibleAbilities(me, false));
+            pool.addAll(host.getSpellAbilities());
+            Set<forge.game.spellability.SpellAbility> used = new HashSet<>();
+            for (int i = 0; i < abilities.size() && i < os.size(); i++) {
+                SpellAbilityView v = abilities.get(i);
+                forge.game.spellability.SpellAbility sa = null;
+                for (forge.game.spellability.SpellAbility x : pool) if (x.getId() == v.getId()) { sa = x; break; }
+                if (sa == null) for (forge.game.spellability.SpellAbility x : pool) if (!used.contains(x) && Objects.equals(x.toUnsuppressedString(), v.getDescription())) { sa = x; break; }
+                if (sa == null) continue;
+                used.add(sa);
+                JsonObject w = new JsonObject();
+                if (sa.getAlternativeCost() != null) w.addProperty("alt", sa.getAlternativeCost().name());
+                if (sa.isLandAbility()) w.addProperty("land", true);
+                if (sa.isSpell()) w.addProperty("spell", true);
+                if (sa.isAdventure()) w.addProperty("adventure", true);
+                if (sa.isFlashback()) w.addProperty("flashback", true);
+                forge.game.cost.Cost pc = sa.getPayCosts();
+                if (pc != null) {
+                    w.addProperty("cost", pc.toSimpleString());
+                    try { w.addProperty("mana", pc.getTotalMana().toString()); } catch (Exception e) { /* sem mana */ }
+                }
+                try {
+                    forge.game.card.CardState cs = sa.getCardState();
+                    if (cs != null) { w.addProperty("face", cs.getName()); w.addProperty("type", cs.getType().toString()); }
+                } catch (Exception e) { /* sem face */ }
+                String d = sa.getDescription();
+                if (d != null && !d.isEmpty()) w.addProperty("desc", d.replace("CARDNAME", host.getName()));
+                os.get(i).getAsJsonObject().add("way", w);
+            }
         }
         @Override public Map<CardView, Integer> assignCombatDamage(CardView attacker, List<CardView> blockers, int damage, GameEntityView defender, boolean overrideOrder, boolean maySkip) {
             // por agora: letal a cada bloqueador pela ordem, o resto ao último (ou ao defensor com atropelar)

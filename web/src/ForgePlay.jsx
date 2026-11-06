@@ -2,6 +2,7 @@
 // build/forge/GrimorioNet.java) e manda o estado do jogo, o pedido atual (o que o motor espera de ti) e as escolhas
 // pendentes; aqui desenha-se a mesa e cada clique volta como comando (carta, jogador, OK/cancelar, mana, responder).
 import './fpreveal.css'
+import './fpchoice.css'
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
@@ -71,6 +72,8 @@ function promptText(msg, st, me) {
   const got = (me?.hand || []).filter(c => c.picked).length
   if (disc) return `${/^Select \d+ card\(s\) to discard/i.test(m) && st?.phase === 'CLEANUP' ? tx('Mão cheia: clica em {n} carta(s) da mão para descartar.', { n: disc[1] || disc[2] }) : tx('Descartar: clica em {n} carta(s) da mão.', { n: disc[1] || disc[2] })} ${tx('Escolhidas: {k} de {n}.', { k: got, n: disc[1] || disc[2] })}`
   // «Spider Umbra (4) - Spider Umbra\n\nSelect target creature»: o pedido nem sempre vem na 1.ª linha
+  const hl = m.match(/^Click one of the highlighted cards\.?\s*(?:\((.+)\))?/i)
+  if (hl) return hl[1] ? `${tx('Clica numa das cartas assinaladas.')} (${hl[1]})` : tx('Clica numa das cartas assinaladas.')
   const ask = m.split('\n').find(l => /^(Select|Choose)/i.test(l.trim()))
   if (ask && st?.players?.some(p => [...(p.hand || []), ...(p.battlefield || [])].some(c => c.sel))) return `${tx('Clica numa das cartas assinaladas.')} (${ask.trim()})`
   if (/Declare attackers|Select creatures to attack/i.test(m)) {
@@ -139,7 +142,7 @@ function toPerm(c, combat) {
   const at = combat?.find(x => x.att === c.id)
   return {
     key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped, col: c.col,  // col: as cores da ficha (escolher a imagem certa)
-    land: !!c.land, crewed: !!c.creature, notCre: !c.creature && !c.hidden && !c.faceDown, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, damage: c.dmg || 0, counters,
+    land: !!c.land, crewed: !!c.creature, notCre: !c.creature && !c.hidden && !c.faceDown, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, sel: !!c.sel, damage: c.dmg || 0, counters,
     pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined, faceDown: !!c.faceDown, phased: !!c.phased, goaded: !!c.goad, copy: !!c.copy, merged: c.merged,
     attacking: at ? 'x' : undefined, atkName: at?.defc, atkKey: at?.defc ? String(at.def) : undefined, pw: c.pw, prot: c.prot, blocking: (b => (b ? String(b.att) : undefined))(combat?.find(x => x.blockers?.includes(c.id))),  // a chave do atacante: o par (⚔ n / 🛡 n) e a linha
   }
@@ -360,6 +363,81 @@ export function BigCard({ name, data, onClose }) {
 
 // habilidade a usar (getAbilityToPlay): «Shattered Landscape - Play land» -> «Jogar como terreno»; o resto sem o nome da carta
 const abilityLabel = (l, name) => { const s = String(l || ''), p = `${name} - `, t = s.startsWith(p) ? s.slice(p.length) : s; return /^Play land$/i.test(t) ? tx('Jogar como terreno') : t.replace(/^Cycling\b/, tx('Ciclar')) }
+// as formas de lançar/usar uma carta (getAbilityToPlay): normal, bestow, aventura, flashback, evoke, overload, dash, blitz,
+// disturb, escape, foretell, ninjutsu, ciclar, a outra metade de uma carta dividida, a face de trás (MDFC), jogar como
+// terreno… Cada forma é uma linha igual às outras — custo em símbolos, nome curto e o texto (no máximo 3 linhas) — e
+// nenhuma ocupa a janela toda. way (GrimorioNet): {alt, land, spell, adventure, flashback, cost, mana, face, type, desc};
+// sem ele (GrimorioNet antigo) lê-se a descrição: «Bestow {3}{W} (…)», «Hopeful Eidolon - Creature 1 / 1»
+const ALT_PT = { Bestow: ['Bestow', tx('como Aura, presa a uma criatura')], Flashback: ['Flashback', tx('do cemitério; depois vai para o exílio')], Evoke: ['Evoke', tx('mais barata; sacrificada ao entrar')],
+  Overload: ['Overload', tx('«alvo» passa a «cada»')], Dash: ['Dash', tx('com pressa; volta à mão no fim do turno')], Blitz: ['Blitz', tx('com pressa; sacrificada no fim do turno')],
+  Disturb: ['Disturb', tx('do cemitério, pela face de trás')], Escape: ['Escape', tx('do cemitério, exilando outras cartas')], Foretold: ['Foretell', tx('lançar a carta pressagiada')],
+  Emerge: ['Emerge', tx('sacrificando uma criatura')], Spectacle: ['Spectacle', tx('se um adversário perdeu vida neste turno')], Surge: ['Surge', tx('se já lançaste outro feitiço neste turno')],
+  Madness: ['Madness', tx('ao descartá-la')], Prowl: ['Prowl', tx('se uma criatura tua do tipo causou dano')], Mutate: ['Mutate', tx('por cima de uma criatura não humana')], Awaken: ['Awaken', tx('e um terreno teu vira criatura')],
+  Plotted: ['Plot', tx('lançar a carta tramada')], Impending: ['Impending', tx('entra como encantamento com marcadores')], Freerunning: ['Freerunning', tx('se um Assassino teu causou dano')],
+  Harmonize: ['Harmonize', tx('do cemitério')], Warp: ['Warp', tx('exilada no fim do turno; lança-se depois')], Sneak: ['Sneak', tx('trocando por um atacante não bloqueado')], Mayhem: ['Mayhem', tx('depois de a descartares')] }
+const KW_RE = /^(Commander ninjutsu|Ninjutsu|Cycling|\w+cycling|Channel|Transmute|Forecast|Reinforce|Bloodrush|Scavenge|Embalm|Eternalize|Unearth|Encore|Craft|Plot|Foretell|Suspend|Morph|Megamorph|Disguise|Retrace|Jump-start|Aftermath|Boast|Exhaust)\b/i
+const COST_HEAD = /^\s*[—-]?\s*((?:\{[^}]+\})+)\.?\s*/
+function wayOf(o, name, data) {
+  const w = o.way || {}, label = String(o.label || ''), desc = String(w.desc || label).replace(/\s+$/, '')
+  const sameName = !w.face || w.face === name
+  // custo: a mana em símbolos; o resto do custo («Exile five other cards…», «Return an unblocked attacker…») em texto
+  // o lembrete entre parênteses, sem o custo repetido à frente («({1}{U}, Return an unblocked attacker…: Put this card…)»)
+  const reminder = (desc.match(/\(([^()]{8,})\)\s*$/)?.[1] || '').replace(/^\{[^:]*:\s*/, '')
+  // sem way (GrimorioNet antigo): «Escape— {3}{B}, Exile five… (…)», «Bestow {3}{W} (…)» → a palavra-chave e o custo
+  const kwl = !o.way && label.match(/^([A-Z][A-Za-z' -]*?)\s*[—-]?\s*((?:\{[^}]+\})+)/)
+  const altl = kwl && Object.keys(ALT_PT).find(k => k.toLowerCase() === kwl[1].trim().toLowerCase().replace(/^foretell$/, 'foretold'))
+  if (altl) { w.alt = altl; w.cost = label.slice(kwl[0].length - kwl[2].length).split(' (')[0] }
+  let mana = w.mana ? (/^\{/.test(w.mana) && w.mana !== '{0}' ? w.mana : null) : kwl && (altl || KW_RE.test(label)) ? kwl[2] : null
+  const extra = w.cost && w.cost !== 'no cost' ? w.cost.replace(/^(\{[^}]+\})+,?\s*/, '').trim() : ''
+  let title, sub = '', text = ''
+  if (w.land || /^Play land\b/i.test(label)) {
+    title = tx('Jogar como terreno'); sub = !sameName ? w.face : (label.match(/^Play land \((.+)\)$/i)?.[1] || ''); mana = null
+  } else if (w.alt) {
+    ;[title, sub] = ALT_PT[w.alt] || [w.alt, '']
+    text = w.alt === 'Flashback' ? desc : reminder || desc.replace(/^[\w ]+?(?=\s*[—-]?\s*\{)/, '').replace(COST_HEAD, '')
+  } else if (w.adventure) {
+    title = tx('Aventura: {f}', { f: w.face }); text = desc
+  } else if (KW_RE.test(desc) && !w.spell) {
+    const k = desc.match(KW_RE)[1]; title = /^cycling$/i.test(k) ? tx('Ciclar') : k
+    text = reminder || desc.replace(KW_RE, '').replace(COST_HEAD, '')
+  } else if (!sameName) {  // a outra metade (Fire // Ice) ou a face de trás (MDFC): pelo nome dela
+    title = w.face; sub = w.type || ''; text = desc
+  } else if (w.spell || label.startsWith(`${name} - `) || !label) {
+    title = tx('Lançar normalmente'); const m = desc.match(/^.+? - (.+)$/)
+    sub = m ? m[1].replace(/\bCreature\b/, tx('Criatura')).replace(/ \/ /, '/') : ''
+    text = m ? '' : desc
+    if (!mana) mana = lookup(data, name)?.mc || null
+  } else if (!o.way && !/^Play land$/i.test(label) && !/^[^(]*:\s/.test(label)) {  // sem way: o texto do feitiço = lançá-lo normalmente
+    title = tx('Lançar normalmente'); text = label; mana = mana || lookup(data, name)?.mc || null
+  } else {
+    title = abilityLabel(label, name)
+  }
+  text = text.replace(/CARDNAME/g, name).trim()
+  if (text.replace(/\W/g, '').toLowerCase() === String(title).replace(/\W/g, '').toLowerCase()) text = ''
+  return { title, sub, text, mana, extra }
+}
+function WayAsk({ a, data, answer, zoom, head, escRef }) {
+  const name = a.cardName || a.msg
+  const ways = (a.options || []).map(o => wayOf(o, name, data))
+  escRef.current = () => answer(a, [])
+  useEffect(() => {  // 1…9 escolhe a forma pelo número
+    const k = e => { const n = +e.key; if (n >= 1 && n <= ways.length && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); answer(a, [n - 1]) } }
+    addEventListener('keydown', k); return () => removeEventListener('keydown', k)
+  })
+  return (
+    <div className="fp-ask fp-ways-ask"><p>{tx('Como queres usar {c}?', { c: name })}</p>
+      {head && <div className="fp-ways-head" onMouseEnter={() => zoom?.(head)}><FCard c={head} data={data} big /></div>}
+      <div className="fp-ways" role="list">{ways.map((w, k) => (
+        <button key={k} type="button" role="listitem" className="fp-way" onClick={() => answer(a, [k])} title={a.options[k].label}>
+          <span className="fp-way-cost">{w.mana ? <Syms text={w.mana} /> : <i>—</i>}</span>
+          <span className="fp-way-body"><b>{w.title}{w.sub && <small> · {w.sub}</small>}</b>
+            {w.extra && <em className="fp-way-extra">+ <Syms text={w.extra} /></em>}
+            {w.text && <span className="fp-way-txt"><Syms text={w.text} /></span>}</span>
+          <kbd className="fp-way-k">{k + 1}</kbd>
+        </button>))}</div>
+      <div className="row-btns"><button onClick={() => answer(a, [])}>{tx('Cancelar')} <kbd>Esc</kbd></button></div>
+    </div>)
+}
 // escolhas que bloqueiam o motor: sim/não, uma opção, um número ou texto, ou escolher entre cartas/jogadores
 // para que é um pedido de escolha: a carta e o texto da habilidade — da 1.ª linha do Forge («Spider Umbra (4) - Enchant
 // creature…»), da carta que o pedido traz ou do topo da pilha (o que está a resolver). Sem nada disto: null
@@ -422,6 +500,8 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rv
     : a.kind === 'choose' && undo && MANA_ASK.test(a.msg || '') ? () => { answer(a, [0]); undo() } : null
   escRef.current = cancel
   const head = a.card != null && (all.find(c => c.id === a.card) || (a.cardName && { id: a.card, name: a.cardName }))  // jogar o terreno ou ciclar: a carta em grande
+  // as formas de lançar/usar a carta (getAbilityToPlay): linhas iguais, com custo em símbolos (WayAsk)
+  if (a.ability && a.kind === 'choose' && (a.options || []).every(o => o.card == null && o.player == null)) return <WayAsk a={a} data={data} answer={answer} zoom={zoom} head={head} escRef={escRef} />
   const toggle = k => (one ? answer(a, [k]) : setPick(p => (p.includes(k) ? p.filter(x => x !== k) : p.length < max ? [...p, k] : p)))
   // a carta revelada -> a opção dela (pelo id; sem id, pelo nome); se todas as opções estão nas reveladas, escolhe-se lá
   const optOf = c => (a.options || []).findIndex(o => rvSame(c, o))
@@ -442,7 +522,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rv
   )
 }
 
-export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, series, onEnd }) {  // againLabel: o texto do botão de voltar a jogar (torneios: o jogo seguinte da partida)
+export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, series, onEnd, cols }) {  // cols: as cores de cada deck ({a, b}), para a esfera antes de haver cartas à vista  // againLabel: o texto do botão de voltar a jogar (torneios: o jogo seguinte da partida)
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [toast, setToast] = useState(null)
   const [rvl, setRvl] = useState(null)  // cartas reveladas: um painel com as imagens, até o fechares (ou até à escolha que vem com elas)
   const seen = useRef(0)
@@ -504,6 +584,30 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const theirTurn = !!st && st.active !== me?.id
   const pr = theirTurn && ATK_ASK(s?.prompt?.msg) ? { msg: `Waiting for ${opp?.name || ''}`, buttons: [] } : s?.prompt
   const btns = (pr?.buttons || []).filter(b => b.label)
+  // impasse do Forge: pede «Click one of the highlighted cards» sem nenhuma carta escolhível e com os dois botões desligados
+  // (Calix sem encantamentos não lendários, efeitos «escolhe uma … que controlas» sem nenhuma). O Forge cancela a entrada
+  // mesmo com o botão desligado: mostra-se «continuar» e, ao fim de 2,5 s, segue sozinho (o efeito fica sem escolha)
+  // selc (GrimorioNet): as escolhíveis de todas as zonas — também as que a mesa não desenha à parte (a aura presa, o Hopeful
+  // Eidolon com bestow, cartas da biblioteca/zona de comando). Com alguma, não é impasse: aparecem como botões no pedido
+  const anySel = !!st?.selc?.length || players.some(q => q.sel || ['battlefield', 'hand', 'graveyard', 'exile'].some(z => (q[z] || []).some(c => c.sel)))
+  const idle = !!pr?.msg && !/^(Priority:|Waiting for)/.test(pr.msg) && !s?.asks?.length && !btns.some(b => b.on) && !anySel && !s?.ended
+  const stuck = idle && /highlighted|Choose (a|an|one|up to)/i.test(pr.msg)
+  const stuckKey = stuck ? `${pr.msg}|${s?.seq}` : ''
+  // rede de segurança para qualquer outro pedido sem botão ligado e sem nada para escolher: ao fim de 1,5 s aparece um
+  // «Continuar» (o Forge aceita sempre o «cancel» e acaba a entrada; o efeito segue sem a escolha) — nunca um beco sem saída
+  const [idleShown, setIdleShown] = useState('')
+  const idleKey = idle && !stuck ? pr.msg : ''
+  useEffect(() => {
+    if (!idleKey) { setIdleShown(''); return }
+    const t = setTimeout(() => setIdleShown(idleKey), 1500)
+    return () => clearTimeout(t)
+  }, [idleKey])
+  const unstick = (stuck || (idleKey && idleShown === idleKey)) && <button type="button" className="primary fp-unstick" onClick={() => send({ c: 'cancel' })}>{stuck ? tx('Sem cartas para escolher — continuar') : tx('Continuar')}</button>
+  useEffect(() => {
+    if (!stuckKey) return
+    const t = setTimeout(() => { send({ c: 'cancel' }); setToast({ title: tx('Sem cartas para escolher'), msg: tx('O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.') }) }, 2500)
+    return () => clearTimeout(t)
+  }, [stuckKey])  // eslint-disable-line react-hooks/exhaustive-deps
   const blocking = theirTurn && BLK_ASK(pr?.msg)  // o Forge pede os bloqueadores (cliques = bloquear)
   const ask = s?.asks?.[0]
   const hoverId = useRef(null), [flipped, setFlipped] = useState(() => new Set()), [lift, setLift] = useState(null)  // carta debaixo do rato; viradas; levantada na mão
@@ -705,12 +809,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (c?.land || /\bLand\b/.test(t)) {
       if (!myTurn) return say(tx('Os terrenos só se jogam no teu turno.'))
       if (!main || !empty) return say(tx('Os terrenos só se jogam na tua fase principal, com a pilha vazia.'))
-      return say(tx('Já jogaste um terreno neste turno.'))
+      return say(me?.top?.id === id ? tx('Já jogaste um terreno neste turno, ou nenhuma carta tua deixa jogar terrenos do topo da biblioteca.') : tx('Já jogaste um terreno neste turno.'))
     }
     const fast = /\bInstant\b/.test(t) || /^Flash\b/im.test(o)
     if (!fast && (!myTurn || !main || !empty)) return say(tx('Não é instantâneo: só na tua fase principal, com a pilha vazia.'))
     const lands = (me?.battlefield || []).filter(x => x.land && !x.tapped).length, pool = Object.values(me?.mana || {}).reduce((a, n) => a + n, 0)
     if (d?.cmc != null && lands + pool < d.cmc) return say(tx('Falta mana: custa {n} e tens {m} por usar (terrenos por virar e reserva).', { n: d.cmc, m: lands + pool }))
+    if (me?.top?.id === id) return say(tx('Do topo da biblioteca só se joga o que uma carta tua deixa (Courser of Kruphix: terrenos; Future Sight, Bolas\'s Citadel: tudo), e só quando o Forge o permite agora.'))
     if (/\btarget\b/i.test(o)) return say(tx('Talvez não haja um alvo válido para ela agora (ou falte a cor certa de mana).'))
     return say(tx('O Forge não a deixa jogar agora: falta a cor certa de mana ou uma condição da carta.'))
   }
@@ -892,7 +997,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // cartas que saem do campo a desaparecer (dying) — tudo a partir da diferença entre um estado do Forge e o seguinte
   const anim = useRef({ perms: new Map(), stack: [] }), [fxs, setFxs] = useState({ pops: new Map(), gone: [], rev: null, ri: 0 })
   const seqKey = s?.seq
-  useEffect(() => {
+  useLayoutEffect(() => {  // antes de pintar: a cópia «A resolver» entra no mesmo frame em que a carta sai da pilha (havia um frame com a pilha vazia)
     if (!st) return
     const a = anim.current, now = new Map(), pops = new Map(), gone = []
     for (const p of st.players || []) for (const c of p.battlefield || []) now.set(c.id, { c, side: p.id === me?.id ? 'a' : 'b' })
@@ -1020,12 +1125,15 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // a arte escolhida em cada deck ({a: {carta: edição/imagem}, b: …}): estável entre estados para não redesenhar a mesa toda
   const artsKey = JSON.stringify(s?.arts || null), artsCtx = useMemo(() => ({ arts: JSON.parse(artsKey), k: null }), [artsKey])
   const im = (c, size) => img(c, size, false, artOf(artsCtx.arts, null, c))
-  const orbCtx = useMemo(() => ({ mine: 'a', seed: sid, looks: null }), [sid])  // a minha esfera = as minhas preferências; a do Forge pelo deck ou ao acaso
+  const colsKey = `${cols?.a || ''}|${cols?.b || ''}`
+  const orbCtx = useMemo(() => ({ mine: 'a', seed: sid, looks: null, cols }), [sid, colsKey])  // eslint-disable-line react-hooks/exhaustive-deps -- a minha esfera = as minhas preferências; a do Forge pelo deck ou ao acaso
   useOverlap(fitTable)
   // cartas que voltam do cemitério ou do exílio (reanimar, flashback de permanentes, exilar e devolver) e as que o adversário
   // joga da mão: voam do monte/mão de onde vieram (a tua mão e o campo já voam sozinhos pelo id)
   useZoneFlights(fitTable, seqKey, () => {
-    const m = new Map()
+    const m = new Map(), sk = st?.stack || []
+    // feitiços na pilha (data-si: de baixo para cima; a do Forge vem do topo): ao resolver para o campo voam de lá
+    sk.forEach((x, i) => { if (!x.ability && x.card != null) m.set(x.card, { z: 'stack', src: `.stackfx .stk[data-si="${sk.length - 1 - i}"]` }) })
     for (const p of st?.players || []) {
       const side = `.bside.${p.id === me?.id ? 'bottom' : 'top'}`
       for (const z of ['hand', 'graveyard', 'exile', 'battlefield']) for (const c of p[z] || []) m.set(c.id, { z, fly: z === 'battlefield' || (z === 'hand' && p.id === me?.id), src: z === 'hand' ? (p.id === me?.id ? null : `${side} .myhand`) : z === 'battlefield' ? null : `${side} [data-zone="${z}"]` })
@@ -1058,6 +1166,15 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   for (const p of [...bs.a.perms, ...bs.b.perms]) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
   const sel = new Set([...byId.values()].filter(c => c.sel).map(c => String(c.id)))
   const picked = [...byId.values()].filter(c => c.picked).map(c => c.id)
+  // escolhíveis que não se veem sozinhas na mesa: presas a outra carta (aura, Hopeful Eidolon com bestow), no cemitério,
+  // no exílio, no topo da biblioteca ou noutra zona (selc do GrimorioNet): vão como botões no pedido — um toque escolhe
+  const zoneOfId = id => { for (const p of players) for (const z of ['battlefield', 'hand']) if ((p[z] || []).some(c => c.id === id)) return z; return null }
+  const selHidden = /^Priority:/.test(pr?.msg || '') ? [] : (st.selc?.length ? st.selc : [...byId.values()].filter(c => c.sel).map(c => ({ id: c.id, name: c.name })))
+    .filter(x => { const c = byId.get(x.id); return !c || c.attachedTo != null || !zoneOfId(x.id) }).slice(0, 12)
+  const selPick = selHidden.length > 0 && <div className="fp-selpick"><small>{tx('Também se escolhem (não estão à vista na mesa):')}</small><div>{selHidden.map(x => {
+    const c = byId.get(x.id), nm = c && !c.hidden ? c.name : x.name, host = c?.attachedTo != null && byId.get(c.attachedTo)
+    return <div key={x.id} role="button" tabIndex={0} className="fp-selb" data-zid={x.id} onClick={() => send({ c: 'card', id: x.id })} onKeyDown={e => { if (e.key === 'Enter') send({ c: 'card', id: x.id }) }}>
+      <FCard c={{ id: x.id, name: nm || '', hidden: !nm, sel: true }} data={data} /><span><b>{nm || tx('Carta escondida')}</b>{host && <em>{tx('presa a {c}', { c: host.name })}</em>}</span></div> })}</div></div>
   // a escolher alvos (Path to Exile em resposta a um Counterspell…): a pilha em cima da mesa fica transparente e deixa passar os
   // cliques e o arrastar para as cartas por baixo, que ficam assinaladas
   const aiming = sel.size > 0 || /\btarget\b|assinaladas/i.test(pr?.msg || '')
@@ -1185,6 +1302,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       <div className="fp-dice" ref={diceBox} /></div>
       {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
         <p><Syms text={promptText(pr?.msg, st, me)} />{blockBox}</p>
+        {unstick}{selPick}
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
         {clockUi}
@@ -1197,6 +1315,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           <p><Syms text={promptText(pr?.msg, st, me)} /></p>
           {blockBox}
           {clockUi}
+          {unstick}
+          {selPick}
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')} />))}</span>}
