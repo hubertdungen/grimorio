@@ -1,5 +1,6 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
+import { IL } from './icons.jsx'
 import { MatPick } from './Board.jsx'
 import { ApkUpdate } from './apkupdate.jsx'
 import { fpPrefs, setFpPrefs, CARD_PX } from './fpprefs.js'
@@ -301,7 +302,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Língua')}</h3><LangPick />
         <p className="muted small">{tx('Os nomes e os textos das cartas ficam em inglês (dados do Scryfall).')} {tx('A escolha fica guardada neste browser.')}</p></section>
       <section className="card"><h3>{tx('Jogos do Forge ao mesmo tempo')}</h3><ForgeGames /></section>
-      <section className="card"><h3>{tx('🤖 Bots predefinidos')}</h3><DefaultBots /></section>
+      <section className="card"><h3><IL n="bots" t={tx('🤖 Bots predefinidos')} /></h3><DefaultBots /></section>
       <section className="card"><h3>{tx('Som')}</h3><Sound /></section>
       <section className="card"><h3>{tx('Ecrã')}</h3><ScreenAwake /></section>
       <section className="card"><h3>{tx('Mesa (Forge Play)')}</h3><TableKeys /></section>
@@ -310,8 +311,8 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>
       <section className="card"><h3>{tx('Terrenos básicos')}</h3><BasicSettings getDefaults={getBasicDefaults} setDefaults={setBasicDefaults} ask={ask} /></section>
       <section className="card"><h3>{tx('Confirmações')}</h3><p className="muted small">{tx('Perguntar antes de:')}</p><ConfirmSettings /></section>
-      <section className="card"><h3>{tx('🤖 IA')}</h3><AIKeys /></section>
-      <section className="card"><h3>{tx('🤝 Amigos')}</h3><Friends /></section>
+      <section className="card"><h3><IL n="mago" t={tx('🤖 IA')} /></h3><AIKeys /></section>
+      <section className="card"><h3><IL n="amigos" t={tx('🤝 Amigos')} /></h3><Friends /></section>
       <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p><HighlightMine /></section>
       <section className="card danger-zone"><h3>{tx('Recomeçar')}</h3><ResetStats /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
