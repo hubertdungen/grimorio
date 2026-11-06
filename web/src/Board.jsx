@@ -384,6 +384,7 @@ function useOrbPhysics(ref) {
     const el = ref.current
     if (!el) return
     const S = { x: 0, y: 0, vx: 0, vy: 0, drag: null, raf: 0, t0: 0, last: 0, base: null, px: null }, bumped = new WeakMap()
+    el._phys = S  // a esfera 3D lê a velocidade: o líquido chapinha com a inércia
     let trailN = 0, bounceAt = 0
     const host = () => document.fullscreenElement || document.webkitFullscreenElement || document.body
     const cur = () => S.px || el
@@ -690,7 +691,7 @@ export function orbLook(k, z, data, ctx, name) {
   const auto = t === 'auto'
   if (t === 'auto') t = d.t
   if (a === 'auto') a = d.a
-  return { t, a, cols: d.cols, w: auto ? fieldMix(z, data) : undefined }  // w: os fluidos por cor (só no estilo automático)  // cols: as cores do deck (o halo da esfera 3D)
+  return { t, a, cols: d.cols, w: auto && P.orbFluid ? fieldMix(z, data) : undefined }  // w: os fluidos por cor (só no estilo automático)  // cols: as cores do deck (o halo da esfera 3D)
 }
 export const ORB_T_NAME = { verde: tx('Floresta'), oceano: tx('Oceano'), brasa: tx('Brasa'), vazio: tx('Vazio'), ouro: tx('Ouro'), gelo: tx('Gelo'), prisma: tx('Prisma'), tempestade: tx('Tempestade'), sangue: tx('Sangue') }
 export const ORB_A_NAME = { calmo: tx('Calmo'), turbilhao: tx('Turbilhão'), pulsar: tx('Pulsar'), faiscas: tx('Faíscas') }
@@ -708,6 +709,7 @@ export function OrbPick({ onChange }) {
           onClick={() => save({ orb: { ...p.orb, t } })}><span className="orb" data-t={t === 'auto' ? undefined : t} data-a={p.orb.a === 'auto' ? undefined : p.orb.a}><span className="orb-in"><i className="orb-smoke" /><i className="orb-smoke s2" /></span>{t === 'auto' ? <b>A</b> : null}</span></button>)}
       </div>
       <label className="chk small"><input type="checkbox" checked={p.orb3d} onChange={e => save({ orb3d: e.target.checked })} /> {tx('Esfera em 3D (desligado: a clássica)')}</label>
+      {p.orb3d && <label className="chk small"><input type="checkbox" checked={p.orbFluid} onChange={e => save({ orbFluid: e.target.checked })} /> {tx('Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)')}</label>}
       <label className="small orbsize">{tx('Tamanho das esferas')} <b>{Math.round(p.orbScale * 100)}%</b>
         <input type="range" min={80} max={160} step={5} value={Math.round(p.orbScale * 100)} onChange={e => { const v = +e.target.value / 100; orbScale(v); save({ orbScale: v }) }} /></label>
       <label className="small">{tx('Animação')} <select value={p.orb.a} onChange={e => save({ orb: { ...p.orb, a: e.target.value } })}>

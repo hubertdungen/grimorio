@@ -3799,4 +3799,5 @@ export default {
   "Atacar {d}: clica nas criaturas que atacam e depois OK.": "{d} angreifen: Klicke auf die angreifenden Kreaturen und dann auf OK.",
   "Para atacar um planeswalker ou uma batalha, toca nele primeiro (ou larga a criatura em cima dele); toca na esfera dele para voltar a atacar o jogador.": "Um einen Planeswalker oder eine Schlacht anzugreifen, tippe ihn zuerst an (oder lass die Kreatur darauf fallen); tippe auf seine Kugel, um wieder den Spieler anzugreifen.",
   "Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).": "Jetzt nicht: Loyalität wird einmal pro Zug genutzt, in deiner Hauptphase bei leerem Stapel (und ein „−“ braucht genug Loyalität).",
+  "Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)": "Flüssigkeiten nach den Karten im Spiel (automatischer Stil; aus: die Flüssigkeit des Stils)",
 }
