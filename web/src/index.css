@@ -3720,3 +3720,7 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .pc.fetched .pc-rot { animation: fetched 1.3s ease-out; }
 @keyframes fetched { 0%, 100% { filter: none; } 40% { filter: brightness(1.6) drop-shadow(0 0 10px #fff8dc); } }
 @media (prefers-reduced-motion: reduce) { .zland, .zrib { display: none; } }
+
+/* batalha: quem a protege (o defensor quando é atacada) */
+.pc-prot { position: absolute; left: 50%; top: -9px; transform: translateX(-50%); z-index: 5; max-width: 110%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 10px; font-style: normal; padding: 1px 6px; border-radius: 8px; background: #1e293bee; color: #e2e8f0; border: 1px solid #94a3b8; pointer-events: none; }

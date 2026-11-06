@@ -111,14 +111,16 @@ function toPerm(c, combat) {
     key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped,
     land: !!c.land, crewed: !!c.creature, notCre: !c.creature && !c.hidden && !c.faceDown, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, damage: c.dmg || 0, counters,
     pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined, faceDown: !!c.faceDown, phased: !!c.phased, goaded: !!c.goad, copy: !!c.copy, merged: c.merged,
-    attacking: at ? 'x' : undefined, atkName: at?.defc, atkKey: at?.defc ? String(at.def) : undefined, pw: c.pw, blocking: (b => (b ? String(b.att) : undefined))(combat?.find(x => x.blockers?.includes(c.id))),  // a chave do atacante: o par (⚔ n / 🛡 n) e a linha
+    attacking: at ? 'x' : undefined, atkName: at?.defc, atkKey: at?.defc ? String(at.def) : undefined, pw: c.pw, prot: c.prot, blocking: (b => (b ? String(b.att) : undefined))(combat?.find(x => x.blockers?.includes(c.id))),  // a chave do atacante: o par (⚔ n / 🛡 n) e a linha
   }
 }
 function zoneOf(p, combat) {
   const { poison = 0, energy = 0, ...pctr } = ctrs(p.counters), cz = p.command || []
   return {
     life: p.life, library: p.library, libTop: p.top || null, hand: p.hand?.length || 0, known: [], graveyard: (p.graveyard || []).map(c => c.name), exile: (p.exile || []).map(c => c.name),
-    command: cz.filter(c => !c.emblem).map(c => ({ name: c.name, room: c.room, casts: 0 })), cmdDmg: {}, poison, energy, pctr, emblems: cz.filter(c => c.emblem).map(c => c.name),
+    // comandantes: o imposto (vezes lançado) e o dano de comandante vêm do Forge (cmdrs/cdmg); fora da zona de comando = .out
+    command: [...cz.filter(c => !c.emblem).map(c => ({ name: c.name, room: c.room, casts: p.cmdrs?.find(x => x.id === c.id)?.casts || 0 })),
+      ...(p.cmdrs || []).filter(x => !cz.some(c => c.id === x.id)).map(x => ({ name: x.name, casts: x.casts || 0, out: true }))], cmdDmg: p.cdmg || {}, poison, energy, pctr, emblems: cz.filter(c => c.emblem).map(c => c.name),
     monarch: !!p.monarch, initiative: !!p.initiative, blessing: !!p.blessing, speed: p.speed || 0, out: false, perms: (p.battlefield || []).map(c => toPerm(c, combat)),
   }
 }

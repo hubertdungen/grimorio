@@ -3800,4 +3800,5 @@ export default {
   "Para atacar um planeswalker ou uma batalha, toca nele primeiro (ou larga a criatura em cima dele); toca na esfera dele para voltar a atacar o jogador.": "要攻击鹏洛客或战役，先点它（或把生物拖到它上面）；点对方的生命球即可改回攻击玩家。",
   "Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).": "现在不行：忠诚异能每回合只能用一次，需在你的主阶段且堆叠为空（“−”异能还需要足够的忠诚）。",
   "Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)": "按场上卡牌生成液体（自动风格；关闭：使用风格自带的液体）",
+  "Batalha protegida por {x}": "由 {x} 守护的战役",
 }

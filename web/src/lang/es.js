@@ -3800,4 +3800,5 @@ export default {
   "Para atacar um planeswalker ou uma batalha, toca nele primeiro (ou larga a criatura em cima dele); toca na esfera dele para voltar a atacar o jogador.": "Para atacar a un planeswalker o una batalla, tócalo primero (o suelta la criatura encima); toca su esfera para volver a atacar al jugador.",
   "Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).": "Ahora no: la lealtad se usa una vez por turno, en tu fase principal y con la pila vacía (y un «−» necesita lealtad suficiente).",
   "Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)": "Fluidos según las cartas en juego (estilo automático; desactivado: el líquido del estilo)",
+  "Batalha protegida por {x}": "Batalla protegida por {x}",
 }

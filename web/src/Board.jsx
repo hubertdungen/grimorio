@@ -305,6 +305,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
         {p.goaded && <i className="pc-goad" title={tx('Incitada')}>⚑</i>}
         {n > 1 && <b className="pc-n">×{n}</b>}
         {tgt && <i className={`pc-tgt t-${tgt[0]}`} title={tx('Ataca {x}', { x: tgt[1] })}>⚔ {tgt[1]}</i>}
+        {p.prot && <i className="pc-prot" title={tx('Batalha protegida por {x}', { x: p.prot })}>🛡 {short(p.prot)}</i>}
         {(p.est || p.hidden) && <i className="pc-est" title={p.hidden ? tx('Estimativa: terreno procurado na biblioteca; o registo deste jogo (antigo) não diz qual.') : EST}>≈</i>}
       </div>
       {pop && !quiet && <i key={pop.i} className={`pc-pop ${pop.kind} ${pop.ct === 'loyalty' ? 'loyalty' : ''} ${pop.n < 0 ? 'neg' : ''} ${pop.ct === '-1/-1' || pop.ct === 'poison' ? 'ct-m1' : ''}`}>{pop.kind === 'flip' ? '⟲' : pop.kind === 'enter' || pop.kind === 'attach' ? pop.txt : pop.kind === 'pump' ? pop.pt : `${pop.n > 0 ? '+' : '−'}${Math.abs(pop.n)}${pop.ct && pop.ct !== '+1/+1' && pop.ct !== 'loyalty' ? ` ${CT_ICON[pop.ct] || CT[pop.ct] || pop.ct}` : ''}`}</i>}

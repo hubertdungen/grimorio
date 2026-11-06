@@ -238,6 +238,7 @@ public class GrimorioNet {
             if (s.isLand()) o.addProperty("land", true);
             if (s.isCreature()) o.addProperty("creature", true);
             if (s.isPlaneswalker()) o.addProperty("loyalty", s.getLoyalty());
+            try { if (c.getProtectingPlayer() != null) o.addProperty("prot", c.getProtectingPlayer().getName()); } catch (Exception e) { System.err.println("prot: " + e); }  // batalha: quem a protege
             if (s.isPlaneswalker() && rc != null && rc.getController() != null && rc.getController().getController() instanceof forge.player.PlayerControllerHuman) {
                 try {  // as habilidades de lealdade (custo + texto) e quais dá para ativar agora: o browser mostra-as e ativa a escolhida
                     JsonArray ab = new JsonArray(); Set<String> ok = pwOk.getOrDefault(c.getId(), Set.of());
@@ -393,6 +394,13 @@ public class GrimorioNet {
                 po.add("graveyard", cards(p.getGraveyard(), false));
                 po.add("exile", cards(p.getExile(), false));
                 po.add("command", command(p));
+                try {  // comandantes: vezes lançado (imposto) e o dano de comandante que este jogador levou de cada um
+                    JsonArray cm = new JsonArray(); JsonObject cd = new JsonObject();
+                    if (p.getCommanders() != null) for (CardView c : p.getCommanders()) { JsonObject x = new JsonObject(); x.addProperty("id", c.getId()); x.addProperty("name", c.getCurrentState().getName()); x.addProperty("casts", p.getCommanderCast(c)); cm.add(x); }
+                    for (PlayerView q : gv.getPlayers()) if (q != p && q.getCommanders() != null) for (CardView c : q.getCommanders()) { int d = p.getCommanderDamage(c); if (d > 0) cd.addProperty(c.getCurrentState().getName(), d); }
+                    if (cm.size() > 0) po.add("cmdrs", cm);
+                    if (cd.size() > 0) po.add("cdmg", cd);
+                } catch (Exception e) { System.err.println("cmdrs: " + e); }
                 forge.game.player.Player rp = null;
                 if (game != null) for (forge.game.player.Player x : game.getPlayers()) if (x.getId() == p.getId()) rp = x;
                 if (rp != null) try {  // designações: monarca, iniciativa, bênção da cidade, velocidade
