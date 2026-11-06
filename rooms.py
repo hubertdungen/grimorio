@@ -9,7 +9,7 @@ import freetable
 import sim
 import tournament
 
-ROOM = re.compile(r"^/api/rooms(?:/([a-f0-9]{10})(?:/(join|leave|start|cancel|ready|lend|plays))?)?$")
+ROOM = re.compile(r"^/api/rooms(?:/([a-f0-9]{10})(?:/(join|leave|start|cancel|ready|lend|plays|chat|show))?)?$")
 GO = 4  # segundos de contagem quando estão todos prontos (mesa livre)
 
 
@@ -36,17 +36,31 @@ def lent(con, owner, spec):
     return out
 
 
+def lobby(con, owner, p, who):
+    """O que o lobby 3D mostra de um lugar: quantas cartas (a altura da caixa), as cores e a capa; a lista só se o dono
+    deixar ver (ou se o deck é meu)."""
+    d = (owner and seat_deck(con, owner, p)) or {}
+    main = d.get("main") or {}
+    out = {"n": sum(int(v) for v in main.values() if str(v).isdigit() or isinstance(v, int)), "cover": d.get("cover") or d.get("coverImg") or None}
+    if p.get("show") or p.get("by") == who:
+        out["list"] = {str(k): int(v) for k, v in list(main.items())[:120]}
+    return out
+
+
 def view(con, r, who, owner=None):
     rid, ts, spec, players, status, tid = r
     spec, players = json.loads(spec), json.loads(players)
     lo, hi = span(spec)
+    livre = spec.get("type") == "livre" and status == "open"
     return {"id": rid, "ts": ts, "status": status, "tid": tid, "name": spec.get("name"), "type": spec.get("type"),
             "format": spec.get("format"), "casual": bool(spec.get("casual")), "bo": spec.get("bo"), "min": lo, "max": hi, "free": bool(spec.get("free")),
             "misto": bool(spec.get("misto")), **({"wait": spec.get("wait") or 0} if spec.get("misto") else {}),
             "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref"), "src": p.get("src"),
-                         "host": p.get("by") == "host", "ready": bool(p.get("ready")),
+                         "host": p.get("by") == "host", "ready": bool(p.get("ready")), "show": bool(p.get("show")),
+                         **(lobby(con, owner, p, who) if livre else {}),
                          **({"plays": p.get("plays") or "bot", "difficulty": p.get("difficulty") or "default"} if spec.get("misto") else {})} for p in players],
-            **({"go": round(max(0.0, spec["go"] - time.time()), 1)} if spec.get("go") else {}),
+            **({"go": round(max(0.0, spec["go"] - time.time()), 1), "first": spec.get("first", 0)} if spec.get("go") else {}),
+            **({"chat": (spec.get("chat") or [])[-60:]} if livre else {}),
             **({"lend": lent(con, owner, spec)} if (spec.get("type") == "livre" or spec.get("free") or spec.get("misto")) and owner and status == "open" else {}),
             **({"link": f"/sala/{spec['link']}"} if who == "host" and spec.get("link") else {})}
 
@@ -66,7 +80,7 @@ def start_livre(con, owner, rid, spec, players):
         if not d:
             raise ValueError(f"O deck «{p.get('name')}» já não existe.")
         seats.append({"by": p["by"], "name": p.get("byName") or owner, "deck": d})
-    tid = freetable.create(con, owner, spec.get("name"), seats)
+    tid = freetable.create(con, owner, spec.get("name"), seats, first=int(spec.get("first") or 0))
     con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
     return tid
 
@@ -190,6 +204,19 @@ def route(con, method, path, owner, body, guest=None):
         lend = [x for x in spec.get("lend") or [] if x != did]
         spec["lend"] = lend + ([did] if (body or {}).get("on", True) else [])
         players = [p for p in players if not (p.get("src") == "lend" and p.get("ref") not in spec["lend"])]
+    elif act == "chat" and livre:  # a conversa do lobby (quem está na sala)
+        m = str((body or {}).get("m") or "").strip()[:240]
+        if not m:
+            return 400, {"erro": "Mensagem vazia."}
+        nm = guest["name"] if guest else next((p.get("byName") for p in players if p.get("by") == "host"), None) or "Anfitrião"
+        spec["chat"] = (spec.get("chat") or [])[-59:] + [{"w": nm, "by": who, "t": round(time.time()), "m": m}]
+    elif act == "show" and livre:  # deixar (ou não) os outros ver e mexer no meu deck no lobby
+        on = (body or {}).get("on")
+        mine = [p for p in players if p.get("by") == who]
+        if not mine:
+            return 409, {"erro": "Senta-te primeiro com um deck."}
+        for p in mine:
+            p["show"] = (not p.get("show")) if on is None else bool(on)
     elif act == "cancel" and not guest:
         con.execute("UPDATE rooms SET status='cancelled' WHERE id=?", (rid,))
         return 200, {"ok": True}
@@ -212,6 +239,9 @@ def route(con, method, path, owner, body, guest=None):
     else:
         return 403, {"erro": "Não podes fazer isto nesta sala."}
     if livre:  # a contagem: todos os sentados prontos e gente que chegue; qualquer mudança volta a pô-la a zero
-        spec["go"] = time.time() + GO if len(players) >= lo and all(p.get("ready") for p in players) else None
+        was = spec.get("go")
+        spec["go"] = (was or time.time() + GO) if len(players) >= lo and all(p.get("ready") for p in players) else None
+        if spec["go"] and not was:  # a moeda ao ar: quem começa (todos a veem no lobby durante a contagem)
+            spec["first"] = secrets.randbelow(len(players))
     con.execute("UPDATE rooms SET players=?, spec=? WHERE id=?", (json.dumps(players), json.dumps(spec), rid))
     return 200, view(con, con.execute("SELECT id, ts, spec, players, status, tid FROM rooms WHERE id=?", (rid,)).fetchone(), who, owner)

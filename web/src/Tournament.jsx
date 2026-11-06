@@ -9,6 +9,7 @@ import Replay from './Board.jsx'
 import ForgeTable from './ForgePlay.jsx'
 import FreeTable from './FreeTable.jsx'
 import { NewSolo, NewFreeRoom, Seats, JoinPanel, LendPanel, RemoteJoin, FreeMatches } from './FreeRooms.jsx'
+import Lobby3D from './Lobby3D.jsx'  // o three.js só carrega com uma sala aberta (import dinâmico lá dentro)
 import { Cup, PLACE, TIERS, KIND, tierOf } from './Library.jsx'
 import { trophyValue, TIER_PTS, KIND_W, BLUE_W, PTS_STARS, PERF_STARS, starPoints, perfQ, perfOf } from './trophyvalue.js'
 import { swapSide, nextGame, mixTake, genShape } from './game.js'
@@ -798,6 +799,7 @@ function Rooms({ data, guest, open, openTable }) {
                 {me && !me.ready && n >= r.min && r.go == null && <> · <b>{tx('carrega em «Pronto»')}</b></>}
                 {guest && me && n < r.min && <> · {tx('estás sentado; a mesa abre-se sozinha quando houver gente que chegue e estiverem todos prontos')}</>}</p>
             })()}
+            {r.status === 'open' && <Lobby3D r={r} data={data} act={act} />}
             <Seats r={r} guest={guest} act={act} />
             {r.status === 'open' && mine.length > 0 && <div className="row-btns ml-readyrow">
               <button className={mine[0].ready ? 'on ml-ready' : 'primary ml-ready'} onClick={() => act(r.id, 'ready', { on: !mine[0].ready })} aria-pressed={mine[0].ready} disabled={busy === `${r.id}:ready`}>{mine[0].ready ? tx('✓ Pronto (carrega para esperar)') : tx('✋ Estou pronto')}</button></div>}

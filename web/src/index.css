@@ -3794,3 +3794,14 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
    não fazia nada (o toque ia para a mão) */
 .bhud .zones { position: relative; z-index: 9; }  /* a mão (.fp-hand) está no 8 */
 .bhud .zones { pointer-events: none; } .bhud .zones > * { pointer-events: auto; }  /* só os montes: o vazio da faixa deixa passar para a mão */
+
+/* lobby 3D da mesa livre: a mesa com as caixas dos decks e, ao lado, a conversa da sala */
+.lobby3d { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 10px; margin: 8px 0; }
+.lobby3d-view { position: relative; height: 340px; border-radius: 14px; overflow: hidden; background: #0c1a12; box-shadow: inset 0 0 40px #000a; }
+.lobby3d-view canvas { display: block; width: 100%; height: 100%; }
+.lobby3d-close { position: absolute; right: 8px; top: 8px; z-index: 2; }
+.lobby3d-side { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.lobby3d-chat { flex: 1; min-height: 120px; max-height: 220px; overflow: auto; padding: 6px 8px; border-radius: 10px; background: var(--panel, #161a26); border: 1px solid var(--line); }
+.lobby3d-chat p { margin: 2px 0; font-size: 13px; } .lobby3d-chat b { color: var(--gold, #f2b84b); margin-right: 4px; }
+.lobby3d-say { display: flex; gap: 6px; } .lobby3d-say input { flex: 1; min-width: 0; }
+@media (max-width: 760px) { .lobby3d { grid-template-columns: 1fr; } .lobby3d-view { height: 260px; } }

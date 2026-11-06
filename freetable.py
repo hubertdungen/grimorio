@@ -75,14 +75,14 @@ def _deal(t, i):
     t["seats"][i]["peek"] = 0
 
 
-def create(con, owner, name, seats, solo=False):
+def create(con, owner, name, seats, solo=False, first=0):  # first: quem começa (a moeda do lobby)
     """seats = [{by, name, deck: {name, format, main, commanders}}] -> id da mesa (já com 7 cartas na mão de cada um).
     solo: um só lugar, para testar um deck (goldfish), com a vida de um adversário imaginário."""
     init(con)
     if not (1 if solo else 2) <= len(seats) <= (1 if solo else 4):
         raise ValueError("A mesa livre leva entre 2 e 4 jogadores.")
     t = {"id": secrets.token_hex(6), "owner": owner, "name": str(name or "Mesa livre")[:80], "seq": 1, "ts": time.time(),
-         "status": "playing", "turn": 1, "active": 0, "seats": [], "cards": {}, "zones": [], "log": [], "roll": None,
+         "status": "playing", "turn": 1, "active": first if 0 <= first < len(seats) else 0, "seats": [], "cards": {}, "zones": [], "log": [], "roll": None,
          **({"solo": True, "gf": 20} if solo else {})}
     for i, s in enumerate(seats):
         d = s["deck"] or {}
