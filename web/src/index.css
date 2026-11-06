@@ -3724,3 +3724,12 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 /* batalha: quem a protege (o defensor quando é atacada) */
 .pc-prot { position: absolute; left: 50%; top: -9px; transform: translateX(-50%); z-index: 5; max-width: 110%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 10px; font-style: normal; padding: 1px 6px; border-radius: 8px; background: #1e293bee; color: #e2e8f0; border: 1px solid #94a3b8; pointer-events: none; }
+
+/* reserva de mana em mini-esferas 3D (ForgePlay ManaOrb): o canvas maior que o botão (o halo), o número por cima */
+.fp-pool .mana3d { position: relative; width: 34px; height: 34px; padding: 0; border-radius: 50%; background: var(--m); color: #111; font-weight: 800; border: 2px solid #0006;
+  animation: fp-in .4s cubic-bezier(.34, 1.56, .64, 1); overflow: visible; }
+.fp-pool .mana3d > canvas.orb3d { position: absolute; left: -30.5%; top: -30.5%; width: 161%; height: 161%; pointer-events: none; visibility: hidden; }
+.fp-pool .mana3d[data-o3] { background: none; border-color: transparent; }
+.fp-pool .mana3d[data-o3] > canvas.orb3d { visibility: visible; }
+.fp-pool .mana3d > b { position: relative; z-index: 1; color: #fff; text-shadow: 0 0 3px #000, 0 1px 2px #000; }
+.fp-pool .mana3d:hover { transform: scale(1.12); }

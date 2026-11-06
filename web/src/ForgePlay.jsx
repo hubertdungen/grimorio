@@ -102,6 +102,28 @@ export function FCard({ c, data, onClick, h, cls = '', big, flip, from, tag }) {
 const CTR = { P1P1: '+1/+1', M1M1: '-1/-1' }
 const ctrs = o => Object.fromEntries(Object.entries(o || {}).map(([k, n]) => [CTR[k] || (/^[+-]/.test(k) ? k : String(k).toLowerCase()), n]))
 // notCre: o Forge diz se é criatura agora (Enduring Vitality de volta do cemitério, deus sem devoção, Imprisoned in the Moon…)
+// a mana da reserva: uma mini-esfera 3D com o fluido da cor (o mesmo motor das esferas da vida: luz dourada, água,
+// pântano, lava, verde pastoso, metal), que chapinha quando a mana entra ou aumenta; sem WebGL, o botão redondo de cor
+const MANA_W = { W: '1,0,0,0,0,0,0', U: '0,1,0,0,0,0,0', B: '0,0,1,0,0,0,0', R: '0,0,0,1,0,0,0', G: '0,0,0,0,1,0,0', C: '0,0,0,0,0,1,0' }
+function ManaOrb({ k, n, onClick, title }) {
+  const ref = useRef(null), cv = useRef(null), phys = useRef({ vx: 0, vy: 0 })
+  useEffect(() => {
+    if (!fpPrefs().orb3d) return
+    let off, gone = false
+    import('./orb3d.js').then(m => { if (!gone && m.webgl3d() && ref.current && cv.current) { ref.current._phys = phys.current; off = m.attachOrb3d(ref.current, cv.current) } }).catch(() => {})
+    return () => { gone = true; off?.() }
+  }, [])
+  useEffect(() => {  // entrou mais mana: um empurrão (a aceleração faz o líquido chapinhar)
+    const p = phys.current; p.vx = 900; p.vy = -600
+    const t = setTimeout(() => { p.vx = 0; p.vy = 0 }, 60)
+    return () => clearTimeout(t)
+  }, [n])
+  return (
+    <button ref={ref} type="button" className="mana3d" data-w={MANA_W[k]} data-cols={k === 'C' ? undefined : k} data-a="calmo" style={{ '--m': MANA[k] }} onClick={onClick} title={title}>
+      <canvas ref={cv} className="orb3d" aria-hidden="true" /><b>{n}</b>
+    </button>
+  )
+}
 function toPerm(c, combat) {
   const counters = ctrs(c.counters)
   if (c.loyalty != null && counters.loyalty == null) counters.loyalty = +c.loyalty || 0  // o marcador «Loyalty» do Forge manda; «loyalty» da carta vem em texto («4»)
@@ -939,7 +961,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       </div><div className="fp-dice" ref={diceBox} /></div>
       {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
         <p><Syms text={promptText(pr?.msg, st, me)} />{blockBox}</p>
-        {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })}>{n}</button>)}</span>}
+        {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
         <FsBtn />
       </div>}
@@ -951,7 +973,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           {blockBox}
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
-            <button type="button" key={k} style={{ '--m': MANA[k] }} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')}>{n}</button>))}</span>}
+            <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')} />))}</span>}
           <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')} {tx('Duplo clique numa carta tua na mesa abre as ações dela, em qualquer fase (também a atacar e a bloquear).')}</p>
           <div className="fp-dicebar"><span className="muted small">🎲</span>
             {[['d6', ['d6']], ['2d6', ['d6', 'd6']], ['d20', ['d20']], [tx('moeda'), ['moeda']]].map(([l, t]) => <button key={l} type="button" className="link small" onClick={() => dice.roll(t)} title={tx('Lançar na mesa')}>{l}</button>)}
