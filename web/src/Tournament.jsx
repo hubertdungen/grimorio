@@ -418,7 +418,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
           {!mixF && CROSS[format] && <label className="chk small" title={tx('Os decks têm de ser legais carta a carta neste formato (o servidor confirma).')}><input type="checkbox" checked={crossOn} onChange={e => { setCrossOn(e.target.checked); ls('grimorio.torneio.cross', e.target.checked ? '1' : '0') }} /> {tx('Aceitar decks legais de outros formatos ({l})', { l: CROSS[format].map(f => FORMAT[f]?.name || f).join(', ') })}</label>}
           {misto && F.cmd && <p className="small muted tc-info">{tx('Commander só se todos jogarem eles mesmos (fica um torneio de mesa livre): com bots, o Forge Play é um contra um.')}</p>}
           {room !== 'jogo' && <div className="tc-types">{Object.entries(TYPES).filter(([k]) => k !== 'jogo' && !(misto && k === 'mesas')).map(([k, [l, lo, hi]]) => (
-            <button key={k} className={type === k ? 'on' : ''} onClick={() => setType(k)}><TypeIco k={k} /><b>{l}</b><small>{lo}–{hi} decks</small></button>
+            <button key={k} className={type === k ? 'on' : ''} onClick={() => setType(k)}><TypeIco k={k} /><b>{l}</b><small>{tx('{lo}–{hi} decks', { lo, hi })}</small></button>
           ))}</div>}
           <p className="small muted tc-info">{info}</p>
           <div className="tc-row">
@@ -427,7 +427,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
             {type === 'equipas' && <label className="fmt"><span>{tx('Decks por equipa')}</span><select value={team} onChange={e => setTeam(+e.target.value)}><option value={2}>2</option><option value={3}>3</option></select></label>}
             {type === 'equipas' && <label className="fmt" title={team !== 2 ? tx('À mesma mesa só com equipas de 2 (o Forge joga até 4 lugares).') : tx('Tabuleiro a tabuleiro: cada deck joga um contra um com o do outro lado. À mesma mesa: os dois decks de cada equipa jogam juntos contra os dois da outra, num só jogo a quatro — com a vida de cada um, ou em Two-Headed Giant (vida partilhada, 30 por equipa; veneno da equipa, 15 = derrota; a equipa que começa não compra no 1.º turno; a equipa perde junta).')}><span>{tx('As equipas jogam')}</span>
               <select value={table} disabled={team !== 2} onChange={e => setTop('table', e.target.value)}><option value="">{tx('Tabuleiro a tabuleiro')}</option><option value="equipas">{tx('2 contra 2 à mesma mesa')}</option><option value="2hg" disabled={!!F.cmd}>{tx('Two-Headed Giant (vida partilhada)')}</option></select></label>}
-            <label className="fmt"><span>Seeds</span><select value={seeding} onChange={e => setSeeding(e.target.value)}><option value="aleatorio">{tx('Sorteados ao começar')}</option><option value="ordem">{tx('Pela ordem da lista')}</option></select></label>
+            <label className="fmt"><span>{tx('Seeds')}</span><select value={seeding} onChange={e => setSeeding(e.target.value)}><option value="aleatorio">{tx('Sorteados ao começar')}</option><option value="ordem">{tx('Pela ordem da lista')}</option></select></label>
           </div>
           {type === 'elim' && <label className="chk small"><input type="checkbox" checked={third} onChange={e => setThird(e.target.checked)} /> {tx('Jogo de 3.º lugar')}</label>}
           {type === 'equipas' && <div className="tc-team-opts">
@@ -441,7 +441,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
           <p className="small muted">{bo === 3 && type !== 'mesas' ? `${tx('Bo3 com sideboard inteligente entre jogos, como no Laboratório (decks com sideboard, em formatos que o têm), e aprende com as trocas que já perderam.')} ` : ''}{tx('Empates na eliminação repetem o jogo (até 2 vezes); depois passa o melhor seed. Jogos em que o Forge falha repetem-se.')}</p>
         </div>
         <div className="lab-step">
-          <h4 className="step-h"><i>2</i> Decks <span className="chip">{n}/{max}</span></h4>
+          <h4 className="step-h"><i>2</i> {tx('Decks')} <span className="chip">{n}/{max}</span></h4>
           <p className="small muted tc-info">{tx('Marca um dos teus com')} <b>{tx('☆ eu')}</b> {tx('para jogar «como se fosses tu»: fica destacado e vês até onde chegas.')}</p>
           <div className="tc-fill">
             <span>{tx('🎲 Preencher até')}</span><input type="number" min="2" max={max} value={fillN} onChange={e => setFillN(+e.target.value)} />

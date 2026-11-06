@@ -28,7 +28,7 @@ const TIPS = [
   [tx('Combate'), tx('no teu turno clica nas criaturas que atacam e depois OK. Para bloquear, clica no atacante e depois na tua criatura.')],
   [tx('Teclas'), tx('Espaço = OK · Ctrl+E acaba o turno · Ctrl+A ataca com tudo · Ctrl+Z desfaz · Z amplia a carta debaixo do rato · H mostra todos os atalhos.')],
   [tx('Imagens'), tx('chegam à medida que as cartas aparecem. Na primeira vez o Forge pergunta se descarrega o índice de imagens: aceita, fica guardado.')],
-  [tx('Fim'), tx('pára sozinho ao fim de 20 min sem mexeres no jogo. No fim de cada partida o Forge volta ao menu, com os dois decks nas listas do Constructed.')],
+  [tx('Fim'), tx('para sozinho ao fim de 20 min sem mexeres no jogo. No fim de cada partida o Forge volta ao menu, com os dois decks nas listas do Constructed.')],
 ]
 const SRC_IC = { meu: 'mago', ami: 'amigos', com: 'online', meta: 'meta' }  // icons.jsx
 const SRC = [['meta', '📊', tx('Meta')], ['meu', '🧙', tx('Meus')], ['ami', '🤝', tx('Amigos')], ['com', '🌐', tx('Comunidade')]]
@@ -162,7 +162,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
         {useNative && netOn && <button className="primary small" onClick={() => setNet(netOn)}>{tx('Voltar ao jogo em curso')}</button>}
         {running && !sess && <button className="small" onClick={() => setSess({ session: st.id, title: st.title, warnings: st.warnings || [] })}>{tx('Voltar ao jogo em curso')}</button>}
         {running && <button className="small" onClick={stop} disabled={busy === tx('A parar…')}>■ {tx('Parar')}</button>}
-        {running && st.idle != null && <span className="muted small">{tx('sem mexer há {a} (pára aos {b})', { a: mmss(st.idle), b: mmss(st.idle_limit) })}</span>}
+        {running && st.idle != null && <span className="muted small">{tx('sem mexer há {a} (para aos {b})', { a: mmss(st.idle), b: mmss(st.idle_limit) })}</span>}
       </div> : null}
 
       <section className="card pv-vs">

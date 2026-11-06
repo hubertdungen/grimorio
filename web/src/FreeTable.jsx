@@ -93,14 +93,15 @@ function MatModal({ onClose, onMat }) {
 
 function Help({ onClose }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
+  const P = fpPrefs(), K = { t: P.tap.toUpperCase(), f: P.flip.toUpperCase() }  // as teclas escolhidas em Definições › Mesa
   return (
     <div className="fp-modal" onClick={onClose}><div className="fp-ask ml-help" onClick={e => e.stopPropagation()}>
       <h3>🃏 {tx('Mesa livre · sem regras')}</h3>
       <p>{tx('Aqui não há bots nem regras automáticas: cada um mexe nas suas cartas, como numa mesa a sério. O que vale é o que combinarem entre vocês.')}</p>
       <ul>
-        <li><b>{tx('Comprar')}</b> — {tx('toca na tua biblioteca (ou Espaço).')}</li>
+        <li><b>{tx('Comprar')}</b> — {tx('toca duas vezes na tua biblioteca (ou D). Um toque abre o menu dela: comprar 2, ver o topo, baralhar, moer, exilar o topo.')}</li>
         <li><b>{tx('Jogar')}</b> — {tx('arrasta uma carta da mão para o teu lado da mesa (ou duplo clique).')}</li>
-        <li><b>{tx('Virar (tap)')}</b> — {tx('clica numa carta tua na mesa (ou T com o rato por cima).')}</li>
+        <li><b>{tx('Virar (tap)')}</b> — {tx('clica numa carta tua na mesa (ou {k} com o rato por cima).', { k: K.t })}</li>
         <li><b>{tx('Atacar')}</b> — {tx('arrasta a tua criatura para o lado do adversário: fica virada e a atacar.')}</li>
         <li><b>{tx('Cemitério, exílio, mão, biblioteca')}</b> — {tx('arrasta a carta para o monte, ou usa o menu da carta (clique direito; no telemóvel, tocar e manter).')}</li>
         <li><b>{tx('Marcadores, virar para baixo, transformar, revelar')}</b> — {tx('no menu da carta.')}</li>
@@ -108,6 +109,7 @@ function Help({ onClose }) {
         <li><b>{tx('Vida, veneno, energia, dano de comandante')}</b> — {tx('toca no círculo da vida de qualquer jogador; aí também o monarca, a iniciativa e a bênção da cidade.')}</li>
         <li><b>{tx('Dados e moeda')}</b> — {tx('no painel, ou agarra um dado na mesa e atira-o: todos veem o mesmo lançamento e o mesmo resultado.')}</li>
         <li><b>{tx('Caneta')}</b> — {tx('✏️ ou P: desenha na mesa para mostrar algo; os outros veem o risco ao vivo e ele apaga-se sozinho.')}</li>
+        <li><b>{tx('Teclas')}</b> — {tx('com o rato por cima de uma carta tua na mesa, {t} vira-a e {f} transforma-a ou vira-a para baixo. D compra{sp}, V vê o topo, S baralha, M moe, X exila o topo, P caneta, Esc fecha.', { t: K.t, f: K.f, sp: P.space ? tx(' (Espaço também)') : '' })}</li>
         <li><b>{tx('Conversa')}</b> — {tx('as jogadas e as mensagens juntas; escreve @ para mostrar uma carta e # para uma regra.')}</li>
       </ul>
       <p className="muted small">{tx('Ninguém vê a tua mão nem a tua biblioteca (o servidor nem lhes manda os nomes). As cartas viradas para baixo só as vês tu.')}</p>

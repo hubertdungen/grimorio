@@ -134,7 +134,7 @@ function LiveBar({ guest, go, data }) {
       <span className="live-dot" aria-hidden="true" />
       {lab && <button onClick={() => go('bots')} title={tx('Ver os testes ao vivo')}>🧪 {tx('Laboratório')} · {labDeck ? `${labDeck} · ` : ''}{lab}</button>}
       {!lab && others.map(x => <button key={x.id} onClick={() => setWatchJob(x)} title={tx('Ver ao vivo (teste lançado noutro separador ou dispositivo)')}>🧪 {tx('Laboratório')} · {x.names?.a} {tx('contra')} {x.names?.b}{x.status === 'queued' ? ` · ${tx('na fila ({p})', { p: x.position || 1 })}` : ''}</button>)}
-      {tour.map(t => <button key={t.id} onClick={() => { try { localStorage.setItem('grimorio.torneio', t.id) } catch { /* sem armazenamento */ } go('torneio') }} title={tx('Ver o torneio')}>🏆 {t.name}</button>)}
+      {tour.map(t => <button key={t.id} onClick={() => { try { localStorage.setItem('grimorio.torneio', t.id) } catch { /* sem armazenamento */ } go('torneio') }} title={tx('Ver o torneio')}>{/^🏆/.test(t.name || '') ? '' : '🏆 '}{t.name}</button>)}
       {arena && <button onClick={() => go('ratings')} title={tx('Ver a Arena ao vivo')}>⚔ {tx('Arena')} · {arena.a} {tx('contra')} {arena.b} · {arena.wa}–{arena.wb}</button>}
     </div>
     {watchJob && data && <LiveJob data={data} job={watchJob} onClose={() => setWatchJob(null)} />}
@@ -508,7 +508,7 @@ export default function App() {
       </div>}
 
       <footer className="foot">
-        {tx('Dados:')} <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a> {tx('e')} <a href="https://commanderspellbook.com" target="_blank" rel="noreferrer">Commander Spellbook</a> · {tx('atualizados {date} · {cards} cartas, {combos} combos.', { date: data.meta.built.slice(0, 10), cards: data.meta.cards.toLocaleString(LOCALE), combos: data.meta.combos.toLocaleString(LOCALE) })}
+        {tx('Dados:')} <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a> {tx('e')} <a href="https://commanderspellbook.com" target="_blank" rel="noreferrer">Commander Spellbook</a> · {tx('atualizados {date} · {cards} cartas, {combos} combos.', { date: data.meta.built.slice(0, 10), cards: data.meta.cards.toLocaleString(LOCALE), combos: data.meta.combos.toLocaleString(LOCALE) })}{' '}
         {tx('Conteúdo de fã não oficial, permitido pela Fan Content Policy. Não aprovado nem apoiado pela Wizards. Partes dos materiais usados são propriedade da Wizards of the Coast. ©Wizards of the Coast LLC.')}
       </footer>
 

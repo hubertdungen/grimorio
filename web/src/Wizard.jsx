@@ -141,7 +141,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         </div>
 
         <h4>{tx('Como queres começar?')}</h4>
-        <div className="seg">{START.map(([k, l, ic]) => <button key={k} className={start === k ? 'on' : ''} onClick={() => setStart(k)}><i>{ic}</i><span>{l}</span></button>)}</div>
+        {/* no telemóvel as quatro opções não cabem numa linha: quebram em vez de ficarem cortadas à esquerda */}
+        <div className="seg" style={{ flexWrap: 'wrap', float: 'none', marginLeft: 0 }}>{START.map(([k, l, ic]) => <button key={k} className={start === k ? 'on' : ''} onClick={() => setStart(k)}><i>{ic}</i><span>{l}</span></button>)}</div>
 
         {start === 'importar' && (
           <div className="wz-imp">

@@ -108,13 +108,15 @@ function ImgSource() {
 function TableKeys() {
   const [p, setP] = useState(fpPrefs)
   const save = v => { setP(x => ({ ...x, ...v })); setFpPrefs(v) }
+  const okKey = k => /^[a-z0-9]$/.test(k) && k !== 'p'  // P é a caneta na mesa livre
   return (
     <>
       <label className="chk"><input type="checkbox" checked={p.space} onChange={e => save({ space: e.target.checked })} /> {tx('Espaço faz o mesmo que Enter (OK / passar)')}</label>
       <label className="fmt"><span>{tx('Tecla para virar a carta debaixo do rato (a outra face, ou de pernas para o ar; só no teu ecrã)')}</span>
-        <input value={p.flip.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (/^[a-z0-9]$/.test(k) && k !== p.tap) save({ flip: k }) }} /></label>
+        <input value={p.flip.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (okKey(k) && k !== p.tap) save({ flip: k }) }} /></label>
       <label className="fmt"><span>{tx('Tecla para virar (tap) a carta tua na mesa debaixo do rato — o mesmo que clicar nela')}</span>
-        <input value={p.tap.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (/^[a-z0-9]$/.test(k) && k !== p.flip) save({ tap: k }) }} /></label>
+        <input value={p.tap.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (okKey(k) && k !== p.flip) save({ tap: k }) }} /></label>
+      <p className="muted small">{tx('Na mesa livre (Online) as mesmas teclas valem, mas Espaço compra uma carta e a tecla de virar transforma a carta ou vira-a para baixo para todos. P é a caneta.')}</p>
       <p className="muted small">{tx('Na mão: um clique levanta a carta e mostra-a; para a jogar, arrasta-a para a mesa (ou duplo clique). Se a largares de volta na mão, fica no sítio onde a largaste.')}</p>
       <label className="chk"><input type="checkbox" checked={p.autopay} onChange={e => save({ autopay: e.target.checked })} /> {tx('Pagar a mana sozinho quando lanças uma carta, só quando há uma maneira óbvia de pagar (com escolha de cores, escolhes tu)')}</label>
       <label className="chk"><input type="checkbox" checked={p.autoresolve} onChange={e => save({ autoresolve: e.target.checked })} /> {tx('Deixar resolver sozinho o que é teu no topo da pilha (sem carregar em OK)')}</label>
@@ -129,7 +131,7 @@ function TableKeys() {
           {CARD_PX.map(n => <option key={n} value={n}>{n ? tx('{n} px (terrenos também)', { n }) : tx('Automático (cabe no ecrã)')}</option>)}
         </select></label>
       <p className="muted small">{tx('Também nas réplicas e torneios. Quando as cartas não cabem no lado do jogador, encostam-se e empilham-se (terrenos iguais num monte ×N) em vez de saírem dele.')}</p>
-      <div className="fmt"><span>{tx('Padrão da mesa')}</span><MatPick /></div>
+      <div className="fmt"><span>{tx('Padrão da mesa e esfera da vida')}</span><MatPick /></div>
       <label className="fmt"><span>{tx('Cartas dos adversários na mesa')}</span>
         <select value={p.oppFace} onChange={e => save({ oppFace: e.target.value })}>
           <option value="me">{tx('Viradas para mim (legíveis)')}</option>
@@ -296,7 +298,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Confirmações')}</h3><p className="muted small">{tx('Perguntar antes de:')}</p><ConfirmSettings /></section>
       <section className="card"><h3>{tx('🤖 IA')}</h3><AIKeys /></section>
       <section className="card"><h3>{tx('🤝 Amigos')}</h3><Friends /></section>
-      <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><HighlightMine /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p></section>
+      <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p><HighlightMine /></section>
       <section className="card danger-zone"><h3>{tx('Recomeçar')}</h3><ResetStats /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
       <section className="card"><h3>{tx('Atualizações')}</h3><Updates /></section>
@@ -392,7 +394,7 @@ function StarLayers() {
   const L = [['y', '#f2b84b', tx('Amarelas — rating normal (jogos não casuais)')], ['b', '#4ea8ff', tx('Azuis — todos os jogos, casuais incluídos')], ['r', '#ff4d5e', tx('Vermelhas — objetivo (quanto chega a ganhar)')]]
   return (
     <>
-      {L.map(([k, c, l]) => <label key={k} className="chk"><input type="checkbox" checked={on.includes(k)} disabled={on === k} onChange={() => flip(k)} /> <i className="st-dot" style={{ background: c }} /> {l}</label>)}
+      {L.map(([k, c, l]) => <div key={k}><label className="chk"><input type="checkbox" checked={on.includes(k)} disabled={on === k} onChange={() => flip(k)} /> <i className="st-dot" style={{ background: c }} /> {l}</label></div>)}  {/* uma por linha, mesmo com textos curtos (zh) */}
       <p className="muted small">{tx('A primeira cor ligada enche as estrelas e dá o número. Por omissão aparecem as três.')} {on !== 'ybr' && <button className="link small" onClick={() => { setStarLayers('ybr'); setOn('ybr') }}>{tx('Repor as três')}</button>}</p>
     </>
   )

@@ -23,10 +23,10 @@ export const fpPrefs = () => {
     mat: MATS.includes(o.mat) ? o.mat : null, mats: o.mats !== false,  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
     orb: { t: ORB_T.includes(o.orb?.t) ? o.orb.t : 'auto', a: ORB_A.includes(o.orb?.a) ? o.orb.a : 'auto' },  // a minha esfera da vida
     botOrb: o.botOrb === 'random' ? 'random' : 'deck',
-    orb3d: o.orb3d !== false,
-    orbFluid: o.orbFluid !== false,
-    orbParticles: o.orbParticles !== false,
-    orbGrain: o.orbGrain === 'fx' ? 'fx' : 'real',  // o aspeto das partículas: grãos com luz própria (realista) ou formas e brilhos (o de antes)  // fluido de partículas com física (desligado: o líquido simplificado, por shader)  // fluidos por cor pelo que está em campo; desligado = o líquido do estilo (o de antes)  // esfera em 3D (WebGL); desligado = a clássica
-    orbScale: Number.isFinite(o.orbScale) ? Math.max(0.8, Math.min(1.6, o.orbScale)) : 1 }  // tamanho das esferas da vida (80–160 %)  // esfera em 3D (WebGL); desligado = a clássica  // a dos bots: pelo deck (cores e estilo) ou ao acaso (fixa por deck em cada torneio/jogo)  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
+    orb3d: o.orb3d !== false,  // esfera em 3D (WebGL); desligado = a clássica
+    orbFluid: o.orbFluid !== false,  // fluidos por cor pelo que está em campo (só no estilo automático); desligado = o líquido do estilo
+    orbParticles: o.orbParticles !== false,  // fluido de partículas com física; desligado = o líquido simplificado, por shader
+    orbGrain: o.orbGrain === 'fx' ? 'fx' : 'real',  // o aspeto das partículas: grãos com luz própria (realista) ou formas e brilhos (o de antes)
+    orbScale: Number.isFinite(o.orbScale) ? Math.max(0.8, Math.min(1.6, o.orbScale)) : 1 }  // tamanho das esferas da vida (80–160 %)
 }
 export const setFpPrefs = v => { try { const o = JSON.parse(localStorage.getItem('grimorio.fp.prefs') || '{}'); localStorage.setItem('grimorio.fp.prefs', JSON.stringify({ ...o, ...v })) } catch { /* sem armazenamento */ } }

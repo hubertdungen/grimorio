@@ -7,6 +7,7 @@ import { Mana, Syms } from './ui.jsx'
 import CardScan from './CardScan.jsx'
 import { tx } from './i18n.js'
 import { KW } from './keywords.js'
+import { fpPrefs } from './fpprefs.js'
 
 async function j(url, opts) {
   const r = await fetch(url, opts), d = await r.json().catch(() => ({}))
@@ -14,15 +15,15 @@ async function j(url, opts) {
   return d
 }
 
-// os gestos da mesa (Forge Play, online, mesa livre), explicados num sítio só
-const HOWTO = [
+// os gestos da mesa (Forge Play, online, mesa livre), explicados num sítio só; as teclas são as de Definições › Mesa
+const howto = (P = fpPrefs(), t = P.tap.toUpperCase(), f = P.flip.toUpperCase()) => [
   [tx('Arrastar da mão para a mesa'), tx('joga a carta (ou duplo clique nela na mão). Um terreno vai sempre para a fila dos terrenos.')],
   [tx('Duplo clique numa carta tua na mesa'), tx('abre as ações dessa carta (habilidades para ativar), em qualquer fase — também a atacar e a bloquear. Numa carta do adversário, mostra-a em grande.')],
   [tx('Tocar e manter'), tx('a carta em grande (no telemóvel, onde não há painel ao lado).')],
   [tx('Atacar'), tx('na fase principal ou ao declarar atacantes, arrasta a criatura para o lado do adversário (ou toca nela e depois OK).')],
   [tx('Bloquear'), tx('arrasta a tua criatura para cima do atacante, ou toca nela e depois no atacante; feito antes de o Forge pedir os bloqueadores, o bloqueio fica marcado e entra sozinho.')],
-  [tx('Esfera da vida'), tx('um clique escolhe esse jogador como alvo; arrasta-a para a atirar (volta sozinha). O estilo muda-se em «Padrão da mesa».')],
-  [tx('Teclas'), tx('Enter ou Espaço = OK/passar, Shift+Enter = acabar o turno, Esc = cancelar, T = virar a carta debaixo do rato, F = ver a outra face.')],
+  [tx('Esfera da vida'), tx('um clique escolhe esse jogador como alvo; arrasta-a para a atirar (volta sozinha). O estilo, o 3D e as partículas mudam-se em 🎨 tapete, na mesa, ou em Definições › Mesa.')],
+  [tx('Teclas'), tx('Enter{sp} = OK/passar, Shift+Enter = acabar o turno, Esc = cancelar, {t} = virar (tap) a tua carta debaixo do rato, {f} = ver a outra face (só no teu ecrã). Na mesa livre: {f} transforma ou vira para baixo, D compra, V vê o topo, S baralha, M moe, X exila o topo, P caneta. Mudam-se em Definições › Mesa.', { t, f, sp: P.space ? tx(' ou Espaço') : '' })],
   [tx('⛶ e ⟳'), tx('ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.')],
 ]
 
@@ -68,7 +69,7 @@ export default function Rules({ data, initial = '' }) {
   useEffect(() => { if (initial) go(initial) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const linkKw = text => String(text || '').split(KW).map((part, k) => (k % 2 ? <button key={k} className="link plain kw" onClick={() => go(part)}>{part}</button> : <Syms key={k} text={part} />))
   return (
-    <div className="view rules-v">
+    <div className="view rules-v" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>{/* sem isto a coluna da grelha cresce até ao texto mais comprido e no telemóvel sai do ecrã */}
       <section className="card">
         <h3>📖 {tx('Regras e dúvidas')} <span className="muted small">{tx('keywords, regras ou cartas, em qualquer língua')}</span></h3>
         <form className="rules-bar" onSubmit={e => { e.preventDefault(); go() }}>
@@ -105,7 +106,7 @@ export default function Rules({ data, initial = '' }) {
       </section>}
       <details className="card rules-howto">
         <summary><b>🎮 {tx('Comandos da mesa')}</b> <span className="muted small">{tx('Forge Play, jogo online e mesa livre')}</span></summary>
-        <ul>{HOWTO.map((x, k) => <li key={k}><b>{x[0]}</b> — {x[1]}</li>)}</ul>
+        <ul>{howto().map((x, k) => <li key={k}><b>{x[0]}</b> — {x[1]}</li>)}</ul>
       </details>
       {scan && <CardScan data={data} onPick={c => { setScan(false); setQ(c.n); go(c.n); openCard(c) }} onClose={() => setScan(false)} />}
     </div>

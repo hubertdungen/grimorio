@@ -727,7 +727,7 @@ export function OrbPick({ onChange }) {
           onClick={() => save({ orb: { ...p.orb, t } })}><span className="orb" data-t={t === 'auto' ? undefined : t} data-a={p.orb.a === 'auto' ? undefined : p.orb.a}><span className="orb-in"><i className="orb-smoke" /><i className="orb-smoke s2" /></span>{t === 'auto' ? <b>A</b> : null}</span></button>)}
       </div>
       <label className="chk small"><input type="checkbox" checked={p.orb3d} onChange={e => save({ orb3d: e.target.checked })} /> {tx('Esfera em 3D (desligado: a clássica)')}</label>
-      {p.orb3d && <label className="chk small"><input type="checkbox" checked={p.orbFluid} onChange={e => save({ orbFluid: e.target.checked })} /> {tx('Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)')}</label>}
+      {p.orb3d && <label className="chk small" title={p.orb.t !== 'auto' ? tx('Só no estilo automático (pelas cores do deck)') : undefined}><input type="checkbox" checked={p.orbFluid} disabled={p.orb.t !== 'auto'} onChange={e => save({ orbFluid: e.target.checked })} /> {tx('Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)')}</label>}
       {p.orb3d && <label className="chk small"><input type="checkbox" checked={p.orbParticles} onChange={e => save({ orbParticles: e.target.checked })} /> {tx('Fluido de partículas com física (desligado: o líquido simplificado)')}</label>}
       {p.orb3d && p.orbParticles && <label className="small">{tx('Aspeto das partículas')} <select value={p.orbGrain} onChange={e => save({ orbGrain: e.target.value })}>
         <option value="real">{tx('Realista: grãos com luz própria')}</option><option value="fx">{tx('Formas e brilhos (o de antes)')}</option></select></label>}
@@ -746,12 +746,13 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
   useOrbPhysics(orbRef)
   // esfera 3D (Definições › padrão da mesa): o mesmo elemento, desenhado pelo orb3d.js; sem WebGL fica a clássica
   const [three, setThree] = useState(false), cvRef = useRef(null), o3 = useRef(null)
-  useEffect(() => {
-    if (!fpPrefs().orb3d) return
+  const want3d = fpPrefs().orb3d
+  useEffect(() => {  // também quando se liga/desliga a meio do jogo (🎨 tapete)
+    if (!want3d) { setThree(false); return }
     let live = true
     import('./orb3d.js').then(m => { if (live && m.webgl3d()) { o3.current = m; setThree(true) } }).catch(() => {})
     return () => { live = false }
-  }, [])
+  }, [want3d])
   useEffect(() => (three && cvRef.current && o3.current ? o3.current.attachOrb3d(orbRef.current, cvRef.current) : undefined), [three])  // só depois de o canvas existir
   useEffect(() => {  // perdeu: uns instantes depois a esfera rebenta (à maneira da causa) e fica a casca
     if (!dead) { setBroken(false); return }

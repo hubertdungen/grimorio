@@ -28,7 +28,7 @@ export default function AIKeys() {
       <ul className="aik-list">{cfg.providers.map(p => { const ml = models[p.id], ready = p.nokey || p.hasKey; return (
         <li key={p.id} className={cfg.provider === p.id ? 'on' : ''}>
           <div className="aik-h">
-            <label className="chk"><input type="radio" name="ia-ativo" checked={cfg.provider === p.id} disabled={!ready} onChange={() => run(p.id, async () => setCfg(await save({ provider: p.id })))} /> <b>{p.label}</b></label>
+            <label className="chk"><input type="radio" name="ia-ativo" checked={cfg.provider === p.id} disabled={!ready} onChange={() => run(p.id, async () => setCfg(await save({ provider: p.id })))} /> <b>{tx(p.label)}</b></label>
             {p.keyUrl && <a className="small" href={p.keyUrl} target="_blank" rel="noreferrer">{tx('obter chave ↗')}</a>}
             {ready && <span className="small ok-t">{p.nokey ? tx('sem chave') : tx('chave guardada ✓')}</span>}
           </div>

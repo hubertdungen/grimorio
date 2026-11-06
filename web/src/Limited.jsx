@@ -6,7 +6,7 @@ import { img } from './data.js'
 import { lookup } from './game.js'
 import { loadSet } from './Draft.jsx'
 import { DIFF_INFO } from './difficulty.js'
-import { tx, num } from './i18n.js'
+import { tx, num, LOCALE } from './i18n.js'
 
 async function api(path, opts) {
   const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts })
@@ -39,7 +39,7 @@ export default function LimitedView({ data, openDeck, goTournament }) {
           <ul className="ld-list">{evs.map(e => (
             <li key={e.id}>
               <b>{KIND[e.kind]} {[...new Set(e.sets)].join('/')}</b>
-              <span className="muted small">{new Date(e.ts * 1000).toLocaleString()} · {e.human ? tx('tu + bots') : tx('só bots')} · {STATUS[e.status] || e.status}</span>
+              <span className="muted small">{new Date(e.ts * 1000).toLocaleString(LOCALE)} · {e.human ? tx('tu + bots') : tx('só bots')} · {STATUS[e.status] || e.status}</span>
               {e.status !== 'error' && <button className="small" onClick={() => setCur(e.id)}>{tx('Abrir')}</button>}
             </li>
           ))}</ul>
