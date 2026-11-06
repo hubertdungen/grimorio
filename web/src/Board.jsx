@@ -1002,6 +1002,8 @@ export function DamageFx({ hits, data }) {
           const kw = kind === 'gain' ? 'gain' : kind === 'psn' ? 'infect' : zap ? 'zap' : ORB_KW.find(([, re]) => re.test(o))?.[0] || (kind === 'spl' ? 'fire' : 'hit')
           const orb = elOf(h.to), at2 = at(orb) || b, L = Math.hypot(at2[0] - a[0], at2[1] - a[1]) || 1
           orbReact(orb, kw)
+          // a cor de quem bateu (ou curou) entra no líquido e dilui-se devagar; nos dois sentidos, em todas as esferas
+          if (data && nm) orb?._inject?.(lookup(data, nm)?.co || lookup(data, nm)?.ci || '', h.n, [at2[0] - a[0], at2[1] - a[1]])
           // às vezes (ao acaso) o golpe vem à maneira de quem bateu: garras, espadas, flechas, dentadas, raio com trovão, fogo,
           // gelo, folhas, metal, gosma… com som e efeito na esfera (rachar, partir, verter, apodrecer, espinhos) — orbfx.js
           const seed = `${h.key}|${nm}|${h.n}`  // o mesmo golpe → o mesmo estilo e as mesmas peças em todos os ecrãs
