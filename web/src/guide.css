@@ -1,0 +1,76 @@
+/* 📖 Regras › Guia do Grimório (Guide.jsx): índice das áreas à esquerda (no telemóvel, fichas por cima), cada área com a
+   barra a imitar a verdadeira (passar o rato ou tocar mostra o que faz), passos com Seguinte/Anterior e a lista de comandos */
+.rules-mode { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg2); border: 1px solid var(--line); width: fit-content; max-width: 100%; }
+.rules-mode button { display: inline-flex; align-items: center; gap: 6px; border: none; background: none; color: var(--muted); border-radius: 9px; padding: 7px 14px; font-weight: 600; min-height: 40px; }
+.rules-mode button.on { color: #1b1405; background: linear-gradient(180deg, var(--gold2), var(--gold)); }
+.rules-mode .ic { width: 18px; height: 18px; }
+
+.guide { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 16px; align-items: start; }
+.g-side { position: sticky; top: 76px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.g-search { width: 100%; }
+.g-index { position: relative; display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.g-index button { width: 100%; display: flex; align-items: center; gap: 9px; text-align: left; background: none; border: 1px solid transparent; color: var(--muted); padding: 8px 10px; border-radius: 9px; }
+.g-index button:hover { color: var(--text); background: rgba(255, 255, 255, .04); }
+.g-index button.on { color: var(--text); background: var(--panel2); border-color: var(--line); box-shadow: inset 3px 0 0 var(--gold); }
+.g-index button.on .ic .acc, .g-mock button.on .ic .acc { stroke: var(--gold); }
+.g-index .ic { width: 20px; height: 20px; flex: none; }
+.g-index .g-emo { width: 20px; text-align: center; flex: none; }
+
+.g-main { display: grid; gap: 14px; min-width: 0; }
+.g-area h2 { margin: 0 0 4px; font-size: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.g-area h2 .ic { width: 26px; height: 26px; color: var(--gold2); }
+.g-area h2 .g-go { margin-left: auto; font-size: 13px; }
+.g-intro { margin: 0 0 12px; color: var(--muted); line-height: 1.5; }
+.g-area h4 { margin: 16px 0 8px; }
+
+/* a barra de mentira: os botões da área como lá estão, e a explicação por baixo */
+.g-mock { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; border-radius: 12px; background: var(--bg2); border: 1px dashed var(--line); }
+.g-mock button { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; min-height: 36px; }
+.g-mock button.on { border-color: var(--gold); background: #2b2440; color: var(--gold2); }
+.g-mock .ic { width: 18px; height: 18px; }
+.g-tip { margin-top: 8px; min-height: 3.2em; padding: 9px 12px; border-radius: 10px; background: var(--panel2); border-left: 3px solid var(--gold); line-height: 1.45; }
+.g-tip b { color: var(--gold2); }
+
+/* passos */
+.g-walks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+.g-walk { border: 1px solid var(--line); border-radius: var(--r); background: var(--bg2); padding: 12px 14px; display: grid; gap: 8px; align-content: start; }
+.g-walk h3 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+.g-walk h3 small { margin-left: auto; color: var(--muted); font-weight: 400; }
+.g-dots { display: flex; gap: 5px; flex-wrap: wrap; }
+.g-dots button { width: 26px; height: 26px; padding: 0; border-radius: 50%; font-size: 11px; color: var(--muted); }
+.g-dots button.on { background: linear-gradient(180deg, var(--gold2), var(--gold)); color: #1b1405; border-color: transparent; font-weight: 700; }
+.g-dots button.done { color: var(--gold2); border-color: #6b5a2f; }
+.g-step { margin: 0; line-height: 1.5; min-height: 4.5em; animation: g-in .25s ease; }
+@keyframes g-in { from { opacity: 0; transform: translateX(8px); } }
+.g-nav { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.g-nav .g-go { margin-left: auto; }
+@media (prefers-reduced-motion: reduce) { .g-step { animation: none; } }
+
+/* comandos: rótulo e o que faz */
+.g-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.g-list li { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 4px 14px; padding: 8px 10px; border-radius: 9px; background: var(--bg2); line-height: 1.45; }
+.g-list li b { color: var(--text); }
+.g-list li span { color: var(--muted); }
+.g-sub { margin: 14px 0 6px; font-size: 14px; color: var(--gold2); }
+.g-hit { background: rgba(242, 184, 75, .28); color: inherit; border-radius: 3px; padding: 0 1px; }
+.g-results .g-res-area { margin: 0 0 6px; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.g-results .g-res-area .ic { width: 20px; height: 20px; }
+.g-results section + section { margin-top: 14px; }
+kbd.g-k { display: inline-block; min-width: 1.6em; text-align: center; padding: 0 5px; border-radius: 5px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--panel2); font: 600 12px/1.6 ui-monospace, monospace; color: var(--text); }
+.g-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .guide { grid-template-columns: minmax(0, 1fr); }
+  .g-side { position: static; }
+  .g-index { display: flex; overflow-x: auto; gap: 6px; padding-bottom: 4px; scrollbar-width: thin; }
+  .g-index li { flex: none; }
+  .g-index button { white-space: nowrap; border-color: var(--line); background: var(--bg2); min-height: 40px; }
+  .g-index button.on { box-shadow: inset 0 -2px 0 var(--gold); }
+}
+@media (max-width: 600px) {
+  .g-list li { grid-template-columns: minmax(0, 1fr); }
+  .g-mock button { min-height: 40px; }
+  .g-dots button { width: 32px; height: 32px; }
+  .g-nav button { min-height: 40px; }
+  .rules-mode { width: 100%; } .rules-mode button { flex: 1; justify-content: center; padding: 7px 8px; }
+}

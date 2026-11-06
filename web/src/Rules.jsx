@@ -8,6 +8,8 @@ import CardScan from './CardScan.jsx'
 import { tx } from './i18n.js'
 import { KW } from './keywords.js'
 import { fpPrefs } from './fpprefs.js'
+import { Icon } from './icons.jsx'
+import Guide from './Guide.jsx'
 
 async function j(url, opts) {
   const r = await fetch(url, opts), d = await r.json().catch(() => ({}))
@@ -28,6 +30,9 @@ const howto = (P = fpPrefs(), t = P.tap.toUpperCase(), f = P.flip.toUpperCase())
 ]
 
 export default function Rules({ data, initial = '' }) {
+  // dois separadores: a pesquisa das regras do Magic e o Guia do Grimório (fica o último escolhido, neste browser)
+  const [mode, setModeS] = useState(() => { try { return initial ? 'regras' : localStorage.getItem('grimorio.regras.modo') || 'regras' } catch { return 'regras' } })
+  const setMode = m => { setModeS(m); try { localStorage.setItem('grimorio.regras.modo', m) } catch { /* sem armazenamento */ } }
   const [q, setQ] = useState(initial), [res, setRes] = useState(null), [busy, setBusy] = useState(false), [err, setErr] = useState('')
   const [card, setCard] = useState(null), [rulings, setRulings] = useState(null), [scan, setScan] = useState(false), [ai, setAi] = useState(null), [aiBusy, setAiBusy] = useState(false)
   const local = useMemo(() => {  // cartas pelo nome (inglês), localmente
@@ -70,6 +75,11 @@ export default function Rules({ data, initial = '' }) {
   const linkKw = text => String(text || '').split(KW).map((part, k) => (k % 2 ? <button key={k} className="link plain kw" onClick={() => go(part)}>{part}</button> : <Syms key={k} text={part} />))
   return (
     <div className="view rules-v" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>{/* sem isto a coluna da grelha cresce até ao texto mais comprido e no telemóvel sai do ecrã */}
+      <div className="rules-mode" role="tablist" aria-label={tx('Regras')}>
+        <button type="button" role="tab" aria-selected={mode === 'regras'} className={mode === 'regras' ? 'on' : ''} onClick={() => setMode('regras')}><Icon n="regras" />{tx('Regras do Magic')}</button>
+        <button type="button" role="tab" aria-selected={mode === 'guia'} className={mode === 'guia' ? 'on' : ''} onClick={() => setMode('guia')}><Icon n="construir" />{tx('Guia do Grimório')}</button>
+      </div>
+      {mode === 'guia' ? <Guide /> : <>
       <section className="card">
         <h3>📖 {tx('Regras e dúvidas')} <span className="muted small">{tx('keywords, regras ou cartas, em qualquer língua')}</span></h3>
         <form className="rules-bar" onSubmit={e => { e.preventDefault(); go() }}>
@@ -108,6 +118,7 @@ export default function Rules({ data, initial = '' }) {
         <summary><b>🎮 {tx('Comandos da mesa')}</b> <span className="muted small">{tx('Forge Play, jogo online e mesa livre')}</span></summary>
         <ul>{howto().map((x, k) => <li key={k}><b>{x[0]}</b> — {x[1]}</li>)}</ul>
       </details>
+      </>}
       {scan && <CardScan data={data} onPick={c => { setScan(false); setQ(c.n); go(c.n); openCard(c) }} onClose={() => setScan(false)} />}
     </div>
   )

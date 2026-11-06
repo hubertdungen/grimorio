@@ -204,6 +204,10 @@ export default function App() {
     const h = e => { setColMode(e.detail); setSection('coliseu') }
     window.addEventListener('grimorio:col', h); return () => window.removeEventListener('grimorio:col', h)
   }, [])
+  useEffect(() => {  // o Guia do Grimório (📖 Regras) leva a uma área: { sec, tab, tool, home, scan }
+    const h = ({ detail: d = {} }) => { if (d.tool) return setTool(d.tool); setHome(!!d.home); if (d.sec) setSection(d.sec); if (d.tab) setTab(d.tab); if (d.scan) setScan(true) }
+    window.addEventListener('grimorio:go', h); return () => window.removeEventListener('grimorio:go', h)
+  }, [])
   useEffect(() => {
     const h = e => { setHome(false); setSection('biblioteca'); setLibFocus({ id: e.detail, n: Date.now() }) }
     window.addEventListener('grimorio:deck', h)
