@@ -688,7 +688,10 @@ export const orbEnv = (k, s, data) => {
   const w = (fieldMix(z, data) || '').split(',').map(Number)
   heat += (w[3] || 0) * 0.9; cold += (w[1] || 0) * 0.5
   const lib = Number.isFinite(z.library) ? z.library : 40
-  return [cl((base - z.life) / base), cl(good), cl(bad), cl((z.graveyard?.length || 0) / 30), cl((z.exile?.length || 0) / 15), lib <= 10 ? cl(1 - lib / 10) : 0, cl(heat), cl(cold)].map(x => x.toFixed(2)).join(',')
+  // presença na mesa: a força das criaturas e os terrenos (o halo e o brilho crescem com ela)
+  let pres = 0
+  for (const p of z.perms || []) { if (isLand(data, p)) pres += 0.5; else if (isCreature(data, p)) pres += Math.max(1, powTough(data, p)?.p || 1) }
+  return [cl((base - z.life) / base), cl(good), cl(bad), cl((z.graveyard?.length || 0) / 30), cl((z.exile?.length || 0) / 15), lib <= 10 ? cl(1 - lib / 10) : 0, cl(heat), cl(cold), cl(pres / 30)].map(x => x.toFixed(2)).join(',')
 }
 const locked = new Map()  // o aspeto «pelo deck» fixa-se quando já se viram 5 cartas (não muda a meio do jogo)
 export function orbLook(k, z, data, ctx, name) {

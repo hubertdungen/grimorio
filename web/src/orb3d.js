@@ -207,7 +207,7 @@ function read(o) {
     core: col(v('--core'), '#5ee08a'), deep: col(v('--deep'), '#06301a'), s1: col(v('--smoke'), '#c8ffd9'), s2: col(v('--smoke2'), '#3ddc84'), glow: col(v('--glow'), '#22c55e'),
     low: el.classList.contains('low'), dead: el.classList.contains('dead'), burst: el.classList.contains('bursting'), mood: el.dataset.mood || '', react: el.dataset.react || '',
     anim: el.dataset.a || 'calmo', ab: +(cs.getPropertyValue('--ab') || 0) || 0, cols: (el.dataset.cols || '').split('').filter(c => COL[c]), fx: el.dataset.fx3 || '',
-    w: el.dataset.w ? el.dataset.w.split(',').map(Number) : null, env: el.dataset.env ? el.dataset.env.split(',').map(Number) : [0, 0, 0, 0, 0, 0, 0, 0], tox: +el.dataset.psn || 0, ink: el.dataset.ink || '',
+    w: el.dataset.w ? el.dataset.w.split(',').map(Number) : null, env: el.dataset.env ? el.dataset.env.split(',').map(Number) : [0, 0, 0, 0, 0, 0, 0, 0, 0], tox: +el.dataset.psn || 0, ink: el.dataset.ink || '',
   }
   if (o.st.ink && o.st.ink !== o.ink) { o.inkAt = performance.now(); o.inkDir = el._inkDir || [0, 0]; o.inkCol = null; o.inkAmt = 0.6 }
   o.ink = o.st.ink
@@ -295,7 +295,7 @@ function draw(now) {
       // o brilho de dentro com a cor da mistura (antes vinha do estilo CSS: o pântano ficava roxo)
       MIX.setRGB(0, 0, 0); w.slice(0, 6).forEach((x, i) => { if (x) MIX.add(TMP.copy(ECOL[i]).multiplyScalar(x)) }); u.core.value.copy(MIX); u.deep.value.copy(MIX).multiplyScalar(0.25) }
     u.tox.value = s.dead ? 0 : Math.min(1, s.tox)
-    const Et = s.dead ? [0, 0, 0, 0, 0, 0, 0, 0] : s.env
+    const Et = s.dead ? [0, 0, 0, 0, 0, 0, 0, 0, 0] : s.env
     o.envS = o.envS ? o.envS.map((x, i) => x + ((Et[i] || 0) - x) * kE) : Et.slice()
     const E = o.envS
     // estilo do tema (sem fluidos por cor): a cor de quem bateu tinge o líquido na mesma
@@ -327,7 +327,10 @@ function draw(now) {
     if (cols) r.glow.material.color.set(COL[cols[0]]); else r.glow.material.color.copy(s.glow)
     r.glow2.material.color.set(cols ? COL[cols[1] || cols[0]] : '#000000')
     const ga = s.dead ? 0 : s.mood || s.react ? 0.95 : s.ab > 0 ? 0.55 + 0.35 * s.ab : 0.4
-    r.glow.material.opacity = ga; r.glow2.material.opacity = cols && cols.length > 1 ? ga * 0.8 : 0
+    // presença na mesa (E[8]): o halo cresce e acende, suave como o resto
+    const pr = s.dead ? 0 : E[8] || 0, gs = 3.4 * (1 + 0.45 * pr)
+    r.glow.scale.set(gs, gs, 1); r.glow2.scale.set(gs * 0.88, gs * 0.88, 1)
+    r.glow.material.opacity = Math.min(1, ga + 0.3 * pr); r.glow2.material.opacity = cols && cols.length > 1 ? Math.min(1, ga + 0.3 * pr) * 0.8 : 0
     const hc = E[6] - E[7]  // calor e frio: o halo puxa para laranja-brasa ou azul-gelo e cresce
     if (Math.abs(hc) > 0.15 && !s.dead) { r.glow.material.color.lerp(hc > 0 ? HOT : COLD, Math.min(0.75, Math.abs(hc))); r.glow.material.opacity = Math.min(1, ga + Math.abs(hc) * 0.45) }
     r.caustic.material.color.copy(w ? MIX : s.core).lerp(new THREE.Color('#ffffff'), 0.5); r.caustic.material.opacity = s.dead ? 0 : 0.55
