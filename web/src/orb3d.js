@@ -328,8 +328,10 @@ function draw(now) {
     r.glow2.material.color.set(cols ? COL[cols[1] || cols[0]] : '#000000')
     const ga = s.dead ? 0 : s.mood || s.react ? 0.95 : s.ab > 0 ? 0.55 + 0.35 * s.ab : 0.4
     // presença na mesa (E[8]): o halo cresce e acende, suave como o resto
-    const pr = s.dead ? 0 : E[8] || 0, gs = 3.4 * (1 + 0.45 * pr)
-    r.glow.scale.set(gs, gs, 1); r.glow2.scale.set(gs * 0.88, gs * 0.88, 1)
+    // o quadro do canvas vê ~4 unidades à profundidade do halo: maior do que isso, a borda cortava-o a direito (a «máscara
+    // quadrada»); cresce pouco e o resto da presença vai para a intensidade
+    const pr = s.dead ? 0 : E[8] || 0, gs = Math.min(3.75, 3.4 * (1 + 0.1 * pr))
+    r.glow.scale.set(gs, gs, 1); r.glow2.scale.set(Math.min(2.9, gs * 0.85), Math.min(2.9, gs * 0.85), 1)
     r.glow.material.opacity = Math.min(1, ga + 0.3 * pr); r.glow2.material.opacity = cols && cols.length > 1 ? Math.min(1, ga + 0.3 * pr) * 0.8 : 0
     const hc = E[6] - E[7]  // calor e frio: o halo puxa para laranja-brasa ou azul-gelo e cresce
     if (Math.abs(hc) > 0.15 && !s.dead) { r.glow.material.color.lerp(hc > 0 ? HOT : COLD, Math.min(0.75, Math.abs(hc))); r.glow.material.opacity = Math.min(1, ga + Math.abs(hc) * 0.45) }
