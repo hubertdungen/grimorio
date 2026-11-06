@@ -3811,4 +3811,13 @@ export default {
   "Ex.: dash, atropelar, prioridade…": "Z. B. Dash, Trampelschaden, Priorität…",
   "Pesquisar nas regras": "In den Regeln suchen",
   "Nada encontrado.": "Nichts gefunden.",
+  "{P} moi {n} carta (do topo para o cemitério)|{P} moi {n} cartas (do topo para o cemitério)": "{P} mahlt {n} Karte (von oben auf den Friedhof)|{P} mahlt {n} Karten (von oben auf den Friedhof)",
+  "{P} exila {n} carta do topo da biblioteca|{P} exila {n} cartas do topo da biblioteca": "{P} schickt {n} Karte von oben aus der Bibliothek ins Exil|{P} schickt {n} Karten von oben aus der Bibliothek ins Exil",
+  "Toca numa carta para a mudares de sítio; duplo clique põe-na na mão (com Shift: no campo).": "Tippe auf eine Karte, um sie zu verschieben; Doppelklick nimmt sie auf die Hand (mit Umschalt: aufs Spielfeld).",
+  "Comprar 1": "1 ziehen",
+  "Comprar 2": "2 ziehen",
+  "Ver o topo (3)": "Oberste ansehen (3)",
+  "Moer 1 (topo para o cemitério)": "1 mahlen (von oben auf den Friedhof)",
+  "Exilar o topo": "Oberste ins Exil",
+  "Duplo clique na biblioteca compra uma.": "Doppelklick auf die Bibliothek zieht eine Karte.",
 }

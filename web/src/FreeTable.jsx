@@ -57,6 +57,8 @@ function line(e, who) {
     case 'reveal': return tx('{P} revela {c}', { P, c })
     case 'revealhand': return tx('{P} revela a mão: {x}', { P, x: (e.names || []).map(short).join(', ') })
     case 'peek': return tx('{P} olha para as {n} cartas do topo da biblioteca', { P, n: e.n })
+    case 'mill': return tx('{P} moi {n} carta (do topo para o cemitério)|{P} moi {n} cartas (do topo para o cemitério)', { P, n: e.n })
+    case 'exiletop': return tx('{P} exila {n} carta do topo da biblioteca|{P} exila {n} cartas do topo da biblioteca', { P, n: e.n })
     case 'pass': return tx('Turno {n}: é a vez de {T}', { n: e.turn, T })
     case 'concede': return tx('{P} desiste', { P })
     case 'chat': return `${P}: ${e.text}`
@@ -123,6 +125,7 @@ export default function FreeTable({ id, data, onClose }) {
   const [phone, setPhone] = useState(() => matchMedia('(max-width: 900px)').matches)
   useEffect(() => { const q = matchMedia('(max-width: 900px)'), f = () => setPhone(q.matches); q.addEventListener('change', f); return () => q.removeEventListener('change', f) }, [])
   const [nDraw, setNDraw] = useState(1), [nPeek, setNPeek] = useState(3), [tok, setTok] = useState('')
+  const [libMenu, setLibMenu] = useState(null), libClick = useRef(0), libT = useRef(0)  // a biblioteca: um clique = menu, dois = comprar
   const [pickAt, setPickAt] = useState(null)  // «prender a…»: a carta que espera o clique na carta de destino
   useEffect(() => {  // espera longa: o servidor responde quando alguém mexe (ou ao fim de 25 s)
     let live = true, since = 0
@@ -250,6 +253,13 @@ export default function FreeTable({ id, data, onClose }) {
   const kindOf = c => (!c?.n ? 'front' : isLand(data, { name: c.n }) ? 'lands' : isCreature(data, { name: c.n, token: c.tok }) || c.tok || /\b(Planeswalker|Battle)\b/.test(lookup(data, c.n)?.t || '') ? 'front' : 'others')
   const spot = (c, x, y) => { const f = myField(); if (!f) return { x: 0.5, y: 0.5 }; const r = f.getBoundingClientRect(); return spotOn(f, x ?? r.left + r.width / 2, y ?? r.top + r.height * 0.45, kindOf(c), P.place !== 'free', c?.id) }
   const mv = (cid, to, extra) => send({ c: 'move', id: cid, to, ...extra })
+  // a biblioteca: um clique abre o menu (com os atalhos); dois cliques compram (sem abrir o menu)
+  const onLib = () => {
+    const now = Date.now(), pile = document.querySelector(`.bside[data-seat="${me}"] [data-zone="library"]`)?.getBoundingClientRect()
+    if (now - (libClick.current || 0) < 300 && libT.current?.id === 'lib') { clearTimeout(libT.current.t); libClick.current = 0; setLibMenu(null); return send({ c: 'draw', n: 1 }) }
+    libClick.current = now; clearTimeout(libT.current?.t)
+    libT.current = { id: 'lib', t: setTimeout(() => pile && setLibMenu({ x: Math.max(8, Math.min(innerWidth - 250, pile.left - 90)), y: Math.max(8, pile.top - 250) }), 280) }
+  }
   const toField = (cid, extra) => {
     const e = byId.get(cid), w = spot(e?.c), cd = e?.c?.n && !extra?.down && lookup(data, e.c.n), fromField = e?.z === 'battlefield'
     const k = cd && /^\d+$/.test(cd.pt || '') && (/Planeswalker/.test(cd.t) ? 'loyalty' : /\bBattle\b/.test(cd.t) ? 'defense' : null)
@@ -318,6 +328,8 @@ export default function FreeTable({ id, data, onClose }) {
       if (e.key === 'Escape') { setMenu(null); setZone(null); pen.setOn(false); return }
       if (e.key.toLowerCase() === 'p') { e.preventDefault(); pen.setOn(v => !v); return }
       const P2 = fpPrefs(), hv = hoverId.current, onField = hv != null && byId.get(hv)?.z === 'battlefield'
+      const lk = { d: () => send({ c: 'draw', n: 1 }), v: () => send({ c: 'peek', n: 3 }), s: () => send({ c: 'shuffle' }), m: () => send({ c: 'mill', n: 1 }), x: () => send({ c: 'exiletop', n: 1 }) }[e.key.toLowerCase()]
+      if (lk && !e.shiftKey && s?.status === 'playing' && e.key.toLowerCase() !== P2.tap && e.key.toLowerCase() !== P2.flip) { e.preventDefault(); setLibMenu(null); lk(); return }  // biblioteca: D comprar, V ver o topo, S baralhar, M moer, X exilar o topo
       if (e.key.toLowerCase() === P2.tap && onField) { e.preventDefault(); tap(hv) } else if (e.key.toLowerCase() === P2.flip && onField) { e.preventDefault(); turnOver(hv) } else if (e.key === ' ' && P2.space && s?.status === 'playing') { e.preventDefault(); send({ c: 'draw', n: 1 }) }
     }
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
@@ -351,7 +363,7 @@ export default function FreeTable({ id, data, onClose }) {
       ? <div className="fp-hand mine">{handOf(v).map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} h={c.id} data={data} big cls={`${c.r ? 'ml-rev' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>
       : <div className="fp-hand opp" title={tx('{n} carta na mão|{n} cartas na mão', { n: v.hand.length })}>{v.hand.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n, hidden: !c.n }} data={data} cls={c.n ? 'ml-rev' : ''} />)}</div>
     const hud = <Hud k={k} z={zOf(v)} name={`${v.name}${v.out ? ' 🏳' : ''}`} fmt={FORMAT[v.format]?.name || null} s={hs} data={data} fx={{ ...fx, player: psnFx?.p === k ? { p: k, psn: true } : null }} fast={false} start={v.life > 20 ? 40 : 20}
-      openZone={() => {}} top={top} hand={<>{cmd}{hand}</>} openLib={isMe ? () => send({ c: 'draw', n: 1 }) : null} />
+      openZone={() => {}} top={top} hand={<>{cmd}{hand}</>} openLib={isMe ? onLib : null} />
     const field = (
       <div className={`ml-field ${top ? 'mirror' : ''}`} data-seat={i}>
         {v.battlefield.filter(c => !(c.at != null && onField.has(c.at))).map(c => {
@@ -550,8 +562,20 @@ export default function FreeTable({ id, data, onClose }) {
         </div></div>}
       {zone && <div className="fp-modal zone" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
         <p><b>{zone.which === 'graveyard' ? tx('Cemitério de {n}', { n: who(zone.seat) }) : tx('Exílio de {n}', { n: who(zone.seat) })}</b> · {zoneCards.length} <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
-        <p className="small muted">{tx('Toca numa carta para a mudares de sítio.')}</p>
-        <div className="fp-opts">{zoneCards.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} data={data} big onClick={() => openMenu(c.id, downAt.current.x, downAt.current.y)} />)}</div></div></div>}
+        <p className="small muted">{tx('Toca numa carta para a mudares de sítio; duplo clique põe-na na mão (com Shift: no campo).')}</p>
+        <div className="fp-opts">{zoneCards.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} data={data} big onClick={e => {
+          const now = Date.now(), x = downAt.current.x, y = downAt.current.y
+          if (now - (libClick.current || 0) < 300 && libT.current?.id === c.id) { clearTimeout(libT.current.t); libClick.current = 0; return e?.shiftKey ? toField(c.id) : mv(c.id, 'hand') }
+          libClick.current = now; clearTimeout(libT.current?.t); libT.current = { id: c.id, t: setTimeout(() => openMenu(c.id, x, y), 280) }
+        }} />)}</div></div></div>}
+      {libMenu && <div className="ml-libmenu-bg" onPointerDown={() => setLibMenu(null)} />}
+      {libMenu && <div className="ml-libmenu" role="menu" style={{ left: libMenu.x, top: libMenu.y }}>
+        <b>▤ {tx('Biblioteca')} · {seats[me]?.library ?? ''}</b>
+        {[['🂠', tx('Comprar 1'), 'D', () => send({ c: 'draw', n: 1 })], ['🂠', tx('Comprar 2'), '', () => send({ c: 'draw', n: 2 })], ['👁', tx('Ver o topo (3)'), 'V', () => send({ c: 'peek', n: 3 })],
+          ['🔀', tx('Baralhar'), 'S', () => send({ c: 'shuffle' })], ['⚰', tx('Moer 1 (topo para o cemitério)'), 'M', () => send({ c: 'mill', n: 1 })], ['⌀', tx('Exilar o topo'), 'X', () => send({ c: 'exiletop', n: 1 })]]
+          .map(([i, l, k, f]) => <button key={l} type="button" role="menuitem" onClick={() => { setLibMenu(null); f() }}><span>{i} {l}</span>{k && <kbd>{k}</kbd>}</button>)}
+        <small className="muted">{tx('Duplo clique na biblioteca compra uma.')}</small>
+      </div>}
       {top && <div className="fp-modal"><div className="fp-ask">
         <p><b>👁 {tx('O topo da tua biblioteca')}</b> <span className="muted small">{tx('só tu vês estas cartas (a primeira é a de cima)')}</span></p>
         <div className="fp-opts ml-top">{top.map((c, k) => (

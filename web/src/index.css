@@ -3779,3 +3779,14 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 /* mesas com voos (Forge Play, online): a carta nova chega a voar (useFlip) ou aparece por WAAPI; o «aparecer» por CSS
    competia com o voo (animava o mesmo transform) e repetia-se quando o voo acabava */
 .fp .pc.in:not(.tok) { animation: none; }
+
+/* mesa livre: o menu da biblioteca (um clique) com os atalhos */
+.ml-libmenu-bg { position: fixed; inset: 0; z-index: 70; }
+.ml-libmenu { position: fixed; z-index: 71; width: 240px; display: grid; gap: 2px; padding: 8px; border-radius: 12px; background: var(--panel, #161a26); border: 1px solid var(--line); box-shadow: 0 14px 40px #000c; animation: fp-in .18s ease-out; }
+.ml-libmenu > b { font-size: 13px; padding: 2px 4px 6px; }
+.ml-libmenu button { display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+.ml-libmenu kbd { font-size: 11px; opacity: .8; }
+/* mesa livre: a carta em grande por cima do painel (só quando há carta), em vez de uma caixa fixa que a cortava a meio */
+.ml-aside { position: relative; }
+.ml-aside .fp-zoom:not(:has(img)) { display: none; }
+.ml-aside .fp-zoom:has(img) { position: absolute; top: 0; left: 0; right: 0; z-index: 30; max-height: none; pointer-events: none; box-shadow: 0 18px 50px #000c; }

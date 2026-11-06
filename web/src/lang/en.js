@@ -3819,4 +3819,13 @@ export default {
   "Ex.: dash, atropelar, prioridade…": "E.g. dash, trample, priority…",
   "Pesquisar nas regras": "Search the rules",
   "Nada encontrado.": "Nothing found.",
+  "{P} moi {n} carta (do topo para o cemitério)|{P} moi {n} cartas (do topo para o cemitério)": "{P} mills {n} card (top to graveyard)|{P} mills {n} cards (top to graveyard)",
+  "{P} exila {n} carta do topo da biblioteca|{P} exila {n} cartas do topo da biblioteca": "{P} exiles {n} card from the top of their library|{P} exiles {n} cards from the top of their library",
+  "Toca numa carta para a mudares de sítio; duplo clique põe-na na mão (com Shift: no campo).": "Tap a card to move it; double-click puts it in your hand (with Shift: onto the battlefield).",
+  "Comprar 1": "Draw 1",
+  "Comprar 2": "Draw 2",
+  "Ver o topo (3)": "Look at the top (3)",
+  "Moer 1 (topo para o cemitério)": "Mill 1 (top to graveyard)",
+  "Exilar o topo": "Exile the top card",
+  "Duplo clique na biblioteca compra uma.": "Double-click your library to draw one.",
 }

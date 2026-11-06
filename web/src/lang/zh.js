@@ -3811,4 +3811,13 @@ export default {
   "Ex.: dash, atropelar, prioridade…": "例如：dash、践踏、优先权…",
   "Pesquisar nas regras": "搜索规则",
   "Nada encontrado.": "没有找到。",
+  "{P} moi {n} carta (do topo para o cemitério)|{P} moi {n} cartas (do topo para o cemitério)": "{P} 磨掉 {n} 张牌（从牌库顶到坟墓场）|{P} 磨掉 {n} 张牌（从牌库顶到坟墓场）",
+  "{P} exila {n} carta do topo da biblioteca|{P} exila {n} cartas do topo da biblioteca": "{P} 将牌库顶的 {n} 张牌放逐|{P} 将牌库顶的 {n} 张牌放逐",
+  "Toca numa carta para a mudares de sítio; duplo clique põe-na na mão (com Shift: no campo).": "点击一张牌来移动它；双击放入手牌（按住 Shift：放入战场）。",
+  "Comprar 1": "抓 1 张",
+  "Comprar 2": "抓 2 张",
+  "Ver o topo (3)": "查看牌库顶（3）",
+  "Moer 1 (topo para o cemitério)": "磨 1 张（牌库顶到坟墓场）",
+  "Exilar o topo": "放逐牌库顶",
+  "Duplo clique na biblioteca compra uma.": "双击牌库抓一张。",
 }

@@ -501,6 +501,14 @@ def apply(t, me, d):
             c["r"] = on
         if on:
             _log(t, me, "revealhand", names=[c["n"] for c in hand])
+    elif c0 in ("mill", "exiletop"):  # moer (topo para o cemitério) ou exilar o topo, n cartas
+        z, to = t["zones"][me], "graveyard" if c0 == "mill" else "exile"
+        n = min(_num(d.get("n"), 1, 20, 1), len(z["library"]))
+        for _ in range(n):
+            c = t["cards"][str(z["library"][0])]
+            _take(t, c); _clean(c); _put(t, c, me, to)
+        seat["peek"] = max(0, seat["peek"] - n)
+        _log(t, me, c0, n=n)
     elif c0 == "peek":
         seat["peek"] = _num(d.get("n"), 0, len(t["zones"][me]["library"]))
         if seat["peek"]:

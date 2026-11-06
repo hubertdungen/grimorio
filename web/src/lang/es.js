@@ -3811,4 +3811,13 @@ export default {
   "Ex.: dash, atropelar, prioridade…": "P. ej.: dash, arrollar, prioridad…",
   "Pesquisar nas regras": "Buscar en las reglas",
   "Nada encontrado.": "No se encontró nada.",
+  "{P} moi {n} carta (do topo para o cemitério)|{P} moi {n} cartas (do topo para o cemitério)": "{P} muele {n} carta (de arriba al cementerio)|{P} muele {n} cartas (de arriba al cementerio)",
+  "{P} exila {n} carta do topo da biblioteca|{P} exila {n} cartas do topo da biblioteca": "{P} exilia {n} carta de la parte superior de su biblioteca|{P} exilia {n} cartas de la parte superior de su biblioteca",
+  "Toca numa carta para a mudares de sítio; duplo clique põe-na na mão (com Shift: no campo).": "Toca una carta para moverla; doble clic la pone en la mano (con Shift: en el campo).",
+  "Comprar 1": "Robar 1",
+  "Comprar 2": "Robar 2",
+  "Ver o topo (3)": "Mirar la parte superior (3)",
+  "Moer 1 (topo para o cemitério)": "Moler 1 (de arriba al cementerio)",
+  "Exilar o topo": "Exiliar la de arriba",
+  "Duplo clique na biblioteca compra uma.": "Doble clic en la biblioteca para robar una.",
 }
