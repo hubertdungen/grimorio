@@ -316,7 +316,25 @@ function holesFor(o, crack) {
 // o halo com física: motas de luz nas cores do deck a orbitar por fora do vidro, cada uma no seu eixo e sentido; ficam
 // para trás quando arrastas a esfera, espalham-se com os golpes, são mais com mais presença na mesa e apagam-se na morte
 const HN = 56, hexRGB = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255] }
-function stepHalo(r, o, { cols, pr, g, hit, dead, dt, now, glow, real }) {
+const RAYN = 18
+function drawRays(r, o, ab, g, now, real) {
+  if (ab < 0.05) return
+  if (!r.rays) {
+    const L = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))
+    for (const k of ['position', 'color']) L.geometry.setAttribute(k, new THREE.BufferAttribute(new Float32Array(RAYN * 4 * 3), 3).setUsage(THREE.DynamicDrawUsage))
+    L.frustumCulled = false; L.renderOrder = 0.5; L.visible = false; r.scene.add(L); r.rays = L
+  }
+  const P = r.rays.geometry.attributes.position.array, C = r.rays.geometry.attributes.color.array, n = Math.round(5 + 13 * ab), e = real ? 1.8 : 0.9
+  const bend = o.rayBend || (o.rayBend = [0, 0]); bend[0] += (-g[0] * 0.02 - bend[0]) * 0.08; bend[1] += (-g[1] * 0.02 - bend[1]) * 0.08  // ficam para trás ao arrastar
+  let z = 0
+  for (let i = 0; i < n; i++) {
+    const a = i / n * 6.283 + now * 0.12, len = (0.35 + 0.9 * ab) * (0.55 + 0.45 * Math.sin(now * 1.3 + i * 1.7)), cx = Math.cos(a), cy = Math.sin(a)
+    const x0 = cx * 1.03, y0 = cy * 1.03, xm = cx * (1.03 + len * 0.5) + bend[0] * 0.5, ym = cy * (1.03 + len * 0.5) + bend[1] * 0.5, x1 = cx * (1.03 + len) + bend[0], y1 = cy * (1.03 + len) + bend[1]
+    for (const [px, py, k] of [[x0, y0, 1], [xm, ym, 0.45], [xm, ym, 0.45], [x1, y1, 0]]) { P[z * 3] = px; P[z * 3 + 1] = py; P[z * 3 + 2] = -0.2; C[z * 3] = e * k; C[z * 3 + 1] = 0.85 * e * k; C[z * 3 + 2] = 0.5 * e * k; z++ }
+  }
+  r.rays.geometry.attributes.position.needsUpdate = true; r.rays.geometry.attributes.color.needsUpdate = true; r.rays.geometry.setDrawRange(0, z); r.rays.visible = true
+}
+function stepHalo(r, o, { cols, pr, g, hit, dead, dt, now, glow, real, ring = 0, belt = 0, fury = 0, pulse = 0 }) {
   let H = o.halo
   if (!H) {
     const geo = new THREE.BufferGeometry()
@@ -335,20 +353,29 @@ function stepHalo(r, o, { cols, pr, g, hit, dead, dt, now, glow, real }) {
     H = o.halo = { pts, p, v, A, R0, W, a, trail }
   }
   const { p, v, A, R0, W, a } = H, at = H.pts.geometry.attributes
-  const want = dead ? 0 : Math.round(10 + 46 * Math.min(1, pr))
+  const want = dead ? 0 : Math.round(10 + 46 * Math.min(1, pr)), ringN = dead ? 0 : Math.round(20 * ring)
   for (let i = 0; i < HN; i++) {
+    const isRing = i >= HN - ringN, isBelt = !isRing && belt > 0 && i % 3 !== 0 && ((i * 37) % 100) / 100 < belt
     const o3 = i * 3, x = p[o3], y = p[o3 + 1], z = p[o3 + 2], d = Math.hypot(x, y, z) || 1, nx = x / d, ny = y / d, nz = z / d
-    const [ux, uy, uz] = A[i], w = W[i] * (1 + 0.6 * pr)
+    // o cinto: com muitos terrenos as motas deitam-se no equador (um anel de mana); as criaturas tornam o enxame mais rápido
+    let [ux, uy, uz] = A[i]; if (isBelt) { ux *= 0.15; uz *= 0.15; uy = 1; const l = Math.hypot(ux, uy, uz); ux /= l; uy /= l; uz /= l }
+    const w = W[i] * (1 + 0.6 * pr) * (1 + 1.3 * fury)
     // a velocidade da órbita (eixo × posição) e a mola que a segura no raio dela
     const tx = (uy * z - uz * y) * w, ty = (uz * x - ux * z) * w, tz = (ux * y - uy * x) * w, sp = (R0[i] - d) * 5
     const relax = dead ? 0.2 : 1.6
-    v[o3] += ((tx - v[o3]) * relax + nx * sp + g[0]) * dt; v[o3 + 1] += ((ty - v[o3 + 1]) * relax + ny * sp + g[1] - (dead ? 2.5 : 0)) * dt; v[o3 + 2] += ((tz - v[o3 + 2]) * relax + nz * sp + g[2]) * dt
+    if (isRing) {  // auréola: uma roda de luz por cima da esfera, presa por molas (fica para trás ao arrastar, desfaz-se num golpe)
+      const ph = (i - (HN - ringN)) / Math.max(1, ringN) * 6.283 + now * 0.8, rx = Math.cos(ph) * 0.64 - x, ry = 1.36 - y, rz = Math.sin(ph) * 0.64 - z
+      v[o3] += (rx * 14 - v[o3] * 3.5 + g[0]) * dt; v[o3 + 1] += (ry * 14 - v[o3 + 1] * 3.5 + g[1]) * dt; v[o3 + 2] += (rz * 14 - v[o3 + 2] * 3.5 + g[2]) * dt
+    } else {
+      v[o3] += ((tx - v[o3]) * relax + nx * sp + g[0]) * dt; v[o3 + 1] += ((ty - v[o3 + 1]) * relax + ny * sp + g[1] - (dead ? 2.5 : 0)) * dt; v[o3 + 2] += ((tz - v[o3 + 2]) * relax + nz * sp + g[2]) * dt
+      if (fury > 0.05) { v[o3] += (Math.random() - 0.5) * fury * 30 * dt; v[o3 + 1] += (Math.random() - 0.5) * fury * 30 * dt }
+    }
     if (hit) { const k = hit * (0.6 + ((i * 7919) % 100) / 100); v[o3] += nx * k; v[o3 + 1] += ny * k; v[o3 + 2] += nz * k }
-    if (d < 1.08) { v[o3] += nx * 3 * dt * 20; v[o3 + 1] += ny * 3 * dt * 20; v[o3 + 2] += nz * 3 * dt * 20 }  // não entra no vidro
+    if (d < 1.08 && !isRing) { v[o3] += nx * 3 * dt * 20; v[o3 + 1] += ny * 3 * dt * 20; v[o3 + 2] += nz * 3 * dt * 20 }  // não entra no vidro
     for (let q = 0; q < 3; q++) { v[o3 + q] = Math.max(-8, Math.min(8, v[o3 + q])); p[o3 + q] += v[o3 + q] * dt }
     // aparecem e apagam-se devagar (presença); atrás da esfera quase não se veem
-    a[i] += ((i < want ? 1 : 0) - a[i]) * Math.min(1, dt * (dead ? 1.2 : 0.8))
-    const c = hexRGB(cols.length ? COL[cols[i % cols.length]] : glow), tw = 0.65 + 0.35 * Math.sin(now * (2 + (i % 5)) + i)
+    a[i] += ((i < want || isRing ? 1 : 0) - a[i]) * Math.min(1, dt * (dead ? 1.2 : 0.8))
+    const c0 = isRing ? [1, 0.86, 0.5] : hexRGB(cols.length ? COL[cols[i % cols.length]] : glow), c = pulse > 0 ? c0.map(x => x * (1 + 1.5 * pulse)) : c0, tw = 0.65 + 0.35 * Math.sin(now * (2 + (i % 5)) + i)
     at.position.array.set([p[o3], p[o3 + 1], p[o3 + 2]], o3); at.color.array.set(real ? c.map(x => x * 2.6) : c, o3)
     const behind = p[o3 + 2] < 0 && Math.hypot(p[o3], p[o3 + 1]) < 1 ? 0.2 : 1, fast = Math.min(1, Math.hypot(v[o3], v[o3 + 1], v[o3 + 2]) / 6)
     at.alpha.array[i] = a[i] * tw * behind * 0.85; at.size.array[i] = real ? 0.09 + 0.05 * tw : 0.32 + 0.22 * tw + 0.25 * fast
@@ -618,7 +645,7 @@ function draw(now) {
     for (const g of [r.glass, r.glassBack]) { g.material.uniforms.crack.value = crack; g.material.uniforms.tint.value.copy(w ? MIX : s.core); g.material.uniforms.dim.value = s.dead ? 0.85 : 1 }
     const bt = o.el._beat, ph = bt ? ((now - bt.t0) % bt.P) / bt.P : 0  // o mesmo relógio do som do coração
     const heart = ph < 0.05 ? ph / 0.05 * 0.07 : ph < 0.11 ? 0.07 - (ph - 0.05) / 0.06 * 0.08 : ph < 0.17 ? -0.01 + (ph - 0.11) / 0.06 * 0.06 : ph < 0.26 ? 0.05 - (ph - 0.17) / 0.09 * 0.05 : 0
-    const beat = s.low && !s.dead && bt ? 1 + heart : 1, fat = 1 + 0.25 * s.ab, wob = s.burst ? 1 + 0.035 * Math.sin(t * 60) : 1
+    const beat = !s.dead && bt ? 1 + heart * (bt.amp ?? 1) : 1, fat = 1 + 0.25 * s.ab, wob = s.burst ? 1 + 0.035 * Math.sin(t * 60) : 1
     const sc = beat * fat * wob
     r.ball.scale.setScalar(sc); r.glass.scale.setScalar(sc); r.glassBack.scale.setScalar(sc)
     const split = s.fx === 'split' ? Math.sin(Math.min(1, fxk * 1.4) * Math.PI) * 0.12 : 0
@@ -694,9 +721,10 @@ function draw(now) {
       const u2 = h.children[1].material.uniforms; u2.tint.value.copy(s.core); u2.crack.value = 0.5 })
     if (opening || md === 'split') r.ball.visible = r.glass.visible = r.glassBack.visible = false
     // verter (dentada, sangue): gotas da cor do líquido caem pelo lado e fazem uma poça
-    const leak = !fr && E[5] > 0  // biblioteca a acabar: gotas a pingar por baixo, mais depressa quanto menos cartas
+    const pfx = o.el.dataset.pf === '1' && !!o.fs
+    const leak = !fr && E[5] > 0 && !pfx  // biblioteca a acabar: gotas a pingar por baixo, mais depressa quanto menos cartas
     if (leak && !o.drops && now - (o.leakAt || 0) > 2600 - 2000 * E[5]) { o.leakAt = now; o.drip = { p: [0.05, -0.95, 0.35], v: [0, -0.2, 0] } }
-    const spill = s.fx === 'spill' && !fr
+    const spill = s.fx === 'spill' && !fr && !pfx
     if (spill && !o.drops) o.drops = Array.from({ length: 10 }, () => ({ p: [0.75 + Math.random() * 0.2, Math.random() * 0.4, 0.4], v: [0.6 + Math.random(), 0.6 + Math.random(), (Math.random() - 0.5)] }))
     if (!s.fx) o.drops = null
     r.drops.visible = !!o.drops || !!o.drip
@@ -725,6 +753,18 @@ function draw(now) {
         if (!fs.holes.length || fs.holes.every(h => h.patched)) fs.setCracks(holesFor(o, crack))
         fs.holes.forEach(h => { if (!h.patched) h.k = crack })
       }
+      // o sangue sai a sério: um golpe esguicha pelo lado onde bateu (mais dano, mais sangue e mais depressa); morder/sangrar
+      // abre um jorro; muito dano levado ou pouca vida: vai sangrando aos poucos; a biblioteca a acabar: pinga pelo fundo o
+      // que lá está; muita vida: transpira gotas de luz; calor: vapor
+      if (!fr) {
+        if (o.lastLife != null && life < o.lastLife) { const d = o.el._inkDir || [Math.random() - 0.5, -1], dmg = o.lastLife - life; fs.expel('blood', Math.min(40, 5 + 4 * dmg), [-d[0], d[1], 0.5], 2 + Math.min(2, dmg * 0.15)) }
+        if (s.fx === 'spill' && o.fsSpill !== 'spill') fs.expel('blood', 30, [1, 0.25, 0.45], 2.6, 0.22)
+        if ((s.low || E[0] > 0.45) && now - (o.bleedAt || 0) > (s.low ? 900 : 2400) / Math.max(0.35, E[0])) { o.bleedAt = now; fs.expel('blood', s.low ? 2 : 1, [(Math.random() - 0.5) * 0.9, -1, 0.35], 0.5, 0.3) }
+        if (E[5] > 0 && now - (o.leakAt || 0) > 2400 - 1900 * E[5]) { o.leakAt = now; fs.drain(1 + Math.round(E[5] * 2)) }
+        if (s.ab > 0.2 && now - (o.sweatAt || 0) > 1500 - 1000 * s.ab) { o.sweatAt = now; const a = Math.random() * 6.283; fs.expel('holy', 1 + Math.round(s.ab), [Math.cos(a), 0.3 + Math.random() * 0.6, Math.sin(a)], 0.7, 0.2) }
+        if (E[6] > 0.5 && now - (o.steamAt || 0) > 1800 - 1200 * E[6]) { o.steamAt = now; fs.expel('steam', 1, [(Math.random() - 0.5), 1, 0.3], 0.5, 0.4) }
+      }
+      o.fsSpill = s.fx
       if (o.lastLife != null && life > o.lastLife) fs.heal(Math.min(1, (life - o.lastLife) / 5))  // curar: remendos com crosta
       o.lastLife = life
       // reage: um golpe empurra-o do lado de onde veio; quase a rebentar agita-se; arrastar/atirar/chocar mexe-o pela inércia
@@ -759,7 +799,8 @@ function draw(now) {
       drawFluid(r, o, fs, now / 1000, xf)
       if (o.real) drawGrains(r, o, fs, now / 1000, xf, fr ? dt || 1 / 60 : dts)
       const hit = s.react && s.react !== o.haloReact ? (s.react === 'gain' ? 1.2 : 3.5) : s.burst ? 0.08 : 0; o.haloReact = s.react
-      stepHalo(r, o, { cols: s.cols, pr: E[8] || 0, g: [gx * 0.6, gy * 0.6, 0], hit, dead: s.dead, dt: Math.min(0.05, dts), now: now / 1000, glow: '#' + s.glow.getHexString(), real: o.real })
+      stepHalo(r, o, { cols: s.cols, pr: E[8] || 0, g: [gx * 0.6, gy * 0.6, 0], hit, dead: s.dead, dt: Math.min(0.05, dts), now: now / 1000, glow: '#' + s.glow.getHexString(), real: o.real, ring: s.ab, belt: E[9] || 0, fury: E[10] || 0, pulse: o.manaAt ? Math.max(0, 1 - (now - o.manaAt) / 700) : 0 })
+      drawRays(r, o, s.ab, [gx, gy], now / 1000, o.real)
     }
     if (fsOn && o.fs && o.real) renderReal(r, !fr ? 1 : r.glass.visible ? 0.6 : 0)
     else {
@@ -771,6 +812,7 @@ function draw(now) {
     r.comp.visible = false; r.hot.visible = false
     if (o.pts) for (const p of o.pts.objs) p.visible = false
     if (o.halo) { o.halo.pts.visible = false; o.halo.trail.visible = false }
+    if (r.rays) r.rays.visible = false
     const cv = (px && px.querySelector('canvas.orb3d')) || o.cv, g = cv.getContext('2d')
     if (cv.width !== SIZE || cv.height !== SIZE) { cv.width = SIZE; cv.height = SIZE }  // um canvas novo é 300×150: a largura já batia certo e a altura ficava a meio
     g.clearRect(0, 0, SIZE, SIZE); g.drawImage(r.renderer.domElement, 0, 0)
@@ -799,6 +841,14 @@ export function attachOrb3d(el, cv) {
   }
   // golpes e feitiços: a cor da carta de origem entra no líquido (cols = «WUBRG» da carta; n = quanto fez); sem estilo de
   // golpe, a pluma é dessa cor (fogo vermelho, sombra preta, luz branca…)
+  el._mana = (c, from) => {
+    o.manaAt = performance.now()
+    const fs = o.fs, k = 'WUBRGC'.indexOf(c); if (!fs || k < 0) return
+    const L = Math.hypot(from[0], from[1]) || 1, d = [from[0] / L, -from[1] / L, 0.45], mat = MANA_MAT[c][0][0]
+    fs.inject(mat, 8, d); fs.kick(d, 0.35)
+    const col = hexRGB(COL[c] || '#ffffff'); fs.burst(d[0] * 0.8, d[1] * 0.8, d[2] * 0.8, 1, col)
+  }
+  el._bleed = () => { if (o.fs) o.fs.expel('blood', 1, [(Math.random() - 0.5) * 0.8, -1, 0.3], 0.4, 0.3) }
   el._inject = (cols, n = 1, dir) => {
     const cs = String(cols || '').replace(/[^WUBRG]/g, '').split('').filter(Boolean), list = cs.length ? cs : ['C']
     o.inj = o.inj || [0, 0, 0, 0, 0, 0]

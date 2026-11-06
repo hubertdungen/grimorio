@@ -3834,6 +3834,8 @@ export default {
   "{lo}–{hi} decks": "{lo}–{hi} 套牌组",
   "Seeds": "种子排位",
   "Só no estilo automático (pelas cores do deck)": "仅限自动样式（按套牌颜色）",
+  "Booster draft e selado com os sets a sério, contra bots ou amigos, e o deck vai para a Biblioteca.": "用真实系列进行补充包轮抽和现开，对手可以是机器人或朋友；套牌会存入你的牌库。",
+  "Mesas com amigos pela internet: lobby com caixas e cartas, moeda ao ar e chat.": "和朋友在网上同桌：带卡盒和卡牌的大厅、掷硬币和聊天。",
   "Aspeto das partículas": "粒子外观",
   "Realista: grãos com luz própria": "写实：自带光芒的颗粒",
   "Formas e brilhos (o de antes)": "形状与闪光（之前的样式）",

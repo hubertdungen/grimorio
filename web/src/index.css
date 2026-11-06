@@ -2150,7 +2150,8 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .wl-side h4 { margin: 0 0 4px; } .wl-side p { margin: 2px 0; }
 .wl-side.forte { border-color: #45ad6266; } .wl-side.fraco, .wl-side.vazio { border-color: #e05a4466; }
 /* página inicial: 6 caminhos em 3×2 (sem um cartão sozinho na última linha); Construir em destaque; a mesa em 4 compactos */
-@media (min-width: 900px) { .home-grid { grid-template-columns: repeat(3, 1fr); } .home-mesa { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 900px) { .home-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1180px) { .home-grid { width: min(1180px, 100%); grid-template-columns: repeat(4, 1fr); } .home-mesa { grid-template-columns: repeat(4, 1fr); } }
 .home-card.main { border-color: #f2b84b77; background: linear-gradient(135deg, #2b2338, #1b1628); box-shadow: 0 8px 24px #0006, 0 0 0 1px #f2b84b22; }
 .home-card.main i { background: linear-gradient(135deg, #f2b84b44, #f2b84b14); }
 .home-card.main:hover { border-color: var(--gold2); box-shadow: 0 12px 30px #0009, 0 0 0 1px #f2b84b66; }
@@ -3836,3 +3837,10 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .set-sound .sl-group > span { grid-column: 1 / -1; }
 .rules-v { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 480px) { .sections button { gap: 3px; padding: 6px 2px; font-size: 13px; letter-spacing: -.01em; } .sections button .ic { width: 15px; height: 15px; } }  /* telemóvel: as quatro áreas com ícone cabem na largura */
+
+/* o pulsar a partir dos 8 de vida (antes de .low): fraco e lento, mais forte quanto menos vida (--bamp) */
+.orb.beating { animation: orbbeatsoft var(--beat, 1.6s) linear infinite; }
+@keyframes orbbeatsoft { 0%, 26%, 100% { scale: 1; } 5% { scale: calc(1 + .07 * var(--bamp, .5)); } 11% { scale: .995; } 17% { scale: calc(1 + .05 * var(--bamp, .5)); } }
+/* com o fluido de partículas a auréola, os raios e o suor são físicos (orb3d.js): os desenhos 2D saem */
+.orb.has3d[data-o3][data-pf="1"] > .orb-halo, .orb.has3d[data-o3][data-pf="1"] > .orb-rays, .orb.has3d[data-o3][data-pf="1"] > .orb-sweat { display: none; }
+.zmana { transition: none; will-change: transform; }

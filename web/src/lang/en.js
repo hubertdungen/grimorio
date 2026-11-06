@@ -3842,6 +3842,8 @@ export default {
   "{lo}–{hi} decks": "{lo}–{hi} decks",
   "Seeds": "Seeds",
   "Só no estilo automático (pelas cores do deck)": "Only with the automatic style (by deck colors)",
+  "Booster draft e selado com os sets a sério, contra bots ou amigos, e o deck vai para a Biblioteca.": "Booster draft and sealed with real sets, against bots or friends; the deck goes to your Library.",
+  "Mesas com amigos pela internet: lobby com caixas e cartas, moeda ao ar e chat.": "Tables with friends over the internet: a lobby with deck boxes and cards, coin toss and chat.",
   "Aspeto das partículas": "Particle look",
   "Realista: grãos com luz própria": "Realistic: grains with their own light",
   "Formas e brilhos (o de antes)": "Shapes and sparkles (the previous one)",

@@ -10,6 +10,8 @@ const GO = [
   ['coliseu', 'bots', 'coliseu', tx('Coliseu'), tx('Os teus decks contra outros com o motor Forge: jogos ao vivo, relatório e melhorias.')],
   ['coliseu', 'torneio', 'torneio', tx('Torneios'), tx('Eliminação, suíço, liga e mesas de Commander, com árvore ao vivo e pódio.')],
   ['coliseu', 'ratings', 'ratings', tx('Ratings'), tx('Estrelas de 0 a 6 por deck e a Arena automática a criar registos.')],
+  ['coliseu', 'draft', 'draft', tx('Draft'), tx('Booster draft e selado com os sets a sério, contra bots ou amigos, e o deck vai para a Biblioteca.')],
+  ['coliseu', 'online', 'online', tx('Online'), tx('Mesas com amigos pela internet: lobby com caixas e cartas, moeda ao ar e chat.')],
   ['coliseu', 'jogar', 'forge', tx('Jogar'), tx('Senta-te tu à mesa contra o Forge com o teu deck.')],
 ]
 

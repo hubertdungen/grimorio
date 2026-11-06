@@ -435,6 +435,7 @@ function useOrbPhysics(ref) {
     const trail = () => {
       if (++trailN % (low() ? 3 : 2)) return
       const [x, y, r] = center(), d = document.createElement('i')
+      if (low() && el.dataset.pf === '1' && el.dataset.o3 && el._bleed) { el._bleed(); return }  // com partículas o sangue é o próprio fluido
       d.className = low() ? 'orb-trail drip' : 'orb-trail'
       if (low() && trailN % 9 === 0) play('orbDrip')
       const sz = low() ? r * 0.45 : r * 1.5
@@ -697,7 +698,9 @@ export const orbEnv = (k, s, data) => {
   // presença na mesa: a força das criaturas e os terrenos (o halo e o brilho crescem com ela)
   let pres = 0
   for (const p of z.perms || []) { if (isLand(data, p)) pres += 0.5; else if (isCreature(data, p)) pres += Math.max(1, powTough(data, p)?.p || 1) }
-  return [cl((base - z.life) / base), cl(good), cl(bad), cl((z.graveyard?.length || 0) / 30), cl((z.exile?.length || 0) / 15), lib <= 10 ? cl(1 - lib / 10) : 0, cl(heat), cl(cold), cl(pres / 30)].map(x => x.toFixed(2)).join(',')
+  let lands = 0, force = 0  // 9: terrenos (o cinto de mana do halo), 10: força das criaturas (o enxame fica bravo)
+  for (const p of z.perms || []) { if (isLand(data, p)) lands++; else if (isCreature(data, p)) force += Math.max(1, powTough(data, p)?.p || 1) }
+  return [cl((base - z.life) / base), cl(good), cl(bad), cl((z.graveyard?.length || 0) / 30), cl((z.exile?.length || 0) / 15), lib <= 10 ? cl(1 - lib / 10) : 0, cl(heat), cl(cold), cl(pres / 30), cl((lands - 3) / 9), cl(force / 20)].map(x => x.toFixed(2)).join(',')
 }
 const locked = new Map()  // o aspeto «pelo deck» fixa-se quando já se viram 5 cartas (não muda a meio do jogo)
 export function orbLook(k, z, data, ctx, name) {
@@ -792,18 +795,19 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
   const ab = life >= 1e6 ? 1 : life > 40 ? Math.min(1, (life - 40) / 60) : 0
   const [richPick] = useState(() => { const all = ['halo', 'fat', 'sweat', 'god'], a = all[Math.floor(Math.random() * 4)], b = all[(all.indexOf(a) + 1 + Math.floor(Math.random() * 3)) % 4]; return [a, b] })
   const rich = ab > 0 && !dead ? (ab >= 0.5 ? richPick : richPick.slice(0, 1)) : []
-  useEffect(() => {  // o coração da esfera com pouca vida: bate, mais depressa e mais forte quanto mais perto do fim
-    if (!low || dead || fast || life <= 0 || life >= 1e6) return
-    const k = 1 - Math.max(0, life - 1) / Math.max(4, Math.round(start / 4)), P = Math.round(1250 - 450 * k), el = orbRef.current
+  const beatTop = Math.max(8, Math.round(start / 5)), beating = !dead && !fast && life > 0 && life < 1e6 && life <= beatTop
+  useEffect(() => {  // o coração da esfera: começa devagar e fraco nos 8 de vida; mais depressa e mais forte quanto mais perto do fim
+    if (!beating) return
+    const k = Math.min(1, Math.max(0, (beatTop - life) / Math.max(1, beatTop - 1))), P = Math.round(1700 - 950 * k), el = orbRef.current
     // o som e o pulsar (CSS e 3D) pelo mesmo relógio: o «lub» no início de cada período e o «dub» 0,17 s depois
-    const beat = () => { if (document.visibilityState === 'visible') play('orbHeart', { side, amount: 0.4 + 0.6 * k }) }
-    if (el) { el._beat = { t0: performance.now(), P }; el.style.setProperty('--beat', `${P}ms`); el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '' }
+    const beat = () => { if (document.visibilityState === 'visible') play('orbHeart', { side, amount: 0.2 + 0.8 * k }) }
+    if (el) { el._beat = { t0: performance.now(), P, amp: 0.3 + 0.7 * k }; el.style.setProperty('--bamp', (0.3 + 0.7 * k).toFixed(2)); el.style.setProperty('--beat', `${P}ms`); el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '' }
     beat()
     const iv = setInterval(beat, P)
     return () => { clearInterval(iv); if (el) el._beat = null }
-  }, [low, dead, fast, life <= 2, side])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [beating, life, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-w={look?.w} data-pf={fpPrefs().orbParticles ? '1' : undefined} data-pg={fpPrefs().orbGrain === 'fx' ? 'fx' : undefined} data-env={env} data-psn={poison > 0 ? Math.min(1, poison / pmax).toFixed(2) : undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${beating && !low ? 'beating' : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-w={look?.w} data-pf={fpPrefs().orbParticles ? '1' : undefined} data-pg={fpPrefs().orbGrain === 'fx' ? 'fx' : undefined} data-env={env} data-psn={poison > 0 ? Math.min(1, poison / pmax).toFixed(2) : undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
       {three && <canvas ref={cvRef} className="orb3d" aria-hidden="true" />}
       {rich.includes('god') && <i className="orb-rays" aria-hidden="true" />}
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
@@ -1303,14 +1307,27 @@ function manaFly(el, cols, k, delay) {
   if (!r.width) return
   const t = document.querySelector('.stackfx .stk.top') || document.querySelector(`.bside.p-${k} .orb:not(.orb-proxy)`), q = t?.getBoundingClientRect()
   if (!q?.width) return
-  const host = fxHost(), x0 = r.left + r.width / 2, y0 = r.top + r.height / 2, x1 = q.left + q.width / 2, y1 = q.top + q.height / 2
+  const host = fxHost(), x0 = r.left + r.width / 2, y0 = r.top + r.height / 2
+  const orb = t.classList.contains('orb') ? t : null
   cols.slice(0, 2).forEach((c, i) => {
-    const m = document.createElement('i'); m.className = 'zmana'; m.style.setProperty('--c', LCOL[c]); Object.assign(m.style, { left: `${x0}px`, top: `${y0}px` })
+    const m = document.createElement('i'); m.className = 'zmana'; m.style.setProperty('--c', LCOL[c]); Object.assign(m.style, { left: `${x0}px`, top: `${y0}px`, opacity: 0 })
     host.append(m)
-    m.animate([{ transform: 'translate(-50%, -50%) scale(.2)', opacity: 0 }, { transform: 'translate(-50%, calc(-50% - 22px)) scale(1.1)', opacity: 1, offset: 0.3 },
-      { transform: `translate(calc(-50% + ${(x1 - x0) * 0.55 + (i ? 14 : -14)}px), calc(-50% + ${(y1 - y0) * 0.55 - 50}px)) scale(1)`, opacity: 1, offset: 0.65 },
-      { transform: `translate(calc(-50% + ${x1 - x0}px), calc(-50% + ${y1 - y0}px)) scale(.35)`, opacity: 0.2 }],
-      { duration: 820, delay: delay + i * 90, easing: 'cubic-bezier(.4, 0, .4, 1)', fill: 'both' }).onfinish = () => m.remove()
+    // salta do terreno para cima e é puxada para o destino por uma mola com amortecimento (passa um pouco e volta)
+    let x = x0, y = y0, vx = (Math.random() - 0.5) * 240 + (i ? 70 : -70), vy = -360 - Math.random() * 160, t0 = null, last = 0
+    const step = now => {
+      if (!m.isConnected) return
+      if (t0 == null) { t0 = last = now }
+      const dt = Math.min(0.033, (now - last) / 1000), age = (now - t0) / 1000; last = now
+      const qq = t.isConnected ? t.getBoundingClientRect() : q, tx = qq.left + qq.width / 2, ty = qq.top + qq.height / 2, dx = tx - x, dy = ty - y
+      const pull = Math.min(1, age / 0.35) * 46, damp = 2.5 + 7 * Math.min(1, age / 0.6)
+      vx += (dx * pull - vx * damp) * dt; vy += (dy * pull - vy * damp + 900 * Math.max(0, 1 - age / 0.3)) * dt
+      x += vx * dt; y += vy * dt
+      const sp = Math.hypot(vx, vy), sc = 0.5 + Math.min(0.7, age * 3) - Math.max(0, age - 0.6) * 0.4
+      m.style.opacity = Math.min(1, age * 6); m.style.transform = `translate(${x - x0}px, ${y - y0}px) translate(-50%, -50%) rotate(${Math.atan2(vy, vx)}rad) scale(${Math.max(0.3, sc) * (1 + Math.min(0.6, sp / 2000))}, ${Math.max(0.3, sc)})`
+      if (Math.hypot(dx, dy) < Math.max(10, qq.width * 0.22) || age > 2.4) { m.remove(); if (orb?._mana) orb._mana(c, [x0 - tx, y0 - ty]); return }
+      requestAnimationFrame(step)
+    }
+    setTimeout(() => requestAnimationFrame(step), delay + i * 90)
   })
 }
 function landFx(el, kind, cols) {

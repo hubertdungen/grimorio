@@ -144,6 +144,31 @@ export class FluidSim {
     return i
   }
   // um golpe/choque: empurra o fluido a partir do ponto (dir no vidro) e agita-o (força 0..1)
+  // sai pelo vidro: nasce na superfície do lado dir e é atirado para fora (o sangue de um golpe, o suor de luz)
+  expel(mat, n, dir = [0, -1, 0], speed = 2, spread = 0.35) {
+    const L = Math.hypot(...dir) || 1, d = dir.map(c => c / L)
+    for (let k = 0; k < n; k++) {
+      let x = d[0] + (this.rnd() - 0.5) * spread * 2, y = d[1] + (this.rnd() - 0.5) * spread * 2, z = d[2] + (this.rnd() - 0.5) * spread * 2
+      const l = Math.hypot(x, y, z) || 1; x /= l; y /= l; z /= l
+      const i = this.spawn(mat, x * R * 1.02, y * R * 1.02, z * R * 1.02); if (i < 0) break
+      const s = speed * (0.55 + this.rnd() * 0.9), o = i * 3
+      this.v[o] = x * s; this.v[o + 1] = y * s + 0.4; this.v[o + 2] = z * s
+      this.out[i] = 1; this.outT[i] = 0
+    }
+  }
+  // pinga: as n partículas mais encostadas ao lado dir passam o vidro (a biblioteca a acabar: a esfera esvazia-se)
+  drain(n = 1, dir = [0, -1, 0]) {
+    for (let q = 0; q < n; q++) {
+      let best = -1, bd = -9
+      for (let i = 0; i < this.count; i++) {
+        if (!this.alive[i] || this.out[i] || this.fade[i] || (MAT[NAMES[this.m[i]]].ttl || 9) < 1) continue
+        const o = i * 3, dd = this.x[o] * dir[0] + this.x[o + 1] * dir[1] + this.x[o + 2] * dir[2]
+        if (dd > bd) { bd = dd; best = i }
+      }
+      if (best < 0) return
+      const o = best * 3; this.out[best] = 1; this.outT[best] = 0; this.v[o] = dir[0] * 0.4; this.v[o + 1] = dir[1] * 0.4; this.v[o + 2] = dir[2] * 0.4
+    }
+  }
   kick(dir = [0, 1, 0], f = 1) {
     const L = Math.hypot(...dir) || 1, d = dir.map(x => (x / L) * R)
     for (let i = 0; i < this.count; i++) {
