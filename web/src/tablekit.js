@@ -201,6 +201,10 @@ export function useFlip(box, seq, lay) {
       const drop = flipFrom.get(id), o = last.current.get(id)
       if (!fly && !drop) continue
       flipFrom.delete(id)
+      if (!drop && !o && !reduce && last.current.size) {  // nova sem origem conhecida (ficha criada…): aparece por WAAPI (não compete com nada)
+        el.animate([{ opacity: 0, transform: 'scale(.7) translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 450, easing: 'ease-out' })
+        continue
+      }
       if (reduce || (!drop && !o)) continue
       let dx, dy, k
       if (drop) {  // vem do sítio do ecrã onde a largaste: compara com o retângulo atual no ecrã
@@ -208,13 +212,16 @@ export function useFlip(box, seq, lay) {
         dx = (drop.left - r.left) / sc; dy = (drop.top - r.top) / sc; k = drop.width / r.width
       } else { dx = o.x - p.x; dy = o.y - p.y; k = o.w / p.w }
       if (Math.abs(dx) < 3 && Math.abs(dy) < 3) continue  // não se mexeu (ou quase): deixa-a como está, a meio do que estiver a fazer
+      // .flipping: sem o «aparecer» (.pc.in anima o transform e, por ser animação CSS, ganhava ao voo: a carta aparecia
+      // logo no sítio e depois dava um salto a meio do caminho) e com sombra de quem vai no ar
+      el.classList.add('flipping'); clearTimeout(el._flipT)
       el.style.transition = 'none'
       el.style.transform = `translate(${dx}px, ${dy}px) scale(${k})`
       el.style.zIndex = '6'
       requestAnimationFrame(() => requestAnimationFrame(() => {
         el.style.transition = 'transform .5s cubic-bezier(.2, 1.25, .35, 1)'
         el.style.transform = ''
-        setTimeout(() => { el.style.transition = ''; el.style.zIndex = '' }, 520)
+        el._flipT = setTimeout(() => { el.style.transition = ''; el.style.zIndex = ''; el.classList.remove('flipping') }, 520)
       }))
     }
     last.current = now
@@ -243,7 +250,11 @@ export function useZoneFlights(box, seq, at) {
       const o = pv.get(id)
       if (!o || o.z === w.z || !w.fly || !o.src) continue
       const el = box.current.querySelector(o.src)
-      if (el?.offsetWidth) flipFrom.set(String(id), el.getBoundingClientRect())
+      // de uma mão em leque: parte de uma carta do meio (o leque inteiro fazia-a começar quase 3× maior)
+      const kids = el ? [...el.querySelectorAll('*')].filter(x => x.offsetWidth > 14 && x.offsetWidth < el.offsetWidth * 0.6 && x.offsetHeight > x.offsetWidth) : []
+      const kid = kids[Math.floor(kids.length / 2)]
+      const from = kid?.offsetWidth ? kid : el
+      if (from?.offsetWidth) flipFrom.set(String(id), from.getBoundingClientRect())
     }
   }, [seq]) // eslint-disable-line react-hooks/exhaustive-deps
 }

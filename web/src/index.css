@@ -3772,3 +3772,10 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .rq { display: grid; gap: 6px; padding: 8px; border-radius: 10px; background: #ffffff08; border: 1px solid var(--line); max-height: 40vh; overflow: auto; }
 .rq-bar { display: flex; gap: 6px; align-items: center; } .rq-bar input { flex: 1; min-width: 0; }
 .rq-hit b { color: var(--gold, #f2b84b); } .rq-hit p { margin: 2px 0; font-size: 12px; line-height: 1.4; }
+
+/* a carta a voar para o sítio dela (useFlip): sem o «aparecer» por cima e com sombra de quem vai no ar */
+.pc.flipping, .fp-hand [data-h].flipping { animation: none !important; }
+.pc.flipping .pc-rot { filter: drop-shadow(0 12px 14px #000a); }
+/* mesas com voos (Forge Play, online): a carta nova chega a voar (useFlip) ou aparece por WAAPI; o «aparecer» por CSS
+   competia com o voo (animava o mesmo transform) e repetia-se quando o voo acabava */
+.fp .pc.in:not(.tok) { animation: none; }

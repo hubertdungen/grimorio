@@ -1159,6 +1159,8 @@ function stackToField(name) {
   Object.assign(g.style, { left: `${a.left}px`, top: `${a.top}px`, width: `${a.width}px`, height: `${a.height}px` })
   if (src) g.style.backgroundImage = `url("${src}")`
   fxHost().append(g)
+  // a carta da pilha manda: se o FLIP (do sítio onde a largaste) estiver a correr, pára
+  clearTimeout(to._flipT); to.classList.remove('flipping'); to.style.transition = 'none'; to.style.transform = ''; to.style.zIndex = ''
   from.classList.add('flown'); to.style.visibility = 'hidden'
   const an = g.animate([{ transform: 'none' }, { transform: `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${b.width / a.width}, ${b.height / a.height})` }],
     { duration: 420, easing: 'cubic-bezier(.45, 0, .25, 1)', fill: 'forwards' })
