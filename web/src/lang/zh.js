@@ -3801,4 +3801,7 @@ export default {
   "Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).": "现在不行：忠诚异能每回合只能用一次，需在你的主阶段且堆叠为空（“−”异能还需要足够的忠诚）。",
   "Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)": "按场上卡牌生成液体（自动风格；关闭：使用风格自带的液体）",
   "Batalha protegida por {x}": "由 {x} 守护的战役",
+  "Moeda: começas tu": "硬币：你先手",
+  "Moeda: começa {p}": "硬币：{p} 先手",
+  "o adversário": "对手",
 }

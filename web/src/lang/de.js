@@ -3801,4 +3801,7 @@ export default {
   "Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).": "Jetzt nicht: Loyalität wird einmal pro Zug genutzt, in deiner Hauptphase bei leerem Stapel (und ein „−“ braucht genug Loyalität).",
   "Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)": "Flüssigkeiten nach den Karten im Spiel (automatischer Stil; aus: die Flüssigkeit des Stils)",
   "Batalha protegida por {x}": "Schlacht, geschützt von {x}",
+  "Moeda: começas tu": "Münze: du beginnst",
+  "Moeda: começa {p}": "Münze: {p} beginnt",
+  "o adversário": "der Gegner",
 }

@@ -3809,4 +3809,7 @@ export default {
   "Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).": "Not now: loyalty is used once per turn, in your main phase with an empty stack (and a \"−\" needs enough loyalty).",
   "Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)": "Liquids from the cards in play (automatic style; off: the style's own liquid)",
   "Batalha protegida por {x}": "Battle protected by {x}",
+  "Moeda: começas tu": "Coin: you go first",
+  "Moeda: começa {p}": "Coin: {p} goes first",
+  "o adversário": "the opponent",
 }
