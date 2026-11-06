@@ -15,11 +15,16 @@ const GS = NAMES.map((k, i) => (GK[i] === 1 ? 0.36 : MAT[k].solid ? 0.13 : GK[i]
 // agitação própria (browniano): o gás e a luz espalham-se, o líquido quase não, o sólido nada
 const BR = NAMES.map((k, i) => (GK[i] === 1 ? 0.45 : GK[i] === 2 ? 0.3 : MAT[k].solid ? 0.02 : 0.06))
 
+// a luz que cada matéria espalha à volta (as que brilham): a lava e o fogo alaranjam a água e o fumo ao pé deles
+const EMC = new Float32Array(NAMES.length * 3)  // números simples (misturar null com listas tirava a otimização: 7× mais lento)
+NAMES.forEach((k, i) => { const M = MAT[k]
+  const c = k === 'lava' || k === 'magma' || k === 'fire' || k === 'ember' ? [1, 0.42, 0.1].map(x => x * (k === 'magma' ? 0.6 : 1)) : M.glow >= 0.5 ? M.col.map(x => x * M.glow * 0.8) : [0, 0, 0]
+  EMC.set(c, i * 3) })
 // cor do corpo negro (0 frio … 1 branco-quente) e quanto brilha (HDR)
 export function blackbody(T, out = [0, 0, 0]) {
   const t = Math.max(0, Math.min(1, T))
   out[0] = Math.min(1, 0.08 + t * 2.2); out[1] = Math.max(0, Math.min(1, (t - 0.28) * 1.55)); out[2] = Math.max(0, Math.min(1, (t - 0.62) * 2.2))
-  const e = 0.3 + 3.2 * t * t
+  const e = 0.35 + 1.5 * t * t  // somados uns aos outros já fazem muito: mais do que isto rebentava para branco
   out[0] *= e; out[1] *= e; out[2] *= e
   return out
 }
@@ -29,6 +34,7 @@ export class Grains {
     this.n = n; let s = seed | 0
     this.rnd = () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 }
     this.x = new Float32Array(n * 3); this.v = new Float32Array(n * 3); this.a = new Int32Array(n).fill(-1)
+    this.lit = new Float32Array(n * 3); this.dens = new Float32Array(n)
     this.age = new Float32Array(n); this.fl = new Float32Array(n)  // fl: luz de um clarão perto
     this.tone = new Float32Array(n * 3); this.ph = new Float32Array(n)
     for (let i = 0; i < n; i++) {  // o tom de cada grão: um pouco mais claro/escuro e um nada de outra cor (heterogéneo)
@@ -89,7 +95,7 @@ export class Grains {
       // o campo de velocidade: média pesada das âncoras perto (o bloco 2×2×2 de células mais próximo)
       const fx = (x + 3) / H, fy = (y + 3) / H, fz = (z + 3) / H
       const cx = Math.floor(fx - 0.5), cy = Math.floor(fy - 0.5), cz = Math.floor(fz - 0.5)
-      let sw = 0, vx = 0, vy = 0, vz = 0
+      let sw = 0, vx = 0, vy = 0, vz = 0, lr = 0, lg = 0, lb = 0
       for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) for (let c = 0; c < 2; c++) {
         const ix = cx + a, iy = cy + b, iz = cz + c
         if (ix < 0 || iy < 0 || iz < 0 || ix >= G || iy >= G || iz >= G) continue
@@ -98,8 +104,11 @@ export class Grains {
           if (d2 >= H * H) continue
           const q = 1 - Math.sqrt(d2) / H, w = q * q
           sw += w; vx += FV[p] * w; vy += FV[p + 1] * w; vz += FV[p + 2] * w
+          const mk = fs.m[k] * 3; lr += EMC[mk] * w; lg += EMC[mk + 1] * w; lb += EMC[mk + 2] * w
         }
       }
+      // a luz que recebe das matérias que brilham à volta (lava, fogo, luz, raios) e a sombra do que é denso
+      const kl = 1 / (sw + 1.5); this.lit[g * 3] = lr * kl; this.lit[g * 3 + 1] = lg * kl; this.lit[g * 3 + 2] = lb * kl; this.dens[g] = sw
       const p = j * 3, m = fs.m[j]
       if (sw > 0) { vx /= sw; vy /= sw; vz /= sw } else { vx = FV[p]; vy = FV[p + 1]; vz = FV[p + 2] }
       // a mola para a âncora (os grãos repartem-se pelas partículas, sem se juntarem num sítio) e a agitação própria
@@ -146,18 +155,22 @@ export class Grains {
       if (T >= 0) {
         blackbody(T, bb); r = bb[0]; gg = bb[1]; b = bb[2]
         gr = m === FIRE ? (T > 0.3 ? 2 : 1) : T > 0.45 ? 2 : 0  // o fogo frio já é fumo; a lava fria é crosta opaca
-      } else if (gr === 2) e = (1 + 1.8 * M.glow) * (M.wave ? 0.75 + 0.35 * Math.sin(now * 4 + ph) : 1)
+      } else if (gr === 2) e = (0.9 + 1.1 * M.glow) * (M.wave ? 0.75 + 0.35 * Math.sin(now * 4 + ph) : 1)
       if (M.prism) { const h = now * 0.6 + ph; r = 0.72 + 0.12 * Math.sin(h); gg = 0.76 + 0.12 * Math.sin(h + 2.1); b = 0.86 + 0.12 * Math.sin(h + 4.2) }
       // brilhos: o metal e os cristais apanham a luz de vez em quando (cintilam a sério, em vez de estrelas desenhadas)
       if (m === METAL || m === CRYSTAL) { const gl = Math.pow(Math.max(0, Math.sin(now * 1.7 + ph * 5)), 24); if (gl > 0.2) { e = 1 + gl * 4; gr = 2 } }
       r *= this.tone[o] * e; gg *= this.tone[o + 1] * e; b *= this.tone[o + 2] * e
+      if (gr !== 2) {  // sombra no que é denso (lê-se o volume) e a luz que chega das matérias acesas ao pé (a lava alaranja a água)
+        const oc = Math.max(0, Math.min(1, (this.dens[g] - 0.8) / 1.4)) * 0.4, L = this.lit
+        r = r * (1 - oc) + L[o] * 1.4; gg = gg * (1 - oc) + L[o + 1] * 1.4; b = b * (1 - oc) + L[o + 2] * 1.4
+      }
       const f = this.fl[g]
-      if (f > 0.05) { r += 3 * f; gg += 2.8 * f; b += 2.4 * f; if (f > 0.25) gr = 2 }
+      if (f > 0.05) { r += 1.5 * f; gg += 1.4 * f; b += 1.2 * f; if (f > 0.25) gr = 2 }
       if (tc && tk > 0) { r += (tc[0] - r) * tk; gg += (tc[1] - gg) * tk; b += (tc[2] - b) * tk }
       col[k * 3] = r; col[k * 3 + 1] = gg; col[k * 3 + 2] = b
       if (vel) { vel[k * 3] = this.v[o]; vel[k * 3 + 1] = this.v[o + 1]; vel[k * 3 + 2] = this.v[o + 2] }
       size[k] = GS[m] * (0.8 + 0.4 * ((ph * 7) % 1)) * (xf && !out ? sm : 1)
-      alpha[k] = M.a * (fs.fade[j] > 0 ? 1 - fs.fade[j] : 1) * Math.min(1, this.age[g] / 0.3) * (gr === 1 ? 0.45 : 1)
+      alpha[k] = M.a * (fs.fade[j] > 0 ? 1 - fs.fade[j] : 1) * Math.min(1, this.age[g] / 0.3) * (gr === 1 ? 0.45 : gr === 2 ? 0.7 : 1)
       grp[k] = gr
       k++
     }

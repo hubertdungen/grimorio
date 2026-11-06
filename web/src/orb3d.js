@@ -379,7 +379,7 @@ void main(){
   vec4 mv = modelViewMatrix * vec4(position, 1.);
   vec4 c0 = projectionMatrix * mv, c1 = projectionMatrix * (modelViewMatrix * vec4(position + vel * blur, 1.));
   vec2 dpx = (c1.xy / c1.w - c0.xy / c0.w) * 150.;
-  float base = max(1.6, size * scale / -mv.z), L = min(length(dpx), base * 3.);
+  float base = max(1.6, size * scale / -mv.z), L = min(length(dpx), base * 1.6);
   vDir = L > .3 ? normalize(dpx) * vec2(1., -1.) : vec2(1., 0.); vLen = L / (base + L); vRad = .5 * base / (base + L);
   float dz = clamp((-mv.z - (zc - 1.)) / 2., 0., 1.);
   vec3 n = normalize(position + vec3(1e-4));
@@ -402,7 +402,7 @@ function realInit(r) {
   const rt = (s, depth) => new THREE.WebGLRenderTarget(s, s, { type: HF, depthBuffer: !!depth })
   const B = LOW ? 100 : 150, b1 = rt(B), b2 = rt(B), c1 = rt(B >> 1), c2 = rt(B >> 1), sceneRT = rt(SIZE, true)
   const gm = GFS.map((f, k) => new THREE.ShaderMaterial({ vertexShader: GVS, fragmentShader: f, transparent: true, depthTest: true, depthWrite: k === 0,
-    uniforms: { scale: r.ptMats[0].uniforms.scale, zc: { value: 6 }, blur: { value: 0.05 } }, blending: k === 2 ? THREE.AdditiveBlending : THREE.NormalBlending }))
+    uniforms: { scale: r.ptMats[0].uniforms.scale, zc: { value: 6 }, blur: { value: 0.022 } }, blending: k === 2 ? THREE.AdditiveBlending : THREE.NormalBlending }))
   const pcam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), pscn = new THREE.Scene(), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false; pscn.add(quad)
   const V = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }'
   const sm = (f, u) => new THREE.ShaderMaterial({ vertexShader: V, fragmentShader: f, uniforms: u, depthTest: false, depthWrite: false, blending: THREE.NoBlending })
@@ -517,13 +517,13 @@ function drawFluid(r, o, fs, now, xf = null) {
   o.pts.objs.forEach((p, s) => { const a = A[s]; for (const k of ['position', 'color', 'size', 'alpha', 'shape', 'rot']) a[k].needsUpdate = true; p.geometry.setDrawRange(0, cnt[s]); p.visible = cnt[s] > 0 })
   // o líquido: as manchas somadas na imagem à parte; o quadrado no ecrã desenha a superfície
   const rr = r.renderer, prev = rr.getRenderTarget()
-  rr.setRenderTarget(r.liqRT); rr.setClearColor(0x000000, 0); rr.clear(); if (cnt[0]) rr.render(r.liqScene, r.cam); rr.setRenderTarget(prev)
+  rr.setRenderTarget(r.liqRT); rr.setClearColor(0x000000, 0); rr.clear(); if (cnt[0] && !o.real) rr.render(r.liqScene, r.cam); rr.setRenderTarget(prev)
   r.comp.visible = cnt[0] > 0
-  rr.setRenderTarget(r.hotRT); rr.clear(); if (cnt[4]) rr.render(r.hotScene, r.cam); rr.setRenderTarget(prev)
+  rr.setRenderTarget(r.hotRT); rr.clear(); if (cnt[4] && !o.real) rr.render(r.hotScene, r.cam); rr.setRenderTarget(prev)
   r.hot.visible = cnt[4] > 0; r.hot.material.uniforms.t.value = now
   const real = !!o.real
-  r.comp.material.uniforms.op.value = real ? 0.4 : 1; r.hot.material.uniforms.op.value = 1
-  if (real) r.hot.visible = false
+  r.comp.material.uniforms.op.value = 1; r.hot.material.uniforms.op.value = 1
+  if (real) r.hot.visible = r.comp.visible = false  // no realista o líquido são os grãos (a superfície saía fora do vidro)
   if (real) for (const s of [1, 2, 3]) o.pts.objs[s].visible = false  // o desenho de antes (formas e brilhos) fica de fora
 }
 const FLOOR = -1.1, GREY = new THREE.Color('#9a958f'), TOXIC = new THREE.Color('#5fd13a'), STONE = new THREE.Color('#6b6b70')
