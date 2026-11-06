@@ -3,7 +3,7 @@
 convidados (guests.py) entram com um deck seu; o anfitrião começa e nasce um torneio normal (tournament.create),
 visível aos amigos (`friends_open`) para o verem ao vivo e apostarem.
 """
-import json, re, secrets, time
+import json, re, secrets, sqlite3, time
 
 import freetable
 import sim
@@ -104,13 +104,22 @@ def seat_deck(con, owner, p):
     return r and json.loads(r[0])
 
 
+def host_name(con, owner):
+    """O nome de quem aloja na mesa: o do perfil (o .exe/pacote, sem login, tem perfis com id interno) ou o login."""
+    try:
+        r = con.execute("SELECT name FROM profiles WHERE id=?", (owner,)).fetchone()
+    except sqlite3.OperationalError:
+        r = None
+    return (r and r[0]) or owner
+
+
 def start_livre(con, owner, rid, spec, players):
-    seats = []
+    seats, me = [], host_name(con, owner)
     for p in players:
         d = seat_deck(con, owner, p)
         if not d:
             raise ValueError(f"O deck «{p.get('name')}» já não existe.")
-        seats.append({"by": p["by"], "name": p.get("byName") or owner, "deck": d})
+        seats.append({"by": p["by"], "name": p.get("byName") or me, "deck": d})
     tid = freetable.create(con, owner, spec.get("name"), seats, first=int(spec.get("first") or 0))
     con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
     LIVE.pop(rid, None)

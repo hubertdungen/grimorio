@@ -13,6 +13,7 @@ import { tx, num, LOCALE } from './i18n.js'
 import { trophyValue, deckSplit, deckPoints, perfOf, trophyStars, pointStars } from './trophyvalue.js'
 import { SyncHint } from './Settings.jsx'
 import { useBackClose } from './backnav.js'
+import { exportDecks } from './FriendRoom.jsx'
 
 const META_FMTS = ['commander', 'duel', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'premodern']
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
@@ -409,6 +410,12 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
       <section className="card">
         <h3>{tx('Importar decks de um perfil')} <span className="muted small">{tx('escolhe quais entram')}</span></h3>
         <ProfileImport data={data} initial={importLinks} say={say} onDone={reload} />
+      </section>
+
+      <section className="card">
+        <h3>{tx('Levar os meus decks a um amigo')} <span className="muted small">{tx('para o Grimório de um amigo, quando não tens a app à mão: lá, em «📥 Trazer os meus decks», escolhes este ficheiro e entram todos de uma vez')}</span></h3>
+        <div className="row-btns"><button onClick={() => exportDecks().then(n => say(tx('{n} decks exportados.', { n }))).catch(e => say(e.message))}>⇪ {tx('Exportar decks')}</button>
+          <a className="link small" href="#levar">🚪 {tx('Entrar na sala de um amigo')}</a></div>
       </section>
 
       <section className="card">

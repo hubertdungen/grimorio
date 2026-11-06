@@ -363,12 +363,60 @@ def stop_box(url):
     return True
 
 
+def join_hash(link):
+    """grimorio://join?u=<link do amigo> -> '#levar=<link>' (a app abre «Sala de um amigo» com ele); '' se não for isso."""
+    import urllib.parse
+    if not link or not str(link).lower().startswith("grimorio://"):
+        return ""
+    u = (urllib.parse.parse_qs(urllib.parse.urlsplit(link).query).get("u") or [""])[0]
+    return "#levar=" + urllib.parse.quote(u, safe="") if u.lower().startswith(("http://", "https://")) and len(u) < 600 else ""
+
+
+def register_scheme():
+    """grimorio://join?u=… (o botão «Abrir na app Grimório» dos convites e das salas) abre esta app. Sem admin: HKCU no
+    Windows, ~/.local/share/applications no Linux. Regista-se a cada arranque (as atualizações mudam a pasta da app)."""
+    try:
+        if os.name == "nt":
+            if not FROZEN:
+                return
+            import winreg
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\grimorio") as k:
+                winreg.SetValueEx(k, "", 0, winreg.REG_SZ, "URL:Grimório")
+                winreg.SetValueEx(k, "URL Protocol", 0, winreg.REG_SZ, "")
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\grimorio\shell\open\command") as k:
+                winreg.SetValueEx(k, "", 0, winreg.REG_SZ, f'"{sys.executable}" "%1"')
+        elif sys.platform.startswith("linux"):
+            sh = os.path.join(BASE, "grimorio")
+            if not os.path.isfile(sh):  # a correr do código-fonte: sem o script do pacote
+                return
+            import importlib.util
+            apps = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "applications")
+            f = os.path.join(apps, "grimorio.desktop")
+            # sem janela própria (sem pywebview) abre num terminal, para se poder fechar (Ctrl+C)
+            body = ("[Desktop Entry]\nType=Application\nName=Grimório\nComment=Magic: The Gathering decks, Forge and friends\n"
+                    f'Exec="{sh}" %u\nIcon={os.path.join(APP, "web", "dist", "icon-192.png")}\n'
+                    f'Terminal={"false" if importlib.util.find_spec("webview") else "true"}\nCategories=Game;\nMimeType=x-scheme-handler/grimorio;\n')
+            if os.path.isfile(f) and open(f, encoding="utf-8").read() == body:
+                return
+            os.makedirs(apps, exist_ok=True)
+            with open(f, "w", encoding="utf-8") as out:
+                out.write(body)
+            for cmd in (["xdg-mime", "default", "grimorio.desktop", "x-scheme-handler/grimorio"], ["update-desktop-database", apps]):
+                try:
+                    subprocess.run(cmd, timeout=20, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except (OSError, subprocess.SubprocessError):
+                    pass  # sem xdg-utils: o .desktop já chega na maioria dos ambientes
+    except Exception as e:  # nunca impede a app de abrir
+        say(f"Could not register grimorio:// links ({e}).")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Start Grimório on this computer and open it in its own window (or the browser).")
     ap.add_argument("--port", type=int, help="port (default: 8107, or the next free one)")
     ap.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to open it to phones/tablets on your network")
     ap.add_argument("--no-browser", action="store_true", help="do not open a window or the browser (server only)")
     ap.add_argument("--browser", action="store_true", help="open in the browser instead of Grimório's own window")
+    ap.add_argument("link", nargs="?", help=argparse.SUPPRESS)  # grimorio://join?u=… (register_scheme)
     log_to_file()  # the Windows app has no console: what it says goes to <data>/logs/grimorio.log
     args = ap.parse_args()
     utf8_files()
@@ -381,10 +429,12 @@ def main():
             last = int(json.load(f)["port"])
     except (OSError, ValueError, KeyError, TypeError):
         last = None
-    if not args.port and last and running(last):  # already open: just show it again
+    jh = join_hash(args.link)
+    register_scheme()
+    if not args.port and last and running(last):  # already open: just show it again (o link de um amigo abre outra janela nele)
         say(f"Grimório is already running: http://127.0.0.1:{last}")
-        if not args.no_browser and not (not args.browser and window(f"http://127.0.0.1:{last}", d)):
-            webbrowser.open(f"http://127.0.0.1:{last}")
+        if not args.no_browser and not (not args.browser and window(f"http://127.0.0.1:{last}/{jh}", d)):
+            webbrowser.open(f"http://127.0.0.1:{last}/{jh}")
         return
     port = args.port or next((p for p in ([last] if last else []) + list(PORTS) if free(args.host, p)), None)
     if not port:
@@ -424,13 +474,17 @@ def main():
             say("The server did not start; see the log above.")
         elif args.no_browser:
             server.join()
-        elif args.browser or not window(url, d):  # no window (Linux without pywebview, Windows without WebView2): the browser
-            webbrowser.open(url)
+        elif args.browser or not window(f"{url}/{jh}", d):  # no window (Linux without pywebview, Windows without WebView2): the browser
+            webbrowser.open(f"{url}/{jh}")
             if not stop_box(url):  # Windows app without a console: a small dialog is the way to stop it
                 server.join()
     except KeyboardInterrupt:
         pass
     finally:
+        try:  # «Partilhar pela internet»: o cloudflared não fica a correr depois de fechar a app
+            sys.modules["share"].stop()
+        except Exception:
+            pass
         for p in list(getattr(sys.modules.get("sim"), "PROCS", {}).values()):
             p.kill()
         for x in list(getattr(sys.modules.get("playnet"), "S", {}).values()):  # Forge Play games still open
@@ -443,6 +497,8 @@ def main():
 
 def selfcheck():
     import tempfile
+    assert join_hash("grimorio://join?u=https%3A%2F%2Fa-b.trycloudflare.com%2Fconvite%2Fabc") == "#levar=https%3A%2F%2Fa-b.trycloudflare.com%2Fconvite%2Fabc"
+    assert join_hash("grimorio://join?u=javascript:alert(1)") == "" and join_hash(None) == "" and join_hash("--x") == ""
     assert vkey("1.10.0") > vkey("1.9.3") > vkey("1.9") and vkey("dev") == () and vkey("0.0.0-abc1234") == (0, 0, 0)
     with tempfile.TemporaryDirectory() as d:
         ex = ("Grimorio", "Grimorio.exe") if os.name == "nt" else ("grimorio", "app", "launcher.py")

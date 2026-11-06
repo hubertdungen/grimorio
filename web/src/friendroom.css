@@ -1,0 +1,31 @@
+/* Sala de um amigo (FriendRoom.jsx), trazer decks e a barra de versão nova (main.jsx) */
+.ver-bar { background: var(--panel2); border-color: var(--gold); top: auto; bottom: 14px; }
+
+.fr-modal { width: min(760px, 100%); padding: 18px 20px; display: grid; gap: 10px; align-content: start; }
+.fr-modal h3 { margin: 0; }
+.fr-url { width: 100%; box-sizing: border-box; font-size: 1rem; }
+.fr-host { margin: 0; padding: 8px 12px; border-radius: var(--r); background: var(--panel2); border: 1px solid var(--line); }
+.fr-grid { max-height: min(46vh, 420px); overflow-y: auto; }
+.fr-saved { display: grid; gap: 4px; }
+.fr-saved-r { display: flex; align-items: center; gap: 8px; }
+.fr-saved-r small { margin-left: 6px; }
+
+.fr-remote { min-height: 100dvh; }
+.fr-bar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 6px 14px; background: var(--bg2); border-bottom: 1px solid var(--line); font-size: .92rem; }
+.fr-bar > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.fr-bring { display: grid; gap: 10px; }
+.fr-bring textarea { width: 100%; box-sizing: border-box; }
+.fr-app-row { margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fr-app { display: inline-block; padding: 9px 16px; border-radius: var(--r); background: var(--gold); color: #111; font-weight: 700; text-decoration: none; }
+.fr-file { display: grid; gap: 6px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: var(--r); cursor: pointer; }
+.ml-nodeck .fr-bring { margin-top: 8px; }
+.fr-volta { margin: 0 10px; }
+.fr-enter { margin: 4px 0 10px; }
+.fr-home { align-self: center; color: var(--gold); text-decoration: none; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r); }
+.fr-home:hover, .fr-home:focus-visible { border-color: var(--gold); }
+
+@media (max-width: 640px) {
+  .fr-modal { padding: 14px 16px; }
+  .fr-bar { padding: 6px 12px; }
+}

@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { ready, tx, LANG } from './i18n.js'
 import { initWake } from './wakelock.js'
+import { remoteFetch } from './remote.js'
+import './friendroom.css'
 
 // Erros do servidor: chegam em pt ({"erro": ...}); os textos fixos traduzem-se aqui para todos os pedidos da app.
 // Os nomes «X (deck médio)» que o servidor gera também.
@@ -28,7 +30,7 @@ const checkSession = () => {
 const isApi = a => String(a[0]?.url || a[0]).includes('/api/')
 window.fetch = async (...a) => {
   let r
-  try { r = await _fetch(...a) } catch (e) { if (isApi(a) && navigator.onLine !== false) checkSession(); throw e }
+  try { r = (await remoteFetch(_fetch, a)) || await _fetch(...a) } catch (e) { if (isApi(a) && navigator.onLine !== false) checkSession(); throw e }
   if (isApi(a) && r.redirected && !r.url.startsWith(location.origin)) checkSession()
   if (!(r.headers.get('content-type') || '').includes('json')) { if (isApi(a) && r.ok && /html/.test(r.headers.get('content-type') || '')) checkSession(); return r }
   if (r.ok) {  // nomes gerados no servidor em pt (decks médios do EDHREC) traduzem-se só à vista
@@ -79,6 +81,28 @@ addEventListener('vite:preloadError', e => {
   try { sessionStorage.setItem('grimorio.reloadAt', String(Date.now())) } catch { /* sem armazenamento */ }
   location.reload()
 })
+
+// O Grimório deste servidor foi atualizado e esta página é de antes (version.json = a build instalada; BUILD = a desta
+// página, as duas vêm do vite.config.js): uma barra pede para recarregar. Um convidado lê «o anfitrião atualizou»; o jogo
+// do Forge Play e a mesa continuam no servidor. Pergunta-se de minuto a minuto e quando a página volta a estar à vista.
+const BUILD = import.meta.env.BUILD
+let verT = 0
+const checkVersion = () => {
+  if (!BUILD || Date.now() - verT < 30000 || document.getElementById('ver-bar')) return
+  verT = Date.now()
+  _fetch('./version.json', { cache: 'no-store' }).then(r => r.json()).then(async v => {
+    if (!v?.build || v.build === BUILD || document.getElementById('ver-bar')) return
+    const guest = await _fetch('./api/guest/me', { cache: 'no-store' }).then(r => r.json()).then(j => !!j?.guest).catch(() => false)
+    const b = document.createElement('div')
+    b.id = 'ver-bar'; b.className = 'sess-bar ver-bar'; b.setAttribute('role', 'status')
+    b.innerHTML = `<span>${guest ? tx('O anfitrião atualizou o Grimório.') : tx('O Grimório foi atualizado.')}</span>`
+    const go = document.createElement('button'); go.className = 'primary'; go.textContent = tx('Recarregar'); go.onclick = () => location.reload()
+    const x = document.createElement('button'); x.className = 'link small'; x.textContent = tx('depois'); x.onclick = () => { verT = Date.now() + 900000; b.remove() }
+    b.append(go, x); document.body.append(b)
+  }).catch(() => {})  // em dev (sem version.json) ou sem rede: nada
+}
+setInterval(checkVersion, 60000)
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && checkVersion())
 
 // a app só carrega depois do dicionário da língua: as tabelas fixas dos módulos já nascem traduzidas
 // (o data.js também só aqui: as tabelas dele — tipos, cores — traduzem-se ao carregar o módulo)

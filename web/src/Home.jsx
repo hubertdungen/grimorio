@@ -15,7 +15,7 @@ const GO = [
   ['coliseu', 'jogar', 'forge', tx('Jogar'), tx('Senta-te tu à mesa contra o Forge com o teu deck.')],
 ]
 
-export default function Home({ deck, decks, onGo, onNew, onTool, onScan }) {
+export default function Home({ deck, decks, onGo, onNew, onTool, onScan, friend }) {
   const last = deck?.id && decks.find(d => d.id === deck.id)
   return (
     <div className="home">
@@ -27,6 +27,7 @@ export default function Home({ deck, decks, onGo, onNew, onTool, onScan }) {
       <div className="home-start">
         {last && <button className="primary" onClick={() => onGo('construir')}>{tx('Continuar «{name}»', { name: last.name })}</button>}
         <button onClick={onNew}>✦ {tx('Novo deck')}</button>
+        {friend && <a className="fr-home" href="#levar">🚪 {tx('Entrar na sala de um amigo')}</a>}
       </div>
       <div className="home-grid">
         {GO.map(([sec, mode, ic, t, d]) => (

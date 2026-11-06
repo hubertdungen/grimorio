@@ -25,9 +25,15 @@ const ocrAssets = () => ({
   generateBundle() { for (const [k, f] of Object.entries(OCR)) this.emitFile({ type: 'asset', fileName: k, source: f() }) },
 })
 
+// Versão desta build: vai na página (import.meta.env.BUILD) e em version.json; o servidor serve o version.json da build
+// instalada e a página compara (main.jsx: «O anfitrião atualizou o Grimório — recarregar»). Em dev não há version.json.
+const BUILD = process.env.GRIMORIO_BUILD || `${process.env.GRIMORIO_VERSION || 'build'}-${Date.now().toString(36)}`
+const version = () => ({ name: 'grimorio-version', apply: 'build', generateBundle() { this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ build: BUILD }) }) } })
+
 // Em dev, /api e /data vão para o servidor Python (porta 8107).
 export default defineConfig({
-  plugins: [react(), ocrAssets()],
+  plugins: [react(), ocrAssets(), version()],
+  define: { 'import.meta.env.BUILD': JSON.stringify(BUILD) },
   base: './',
   server: { proxy: { '/api': 'http://127.0.0.1:8107', '/data': 'http://127.0.0.1:8107' } },
 })

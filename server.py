@@ -194,6 +194,9 @@ class H(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         for k, v in (headers or {}).items():
             self.send_header(k, v)
+        if self._cors:  # a app de um amigo (outra origem) a falar com as salas, autenticada pelo convite (guests.BEARER)
+            self.send_header("Access-Control-Allow-Origin", self._cors)
+            self.send_header("Vary", "Origin")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -238,8 +241,17 @@ class H(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET()
 
+    def do_OPTIONS(self):  # pré-voo do CORS: só as rotas das salas que aceitam o convite em Authorization (sem cookies)
+        p, o = self.path.split("?")[0], self.headers.get("Origin")
+        if not (o and guests.BEARER.match(p)):
+            return self.send(404, b"", "text/plain")
+        self._cors = o
+        return self.send(204, b"", "text/plain", {"Access-Control-Allow-Methods": "GET, POST", "Access-Control-Allow-Headers": "Authorization, Content-Type",
+                                                   "Access-Control-Max-Age": "600"})
+
     # entrada única: convite, convidado (lista fechada em guests.py) ou dono
     _as_guest = None
+    _cors = None
 
     def guest(self):
         tok = guests.cookie_token(self.headers)
@@ -255,10 +267,24 @@ class H(BaseHTTPRequestHandler):
             with db() as con:
                 if method == "POST":
                     return guests.room_post(self, con, tok, act, self.visitor(), ARGS.data_dir)
-                return guests.room_link(self, con, tok, urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("nome", [""])[0], self.visitor())
-        if method == "GET" and p.startswith("/convite/"):
+                return guests.room_link(self, con, tok, urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("nome", [""])[0], self.visitor(), act)
+        if p.startswith("/convite/") and method in ("GET", "POST"):  # convite: página, /info (para outra app) e /trazer (decks dela)
+            tok, _, act = p[len("/convite/"):].partition("/")
             with db() as con:
-                return guests.accept(self, con, p[len("/convite/"):])
+                if method == "POST":
+                    return guests.invite_post(self, con, tok, act)
+                return guests.accept(self, con, p[len("/convite/"):], urllib.parse.urlsplit(self.path).query)
+        bt = guests.bearer(self.headers)
+        if bt:  # a app de um amigo: o convite em Authorization, só nas rotas das salas, nunca com cookies
+            self._cors = self.headers.get("Origin")
+            if not guests.BEARER.match(p) or method not in ("GET", "POST"):
+                return self.json({"erro": "Os convidados não podem fazer isto."}, 403)
+            with db() as con:
+                g = guests.by_token(con, bt)
+            if not g:
+                return self.json({"erro": "Este convite já não é válido.", "code": "invite"}, 401)
+            self._as_guest = g
+            return guests.handle(self, method, g, db, tournament)
         g = self.guest()
         if g:
             self._as_guest = g
@@ -268,7 +294,7 @@ class H(BaseHTTPRequestHandler):
         if guests.is_guest_host(self.headers) and not guests.public_ok(method, p):
             return self.json({"erro": "Precisas de um convite para entrar.", "code": "invite"}, 403)
         if p.startswith("/api/share") and method in ("GET", "POST"):  # partilhar pela internet (túnel da Cloudflare)
-            return self.json(*reversed(share.route(method, p, ARGS.data_dir, ARGS.port)))
+            return self.json(*reversed(share.route(method, p, ARGS.data_dir, ARGS.port, getattr(ARGS, "host", "0.0.0.0"))))
         if p == "/api/rooms/remote" and method == "POST":  # entrar na sala de outro Grimório como o meu perfil, com os meus decks
             return self.remote_join()
         if p.startswith("/api/rooms") and method in ("GET", "POST"):  # salas de torneio com amigos (rooms.py)
@@ -295,16 +321,33 @@ class H(BaseHTTPRequestHandler):
         return inner()
 
     def remote_join(self):
-        """POST /api/rooms/remote {url, decks?: [ids]}: leva o nome do perfil e os decks (todos, até 80, ou os escolhidos) ao
-        Grimório da sala (/sala/<token>/trazer), com uma chave secreta deste perfil (a mesma de cada vez: lá reconhecem-me e os
-        decks atualizam-se em vez de se duplicarem) -> {go: o convite lá}."""
+        """POST /api/rooms/remote {url, decks?: [ids], dry?}: leva o nome do perfil e os decks (todos, até 80, os escolhidos ou
+        nenhum: []) ao Grimório de um amigo — link de uma sala (/sala/<t>/trazer) ou um convite (/convite/<t>/trazer) —, com uma
+        chave secreta deste perfil (a mesma de cada vez: lá reconhecem-me e os decks atualizam-se em vez de se duplicarem)
+        -> {go: o convite lá, base}. dry: só pergunta lá que sala/convite é (/info) -> {info, base}. Quem aloja pode ser outro
+        servidor, o .exe de um amigo pelo túnel, … — só se usa o endereço do link."""
         try:
             d = self.body()
         except ValueError as e:
             return self.json({"erro": str(e)}, 400)
-        m = re.fullmatch(r"(https?://[^/\s?#]+)/sala/([A-Za-z0-9_-]{8,40})/?", str(d.get("url") or "").strip())
+        m = isinstance(d, dict) and re.fullmatch(r"(https?://[^/\s?#]+)/(sala|convite)/([A-Za-z0-9_-]{8,40})/?(?:\?[^#\s]*)?(?:#\S*)?", str(d.get("url") or "").strip())
         if not m:
-            return self.json({"erro": "Cola o link da sala (…/sala/…)."}, 400)
+            return self.json({"erro": "Cola o link que o teu amigo te mandou (…/sala/… ou …/convite/…)."}, 400)
+        base, kind, tok = m.group(1), m.group(2), m.group(3)
+        if d.get("dry"):
+            try:
+                with urllib.request.urlopen(f"{base}/{kind}/{tok}/info", timeout=15) as r:
+                    info = json.loads(r.read(100_000))
+            except urllib.error.HTTPError as e:  # 404 num Grimório antigo (sem /info): a sala ainda se pode abrir no browser
+                try:
+                    err = (json.loads(e.read() or b"{}") or {}).get("erro")
+                except ValueError:
+                    err = None
+                return self.json({"info": {"old": True} if not err and kind == "sala" else None, "base": base, "kind": kind,
+                                  **({"erro": err or "O Grimório do teu amigo tem uma versão antiga: atualizem os dois (ou abre o link no browser)."} if err or kind != "sala" else {})})
+            except (OSError, ValueError):
+                return self.json({"erro": "Não consegui chegar a esse Grimório (o link está certo? está ligado à internet?)."}, 502)
+            return self.json({"info": info if isinstance(info, dict) else {}, "base": base, "kind": kind})
         owner, want = self.owner(), d.get("decks")
         with db() as con:
             rows = con.execute("SELECT id, body FROM decks WHERE owner=? AND deleted IS NULL ORDER BY updated DESC", (owner,)).fetchall()
@@ -324,7 +367,7 @@ class H(BaseHTTPRequestHandler):
         name = ((self.profile() or {}).get("name") if self.mode() == "profiles" else owner) or owner
         body = json.dumps({"name": name, "key": keys[owner], "decks": [{k: x.get(k) for k in (*guests.DECK_KEYS, "id")} for x in decks]}).encode()
         try:
-            with urllib.request.urlopen(urllib.request.Request(f"{m.group(1)}/sala/{m.group(2)}/trazer", body, {"Content-Type": "application/json"}, method="POST"), timeout=25) as r:
+            with urllib.request.urlopen(urllib.request.Request(f"{base}/{kind}/{tok}/trazer", body, {"Content-Type": "application/json"}, method="POST"), timeout=25) as r:
                 go = json.loads(r.read()).get("go")
         except urllib.error.HTTPError as e:
             return self.json({"erro": (json.loads(e.read() or b"{}") or {}).get("erro") or f"O outro Grimório respondeu {e.code}."}, 502)
@@ -332,7 +375,7 @@ class H(BaseHTTPRequestHandler):
             return self.json({"erro": "Não consegui chegar a esse Grimório (o link está certo? está ligado à internet?)."}, 502)
         if not str(go or "").startswith("/convite/"):
             return self.json({"erro": "Resposta estranha do outro Grimório."}, 502)
-        return self.json({"go": m.group(1) + go, "decks": len(decks)})
+        return self.json({"go": base + go, "base": base, "decks": len(decks)})
 
     def freetable_route(self, method, p, owner, who):
         try:
@@ -496,6 +539,12 @@ class H(BaseHTTPRequestHandler):
                             "cover": d.get("cover"), "coverImg": d.get("coverImg"), "fav": bool(d.get("fav")), "casual": bool(d.get("casual")), "commanders": d.get("commanders") or [], "seeds": (d.get("seeds") or [])[:3],
                             "main": d.get("main") or {}, **({"art": d["art"]} if d.get("art") else {})})  # artes próprias (capa)
             return self.json(out)
+        if p == "/api/decks/export":  # «Exportar decks»: os meus decks inteiros num ficheiro, para levar ao Grimório de um amigo
+            with db() as con:
+                rows = con.execute("SELECT id, body FROM decks WHERE owner=? AND deleted IS NULL ORDER BY updated DESC", (self.owner(),)).fetchall()
+            decks = [{k: b.get(k) for k in guests.DECK_KEYS} | {"id": i} for i, b in ((i, json.loads(b)) for i, b in rows) if not b.get("friend")]
+            name = ((self.profile() or {}).get("name") if self.mode() == "profiles" else self.owner()) or ""
+            return self.json({"grimorio": "decks", "v": 1, "name": name, "decks": decks})
         if p == "/api/me":  # nome para mostrar (o do perfil, nunca o id interno)
             return self.json({"user": (self.profile() or {}).get("name") if self.mode() == "profiles" else self.owner()})
         mg = re.match(r"^/api/decks/([a-z0-9-]{8,40})/games$", p)
@@ -1000,7 +1049,9 @@ class H(BaseHTTPRequestHandler):
     OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state", "/api/playnet", "/api/limited")
 
     def no_profile(self):
-        if self.path.startswith(self.OWNED) and self.mode() == "profiles" and not self.profile():
+        # um convidado (cookie ou Bearer) não escolhe perfil: os dados dele vivem no espaço de quem o convidou (o .exe de um
+        # amigo, sem login, está sempre em modo de perfis)
+        if self.path.startswith(self.OWNED) and not self._as_guest and self.mode() == "profiles" and not self.profile():
             self.json({"erro": "Escolhe um perfil primeiro.", "code": "profile"}, 401)
             return True
         return False
@@ -1187,7 +1238,7 @@ def selfcheck():
         K = "k" * 30
         st, tr = post_raw(rv["link"] + "/trazer", json.dumps({"name": "Miguel <b>", "key": K, "decks": [{"id": "d1", "name": "Elfos", "format": "modern", "main": {"Llanowar Elves": 4, "Forest": 56}}, {"name": "vazio"}]}).encode())
         assert st == 200 and tr["go"].startswith("/convite/"), tr
-        M = f"grimorio_guest={tr['go'].split('/')[-1]}"
+        M = f"grimorio_guest={tr['go'].split('/')[-1].split('?')[0]}"
         assert [d["name"] for d in call("GET", "/api/decks", cookie=M)[1]] == ["Elfos"] and call("GET", "/api/guest/me", cookie=M)[1]["guest"]["name"] == "Miguel b"
         st, tr2 = post_raw(rv["link"] + "/trazer", json.dumps({"name": "Miguel", "key": K, "decks": [{"id": "d1", "name": "Elfos v2", "main": {"Forest": 60}}]}).encode())
         assert tr2["go"] == tr["go"] and [d["name"] for d in call("GET", "/api/decks", cookie=M)[1]] == ["Elfos v2"]  # o mesmo amigo, deck atualizado
@@ -1207,7 +1258,7 @@ def selfcheck():
         assert st == 200 and (ip.get("go") or any(p["id"] == "hubert" for p in ip["profiles"])), ip
         st, ip = post_raw(rv["link"] + "/importar?perfil=hubert", raw, "application/octet-stream")
         assert st == 200 and ip["go"].startswith("/convite/"), ip
-        I = f"grimorio_guest={ip['go'].split('/')[-1]}"
+        I = f"grimorio_guest={ip['go'].split('/')[-1].split('?')[0]}"
         assert {"H0", "H1"} <= {d["name"] for d in call("GET", "/api/decks", cookie=I)[1]}
         assert post_raw(rv["link"] + "/importar", b"lixo", "application/octet-stream")[0] == 400
         try:
@@ -1367,7 +1418,86 @@ def selfcheck():
         st, sv, _ = call("POST", f"/api/freetables/{so['id']}", {"c": "newgame"})
         assert sv["turn"] == 1 and sv["gf"] == 20 and len(sv["seats"][0]["hand"]) == 7 and sv["seats"][0]["library"] == 53
         assert call("GET", f"/api/freetables/{so['id']}", cookie=G)[0] == 404
+        # túnel: um X-Forwarded-Host «127.0.0.1» vindo de fora não faz de ninguém dono (o Host do túnel conta)
+        TH = {"Host": "abc-1.trycloudflare.com", "X-Forwarded-Host": "127.0.0.1", "Remote-User": "hubert"}
+        for path in ("/api/decks", "/api/friends", "/api/share"):
+            try:
+                urllib.request.urlopen(urllib.request.Request(base + path, headers=TH))
+                raise AssertionError(f"{path} pelo túnel sem convite")
+            except urllib.error.HTTPError as e:
+                assert e.code == 403, (path, e.code)
+        assert guests.is_guest_host({"Host": "127.0.0.1:8107", "X-Forwarded-Host": "x.trycloudflare.com"}) and not guests.is_guest_host({"Host": "127.0.0.1:8107"})
+        # convite: página com «Abrir na app» (sem cookie), ?entrar=1 entra; /info e /trazer para a app de um amigo
+        with op.open(base + f"/convite/{fr['token']}") as r:
+            pg = r.read()
+            assert b"grimorio://join" in pg and b"entrar=1" in pg and not r.headers.get("Set-Cookie")
+        try:
+            op.open(base + f"/convite/{fr['token']}?entrar=1&volta=http%3A%2F%2F127.0.0.1%3A8108%2F")
+            raise AssertionError("?entrar=1 devia entrar")
+        except urllib.error.HTTPError as e:
+            assert e.code == 302 and e.headers["Location"] == "/?volta=http%3A%2F%2F127.0.0.1%3A8108%2F#online" and "grimorio_guest=" in e.headers["Set-Cookie"], (e.code, dict(e.headers))
+        try:
+            op.open(base + f"/convite/{fr['token']}?entrar=1&volta=javascript%3Aalert(1)")
+        except urllib.error.HTTPError as e:
+            assert e.headers["Location"] == "/"  # volta só com uma origem http(s)
+        assert call("GET", f"/convite/{fr['token']}/info")[1] == {"api": guests.API, "kind": "convite", "name": "Rui"}
+        assert call("GET", "/convite/naoexiste123/info")[0] == 404
+        ir = call("POST", "/api/rooms", {"name": "Info QA", "type": "jogo", "format": "modern", "casual": True, "players": [{"src": "meus", "ref": hs[1]}]})[1]
+        assert ir.get("id"), ir
+        lk = next(r for r in call("GET", "/api/rooms")[1] if r["id"] == ir["id"])["link"]
+        assert call("GET", f"{lk}/info")[1] == {"api": guests.API, "kind": "sala", "name": "Info QA", "type": "jogo", "format": "modern", "casual": True}
+        assert call("POST", "/api/rooms/remote", {"url": base + lk, "dry": True})[1]["info"]["format"] == "modern"
+        K2 = "z" * 30
+        st, it, _ = call("POST", f"/convite/{fr['token']}/trazer", {"key": K2, "decks": [{"id": "a1", "name": "Mono U", "format": "modern", "main": {"Island": 60}}]})
+        assert st == 200 and it["go"] == f"/convite/{fr['token']}?entrar=1" and len(it["ids"]) == 1, it
+        st, it2, _ = call("POST", f"/convite/{fr['token']}/trazer", {"key": K2, "decks": [{"id": "a1", "name": "Mono U v2", "format": "modern", "main": {"Island": 60}}]})
+        assert it2["ids"] == it["ids"] and "Mono U v2" in [d["name"] for d in call("GET", "/api/decks", cookie=G)[1]]  # atualiza, não duplica
+        assert call("POST", "/convite/naoexiste123/trazer", {"decks": []})[0] == 404 and call("POST", f"/convite/{fr['token']}/trazer", {"key": "curta", "decks": []})[0] == 400
+        # a app de um amigo: as salas daqui com «Authorization: Bearer <convite>», CORS só aí, sem cookies
+        def bearer(method, path, body=None, tok=fr["token"], origin="http://127.0.0.1:9999"):
+            req = urllib.request.Request(base + path, json.dumps(body).encode() if body is not None else None,
+                                         {"Content-Type": "application/json", "Authorization": f"Bearer {tok}", "Origin": origin}, method=method)
+            try:
+                with urllib.request.urlopen(req) as r:
+                    return r.status, json.loads(r.read() or b"null"), r.headers.get("Access-Control-Allow-Origin")
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read() or b"null"), e.headers.get("Access-Control-Allow-Origin")
+        st, me, ao = bearer("GET", "/api/guest/me")
+        assert st == 200 and me["api"] == guests.API and me["guest"]["name"] == "Rui" and ao == "http://127.0.0.1:9999", (st, me, ao)
+        assert bearer("GET", "/api/rooms")[0] == 200 and bearer("GET", "/api/guest/me", tok="mau" * 9)[0] == 401
+        for path in ("/api/decks", "/api/friends", "/api/tournaments", "/api/backup/export", "/api/decks/export"):
+            assert bearer("GET", path)[0] == 403, path  # só as rotas das salas
+        st, gd, _ = bearer("POST", "/api/guest/decks", {"decks": [{"id": "local-1", "name": "Do meu PC", "format": "modern", "main": {"Swamp": 60}}, {"name": "sem cartas"}]})
+        assert st == 200 and gd["n"] == 1 and bearer("POST", "/api/guest/decks", {"decks": [{"id": "local-1", "name": "Do meu PC 2", "main": {"Swamp": 60}}]})[1]["ids"] == gd["ids"]
+        assert call("POST", "/api/guest/decks", {"decks": []})[0] == 404  # o dono não usa esta rota
+        pre = urllib.request.Request(base + "/api/rooms", method="OPTIONS", headers={"Origin": "http://x", "Access-Control-Request-Method": "POST"})
+        with urllib.request.urlopen(pre) as r:
+            assert r.status == 204 and r.headers["Access-Control-Allow-Origin"] == "http://x" and "Authorization" in r.headers["Access-Control-Allow-Headers"]
+        try:
+            urllib.request.urlopen(urllib.request.Request(base + "/api/decks", method="OPTIONS", headers={"Origin": "http://x"}))
+            raise AssertionError("CORS fora das salas")
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+        assert call("GET", "/api/decks", cookie=G)[0] == 200 and not urllib.request.urlopen(urllib.request.Request(base + "/api/rooms", headers={"Origin": "http://x"})).headers.get("Access-Control-Allow-Origin")
+        ex = call("GET", "/api/decks/export")[1]
+        assert ex["grimorio"] == "decks" and ex["decks"] and not any(d.get("friend") for d in ex["decks"]) and call("GET", "/api/decks/export", cookie=G)[0] == 403
+        # na app: o mesmo link de convite, levado pelo servidor desta app (aqui o anfitrião é este mesmo servidor)
+        st, dry, _ = call("POST", "/api/rooms/remote", {"url": f"{base}/convite/{fr['token']}", "dry": True})
+        assert st == 200 and dry["info"]["kind"] == "convite" and dry["base"] == base, dry
+        st, rj, _ = call("POST", "/api/rooms/remote", {"url": f"{base}/convite/{fr['token']}?entrar=1", "decks": []})
+        assert st == 200 and rj["go"] == f"{base}/convite/{fr['token']}?entrar=1" and rj["decks"] == 0, rj
+        assert call("POST", "/api/rooms/remote", {"url": "https://exemplo.pt/outra/coisa"})[0] == 400 and call("POST", "/api/rooms/remote", ["x"])[0] == 400
+        assert call("POST", "/api/rooms/remote", {"url": f"{base}/convite/{fr['token']}"}, G)[0] in (403, 404)  # convidado: não
         assert call("POST", f"/api/friends/{fr['id']}/revoke")[0] == 200 and call("GET", "/api/guest/me", cookie=G)[1]["expired"] is True  # revogado
+        assert bearer("GET", "/api/rooms")[0] == 401  # e a app do amigo deixa de entrar
+        ARGS.owner = None  # o .exe de um amigo a alojar: sem dono fixo (perfis); o convidado não escolhe perfil
+        st, _, sc = call("POST", "/api/profiles", {"name": "Ana"})
+        PC = ck(sc)
+        assert call("POST", "/api/friends", {"name": "Tó"}, PC)[0] == 201
+        T = f"grimorio_guest={[f for f in call('GET', '/api/friends', cookie=PC)[1]['friends'] if f['name'] == 'Tó'][0]['token']}"
+        assert call("GET", "/api/decks", cookie=T)[0] == 200 and call("GET", "/api/tournaments", cookie=T)[0] == 200
+        assert call("GET", "/api/decks")[0] == 401  # sem perfil e sem convite: continua a pedir o perfil
+        ARGS.owner = "hubert"
         print("selfcheck convidados ok")
     finally:
         srv.shutdown()

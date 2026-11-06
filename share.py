@@ -44,7 +44,7 @@ def status():
     return {"running": running, "url": STATE["url"] if running else None, "err": STATE["err"]}
 
 
-def start(data_dir, port):
+def start(data_dir, port, host="127.0.0.1"):
     if status()["running"]:
         return status()
     STATE.update(url=None, err=None)
@@ -53,8 +53,12 @@ def start(data_dir, port):
     except Exception as e:  # sem rede para descarregar, sistema sem binário
         STATE["err"] = str(e) if isinstance(e, RuntimeError) else "Não consegui descarregar o cloudflared."
         return status()
-    p = subprocess.Popen([exe, "tunnel", "--url", f"http://127.0.0.1:{port}", "--no-autoupdate"],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, errors="replace")
+    # o servidor ouve em 127.0.0.1 (pacotes) ou em 0.0.0.0; só se --host for um IP da rede é que o túnel vai lá
+    # Windows: sem janela de consola (a app não tem consola) e sem herdar um stdin que não existe
+    target = "127.0.0.1" if host in ("0.0.0.0", "", "::", "localhost") else host
+    p = subprocess.Popen([exe, "tunnel", "--url", f"http://{target}:{port}", "--no-autoupdate"], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, errors="replace",
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     STATE["proc"] = p
 
     def watch():  # o endereço aparece no registo do cloudflared ao fim de uns segundos
@@ -80,12 +84,12 @@ def stop():
     return status()
 
 
-def route(method, path, data_dir, port):
+def route(method, path, data_dir, port, host="127.0.0.1"):
     """GET /api/share -> estado; POST /api/share/start | /api/share/stop."""
     if method == "GET" and path == "/api/share":
         return 200, status()
     if method == "POST" and path == "/api/share/start":
-        return 200, start(data_dir, port)
+        return 200, start(data_dir, port, host)
     if method == "POST" and path == "/api/share/stop":
         return 200, stop()
     return 404, {"erro": "rota desconhecida"}

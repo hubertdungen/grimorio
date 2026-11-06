@@ -128,9 +128,30 @@ public class MainActivity extends Activity {
             ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(r);
         });
 
-        if (state != null) web.restoreState(state);
+        pendingJoin = joinHash(getIntent());
+        if (state != null && pendingJoin.isEmpty()) web.restoreState(state);
         else if (server().isEmpty()) askServer(null);
-        else web.loadUrl(server());
+        else { web.loadUrl(server() + pendingJoin); pendingJoin = ""; }
+    }
+
+    /** grimorio://join?u=<link de um amigo> -> "#levar=<link>": o Grimório (o teu servidor) abre «Sala de um amigo». */
+    private String pendingJoin = "";
+    static String joinHash(Intent i) {
+        Uri d = i == null ? null : i.getData();
+        if (d == null || !"grimorio".equals(d.getScheme())) return "";
+        String u = d.getQueryParameter("u");
+        if (u == null || !u.matches("(?i)^https?://\\S{1,590}$")) return "";
+        return "#levar=" + Uri.encode(u);
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) {  // singleTask: a app já estava aberta
+        super.onNewIntent(i);
+        setIntent(i);
+        String jh = joinHash(i);
+        if (jh.isEmpty()) return;
+        if (server().isEmpty()) { pendingJoin = jh; askServer(null); }
+        else web.loadUrl(server() + jh);
     }
 
     private String server() { return prefs.getString("server", ""); }
@@ -151,7 +172,8 @@ public class MainActivity extends Activity {
                 if (!u.matches("(?i)^https?://.+")) u = "https://" + u.replaceFirst("^/+", "");
                 if (!u.endsWith("/")) u += "/";
                 prefs.edit().putString("server", u).apply();
-                web.loadUrl(u);
+                web.loadUrl(u + pendingJoin);
+                pendingJoin = "";
             })
             .show();
     }

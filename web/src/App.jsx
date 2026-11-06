@@ -34,9 +34,12 @@ import { tx, LOCALE } from './i18n.js'
 import Settings from './Settings.jsx'
 import { ApkBanner, DesktopUpdBanner } from './apkupdate.jsx'
 import { WhoPlays, ProfileChip } from './Profiles.jsx'
+import { FriendRoomModal, RemoteRoom, BringMine, VOLTA } from './FriendRoom.jsx'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
 const FROM_ROOM = window.location.hash === '#online'  // veio pelo link de uma sala (guests.room_link): vai direto ao Online
+// #levar[=<link>]: «Sala de um amigo» (o botão do Online e da página inicial, ou grimorio://join pelo launcher/APK)
+const levarOf = () => (window.location.hash.startsWith('#levar') ? decodeURIComponent(window.location.hash.slice(7)) : null)
 const GUEST_MODES = ['online', 'torneio', 'ratings']  // o que um convidado vê no Coliseu
 const SECTIONS = [['construir', tx('Construir')], ['biblioteca', tx('Biblioteca')], ['coliseu', tx('Coliseu')], ['regras', tx('Regras')]]
 // os modos do Coliseu e o ícone de cada um (icons.jsx)
@@ -234,6 +237,13 @@ export default function App() {
     return () => window.removeEventListener('hashchange', h)
   }, [])
   const closeSettings = () => { history.replaceState(null, '', window.location.pathname); setSettings(false) }
+  const [levar, setLevar] = useState(levarOf), [remoteRoom, setRemoteRoom] = useState(null), [bring, setBring] = useState(false)
+  useEffect(() => {
+    const h = () => { const v = levarOf(); if (v != null) setLevar(v) }
+    window.addEventListener('hashchange', h)
+    return () => window.removeEventListener('hashchange', h)
+  }, [])
+  const closeLevar = () => { setLevar(null); if (window.location.hash.startsWith('#levar')) history.replaceState(null, '', window.location.pathname) }
 
   // undo = o aviso leva «Desfazer» (mudanças ao deck)
   const say = useCallback((msg, undo = false) => { setToast({ msg, undo }); clearTimeout(say.t); say.t = setTimeout(() => setToast(null), undo ? 4500 : 2600) }, [])
@@ -442,9 +452,11 @@ export default function App() {
   const errors = issues.filter(i => i.nivel === 'erro').length
   const total = count(deck.main) + deck.commanders.length + (deck.signature ? 1 : 0)
 
+  if (remoteRoom) return <RemoteRoom data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} />
+  const levarEl = levar != null && !guest && <FriendRoomModal data={data} link={levar} onClose={closeLevar} onRemote={r => { closeLevar(); setRemoteRoom(r) }} />
   if (tool) return <Mesa tool={tool} setTool={setTool} onHome={() => { setTool(null); setHome(true) }} onApp={() => { setTool(null); setHome(false) }} />
-  if (home) return <Home deck={deck} decks={decks} onTool={setTool} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }} onScan={() => { setHome(false); setSection('construir'); setScan(true) }}
-    onGo={(sec, mode) => { setHome(false); setSection(sec); if (mode) setColMode(mode) }} />
+  if (home) return <>{levarEl}<Home friend={!guest} deck={deck} decks={decks} onTool={setTool} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }} onScan={() => { setHome(false); setSection('construir'); setScan(true) }}
+    onGo={(sec, mode) => { setHome(false); setSection(sec); if (mode) setColMode(mode) }} /></>
   return (
     <div className={`app tab-${tab} sec-${section}`}>
       <header className="top">
@@ -464,7 +476,9 @@ export default function App() {
           {TABS.map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
         </nav>}
       </header>
-      {guest && <p className="guest-bar">🤝 {tx('Estás aqui como convidado ({n}): os teus decks ficam guardados neste Grimório e vês os torneios em que entras.', { n: prof.current?.name })} <button className="link small" onClick={() => fetch('/api/guest/leave', { method: 'POST' }).then(() => window.location.reload())}>{tx('sair do convite')}</button></p>}
+      {guest && <p className="guest-bar">🤝 {tx('Estás aqui como convidado ({n}): os teus decks ficam guardados neste Grimório e vês os torneios em que entras.', { n: prof.current?.name })} <button className="link small" onClick={() => setBring(true)}>📥 {tx('Trazer os meus decks')}</button>{VOLTA && <a className="link small fr-volta" href={VOLTA}>← {tx('O meu Grimório')}</a>}<button className="link small" onClick={() => fetch('/api/guest/leave', { method: 'POST' }).then(() => window.location.reload())}>{tx('sair do convite')}</button></p>}
+      {guest && bring && <div className="modal-bg" onClick={() => setBring(false)}><div className="modal fr-modal" onClick={e => e.stopPropagation()}><h3>📥 {tx('Trazer os meus decks')}</h3><BringMine data={data} onDone={() => api('/api/decks').then(setDecks).catch(() => {})} /><div className="row-btns"><button onClick={() => setBring(false)}>{tx('Fechar')}</button></div></div></div>}
+      {levarEl}
 
       {section === 'regras' && <div className="area"><Rules data={data} /></div>}
       {section === 'biblioteca' && <div className="area"><Library data={data} openDeck={id => openDeck(id).then(() => goTab('deck'))} goTab={goTab} say={say} importLinks={importLinks} focus={libFocus} /></div>}

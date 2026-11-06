@@ -8,9 +8,14 @@ Tudo o resto responde 403: um convidado nunca chega às rotas do dono.
 Endereços de convidados (GRIMORIO_GUEST_HOSTS, ex. o domínio público sem 2FA): sem convite válido só servem a app e
 as cartas — as APIs pedem convite.
 """
-import hashlib, html, json, os, re, secrets, socket, sqlite3, time, uuid
+import hashlib, html, json, os, re, secrets, socket, sqlite3, time, urllib.parse, uuid
 
 COOKIE = "grimorio_guest"
+# versão da API das salas para outro Grimório (a app de um amigo fala com estas rotas com «Authorization: Bearer <convite>»):
+# sobe quando as rotas de BEARER mudarem de forma incompatível; a app do amigo compara e, se não bater, abre a página daqui
+API = 1
+BEARER = re.compile(r"^/api/(guest/me|guest/decks|rooms(/[a-z0-9]{1,16}(/[a-z]{1,12})?)?|freetables/[a-z0-9]{1,16}(/[a-z]{1,12})?)$")
+VOLTA = re.compile(r"https?://[A-Za-z0-9.:\[\]-]{1,120}/?")  # «← O meu Grimório»: só a origem do Grimório de quem vem
 DECK = re.compile(r"^/api/decks/([a-z0-9-]{8,40})$")
 TOUR = re.compile(r"^/api/tournaments/([a-z0-9]{12})(/.*)?$")
 # GET que um convidado pode ler como está (dados públicos, sem nada do dono)
@@ -31,6 +36,12 @@ def by_token(con, token):
     init(con)
     r = con.execute("SELECT id, owner, name FROM friends WHERE token=? AND revoked IS NULL", (str(token)[:80],)).fetchone() if token else None
     return r and {"id": r[0], "owner": r[1], "name": r[2]}
+
+
+def bearer(headers):
+    """«Authorization: Bearer <token do convite>»: a app de um amigo a falar com as salas daqui (sem cookies)."""
+    a = headers.get("Authorization") or ""
+    return a[7:].strip() if a[:7].lower() == "bearer " else ""
 
 
 def cookie_token(headers):
@@ -58,8 +69,13 @@ def guest_hosts():
 
 
 def is_guest_host(headers):
-    host = (headers.get("X-Forwarded-Host") or headers.get("Host") or "").split(":")[0].lower()
-    return host in guest_hosts() or host.endswith(".trycloudflare.com")
+    """Os dois cabeçalhos contam: pelo túnel (cloudflared -> 127.0.0.1) o X-Forwarded-Host vem de quem pede e não se pode
+    confiar nele sozinho (um «X-Forwarded-Host: 127.0.0.1» passava por dono); atrás do Caddy chega igual ao Host."""
+    for v in (headers.get("X-Forwarded-Host"), headers.get("Host")):
+        host = (v or "").split(",")[0].strip().split(":")[0].lower()
+        if host and (host in guest_hosts() or host.endswith(".trycloudflare.com")):
+            return True
+    return False
 
 
 def public_ok(method, path):
@@ -103,18 +119,68 @@ def owner_route(con, method, path, owner, body, port, tunnel=None, host="0.0.0.0
 
 # ---------- convidado ----------
 
-def accept(h, con, token):
-    """GET /convite/<token>: cookie de convidado e vai para a app; convite inválido -> página a explicar."""
+def _volta(q):
+    """?volta=<origem do Grimório de quem vem> passa para a app (o «← O meu Grimório» do convidado)."""
+    v = (q.get("volta") or [""])[0]
+    return f"?volta={urllib.parse.quote(v, safe='')}#online" if VOLTA.fullmatch(v) else ""  # vem de outro Grimório: às salas
+
+
+# «Abrir na app Grimório»: grimorio://join?u=<este link> (o .exe, o pacote Linux e o APK registam o esquema). Sem a app
+# nada acontece; ao fim de 1,5 s com a página ainda à vista diz para continuar no browser.
+# ponytail: não se tenta abrir a app sozinho ao carregar — o Firefox mostra uma página de erro para esquemas desconhecidos
+APP_BTN = ("<p><a class=go id=app href='#'>📲 Abrir na app Grimório</a></p><p id=noapp hidden><small>A app não abriu? Se não a tens"
+           " neste aparelho, continua no browser.</small></p><script>app.href='grimorio://join?u='+encodeURIComponent(location.origin+location.pathname);"
+           "app.onclick=()=>setTimeout(()=>{if(!document.hidden)noapp.hidden=false},1500)</script>")
+
+
+def accept(h, con, token, query=""):
+    """GET /convite/<token>: uma página com «Abrir na app Grimório» e «Continuar no browser» (?entrar=1: cookie de
+    convidado e vai para a app; quem já tem este convite no browser entra logo). /convite/<token>/info -> JSON para a app
+    de um amigo. Convite inválido -> página a explicar."""
+    token, _, act = token.partition("/")
     g = by_token(con, token)
-    if not g:
-        return h.send(404, "<!doctype html><meta charset=utf-8><title>Grimório</title><p style='font:16px system-ui;padding:2em'>"
-                      "Este convite já não é válido. Pede outro a quem te convidou.</p>".encode(), "text/html; charset=utf-8")
-    return h.send(302, b"", "text/plain", {"Location": "/", "Set-Cookie": f"{COOKIE}={token}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly"})
+    if act == "info":
+        return h.json({"api": API, "kind": "convite", "name": g["name"]}) if g else h.json({"erro": "Este convite já não é válido."}, 404)
+    if not g or act:
+        return _page(h, "<p>Este convite já não é válido. Pede outro a quem te convidou.</p>", 404)
+    q = urllib.parse.parse_qs(query)
+    if "entrar" in q or cookie_token(h.headers) == token:
+        return h.send(302, b"", "text/plain", {"Location": "/" + _volta(q), "Set-Cookie": f"{COOKIE}={token}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly"})
+    return _page(h, f"<h2>🤝 Convite para o Grimório</h2><p><b>{html.escape(g['name'])}</b>, foste convidado para jogar neste Grimório:"
+                 " salas, mesas livres e torneios com os amigos de quem te convidou.</p>" + APP_BTN +
+                 "<p><a class=alt href='?entrar=1'>Continuar no browser</a></p><div class=box><small>Na app Grimório (PC ou telemóvel) entras"
+                 " com os teus decks de lá. No browser, os decks ficam guardados neste Grimório; os da tua app trazes com «📥 Trazer os meus"
+                 " decks» (o ficheiro de Biblioteca › Exportar decks).</small></div>")
+
+
+def invite_post(h, con, token, act):
+    """POST /convite/<token>/trazer {name?, key?, decks}: a app de um amigo (o servidor dela) traz decks para o perfil deste
+    convite. Autentica-se pelo token do link; com a chave da app (a mesma de cada vez) os decks atualizam-se e o convite
+    fica ligado a essa app (os links de salas dela passam a reconhecê-lo)."""
+    g = by_token(con, token)
+    if act != "trazer" or not g:
+        return h.json({"erro": "Este convite já não é válido."}, 404)
+    if slow(("convite", token)):
+        return h.json({"erro": "Demasiados pedidos: espera um minuto."}, 429)
+    try:
+        d = h.body()
+    except ValueError as e:
+        return h.json({"erro": str(e)}, 400)
+    key = str((d or {}).get("key") or "") if isinstance(d, dict) else ""
+    if not isinstance(d, dict) or not isinstance(d.get("decks", []), list) or (key and not re.fullmatch(r"[A-Za-z0-9_-]{24,100}", key)):
+        return h.json({"erro": "Pedido inválido."}, 400)
+    ext = hashlib.sha256(f"app:{key}".encode()).hexdigest() if key else f"g:{g['id']}"
+    if key:  # liga o convite a esta app, se ela ainda não estiver ligada a outro amigo daqui
+        con.execute("UPDATE friends SET ext=? WHERE id=? AND ext IS NULL AND NOT EXISTS (SELECT 1 FROM friends WHERE owner=? AND ext=?)",
+                    (ext, g["id"], g["owner"], ext))
+    ids = put_decks(con, g["owner"], g["id"], g["name"], ext, d.get("decks") or [])
+    return h.json({"go": f"/convite/{token}?entrar=1", "ids": ids})
 
 
 def _room(con, token):
     try:
-        return con.execute("SELECT owner, status, json_extract(spec, '$.name'), json_extract(spec, '$.type') FROM rooms WHERE json_extract(spec, '$.link')=?", (token,)).fetchone()
+        return con.execute("SELECT owner, status, json_extract(spec, '$.name'), json_extract(spec, '$.type'), json_extract(spec, '$.format'),"
+                           " json_extract(spec, '$.casual') FROM rooms WHERE json_extract(spec, '$.link')=?", (token,)).fetchone()
     except sqlite3.OperationalError:
         return None
 
@@ -123,7 +189,7 @@ def _page(h, body, code=200):
     return h.send(code, ("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
                          "<title>Grimório</title><body style='font:16px system-ui;padding:2em;max-width:34em;margin:auto;background:#0b0a14;color:#eee;line-height:1.45'>"
                          "<style>button,input{font:inherit;padding:.55em 1em;border-radius:10px;border:1px solid #555;background:#1d1a2e;color:#eee}"
-                         "button.go{background:#f2b84b;color:#111;border:0;font-weight:700}.box{padding:.7em .9em;border-radius:12px;background:#1d1a2e;margin:1em 0}"
+                         "button.go,a.go{background:#f2b84b;color:#111;border:0;font-weight:700}a.go{display:inline-block;padding:.75em 1.3em;border-radius:12px;text-decoration:none;font-size:1.1em}a.alt{color:#f2b84b}.box{padding:.7em .9em;border-radius:12px;background:#1d1a2e;margin:1em 0}"
                          "small{color:#aaa}</style>" + body).encode(), "text/html; charset=utf-8")
 
 
@@ -147,6 +213,36 @@ def clean_deck(d):
             "casual": bool(d.get("casual")), "src_id": str(d.get("id") or d.get("name") or "")[:80]}
 
 
+_HITS = {}
+
+
+def slow(key, n=12, per=60):
+    """Limite simples por chave (convite, sala): n pedidos por minuto.
+    ponytail: em memória e sem limpeza (uma chave por convite); passar para a DB se um dia houver milhares."""
+    now = time.time()
+    q = [t for t in _HITS.get(key, []) if now - t < per]
+    _HITS[key] = q + [now]
+    return len(q) >= n
+
+
+def put_decks(con, owner, fid, name, key, decks):
+    """Decks que um amigo traz (da app dele, de um ficheiro): ficam no anfitrião marcados como dele. O id sai da chave de
+    origem + o id do deck lá: o mesmo deck atualiza-se em vez de se duplicar. Nunca toca num deck de outro dono.
+    -> {id do deck lá: id aqui}"""
+    now, out = time.time(), {}
+    for d in [x for x in map(clean_deck, decks if isinstance(decks, list) else []) if x][:80]:
+        src = d.pop("src_id")
+        did = "x" + hashlib.sha1(f"{key}:{src}".encode()).hexdigest()[:30]
+        r = con.execute("SELECT owner, json_extract(body, '$.created') FROM decks WHERE id=?", (did,)).fetchone()
+        if r and r[0] != owner:
+            continue
+        body = {**d, "id": did, "friend": fid, "friendName": name, "count": sum(d["main"].values()), "created": (r and r[1]) or now}
+        con.execute("INSERT OR REPLACE INTO decks (id, name, format, body, updated, owner, deleted) VALUES (?,?,?,?,?,?,NULL)",
+                    (did, body["name"], body["format"], json.dumps(body, ensure_ascii=False), now, owner))
+        out[src] = did
+    return out
+
+
 def link_friend(con, owner, ext, name, decks):
     """Amigo ligado a um perfil (deste Grimório, de outro, ou de uma cópia): reconhece-o pela chave `ext` (guarda-se o
     hash), põe-lhe o nome e os decks em dia (os mesmos decks de origem atualizam-se, não se duplicam) -> token do convite."""
@@ -162,22 +258,20 @@ def link_friend(con, owner, ext, name, decks):
     else:
         fid, tok = secrets.token_hex(6), secrets.token_urlsafe(18)
         con.execute("INSERT INTO friends (id, owner, name, token, created, revoked, ext) VALUES (?,?,?,?,?,NULL,?)", (fid, owner, name, tok, time.time(), key))
-    now = time.time()
-    for d in [x for x in map(clean_deck, decks or []) if x][:80]:
-        did = "x" + hashlib.sha1(f"{key}:{d.pop('src_id')}".encode()).hexdigest()[:30]
-        body = {**d, "id": did, "friend": fid, "friendName": name, "count": sum(d["main"].values()), "created": now}
-        con.execute("INSERT OR REPLACE INTO decks (id, name, format, body, updated, owner, deleted) VALUES (?,?,?,?,?,?,NULL)",
-                    (did, body["name"], body["format"], json.dumps(body, ensure_ascii=False), now, owner))
+    put_decks(con, owner, fid, name, key, decks)
     return tok
 
 
-def room_link(h, con, token, name, me=None):
+def room_link(h, con, token, name, me=None, act=""):
     """GET /sala/<token>[?nome=…]: o link de uma sala aberta (jogo avulso, torneio ou mesa livre). Quem já é deste Grimório
     entra logo: quem aloja vai para as salas; um perfil deste Grimório entra como ele, com os decks dele. Os outros
     escolhem: um nome (convidado novo), a cópia do seu Grimório (.grimorio) ou, numa app do Grimório, «Entrar numa sala»
     (leva o perfil e os decks dessa app). me = {owner, profile} de quem abre o link (None num endereço de convidados)."""
     r = _room(con, token)
-    if not r or r[1] != "open":
+    if act == "info":  # para a app de um amigo: que sala é (o formato pré-escolhe os decks a levar)
+        return h.json({"api": API, "kind": "sala", "name": r[2], "type": r[3], "format": r[4], "casual": bool(r[5])}) if r and r[1] == "open" \
+            else h.json({"erro": "Esta sala já não está aberta."}, 404)
+    if not r or r[1] != "open" or act:
         return _page(h, "<p>Esta sala já não está aberta. Pede outro link a quem te convidou.</p>", 404)
     owner = r[0]
     g = by_token(con, cookie_token(h.headers))
@@ -194,7 +288,7 @@ def room_link(h, con, token, name, me=None):
         prof = me and me.get("profile")
         mine = (f"<form method=post action='/sala/{html.escape(token)}/perfil'><button class=go>👤 Entrar como {html.escape(prof['name'])}</button>"
                 " <small>com os teus decks deste Grimório</small></form><p><small>ou, com outro nome:</small></p>") if prof else ""
-        return _page(h, f"<h2>{'🃏' if r[3] == 'livre' else '🎲'} {html.escape(r[2] or 'Sala')}</h2>{how}{mine}"
+        return _page(h, f"<h2>{'🃏' if r[3] == 'livre' else '🎲'} {html.escape(r[2] or 'Sala')}</h2>{how}{'' if prof else APP_BTN}{mine}"
                      "<form><p>Entra com um nome para jogares nesta sala. Não precisas de ter decks: na sala podes usar um emprestado,"
                      " um do meta ou colar a tua lista.</p><input name=nome maxlength=30 required placeholder='O teu nome' style='width:100%;box-sizing:border-box'>"
                      "<p><button class=go>Entrar</button></p></form>"
@@ -231,7 +325,9 @@ def room_post(h, con, token, act, me, data_dir):
             key = str(d.get("key") or "")
             if not re.fullmatch(r"[A-Za-z0-9_-]{24,100}", key) or not isinstance(d.get("decks"), list):
                 return h.json({"erro": "Pedido inválido."}, 400)
-            return h.json({"go": f"/convite/{link_friend(con, owner, 'app:' + key, d.get('name'), d['decks'])}"})
+            if slow(("sala", token)):
+                return h.json({"erro": "Demasiados pedidos: espera um minuto."}, 429)
+            return h.json({"go": f"/convite/{link_friend(con, owner, 'app:' + key, d.get('name'), d['decks'])}?entrar=1"})
         if act == "importar":  # cópia .grimorio: escolhe-se um perfil lá dentro e entram o nome e os decks dele
             return _import(h, con, owner, data_dir)
     except PermissionError as e:
@@ -279,7 +375,7 @@ def _import(h, con, owner, data_dir):
             return h.json({"profiles": [{"id": o, "name": names.get(o) or o, "decks": len(ds)} for o, ds in by.items()]})
         o = want if want in by else next(iter(by))
         dev = str(man.get("device") or "")[:60]
-        return h.json({"go": f"/convite/{link_friend(con, owner, f'copia:{dev}:{o}', names.get(o) or o, by[o])}"})
+        return h.json({"go": f"/convite/{link_friend(con, owner, f'copia:{dev}:{o}', names.get(o) or o, by[o])}?entrar=1"})
     finally:
         if os.path.exists(tmp):
             os.remove(tmp)
@@ -309,7 +405,20 @@ def handle(h, method, g, db, tournament):
     if p == "/api/guest/leave" and method == "POST":
         return h.send(200, b'{"ok": true}', "application/json", {"Set-Cookie": f"{COOKIE}=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly"})
     if p in ("/api/guest/me", "/api/me") and method == "GET":
-        return h.json({"user": g["name"], "guest": {"id": g["id"], "name": g["name"]}})
+        return h.json({"user": g["name"], "guest": {"id": g["id"], "name": g["name"]}, "api": API,
+                       "invite": f"/convite/{cookie_token(h.headers) or bearer(h.headers)}"})  # o próprio link (para «Abrir na app»)
+    if p == "/api/guest/decks" and method == "POST":  # trazer vários decks de uma vez (ficheiro da app, ou a app ao sentar-se)
+        if slow(("decks", g["id"]), 30):
+            return h.json({"erro": "Demasiados pedidos: espera um minuto."}, 429)
+        try:
+            d = h.body()
+        except ValueError as e:
+            return h.json({"erro": str(e)}, 400)
+        if not isinstance(d, dict) or not isinstance(d.get("decks"), list):
+            return h.json({"erro": "Pedido inválido."}, 400)
+        with db() as con:
+            ids = put_decks(con, g["owner"], g["id"], g["name"], f"g:{g['id']}", d["decks"])
+        return h.json({"ids": ids, "n": len(ids)})
     if p == "/api/profiles" and method == "GET":
         return h.json({"mode": "guest", "current": {"id": None, "name": g["name"], "color": None}, "list": []})
     if p == "/api/decks" and method == "GET":

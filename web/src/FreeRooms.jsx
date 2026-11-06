@@ -7,6 +7,7 @@ import { parseList } from './deck.js'
 import { Mana } from './ui.jsx'
 import ProfileImport from './ProfileImport.jsx'
 import { tx } from './i18n.js'
+import { BringMine } from './FriendRoom.jsx'
 
 async function j(url, opts) {
   const r = await fetch(url, opts)
@@ -18,7 +19,7 @@ const post = (url, body) => j(url, { method: 'POST', headers: { 'Content-Type': 
 const META_FMT = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'premodern']  // como o META_PATH do servidor
 
 // a capa de um deck (imagem própria ou a carta da capa), como nos mosaicos do Jogar contra o Forge
-function DeckArt({ d, data }) {
+export function DeckArt({ d, data }) {
   const c = d && !d.coverImg && coverOf(d, data), src = d?.coverImg || (c ? img(c, 'art_crop') : null)
   return <span className="pv-art">{src ? <img src={src} alt="" loading="lazy" /> : <i>✦</i>}</span>
 }
@@ -116,7 +117,7 @@ export function LendPanel({ r, data, act }) {
 // link (fica guardado como deck teu). Um convidado novo, sem decks, começa nos emprestados ou no meta.
 export function JoinPanel({ r, data, decks, guest, busy, onJoin, reload }) {
   const lend = (r.lend || []).map(d => ({ ...d, tag: tx('emprestado') }))
-  const tabs = [decks.length && 'meus', lend.length && 'lend', 'meta', 'colar', 'varios'].filter(Boolean)
+  const tabs = [(decks.length || guest) && 'meus', lend.length && 'lend', 'meta', 'colar', 'varios'].filter(Boolean)
   const [tab, setTab] = useState(tabs[0]), [pick, setPick] = useState(null), [fmt, setFmt] = useState('modern'), [meta, setMeta] = useState(null)
   const [text, setText] = useState(''), [url, setUrl] = useState(''), [name, setName] = useState(''), [err, setErr] = useState(''), [work, setWork] = useState(false)
   useEffect(() => { if (tab === 'meta') { setMeta(null); j(`/api/sim/opponents?format=${fmt}`).then(l => setMeta(l.map(o => ({ id: o.id, name: o.name, format: fmt, tag: o.share ? `${Math.round(o.share * 100)}%` : tx('meta') })))).catch(() => setMeta([])) } }, [tab, fmt])
@@ -137,9 +138,9 @@ export function JoinPanel({ r, data, decks, guest, busy, onJoin, reload }) {
   return (
     <div className="ml-join">
       <h4 className="ml-h4">{tx('Escolhe o deck com que te sentas')}</h4>
-      {guest && !decks.length && <p className="ml-nodeck">🃏 {tx('Ainda não tens decks neste Grimório. Senta-te com um deck que te emprestem, com um deck do meta, ou cola a tua lista (ou um link) e fica guardado para a próxima.')}</p>}
       <span className="seg ml-tabs">{tabs.map(k => <button key={k} type="button" className={tab === k ? 'on' : ''} onClick={() => { setTab(k); setPick(null) }}>{L[k]}</button>)}</span>
-      {tab === 'meus' && <DeckTiles decks={decks} value={pick} onPick={setPick} data={data} kinds={guest ? null : MINE} />}
+      {tab === 'meus' && (decks.length ? <DeckTiles decks={decks} value={pick} onPick={setPick} data={data} kinds={guest ? null : MINE} />
+        : <div className="ml-nodeck"><p>🃏 {tx('Ainda não tens decks neste Grimório. Traz os teus (da tua app, de um ficheiro ou de uma lista) ou senta-te com um emprestado ou do meta.')}</p><BringMine data={data} onDone={reload} /></div>)}
       {tab === 'lend' && <DeckTiles decks={lend} value={pick} onPick={setPick} data={data} />}
       {tab === 'meta' && <>
         <span className="seg small">{META_FMT.map(f => <button key={f} type="button" className={fmt === f ? 'on' : ''} onClick={() => { setFmt(f); setPick(null) }}>{FORMAT[f]?.name || f}</button>)}</span>
@@ -156,27 +157,6 @@ export function JoinPanel({ r, data, decks, guest, busy, onJoin, reload }) {
       </div> : <div className="row-btns">
         <button className="primary" onClick={() => onJoin({ deck: pick, src })} disabled={!pick || busy || full}>{busy ? tx('A sentar…') : full ? tx('A mesa está cheia') : tx('🪑 Sentar-me com este deck')}</button></div>}
     </div>
-  )
-}
-
-// ---------- na tua app: entrar na sala de outro Grimório como o teu perfil, com os teus decks ----------
-export function RemoteJoin({ data }) {
-  const [url, setUrl] = useState(''), [all, setAll] = useState(true), [decks, setDecks] = useState(null), [pick, setPick] = useState(null), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
-  useEffect(() => { if (!all && !decks) j('/api/decks').then(ds => setDecks(ds.filter(d => !d.friend))).catch(() => setDecks([])) }, [all, decks])
-  const go = async () => {
-    setBusy(true); setErr('')
-    try { const r = await post('/api/rooms/remote', { url, ...(all ? {} : { decks: [pick] }) }); window.location.href = r.go } catch (e) { setErr(e.message); setBusy(false) }
-  }
-  const ok = /\/sala\/[\w-]{8,}/.test(url) && (all || pick)
-  return (
-    <details className="card ml-remote"><summary><b>🔗 {tx('Entrar numa sala de outro Grimório')}</b> <span className="muted small">{tx('um amigo mandou-te o link da sala dele: entras como o teu perfil, com os teus decks')}</span></summary>
-      <input value={url} onChange={e => setUrl(e.target.value)} placeholder={tx('Cola aqui o link da sala (…/sala/…)')} aria-label={tx('Link da sala')} />
-      <span className="seg small"><button className={all ? 'on' : ''} onClick={() => setAll(true)}>{tx('Levar todos os meus decks')}</button><button className={all ? '' : 'on'} onClick={() => setAll(false)}>{tx('Só um deck')}</button></span>
-      {!all && <DeckTiles decks={decks} value={pick} onPick={setPick} data={data} kinds={MINE} />}
-      <p className="small muted">{tx('Vão o nome do teu perfil e as listas dos decks (nada mais). Da próxima vez és reconhecido e os decks atualizam-se.')}</p>
-      {err && <p className="small bad-t">{err}</p>}
-      <div className="row-btns"><button className="primary" onClick={go} disabled={!ok || busy}>{busy ? tx('A entrar…') : `🚪 ${tx('Entrar na sala')}`}</button></div>
-    </details>
   )
 }
 

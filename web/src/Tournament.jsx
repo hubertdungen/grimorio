@@ -10,7 +10,7 @@ import Replay from './Board.jsx'
 import ForgeTable from './ForgePlay.jsx'
 import FreeTable from './FreeTable.jsx'
 import SideboardStep from './SideboardStep.jsx'
-import { NewSolo, NewFreeRoom, Seats, JoinPanel, LendPanel, RemoteJoin, FreeMatches } from './FreeRooms.jsx'
+import { NewSolo, NewFreeRoom, Seats, JoinPanel, LendPanel, FreeMatches } from './FreeRooms.jsx'
 import Lobby3D from './Lobby3D.jsx'  // o three.js só carrega com uma sala aberta (import dinâmico lá dentro)
 import { Cup, PLACE, TIERS, KIND, tierOf } from './Library.jsx'
 import { trophyValue, TIER_PTS, KIND_W, BLUE_W, PTS_STARS, PERF_STARS, starPoints, perfQ, perfOf } from './trophyvalue.js'
@@ -739,7 +739,7 @@ function GenPeek({ data, p, r, diffs, onClose }) {
 
 // ---------- salas: torneios com amigos (rooms.py) ----------
 const OLD_H = 12
-function Rooms({ data, guest, open, openTable }) {
+export function Rooms({ data, guest, open, openTable }) {
   const [list, setList] = useState(null), [decks, setDecks] = useState([]), [pick, setPick] = useState({}), [err, setErr] = useState(''), [showOld, setShowOld] = useState(false)
   const [net] = useNet(!guest), [copied, setCopied] = useState('')  // o link da sala é o endereço público (túnel ou domínio próprio)
   const copyLink = async (url, k) => { try { await navigator.clipboard.writeText(url); setCopied(k); setTimeout(() => setCopied(''), 1500) } catch { window.prompt(tx('Copia o link:'), url) } }
@@ -773,7 +773,7 @@ function Rooms({ data, guest, open, openTable }) {
   return (
     <section className="card rooms">
       <h3>🚪 {tx('Salas')} <span className="muted small">{guest ? tx('Entra numa sala com um deck teu; quem aloja começa quando estiverem todos.') : tx('Abre uma sala em «✦ Nova sala» e partilha o link: quem o abre entra com um deck seu e tu começas quando estiverem todos.')}</span></h3>
-      {!guest && <RemoteJoin data={data} />}
+      {!guest && <p className="fr-enter"><a className="link" href="#levar">🔗 {tx('Entrar na sala de um amigo')}</a> <span className="muted small">{tx('um amigo mandou-te o link da sala dele: abre-se aqui, no teu Grimório, com os teus decks')}</span></p>}
       {err && <p className="small bad-t">{err}</p>}
       {toast && <p className="ml-room-toast" role="status">{toast}</p>}
       {!shown.length && <p className="muted small">{tx('Não há salas abertas.')}</p>}
