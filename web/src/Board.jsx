@@ -409,10 +409,11 @@ function useOrbPhysics(ref) {
       const r = el.getBoundingClientRect(), w = el.offsetWidth || r.width, h = el.offsetHeight || r.height, k = r.width / w || 1, px = el.cloneNode(true)
       // a perspetiva da mesa: o tamanho a que se vê uma esfera em cada altura do ecrã, pelas esferas que lá estão (a do
       // adversário, ao fundo e mais pequena; a minha, perto). A voar, a cópia cresce ao vir para cá e encolhe ao ir para lá
-      // a escala de cada lado mede-se pelas cartas (a esfera do adversário é endireitada de propósito e quase não encolhe):
-      // a largura no ecrã a dividir pela largura real, a mediana de algumas cartas; a altura é a da esfera desse lado
-      const sideK = b => { const ks = [...b.querySelectorAll('.pc')].slice(0, 12).map(c => c.getBoundingClientRect().width / (c.offsetWidth || 1)).filter(x => x > 0).sort((x, y) => x - y); return ks.length ? ks[ks.length >> 1] : 0 }
-      S.persp = [...document.querySelectorAll('.bside')].map(b => { const o = b.querySelector('.orb:not(.orb-proxy)'), q = o?.getBoundingClientRect(); return q?.width ? [q.top + q.height / 2, sideK(b)] : null }).filter(a => a && a[1] > 0).sort((a, b) => a[0] - b[0])
+      // a profundidade vem da inclinação da mesa (Definições › Inclinação): ao fundo (a altura da esfera de cima) as coisas
+      // valem 1 − 0,6·sen(ângulo) do tamanho, à frente (a minha) o tamanho inteiro; sem perspetiva, igual em todo o lado
+      const stage = el.closest('.fp-stage.persp'), tilt = stage ? parseFloat(getComputedStyle(stage).getPropertyValue('--tilt')) || 30 : 0
+      const ys = [...document.querySelectorAll('.bside .orb:not(.orb-proxy)')].map(o => { const q = o.getBoundingClientRect(); return q.width ? q.top + q.height / 2 : null }).filter(y => y != null).sort((a, b) => a - b)
+      S.persp = tilt && ys.length > 1 ? [[ys[0], 1 - 0.6 * Math.sin(tilt * Math.PI / 180)], [ys[ys.length - 1], 1]] : null
       S.home = [r.left + r.width / 2, r.top + r.height / 2]; S.k0 = k
       px.classList.add('orb-proxy'); px.removeAttribute('title')
       Object.assign(px.style, { position: 'fixed', left: `${S.home[0] - w / 2}px`, top: `${S.home[1] - h / 2}px`, width: `${w}px`, height: `${h}px`, margin: '0', transformOrigin: '50% 50%', transform: `scale(${k})`, visibility: 'visible' })
