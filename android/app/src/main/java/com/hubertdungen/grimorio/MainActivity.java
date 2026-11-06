@@ -233,5 +233,13 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle out) { super.onSaveInstanceState(out); web.saveState(out); }
 
     @Override
-    protected void onPause() { super.onPause(); CookieManager.getInstance().flush(); }
+    protected void onPause() { super.onPause(); CookieManager.getInstance().flush(); away(true); }
+
+    @Override
+    protected void onResume() { super.onResume(); away(false); }
+
+    // a app foi para segundo plano / voltou: a página sabe (o relógio de torneio do Forge Play pausa fora da mesa)
+    private void away(boolean on) {
+        if (web != null) web.evaluateJavascript("window.__grimAway=" + on + ";window.dispatchEvent(new Event('grimorio:away'))", null);
+    }
 }

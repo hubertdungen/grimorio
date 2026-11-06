@@ -3862,6 +3862,7 @@ export default {
   "Parar para pensar: mais {n} s para responder": "Stop to think: {n} more seconds to respond",
   "Stop": "Stop",
   "Fechar (Esc)": "Close (Esc)",
+  "Relógio em pausa: estás fora da mesa": "Clock paused: you are away from the table",
   "Aspeto das partículas": "Particle look",
   // Regras › Guia do Grimório (Guide.jsx)
   "Os botões desta área": "The buttons in this area",

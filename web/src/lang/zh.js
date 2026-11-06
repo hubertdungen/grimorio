@@ -3854,6 +3854,7 @@ export default {
   "Parar para pensar: mais {n} s para responder": "暂停思考：再多 {n} 秒回应",
   "Stop": "暂停",
   "Fechar (Esc)": "关闭（Esc）",
+  "Relógio em pausa: estás fora da mesa": "计时已暂停：你不在牌桌前",
   "Aspeto das partículas": "粒子外观",
   // Regras › Guia do Grimório (Guide.jsx)
   "Os botões desta área": "本区域的按钮",

@@ -741,7 +741,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (!clock?.k) return
     const iv = setInterval(() => {
       const c = clockRef.current; if (!c) return
-      if (Date.now() >= c.until) { clockRef.current = null; setClock(null); if (clockKeyOf(sNow.current) === c.k) send({ c: 'ok' }); return }
+      // fora da mesa (outro separador, janela minimizada, outra área da app) o jogo pausa: o relógio também (o que falta fica)
+      const now = Date.now(), el = fitBox.current, away = document.hidden || window.__grimAway || !el?.isConnected || !el.offsetParent  // __grimAway: .exe minimizado / APK em segundo plano
+      if (away) { c.until += now - (c.now || now); c.now = now; if (!c.paused) { c.paused = true; setClock({ ...c }) } return }
+      c.paused = false
+      if (now >= c.until) { clockRef.current = null; setClock(null); if (clockKeyOf(sNow.current) === c.k) send({ c: 'ok' }); return }
       setClock({ ...c, now: Date.now() })
     }, 200)
     return () => clearInterval(iv)
@@ -901,7 +905,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const clockLeft = clock ? Math.max(0, clock.until - (clock.now || Date.now())) : 0
   const clockUi = clock && <div className={`fp-clock ${clock.stopped ? 'stopped' : ''} ${clockLeft < 3000 ? 'hurry' : ''}`} role="timer">
     <i style={{ '--k': (clockLeft / clock.total).toFixed(3) }} />
-    <span>{clock.stopped ? tx('A pensar: passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) }) : tx('Passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) })}</span>
+    <span>{clock.paused ? tx('Relógio em pausa: estás fora da mesa') : clock.stopped ? tx('A pensar: passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) }) : tx('Passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) })}</span>
     {!clock.stopped && <button type="button" className="fp-stop" onClick={stopClock} title={tx('Parar para pensar: mais {n} s para responder', { n: fpPrefs().clockExtra })}>⏸ {tx('Stop')} <kbd>{fpPrefs().clockKey.toUpperCase()}</kbd></button>}
   </div>
   const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true, dmg }

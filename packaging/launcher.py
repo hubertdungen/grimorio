@@ -333,7 +333,19 @@ def window(url, d):
     try:
         webview.settings["ALLOW_DOWNLOADS"] = True  # exports, proxy PDFs, backups
         webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
-        webview.create_window("Grimório", url, width=1440, height=900, min_size=(960, 640), text_select=True, background_color="#0b0a14")
+        w = webview.create_window("Grimório", url, width=1440, height=900, min_size=(960, 640), text_select=True, background_color="#0b0a14")
+
+        def away(on):  # minimizada: a página sabe (o relógio de torneio do Forge Play pausa fora da mesa)
+            try:
+                w.evaluate_js("window.__grimAway=%s;window.dispatchEvent(new Event('grimorio:away'))" % ("true" if on else "false"))
+            except Exception:
+                pass
+        try:
+            w.events.minimized += lambda *a: away(True)
+            for ev in (w.events.restored, w.events.maximized, w.events.shown):
+                ev += lambda *a: away(False)
+        except Exception:
+            pass  # pywebview antigo sem estes eventos: fica só o que o browser souber
         # the browser storage (language, open deck, preferences) stays between runs, next to the data
         webview.start(private_mode=False, storage_path=os.path.join(d, "webview"))
         return True
