@@ -3704,3 +3704,19 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 @keyframes holds { 0%, 100% { filter: none; } 35% { filter: brightness(1.7) drop-shadow(0 0 12px #fff3c4); } }
 .zghost.into { animation: intolift .6s ease-out forwards; }
 @keyframes intolift { to { transform: translateY(-14px) scale(1.06); filter: brightness(1.8); } }
+
+/* terrenos: fetch (fitas de cor), shock (relâmpagos ao pagar 2 de vida), fast (rasto de velocidade) */
+.zrib { position: fixed; z-index: 2147481300; width: 7px; height: 7px; border-radius: 50%; pointer-events: none; }
+.zland { position: fixed; z-index: 2147481250; pointer-events: none; border-radius: 6px; }
+.zland.shock { box-shadow: 0 0 14px var(--c1), inset 0 0 12px var(--c2); animation: lshock .9s steps(9) forwards; }
+.zland.shock svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.zland.shock path { fill: none; stroke: var(--c1); stroke-width: 3; stroke-linejoin: round; filter: drop-shadow(0 0 4px var(--c1)); }
+.zland.shock path.b { stroke: var(--c2); filter: drop-shadow(0 0 4px var(--c2)); }
+@keyframes lshock { 0%, 20%, 40%, 60% { opacity: 1; } 10%, 30%, 50% { opacity: .25; } 100% { opacity: 0; } }
+.zland.fast { overflow: hidden; }
+.zland.fast::before { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, var(--c1) 40%, #fff8 50%, var(--c2) 60%, transparent 80%) -200% 0 / 200% 100% no-repeat;
+  animation: lfast .7s ease-out forwards; }
+@keyframes lfast { to { background-position: 200% 0; opacity: .2; } }
+.pc.fetched .pc-rot { animation: fetched 1.3s ease-out; }
+@keyframes fetched { 0%, 100% { filter: none; } 40% { filter: brightness(1.6) drop-shadow(0 0 10px #fff8dc); } }
+@media (prefers-reduced-motion: reduce) { .zland, .zrib { display: none; } }

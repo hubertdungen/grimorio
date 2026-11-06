@@ -1183,6 +1183,42 @@ function ghostInto(el, holder) {
   setTimeout(() => go(0), 900)
   return true
 }
+// terrenos com animação própria: fetch (sacrifica-se e procura), shock (paga 2 de vida para entrar desvirado) e fast
+// (desvirado com poucos terrenos) — nas cores do terreno (as fetch pelas cores das terras que procuram)
+const LCOL = { W: '#f5c451', U: '#4cc9f0', B: '#a78bfa', R: '#ff5c3a', G: '#4ade80', C: '#cbd5e1' }
+const BASIC = { Plains: 'W', Island: 'U', Swamp: 'B', Mountain: 'R', Forest: 'G' }
+const FETCH = /Sacrifice (?:this land|~|[^:]{0,40}): Search your library for (an? [^.]*?) card/i
+const SHOCK = /you may pay 2 life\. If you don't, it enters tapped/i, FAST = /enters tapped unless you control two or fewer other lands/i
+const landCols = c => {
+  const f = FETCH.exec(c?.o || '')
+  if (f) { const cs = Object.entries(BASIC).filter(([n]) => f[1].includes(n)).map(([, k]) => k); return cs.length ? cs : ['W', 'U', 'B', 'R', 'G'] }
+  const cs = String(c?.ci || '').replace(/[^WUBRG]/g, '').split('').filter(Boolean)
+  return cs.length ? cs : ['C']
+}
+// fitas de luz nas cores, de um retângulo a outro, em arco
+function ribbon(a, b, cols, delay = 0) {
+  if (!a?.width || !b?.width) return
+  const host = fxHost(), ax = a.left + a.width / 2, ay = a.top + a.height / 2, bx = b.left + b.width / 2, by = b.top + b.height / 2, my = Math.min(ay, by) - 70
+  for (let i = 0; i < 16; i++) {
+    const d = document.createElement('i'), col = LCOL[cols[i % cols.length]]
+    d.className = 'zrib'; Object.assign(d.style, { left: `${ax}px`, top: `${ay}px`, background: col, boxShadow: `0 0 10px ${col}` })
+    host.append(d)
+    d.animate([{ transform: 'translate(-50%, -50%) scale(.3)', opacity: 0 }, { transform: `translate(calc(-50% + ${(bx - ax) / 2}px), calc(-50% + ${my - ay}px)) scale(1.1)`, opacity: 1, offset: 0.5 },
+      { transform: `translate(calc(-50% + ${bx - ax}px), calc(-50% + ${by - ay}px)) scale(.5)`, opacity: 0 }],
+      { duration: 760, delay: delay + i * 32, easing: 'ease-in-out', fill: 'both' }).onfinish = () => d.remove()
+  }
+}
+// a camada por cima da carta do terreno: relâmpagos (shock) ou rasto de velocidade (fast)
+function landFx(el, kind, cols) {
+  const r = (el.querySelector('.pc-rot') || el).getBoundingClientRect()
+  if (!r.width) return
+  const g = document.createElement('div')
+  g.className = `zland ${kind}`
+  Object.assign(g.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` })
+  g.style.setProperty('--c1', LCOL[cols[0]]); g.style.setProperty('--c2', LCOL[cols[1] || cols[0]])
+  if (kind === 'shock') g.innerHTML = '<svg viewBox="0 0 100 140" preserveAspectRatio="none"><path d="M-4 30 L18 44 L8 58 L34 70 L22 86 L52 96" /><path class="b" d="M104 104 L80 92 L92 78 L66 66 L80 50 L50 40" /></svg>'
+  fxHost().append(g); setTimeout(() => g.remove(), 1100)
+}
 function ghostOut(el, to) {  // ver leaveGhost
   leaveGhost((el.querySelector('.pc-rot') || el).getBoundingClientRect(), el.querySelector('.pc-f img')?.src, el.classList.contains('tapped'), to)
   el.style.visibility = 'hidden'
@@ -1200,7 +1236,7 @@ function sparkle(el) {
   }
 }
 export function ZoneFx({ s, data, quiet }) {
-  const prev = useRef(null), seen = useRef(new Set()), keys = useRef(null)
+  const prev = useRef(null), seen = useRef(new Set()), keys = useRef(null), fetching = useRef({})  // fetching: lado -> {cols, t} (uma fetch à procura)
   useLayoutEffect(() => {
     if (!s?.sides) return
     const snap = {}
@@ -1217,6 +1253,7 @@ export function ZoneFx({ s, data, quiet }) {
     for (const k of first.keys()) if (!live.some(p => p.key === k)) first.delete(k)
     keys.current = first
     const holder = live.find(p => tnow - first.get(p.key) < 2000 && HOLDS.test(lookup(data, p.name)?.o || ''))
+    const entered = boot ? [] : s.sides.flatMap(k => (s[k]?.perms || []).filter(p => !p.dying && first.get(p.key) === tnow).map(p => [k, p]))
     try {
       const deadTo = {}
       for (const k of s.sides) for (const perm of s[k]?.perms || []) {
@@ -1226,6 +1263,12 @@ export function ZoneFx({ s, data, quiet }) {
         if (!perm.token) deadTo[`${k}|${to}`] = (deadTo[`${k}|${to}`] || 0) + 1
         if (calm) continue
         const el = document.querySelector(`.bside.p-${k} .pc[data-z="k:${CSS.escape(String(perm.key))}"]`)
+        const lc = lookup(data, perm.name)
+        if (el && to === 'graveyard' && FETCH.test(lc?.o || '')) {  // fetch: as cores dela vão para a biblioteca (à procura)
+          const cols = landCols(lc), lib = zoneEl(k, 'library')
+          ribbon((el.querySelector('.pc-rot') || el).getBoundingClientRect(), lib?.getBoundingClientRect(), cols)
+          fetching.current[k] = { cols, t: Date.now() }
+        }
         if (el && to === 'graveyard') shatter(el, isCreature(data, perm))
         else if (el && to === 'exile' && holder && document.querySelector(`[data-z="k:${CSS.escape(String(holder.key))}"]`)) ghostInto(el, document.querySelector(`[data-z="k:${CSS.escape(String(holder.key))}"]`))  // também uma aura presa (.pc-attc)
         else if (el && to === 'exile') { ghostOut(el, 'exile'); sparkle(el) }
@@ -1233,6 +1276,18 @@ export function ZoneFx({ s, data, quiet }) {
       }
       if (seen.current.size > 600) seen.current = new Set([...seen.current].slice(-300))
       if (calm) return
+      for (const [k, p] of entered) {  // terrenos que acabaram de entrar
+        const c = lookup(data, p.name), el = document.querySelector(`.bside.p-${k} .pc[data-z="k:${CSS.escape(String(p.key))}"]`)
+        if (!el || !c || !/Land/.test(c.t)) continue
+        const fq = fetching.current[k]
+        if (fq && Date.now() - fq.t < 12000) {  // o terreno que a fetch foi buscar: as fitas saem da biblioteca até ele
+          delete fetching.current[k]
+          ribbon(zoneEl(k, 'library')?.getBoundingClientRect(), (el.querySelector('.pc-rot') || el).getBoundingClientRect(), fq.cols, 150)
+          el.classList.remove('fetched'); void el.offsetWidth; el.classList.add('fetched'); setTimeout(() => el.classList.remove('fetched'), 1400)
+        }
+        if (!p.tapped && SHOCK.test(c.o || '')) { landFx(el, 'shock', landCols(c)); play('atk_thunder') }
+        else if (!p.tapped && FAST.test(c.o || '')) landFx(el, 'fast', landCols(c))
+      }
       for (const k of s.sides) {
         const a = p[k], b = snap[k]
         if (!a || !b) continue
