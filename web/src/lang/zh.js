@@ -3804,4 +3804,7 @@ export default {
   "Moeda: começas tu": "硬币：你先手",
   "Moeda: começa {p}": "硬币：{p} 先手",
   "o adversário": "对手",
+  "Moeda: ganhou {p}": "硬币：{p} 赢了",
+  "Escolheu ir em segundo: começas tu.": "对方选择后手：你先手。",
+  "Escolheu jogar primeiro.": "对方选择先手。",
 }

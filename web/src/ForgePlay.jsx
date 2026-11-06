@@ -801,15 +801,23 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useEffect(() => () => { try { window.GrimorioApp?.orientation?.('auto'); screen.orientation?.unlock?.() } catch { /* nada a desfazer */ } }, [])
   const persp = () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }
   const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null), peek = usePeek(), diceBox = useRef(null), dice = useTableDice(diceBox)
-  // quem começa: a moeda 3D cai na mesa com o resultado que o Forge decidiu (cara = começas tu), uma vez por jogo
+  // a moeda ao ar: o Forge tira-a antes de tudo e quem ganha escolhe se joga primeiro. Ganhaste → a pergunta «won the coin
+  // toss» chega e a moeda vai ao ar nesse momento (cara); sem a pergunta, o jogo arranca e foi o adversário que ganhou
+  // (coroa) — o aviso diz o que ele escolheu. Nos jogos seguintes de uma série escolhe quem perdeu o anterior: sem moeda.
+  // Uma vez por jogo (sessionStorage), mesmo a recarregar.
   const tossed = useRef(false)
-  useEffect(() => {
-    if (tossed.current || !st?.turn || st.turn > 1 || st.active == null || !me) return
+  const toss = won => {
+    if (tossed.current) return
     tossed.current = true
     try { const k = `grimorio.fp.toss.${sid}`; if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1') } catch { /* sem armazenamento: lança na mesma */ }
-    const meFirst = st.active === me.id
-    setTimeout(() => dice.roll(['moeda'], [meFirst ? 1 : 2]), 500)  // sem limpar: uma mudança de estado a meio não a pode cancelar
-    setTimeout(() => setToast({ title: meFirst ? tx('Moeda: começas tu') : tx('Moeda: começa {p}', { p: opp?.name || tx('o adversário') }), msg: '' }), 2300)
+    setTimeout(() => dice.roll(['moeda'], [won ? 1 : 2]), 200)
+    if (!won) setTimeout(() => setToast({ title: tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') }), msg: st?.active === me?.id ? tx('Escolheu ir em segundo: começas tu.') : tx('Escolheu jogar primeiro.') }), 2000)
+  }
+  useEffect(() => { if (/won the coin toss/.test(pr?.msg || '')) toss(true) }, [pr?.msg])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!st?.turn || st.turn > 1 || st.active == null || !me) return
+    if (series && (series.w?.[0] || 0) + (series.w?.[1] || 0) > 0) { tossed.current = true; return }  // jogo 2+ da série: escolhe quem perdeu
+    toss(false)
   }, [st?.turn, st?.active])  // eslint-disable-line react-hooks/exhaustive-deps
   const P = fpPrefs()
   const stage = useStage(fitBox, stageWrap, !!st)

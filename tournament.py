@@ -736,12 +736,15 @@ def create(owner, d):
                     deck = limited.deck_of(limited.load(DATA, eid, owner), int(seat))
                 except (KeyError, ValueError, IndexError):
                     deck = None
-            elif src == "meta" and meta_ok(ref):
+            # do meta: do formato (ou dos menores com «cross»); de outro formato (ex.: o campeão de um torneio com formatos
+            # menores, num torneio dos campeões) entra se for legal aqui — a verificação de legalidade logo abaixo diz porquê
+            elif src == "meta" and (meta_ok(ref) or re.fullmatch(r"(%s)-\d{1,10}" % "|".join(sim.META_FORMATS), ref)):
                 deck = sim.opponent(DATA, ref)
                 if deck and not casual and not ref.startswith(fmt + "-") and not ref.startswith("edhrec-") and not legal_in(deck, fmt):
                     raise ValueError(f"«{deck.get('name')}» não é legal em {fmt}.")
             if not deck or not isinstance(deck.get("main"), dict) or not deck["main"]:
-                raise ValueError("Um dos decks não existe ou está vazio.")
+                nm = str(x.get("name") or "").strip()[:80]
+                raise ValueError(f"«{nm}» não existe ou está vazio." if nm else "Um dos decks não existe ou está vazio.")
             if cmd and not deck.get("commanders"):
                 raise ValueError(f"«{deck.get('name')}»: falta o comandante.")
             name = str(deck.get("name") or "Deck")[:120]

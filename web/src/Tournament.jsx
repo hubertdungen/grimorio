@@ -386,7 +386,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
     try {
       const { id } = await post('/api/tournaments', { name: name.trim() || suggested, type, format, casual, hold, cross, play_me: canPlayMe && playMe, champions: champs, podiums: pods, bo: boOf, third, rounds: R, seeding, team,
         ...(type === 'equipas' && { table, bal_fmt: mixF && tops.balFmt, bal_elo: tops.balElo, same_fmt: mixF && !table && tops.sameFmt }),
-        players: players.map(({ src, ref, difficulty, cover, colors, me }) => ({ src, ref, difficulty, cover, colors, me })) })
+        players: players.map(({ src, ref, difficulty, cover, colors, me, name }) => ({ src, ref, difficulty, cover, colors, me, name })) })  // name: a mensagem de erro diz qual
       onCreated(id)
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }

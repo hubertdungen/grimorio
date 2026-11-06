@@ -3812,4 +3812,7 @@ export default {
   "Moeda: começas tu": "Coin: you go first",
   "Moeda: começa {p}": "Coin: {p} goes first",
   "o adversário": "the opponent",
+  "Moeda: ganhou {p}": "Coin: {p} won",
+  "Escolheu ir em segundo: começas tu.": "They chose to go second: you start.",
+  "Escolheu jogar primeiro.": "They chose to play first.",
 }

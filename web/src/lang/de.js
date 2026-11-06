@@ -3804,4 +3804,7 @@ export default {
   "Moeda: começas tu": "Münze: du beginnst",
   "Moeda: começa {p}": "Münze: {p} beginnt",
   "o adversário": "der Gegner",
+  "Moeda: ganhou {p}": "Münze: {p} hat gewonnen",
+  "Escolheu ir em segundo: começas tu.": "Hat sich für den zweiten Zug entschieden: du beginnst.",
+  "Escolheu jogar primeiro.": "Hat sich entschieden, zuerst zu spielen.",
 }

@@ -155,6 +155,11 @@ const KEYS = [
 function stkText(t, name) {
   let x = String(t || '').trim()
   if (name && x.startsWith(name)) x = x.slice(name.length).replace(/^\s*(\(\d+\))?\s*-?\s*/, '')
+  // sem o texto de lembrete «(When this creature attacks…)» nem as notas do Forge «[Attacker: Voice of Victory {115}]»
+  x = x.replace(/\s*\[[^\]]*\]/g, '')
+  const rem = x.match(/\((?!\s*[TQWUBRGCX0-9]\))([^()]{12,})\)/)?.[1]  // o lembrete: fica quando sobra só a palavra-chave («Mobilize 2»)
+  x = x.replace(/\s*\((?!\s*[TQWUBRGCX0-9]\))[^()]*\)/g, '').replace(/\s{2,}/g, ' ').trim()
+  if (rem && x.length < 30) x = `${x} — ${rem.trim()}`
   return x.length > 220 ? `${x.slice(0, 217)}…` : x
 }
 function hiText(t) {  // texto → pedaços com <b class> nas frases-chave (a primeira que apanha ganha)
@@ -1202,10 +1207,10 @@ const landCols = c => {
   return cs.length ? cs : ['C']
 }
 // fitas de luz nas cores, de um retângulo a outro, em arco
-function ribbon(a, b, cols, delay = 0) {
+function ribbon(a, b, cols, delay = 0, N = 16) {
   if (!a?.width || !b?.width) return
   const host = fxHost(), ax = a.left + a.width / 2, ay = a.top + a.height / 2, bx = b.left + b.width / 2, by = b.top + b.height / 2, my = Math.min(ay, by) - 70
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < N; i++) {
     const d = document.createElement('i'), col = LCOL[cols[i % cols.length]]
     d.className = 'zrib'; Object.assign(d.style, { left: `${ax}px`, top: `${ay}px`, background: col, boxShadow: `0 0 10px ${col}` })
     host.append(d)
@@ -1215,6 +1220,93 @@ function ribbon(a, b, cols, delay = 0) {
   }
 }
 // a camada por cima da carta do terreno: relâmpagos (shock) ou rasto de velocidade (fast)
+// shock land a entrar desvirada: a vida paga (uma faísca vermelha) sai da esfera até ao terreno; depois relâmpagos vivos
+// (refazem-se a cada instante) a correr pela borda e para dentro, nas duas cores, um clarão e o terreno estremece
+function shockFx(el, cols, orbEl) {
+  const rot = el.querySelector('.pc-rot') || el, r = rot.getBoundingClientRect()
+  if (!r.width) return
+  const host = fxHost(), c1 = LCOL[cols[0]], c2 = LCOL[cols[1] || cols[0]], cx = r.left + r.width / 2, cy = r.top + r.height / 2
+  const o = orbEl?.getBoundingClientRect(), lag = o?.width ? 380 : 0
+  if (o?.width) {  // a vida que se paga
+    const w = document.createElement('i'); w.className = 'zwisp'; Object.assign(w.style, { left: `${o.left + o.width / 2}px`, top: `${o.top + o.height / 2}px` }); host.append(w)
+    w.animate([{ transform: 'translate(-50%, -50%) scale(.6)', opacity: 0 }, { transform: `translate(calc(-50% + ${(cx - o.left - o.width / 2) * 0.5}px), calc(-50% + ${(cy - o.top - o.height / 2) * 0.5 - 50}px)) scale(1.2)`, opacity: 1, offset: 0.45 },
+      { transform: `translate(calc(-50% + ${cx - o.left - o.width / 2}px), calc(-50% + ${cy - o.top - o.height / 2}px)) scale(.4)`, opacity: 0.9 }], { duration: lag, easing: 'ease-in', fill: 'forwards' }).onfinish = () => w.remove()
+  }
+  setTimeout(() => {
+    const W = r.width, H = r.height, g = document.createElement('div'), NS = 'http://www.w3.org/2000/svg'
+    g.className = 'zland shock2'; Object.assign(g.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${W}px`, height: `${H}px` })
+    g.style.setProperty('--c1', c1); g.style.setProperty('--c2', c2)
+    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H)
+    const rim = (cls, off) => { const p = document.createElementNS(NS, 'rect'); Object.entries({ x: 1.5, y: 1.5, width: W - 3, height: H - 3, rx: W * 0.05, class: cls, 'stroke-dashoffset': off }).forEach(([k, v]) => p.setAttribute(k, v)); svg.append(p) }
+    rim('rim a', 0); rim('rim b', (W + H))
+    const bolts = Array.from({ length: 5 }, (_, k) => { const p = document.createElementNS(NS, 'path'); p.setAttribute('class', k % 2 ? 'bolt b' : 'bolt'); svg.append(p); return p })
+    const edge = () => { const t = Math.random() * 2 * (W + H); return t < W ? [t, 0] : t < W + H ? [W, t - W] : t < 2 * W + H ? [2 * W + H - t, H] : [0, 2 * (W + H) - t] }
+    const zig = () => { const [x0, y0] = edge(), x1 = W * (0.25 + Math.random() * 0.5), y1 = H * (0.25 + Math.random() * 0.5); let d = `M${x0.toFixed(1)} ${y0.toFixed(1)}`
+      for (let i = 1; i <= 6; i++) { const t = i / 6, j = (1 - t) * 9; d += ` L${(x0 + (x1 - x0) * t + (Math.random() - 0.5) * j * 2).toFixed(1)} ${(y0 + (y1 - y0) * t + (Math.random() - 0.5) * j * 2).toFixed(1)}` } return d }
+    g.append(svg); host.append(g)
+    let n = 0
+    const iv = setInterval(() => { bolts.forEach(b => b.setAttribute('d', Math.random() < 0.75 ? zig() : '')); if (++n > 11) clearInterval(iv) }, 65)
+    rot.animate([{ translate: '0 0', filter: 'none' }, { translate: '-2px 1px', filter: `brightness(1.8) drop-shadow(0 0 8px ${c1})` }, { translate: '2px -1px' }, { translate: '-1px 0', filter: `brightness(1.4) drop-shadow(0 0 6px ${c2})` }, { translate: '0 0', filter: 'none' }], { duration: 520, easing: 'linear' })
+    setTimeout(() => { clearInterval(iv); g.remove() }, 1150)
+  }, lag)
+}
+// fetch land sacrificada: abre-se um vórtice nas cores que procura, a carta é sugada para ele em espiral e um feixe vai até
+// à biblioteca, que brilha (à procura)
+function fetchFx(el, cols, lib) {
+  const rot = el.querySelector('.pc-rot') || el, r = rot.getBoundingClientRect()
+  if (!r.width) return
+  const host = fxHost(), cx = r.left + r.width / 2, cy = r.top + r.height / 2, src = el.querySelector('.pc-f img')?.src, tapped = el.classList.contains('tapped')
+  const v = document.createElement('div'), D = Math.max(r.width, r.height) * 1.25
+  v.className = 'zvortex'; Object.assign(v.style, { left: `${cx - D / 2}px`, top: `${cy - D / 2}px`, width: `${D}px`, height: `${D}px` })
+  v.style.setProperty('--vc', cols.map(c => LCOL[c]).concat(LCOL[cols[0]]).join(', '))
+  host.append(v); setTimeout(() => v.remove(), 1300)
+  const W = tapped ? r.height : r.width, H = W * 680 / 488, g = document.createElement('div')
+  g.className = 'zghost'; Object.assign(g.style, { left: `${cx - W / 2}px`, top: `${cy - H / 2}px`, width: `${W}px`, height: `${H}px`, rotate: tapped ? '90deg' : '0deg' })
+  if (src) g.style.backgroundImage = `url("${src}")`
+  host.append(g); el.style.visibility = 'hidden'
+  g.animate([{ transform: 'none', opacity: 1, filter: 'none' }, { transform: 'rotate(160deg) scale(.7)', opacity: 1, filter: 'brightness(1.6)', offset: 0.4 },
+    { transform: 'rotate(560deg) scale(.04)', opacity: 0, filter: 'brightness(3)' }], { duration: 760, easing: 'cubic-bezier(.5, 0, .9, .6)', fill: 'forwards' }).onfinish = () => g.remove()
+  setTimeout(() => {
+    const L = lib?.getBoundingClientRect()
+    if (!L?.width) return
+    ribbon({ left: cx - 4, top: cy - 4, width: 8, height: 8 }, L, cols, 0, 26)
+    lib.classList.remove('zlibglow'); void lib.offsetWidth; lib.classList.add('zlibglow'); setTimeout(() => lib.classList.remove('zlibglow'), 1500)
+  }, 520)
+}
+// o terreno que a fetch foi buscar: a carta voa da biblioteca até ao sítio dela com rasto e aterra com uma onda
+function fetchedFly(el, lib, cols) {
+  const rot = el.querySelector('.pc-rot') || el, b = rot.getBoundingClientRect(), a = lib?.getBoundingClientRect()
+  if (!b.width || !a?.width) return
+  const g = document.createElement('div'), src = el.querySelector('.pc-f img')?.src, host = fxHost()
+  g.className = 'zghost fly fetchfly'; Object.assign(g.style, { left: `${a.left}px`, top: `${a.top}px`, width: `${b.width}px`, height: `${b.height}px` })
+  g.style.setProperty('--c1', LCOL[cols[0]]); g.style.setProperty('--c2', LCOL[cols[1] || cols[0]])
+  if (src) g.style.backgroundImage = `url("${src}")`
+  host.append(g); el.style.visibility = 'hidden'
+  const mx = (b.left - a.left) / 2, my = Math.min(0, b.top - a.top) - 80
+  g.animate([{ transform: 'scale(.6) rotateY(180deg)' }, { transform: `translate(${mx}px, ${my}px) scale(1.15) rotateY(90deg)`, offset: 0.5 }, { transform: `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(1) rotateY(0deg)` }],
+    { duration: 620, easing: 'cubic-bezier(.4, 0, .3, 1)', fill: 'forwards' }).onfinish = () => {
+    g.remove(); el.style.visibility = ''
+    const w = document.createElement('i'); w.className = 'zring'; Object.assign(w.style, { left: `${b.left + b.width / 2}px`, top: `${b.top + b.height / 2}px` }); w.style.setProperty('--c1', LCOL[cols[0]])
+    host.append(w); setTimeout(() => w.remove(), 800)
+  }
+  setTimeout(() => { if (g.isConnected) { g.remove(); el.style.visibility = '' } }, 1400)
+}
+// mana: um terreno (ou outra fonte) que vira para dar mana solta uma mini-esfera da cor dela, que voa para o feitiço na pilha
+function manaFly(el, cols, k, delay) {
+  const r = (el.querySelector('.pc-rot') || el).getBoundingClientRect()
+  if (!r.width) return
+  const t = document.querySelector('.stackfx .stk.top') || document.querySelector(`.bside.p-${k} .orb:not(.orb-proxy)`), q = t?.getBoundingClientRect()
+  if (!q?.width) return
+  const host = fxHost(), x0 = r.left + r.width / 2, y0 = r.top + r.height / 2, x1 = q.left + q.width / 2, y1 = q.top + q.height / 2
+  cols.slice(0, 2).forEach((c, i) => {
+    const m = document.createElement('i'); m.className = 'zmana'; m.style.setProperty('--c', LCOL[c]); Object.assign(m.style, { left: `${x0}px`, top: `${y0}px` })
+    host.append(m)
+    m.animate([{ transform: 'translate(-50%, -50%) scale(.2)', opacity: 0 }, { transform: 'translate(-50%, calc(-50% - 22px)) scale(1.1)', opacity: 1, offset: 0.3 },
+      { transform: `translate(calc(-50% + ${(x1 - x0) * 0.55 + (i ? 14 : -14)}px), calc(-50% + ${(y1 - y0) * 0.55 - 50}px)) scale(1)`, opacity: 1, offset: 0.65 },
+      { transform: `translate(calc(-50% + ${x1 - x0}px), calc(-50% + ${y1 - y0}px)) scale(.35)`, opacity: 0.2 }],
+      { duration: 820, delay: delay + i * 90, easing: 'cubic-bezier(.4, 0, .4, 1)', fill: 'both' }).onfinish = () => m.remove()
+  })
+}
 function landFx(el, kind, cols) {
   const r = (el.querySelector('.pc-rot') || el).getBoundingClientRect()
   if (!r.width) return
@@ -1224,6 +1316,30 @@ function landFx(el, kind, cols) {
   g.style.setProperty('--c1', LCOL[cols[0]]); g.style.setProperty('--c2', LCOL[cols[1] || cols[0]])
   if (kind === 'shock') g.innerHTML = '<svg viewBox="0 0 100 140" preserveAspectRatio="none"><path d="M-4 30 L18 44 L8 58 L34 70 L22 86 L52 96" /><path class="b" d="M104 104 L80 92 L92 78 L66 66 L80 50 L50 40" /></svg>'
   fxHost().append(g); setTimeout(() => g.remove(), 1100)
+}
+// exilada: a carta desintegra-se em pedacinhos de luz que se soltam de cima para baixo e sobem a desvanecer
+// (antes era a carta inteira a crescer e a desfocar, e a cópia esticava a imagem)
+function exileDissolve(el) {
+  const rot = el.querySelector('.pc-rot') || el, r = rot.getBoundingClientRect()
+  if (!r.width) return
+  const tapped = el.classList.contains('tapped'), src = el.querySelector('.pc-f img')?.src, host = fxHost()
+  const W = tapped ? r.height : r.width, H = W * 680 / 488  // as proporções da carta, sempre
+  const box = document.createElement('div')
+  box.className = 'zdust-card'
+  Object.assign(box.style, { left: `${r.left + r.width / 2 - W / 2}px`, top: `${r.top + r.height / 2 - H / 2}px`, width: `${W}px`, height: `${H}px`, rotate: tapped ? '90deg' : '0deg' })
+  const C = 6, Rr = 8, tw = W / C, th = H / Rr
+  for (let y = 0; y < Rr; y++) for (let x = 0; x < C; x++) {
+    const t = document.createElement('i')
+    Object.assign(t.style, { left: `${x * tw}px`, top: `${y * th}px`, width: `${tw + 0.5}px`, height: `${th + 0.5}px`, backgroundSize: `${W}px ${H}px`, backgroundPosition: `${-x * tw}px ${-y * th}px` })
+    if (src) t.style.backgroundImage = `url("${src}")`
+    box.append(t)
+    const dx = (Math.random() - 0.5) * 50 + (x - C / 2) * 6, dy = -(50 + Math.random() * 70), rz = (Math.random() - 0.5) * 160
+    t.animate([{ transform: 'none', opacity: 1, filter: 'none' }, { transform: 'none', opacity: 1, filter: 'brightness(2.2) saturate(.3)', offset: 0.25 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${rz}deg) scale(.25)`, opacity: 0, filter: 'brightness(3) saturate(0) blur(1px)' }],
+      { duration: 900 + Math.random() * 500, delay: y * 55 + Math.random() * 120, easing: 'cubic-bezier(.3, 0, .6, 1)', fill: 'both' })
+  }
+  host.append(box); el.style.visibility = 'hidden'
+  setTimeout(() => box.remove(), 2100)
 }
 function ghostOut(el, to) {  // ver leaveGhost
   leaveGhost((el.querySelector('.pc-rot') || el).getBoundingClientRect(), el.querySelector('.pc-f img')?.src, el.classList.contains('tapped'), to)
@@ -1242,7 +1358,7 @@ function sparkle(el) {
   }
 }
 export function ZoneFx({ s, data, quiet }) {
-  const prev = useRef(null), seen = useRef(new Set()), keys = useRef(null), fetching = useRef({})  // fetching: lado -> {cols, t} (uma fetch à procura)
+  const prev = useRef(null), seen = useRef(new Set()), keys = useRef(null), fetching = useRef({}), taps = useRef(new Map())  // fetching: lado -> {cols, t} (uma fetch à procura)
   useLayoutEffect(() => {
     if (!s?.sides) return
     const snap = {}
@@ -1259,6 +1375,8 @@ export function ZoneFx({ s, data, quiet }) {
     for (const k of first.keys()) if (!live.some(p => p.key === k)) first.delete(k)
     keys.current = first
     const holder = live.find(p => tnow - first.get(p.key) < 2000 && HOLDS.test(lookup(data, p.name)?.o || ''))
+    const tapsPrev = taps.current
+    taps.current = new Map(live.map(p => [p.key, !!p.tapped]))
     const entered = boot ? [] : s.sides.flatMap(k => (s[k]?.perms || []).filter(p => !p.dying && first.get(p.key) === tnow).map(p => [k, p]))
     try {
       const deadTo = {}
@@ -1270,28 +1388,39 @@ export function ZoneFx({ s, data, quiet }) {
         if (calm) continue
         const el = document.querySelector(`.bside.p-${k} .pc[data-z="k:${CSS.escape(String(perm.key))}"]`)
         const lc = lookup(data, perm.name)
-        if (el && to === 'graveyard' && FETCH.test(lc?.o || '')) {  // fetch: as cores dela vão para a biblioteca (à procura)
-          const cols = landCols(lc), lib = zoneEl(k, 'library')
-          ribbon((el.querySelector('.pc-rot') || el).getBoundingClientRect(), lib?.getBoundingClientRect(), cols)
+        if (el && to === 'graveyard' && FETCH.test(lc?.o || '')) {  // fetch: o vórtice nas cores que procura e o feixe para a biblioteca
+          const cols = landCols(lc)
+          fetchFx(el, cols, zoneEl(k, 'library'))
           fetching.current[k] = { cols, t: Date.now() }
         }
-        if (el && to === 'graveyard') shatter(el, isCreature(data, perm))
+        else if (el && to === 'graveyard') shatter(el, isCreature(data, perm))
         else if (el && to === 'exile' && holder && document.querySelector(`[data-z="k:${CSS.escape(String(holder.key))}"]`)) ghostInto(el, document.querySelector(`[data-z="k:${CSS.escape(String(holder.key))}"]`))  // também uma aura presa (.pc-attc)
-        else if (el && to === 'exile') { ghostOut(el, 'exile'); sparkle(el) }
+        else if (el && to === 'exile') { sparkle(el); exileDissolve(el) }
         else if (el && (to === 'hand' || to === 'library')) ghostOut(el, to)
       }
       if (seen.current.size > 600) seen.current = new Set([...seen.current].slice(-300))
       if (calm) return
+      let mn = 0
+      for (const k of s.sides) for (const p of s[k]?.perms || []) {  // virou para dar mana: a mini-esfera voa para o feitiço
+        const was = tapsPrev.get(p.key)  // o estado do desenho anterior
+        if (was === false && p.tapped && !p.dying && !p.attacking) {
+          const c = lookup(data, p.name)
+          if (c && (/Land/.test(c.t) || /\{T\}[^:]*: Add /.test(c.o || ''))) {
+            const el = document.querySelector(`.bside.p-${k} .pc[data-z="k:${CSS.escape(String(p.key))}"]`)
+            const cs = (c.o || '').match(/Add \{([WUBRGC])\}/g)?.map(x => x[5]) || landCols(c)
+            if (el && mn < 8) manaFly(el, [...new Set(cs)], k, 60 * mn++)
+          }
+        }
+      }
       for (const [k, p] of entered) {  // terrenos que acabaram de entrar
         const c = lookup(data, p.name), el = document.querySelector(`.bside.p-${k} .pc[data-z="k:${CSS.escape(String(p.key))}"]`)
         if (!el || !c || !/Land/.test(c.t)) continue
         const fq = fetching.current[k]
         if (fq && Date.now() - fq.t < 12000) {  // o terreno que a fetch foi buscar: as fitas saem da biblioteca até ele
           delete fetching.current[k]
-          ribbon(zoneEl(k, 'library')?.getBoundingClientRect(), (el.querySelector('.pc-rot') || el).getBoundingClientRect(), fq.cols, 150)
-          el.classList.remove('fetched'); void el.offsetWidth; el.classList.add('fetched'); setTimeout(() => el.classList.remove('fetched'), 1400)
+          fetchedFly(el, zoneEl(k, 'library'), fq.cols)
         }
-        if (!p.tapped && SHOCK.test(c.o || '')) { landFx(el, 'shock', landCols(c)); play('atk_thunder') }
+        if (!p.tapped && SHOCK.test(c.o || '')) { shockFx(el, landCols(c), document.querySelector(`.bside.p-${k} .orb:not(.orb-proxy)`)); setTimeout(() => play('atk_thunder'), 380) }
         else if (!p.tapped && FAST.test(c.o || '')) landFx(el, 'fast', landCols(c))
       }
       for (const k of s.sides) {
