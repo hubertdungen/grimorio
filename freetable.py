@@ -112,7 +112,7 @@ def create(con, owner, name, seats, solo=False):
 
 def _clean(c):
     """Estado de mesa a zeros (a carta entrou numa zona nova)."""
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "r", "at", "ph"):
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "at", "ph"):
         c.pop(k, None)  # (cm = comandante e cc = vezes lançado da zona de comando ficam)
 
 
@@ -177,7 +177,7 @@ def _card(t, cid, me):
     out = {"id": c["id"], "o": c["o"]}
     if _sees(t, c, me):
         out["n"] = c["n"]
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "r", "tok", "at", "ph", "cm", "cc"):
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "tok", "at", "ph", "cm", "cc"):
         if c.get(k) not in (None, False, {}):
             out[k] = c[k]
     return out
@@ -352,7 +352,7 @@ def apply(t, me, d):
         if c0 == "tap":
             c["t"] = not c.get("t") if d.get("on") is None else bool(d["on"])
             if not c["t"]:
-                c.pop("atk", None)
+                c.pop("atk", None); c.pop("atc", None)
         elif c0 == "flip":
             c["f"] = not c.get("f")
             _log(t, me, "flip", name=None if c.get("d") else c["n"])
@@ -380,10 +380,16 @@ def apply(t, me, d):
         elif c0 == "attack":
             tgt = d.get("seat")
             if tgt is None:
-                c.pop("atk", None)
+                c.pop("atk", None); c.pop("atc", None)
             else:
                 c["atk"], c["t"] = _num(tgt, 0, len(t["seats"]) - 1), True
-                _log(t, me, "attack", name=None if c.get("d") else c["n"], p=c["atk"])
+                # «card»: um planeswalker ou uma batalha desse jogador (no campo dele) em vez do próprio jogador
+                pw = t["cards"].get(str(d.get("card"))) if d.get("card") is not None else None
+                if pw and pw["z"] == "battlefield" and pw["s"] == c["atk"] and pw["id"] != c["id"]:
+                    c["atc"] = pw["id"]
+                else:
+                    c.pop("atc", None)
+                _log(t, me, "attack", name=None if c.get("d") else c["n"], p=c["atk"], to=pw["n"] if c.get("atc") and not pw.get("d") else None)
         else:
             k = str(d.get("k") or "+1/+1").strip()[:16]
             ks = dict(c.get("k") or {})
@@ -394,7 +400,7 @@ def apply(t, me, d):
     elif c0 in ("untapall", "newturn"):  # newturn: desvirar tudo e comprar uma (o começo do teu turno; a solo conta o turno)
         for cid in t["zones"][me]["battlefield"]:
             c = t["cards"][str(cid)]
-            c.pop("t", None); c.pop("atk", None)
+            c.pop("t", None); c.pop("atk", None); c.pop("atc", None)
         if c0 == "untapall":
             _log(t, me, "untapall")
         else:

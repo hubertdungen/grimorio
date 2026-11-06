@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { img } from './data.js'
-import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn } from './Board.jsx'
+import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, CombatLinks } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
@@ -48,7 +48,7 @@ function line(e, who) {
     }
     case 'flip': return tx('{P} transforma {c}', { P, c: c || tx('uma carta') })
     case 'face': return e.down ? tx('{P} vira uma carta para baixo', { P }) : tx('{P} vira {c} para cima', { P, c })
-    case 'attack': return tx('{P} ataca {T} com {c}', { P, T, c: c || tx('uma carta virada para baixo') })
+    case 'attack': return tx('{P} ataca {T} com {c}', { P, T: e.to ? short(e.to) : T, c: c || tx('uma carta virada para baixo') })
     case 'untapall': return tx('{P} desvira tudo', { P })
     case 'token': return tx('{P} cria a ficha {c}', { P, c })
     case 'life': return tx('{T}: vida {v} ({d})', { T, v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
@@ -250,7 +250,11 @@ export default function FreeTable({ id, data, onClose }) {
   const kindOf = c => (!c?.n ? 'front' : isLand(data, { name: c.n }) ? 'lands' : isCreature(data, { name: c.n, token: c.tok }) || c.tok || /\b(Planeswalker|Battle)\b/.test(lookup(data, c.n)?.t || '') ? 'front' : 'others')
   const spot = (c, x, y) => { const f = myField(); if (!f) return { x: 0.5, y: 0.5 }; const r = f.getBoundingClientRect(); return spotOn(f, x ?? r.left + r.width / 2, y ?? r.top + r.height * 0.45, kindOf(c), P.place !== 'free', c?.id) }
   const mv = (cid, to, extra) => send({ c: 'move', id: cid, to, ...extra })
-  const toField = (cid, extra) => { const e = byId.get(cid), w = spot(e?.c); return mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me, ...extra }) }
+  const toField = (cid, extra) => {
+    const e = byId.get(cid), w = spot(e?.c), cd = e?.c?.n && !extra?.down && lookup(data, e.c.n), fromField = e?.z === 'battlefield'
+    const k = cd && /^\d+$/.test(cd.pt || '') && (/Planeswalker/.test(cd.t) ? 'loyalty' : /\bBattle\b/.test(cd.t) ? 'defense' : null)
+    return mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me, ...extra }).then(r => (k && !fromField && r ? send({ c: 'counter', id: cid, k, d: +cd.pt }) : r))
+  }
   const tap = cid => { play('tick', { amount: 1 }); send({ c: 'tap', id: cid }) }
   const turnOver = cid => { const e = byId.get(cid), cd = e && lookup(data, e.c.n); return send(flipKind(cd) ? { c: 'flip', id: cid } : { c: 'face', id: cid }) }  // F: transformar (duas faces / carta flip) ou virar para baixo
   const attach = (cid, to) => { play('tick', { amount: 1 }); return send({ c: 'attach', id: cid, to }) }
@@ -335,7 +339,7 @@ export default function FreeTable({ id, data, onClose }) {
   const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: v.cd || {}, poison: v.poison, energy: v.energy || 0, emblems: [], out: false, perms: [],
     monarch: v.mk?.includes('monarch'), initiative: v.mk?.includes('initiative'), blessing: v.mk?.includes('blessing') })
   const handOf = v => (handOrder ? [...v.hand].sort((a, b) => { const i = handOrder.indexOf(String(a.id)), k = handOrder.indexOf(String(b.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : v.hand)
-  const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph })
+  const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, atkKey: c.atc != null ? String(c.atc) : undefined, atkName: c.atc != null ? byId.get(c.atc)?.c?.n : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph })
   const onField = new Set(seats.flatMap(v => v.battlefield.map(c => c.id)))
   const attOf = new Map()  // carta -> as que estão presas a ela
   for (const v of seats) for (const c of v.battlefield) if (c.at != null && onField.has(c.at)) attOf.set(c.at, [...(attOf.get(c.at) || []), permOf(c)])
@@ -354,7 +358,7 @@ export default function FreeTable({ id, data, onClose }) {
           const left = top ? 1 - (c.x ?? 0.5) : c.x ?? 0.5, tp = top ? 1 - (c.y ?? 0.5) : c.y ?? 0.5
           return (
             <div key={c.id} className={`bfree-c ${kindOf(c)} ${pickAt != null && pickAt !== c.id ? 'ml-pick' : ''}`} style={{ left: `clamp(calc(var(--w) * .5), ${left * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${tp * 100}%, calc(100% - var(--w) * .7))` }}>
-              <Perm p={permOf(c)} data={data} hl={0} pop={pops.get(String(c.id)) || null} att={attOf.get(c.id)} n={0} quiet={false} tgt={c.atk != null ? [keyOf(c.atk), short(who(c.atk))] : null} />
+              <Perm p={permOf(c)} data={data} hl={0} pop={pops.get(String(c.id)) || null} att={attOf.get(c.id)} n={0} quiet={false} tgt={c.atk != null ? [keyOf(c.atk), short(c.atc != null ? byId.get(c.atc)?.c?.n || who(c.atk) : who(c.atk))] : null} />
             </div>)
         })}
         {!v.battlefield.length && isMe && <span className="ml-empty">{tx('o teu lado da mesa: arrasta para aqui as cartas da mão')}</span>}
@@ -443,7 +447,8 @@ export default function FreeTable({ id, data, onClose }) {
     if (z === 'battlefield') {
       const opp = others.filter(i => !seats[i].out)
       return [...head, [c.t ? tx('↺ Desvirar') : tx('↻ Virar (tap)'), () => tap(cid)],
-        ...opp.map(i => ['⚔ ' + tx('Atacar {p}', { p: who(i) }), () => send({ c: 'attack', id: cid, seat: i })]), ...(c.atk != null ? [[tx('Deixar de atacar'), () => send({ c: 'attack', id: cid, seat: null })]] : []),
+        ...opp.flatMap(i => [['⚔ ' + tx('Atacar {p}', { p: who(i) }), () => send({ c: 'attack', id: cid, seat: i })],
+          ...seats[i].battlefield.filter(x => x.n && /\b(Planeswalker|Battle)\b/.test(lookup(data, x.n)?.t || '')).map(x => ['⚔ ' + tx('Atacar {p}', { p: short(x.n) }), () => send({ c: 'attack', id: cid, seat: i, card: x.id })])]), ...(c.atk != null ? [[tx('Deixar de atacar'), () => send({ c: 'attack', id: cid, seat: null })]] : []),
         [`+1/+1 ${c.k?.['+1/+1'] || 0}`, null, [['−', ctr('+1/+1', -1)], ['＋', ctr('+1/+1', 1)]]], [`${tx('Lealdade')} ${c.k?.loyalty || 0}`, null, [['−', ctr('loyalty', -1)], ['＋', ctr('loyalty', 1)]]],
         ['◆ ' + tx('Outros marcadores…'), () => setTimeout(() => setMenu({ ctr: cid, x: menu.x, y: menu.y }))],
         ...(flipKind(cd) === 'df' ? [['⟲ ' + tx('Transformar (outra face)'), () => send({ c: 'flip', id: cid })]] : flipKind(cd) === 'flip' ? [['⟲ ' + tx('Virar a carta flip (180°)'), () => send({ c: 'flip', id: cid })]] : []),
@@ -512,6 +517,8 @@ export default function FreeTable({ id, data, onClose }) {
       })}</div>, onTop())}
         <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
           <div className={`fp-table board table ${P.cardPx ? 'px' : ''} ${seats.some(v => v.battlefield.some(c => c.atk != null)) ? 'combat-on' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onContextMenu={onCtx} onMouseMove={tilt} onPointerDown={down}>
+            {/* a linha do atacante até ao planeswalker/batalha que ataca */}
+            <CombatLinks s={{ sides: seats.map((_, i) => keyOf(i)), ...Object.fromEntries(seats.map((v, i) => [keyOf(i), { perms: v.battlefield.map(permOf) }])) }} />
             <div className="ml-opps" style={{ '--np': others.length }}>{others.map(i => side(i, true, others.length > 1))}</div>
             <div className="fp-mid">
               <span className="ml-badge" title={tx('Sem bots e sem regras automáticas: cada um mexe nas suas cartas.')}>🃏 {tx('Mesa livre · sem regras')}</span>
