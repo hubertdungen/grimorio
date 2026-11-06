@@ -1457,11 +1457,12 @@ def side_pick(st, m, who, deck=None):
     return None
 
 
-def open_table(con, owner, st, m, name=""):
-    """Torneio de mesa livre: a mesa desta partida (ou do jogo seguinte de uma série), com os decks dela."""
+def open_table(con, owner, st, m, name="", prev=None):
+    """Torneio de mesa livre: a mesa desta partida (ou do jogo seguinte de uma série), com os decks dela. No jogo 2+ de
+    uma série cada um escolhe primeiro o sideboard na mesa (freetable: as listas do jogo anterior vêm de `prev`)."""
     seats = [{"by": st["players"][i].get("by") or "host", "name": (st["players"][i].get("fr") or owner)[:40],
               "deck": {**st["decks"][i], "name": st["players"][i]["name"], "format": st["players"][i].get("format")}} for i in m["p"]]
-    m["table"] = freetable.create(con, owner, f"{name} · {m['id']}"[:80], seats)
+    m["table"] = freetable.create(con, owner, f"{name} · {m['id']}"[:80], seats, side=len(m["g"]) + 1 if st["bo"] > 1 and m["g"] else 0, prev=prev)
     m["seats"] = list(m["p"])  # (os «prontos» ficam: quem estava pronto vai direto à mesa)
 
 
@@ -1490,10 +1491,10 @@ def table_game(con, tid, st, m, w, owner, reason="Mesa livre"):
     gid = con.execute("INSERT INTO tournament_games (tid, ts, game) VALUES (?,?,?)", (tid, time.time(), zlib.compress(
         json.dumps({**g, "match": m["id"], "seats": m["seats"]}, ensure_ascii=False).encode(), 6))).lastrowid
     record(st, m, g, gid)  # sem ratings: jogos entre amigos à mesa livre não medem os decks
-    m.pop("table", None)
+    prev = m.pop("table", None)
     m.pop("since", None)
-    if m["st"] != "done" and how(st, m) == "mesa":  # série (melhor de 3…): a mesa do jogo seguinte abre logo
-        open_table(con, owner, st, m)
+    if m["st"] != "done" and how(st, m) == "mesa":  # série (melhor de 3…): a mesa do jogo seguinte abre logo (sideboard primeiro)
+        open_table(con, owner, st, m, prev=prev)
     else:
         m.pop("seats", None)
 
@@ -2077,6 +2078,13 @@ def selfcheck():
     finally:
         playnet.start = real
     assert got["mine"]["main"]["Negate"] == 2 and st["decks"][0]["main"]["Opt"] == 4 and "hsb" not in public(("t", 0, "n", "elim", "modern", "running", None, 2, json.dumps(st)))
+    real, got = freetable.create, {}  # mesa livre: o jogo 2+ abre com o sideboard primeiro e as listas da mesa anterior
+    freetable.create = lambda con, owner, name, seats, **kw: got.update(kw, seats=seats) or "t2"
+    try:
+        open_table(None, "o", st, m, "n", prev="t1")
+    finally:
+        freetable.create = real
+    assert got["side"] == 2 and got["prev"] == "t1" and got["seats"][0]["deck"]["side"] == {"Negate": 2} and m["table"] == "t2"
     DB, DATA = keep
     print("selfcheck ok")
 

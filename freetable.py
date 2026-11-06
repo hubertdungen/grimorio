@@ -11,6 +11,7 @@ costas de cartas), cartas viradas para baixo só as vê quem as controla, as rev
 aleatórios e mudam quando a carta entra na biblioteca (não dá para seguir uma carta baralhada).
 """
 import json, random, re, secrets, threading, time
+from collections import Counter
 
 import sim
 
@@ -27,6 +28,7 @@ MATS = ("pontos", "riscas", "xadrez", "grelha", "linho", "escamas", "arcano", "o
 ORB_T = ("auto", "verde", "oceano", "brasa", "vazio", "ouro", "gelo", "prisma", "tempestade", "sangue")
 ORB_A = ("auto", "calmo", "turbilhao", "pulsar", "faiscas")
 LIVE_K = ("orb", "die", "card", "end")  # o que se mostra ao vivo aos outros enquanto alguém lhe mexe
+SIDE_T = 180  # segundos para o sideboard entre jogos de uma série; depois joga cada um com a lista que tem
 
 
 def _frac(x):
@@ -75,39 +77,103 @@ def _deal(t, i):
     t["seats"][i]["peek"] = 0
 
 
-def create(con, owner, name, seats, solo=False, first=0):  # first: quem começa (a moeda do lobby)
-    """seats = [{by, name, deck: {name, format, main, commanders}}] -> id da mesa (já com 7 cartas na mão de cada um).
-    solo: um só lugar, para testar um deck (goldfish), com a vida de um adversário imaginário."""
+def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None):  # first: quem começa (a moeda do lobby)
+    """seats = [{by, name, deck: {name, format, main, side, commanders}}] -> id da mesa (já com 7 cartas na mão de cada um).
+    solo: um só lugar, para testar um deck (goldfish), com a vida de um adversário imaginário.
+    side = o número do jogo (2+) de uma série (tournament.open_table; 0 = sem sideboard): antes de dar as cartas cada lugar com sideboard escolhe a lista
+    (comando «side»); prev = a mesa do jogo anterior, de onde vêm as listas escolhidas (e que fica a apontar para esta)."""
     init(con)
     if not (1 if solo else 2) <= len(seats) <= (1 if solo else 4):
         raise ValueError("A mesa livre leva entre 2 e 4 jogadores.")
+    with COND:
+        pt = T.get(prev) if prev else None
+    if prev and pt is None:
+        r = con.execute("SELECT state FROM freetables WHERE id=?", (prev,)).fetchone()
+        pt = r and json.loads(r[0])
     t = {"id": secrets.token_hex(6), "owner": owner, "name": str(name or "Mesa livre")[:80], "seq": 1, "ts": time.time(),
          "status": "playing", "turn": 1, "active": first if 0 <= first < len(seats) else 0, "seats": [], "cards": {}, "zones": [], "log": [], "roll": None,
-         **({"solo": True, "gf": 20} if solo else {})}
+         "lists": {}, **({"solo": True, "gf": 20} if solo else {})}
     for i, s in enumerate(seats):
         d = s["deck"] or {}
         cmdrs = [str(c) for c in (d.get("commanders") or []) if c][:2]
         cmd = d.get("format") in sim.GAME_TYPE and bool(cmdrs)
-        z = {k: [] for k in ZONES}
         main = dict(d.get("main") or {})
         for c in cmdrs:  # o comandante pode vir também no main: fica só na zona de comando
             if main.get(c):
                 main[c] -= 1
-        names = [n for n, k in main.items() for _ in range(max(0, min(int(k or 0), 250)))][:300]
-        t["zones"].append(z)
-        for n, zone in [(n, "library") for n in names] + [(c, "command") for c in cmdrs]:
-            cid = _new_id(t)
-            t["cards"][str(cid)] = {"id": cid, "n": str(n)[:150], "o": i, "s": i, "z": zone, **({"cm": True} if zone == "command" else {})}
-            z[zone].append(cid)
+        lst = {"main": _clip(main), "cm": cmdrs}
+        sd = _clip(d.get("side") or {}) if not cmdrs else {}
+        if sd:  # a lista da série: a escolhida no jogo anterior (se ainda for a mesma pilha de cartas) ou a guardada
+            base = {"main": lst["main"], "side": sd}
+            was = ((pt or {}).get("lists") or {}).get(str(i))
+            lst.update(was if was and _pool(was) == _pool(base) else base, cm=cmdrs)
+            if side and not solo:
+                t.setdefault("sb", {})[str(i)] = {"ok": False, "base": base}
+        t["lists"][str(i)] = lst
+        t["zones"].append({k: [] for k in ZONES})
         t["seats"].append({"by": s["by"], "name": str(s.get("name") or "?")[:40], "deck": str(d.get("name") or "")[:80],
                            "format": d.get("format"), "life": 40 if cmd else 20, "life0": 40 if cmd else 20, "poison": 0, "energy": 0, "cd": {}, "mk": [],
                            "out": False, "peek": 0, "arts": sim.art_map(d)})  # a arte escolhida no deck
-        _deal(t, i)
-    _log(t, None, "start")
+    if t.get("sb"):  # sideboard primeiro: as cartas só se dão quando todos estão prontos (ou o tempo acaba)
+        t.update(status="side", sideTo=time.time() + SIDE_T, game=int(side))
+        _log(t, None, "sidestart", n=SIDE_T)
+    else:
+        _begin(t)
     with COND:
         T[t["id"]] = t
     _save(con, t)
+    if pt:  # quem ainda está na mesa do jogo anterior vê o «jogo seguinte» e passa para esta
+        with COND:
+            pt["next"] = t["id"]
+            pt["seq"] += 1
+            COND.notify_all()
+        _save(con, pt)
     return t["id"]
+
+
+def _clip(p):
+    """{nome: cópias} de uma lista que vem de fora: nomes curtos, cópias inteiras entre 1 e 250."""
+    out = {}
+    for n, q in (p or {}).items():
+        try:
+            q = int(q or 0)
+        except (TypeError, ValueError):
+            continue
+        if q > 0:
+            out[str(n)[:150]] = min(q, 250)
+    return out
+
+
+def _pool(d):
+    return Counter(d.get("main") or {}) + Counter(d.get("side") or {})
+
+
+def _begin(t):
+    """As cartas de cada lugar (a lista da série) entram na biblioteca, baralha-se e cada um compra 7."""
+    for i, lst in sorted(t["lists"].items(), key=lambda x: int(x[0])):
+        i = int(i)
+        z = t["zones"][i]
+        names = [n for n, k in lst["main"].items() for _ in range(k)][:300]
+        for n, zone in [(n, "library") for n in names] + [(c, "command") for c in lst.get("cm") or []]:
+            cid = _new_id(t)
+            t["cards"][str(cid)] = {"id": cid, "n": str(n)[:150], "o": i, "s": i, "z": zone, **({"cm": True} if zone == "command" else {})}
+            z[zone].append(cid)
+        _deal(t, i)
+    t["status"] = "playing"
+    t.pop("sb", None)
+    t.pop("sideTo", None)
+    _log(t, None, "start")
+
+
+def _tick(t):
+    """Sideboard com o tempo acabado: joga cada um com a lista que tem. True se a mesa mudou (é preciso gravá-la)."""
+    if t["status"] != "side" or time.time() < t["sideTo"]:
+        return False
+    _log(t, None, "sidetime")
+    _begin(t)
+    t["seq"] += 1
+    COND.notify_all()
+    return True
 
 
 def _clean(c):
@@ -199,7 +265,11 @@ def view(t, me):
     return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
             "me": me, "host": t["seats"][me]["by"] == "host", "mine": [i for i, s in enumerate(t["seats"]) if s["by"] == t["seats"][me]["by"]],
             "res": t.get("res"), "result": t.get("result"), "solo": bool(t.get("solo")), "gf": t.get("gf"), "day": t.get("day"), "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
-            "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE],
+            "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE], "next": t.get("next"),
+            # a escolher o sideboard: de todos só se sabe quem já está pronto; a lista (e a guardada) só a dos meus lugares
+            **({"side": {"g": t.get("game"), "to": round(max(0.0, t["sideTo"] - time.time())), "ok": {i: x["ok"] for i, x in t["sb"].items()},
+                         "mine": {i: {"deck": {k: t["lists"][i][k] for k in ("main", "side")}, "base": x["base"]}
+                                  for i, x in t["sb"].items() if t["seats"][int(i)]["by"] == t["seats"][me]["by"]}}} if t["status"] == "side" else {}),
             # o que os outros estão a agarrar agora (esfera, dado, carta): posição em frações da mesa, na vista de quem mexe
             "live": {str(i): {k: v for k, v in x.items() if k != "ts"} for i, x in (t.get("live") or {}).items() if i != me and x["ts"] > time.time() - 2}}
 
@@ -270,10 +340,12 @@ def _draw(t, me, n):
 
 def apply(t, me, d):
     """Um comando do jogador `me`. Erros de uso -> ValueError (a mesa fica como estava)."""
-    if t["status"] != "playing":
-        raise ValueError("Esta mesa já terminou.")
     c0 = str(d.get("c") or "")
     seat = t["seats"][me]
+    if t["status"] == "side" and c0 in ("side", "chat", "close"):  # a escolher o sideboard: só isto (ainda não há cartas)
+        pass
+    elif t["status"] != "playing" or c0 == "side":
+        raise ValueError("O sideboard já fechou." if c0 == "side" else "Esta mesa já terminou." if t["status"] == "ended" else "Ainda se está a escolher o sideboard.")
     card = None
     if "id" in d:
         card = t["cards"].get(str(d.get("id")))
@@ -596,6 +668,24 @@ def apply(t, me, d):
         t["pn"] = t.get("pn", 0) + 1
         t["pen"] = [x for x in t.get("pen", []) if x["ts"] > now - PEN_LIFE][-300:] + [
             {"pn": t["pn"], "s": me, "sid": _num(d.get("sid"), 0, 2 ** 31), "pts": pts, "col": d.get("col") if d.get("col") in PEN else PEN[me % len(PEN)], "ts": now}]
+    elif c0 == "side":  # a lista deste jogo (sideboard): a mesma pilha de cartas, só para lugares meus; vale para o resto da série
+        i = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
+        sb = t["sb"].get(str(i))
+        if t["seats"][i]["by"] != seat["by"]:
+            raise PermissionError("Esse deck não é teu.")
+        if not sb:
+            raise ValueError("Esse deck não tem sideboard.")
+        deck = d.get("deck")
+        ok = isinstance(deck, dict) and all(isinstance(deck.get(k) or {}, dict) and all(type(q) is int and 0 < q <= 250 for q in (deck.get(k) or {}).values())
+                                            for k in ("main", "side"))
+        new = {k: {str(n): q for n, q in (deck.get(k) or {}).items()} for k in ("main", "side")} if ok else None
+        if not ok or _pool(new) != _pool(sb["base"]) or sum(new["main"].values()) < min(60, sum(sb["base"]["main"].values())):
+            raise ValueError("Essa lista não é o teu deck com o sideboard.")
+        t["lists"][str(i)] = {**new, "cm": []}
+        sb["ok"] = True
+        _log(t, i, "side")  # (sem cartas: o que cada um trocou fica com ele)
+        if all(x["ok"] for x in t["sb"].values()):
+            _begin(t)
     elif c0 == "chat":
         txt = re.sub(r"\s+", " ", str(d.get("text") or "")).strip()[:300]
         if not txt:
@@ -623,8 +713,13 @@ def route(db, method, path, owner, body, who, since=0, seat=None):
     if method == "GET":
         end = time.time() + 25
         with COND:
-            while t["seq"] <= since and time.time() < end:
-                COND.wait(timeout=end - time.time())
+            while True:
+                if _tick(t):  # o tempo do sideboard acabou: as cartas dão-se agora
+                    with db() as con:
+                        _save(con, t)
+                if t["seq"] > since or time.time() >= end:
+                    break
+                COND.wait(timeout=max(0.05, min(end, t.get("sideTo") or end) - time.time()))
             return 200, view(t, me)
     if not isinstance(body, dict):
         return 400, {"erro": "Comando inválido."}
@@ -642,6 +737,7 @@ def route(db, method, path, owner, body, who, since=0, seat=None):
             COND.notify_all()
         return 200, {"ok": True}
     with COND:
+        _tick(t)
         try:
             apply(t, me, body)
         except PermissionError as e:
@@ -861,6 +957,47 @@ def selfcheck():
     assert all("n" not in c for c in lget("guest:rui")["seats"][0]["hand"]) and "look" not in lget("guest:ana")["seats"][1]
     lpost("guest:ana", {"c": "lookhand", "seat": 1}); lpost("guest:ana", {"c": "pass"})
     assert all("look" not in s2 for s2 in lt["seats"])  # passar a vez fecha os olhares
+    # sideboard entre jogos de uma série: as cartas só se dão quando todos estão prontos; a lista de cada um só a vê ele
+    sdeck = lambda n: {**deck(n), "side": {f"{n} Side {i}": 2 for i in range(3)}}  # noqa: E731
+    seats3 = [{"by": "host", "name": "H", "deck": sdeck("A")}, {"by": "guest:rui", "name": "Rui", "deck": sdeck("B")},
+              {"by": "guest:ana", "name": "Ana", "deck": deck("C")}]
+    with db() as con:
+        g1 = create(con, "hubert", "S1", seats3)  # jogo 1: sem sideboard
+        g2 = create(con, "hubert", "S2", seats3, side=2, prev=g1)
+    s1, s2 = T[g1], T[g2]
+    assert s1["status"] == "playing" and s1["next"] == g2 and s2["status"] == "side" and not s2["cards"] and set(s2["sb"]) == {"0", "1"}
+    sget = lambda who, tid=g2: route(db, "GET", f"/api/freetables/{tid}", "hubert", None, who, 0)[1]  # noqa: E731
+    spost = lambda who, b: route(db, "POST", f"/api/freetables/{g2}", "hubert", b, who, 0)  # noqa: E731
+    assert sget("guest:rui", g1)["next"] == g2
+    hv, rv, av = sget("host"), sget("guest:rui"), sget("guest:ana")
+    assert set(hv["side"]["mine"]) == {"0"} and set(rv["side"]["mine"]) == {"1"} and av["side"]["mine"] == {} and av["side"]["ok"] == {"0": False, "1": False}
+    assert hv["side"]["g"] == 2 and 170 <= hv["side"]["to"] <= 180 and hv["side"]["mine"]["0"]["deck"] == hv["side"]["mine"]["0"]["base"] == {"main": deck("A")["main"], "side": sdeck("A")["side"]}
+    assert not any(x in json.dumps(rv) + json.dumps(av) for x in ("A Card", "A Side")), "outro lugar viu a lista do anfitrião"
+    assert not any(x in json.dumps(hv) + json.dumps(av) for x in ("B Card", "B Side")), "outro lugar viu a lista do convidado"
+    assert spost("host", {"c": "draw", "n": 1})[0] == 400 and spost("guest:rui", {"c": "side", "seat": 0, "deck": hv["side"]["mine"]["0"]["deck"]})[0] == 403
+    assert spost("guest:ana", {"c": "side", "seat": 2, "deck": {"main": {}, "side": {}}})[0] == 400  # sem sideboard
+    good = {"main": {**deck("A")["main"], "A Card 0": 2, "A Side 0": 2}, "side": {"A Card 0": 2, "A Side 1": 2, "A Side 2": 2}}  # 2 saem, 2 entram
+    for bad in ({"main": {**good["main"], "Black Lotus": 1}, "side": good["side"]}, {"main": {"A Card 0": 2}, "side": {}}, {"main": {**good["main"], "A Card 1": 4.0}, "side": good["side"]}, "x",
+                {"main": {**good["main"], "A Card 1": 2}, "side": {**good["side"], "A Card 1": 2}}):  # outra pilha, poucas cartas, cópias não inteiras
+        assert spost("host", {"c": "side", "deck": bad})[0] == 400, bad
+    assert spost("host", {"c": "side", "deck": good})[0] == 200 and s2["status"] == "side"
+    assert sget("guest:rui")["side"]["ok"] == {"0": True, "1": False} and s2["log"][-1] == {**s2["log"][-1], "k": "side", "s": 0}
+    assert not any(x in json.dumps(sget("guest:rui")) for x in ("A Card", "A Side")) and spost("host", {"c": "side", "deck": good})[0] == 200  # pode mudar enquanto espera
+    assert spost("guest:rui", {"c": "side", "deck": rv["side"]["mine"]["1"]["deck"]})[0] == 200 and s2["status"] == "playing"  # «Manter o deck»
+    names0 = [s2["cards"][str(c)]["n"] for z in ("library", "hand") for c in s2["zones"][0][z]]
+    assert len(names0) == 60 and names0.count("A Side 0") == 2 and names0.count("A Card 0") == 2 and "side" not in sget("host")
+    assert len(s2["zones"][2]["hand"]) == 7 and spost("host", {"c": "side", "deck": good})[0] == 400  # já fechou
+    with db() as con:  # jogo 3: a lista escolhida continua (a guardada é a base); o tempo acaba e joga com ela
+        g3 = create(con, "hubert", "S3", seats3, side=3, prev=g2)
+    s3 = T[g3]
+    m3 = route(db, "GET", f"/api/freetables/{g3}", "hubert", None, "host", 0)[1]["side"]["mine"]["0"]
+    assert m3["deck"] == good and m3["base"]["main"] == deck("A")["main"] and T[g2]["next"] == g3
+    s3["sideTo"] = time.time() - 1
+    assert route(db, "GET", f"/api/freetables/{g3}", "hubert", None, "guest:ana", 0)[1]["status"] == "playing" and s3["log"][-2]["k"] == "sidetime"
+    assert [s3["cards"][str(c)]["n"] for z in ("library", "hand") for c in s3["zones"][0][z]].count("A Side 0") == 2
+    with db() as con:  # o deck guardado mudou entretanto (outra pilha): volta à guardada
+        g4 = create(con, "hubert", "S4", [{**seats3[0], "deck": {**sdeck("A"), "side": {"A Side 0": 6}}}] + seats3[1:], side=4, prev=g3)
+    assert route(db, "GET", f"/api/freetables/{g4}", "hubert", None, "host", 0)[1]["side"]["mine"]["0"]["deck"]["side"] == {"A Side 0": 6}
     print("selfcheck mesa livre ok")
 
 

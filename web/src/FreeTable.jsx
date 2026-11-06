@@ -18,6 +18,7 @@ import TableChat from './TableChat.jsx'
 import { usePen, PEN_COLS } from './tablepen.js'
 import { useBackClose } from './backnav.js'
 import HandLook from './HandLook.jsx'
+import SideboardStep from './SideboardStep.jsx'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -77,6 +78,9 @@ function line(e, who) {
     case 'day': return e.v === 'day' ? tx('{P}: passa a ser dia', { P }) : e.v === 'night' ? tx('{P}: passa a ser noite', { P }) : tx('{P}: nem dia nem noite', { P })
     case 'phase': return e.out ? tx('{P}: {c} sai de fase', { P, c: c || tx('uma carta') }) : tx('{P}: {c} volta à fase', { P, c: c || tx('uma carta') })
     case 'attach': return tx('{P} prende {c} a {T}', { P, c: c || tx('uma carta'), T: short(e.to) || tx('uma carta virada para baixo') })
+    case 'sidestart': return tx('Jogo seguinte da série: cada um escolhe o sideboard (até {n} s).', { n: e.n })
+    case 'side': return tx('{P} já escolheu o sideboard', { P })
+    case 'sidetime': return tx('Acabou o tempo do sideboard: cada um joga com a lista que tinha.')
     case 'gf': return tx('Adversário imaginário: vida {v} ({d})', { v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
     default: return e.k
   }
@@ -122,7 +126,35 @@ function Help({ onClose }) {
   )
 }
 
-export default function FreeTable({ id, data, onClose }) {
+// a mesa e as seguintes da mesma série: a mesa acabada aponta para a do jogo seguinte (next) e passa-se para ela; quando
+// o sideboard fecha, a mesa monta-se de novo (as medidas do tabuleiro e os dados contam com ele desde o início)
+export default function FreeTable(props) {
+  const [id, setId] = useState(props.id), [k, setK] = useState(0)
+  return <Table key={`${id}.${k}`} {...props} id={id} onNext={setId} onBegin={() => setK(x => x + 1)} />
+}
+
+// o sideboard antes do jogo 2+ de uma série: o servidor só manda a lista dos meus lugares; dos outros, só se estão prontos
+function SidePhase({ s, data, send, onClose }) {
+  const sd = s.side, mine = Object.keys(sd.mine), [edit, setEdit] = useState(null), [left, setLeft] = useState(sd.to)
+  useEffect(() => { const t0 = Date.now(), iv = setInterval(() => setLeft(Math.max(0, Math.round(sd.to - (Date.now() - t0) / 1000))), 1000); return () => clearInterval(iv) }, [s.seq])  // eslint-disable-line react-hooks/exhaustive-deps
+  const cur = edit ?? mine.find(i => !sd.ok[i])
+  const go = d => { setEdit(null); send({ c: 'side', seat: +cur, deck: { main: d.main, side: d.side } }) }
+  const head = <>
+    <h3>{tx('Sideboard para o jogo {g}', { g: sd.g || 2 })} <span className="muted small">{s.name}{cur != null && mine.length > 1 && ` · ${s.seats[cur]?.deck}`}</span></h3>
+    <p className="row-btns small">{s.seats.map((v, i) => <span key={i} className={`ml-seat ${sd.ok[i] ? 'ready' : ''}`}><b>{v.name}</b> {sd.ok[i] == null ? <span className="muted">{tx('sem sideboard')}</span> : sd.ok[i] ? <span className="ok-t">✓ {tx('pronto')}</span> : <span className="muted">{tx('a escolher o sideboard…')}</span>}</span>)}</p>
+    <p className="small muted">{tx('O jogo começa quando estiverem todos prontos, ou daqui a {n} s com a lista que cada um tiver.', { n: left })}</p>
+  </>
+  return <div className="sbs-phase"><section className="card">
+    {cur != null && sd.mine[cur]
+      ? <SideboardStep key={cur} data={data} deck={sd.mine[cur].deck} base={sd.mine[cur].base} fmt={FORMAT[s.seats[cur]?.format]} onReady={go} onKeep={go}
+        extra={onClose && <button onClick={onClose}>← {tx('sair da mesa')}</button>}>{head}</SideboardStep>
+      : <>{head}<p><span className="spin-dot" /> {tx('À espera dos outros jogadores…')}</p>
+        <div className="row-btns">{mine.map(i => <button key={i} onClick={() => setEdit(i)}>{tx('Mudar o sideboard')}{mine.length > 1 ? ` · ${s.seats[i]?.deck}` : ''}</button>)}
+          {onClose && <button onClick={onClose}>← {tx('sair da mesa')}</button>}</div></>}
+  </section></div>
+}
+
+function Table({ id, data, onClose, onNext, onBegin }) {
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [menu, setMenu] = useState(null)
   const [help, setHelp] = useState(() => lsGet(HELP_K) !== '1'), [lift, setLift] = useState(null), [ver, setVer] = useState(0)
   const [seatSel, setSeatSel] = useState(null), seatQ = c => (seatSel != null ? `${c}seat=${seatSel}` : '')  // quem tem os dois decks de uma partida escolhe o lugar
@@ -348,8 +380,13 @@ export default function FreeTable({ id, data, onClose }) {
   const myOrb = JSON.stringify(s?.seats?.[s.me]?.orb || { t: 'auto', a: 'auto' })
   useEffect(() => { if (hasSeat && myOrb !== JSON.stringify(fpPrefs().orb)) send({ c: 'orb', v: fpPrefs().orb }) }, [hasSeat, myOrb])  // eslint-disable-line react-hooks/exhaustive-deps
   const [matOpen, setMatOpen] = useState(false)
+  // série: o jogo seguinte já tem mesa (quem aloja marcou o resultado ou o jogo acabou): passa-se para ela sozinho
+  useEffect(() => { if (s?.next) { const t = setTimeout(() => onNext(s.next), 6000); return () => clearTimeout(t) } }, [s?.next])  // eslint-disable-line react-hooks/exhaustive-deps
+  const sidePh = s?.status === 'side', wasSide = useRef(false)
+  useEffect(() => { if (sidePh) wasSide.current = true; else if (wasSide.current) onBegin() }, [sidePh])  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!s) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted"><span className="spin-dot" /> {tx('A abrir a mesa…')}</p>}</div>
+  if (sidePh) return <SidePhase s={s} data={data} send={send} onClose={onClose} />
   const mine = seats[me], ended = s.status !== 'playing'
   const others = Array.from({ length: n - 1 }, (_, k) => (me + 1 + k) % n)
   const fx = { hl: new Set(), par: 0, pops: new Map(), life: lifeFx, player: null }
@@ -596,6 +633,7 @@ export default function FreeTable({ id, data, onClose }) {
       {cardPop && lookup(data, cardPop) && <div className="fp-modal" onClick={() => setCardPop(null)}><img className="ml-pop" src={img(lookup(data, cardPop), 'normal', false, artOf(allArts, null, lookup(data, cardPop)))} alt={cardPop} /></div>}
       {s.result ? <p className="ml-ended win">{s.result.w == null ? tx('🤝 Empate') : tx('🏆 Ganhou {p}', { p: who(s.result.w) })}{onClose && <button className="small" onClick={onClose}>{tx('sair da mesa')}</button>}</p>
         : ended && <p className="ml-ended">{tx('Esta mesa terminou.')}</p>}
+      {s.next && <p className="ml-ended res" role="status">{tx('O jogo seguinte da série já tem mesa: vais para lá daqui a pouco.')}<button className="small primary" onClick={() => onNext(s.next)}>▶ {tx('Jogo seguinte (sideboard)')}</button></p>}
       {s.res && !ended && <p className="ml-ended res" role="status">{s.res.w == null ? tx('Proposta: empate') : tx('Proposta: ganhou {p}', { p: who(s.res.w) })}
         <button className="small primary" onClick={() => send({ c: 'agree' })}>{tx('Confirmar')}</button><button className="small" onClick={() => send({ c: 'dispute' })}>{tx('Não concordo')}</button></p>}
       {off && !ended && <p className="ml-ended off" role="status">⟳ {tx('A voltar a ligar à mesa…')}</p>}
