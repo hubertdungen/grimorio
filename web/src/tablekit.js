@@ -32,7 +32,7 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
     }
     const id = +(el.dataset.h || el.dataset.z.slice(2)), from = el.dataset.from || (el.dataset.h ? 'hand' : 'field')
     const r = el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY
-    let gap = null, ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, rx = 0, over = null
+    let gap = null, ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, rx = 0, over = null, k = 1
     let longed = false
     const long = e.pointerType !== 'mouse' && setTimeout(() => { longed = true; buzz(); onLong?.(id) }, 450)  // tocar e manter = ver em grande (com um toque de vibração)
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -43,7 +43,8 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
       if (calm) { x = tx0; y = ty0 } else { x += (tx0 - x) * 0.32; y += (ty0 - y) * 0.32 }  // movimento reduzido: segue o dedo, sem inclinar
       const want = Math.max(-26, Math.min(26, (tx0 - x) * 0.45))
       rot += (want - rot) * 0.22; rx += (Math.max(-22, Math.min(22, (y - ty0) * 0.5)) - rx) * 0.22  // a subir inclina-se para trás, a descer para a frente
-      ghost.style.transform = `translate(${x - r.width / 2}px, ${y - r.height / 2}px) perspective(700px) rotateX(${rx.toFixed(2)}deg) rotate(${rot.toFixed(2)}deg) scale(1.12)`
+      k += (1.12 - k) * 0.3  // levanta-se aos poucos: a 1.12 logo no 1.º frame a carta dava um salto ao agarrar
+      ghost.style.transform = `translate(${x - r.width / 2}px, ${y - r.height / 2}px) perspective(700px) rotateX(${rx.toFixed(2)}deg) rotate(${rot.toFixed(2)}deg) scale(${k.toFixed(3)})`
       raf = requestAnimationFrame(tick)
     }
     const move = ev => {
@@ -53,7 +54,7 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
         clearTimeout(long)
         ghost = el.cloneNode(true)
         ghost.classList.add('fp-ghost')
-        Object.assign(ghost.style, { width: `${r.width}px`, height: `${r.height}px` })
+        Object.assign(ghost.style, { width: `${r.width}px`, height: `${r.height}px`, transform: `translate(${r.left}px, ${r.top}px)` })  // já no sítio da carta antes do 1.º tick
         onTop().appendChild(ghost)
         el.style.visibility = 'hidden'
         raf = requestAnimationFrame(tick)
@@ -73,19 +74,31 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
       cancelAnimationFrame(raf); mark(null); gap?.classList.remove('fp-gap'); onMove?.(null)
       dragged.current = true; dragEnd = Date.now(); setTimeout(() => { dragged.current = false }, 0)  // o clique que vem a seguir ao largar não conta
       const res = ev.type === 'pointerup' && onDrop({ id, from, target: targetAt(ev.clientX, ev.clientY), x: ev.clientX, y: ev.clientY }), g = ghost
-      if (res === 'local') {  // arrumação: a carta a sério parte de onde a largaste e encaixa com mola no sítio novo (useFlip)
-        flipFrom.set(String(id), g.getBoundingClientRect())
-        g.remove(); el.style.visibility = ''
-        return
+      const flat = s => `translate(${ev.clientX - r.width / 2}px, ${ev.clientY - r.height / 2}px) perspective(700px) rotateX(0deg) rotate(0deg) scale(${s})`
+      const home = q => { g.style.transition = 'transform .55s cubic-bezier(.2, 1.6, .4, 1)'; requestAnimationFrame(() => { g.style.transform = `translate(${q.left}px, ${q.top}px) perspective(700px) rotateX(0deg) rotate(0deg) scale(1)` }); setTimeout(() => { g.remove(); el.style.visibility = '' }, 560) }
+      if (!res) return home(r)
+      // a carta a sério parte do fantasma (useFlip: flipFrom = o fantasma, que ele tira no mesmo frame em que a carta
+      // aparece). Antes o fantasma desvanecia logo e a carta só aparecia quando o Forge respondia — a partir da mão: um
+      // vazio, a carta de volta à mão e depois o voo da mão para a mesa
+      g._src = el; g._any = res === 'local'  // arrumação: é a própria carta que lhe pega; jogada: só a carta nova do campo
+      flipFrom.set(String(id), g)
+      if (res === 'local') { setTimeout(() => { if (g.isConnected) { g.remove(); el.style.visibility = ''; flipFrom.delete(String(id)) } }, 800); return }
+      g.classList.add('fp-wait')
+      g.style.transition = 'transform .2s ease-out'
+      requestAnimationFrame(() => { g.style.transform = flat(1) })  // assenta onde a largaste e espera pelo Forge
+      const t0 = Date.now(), field = el.matches('.pc')
+      const wait = () => {
+        if (!g.isConnected) return  // o useFlip já lhe pegou
+        if (!el.isConnected) {  // foi para outra zona (feitiço na pilha, cemitério…): desvanece onde está
+          flipFrom.delete(String(id)); g.style.transition = 'transform .25s ease-out, opacity .25s ease-out'; g.style.transform = flat(0.9); g.style.opacity = '0'
+          return setTimeout(() => g.remove(), 300)
+        }
+        // ainda no sítio de onde saiu: uma carta do campo (atacar, equipar, bloquear) fica lá — volta já; da mão o Forge
+        // não a jogou (recusou, ou espera por uma escolha — o fantasma não pode tapar o alvo): ao fim de 1,5 s volta à mão
+        if (Date.now() - t0 > (field ? 250 : 1500)) { flipFrom.delete(String(id)); return home(el.getBoundingClientRect()) }
+        setTimeout(wait, 60)
       }
-      const ok = !!res
-      if (ok) flipFrom.set(String(id), g.getBoundingClientRect())
-      g.style.transition = ok ? 'transform .25s ease-out, opacity .25s ease-out' : 'transform .55s cubic-bezier(.2, 1.6, .4, 1)'
-      requestAnimationFrame(() => {
-        g.style.transform = ok ? `translate(${ev.clientX - r.width / 2}px, ${ev.clientY - r.height / 2}px) perspective(700px) rotateX(0deg) rotate(0deg) scale(.9)` : `translate(${r.left}px, ${r.top}px) perspective(700px) rotateX(0deg) rotate(0deg) scale(1)`
-        if (ok) g.style.opacity = '0'
-      })
-      setTimeout(() => { g.remove(); el.style.visibility = '' }, ok ? 700 : 560)
+      setTimeout(wait, 60)
     }
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up)
   }
@@ -106,7 +119,7 @@ export function useOverlap(tableRef) {
     const root = tableRef.current
     // a arrastar uma carta (o fantasma existe) não se mexe no tamanho: a carta no ar fazia uma fila parecer cheia, tudo
     // encolhia de repente e depois voltava a crescer um passo por desenho (cartas a crescer e nunca alinhadas)
-    if (root?.classList.contains('px') && !document.querySelector('.fp-ghost')) {
+    if (root?.classList.contains('px') && !document.querySelector('.fp-ghost:not(.fp-wait)')) {  // fp-wait: já largada, à espera do Forge
       const tb = () => root.getBoundingClientRect().bottom
       const tight = () => [...root.querySelectorAll('.bside')].some(bs => {
         // só as filas: o que flutua (o sítio onde a carta vai cair, .fp-slot, camadas absolutas) não conta como fila a encavalitar
@@ -188,7 +201,7 @@ export const flipFrom = new Map()  // carta largada na mesa: o voo parte de onde
 const layoutPos = (el, stop) => {
   let x = 0, y = 0
   for (let e = el; e && e !== stop; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; if (!e.offsetParent || e.offsetParent === document.body) break }
-  return { x, y, w: el.offsetWidth }
+  return { x, y, w: el.offsetWidth, h: el.offsetHeight }
 }
 export function useFlip(box, seq, lay) {
   const last = useRef(new Map()), was = useRef(null)
@@ -204,19 +217,26 @@ export function useFlip(box, seq, lay) {
       if (!el.offsetWidth) continue
       const p = layoutPos(el, stage)
       now.set(id, p)
-      const drop = flipFrom.get(id), o = last.current.get(id)
+      let drop = flipFrom.get(id)
+      const o = last.current.get(id)
+      if (drop?.nodeType) {  // o fantasma do arrastar: a carta parte dele e ele sai no mesmo frame (sem vazio nem salto)
+        const g = drop
+        drop = g._any || (el !== g._src && el.matches('.pc')) ? g.getBoundingClientRect() : null
+        if (drop) { g.remove(); el.style.visibility = '' }
+      }
       if (!fly && !drop) continue
-      flipFrom.delete(id)
+      if (drop) flipFrom.delete(id)
       if (!drop && !o && !reduce && last.current.size) {  // nova sem origem conhecida (ficha criada…): aparece por WAAPI (não compete com nada)
         el.animate([{ opacity: 0, transform: 'scale(.7) translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 450, easing: 'ease-out' })
         continue
       }
       if (reduce || (!drop && !o)) continue
       let dx, dy, k
+      // pelos centros: a escala é em volta do centro da carta (pelos cantos, com escala ≠ 1, partia uns px ao lado)
       if (drop) {  // vem do sítio do ecrã onde a largaste: compara com o retângulo atual no ecrã
         const r = el.getBoundingClientRect()
-        dx = (drop.left - r.left) / sc; dy = (drop.top - r.top) / sc; k = drop.width / r.width
-      } else { dx = o.x - p.x; dy = o.y - p.y; k = o.w / p.w }
+        dx = (drop.left + drop.width / 2 - r.left - r.width / 2) / sc; dy = (drop.top + drop.height / 2 - r.top - r.height / 2) / sc; k = drop.width / r.width
+      } else { dx = o.x + o.w / 2 - p.x - p.w / 2; dy = o.y + o.h / 2 - p.y - p.h / 2; k = o.w / p.w }
       if (Math.abs(dx) < 3 && Math.abs(dy) < 3) continue  // não se mexeu (ou quase): deixa-a como está, a meio do que estiver a fazer
       // .flipping: sem o «aparecer» (.pc.in anima o transform e, por ser animação CSS, ganhava ao voo: a carta aparecia
       // logo no sítio e depois dava um salto a meio do caminho) e com sombra de quem vai no ar

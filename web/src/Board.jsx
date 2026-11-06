@@ -1280,8 +1280,9 @@ function shockFx(el, cols, orbEl) {
       { transform: `translate(calc(-50% + ${cx - o.left - o.width / 2}px), calc(-50% + ${cy - o.top - o.height / 2}px)) scale(.4)`, opacity: 0.9 }], { duration: lag, easing: 'ease-in', fill: 'forwards' }).onfinish = () => w.remove()
   }
   setTimeout(() => {
-    const W = r.width, H = r.height, g = document.createElement('div'), NS = 'http://www.w3.org/2000/svg'
-    g.className = 'zland shock2'; Object.assign(g.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${W}px`, height: `${H}px` })
+    const W = rot.offsetWidth, H = rot.offsetHeight, g = document.createElement('div'), NS = 'http://www.w3.org/2000/svg'  // na carta: px dela, sem a escala da mesa
+    if (!W) return
+    g.className = 'zland shock2'
     g.style.setProperty('--c1', c1); g.style.setProperty('--c2', c2)
     const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('width', W); svg.setAttribute('height', H)
     const rim = (cls, off) => { const p = document.createElementNS(NS, 'rect'); Object.entries({ x: 1.5, y: 1.5, width: W - 3, height: H - 3, rx: W * 0.05, class: cls, 'stroke-dashoffset': off }).forEach(([k, v]) => p.setAttribute(k, v)); svg.append(p) }
@@ -1290,7 +1291,7 @@ function shockFx(el, cols, orbEl) {
     const edge = () => { const t = Math.random() * 2 * (W + H); return t < W ? [t, 0] : t < W + H ? [W, t - W] : t < 2 * W + H ? [2 * W + H - t, H] : [0, 2 * (W + H) - t] }
     const zig = () => { const [x0, y0] = edge(), x1 = W * (0.25 + Math.random() * 0.5), y1 = H * (0.25 + Math.random() * 0.5); let d = `M${x0.toFixed(1)} ${y0.toFixed(1)}`
       for (let i = 1; i <= 6; i++) { const t = i / 6, j = (1 - t) * 9; d += ` L${(x0 + (x1 - x0) * t + (Math.random() - 0.5) * j * 2).toFixed(1)} ${(y0 + (y1 - y0) * t + (Math.random() - 0.5) * j * 2).toFixed(1)}` } return d }
-    g.append(svg); host.append(g)
+    g.append(svg); onCard(el, g)
     let n = 0
     const iv = setInterval(() => { bolts.forEach(b => b.setAttribute('d', Math.random() < 0.75 ? zig() : '')); if (++n > 11) clearInterval(iv) }, 65)
     rot.animate([{ translate: '0 0', filter: 'none' }, { translate: '-2px 1px', filter: `brightness(1.8) drop-shadow(0 0 8px ${c1})` }, { translate: '2px -1px' }, { translate: '-1px 0', filter: `brightness(1.4) drop-shadow(0 0 6px ${c2})` }, { translate: '0 0', filter: 'none' }], { duration: 520, easing: 'linear' })
@@ -1367,15 +1368,20 @@ function manaFly(el, cols, k, delay) {
     setTimeout(() => requestAnimationFrame(step), delay + i * 90)
   })
 }
+// a camada por cima de uma carta que fica na mesa vai DENTRO dela (.pc-rot): herda o voo FLIP da mão até ao sítio dela,
+// o virar (tap) e a perspetiva do lado de cima. Fixa no ecrã (fxHost) ficava em pé onde a carta estava ao começar
+function onCard(el, g) {
+  const rot = el.querySelector('.pc-rot') || el
+  if (!rot.offsetWidth) return false
+  g.classList.add('on-card'); rot.append(g)
+  return true
+}
 function landFx(el, kind, cols) {
-  const r = (el.querySelector('.pc-rot') || el).getBoundingClientRect()
-  if (!r.width) return
   const g = document.createElement('div')
   g.className = `zland ${kind}`
-  Object.assign(g.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` })
   g.style.setProperty('--c1', LCOL[cols[0]]); g.style.setProperty('--c2', LCOL[cols[1] || cols[0]])
   if (kind === 'shock') g.innerHTML = '<svg viewBox="0 0 100 140" preserveAspectRatio="none"><path d="M-4 30 L18 44 L8 58 L34 70 L22 86 L52 96" /><path class="b" d="M104 104 L80 92 L92 78 L66 66 L80 50 L50 40" /></svg>'
-  fxHost().append(g); setTimeout(() => g.remove(), 1100)
+  if (onCard(el, g)) setTimeout(() => g.remove(), 1100)
 }
 // terrenos especiais a entrar: cada família com a sua animação, escolhida pelo texto da carta e adaptada às cores dela e
 // ao que está na mesa. Os básicos não fazem nada (seriam ruído); shock, fast e fetch têm as suas (acima)
@@ -1401,7 +1407,7 @@ function landEnter(el, c, k, s, data) {
   if (!kinds.length) return
   const cs = landCols(c), r = rectOf(el)
   if (!r?.width) return
-  const host = fxHost(), side = q => document.querySelector(`.bside.p-${k} ${q}`)
+  const side = q => document.querySelector(`.bside.p-${k} ${q}`)
   kinds.forEach((kind, i) => {
     if (kind === 'tango' || kind === 'check') {  // fitas das terras que a deixam entrar desvirada
       const m = kind === 'check' && CHECK.exec(c.o || ''), types = m ? [m[1], m[2]].filter(Boolean) : null
@@ -1412,13 +1418,13 @@ function landEnter(el, c, k, s, data) {
     if (kind === 'heal') { ribbon(r, rectOf(side('.orb:not(.orb-proxy)')), ['W', 'G'], 250, 10); return }
     const g = document.createElement('div')
     g.className = `zland l-${kind}`
-    Object.assign(g.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, animationDelay: `${i * 120}ms` })
+    g.style.animationDelay = `${i * 120}ms`
     g.style.setProperty('--c1', LCOL[cs[0]]); g.style.setProperty('--c2', LCOL[cs[1] || cs[0]]); g.style.setProperty('--c3', LCOL[cs[2] || cs[0]])
     if (kind === 'legend') g.innerHTML = '<b class="crown">♛</b>'
     else if (kind === 'eye') { g.innerHTML = '<svg viewBox="0 0 100 60"><path class="lid" d="M5 30 Q50 -8 95 30 Q50 68 5 30 Z"/><circle class="iris" cx="50" cy="30" r="13"/><circle class="pupil" cx="50" cy="30" r="5"/></svg>'; ribbon(rectOf(zoneEl(k, 'library')) || r, r, cs.includes('U') ? ['U'] : cs, 450, 6) }
     else if (kind === 'rune') g.innerHTML = '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/><circle class="in" cx="50" cy="50" r="28"/></svg>'
     else if (kind === 'quake') (el.querySelector('.pc-rot') || el).animate([{ translate: '0 0' }, { translate: '-3px 1px' }, { translate: '3px -1px' }, { translate: '-2px 2px' }, { translate: '2px 0' }, { translate: '0 0' }], { duration: 520, delay: 120, easing: 'linear' })
-    host.append(g); setTimeout(() => g.remove(), 1700 + i * 120)
+    if (onCard(el, g)) setTimeout(() => g.remove(), 1700 + i * 120)
   })
 }
 // exilada: a carta desintegra-se em pedacinhos de luz que se soltam de cima para baixo e sobem a desvanecer

@@ -599,7 +599,8 @@ h2 .mana img { width: 20px; height: 20px; }
 @keyframes hl2 { from { box-shadow: 0 0 0 3px #fff, 0 0 22px #fffa; } to { box-shadow: 0 2px 7px #000c; } }
 .pc.atk.hl1 .pc-f, .pc.atk.hl2 .pc-f, .pc.blk.hl1 .pc-f, .pc.blk.hl2 .pc-f { animation: none; }
 /* marcas sobre a carta (não rodam com ela) */
-.pc-ov { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.pc-ov { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%; translate: -50% -50%; z-index: 2; pointer-events: none; transition: width .35s ease, height .35s ease; }
+.pc.tapped > .pc-ov { width: 125.4%; height: 64.6%; }  /* virada: P/R, marcadores… nos cantos da carta deitada (ver .pc-kfx) */
 .pc-pt, .pc-dmg, .pc-loy, .pc-n, .pc-zz, .pc-goad { position: absolute; font-style: normal; line-height: 1; }
 .pc-pt { right: -3px; bottom: -3px; padding: 2px 4px; font-size: 11px; font-weight: 800; border-radius: 5px; background: #0d0f18e6; border: 1px solid #ffffff40; }
 .pc-pt.up { color: #7cff9b; border-color: #7cff9b88; } .pc-pt.down { color: #ff9b9b; border-color: #ff9b9b88; }
@@ -2318,7 +2319,9 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .fp-pt { position: absolute; right: 3px; bottom: 3px; font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: #000c; color: #fff; }
 /* a carta a ser arrastada e o sítio onde vai cair */
 .fp-ghost { position: fixed !important; left: 0; top: 0; z-index: 90; margin: 0 !important; pointer-events: none; will-change: transform;
-  filter: drop-shadow(0 18px 22px #000c); transform-origin: 50% 60%; }
+  filter: drop-shadow(0 18px 22px #000c); transform-origin: 50% 60%; transition: none; animation: none !important; }
+/* ↑ cópia de uma .pc: herdava a transição de .45s no transform (o fantasma arrastava-se atrás do dedo) e, numa carta que
+   entrou há pouco (.pc.in), a animação «enter» por cima do transform — ficava ½ s no canto de cima do ecrã */
 .fp-ghost .pc-f { transform: none !important; }
 .fp-table .bside.fp-over { border-color: #6ee7f9aa; background: #6ee7f90d; box-shadow: inset 0 0 30px #6ee7f922; }
 .fp-table .pc.fp-over .pc-f { box-shadow: 0 0 0 3px #ffd98a, 0 0 18px #ffd98a; }
@@ -3669,10 +3672,18 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .atkfx.on-card { transform: translate(-50%, -50%) scale(.85); }
 
 /* palavras-chave em ação (Perm: .pc-kfx) */
-.pc-kfx { position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: 6px; }
-.pc.kw-haste .pc-kfx { box-shadow: 0 0 12px 3px #ffb02ecc; background: repeating-linear-gradient(90deg, transparent 0 7px, #ffd27a 7px 9px, transparent 9px 15px) 0 0 / 100% 100%;
-  -webkit-mask: linear-gradient(transparent 45%, #000c); mask: linear-gradient(transparent 45%, #000c); animation: hastetrail .3s linear infinite; }
-.bside.top .pc.kw-haste .pc-kfx { -webkit-mask: linear-gradient(#000c, transparent 55%); mask: linear-gradient(#000c, transparent 55%); }
+/* do tamanho da carta à vista: virada (tap) fica deitada como ela (o .pc-rot roda 90° a .9: 1,393×.9 de largo, .9 de
+   alto); com inset: 0 ficava em pé e o rasto/brilho saía por cima e por baixo da carta deitada */
+.pc-kfx { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%; translate: -50% -50%; z-index: 3; pointer-events: none; border-radius: 6px;
+  transition: width .35s ease, height .35s ease; }
+.pc.tapped > .pc-kfx { width: 125.4%; height: 64.6%; }
+/* o rasto fica atrás da carta, do lado de onde ela vem (a tua sobe: por baixo; a do adversário desce: por cima), e não por
+   cima da imagem dela */
+.pc.kw-haste .pc-kfx { box-shadow: 0 0 12px 3px #ffb02ecc; }
+.pc.kw-haste .pc-kfx::before { content: ''; position: absolute; left: 12%; right: 12%; top: 100%; height: calc(var(--w, 80px) * .5); pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 7px, #ffd27a 7px 9px, transparent 9px 15px) 0 0 / 100% 100%;
+  -webkit-mask: linear-gradient(#000c, transparent); mask: linear-gradient(#000c, transparent); animation: hastetrail .3s linear infinite; }
+.bside.top .pc.kw-haste .pc-kfx::before { top: auto; bottom: 100%; -webkit-mask: linear-gradient(transparent, #000c); mask: linear-gradient(transparent, #000c); }
 @keyframes hastetrail { from { background-position: 0 0; } to { background-position: 15px 0; } }
 .pc.kw-reach .pc-kfx { box-shadow: 0 0 0 2px #3f8f3a, 0 0 12px #4ade80aa; }
 .pc.kw-reach .pc-kfx::after { content: '🌿'; position: absolute; left: 50%; top: -12px; font-size: 15px; transform: translateX(-50%); animation: reachgrow 1.4s ease-in-out infinite alternate; }
@@ -3690,8 +3701,8 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 @keyframes exaltup { from { transform: translate(-50%, 20px); opacity: 1; } to { transform: translate(-50%, -22px); opacity: 0; } }
 .dtmark { position: fixed; z-index: 2147482600; transform: translate(-50%, -50%); font-size: 30px; color: #bbf7d0; text-shadow: 0 0 10px #16a34a, 0 0 2px #000; pointer-events: none; animation: dtstamp 1.4s ease-out both; }
 @keyframes dtstamp { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.4) rotate(-20deg); } 20% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -70%); } }
-.board.quiet .pc-kfx, .board.quiet .pc-kfx::after { animation: none !important; }
-@media (prefers-reduced-motion: reduce) { .pc-kfx, .pc-kfx::after, .dtmark { animation: none !important; } }
+.board.quiet .pc-kfx, .board.quiet .pc-kfx::before, .board.quiet .pc-kfx::after { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .pc-kfx, .pc-kfx::before, .pc-kfx::after, .dtmark { animation: none !important; } }
 
 /* da pilha para o campo: a carta voa (a da pilha some logo) */
 .stackfx .stk.resolving.flown { visibility: hidden; }
@@ -3709,6 +3720,9 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 /* terrenos: fetch (fitas de cor), shock (relâmpagos ao pagar 2 de vida), fast (rasto de velocidade) */
 .zrib { position: fixed; z-index: 2147481300; width: 7px; height: 7px; border-radius: 50%; pointer-events: none; }
 .zland { position: fixed; z-index: 2147481250; pointer-events: none; border-radius: 6px; }
+/* presa à carta (Board.jsx onCard): dentro do .pc-rot, do tamanho dela; a carta sobe por cima das vizinhas enquanto dura */
+.zland.on-card { position: absolute; inset: 0; z-index: 3; }
+.pc:has(> .pc-rot > .zland) { z-index: 4; }
 .zland.shock { box-shadow: 0 0 14px var(--c1), inset 0 0 12px var(--c2); animation: lshock .9s steps(9) forwards; }
 .zland.shock svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .zland.shock path { fill: none; stroke: var(--c1); stroke-width: 3; stroke-linejoin: round; filter: drop-shadow(0 0 4px var(--c1)); }
