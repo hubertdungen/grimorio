@@ -29,6 +29,8 @@ const ICONS = {
   scan: '<path d="M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16"/><rect x="8.6" y="6.6" width="6.8" height="10.8" rx="1"/><circle class="acc" cx="12" cy="10.2" r="1.5"/>',
   // dado de vinte faces
   dados: '<path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z"/><path d="M12 7.6 16.3 15H7.7z"/><path d="M12 2.8v4.8M20 7.4l-3.7 7.6M4 7.4l3.7 7.6M7.7 15 4 16.6M16.3 15l3.7 1.6M7.7 15 12 21.2 16.3 15"/><circle class="acc" cx="12" cy="12.3" r="1.1"/>',
+  // início: casa com a janela acesa
+  casa: '<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.8 9.6V20h12.4V9.6"/><path d="M10 20v-5h4v5"/><circle class="acc" cx="12" cy="11" r="1.4"/>',
   // criar: estrela de quatro pontas e um mais
   criar: '<path class="acc" d="M11 3.5l1.6 5.2 5.2 1.6-5.2 1.6L11 17.1l-1.6-5.2-5.2-1.6 5.2-1.6z"/><path d="M18.5 15.5v5M16 18h5"/>',
   // salas: porta em arco de duas folhas

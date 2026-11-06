@@ -10,6 +10,24 @@ const PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]]
 const VIEW = 5.2  // meia-largura visível do lado mais curto da mesa, em unidades do mundo (um dado ≈ 2)
 
 // textura de uma face: fundo em gradiente e o número (ou pintas, ou cara/coroa), virado para `up`
+// a face de moeda de um jogador: metal nas cores do deck (gradiente das duas primeiras), as pintas de mana na borda,
+// as iniciais em grande e o nome por baixo — vê-se logo de quem é o lado que caiu para cima
+const MANA_HEX = { W: '#f4e7b6', U: '#3f8de6', B: '#5b4a6e', R: '#e0512f', G: '#2f9e5a', C: '#b8b2a8' }
+export function drawPlayerCoin(g, N, w) {
+  const cs = (w.c || '').split('').filter(c => MANA_HEX[c]), a = MANA_HEX[cs[0] || 'C'], b = MANA_HEX[cs[1] || cs[0] || 'C']
+  const grd = g.createLinearGradient(0, 0, N, N); grd.addColorStop(0, a); grd.addColorStop(0.5, '#f7e3a1'); grd.addColorStop(1, b)
+  g.fillStyle = grd; g.fillRect(0, 0, N, N)
+  const lum = h => { const n = parseInt(h.slice(1), 16); return 0.3 * (n >> 16) + 0.59 * ((n >> 8) & 255) + 0.11 * (n & 255) }
+  const ink = '#24180a', halo = 'rgba(255, 246, 220, .85)'
+  void lum
+  g.strokeStyle = ink; g.globalAlpha = 0.85; g.lineWidth = N * 0.025; g.beginPath(); g.arc(N / 2, N / 2, N * 0.42, 0, 7); g.stroke(); g.globalAlpha = 1
+  cs.forEach((c, i) => { const t = -Math.PI / 2 + (i - (cs.length - 1) / 2) * 0.42; g.fillStyle = MANA_HEX[c]; g.strokeStyle = ink; g.lineWidth = N * 0.012; g.beginPath(); g.arc(N / 2 + Math.cos(t) * N * 0.34, N / 2 + Math.sin(t) * N * 0.34, N * 0.045, 0, 7); g.fill(); g.stroke() })
+  const name = String(w.n || '?'), ini = name.split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase() || '?'
+  g.fillStyle = ink; g.textAlign = 'center'; g.textBaseline = 'middle'
+  g.strokeStyle = halo; g.lineJoin = 'round'
+  g.font = `900 ${Math.round(N * 0.3)}px system-ui, sans-serif`; g.lineWidth = N * 0.035; g.strokeText(ini, N / 2, N * 0.47); g.fillText(ini, N / 2, N * 0.47)
+  g.font = `800 ${Math.round(N * (name.length > 8 ? 0.08 : 0.1))}px system-ui, sans-serif`; g.lineWidth = N * 0.022; g.strokeText(name, N / 2, N * 0.7); g.fillText(name, N / 2, N * 0.7)
+}
 function faceTexture(kind, label, colors, corners, words) {
   const N = 256, cv = document.createElement('canvas'); cv.width = cv.height = N
   const g = cv.getContext('2d'), [c0, c1, ink] = colors
@@ -23,6 +41,7 @@ function faceTexture(kind, label, colors, corners, words) {
   }
   if (kind === 'd6') for (const [x, y] of PIPS[label]) { g.beginPath(); g.arc(N / 2 + x * N * 0.24, N / 2 + y * N * 0.24, N * 0.075, 0, 7); g.fill() }
   else if (kind === 'd4') corners.forEach(([u, v, lab]) => text(String(lab), N / 2 + u * N * 0.27, N / 2 - v * N * 0.27, SIZE.d4, Math.atan2(u, v)))  // cada número a apontar para o seu vértice
+  else if (kind === 'coin' && typeof words[label - 1] === 'object') drawPlayerCoin(g, N, words[label - 1])
   else if (kind === 'coin') { g.strokeStyle = ink; g.lineWidth = N * 0.025; g.beginPath(); g.arc(N / 2, N / 2, N * 0.4, 0, 7); g.stroke(); text(label === 1 ? '♛' : '✦', N / 2, N * 0.42, 0.24); text(words[label - 1], N / 2, N * 0.66, 0.11) }
   else text(kind === 'd10t' ? String(label).padStart(2, '0') : String(label), N / 2, N / 2, SIZE[kind], 0, { d8: 8, d10: 10, d10t: 100, d12: 12, d20: 20 }[kind])
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4
@@ -168,7 +187,7 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
     for (const t of types) {
       const g = { type: t, bodies: [] }
       for (const k of KINDS[t]) {
-        const sw = sws[i], b = bodies ? bodies[i] : world.throwDie(k, i, all.length), mesh = meshOf(k, colors[k === 'd10t' ? 'd100' : t] || colors.d6, words, sw)
+        const sw = sws[i], b = bodies ? bodies[i] : world.throwDie(k, i, all.length), mesh = meshOf(k, colors[k === 'd10t' ? 'd100' : t] || colors.d6, opt.words || words, sw)  // opt.words: as faces desta jogada (moeda de jogadores)
         i++
         b.sw = sw
         mesh.userData.b = b; table.add(mesh); meshes.push({ mesh, b }); g.bodies.push(b)

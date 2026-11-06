@@ -3847,3 +3847,6 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 /* Definições: a secção onde se está fica marcada no índice (dourado, com um traço à esquerda) */
 .set-index button { transition: background .2s, color .2s, box-shadow .2s; }
 .set-index button.on { color: var(--gold2); background: #f2b84b17; box-shadow: inset 3px 0 0 var(--gold); font-weight: 600; }
+/* Definições em ecrãs largos: mais largas e, a partir de 2000px (2K), as secções em duas colunas */
+@media (min-width: 1400px) { .settings.set-layout { max-width: 1200px; grid-template-columns: 240px minmax(0, 1fr); } }
+@media (min-width: 2000px) { .settings.set-layout { max-width: 1760px; } .set-main { display: block; column-count: 2; column-gap: 16px; } .set-main > section { break-inside: avoid; margin: 0 0 16px; display: block; } .set-main > section[hidden] { display: none; } }

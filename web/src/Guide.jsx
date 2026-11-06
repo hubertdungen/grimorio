@@ -7,7 +7,7 @@ import { tx } from './i18n.js'
 import { fpPrefs } from './fpprefs.js'
 import './guide.css'
 
-const ICONS = new Set(['construir', 'biblioteca', 'coliseu', 'regras', 'bots', 'forge', 'torneio', 'draft', 'online', 'ratings', 'gear', 'vida', 'scan', 'dados', 'criar', 'porta', 'registo', 'moeda', 'mago', 'amigos', 'meta'])
+const ICONS = new Set(['casa', 'construir', 'biblioteca', 'coliseu', 'regras', 'bots', 'forge', 'torneio', 'draft', 'online', 'ratings', 'gear', 'vida', 'scan', 'dados', 'criar', 'porta', 'registo', 'moeda', 'mago', 'amigos', 'meta'])
 const Glyph = ({ g }) => (ICONS.has(g) ? <Icon n={g} /> : <span className="g-emo" aria-hidden="true">{g}</span>)
 // rótulo com o seu ícone: o emoji que a frase já traz não se repete ao lado do ícone (IL tira-o)
 const Label = ({ g, l }) => (ICONS.has(g) ? <IL n={g} t={l} /> : String(l).startsWith(g) ? l : <><Glyph g={g} />{l}</>)
@@ -131,7 +131,7 @@ export default function Guide() {
 function guide(P) {
   const T = P.tap.toUpperCase(), F = P.flip.toUpperCase()
   const areas = [
-    { id: 'inicio', g: '🏠', t: tx('Página inicial'), go: { home: true },
+    { id: 'inicio', g: 'casa', t: tx('Página inicial'), go: { home: true },
       intro: tx('Abre sozinha da primeira vez que entras (e sempre que tocas no logótipo do Grimório, no canto de cima). Daqui vais para qualquer área num toque.'),
       bar: [
         ['construir', tx('Construir'), tx('o cartão grande: monta e afina decks, com sugestões explicadas.')],
@@ -291,7 +291,7 @@ function guide(P) {
         ] },
       ] },
 
-    { id: 'mesa', g: '🎮', t: tx('A mesa de jogo'), go: { col: 'jogar' },
+    { id: 'mesa', g: 'forge', t: tx('A mesa de jogo'), go: { col: 'jogar' },
       intro: tx('A mesa onde jogas contra o Forge (e nos jogos online contra bots). O Forge aplica as regras: tu arrastas, tocas e carregas em OK. Em cima, o turno e a fase; ao lado, o que o Forge te pede e os botões.'),
       bar: [
         ['OK', tx('OK / passar'), tx('o botão principal do pedido do Forge (Enter). Sem nada para fazer, passa a prioridade.')],
@@ -339,7 +339,7 @@ function guide(P) {
         ] },
       ],
       keys: [
-        ['Enter', tx('OK / passar')], ...(P.space ? [[tx('Espaço'), tx('o mesmo que Enter')]] : []), ['Shift+Enter', tx('acabar o turno')], ['Esc', tx('cancelar / fechar')],
+        ['Enter', tx('OK / passar')], ...(P.space ? [[tx('Espaço'), tx('o mesmo que Enter')]] : []), ['Shift+Enter', tx('acabar o turno')], ...(P.shiftSpace ? [[tx('Shift+Espaço'), tx('acabar o turno')]] : []), ['Esc', tx('cancelar / fechar')],
         [T, tx('virar (tap) a tua carta debaixo do rato')], [F, tx('ver a outra face (só no teu ecrã)')], ['Shift+F', tx('ecrã inteiro')],
       ] },
 
@@ -384,7 +384,6 @@ function guide(P) {
         ['⌕', tx('Procurar'), tx('uma keyword, um número de regra (702.19b), uma palavra (pilha) ou o nome de uma carta, em português ou noutra língua.')],
         ['scan', tx('Ler carta'), tx('📷 lê a carta pela câmara ou por uma foto e procura-a.')],
         ['✦', tx('✦ Explicar com a IA'), tx('explica as regras encontradas em português, citando os números (precisa da IA ligada).')],
-        ['🎮', tx('🎮 Comandos da mesa'), tx('o resumo dos gestos e das teclas da mesa, com as tuas teclas.')],
       ],
       rows: [
         [tx('Carta encontrada'), tx('o texto com cada keyword a ligar à sua regra (toca para a procurar) e os rulings oficiais.')],

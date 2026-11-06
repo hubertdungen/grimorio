@@ -3,6 +3,7 @@
 // mesa) e o que cada um mexe vê-se igual nos outros ecrãs (Lobby3D.jsx manda e recebe pelo canal ao vivo da sala).
 // Um deck aberto espalha as cartas viradas para baixo, na mesma disposição em todos os ecrãs; um toque vira uma carta
 // (para todos); para a ver a sério, larga-se na faixa de baixo (a tua mão). A moeda de quem começa cai ao pé da caixa.
+import { drawPlayerCoin } from './Dice3D.js'
 import * as THREE from 'three'
 
 const COL = { W: '#f5c451', U: '#38a8f0', B: '#6b4a8a', R: '#e2452f', G: '#3fa65a', C: '#9aa3ad' }
@@ -99,11 +100,12 @@ export function createLobby(el, { onClick, onMove, onHand } = {}) {
   const coinMat = [new THREE.MeshStandardMaterial({ color: '#c9a227', metalness: 0.8, roughness: 0.3 }),
     new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (g, w) => { g.fillStyle = '#e8c24a'; g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, 7); g.fill(); g.fillStyle = '#6b4a00'; g.font = 'bold 70px serif'; g.textAlign = 'center'; g.fillText('★', w / 2, w / 2 + 25) }), metalness: 0.6, roughness: 0.35 }),
     new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (g, w) => { g.fillStyle = '#bfc5cc'; g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, 7); g.fill(); g.fillStyle = '#3c4148'; g.font = 'bold 64px serif'; g.textAlign = 'center'; g.fillText('☾', w / 2, w / 2 + 22) }), metalness: 0.6, roughness: 0.35 })]
-  const toss = key => {
+  const toss = (key, face) => {
     const b = boxes.get(key)
     if (!b) return
     if (coin) scene.remove(coin.mesh)
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.06, 40), coinMat); m.castShadow = true; scene.add(m)
+    const mats = face ? [coinMat[0], new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (g, w) => { g.save(); g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, 7); g.clip(); drawPlayerCoin(g, w, face); g.restore() }), metalness: 0.55, roughness: 0.32 }), coinMat[2]] : coinMat
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.06, 40), mats); m.castShadow = true; scene.add(m)
     coin = { mesh: m, t0: performance.now(), to: [b.b.x * 0.7, b.b.z * 0.7 + 0.2] }
   }
 

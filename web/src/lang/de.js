@@ -3842,6 +3842,9 @@ export default {
   "Processador: 5 mil grãos": "Prozessor: 5.000 Körner",
   "Leve: para aparelhos fracos": "Leicht: für schwächere Geräte",
   "Tudo é desenhado neste aparelho (PC, telemóvel ou browser), também online: o servidor só envia o estado do jogo e cada aparelho simula as esferas a partir dele.": "Alles wird auf diesem Gerät gezeichnet (PC, Handy oder Browser), auch online: Der Server sendet nur den Spielstand, und jedes Gerät simuliert daraus die Kugeln.",
+  "Moeda: {n}": "Münze: {n}",
+  "Shift+Espaço acaba o turno (como Shift+Enter)": "Umschalt+Leertaste beendet den Zug (wie Umschalt+Enter)",
+  "Shift+Espaço": "Umschalt+Leertaste",
   "Aspeto das partículas": "Aussehen der Partikel",
   // Regras › Guia do Grimório (Guide.jsx)
   "Os botões desta área": "Die Buttons in diesem Bereich",

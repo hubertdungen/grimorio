@@ -3850,6 +3850,9 @@ export default {
   "Processador: 5 mil grãos": "Processor: 5,000 grains",
   "Leve: para aparelhos fracos": "Light: for weaker devices",
   "Tudo é desenhado neste aparelho (PC, telemóvel ou browser), também online: o servidor só envia o estado do jogo e cada aparelho simula as esferas a partir dele.": "Everything is drawn on this device (PC, phone or browser), online too: the server only sends the game state and each device simulates the orbs from it.",
+  "Moeda: {n}": "Coin: {n}",
+  "Shift+Espaço acaba o turno (como Shift+Enter)": "Shift+Space ends the turn (like Shift+Enter)",
+  "Shift+Espaço": "Shift+Space",
   "Aspeto das partículas": "Particle look",
   // Regras › Guia do Grimório (Guide.jsx)
   "Os botões desta área": "The buttons in this area",

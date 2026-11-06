@@ -353,7 +353,7 @@ const DICE_COL = { d6: ['#fff6e6', '#cdb894', '#3a2a10'], d20: ['#8cc8ff', '#1f4
 // o = {box, rot, onThrow, keep} (mesa livre): caixa fixa, vista rodada para o teu lado, dados que se agarram e lançam
 // pelo servidor (ver Dice3D.createTray); keep = quanto tempo os dados ficam na mesa depois de assentarem
 export function useTableDice(box, o = null) {
-  const tray = useRef(null), clear = useRef(0), [res, setRes] = useState(null), opt = useRef(o)
+  const tray = useRef(null), clear = useRef(0), lastWords = useRef(null), [res, setRes] = useState(null), opt = useRef(o)
   opt.current = o
   useEffect(() => () => { clearTimeout(clear.current); tray.current?.dispose?.() }, [])
   const ensure = async () => {
@@ -363,15 +363,15 @@ export function useTableDice(box, o = null) {
       const O = opt.current
       tray.current = D.webglOk() ? D.createTray(box.current, { view: 13, colors: DICE_COL, words: [tx('Cara'), tx('Coroa')], onHit: a => play('diceHit', { amount: a }),
         ...(O && { box: O.box, rot: O.rot || 0, onThrow: (types, thr) => opt.current?.onThrow?.(types, thr), onDrag: (x, y) => opt.current?.onDrag?.(x, y) }),
-        onSettle: items => { setRes({ items }); play('tick', { amount: 1 }); if (items.some(x => x.type === 'moeda')) play('coin'); clearTimeout(clear.current); clear.current = setTimeout(() => { tray.current?.clear(); setRes(null) }, opt.current?.keep || 20000) } }) : 'flat'
+        onSettle: items => { setRes({ items, words: lastWords.current }); play('tick', { amount: 1 }); if (items.some(x => x.type === 'moeda')) play('coin'); clearTimeout(clear.current); clear.current = setTimeout(() => { tray.current?.clear(); setRes(null) }, opt.current?.keep || 20000) } }) : 'flat'
     }
     return tray.current
   }
-  const roll = async (types, want, extra) => {  // want: os valores já sorteados (mesa livre: o servidor tira-os e todos veem o mesmo); extra = {seed, thr}
-    clearTimeout(clear.current); setRes({ rolling: true, types })
+  const roll = async (types, want, extra) => {  // want: os valores já sorteados (mesa livre: o servidor tira-os e todos veem o mesmo); extra = {seed, thr, words}
+    clearTimeout(clear.current); setRes({ rolling: true, types }); lastWords.current = extra?.words || null
     if (!(await ensure())) return
     play('dice', { amount: types.length })
-    if (tray.current === 'flat') return setRes({ items: types.map((type, i) => ({ type, v: want?.[i] ?? 1 + Math.floor(Math.random() * (type === 'moeda' ? 2 : +type.slice(1))) })) })  // sem WebGL: só o número
+    if (tray.current === 'flat') return setRes({ words: lastWords.current, items: types.map((type, i) => ({ type, v: want?.[i] ?? 1 + Math.floor(Math.random() * (type === 'moeda' ? 2 : +type.slice(1))) })) })  // sem WebGL: só o número
     tray.current.roll(types, want, extra)
   }
   const off = () => { clearTimeout(clear.current); if (tray.current && tray.current !== 'flat') tray.current.clear(); setRes(null) }

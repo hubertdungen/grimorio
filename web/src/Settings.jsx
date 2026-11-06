@@ -113,6 +113,7 @@ function TableKeys() {
   return (
     <>
       <label className="chk"><input type="checkbox" checked={p.space} onChange={e => save({ space: e.target.checked })} /> {tx('Espaço faz o mesmo que Enter (OK / passar)')}</label>
+      <label className="chk"><input type="checkbox" checked={p.shiftSpace} onChange={e => save({ shiftSpace: e.target.checked })} /> {tx('Shift+Espaço acaba o turno (como Shift+Enter)')}</label>
       <label className="fmt"><span>{tx('Tecla para virar a carta debaixo do rato (a outra face, ou de pernas para o ar; só no teu ecrã)')}</span>
         <input value={p.flip.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (okKey(k) && k !== p.tap) save({ flip: k }) }} /></label>
       <label className="fmt"><span>{tx('Tecla para virar (tap) a carta tua na mesa debaixo do rato — o mesmo que clicar nela')}</span>

@@ -3842,6 +3842,9 @@ export default {
   "Processador: 5 mil grãos": "处理器：5000 颗粒",
   "Leve: para aparelhos fracos": "轻量：适合性能较弱的设备",
   "Tudo é desenhado neste aparelho (PC, telemóvel ou browser), também online: o servidor só envia o estado do jogo e cada aparelho simula as esferas a partir dele.": "一切都在本设备上绘制（电脑、手机或浏览器），联机时也是如此：服务器只发送对局状态，每台设备据此模拟球体。",
+  "Moeda: {n}": "硬币：{n}",
+  "Shift+Espaço acaba o turno (como Shift+Enter)": "Shift+空格 结束回合（同 Shift+回车）",
+  "Shift+Espaço": "Shift+空格",
   "Aspeto das partículas": "粒子外观",
   // Regras › Guia do Grimório (Guide.jsx)
   "Os botões desta área": "本区域的按钮",

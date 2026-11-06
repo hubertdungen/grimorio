@@ -424,7 +424,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const [act, setAct] = useState(null)  // {id, x, y, lines}: confirmar ativar uma habilidade de uma permanente tua (um clique já não ativa às escondidas)
   useBackClose(!!zone, () => setZone(null)); useBackClose(!!act, () => setAct(null))  // cemitério/exílio e o «Ativar …?»
   useEffect(() => { if (!/^Priority:/.test(pr?.msg || '')) setLift(null) }, [pr?.msg])  // o Forge pede uma escolha: a carta levantada desce (as escolhidas sobem com moldura)
-  useEffect(() => {  // Enter/Espaço = o botão principal (passar ao passo seguinte), Shift+Enter = acabar o turno, Esc = o outro botão
+  useEffect(() => {  // Enter/Espaço = o botão principal (passar ao passo seguinte), Shift+Enter ou Shift+Espaço = acabar o turno, Esc = o outro botão
     const k = e => {
       if (ask || big || pressing.current || document.querySelector('.ask-bg') || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return  // carta em grande aberta: o Esc é dela
       if (act) { if ((e.key === 'Enter' || e.key === ' ') && !act.pw?.length) { e.preventDefault(); activate() } else if (e.key === 'Escape') { e.preventDefault(); setAct(null) } return }
@@ -432,7 +432,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       if (e.key.toLowerCase() === P.tap && hoverId.current != null && !e.ctrlKey && !e.metaKey && document.querySelector(`.bside.bottom .pc[data-z="k:${hoverId.current}"]`)) { e.preventDefault(); permClick(hoverId.current, document.querySelector(`.bside.bottom .pc[data-z="k:${hoverId.current}"]`)); return }  // rato por cima de uma carta tua na mesa + T = virá-la (tap) / ativá-la, como o clique
       if (e.key.toLowerCase() === P.flip && hoverId.current != null && !e.ctrlKey && !e.metaKey) { e.preventDefault(); const k = hoverId.current; setFlipped(f => { const n = new Set(f); n.has(k) ? n.delete(k) : n.add(k); return n }); return }
       const end = btns.find(b => b.label === 'End Turn')
-      const b = e.key === 'Enter' && e.shiftKey ? end : (e.key === ' ' && P.space) || e.key === 'Enter' ? btns[0] : e.key === 'Escape' ? btns[1] : null
+      const b = (e.key === 'Enter' || (e.key === ' ' && P.shiftSpace)) && e.shiftKey ? end : (e.key === ' ' && P.space && !e.shiftKey) || e.key === 'Enter' ? btns[0] : e.key === 'Escape' ? btns[1] : null
       if (b?.on) { e.preventDefault(); pressBtn(b) }
     }
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
@@ -823,19 +823,24 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // toss» chega e a moeda vai ao ar nesse momento (cara); sem a pergunta, o jogo arranca e foi o adversário que ganhou
   // (coroa) — o aviso diz o que ele escolheu. Nos jogos seguintes de uma série escolhe quem perdeu o anterior: sem moeda.
   // Uma vez por jogo (sessionStorage), mesmo a recarregar.
-  const tossed = useRef(false)
+  // as faces da moeda são os jogadores: o nome (curto) e as cores do deck de cada um — cai com a face de quem ganhou
+  const tossed = useRef(false), sawWin = useRef(false)
+  const coinFace = (p, side) => ({ n: String(p?.name || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).slice(0, 2).join(' ').slice(0, 12) || '?',
+    c: (document.querySelector(`.bside.${side} .orb:not(.orb-proxy)`)?.dataset.cols || '').replace(/[^WUBRGC]/g, '') })
   const toss = won => {
     if (tossed.current) return
     tossed.current = true
     try { const k = `grimorio.fp.toss.${sid}`; if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1') } catch { /* sem armazenamento: lança na mesma */ }
-    setTimeout(() => dice.roll(['moeda'], [won ? 1 : 2]), 200)
+    setTimeout(() => dice.roll(['moeda'], [won ? 1 : 2], { words: [coinFace(me, 'bottom'), coinFace(opp, 'top')] }), 200)
     if (!won) setTimeout(() => setToast({ title: tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') }), msg: st?.active === me?.id ? tx('Escolheu ir em segundo: começas tu.') : tx('Escolheu jogar primeiro.') }), 2000)
   }
-  useEffect(() => { if (/won the coin toss/.test(pr?.msg || '')) toss(true) }, [pr?.msg])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (/won the coin toss/.test(pr?.msg || '')) { sawWin.current = true; toss(true) } }, [pr?.msg])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!st?.turn || st.turn > 1 || st.active == null || !me) return
     if (series && (series.w?.[0] || 0) + (series.w?.[1] || 0) > 0) { tossed.current = true; return }  // jogo 2+ da série: escolhe quem perdeu
-    toss(false)
+    // só se a pergunta «ganhaste a moeda» não chegar entretanto (o estado pode chegar antes dela: saía sempre a face do outro)
+    const t = setTimeout(() => { if (!sawWin.current) toss(false) }, 1500)
+    return () => clearTimeout(t)
   }, [st?.turn, st?.active])  // eslint-disable-line react-hooks/exhaustive-deps
   const P = fpPrefs()
   const stage = useStage(fitBox, stageWrap, !!st)
@@ -1014,7 +1019,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')} {tx('Duplo clique numa carta tua na mesa abre as ações dela, em qualquer fase (também a atacar e a bloquear).')}</p>
           <div className="fp-dicebar"><span className="muted small">🎲</span>
             {[['d6', ['d6']], ['2d6', ['d6', 'd6']], ['d20', ['d20']], [tx('moeda'), ['moeda']]].map(([l, t]) => <button key={l} type="button" className="link small" onClick={() => dice.roll(t)} title={tx('Lançar na mesa')}>{l}</button>)}
-            {dice.res?.items && <button type="button" className="fp-dres" onClick={dice.off} title={tx('Tirar os dados da mesa')}>{dice.res.items.map(x => (x.type === 'moeda' ? (x.v === 1 ? tx('Cara') : tx('Coroa')) : x.v)).join(' + ')}{dice.res.items.length > 1 && dice.res.items.every(x => x.type !== 'moeda') ? ` = ${dice.res.items.reduce((a, x) => a + x.v, 0)}` : ''} ✕</button>}</div>
+            {dice.res?.items && <button type="button" className="fp-dres" onClick={dice.off} title={tx('Tirar os dados da mesa')}>{dice.res.items.map(x => (x.type === 'moeda' ? (dice.res.words?.[x.v - 1]?.n ? tx('Moeda: {n}', { n: dice.res.words[x.v - 1].n }) : x.v === 1 ? tx('Cara') : tx('Coroa')) : x.v)).join(' + ')}{dice.res.items.length > 1 && dice.res.items.every(x => x.type !== 'moeda') ? ` = ${dice.res.items.reduce((a, x) => a + x.v, 0)}` : ''} ✕</button>}</div>
           <Hist log={st.log} nameOf={id => byId.get(id)?.name} />
           <div className="row-btns small">
             <button className="link small" onClick={() => send({ c: 'undo' })}>↶ {tx('desfazer')}</button>

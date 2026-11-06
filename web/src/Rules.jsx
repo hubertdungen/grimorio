@@ -7,7 +7,6 @@ import { Mana, Syms } from './ui.jsx'
 import CardScan from './CardScan.jsx'
 import { tx } from './i18n.js'
 import { KW } from './keywords.js'
-import { fpPrefs } from './fpprefs.js'
 import { Icon } from './icons.jsx'
 import Guide from './Guide.jsx'
 
@@ -18,16 +17,6 @@ async function j(url, opts) {
 }
 
 // os gestos da mesa (Forge Play, online, mesa livre), explicados num sítio só; as teclas são as de Definições › Mesa
-const howto = (P = fpPrefs(), t = P.tap.toUpperCase(), f = P.flip.toUpperCase()) => [
-  [tx('Arrastar da mão para a mesa'), tx('joga a carta (ou duplo clique nela na mão). Um terreno vai sempre para a fila dos terrenos.')],
-  [tx('Duplo clique numa carta tua na mesa'), tx('abre as ações dessa carta (habilidades para ativar), em qualquer fase — também a atacar e a bloquear. Numa carta do adversário, mostra-a em grande.')],
-  [tx('Tocar e manter'), tx('a carta em grande (no telemóvel, onde não há painel ao lado).')],
-  [tx('Atacar'), tx('na fase principal ou ao declarar atacantes, arrasta a criatura para o lado do adversário (ou toca nela e depois OK).')],
-  [tx('Bloquear'), tx('arrasta a tua criatura para cima do atacante, ou toca nela e depois no atacante; feito antes de o Forge pedir os bloqueadores, o bloqueio fica marcado e entra sozinho.')],
-  [tx('Esfera da vida'), tx('um clique escolhe esse jogador como alvo; arrasta-a para a atirar (volta sozinha). O estilo, o 3D e as partículas mudam-se em 🎨 tapete, na mesa, ou em Definições › Mesa.')],
-  [tx('Teclas'), tx('Enter{sp} = OK/passar, Shift+Enter = acabar o turno, Esc = cancelar, {t} = virar (tap) a tua carta debaixo do rato, {f} = ver a outra face (só no teu ecrã). Na mesa livre: {f} transforma ou vira para baixo, D compra, V vê o topo, S baralha, M moe, X exila o topo, P caneta. Mudam-se em Definições › Mesa.', { t, f, sp: P.space ? tx(' ou Espaço') : '' })],
-  [tx('⛶ e ⟳'), tx('ecrã inteiro (no canto da mesa ou na barra de baixo; atalho Shift+F) e rodar a mesa no telemóvel/tablet.')],
-]
 
 export default function Rules({ data, initial = '' }) {
   // dois separadores: a pesquisa das regras do Magic e o Guia do Grimório (fica o último escolhido, neste browser)
@@ -114,10 +103,6 @@ export default function Rules({ data, initial = '' }) {
         <div className="row-btns"><button onClick={askAI} disabled={aiBusy}>{aiBusy ? tx('A pensar…') : `✦ ${tx('Explicar com a IA')}`}</button><span className="small muted">{tx('Usa as regras encontradas e cita os números.')}</span></div>
         {ai?.resumo && <div className="rules-ai">{ai.resumo.split(/\n+/).map((p, k) => <p key={k}>{p}</p>)}<small className="muted">{ai.modelo}</small></div>}
       </section>}
-      <details className="card rules-howto">
-        <summary><b>🎮 {tx('Comandos da mesa')}</b> <span className="muted small">{tx('Forge Play, jogo online e mesa livre')}</span></summary>
-        <ul>{howto().map((x, k) => <li key={k}><b>{x[0]}</b> — {x[1]}</li>)}</ul>
-      </details>
       </>}
       {scan && <CardScan data={data} onPick={c => { setScan(false); setQ(c.n); go(c.n); openCard(c) }} onClose={() => setScan(false)} />}
     </div>

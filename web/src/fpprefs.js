@@ -15,7 +15,8 @@ export const ORB_A = ['calmo', 'turbilhao', 'pulsar', 'faiscas']
 export const cardVars = (px, k = 'var(--pk, 1)') => (px ? { '--px': `calc(${px}px * ${k})`, '--cw': `calc(${px}px * ${k})`, '--ow': `calc(${px}px * ${k})`, '--lw': `calc(${px}px * ${k})` } : null)
 export const fpPrefs = () => {
   let o = {}; try { o = JSON.parse(localStorage.getItem('grimorio.fp.prefs') || '{}') } catch { /* sem armazenamento */ }
-  return { space: o.space !== false, flip: o.flip || 'f', tap: o.tap || 't',
+  return { space: o.space !== false, shiftSpace: o.shiftSpace !== false,  // Shift+Espaço = acabar o turno (ligado por omissão)
+    flip: o.flip || 'f', tap: o.tap || 't',
     autopay: o.autopay === true, autoresolve: o.autoresolve === true,  // pagar sozinho: desligado por omissão
     place: ['grid', 'free', 'rows'].includes(o.place) ? o.place : 'grid', persp: o.persp !== false, tilt: Number.isFinite(o.tilt) ? o.tilt : 30,
     oppFace: o.oppFace === 'far' ? 'far' : 'me',  // cartas dos adversários: viradas para mim (legíveis) ou para eles (180°, como numa mesa a sério)
