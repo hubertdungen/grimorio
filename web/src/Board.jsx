@@ -807,6 +807,26 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     return () => { cancelAnimationFrame(raf); el.textContent = lifeTxt(life) }
   }, [life, fast])
   const low = life <= Math.max(5, Math.round(start / 4))
+  // perspetiva: a esfera de cima endireita-se a rodar por baixo do quadro (sem corte em quadrado) e por isso vem para a
+  // frente — a perspetiva do lado de cima puxa-a para fora, para a esquerda do nome. Acerta-se pela medida: a borda direita
+  // a 10px do nome (o gap da linha), como na mesa direita; serve para qualquer inclinação e ecrã
+  useEffect(() => {
+    const el = orbRef.current
+    if (!el) return
+    let fx = 0
+    const fit = () => {
+      if (!el.isConnected) return
+      if (!el.closest('.fp-stage.persp .bside.top')) { if (fx) { fx = 0; el.style.removeProperty('--pfx') } return }
+      const nm = el.parentElement?.querySelector(':scope > .bname')
+      if (!nm) return
+      const r = el.getBoundingClientRect(), q = nm.getBoundingClientRect(), k = r.width / (el.offsetWidth || r.width) || 1
+      const want = q.left - 10 * k - r.right
+      if (Math.abs(want) < 1) return
+      fx += (want / k) * 0.8; el.style.setProperty('--pfx', `${fx.toFixed(1)}px`)
+    }
+    fit(); const iv = setInterval(fit, 400)
+    return () => clearInterval(iv)
+  }, [])
   // muita vida (dos 40 aos 100, aos poucos): a esfera ganha um ou dois «excessos» escolhidos ao acaso — auréola a crescer,
   // a engordar (gelatina), a transpirar gotas de luz, raios de luz divina à volta; a partir de 70 junta o segundo
   const ab = life >= 1e6 ? 1 : life > 40 ? Math.min(1, (life - 40) / 60) : 0

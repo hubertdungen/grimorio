@@ -3439,7 +3439,7 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .orb.orb-proxy .orb-smoke { translate: var(--slx, 0) var(--sly, 0); transition: translate .12s linear; }
 /* no lado do adversário em perspetiva: a esfera vira-se para ti (antes ficava espalmada e esticada na diagonal) */
 .fp-stage.persp .bside.top, .fp-stage.persp .bside.top > .bhud, .fp-stage.persp .bside.top > .bhud > .orb-wrap { transform-style: preserve-3d; }
-.fp-stage.persp .bside.top .bhud > .orb:not(.orb-proxy) { transform: rotateX(calc(var(--tilt) * -1)); transform-origin: 50% 210%; }  /* a dobradiça abaixo de todo o quadro 3D (2,5×; partida 3,2×): o que ficava abaixo da borda da esfera ia para trás do plano da mesa e era cortado a direito */
+.fp-stage.persp .bside.top .bhud > .orb:not(.orb-proxy) { transform: rotateX(calc(var(--tilt) * -1)) translateX(var(--pfx, 0px)); transform-origin: 50% 210%; }  /* a dobradiça abaixo de todo o quadro 3D (2,5×; partida 3,2×): o que ficava abaixo da borda da esfera ia para trás do plano da mesa e era cortado a direito */
 /* antes de rebentar: rachas a crescer, a tremer e a brilhar cada vez mais */
 .orb.bursting { animation: oshake .07s linear infinite, ocharge .75s ease-in forwards !important; }
 .orb.bursting::before { content: ''; position: absolute; inset: 0; z-index: 5; border-radius: 50%; pointer-events: none; opacity: 1;
