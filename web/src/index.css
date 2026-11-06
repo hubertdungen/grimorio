@@ -3868,3 +3868,30 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .set-close span { font-size: 15px; line-height: 1; }
 /* cada opção de ligar/desligar na sua linha */
 .set-main label.chk { display: flex; align-items: flex-start; gap: 6px; }
+
+/* terrenos especiais a entrar (Board.jsx landEnter): uma camada por cima da carta, por família */
+.zland[class*=" l-"] { animation: lfade 1.6s ease-out both; }
+@keyframes lfade { 0% { opacity: 0; } 15% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+.zland.l-legend { box-shadow: 0 0 0 2px #f6d27a, 0 0 22px #f2b84bcc, inset 0 0 18px #f2b84b66; }
+.zland.l-legend .crown { position: absolute; left: 50%; top: -34%; translate: -50% 0; font-size: 26px; color: #ffd98a; text-shadow: 0 0 10px #f2b84b, 0 2px 4px #000a; animation: lcrown 1.6s cubic-bezier(.2, .9, .3, 1.2) both; }
+@keyframes lcrown { 0% { transform: translateY(-26px) scale(.6); opacity: 0; } 35% { transform: translateY(0) scale(1.15); opacity: 1; } 55% { transform: scale(1); } 100% { transform: scale(1); opacity: 1; } }
+.zland.l-prism, .zland.l-tri { padding: 3px; overflow: hidden; border-radius: 8px; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; filter: drop-shadow(0 0 6px #fff8); }
+.zland.l-prism::before, .zland.l-tri::before { content: ''; position: absolute; left: 50%; top: 50%; width: 250%; aspect-ratio: 1; translate: -50% -50%; animation: lspin 1.6s linear both; }
+.zland.l-prism::before { background: conic-gradient(#ff5c5c, #ffd24a, #5cff8a, #4ad8ff, #6b6bff, #ff5cf0, #ff5c5c); }
+.zland.l-tri::before { background: conic-gradient(var(--c1), var(--c2), var(--c3), var(--c1)); }
+@keyframes lspin { to { rotate: 360deg; } }
+.zland.l-dual { overflow: hidden; box-shadow: 0 0 12px var(--c1), 0 0 12px var(--c2) inset; }
+.zland.l-dual::before { content: ''; position: absolute; inset: -20%; background: linear-gradient(120deg, transparent 25%, var(--c1) 42%, #fff9 50%, var(--c2) 58%, transparent 75%); mix-blend-mode: screen; opacity: .8; animation: lsweep 1.2s ease-in-out both; }
+.zland.l-dual::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 25% 80%, var(--c1) 0 3px, transparent 4px), radial-gradient(circle at 70% 85%, var(--c2) 0 3px, transparent 4px), radial-gradient(circle at 48% 90%, var(--c1) 0 2px, transparent 3px), radial-gradient(circle at 85% 70%, var(--c2) 0 2px, transparent 3px); animation: lmotes 1.5s ease-out both; }
+@keyframes lsweep { from { translate: -70% 0; } to { translate: 70% 0; } }
+@keyframes lmotes { from { translate: 0 0; opacity: 0; } 20% { opacity: 1; } to { translate: 0 -60%; opacity: 0; } }
+.zland.l-snow { border: 2px solid #e6f6ff; box-shadow: 0 0 14px #bfe8ff, inset 0 0 16px #ffffffaa; background: radial-gradient(circle at 0 0, #ffffffcc, transparent 30%), radial-gradient(circle at 100% 0, #ffffffaa, transparent 26%), radial-gradient(circle at 0 100%, #ffffffaa, transparent 26%), radial-gradient(circle at 100% 100%, #ffffffcc, transparent 30%); }
+.zland.l-eye svg { position: absolute; left: 50%; top: 42%; width: 70%; translate: -50% -50%; overflow: visible; animation: leye 1.5s ease-in-out both; }
+.zland.l-eye .lid { fill: #0b1830cc; stroke: #8ecbff; stroke-width: 3; } .zland.l-eye .iris { fill: #3f8de6; } .zland.l-eye .pupil { fill: #e8f4ff; animation: lglance 1.5s ease-in-out both; }
+@keyframes leye { 0% { scale: 1 0; } 25%, 75% { scale: 1 1; } 100% { scale: 1 0; } }
+@keyframes lglance { 0%, 30% { translate: 0 0; } 55% { translate: 8px 2px; } 80%, 100% { translate: 0 0; } }
+.zland.l-rune svg { position: absolute; inset: 10%; overflow: visible; animation: lspin 1.6s linear both; }
+.zland.l-rune circle { fill: none; stroke: #b8a6ff; stroke-width: 3; stroke-dasharray: 10 7 2 7; filter: drop-shadow(0 0 4px #9d84ff); } .zland.l-rune circle.in { stroke: #e2dcff; stroke-dasharray: 4 9; }
+.zland.l-quake::before { content: ''; position: absolute; left: -15%; right: -15%; bottom: -12%; height: 40%; background: radial-gradient(ellipse at 50% 100%, #a68a6488, transparent 70%); filter: blur(2px); animation: ldust 1.2s ease-out both; }
+@keyframes ldust { from { scale: .4 .5; opacity: 0; } 30% { opacity: 1; } to { scale: 1.4 1; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .zland[class*=" l-"] { display: none; } }

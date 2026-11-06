@@ -1357,6 +1357,50 @@ function landFx(el, kind, cols) {
   if (kind === 'shock') g.innerHTML = '<svg viewBox="0 0 100 140" preserveAspectRatio="none"><path d="M-4 30 L18 44 L8 58 L34 70 L22 86 L52 96" /><path class="b" d="M104 104 L80 92 L92 78 L66 66 L80 50 L50 40" /></svg>'
   fxHost().append(g); setTimeout(() => g.remove(), 1100)
 }
+// terrenos especiais a entrar: cada família com a sua animação, escolhida pelo texto da carta e adaptada às cores dela e
+// ao que está na mesa. Os básicos não fazem nada (seriam ruído); shock, fast e fetch têm as suas (acima)
+const CHECK = /enters tapped unless you control an? ([A-Z][a-z]+)(?: or an? ([A-Z][a-z]+))?/
+export function landKinds(c) {
+  const o = c?.o || '', t = c?.t || '', cs = landCols(c), out = []
+  if (/Legendary/.test(t)) out.push('legend')  // coroa dourada
+  if (/becomes? an? [^.]*creature/i.test(o)) out.push('quake')  // terra-criatura: estremece e levanta pó
+  if (/\bSnow\b/.test(t)) out.push('snow')  // neve: gelo nos cantos
+  if (/enters tapped unless you control two or more basic lands/i.test(o)) out.push('tango')  // os teus básicos dão-lhe fitas de luz
+  else if (CHECK.test(o)) out.push('check')  // as terras do tipo certo dão-lhe fitas de luz
+  if (/When [^.]*enters[^.]*\b(scry|surveil) \d/i.test(o)) out.push('eye')  // um olho que abre e espreita a biblioteca
+  if (/When [^.]*enters[^.]*you gain \d+ life/i.test(o)) out.push('heal')  // uma faísca de cura até à esfera
+  if (/mana of any (one )?colou?r/i.test(o)) out.push('prism')  // arco-íris: anel de prisma
+  else if (cs.length >= 3) out.push('tri')  // três cores: anel nas três
+  else if (cs.length === 2 && !/^Basic/.test(t)) out.push('dual')  // duas: varrimento nas duas e motas a subir
+  else if (cs[0] === 'C' && !/^Basic/.test(t) && /\{T\}[^:]*:(?! Add)/.test(o)) out.push('rune')  // utilitária incolor: runas
+  return out
+}
+const rectOf = x => (x?.querySelector?.('.pc-rot') || x)?.getBoundingClientRect?.()
+function landEnter(el, c, k, s, data) {
+  const kinds = landKinds(c)
+  if (!kinds.length) return
+  const cs = landCols(c), r = rectOf(el)
+  if (!r?.width) return
+  const host = fxHost(), side = q => document.querySelector(`.bside.p-${k} ${q}`)
+  kinds.forEach((kind, i) => {
+    if (kind === 'tango' || kind === 'check') {  // fitas das terras que a deixam entrar desvirada
+      const m = kind === 'check' && CHECK.exec(c.o || ''), types = m ? [m[1], m[2]].filter(Boolean) : null
+      const from = (s[k]?.perms || []).filter(p => { const t = lookup(data, p.name)?.t || ''; return /Land/.test(t) && (types ? types.some(x => t.includes(x)) : /Basic/.test(t)) }).slice(0, 4)
+      from.forEach((p, j) => { const se = side(`.pc[data-z="k:${CSS.escape(String(p.key))}"]`); const t = lookup(data, p.name)?.t || ''; const col = Object.entries(BASIC).find(([n]) => t.includes(n))?.[1] || cs[0]; if (se && se !== el) ribbon(rectOf(se), r, [col], j * 140, 9) })
+      return
+    }
+    if (kind === 'heal') { ribbon(r, rectOf(side('.orb:not(.orb-proxy)')), ['W', 'G'], 250, 10); return }
+    const g = document.createElement('div')
+    g.className = `zland l-${kind}`
+    Object.assign(g.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, animationDelay: `${i * 120}ms` })
+    g.style.setProperty('--c1', LCOL[cs[0]]); g.style.setProperty('--c2', LCOL[cs[1] || cs[0]]); g.style.setProperty('--c3', LCOL[cs[2] || cs[0]])
+    if (kind === 'legend') g.innerHTML = '<b class="crown">♛</b>'
+    else if (kind === 'eye') { g.innerHTML = '<svg viewBox="0 0 100 60"><path class="lid" d="M5 30 Q50 -8 95 30 Q50 68 5 30 Z"/><circle class="iris" cx="50" cy="30" r="13"/><circle class="pupil" cx="50" cy="30" r="5"/></svg>'; ribbon(rectOf(zoneEl(k, 'library')) || r, r, cs.includes('U') ? ['U'] : cs, 450, 6) }
+    else if (kind === 'rune') g.innerHTML = '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/><circle class="in" cx="50" cy="50" r="28"/></svg>'
+    else if (kind === 'quake') (el.querySelector('.pc-rot') || el).animate([{ translate: '0 0' }, { translate: '-3px 1px' }, { translate: '3px -1px' }, { translate: '-2px 2px' }, { translate: '2px 0' }, { translate: '0 0' }], { duration: 520, delay: 120, easing: 'linear' })
+    host.append(g); setTimeout(() => g.remove(), 1700 + i * 120)
+  })
+}
 // exilada: a carta desintegra-se em pedacinhos de luz que se soltam de cima para baixo e sobem a desvanecer
 // (antes era a carta inteira a crescer e a desfocar, e a cópia esticava a imagem)
 function exileDissolve(el) {
@@ -1469,6 +1513,7 @@ export function ZoneFx({ s, data, quiet }) {
         }
         if (!p.tapped && SHOCK.test(c.o || '')) { shockFx(el, landCols(c), document.querySelector(`.bside.p-${k} .orb:not(.orb-proxy)`)); setTimeout(() => play('atk_thunder'), 380) }
         else if (!p.tapped && FAST.test(c.o || '')) landFx(el, 'fast', landCols(c))
+        if (!SHOCK.test(c.o || '') && !FAST.test(c.o || '')) landEnter(el, c, k, s, data)
       }
       for (const k of s.sides) {
         const a = p[k], b = snap[k]
