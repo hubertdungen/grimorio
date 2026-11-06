@@ -3834,4 +3834,5 @@ export default {
   "Os outros já podem abrir e ver o teu deck.": "其他人现在可以打开并查看你的套牌。",
   "O teu deck está à vista": "你的套牌已公开",
   "O teu deck voltou a estar fechado.": "你的套牌重新关闭了。",
+  "Fluido de partículas com física (desligado: o líquido simplificado)": "带物理的粒子流体（关闭：简化液体）",
 }

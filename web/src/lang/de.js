@@ -3834,4 +3834,5 @@ export default {
   "Os outros já podem abrir e ver o teu deck.": "Die anderen können dein Deck jetzt öffnen und ansehen.",
   "O teu deck está à vista": "Dein Deck ist sichtbar",
   "O teu deck voltou a estar fechado.": "Dein Deck ist wieder geschlossen.",
+  "Fluido de partículas com física (desligado: o líquido simplificado)": "Partikelflüssigkeit mit Physik (aus: die vereinfachte Flüssigkeit)",
 }

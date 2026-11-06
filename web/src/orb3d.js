@@ -9,6 +9,7 @@
 // as cores do deck (data-cols). As reações por cima (sangue, luz, vento…) continuam a ser as da esfera clássica.
 // Sem WebGL: fica a esfera clássica (CSS).
 import * as THREE from 'three'
+import { FluidSim, MANA_MAT } from './orbfluid.js'
 
 const COL = { W: '#f5c451', U: '#4cc9f0', B: '#a78bfa', R: '#ff5c3a', G: '#4ade80', C: '#cbd5e1' }
 const SIZE = 192
@@ -158,7 +159,7 @@ function init() {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
   renderer.setSize(SIZE, SIZE, false); renderer.setPixelRatio(1)
   const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50)
-  cam.position.set(0, 0.2, 6); cam.lookAt(0, 0, 0)
+  cam.position.set(0, 1.35, 5.85); cam.lookAt(0, 0, 0)  // um pouco por cima: vê-se que é uma esfera e a fundura do que tem dentro
   const coreU = { t: { value: 0 }, c1: { value: new THREE.Color() }, c2: { value: new THREE.Color() }, core: { value: new THREE.Color() }, deep: { value: new THREE.Color() },
     speed: { value: 1 }, dens: { value: 0.9 }, glow: { value: 0.6 }, rot: { value: 0 }, frost: { value: 0 },
     env1: { value: new THREE.Vector4() }, exl: { value: 0 }, stain: { value: new THREE.Vector4() }, slosh: { value: new THREE.Vector2() }, elem: { value: 0 }, wA: { value: new THREE.Vector3() }, wB: { value: new THREE.Vector3() }, wlite: { value: 0 }, tox: { value: 0 }, ink: { value: new THREE.Color() }, inkP: { value: new THREE.Vector4() }, inkK: { value: 0 } }
@@ -174,6 +175,17 @@ function init() {
   const caustic = sprite([[0, '#ffffffdd'], [0.5, '#ffffff22'], [1, '#ffffff00']], 0.9); caustic.position.set(0.18, -0.62, 0.8)
   const ball = new THREE.Group(); ball.add(core)
   scene.add(glow, glow2, ball, glassBack, caustic, glass)
+  // a sombra no chão por baixo da esfera (ajuda a ler o volume)
+  const shTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 4, 64, 64, 64)
+    gr.addColorStop(0, '#000000aa'); gr.addColorStop(0.6, '#00000033'); gr.addColorStop(1, '#00000000'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c) })()
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false }))
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = -1.02; scene.add(shadow)
+  glassBack.renderOrder = 0; glass.renderOrder = 3  // as partículas do fluido desenham-se entre a parte de trás e a da frente do vidro
+  const ptVS = 'attribute float size; attribute float alpha; attribute vec3 color; varying vec3 vC; varying float vA; uniform float scale; void main(){ vC = color; vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }'
+  const ptFS = 'varying vec3 vC; varying float vA; uniform float add; void main(){ vec2 d = gl_PointCoord - .5; float r = length(d); if (r > .5) discard; float a = (1. - smoothstep(.18, .5, r)) * vA; float sh = add > .5 ? 1.5 : .78 + .55 * (.2 - d.y) - r * .35; gl_FragColor = vec4(vC * sh, a); }'
+  const ptMat = additive => new THREE.ShaderMaterial({ vertexShader: ptVS, fragmentShader: ptFS, uniforms: { scale: { value: 150 }, add: { value: additive ? 1 : 0 } }, transparent: true, depthWrite: false,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending })
+  const ptMats = [ptMat(false), ptMat(true)]
   // física a sério: a esfera parte-se em cacos que caem e saltam no chão (e lá ficam), ou cai inteira, rola e desfaz-se;
   // partir ao meio abre duas metades; uma dentada verte gotas que fazem uma poça; o chão racha onde ela cai
   const shards = new THREE.Group(), parts = []
@@ -196,7 +208,7 @@ function init() {
   const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.7, 32), new THREE.MeshBasicMaterial({ color: '#ff2a3a', transparent: true, opacity: 0, depthWrite: false }))
   puddle.rotation.x = -Math.PI / 2; puddle.position.y = -1.11
   scene.add(floor, puddle, shards, ...halves, drops)
-  R = { renderer, scene, cam, core, coreU, glass, glassBack, glow, glow2, caustic, ball, shards, parts, halves, drops, floor, puddle }
+  R = { renderer, scene, cam, core, coreU, glass, glassBack, glow, glow2, caustic, ball, shards, parts, halves, drops, floor, puddle, ptMats, shadow }
   return R
 }
 
@@ -209,7 +221,8 @@ function read(o) {
     anim: el.dataset.a || 'calmo', ab: +(cs.getPropertyValue('--ab') || 0) || 0, cols: (el.dataset.cols || '').split('').filter(c => COL[c]), fx: el.dataset.fx3 || '',
     w: el.dataset.w ? el.dataset.w.split(',').map(Number) : null, env: el.dataset.env ? el.dataset.env.split(',').map(Number) : [0, 0, 0, 0, 0, 0, 0, 0, 0], tox: +el.dataset.psn || 0, ink: el.dataset.ink || '',
   }
-  if (o.st.ink && o.st.ink !== o.ink) { o.inkAt = performance.now(); o.inkDir = el._inkDir || [0, 0]; o.inkCol = null; o.inkAmt = 0.6 }
+  if (o.st.ink && o.st.ink !== o.ink) { o.inkAt = performance.now(); o.inkDir = el._inkDir || [0, 0]; o.inkCol = null; o.inkAmt = 0.6
+    if (o.fs) { const d = o.inkDir; for (const [m, k] of STYLE_MAT[o.st.ink] || []) o.fs.inject(m, k, [-d[0], d[1], 0.5]) } }  // o que entra com o golpe
   o.ink = o.st.ink
   if (o.st.burst && !o.burstAt) o.burstAt = performance.now()
   if (!o.st.burst) o.burstAt = 0
@@ -224,6 +237,37 @@ const INK = { bite: '#7a0010', blood: '#8a0012', claws: '#5a0a0a', sword: '#9ca3
 const ECOLH = ['#f2b84b', '#38a8f0', '#4a3a2a', '#ff6a2a', '#4caf50', '#9aa3ad'], ECOL = ECOLH.map(c => new THREE.Color(c)), MIX = new THREE.Color(), TMP = new THREE.Color()
 const HOT = new THREE.Color('#ff6a1a'), COLD = new THREE.Color('#9fdcff')
 const STC = new THREE.Color()
+// o que cada estilo de golpe mete no fluido (matéria, quantas)
+const STYLE_MAT = { bite: [['blood', 22]], blood: [['blood', 30]], claws: [['blood', 18]], sword: [['metal', 10], ['blood', 12]], arrow: [['blood', 10], ['rock', 4]],
+  horn: [['blood', 12], ['rock', 8]], smash: [['rock', 22]], dive: [['blood', 10], ['smoke', 8]], thunder: [['light', 16], ['ember', 10]], fire: [['ember', 16], ['lava', 12]],
+  ice: [['frost', 22]], leaf: [['spore', 18], ['paste', 6]], holy: [['light', 24]], prism: [['light', 12], ['frost', 8], ['ember', 6]], metal: [['metal', 22]],
+  goo: [['mud', 16], ['poison', 10]], rot: [['poison', 18], ['spore', 8]] }
+// aparelhos fracos (telemóvel): menos partículas
+const LOW = typeof navigator !== 'undefined' && ((navigator.hardwareConcurrency || 8) <= 4 || /Android|iPhone|iPad/i.test(navigator.userAgent || ''))
+// as fendas da esfera: direções fixas por esfera (com semente), mais com mais rachas
+function holesFor(o, crack) {
+  let h = Math.floor(o.seed * 1e6) >>> 0
+  const rnd = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296 }
+  return Array.from({ length: crack > 0.8 ? 4 : crack > 0.5 ? 3 : 2 }, () => { const a = rnd() * Math.PI * 2, y = -0.2 - rnd() * 0.75, c = Math.sqrt(1 - y * y); return { d: [Math.cos(a) * c, y, Math.sin(a) * c], k: crack } })
+}
+// desenhar o fluido: partículas opacas/normais e as de luz (aditivas), com o tamanho e a cor de cada uma
+function drawFluid(r, o, fs, now) {
+  if (!o.pts) {
+    const mk = mat => { const g = new THREE.BufferGeometry(), n = fs.max
+      for (const [k, d] of [['position', 3], ['color', 3], ['size', 1], ['alpha', 1]]) g.setAttribute(k, new THREE.BufferAttribute(new Float32Array(n * d), d).setUsage(THREE.DynamicDrawUsage))
+      const p = new THREE.Points(g, mat); p.frustumCulled = false; p.renderOrder = mat === r.ptMats[1] ? 2 : 1; p.visible = false; r.scene.add(p); return p }
+    o.pts = { objs: [mk(r.ptMats[0]), mk(r.ptMats[1])], tmp: { pos: new Float32Array(fs.max * 3), col: new Float32Array(fs.max * 3), size: new Float32Array(fs.max), glow: new Float32Array(fs.max), alpha: new Float32Array(fs.max) } }
+  }
+  const T = o.pts.tmp, n = fs.fill(T.pos, T.col, T.size, T.glow, T.alpha, now), cnt = [0, 0]
+  const A = o.pts.objs.map(p => p.geometry.attributes)
+  for (let i = 0; i < n; i++) {
+    const s = T.glow[i] >= 0.5 ? 1 : 0, a = A[s], k = cnt[s]++
+    a.position.array[k * 3] = T.pos[i * 3]; a.position.array[k * 3 + 1] = T.pos[i * 3 + 1]; a.position.array[k * 3 + 2] = T.pos[i * 3 + 2]
+    a.color.array[k * 3] = T.col[i * 3]; a.color.array[k * 3 + 1] = T.col[i * 3 + 1]; a.color.array[k * 3 + 2] = T.col[i * 3 + 2]
+    a.size.array[k] = T.size[i]; a.alpha.array[k] = T.alpha[i]
+  }
+  o.pts.objs.forEach((p, s) => { const a = A[s]; for (const k of ['position', 'color', 'size', 'alpha']) a[k].needsUpdate = true; p.geometry.setDrawRange(0, cnt[s]); p.visible = cnt[s] > 0 })
+}
 const FLOOR = -1.1, GREY = new THREE.Color('#9a958f'), TOXIC = new THREE.Color('#5fd13a'), STONE = new THREE.Color('#6b6b70')
 // cada derrota morre à sua maneira: vida a 0 estilhaça (cacos no chão) ou cai inteira e rola (ao acaso, com semente:
 // igual em todos os ecrãs); veneno derrete numa poça verde; moer escoa o líquido e o vidro vazio desfaz-se em pó;
@@ -341,7 +385,7 @@ function draw(now) {
     if (!s.dead) o.fr = null
     const fr = o.fr, dt = fr ? Math.min(0.033, (now - fr.last) / 1000) : 0
     if (fr) fr.last = now
-    r.cam.position.set(0, fr ? 2.4 : 0.2, fr ? 11.5 : 6); r.cam.lookAt(0, fr ? -0.5 : 0, 0)
+    r.cam.position.set(0, fr ? 2.4 : 1.35, fr ? 11.5 : 5.85); r.cam.lookAt(0, fr ? -0.5 : 0, 0)
     const age = fr ? (now - fr.t0) / 1000 : 0, md = fr?.mode
     r.glass.rotation.y = r.glassBack.rotation.y = 0  // as malhas são partilhadas: o rodopio do implodir não passa para a esfera seguinte
     const crumble = md === 'shatter' || (md === 'drain' && age > 1.5)  // moer: primeiro escoa, depois o vidro vazio desfaz-se
@@ -380,6 +424,7 @@ function draw(now) {
     } else if (md !== 'melt' && md !== 'drain') for (const m of [r.ball, r.glass, r.glassBack]) { m.position.set(0, 0, 0); m.rotation.z = 0 }
     if (!fr) r.ball.position.y = 0
     r.floor.material.opacity = fr && md !== 'implode' && md !== 'stone' ? Math.min(0.85, (now - fr.t0) / 600) : 0
+    r.shadow.visible = !fr
     r.glow.visible = r.glow2.visible = r.caustic.visible = !fr
     // partir ao meio: as duas metades afastam-se e voltam a juntar-se
     const opening = s.fx === 'split' && fxk > 0 && !fr
@@ -401,7 +446,32 @@ function draw(now) {
     if (o.drops) o.drops.forEach((b, k) => { stepBody(b, 0.016, 0.05); const m = r.drops.children[k]; m.position.set(...b.p); m.material.color.copy(s.core) })
     r.puddle.material.opacity = o.drops ? 0.75 * Math.min(1, (1 - fxk) * 2) : 0; r.puddle.material.color.copy(s.core); r.puddle.position.x = 1.2; r.puddle.scale.setScalar(1)
     if (md === 'melt') { const k = Math.min(1, age / 2.4); r.puddle.material.opacity = 0.85 * k; r.puddle.material.color.copy(TOXIC); r.puddle.position.x = 0; r.puddle.scale.setScalar(0.4 + 1.6 * k) }
+    // o fluido de partículas (data-pf="1"): a fonte no centro pede a mistura das cores do campo e do que pesa no jogador;
+    // gravidade com a inércia de a arrastar/atirar; fendas que vertem; ganhar vida fecha-as com crosta; partida, verte tudo
+    const fsOn = o.el.dataset.pf === '1'
+    if (fsOn && !o.fs) o.fs = new FluidSim(LOW ? 340 : 600, Math.floor(o.seed * 1e6))
+    r.core.visible = !(fsOn && o.fs)
+    if (fsOn && o.fs) {
+      const fs = o.fs, frac = {}, put = (k, f) => { if (f > 0) frac[k] = (frac[k] || 0) + f }
+      const cw = w ? w.slice(0, 6) : s.cols.length ? 'WUBRGC'.split('').map(c => (s.cols.includes(c) ? 1 / s.cols.length : 0)) : [0, 1, 0, 0, 0, 0]
+      'WUBRGC'.split('').forEach((c, i) => { if (cw[i] > 0) for (const [m, f] of MANA_MAT[c]) put(m, cw[i] * f) })
+      put('blood', E[0] * 0.3); put('poison', Math.min(0.4, (s.tox || 0) * 0.5)); put('rock', E[3] * 0.12); put('light', E[4] * 0.1)
+      const sum = Object.values(frac).reduce((a, b) => a + b, 0) || 1
+      for (const k in frac) frac[k] /= sum
+      const life = +o.el.dataset.life || 20
+      fs.setTargets(frac, Math.max(0.2, Math.min(0.92, 0.25 + 0.5 * Math.min(1, life / 20) + 0.17 * (s.ab || 0))))
+      if (crack > 0.3 && !s.dead) {  // fendas (as mesmas direções enquanto durarem; a força acompanha as rachas)
+        if (!fs.holes.length || fs.holes.every(h => h.patched)) fs.setCracks(holesFor(o, crack))
+        fs.holes.forEach(h => { if (!h.patched) h.k = crack })
+      }
+      if (o.lastLife != null && life > o.lastLife) fs.heal(Math.min(1, (life - o.lastLife) / 5))  // curar: remendos com crosta
+      o.lastLife = life
+      const gx = Math.max(-14, Math.min(14, -ax * 0.0011)), gy = -3 + Math.max(-14, Math.min(14, ay * 0.0011))
+      fs.step(dts, [gx, gy, 0], { dead: s.dead, stir: s.mood ? 5 : s.react ? 2 : 0 })
+      drawFluid(r, o, fs, now / 1000)
+    }
     r.renderer.render(r.scene, r.cam)
+    if (o.pts) for (const p of o.pts.objs) p.visible = false
     const cv = (px && px.querySelector('canvas.orb3d')) || o.cv, g = cv.getContext('2d')
     if (cv.width !== SIZE) { cv.width = SIZE; cv.height = SIZE }
     g.clearRect(0, 0, SIZE, SIZE); g.drawImage(r.renderer.domElement, 0, 0)
@@ -429,6 +499,7 @@ export function attachOrb3d(el, cv) {
     o.inj = o.inj || [0, 0, 0, 0, 0, 0]
     for (const c of list) o.inj['WUBRGC'.indexOf(c)] += Math.min(0.5, 0.06 + 0.035 * n) / list.length
     const tot = o.inj.reduce((a, b) => a + b, 0); if (tot > 0.8) o.inj = o.inj.map(x => x * 0.8 / tot)
+    if (o.fs) { const d = dir || [0, 1], k = Math.min(36, 6 + 4 * n); list.forEach(c => o.fs.inject(MANA_MAT[c][0][0], Math.round(k / list.length), [-d[0], d[1], 0.5])) }
     if (!el.dataset.ink) { o.inkAt = performance.now(); o.inkDir = dir || [0, 1]; o.inkCol = list.map(c => ECOLH['WUBRGC'.indexOf(c)]).reduce((a, h) => a.lerp(TMP.set(h), 0.5), new THREE.Color(ECOLH['WUBRGC'.indexOf(list[0])])).getHex(); o.inkAmt = Math.min(1, 0.3 + 0.1 * n) }
   }
   orbs.add(o)

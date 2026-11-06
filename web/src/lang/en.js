@@ -3842,4 +3842,5 @@ export default {
   "Os outros já podem abrir e ver o teu deck.": "The others can now open and see your deck.",
   "O teu deck está à vista": "Your deck is visible",
   "O teu deck voltou a estar fechado.": "Your deck is closed again.",
+  "Fluido de partículas com física (desligado: o líquido simplificado)": "Particle fluid with physics (off: the simplified liquid)",
 }

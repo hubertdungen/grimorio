@@ -3834,4 +3834,5 @@ export default {
   "Os outros já podem abrir e ver o teu deck.": "Los demás ya pueden abrir y ver tu mazo.",
   "O teu deck está à vista": "Tu mazo está a la vista",
   "O teu deck voltou a estar fechado.": "Tu mazo vuelve a estar cerrado.",
+  "Fluido de partículas com física (desligado: o líquido simplificado)": "Fluido de partículas con física (desactivado: el líquido simplificado)",
 }
