@@ -729,6 +729,8 @@ export function OrbPick({ onChange }) {
       <label className="chk small"><input type="checkbox" checked={p.orb3d} onChange={e => save({ orb3d: e.target.checked })} /> {tx('Esfera em 3D (desligado: a clássica)')}</label>
       {p.orb3d && <label className="chk small"><input type="checkbox" checked={p.orbFluid} onChange={e => save({ orbFluid: e.target.checked })} /> {tx('Fluidos pelas cartas em campo (estilo automático; desligado: o líquido do estilo)')}</label>}
       {p.orb3d && <label className="chk small"><input type="checkbox" checked={p.orbParticles} onChange={e => save({ orbParticles: e.target.checked })} /> {tx('Fluido de partículas com física (desligado: o líquido simplificado)')}</label>}
+      {p.orb3d && p.orbParticles && <label className="small">{tx('Aspeto das partículas')} <select value={p.orbGrain} onChange={e => save({ orbGrain: e.target.value })}>
+        <option value="real">{tx('Realista: grãos com luz própria')}</option><option value="fx">{tx('Formas e brilhos (o de antes)')}</option></select></label>}
       <label className="small orbsize">{tx('Tamanho das esferas')} <b>{Math.round(p.orbScale * 100)}%</b>
         <input type="range" min={80} max={160} step={5} value={Math.round(p.orbScale * 100)} onChange={e => { const v = +e.target.value / 100; orbScale(v); save({ orbScale: v }) }} /></label>
       <label className="small">{tx('Animação')} <select value={p.orb.a} onChange={e => save({ orb: { ...p.orb, a: e.target.value } })}>
@@ -800,7 +802,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     return () => { clearInterval(iv); if (el) el._beat = null }
   }, [low, dead, fast, life <= 2, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-w={look?.w} data-pf={fpPrefs().orbParticles ? '1' : undefined} data-env={env} data-psn={poison > 0 ? Math.min(1, poison / pmax).toFixed(2) : undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-w={look?.w} data-pf={fpPrefs().orbParticles ? '1' : undefined} data-pg={fpPrefs().orbGrain === 'fx' ? 'fx' : undefined} data-env={env} data-psn={poison > 0 ? Math.min(1, poison / pmax).toFixed(2) : undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
       {three && <canvas ref={cvRef} className="orb3d" aria-hidden="true" />}
       {rich.includes('god') && <i className="orb-rays" aria-hidden="true" />}
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
