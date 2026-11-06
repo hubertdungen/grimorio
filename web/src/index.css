@@ -3519,7 +3519,7 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 /* em 3D a camada de dentro da clássica fica só com as reações (sangue, luz, vento, fogo…) por cima do vidro 3D */
 .orb.has3d > .orb-in { z-index: 2; } .orb.has3d[data-o3] > .orb-in > .orb-smoke, .orb.has3d[data-o3] > .orb-in::before, .orb.has3d[data-o3] > .orb-in::after { display: none; }
 .orb:not([data-o3]) > .orb3d { visibility: hidden; }  /* até ao 1.º desenho 3D vê-se a clássica (não fica um buraco) */
-.orb3d { position: absolute; left: -75%; top: -75%; width: 250%; height: 250%; z-index: 1; pointer-events: none; }  /* 2,5× a esfera: o que sai do vidro não bate na borda */
+.orb3d { position: absolute; left: -75%; top: -75%; width: 400%; height: 250%; z-index: 1; pointer-events: none; }  /* 2,5× de altura e 1,6× isso de largura, para a direita (até ao fim do nome): orb3d.js ASP */  /* 2,5× a esfera: o que sai do vidro não bate na borda */
 .orb.has3d.orb-proxy { box-shadow: 0 calc(10px + 26px * var(--lift, 0)) calc(12px + 16px * var(--lift, 0)) calc(-4px - 6px * var(--lift, 0)) #000b; }
 
 /* ---------- golpes na esfera à maneira de quem bateu (orbfx.js): camada centrada na esfera; --ang = de onde veio ---------- */
@@ -3580,7 +3580,7 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .orb.has3d.low::before, .orb.has3d.dead::before, .orb.has3d.bursting::before, .orb.has3d[data-fx3="crack"]::before, .orb.has3d[data-fx3="split"]::before { display: none; }
 .orb.has3d[data-fx3="split"] .orb3d, .orb.has3d[data-fx3] .orb3d { animation: none; filter: none; }
 /* a esfera 3D rebentada: os cacos caem e ficam no chão à volta — o desenho alarga para caberem */
-.orb.has3d.dead .orb3d { left: -108%; top: -108%; width: 316%; height: 316%; }
+.orb.has3d.dead .orb3d { left: -108%; top: -108%; width: 505.6%; height: 316%; }
 
 /* a carta a ir para a mão voa dentro da mesa: à frente do baralho, atrás da mão (que tem z-index 8) */
 .zfly.inner { position: absolute; z-index: 7; }

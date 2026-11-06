@@ -14,7 +14,10 @@ import { Grains } from './orbgrain.js'
 import { GpuGrains, gpuOk } from './orbgpu.js'
 
 const COL = { W: '#f5c451', U: '#4cc9f0', B: '#a78bfa', R: '#ff5c3a', G: '#4ade80', C: '#cbd5e1' }
-const SIZE = 300  // o quadro é 2,5× a esfera (CSS .orb3d): espaço para o halo e o que verte
+const SIZE = 300  // a altura do quadro: 2,5× a esfera (CSS .orb3d): espaço para o halo e o que verte
+// a esfera da vida tem o quadro mais largo para a direita (1,6×), até ao fim do nome e do «a jogar» ao lado: o halo e o
+// que verte não são cortados aí. A esfera fica no mesmo sítio (a WIDE_CX da largura); as de mana ficam quadradas
+const ASP = 1.6, SW = Math.round(SIZE * ASP), WIDE_CX = 0.5 / ASP
 let R = null
 const orbs = new Set()
 let raf = 0, t0 = performance.now()
@@ -159,8 +162,8 @@ function crackTexture() {
 function init() {
   if (R) return R
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
-  renderer.setSize(SIZE, SIZE, false); renderer.setPixelRatio(1)
-  const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(46, 1, 0.1, 50)
+  renderer.setSize(SW, SIZE, false); renderer.setPixelRatio(1)
+  const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(46, ASP, 0.1, 50)
   cam.position.set(0, 1.35, 5.85); cam.lookAt(0, 0, 0)  // um pouco por cima: vê-se que é uma esfera e a fundura do que tem dentro
   const coreU = { t: { value: 0 }, c1: { value: new THREE.Color() }, c2: { value: new THREE.Color() }, core: { value: new THREE.Color() }, deep: { value: new THREE.Color() },
     speed: { value: 1 }, dens: { value: 0.9 }, glow: { value: 0.6 }, rot: { value: 0 }, frost: { value: 0 },
@@ -427,8 +430,8 @@ const GFS = [
 function realInit(r) {
   if (r.rl) return r.rl
   const rr = r.renderer, HF = rr.capabilities.isWebGL2 ? THREE.HalfFloatType : THREE.UnsignedByteType
-  const rt = (s, depth) => new THREE.WebGLRenderTarget(s, s, { type: HF, depthBuffer: !!depth })
-  const B = LOW ? 100 : 150, b1 = rt(B), b2 = rt(B), c1 = rt(B >> 1), c2 = rt(B >> 1), sceneRT = rt(SIZE, true)
+  const rt = (w, h, depth) => new THREE.WebGLRenderTarget(w, h, { type: HF, depthBuffer: !!depth })
+  const B = LOW ? 100 : 150, BW = Math.round(B * ASP), b1 = rt(BW, B), b2 = rt(BW, B), c1 = rt(BW >> 1, B >> 1), c2 = rt(BW >> 1, B >> 1), sceneRT = rt(SW, SIZE, true)
   const gm = GFS.map((f, k) => new THREE.ShaderMaterial({ vertexShader: GVS, fragmentShader: f, transparent: true, depthTest: true, depthWrite: k === 0,
     uniforms: { scale: r.ptMats[0].uniforms.scale, zc: { value: 6 }, blur: { value: 0.022 } }, blending: k === 2 ? THREE.AdditiveBlending : THREE.NormalBlending }))
   const pcam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), pscn = new THREE.Scene(), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2)); quad.frustumCulled = false; pscn.add(quad)
@@ -442,17 +445,17 @@ function realInit(r) {
   gl_FragColor = vec4(s, 1.); }`, { t: { value: null }, d: { value: new THREE.Vector2() } })
   // o fim: a lente (o vidro curva o que está dentro junto à borda, com as cores a separarem-se um nada), o bloom e o
   // HDR comprimido só acima do branco (o resto fica como estava)
-  const fin = sm(`uniform sampler2D t; uniform sampler2D g1; uniform sampler2D g2; uniform vec3 disc; uniform float lens; varying vec2 vUv;
+  const fin = sm(`uniform sampler2D t; uniform sampler2D g1; uniform sampler2D g2; uniform vec3 disc; uniform float lens; uniform float asp; varying vec2 vUv;
 void main(){
-  vec2 d = (vUv - disc.xy) / disc.z; float r = length(d); vec2 uv = vUv, dir = r > 1e-4 ? d / r : vec2(0.); float ca = 0.;
-  if (lens > 0. && r < 1.) { float k = smoothstep(.5, 1., r); uv = disc.xy + d * disc.z * (1. - .09 * k * k * lens); ca = .018 * k * lens * disc.z; }
+  vec2 dz = vec2(disc.z / asp, disc.z), d = (vUv - disc.xy) / dz; float r = length(d); vec2 uv = vUv, dir = r > 1e-4 ? d / r : vec2(0.); float ca = 0.;
+  if (lens > 0. && r < 1.) { float k = smoothstep(.5, 1., r); uv = disc.xy + d * dz * (1. - .09 * k * k * lens); ca = .018 * k * lens * disc.z; }
   vec4 c = texture2D(t, uv);
   if (ca > 0.) { c.r = texture2D(t, uv + dir * ca).r; c.b = texture2D(t, uv - dir * ca).b; }
   vec3 bl = texture2D(g1, vUv).rgb * .85 + texture2D(g2, vUv).rgb * 1.15, col = c.rgb + bl;
   vec3 hi = max(col - .8, 0.); col = min(col, .8) + .35 * (1. - exp(-hi * 2.2));
   float L = max(col.r, max(col.g, col.b)); col += max(L - 1., 0.) * .5;
   gl_FragColor = vec4(col, clamp(max(c.a + dot(bl, vec3(.4)), max(col.r, max(col.g, col.b))), 0., 1.));
-}`, { t: { value: sceneRT.texture }, g1: { value: b1.texture }, g2: { value: c1.texture }, disc: { value: new THREE.Vector3(0.5, 0.5, 0.2) }, lens: { value: 1 } })
+}`, { t: { value: sceneRT.texture }, g1: { value: b1.texture }, g2: { value: c1.texture }, disc: { value: new THREE.Vector3(0.5, 0.5, 0.2) }, lens: { value: 1 }, asp: { value: ASP } })
   const pass = (m, to) => { quad.material = m; rr.setRenderTarget(to); rr.render(pscn, pcam) }
   // raios: linhas a sério entre os pontos de cada descarga (com um quebrar que muda todos os fotogramas), muito brilhantes
   const zl = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))
@@ -522,16 +525,16 @@ function renderReal(r, lens) {
   rr.setRenderTarget(rl.sceneRT); rr.setClearColor(0x000000, 0); rr.clear(); r.cam.layers.set(0); rr.render(r.scene, r.cam)
   rl.bright.uniforms.t.value = rl.sceneRT.texture; rl.pass(rl.bright, rl.b1)
   const bl = rl.blur.uniforms, B = rl.B
-  bl.t.value = rl.b1.texture; bl.d.value.set(1 / B, 0); rl.pass(rl.blur, rl.b2)
+  bl.t.value = rl.b1.texture; bl.d.value.set(1 / (B * ASP), 0); rl.pass(rl.blur, rl.b2)
   bl.t.value = rl.b2.texture; bl.d.value.set(0, 1 / B); rl.pass(rl.blur, rl.b1)
-  bl.t.value = rl.b1.texture; bl.d.value.set(2 / B, 0); rl.pass(rl.blur, rl.c2)
+  bl.t.value = rl.b1.texture; bl.d.value.set(2 / (B * ASP), 0); rl.pass(rl.blur, rl.c2)
   bl.t.value = rl.c2.texture; bl.d.value.set(0, 2 / B); rl.pass(rl.blur, rl.c1)
   // o disco da esfera no ecrã (centro e raio em uv) para a lente
   r.glass.updateMatrixWorld()
   const P = TMPV.setFromMatrixPosition(r.glass.matrixWorld), dist = r.cam.position.distanceTo(P)
   P.project(r.cam)
   const ang = Math.asin(Math.min(0.99, r.glass.scale.x / Math.max(dist, 1e-3))), rad = Math.tan(ang) / Math.tan(23 * Math.PI / 180) / 2
-  rl.fin.uniforms.disc.value.set(P.x * 0.5 + 0.5, P.y * 0.5 + 0.5, rad); rl.fin.uniforms.lens.value = lens
+  rl.fin.uniforms.disc.value.set(P.x * 0.5 + 0.5, P.y * 0.5 + 0.5, rad); rl.fin.uniforms.lens.value = lens; rl.fin.uniforms.asp.value = ASP
   rr.setRenderTarget(null); rr.clear(); rl.pass(rl.fin, null)
   rr.autoClear = false; r.cam.layers.set(1); rr.render(r.scene, r.cam); rr.autoClear = true; r.cam.layers.set(0)
 }
@@ -681,7 +684,9 @@ function draw(now) {
     if (!s.dead) o.fr = null
     const fr = o.fr, dt = fr ? Math.min(0.033, (now - fr.last) / 1000) : 0
     if (fr) fr.last = now
-    r.cam.position.set(0, fr ? 1.52 : 1.35, fr ? 7.26 : 5.85); r.cam.lookAt(0, fr ? -0.5 : 0, 0)  // partida: a mesma moldura de antes com a abertura nova
+    r.cam.position.set(0, fr ? 1.52 : 1.35, fr ? 7.26 : 5.85); r.cam.lookAt(0, fr ? -0.5 : 0, 0)
+    if (o.wide) { const full = 2 * (1 - WIDE_CX) * SW; r.cam.setViewOffset(full, SIZE, full / 2 - WIDE_CX * SW, 0, SW, SIZE) } else r.cam.clearViewOffset()
+    r.cam.aspect = o.wide ? 2 * (1 - WIDE_CX) * ASP : ASP; r.cam.updateProjectionMatrix()  // partida: a mesma moldura de antes com a abertura nova
     const age = fr ? (now - fr.t0) / 1000 : 0, md = fr?.mode
     r.glass.rotation.y = r.glassBack.rotation.y = 0  // as malhas são partilhadas: o rodopio do implodir não passa para a esfera seguinte
     const crumble = md === 'shatter' || (md === 'drain' && age > 1.5)  // moer: primeiro escoa, depois o vidro vazio desfaz-se
@@ -826,26 +831,51 @@ function draw(now) {
     if (o.halo) { o.halo.pts.visible = false; o.halo.trail.visible = false }
     if (r.rays) r.rays.visible = false
     const cv = (px && px.querySelector('canvas.orb3d')) || o.cv, g = cv.getContext('2d')
-    if (cv.width !== SIZE || cv.height !== SIZE) { cv.width = SIZE; cv.height = SIZE }  // um canvas novo é 300×150: a largura já batia certo e a altura ficava a meio
-    g.clearRect(0, 0, SIZE, SIZE); g.drawImage(r.renderer.domElement, 0, 0)
+    const CW = o.wide ? SW : SIZE
+    if (cv.width !== CW || cv.height !== SIZE) { cv.width = CW; cv.height = SIZE }  // um canvas novo é 300×150: a largura já batia certo e a altura ficava a meio
+    g.clearRect(0, 0, CW, SIZE)
+    if (o.wide) g.drawImage(r.renderer.domElement, 0, 0); else g.drawImage(r.renderer.domElement, (SW - SIZE) / 2, 0, SIZE, SIZE, 0, 0, SIZE, SIZE)  // as de mana: o quadrado do meio
     // a borda do quadro em círculo: o que chega lá (motas, gotas, halo) desvanece em vez de ser cortado a direito
-    if (!cv._edge) { cv._edge = g.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.36, SIZE / 2, SIZE / 2, SIZE * 0.5); cv._edge.addColorStop(0, '#000'); cv._edge.addColorStop(1, 'rgba(0,0,0,0)') }
-    g.globalCompositeOperation = 'destination-in'; g.fillStyle = cv._edge; g.fillRect(0, 0, SIZE, SIZE); g.globalCompositeOperation = 'source-over'
+    g.globalCompositeOperation = 'destination-in'; g.drawImage(edgeMask(CW, o.wide), 0, 0); g.globalCompositeOperation = 'source-over'
     if (!o.ready) { o.ready = true; o.el.dataset.o3 = '1' }  // já há desenho 3D: só agora a esfera clássica sai do caminho
   }
   if (orbs.size) raf = requestAnimationFrame(draw)
 }
 
+// a borda do quadro: em círculo à volta da esfera (à esquerda, em cima, em baixo); no quadro largo, à direita estende-se até
+// à borda (o halo passa por trás do nome) e só aí desvanece. Desenhada uma vez por tamanho
+const EDGES = new Map()
+function edgeMask(W, wide) {
+  const k = `${W}|${wide}`
+  if (EDGES.has(k)) return EDGES.get(k)
+  const c = document.createElement('canvas'); c.width = W; c.height = SIZE
+  const g = c.getContext('2d'), cx = wide ? WIDE_CX * W : W / 2, cy = SIZE / 2
+  const rad = g.createRadialGradient(cx, cy, SIZE * 0.36, cx, cy, SIZE * 0.5); rad.addColorStop(0, '#000'); rad.addColorStop(1, 'rgba(0,0,0,0)')
+  g.fillStyle = rad; g.fillRect(0, 0, W, SIZE)
+  if (wide) {  // à direita: uma faixa que esvanece em cima e em baixo, entra devagar a partir do centro e apaga junto à borda
+    const t = document.createElement('canvas'); t.width = W; t.height = SIZE
+    const h = t.getContext('2d'), v = h.createLinearGradient(0, 0, 0, SIZE)
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(0.16, '#000'); v.addColorStop(0.84, '#000'); v.addColorStop(1, 'rgba(0,0,0,0)')
+    h.fillStyle = v; h.fillRect(0, 0, W, SIZE)
+    const hz = h.createLinearGradient(cx, 0, W, 0)
+    hz.addColorStop(0, 'rgba(0,0,0,0)'); hz.addColorStop(0.25, '#000'); hz.addColorStop(0.85, '#000'); hz.addColorStop(1, 'rgba(0,0,0,0)')
+    h.globalCompositeOperation = 'destination-in'; h.fillStyle = hz; h.fillRect(0, 0, W, SIZE)
+    g.globalCompositeOperation = 'lighter'; g.drawImage(t, 0, 0); g.globalCompositeOperation = 'source-over'
+  }
+  EDGES.set(k, c)
+  return c
+}
+
 export function attachOrb3d(el, cv) {
-  const o = { el, cv, seed: Math.random() * 10 }
+  const o = { el, cv, seed: Math.random() * 10, wide: el.classList.contains('orb') }  // wide: a esfera da vida (quadro largo para a direita)
   // partida: arrastar empurra os cacos perto do dedo (em vez de mexer a esfera toda) — coordenadas do ecrã → da cena
   el._poke = (x, y, vx, vy) => {
     if (!o.fr) return
     const r = (el._proxy?.querySelector('canvas.orb3d') || cv).getBoundingClientRect(), span = 2 * Math.tan(23 * Math.PI / 180) * Math.hypot(7.26, 2.02)  // a câmara da partida
-    const wx0 = ((x - r.left) / r.width - 0.5) * span, wy0 = -((y - r.top) / r.height - 0.5) * span - 0.5
+    const wx0 = (x - r.left - (o.wide ? WIDE_CX : 0.5) * r.width) / r.height * span, wy0 = -((y - r.top) / r.height - 0.5) * span - 0.5
     if (o.fs) o.fs.poke(wx0, wy0, vx, vy)
     if (o.fr.mode !== 'shatter') return
-    const wx = ((x - r.left) / r.width - 0.5) * span, wy = -((y - r.top) / r.height - 0.5) * span - 0.5
+    const wx = wx0, wy = wy0
     for (const b of o.fr.parts) {
       const d = Math.hypot(b.p[0] - wx, b.p[1] - wy)
       if (d < 0.9) { const k = (1 - d / 0.9) * 0.012; b.v[0] += vx * k; b.v[1] += Math.max(1, -vy * k); b.w = b.w.map(w => w + (Math.random() - 0.5) * 6) }
