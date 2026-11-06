@@ -9,6 +9,7 @@ import { Mana, Stars, TrophyStars, SrcFilter } from './ui.jsx'
 import Replay from './Board.jsx'
 import ForgeTable from './ForgePlay.jsx'
 import FreeTable from './FreeTable.jsx'
+import SideboardStep from './SideboardStep.jsx'
 import { NewSolo, NewFreeRoom, Seats, JoinPanel, LendPanel, RemoteJoin, FreeMatches } from './FreeRooms.jsx'
 import Lobby3D from './Lobby3D.jsx'  // o three.js só carrega com uma sala aberta (import dinâmico lá dentro)
 import { Cup, PLACE, TIERS, KIND, tierOf } from './Library.jsx'
@@ -937,6 +938,7 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
   const [watch, setWatch] = useState(null)  // {gid, game, deckName, score}
   const [playing, setPlaying] = useState(null)  // sessão do Forge Play do meu jogo (torneio em que jogo eu)
   const playMid = useRef(null)  // a partida desse jogo (Bo3/Bo5: o «jogo seguinte» no fim de cada um)
+  const [sb, setSb] = useState(null)  // {mid, deck, base}: o sideboard antes do jogo 2+ dessa partida (tournament.side_pick)
   const [stick, setStick] = useState(null)  // {mid, gid}: à espera do jogo seguinte desta partida
   const [follow, setFollowS] = useState(() => ls('grimorio.torneio.seguir') !== '0')
   const setFollow = v => { setFollowS(v); ls('grimorio.torneio.seguir', v ? '1' : '0') }
@@ -1021,7 +1023,15 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
   if (!t) return <section className="card">{err ? <p className="bad-t">{err}</p> : <p><span className="spin-dot" /> {tx('A abrir o torneio…')}</p>}</section>
   const act = async a => { try { await post(`/api/tournaments/${tid}/${a}`); setT(await j(`/api/tournaments/${tid}`)) } catch (e) { setErr(e.message) } }
   // o meu jogo no Forge Play; sem lugar no servidor fica na fila e abre-se sozinho quando começar (efeito em cima)
-  const playMine = async mid => { setErr(''); playMid.current = mid; try { const r = await post(`/api/tournaments/${tid}/play`, { mid, name: who || tx('Tu') }); if (r.sid) setPlaying(r.sid); else { queued.current.add(mid); setT(await j(`/api/tournaments/${tid}`)) } } catch (e) { setErr(e.message) } }
+  // jogo 2+ de uma partida: o servidor manda primeiro o sideboard (r.side) e o jogo abre com a lista escolhida (deck)
+  const playMine = async (mid, deck) => { setErr(''); playMid.current = mid; try { const r = await post(`/api/tournaments/${tid}/play`, { mid, name: who || tx('Tu'), ...(deck && { deck }) }); if (r.side) setSb({ mid, ...r.side }); else if (r.sid) setPlaying(r.sid); else { queued.current.add(mid); setT(await j(`/api/tournaments/${tid}`)) } } catch (e) { setErr(e.message) } }
+  if (sb) {
+    const m = t.matches.find(x => x.id === sb.mid), go = d => { setSb(null); playMine(sb.mid, { main: d.main, side: d.side }) }
+    return <div className="view play pv"><section className="card">
+      <SideboardStep data={data} deck={sb.deck} base={sb.base} fmt={FORMAT[t.format]} onReady={go} onKeep={go} extra={<button onClick={() => setSb(null)}>{tx('← Voltar ao torneio')}</button>}>
+        <h3>{tx('Sideboard para o jogo {g}', { g: (m?.g.length || 0) + 1 })} <span className="muted small">{t.name} · Bo{t.bo}{m && ` · ${t.players[m.p[0]]?.name} ${m.w[0]}–${m.w[1]} ${t.players[m.p[1]]?.name}`}</span></h3>
+      </SideboardStep></section></div>
+  }
   if (playing) return <>{slot && createPortal(<button onClick={() => setPlaying(null)}>{tx('← Voltar ao torneio')}</button>, slot)}
     <div className="view play fp-view">
       <div className="row-btns fp-bar"><b>🏆 {t?.name}</b> <span className="muted small">{tx('o teu jogo do torneio')}</span>

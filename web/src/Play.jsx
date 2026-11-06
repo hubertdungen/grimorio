@@ -10,6 +10,7 @@ import { FORMAT, CASUAL_META } from './formats.js'
 import { img, coverOf, colorsOf } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import ForgeTable from './ForgePlay.jsx'
+import SideboardStep from './SideboardStep.jsx'
 import { lockFsOrientation } from './wakelock.js'
 
 async function j(url, body) {
@@ -18,6 +19,7 @@ async function j(url, body) {
   if (!r.ok) throw new Error(d.erro || `HTTP ${r.status}`)
   return d
 }
+const SER = 'grimorio.jogar.serie'
 const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v) } catch { /* sem armazenamento */ } return null }
 
@@ -50,7 +52,9 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   const setCasual = v => { setCasualS(v); ls('grimorio.jogar.casual', v ? '1' : '0'); setOpp(null) }
   const [src, setSrc] = useState('meta'), [q, setQ] = useState('')
   const [meta, setMeta] = useState([]), [mine, setMine] = useState([]), [stars, setStars] = useState({})
-  const [opp, setOpp] = useState(null)  // {kind: meta|meu|espelho, id, name, d}
+  // a série a meio fica guardada: sair do Jogar (ou voltar ao jogo em curso) não a perde, nem o sideboard entre jogos
+  const [saved] = useState(() => { try { const x = JSON.parse(ls(SER) || 'null'); return x?.deck === deck.id && x.series && !x.series.done ? x : null } catch { return null } })
+  const [opp, setOpp] = useState(saved?.opp || null)  // {kind: meta|meu|espelho, id, name, d}
   const [, bump] = useState(0)
   const [fit, setFit] = useState(() => ls('grimorio.jogar.ajustar') === '1')
   const [st, setSt] = useState(null), [sess, setSess] = useState(null), [busy, setBusy] = useState(''), [err, setErr] = useState('')
@@ -63,7 +67,8 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   // série: Bo1/Bo3/Bo5 na mesa do Grimório; entre jogos dá para trocar cartas com o sideboard
   const [bo, setBoS] = useState(() => +ls('grimorio.jogar.bo') || 1)
   const setBo = v => { setBoS(v); ls('grimorio.jogar.bo', String(v)) }
-  const [series, setSeries] = useState(null), [between, setBetween] = useState(false)  // {bo, w: [eu, ele], d: deck do jogo, done}
+  const [series, setSeries] = useState(saved?.series || null), [between, setBetween] = useState(!!saved?.between)  // {bo, w: [eu, ele], d: deck do jogo, done}
+  useEffect(() => { ls(SER, series && !series.done ? JSON.stringify({ deck: deck.id, series, opp, between }) : '') }, [series, opp, between, deck.id])
   const [net, setNet] = useState(null), [netOn, setNetOn] = useState(null)  // id do jogo na mesa do Grimório; jogo meu ainda aberto
   useEffect(() => { j('/api/playnet').then(l => setNetOn(l.find(x => !x.ended)?.id || null)).catch(() => {}) }, [net])
   useEffect(() => { j('/api/sim/difficulties').then(setDiffs).catch(() => setDiffs([])); j('/api/decks').then(setMine).catch(() => setMine([])) }, [])
@@ -121,7 +126,9 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
     const opponent = opp.kind === 'meta' ? { id: opp.id } : opp.kind === 'meu' ? { deck_id: opp.id } : { deck: { ...mineDeck, name: opp.name } }  // espelho: sempre a lista original
     if (!useNative) return go(tx('A arrancar o Forge…'), '/api/play/start', { format: fmt.key, difficulty: diff, deck: mineDeck, opponent })
     setErr(''); setBusy(tx('A arrancar o Forge…'))
-    j('/api/playnet', { difficulty: diff, deck: myDeck, opponent, casual, name: tx('Tu'), rate_id: deck.id, format: fmt.key, round: ser?.id, bo: ser?.bo || 1 })  // rate_id/format/round/bo: o jogo conta para os ratings.then(r => setNet(r.id)).catch(e => setErr(e.message)).finally(() => setBusy(''))
+    // rate_id/format/round/bo: o jogo conta para os ratings
+    j('/api/playnet', { difficulty: diff, deck: myDeck, opponent, casual, name: tx('Tu'), rate_id: deck.id, format: fmt.key, round: ser?.id, bo: ser?.bo || 1 })
+      .then(r => setNet(r.id)).catch(e => setErr(e.message)).finally(() => setBusy(''))
   }
   const stopNet = async () => { if (net) await j(`/api/playnet/${net}/stop`, {}).catch(() => {}); setNet(null) }
   const resume = () => go(tx('A preparar a posição…'), '/api/play/from-state', { ...fromState, difficulty: diff, format: fromState.format || fmt.key })
@@ -139,20 +146,20 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
         onAgain={() => { setNet(null); if (series && !series.done) setBetween(true); else start(null) }} />
     </div>
   )
-  if (between && series) return (
-    <div className="view play pv">
-      <section className="card">
-        <h3>{tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })} <span className="muted small">{deck.name} {tx('contra')} {opp?.name}</span></h3>
-        <p className="small muted">{tx('Entre jogos podes trocar cartas entre o deck e o sideboard. As trocas valem até ao fim da série.')}</p>
-        <SideSwap d={series.d} d0={series.d0} set={d => setSeries(x => ({ ...x, d }))} />
-        <div className="row-btns" style={{ marginTop: 10 }}>
-          <button className="primary" onClick={() => { setBetween(false); start(series) }} disabled={!!busy}>▶ {tx('Jogo {g}', { g: series.w[0] + series.w[1] + 1 })}</button>
-          <button onClick={() => { setBetween(false); setSeries(null) }}>{tx('Acabar a série')}</button>
-          {busy && <span className="muted small">{busy}</span>}{err && <span className="small bad-t">{err}</span>}
-        </div>
-      </section>
-    </div>
-  )
+  if (between && series) {
+    const next = d => { const ser = { ...series, d }; setSeries(ser); setBetween(false); start(ser) }
+    return (
+      <div className="view play pv">
+        <section className="card">
+          <SideboardStep data={data} deck={series.d} base={series.d0} fmt={fmt} onReady={next} onKeep={next}
+            extra={<><button onClick={() => { setBetween(false); setSeries(null) }}>{tx('Acabar a série')}</button>
+              {busy && <span className="muted small">{busy}</span>}{err && <span className="small bad-t">{err}</span>}</>}>
+            <h3>{tx('Sideboard para o jogo {g}', { g: series.w[0] + series.w[1] + 1 })} <span className="muted small">{tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })} · {deck.name} {tx('contra')} {opp?.name}</span></h3>
+          </SideboardStep>
+        </section>
+      </div>
+    )
+  }
   const dl = (diffs.length ? diffs : [{ id: 'default', label: 'Normal' }]).filter(d => d.id !== 'random')
   const myCols = colorsOf(deck, data), oppCols = opp?.d ? colorsOf(opp.d, data) : []
   return (
@@ -253,26 +260,3 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   )
 }
 
-// sideboard entre jogos de uma série: uma carta de cada vez, do deck para o sideboard e ao contrário
-function SideSwap({ d, d0, set }) {
-  const mv = (from, to, n) => {
-    const a = { ...d[from] }, b = { ...d[to] }
-    if (!a[n]) return
-    a[n]--; if (!a[n]) delete a[n]; b[n] = (b[n] || 0) + 1
-    set({ ...d, [from]: a, [to]: b })
-  }
-  const diff = (k, n) => (d[k][n] || 0) - (d0[k]?.[n] || 0)
-  const list = (k, to, arrow) => (
-    <ul>{Object.entries(d[k] || {}).sort((x, y) => x[0].localeCompare(y[0])).map(([n, q]) => (
-      <li key={n}><b>{q}</b><span title={n}>{n}</span>{diff(k, n) !== 0 && <small className="chg">{diff(k, n) > 0 ? `+${diff(k, n)}` : diff(k, n)}</small>}<button className="small" onClick={() => mv(k, to, n)} title={to === 'side' ? tx('Tirar um para o sideboard') : tx('Pôr um no deck')}>{arrow}</button></li>
-    ))}</ul>
-  )
-  const cnt = k => Object.values(d[k] || {}).reduce((a, b) => a + b, 0)
-  return (
-    <div className="pv-sb">
-      <div><h4>{tx('Deck')} <span className="muted small">{cnt('main')}</span></h4>{list('main', 'side', '→')}</div>
-      <div><h4>{tx('Sideboard')} <span className="muted small">{cnt('side')}</span> {d !== d0 && <button className="link small" onClick={() => set(d0)}>{tx('repor')}</button>}</h4>
-        {cnt('side') ? list('side', 'main', '←') : <p className="muted small">{tx('Este deck não tem sideboard.')}</p>}</div>
-    </div>
-  )
-}

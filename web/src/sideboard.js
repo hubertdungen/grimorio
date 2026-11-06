@@ -62,3 +62,20 @@ export const applySwaps = (deck, swaps) => {
   }
   return { ...deck, main, side }
 }
+
+// Sideboard à mão entre jogos (SideboardStep.jsx): uma cópia de cada vez entre o deck e o sideboard; o total nunca muda
+export const cnt = p => Object.values(p || {}).reduce((a, b) => a + b, 0)
+export const sbMove = (d, from, n) => {
+  const to = from === 'main' ? 'side' : 'main', a = { ...d[from] }, b = { ...d[to] }
+  if (!a[n]) return d
+  a[n]--; if (!a[n]) delete a[n]; b[n] = (b[n] || 0) + 1
+  return { ...d, [from]: a, [to]: b }
+}
+// '' = pode jogar; senão o porquê. O mínimo do deck e o máximo do sideboard são os do formato, sem apertar uma lista
+// guardada que já vinha fora deles (base = a lista guardada)
+export const sbCheck = (d, base, fmt) => {
+  const min = Math.min(fmt?.size?.[0] ?? 60, cnt(base.main)), max = fmt?.side ? Math.max(fmt.side, cnt(base.side)) : Infinity
+  if (cnt(d.main) < min) return tx('O deck precisa de pelo menos {n} cartas.', { n: min })
+  if (cnt(d.side) > max) return tx('O sideboard leva no máximo {n} cartas.', { n: max })
+  return ''
+}

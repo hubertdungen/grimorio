@@ -845,6 +845,7 @@ def public(row):
     tid, ts, name, t, fmt, status, champ, n, state = row
     st = json.loads(state)
     st.pop("decks", None)
+    st.pop("hsb", None)  # as listas do sideboard das pessoas (side_pick), como os decks
     for m in st["matches"] if st.get("misto") or st.get("free") or st.get("play_me") else ():
         if -1 not in m["p"]:  # (com um lugar por decidir ainda não se sabe)
             m["how"] = how(st, m)  # 🤖 Forge · 🎮 Forge Play · 🃏 mesa livre
@@ -1071,6 +1072,12 @@ def route(method, path, owner, body=None, bettor=None):
                 if m.get("play") and (r := playnet.result(m["play"])) and not r["ended"]:
                     return 200, {"sid": m["play"]}  # já está a decorrer: volta à mesa
                 name = str((body or {}).get("name") or "")[:30] or "Tu"
+                try:  # jogo 2+ da partida: primeiro o sideboard (o browser volta com a lista escolhida em `deck`)
+                    pick = side_pick(st, m, who, (body or {}).get("deck"))
+                except ValueError as e:
+                    return 400, {"erro": str(e)}
+                if pick:
+                    return 200, {"side": pick}
                 if not play_room():  # sem lugar (ou RAM) agora: fica na fila e o runner abre-o quando houver
                     m["want"] = {"by": who, "name": name, "ts": m.get("want", {}).get("ts") or time.time()}
                     save(con, tid, st)
@@ -1416,6 +1423,7 @@ def start_play(st, m, tid, owner, who, name):
     other = next(i for i in m["p"] if i != h)
     P = st["players"]
     mine, opp = ({**st["decks"][i], "name": P[i]["name"]} for i in (h, other))
+    mine.update((st.get("hsb") or {}).get(f"{m['id']}:{who}") or {})  # o sideboard dela para este jogo (side_pick)
     if st.get("casual"):  # casual: o comandante joga como carta do deck (como no Forge Play)
         mine, opp = ({**x, "main": {**x["main"], **{c: 1 for c in x.get("commanders") or []}}, "commanders": []} for x in (mine, opp))
     # misto: o jogo conta para os ratings como qualquer jogo do Forge Play (ratings.from_forgeplay): o meu deck guardado
@@ -1427,6 +1435,26 @@ def start_play(st, m, tid, owner, who, name):
     m["play"] = playnet.start(DATA, key, mine, opp, P[other].get("difficulty") or "default", name or "Tu", rate)
     m["seats"], m["by"] = [h, other], who
     m.pop("want", None)
+
+
+def side_pick(st, m, who, deck=None):
+    """Sideboard da pessoa antes do jogo 2+ de uma partida no Forge Play (SideboardStep.jsx). Sem `deck`: o que o ecrã
+    precisa ({deck: a lista do jogo anterior, base: a guardada}) ou None (Bo1, 1.º jogo, deck sem sideboard). Com `deck`:
+    a nova divisão, que tem de ser a mesma pilha de cartas; vale para o resto da partida."""
+    h = next(i for i in m["p"] if ctl(st, i) == who)
+    base, key = st["decks"][h], f"{m['id']}:{who}"
+    if st["bo"] < 2 or not m["g"] or not base.get("side"):
+        return None
+    if deck is None:
+        return {"deck": (st.get("hsb") or {}).get(key) or {"main": base["main"], "side": base["side"]}, "base": {"main": base["main"], "side": base["side"]}}
+    ok = isinstance(deck, dict) and all(isinstance(deck.get(k) or {}, dict) and all(type(q) is int and q > 0 for q in (deck.get(k) or {}).values())
+                                        for k in ("main", "side"))
+    new = {k: dict(deck.get(k) or {}) for k in ("main", "side")} if ok else None
+    pool = lambda d: Counter(d["main"]) + Counter(d.get("side") or {})  # noqa: E731
+    if not ok or pool(new) != pool(base) or sum(new["main"].values()) < min(60, sum(base["main"].values())):
+        raise ValueError("Essa lista não é o teu deck com o sideboard.")
+    st.setdefault("hsb", {})[key] = new
+    return None
 
 
 def open_table(con, owner, st, m, name=""):
@@ -2027,6 +2055,28 @@ def selfcheck():
     assert round(100 * trophy_w("elim", {"n": 8, "matches": [0] * 7, "ranked": True})) == 100  # o mesmo que trophyValue no
     assert round(100 * trophy_w("rei", {"n": 4, "matches": [0] * 3, "ranked": True})) == 33     # web/selfcheck.mjs
     assert round(100 * trophy_w("elim", {"n": 8, "matches": [], "ranked": False})) == 50
+    # sideboard da pessoa antes do jogo 2+ (side_pick): a mesma pilha de cartas, vale para o resto da partida
+    st = build("elim", 2, bo=3)
+    st.update(players=[{"name": "Eu", "src": "meus", "ref": "a"}, {"name": "Bot", "src": "meta", "ref": "m"}], play_me=True, me=0,
+              format="modern", decks=[{"main": {"Island": 56, "Opt": 4}, "side": {"Negate": 2}}, {"main": {"Mountain": 60}}])
+    m = st["matches"][0]
+    assert side_pick(st, m, "host") is None  # 1.º jogo
+    m["g"].append({"w": 1, "s": [0, 1], "id": 1})
+    assert side_pick(st, m, "host")["deck"] == st["decks"][0]
+    for bad in ({"main": {"Island": 56, "Opt": 4, "Negate": 2}, "side": {"Black Lotus": 1}}, {"main": {"Island": 54, "Opt": 4}, "side": {"Negate": 2, "Island": 2}}, "x"):
+        try:
+            side_pick(st, m, "host", bad)
+            raise AssertionError(bad)
+        except ValueError:
+            pass
+    assert side_pick(st, m, "host", {"main": {"Island": 56, "Opt": 2, "Negate": 2}, "side": {"Opt": 2}}) is None
+    real, got = playnet.start, {}
+    playnet.start = lambda data, key, mine, *a: got.update(mine=mine) or "sid"
+    try:
+        start_play(st, m, "t", "o", "host", "Eu")
+    finally:
+        playnet.start = real
+    assert got["mine"]["main"]["Negate"] == 2 and st["decks"][0]["main"]["Opt"] == 4 and "hsb" not in public(("t", 0, "n", "elim", "modern", "running", None, 2, json.dumps(st)))
     DB, DATA = keep
     print("selfcheck ok")
 
