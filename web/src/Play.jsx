@@ -141,7 +141,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
     <div className="view play fp-view">
       <div className="row-btns fp-bar"><b>⚔ {deck.name}</b> <span className="muted small">{tx('contra a IA do Forge · {f}', { f: fmt.name })}</span>
         <button className="link small" onClick={stopNet}>■ {tx('Parar o jogo')}</button></div>
-      <ForgeTable key={net} sid={net} data={data} onClose={() => { stopNet(); setSeries(null) }} series={series}
+      <ForgeTable key={net} sid={net} data={data} onClose={() => { stopNet(); setSeries(null) }} series={series} cols={{ a: colorsOf(deck, data).join(''), b: opp?.d ? colorsOf(opp.d, data).join('') : '' }}
         onEnd={won => setSeries(x => { if (!x || won == null) return x; const w = won ? [x.w[0] + 1, x.w[1]] : [x.w[0], x.w[1] + 1]; return { ...x, w, done: Math.max(...w) > x.bo / 2 } })}
         onAgain={() => { setNet(null); if (series && !series.done) setBetween(true); else start(null) }} />
     </div>
