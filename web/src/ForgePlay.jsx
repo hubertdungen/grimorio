@@ -319,7 +319,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo }) {  // payCancel: o 
   useBackClose(a.kind === 'choose' && ((a.min === 0 && (a.max ?? 1) === 1) || !!payCancel || (!!undo && MANA_ASK.test(a.msg || ''))), () => escRef.current?.())  // «voltar» = Cancelar, quando dá
   useEffect(() => { const k = e => { if (e.key === 'Escape' && escRef.current) { e.preventDefault(); escRef.current() } }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [])
   const all = (st?.players || []).flatMap(p => [...(p.battlefield || []), ...(p.hand || []), ...(p.graveyard || []), ...(p.exile || [])])
-  const cardOf = o => (o.card != null ? all.find(c => c.id === o.card) || { id: o.card, name: o.name || o.label } : null)  // name: feitiço na pilha (o label é o texto dele)
+  const cardOf = o => { if (o.card == null) return null; const c = all.find(x => x.id === o.card); return c && !c.hidden ? c : { id: o.card, name: o.name || o.label } }  // name: feitiço na pilha (o label é o texto dele); escondida no estado (a mão dele numa escolha): vale o nome da opção
   if (a.kind === 'order') {  // ordenar: clica nas cartas pela ordem; as que ficarem por clicar mantêm a ordem do Forge
     const n = (a.options || []).length
     const tap = k => setPick(p => (p.includes(k) ? p.filter(x => x !== k) : [...p, k]))
@@ -1051,7 +1051,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
         {opp && <Side k="b" top name={opp.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
-          hand={nOpp > 0 && <Hand z={{ hand: nOpp, known: Array(nOpp).fill('?') }} data={data} exact opp hidden quiet />} />}
+          hand={nOpp > 0 && <Hand z={{ hand: nOpp, known: opp.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />}
         <div className="fp-mid">
           <span className="fp-turn">{tx('Turno {n}', { n: st.turn })} · {myTurn ? tx('teu') : opp?.name}</span>
           {st.day && <DayNight v={st.day} />}

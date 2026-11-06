@@ -17,6 +17,7 @@ import { play, playFreeLog } from './sfx.js'
 import TableChat from './TableChat.jsx'
 import { usePen, PEN_COLS } from './tablepen.js'
 import { useBackClose } from './backnav.js'
+import HandLook from './HandLook.jsx'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -44,7 +45,8 @@ function line(e, who) {
     case 'shuffle': return tx('{P} baralha a biblioteca', { P })
     case 'mulligan': return tx('{P} faz mulligan (nova mão de {n})', { P, n: e.n })
     case 'move': {
-      return e.tok ? tx('{P}: a ficha {c} sai do campo', { P, c }) : `${P}: ${c || tx('uma carta')} ${FROM[e.fr]} ${TO[e.to === 'library' && e.bottom ? 'bottom' : e.to]}`
+      const fr = e.fr === 'hand' && e.w != null && e.w !== e.s ? tx('da mão de {T}', { T: who(e.w) }) : FROM[e.fr]  // tirada da mão de outro (olhar para a mão)
+      return e.tok ? tx('{P}: a ficha {c} sai do campo', { P, c }) : `${P}: ${c || tx('uma carta')} ${fr} ${TO[e.to === 'library' && e.bottom ? 'bottom' : e.to]}`
     }
     case 'flip': return tx('{P} transforma {c}', { P, c: c || tx('uma carta') })
     case 'face': return e.down ? tx('{P} vira uma carta para baixo', { P }) : tx('{P} vira {c} para cima', { P, c })
@@ -57,6 +59,7 @@ function line(e, who) {
     case 'reveal': return tx('{P} revela {c}', { P, c })
     case 'revealhand': return tx('{P} revela a mão: {x}', { P, x: (e.names || []).map(short).join(', ') })
     case 'peek': return tx('{P} olha para as {n} cartas do topo da biblioteca', { P, n: e.n })
+    case 'lookhand': return tx('{P} olha para a mão de {T} ({n} carta)|{P} olha para a mão de {T} ({n} cartas)', { P, T, n: e.n })
     case 'mill': return tx('{P} moi {n} carta (do topo para o cemitério)|{P} moi {n} cartas (do topo para o cemitério)', { P, n: e.n })
     case 'exiletop': return tx('{P} exila {n} carta do topo da biblioteca|{P} exila {n} cartas do topo da biblioteca', { P, n: e.n })
     case 'pass': return tx('Turno {n}: é a vez de {T}', { n: e.turn, T })
@@ -106,6 +109,7 @@ function Help({ onClose }) {
         <li><b>{tx('Cemitério, exílio, mão, biblioteca')}</b> — {tx('arrasta a carta para o monte, ou usa o menu da carta (clique direito; no telemóvel, tocar e manter).')}</li>
         <li><b>{tx('Marcadores, virar para baixo, transformar, revelar')}</b> — {tx('no menu da carta.')}</li>
         <li><b>{tx('Auras e equipamentos')}</b> — {tx('larga-os em cima da carta (ou «Prender a…» no menu): ficam presos a ela e saem soltos se ela sair.')}</li>
+        <li><b>{tx('Olhar para a mão de outro')}</b> — {tx('Thoughtseize, Duress, Peek…: toca no círculo da vida dele e escolhe «Olhar para a mão». Só tu vês as cartas (os outros sabem que olhaste) e mandas a escolhida para o cemitério, o exílio ou a biblioteca.')}</li>
         <li><b>{tx('Vida, veneno, energia, dano de comandante')}</b> — {tx('toca no círculo da vida de qualquer jogador; aí também o monarca, a iniciativa e a bênção da cidade.')}</li>
         <li><b>{tx('Dados e moeda')}</b> — {tx('no painel, ou agarra um dado na mesa e atira-o: todos veem o mesmo lançamento e o mesmo resultado.')}</li>
         <li><b>{tx('Caneta')}</b> — {tx('✏️ ou P: desenha na mesa para mostrar algo; os outros veem o risco ao vivo e ele apaga-se sozinho.')}</li>
@@ -445,7 +449,8 @@ export default function FreeTable({ id, data, onClose }) {
       return [[tx('Vida de {p}: {v}', { p: who(i), v: v.life }), null, [['−5', L('life', -5)], ['−1', L('life', -1)], ['+1', L('life', 1)], ['+5', L('life', 5)]]],
         [`☠ ${tx('veneno')} ${v.poison}`, null, pm('poison')], [`ϟ ${tx('energia')} ${v.energy || 0}`, null, pm('energy')],
         ...cmdrs.map(n => [`⚔ ${short(n)} ${v.cd?.[n] || 0}/21`, null, pm('cmdmg', { name: n })]),
-        ...Object.entries(DESIG).map(([k, [ic, l]]) => [`${ic} ${l}${v.mk?.includes(k) ? ' ✓' : ''}`, () => send({ c: 'mark', seat: i, k })])]
+        ...Object.entries(DESIG).map(([k, [ic, l]]) => [`${ic} ${l}${v.mk?.includes(k) ? ' ✓' : ''}`, () => send({ c: 'mark', seat: i, k })]),
+        ...(i !== me && !ended ? [['👁 ' + tx('Olhar para a mão (só tu vês)'), () => send({ c: 'lookhand', seat: i })]] : [])]
     }
     if (menu.ctr != null) {  // submenu dos marcadores: −/+ por tipo
       const cid = menu.ctr, c = byId.get(cid)?.c
@@ -585,6 +590,7 @@ export default function FreeTable({ id, data, onClose }) {
             <span className="row-btns"><button className="small" onClick={() => mv(c.id, 'hand')} title={tx('Para a mão')}>✋</button><button className="small" onClick={() => mv(c.id, 'library', { bottom: true })} title={tx('Para o fundo')}>▥</button>
               <button className="small" onClick={() => mv(c.id, 'graveyard')} title={tx('Para o cemitério')}>⚰</button><button className="small" onClick={() => mv(c.id, 'exile')} title={tx('Para o exílio')}>⌀</button><button className="small" onClick={() => toField(c.id)} title={tx('Para o campo')}>▶</button></span></div>))}</div>
         <div className="row-btns"><button className="primary" onClick={() => send({ c: 'peek', n: 0 })}>{tx('Feito (as que sobram ficam no topo)')}</button></div></div></div>}
+      {mine?.look != null && seats[mine.look] && <HandLook name={who(mine.look)} cards={seats[mine.look].hand.filter(c => c.n)} data={data} mv={mv} onDone={() => send({ c: 'lookhand', seat: null })} onZoom={setZoom} />}
       {help && <Help onClose={() => { setHelp(false); lsSet(HELP_K, '1') }} />}
       {matOpen && <MatModal onClose={() => setMatOpen(false)} onMat={p => { send({ c: 'mat', v: p.mat }); send({ c: 'orb', v: p.orb }); redraw(x => x + 1) }} />}
       {cardPop && lookup(data, cardPop) && <div className="fp-modal" onClick={() => setCardPop(null)}><img className="ml-pop" src={img(lookup(data, cardPop), 'normal', false, artOf(allArts, null, lookup(data, cardPop)))} alt={cardPop} /></div>}

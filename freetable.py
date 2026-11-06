@@ -165,8 +165,8 @@ def _sees(t, c, me):
     z = c["z"]
     if z == "library":
         return c["o"] == me and c["id"] in t["zones"][me]["library"][:t["seats"][me]["peek"]]
-    if z == "hand":
-        return c["o"] == me or bool(c.get("r"))
+    if z == "hand":  # a mão: o dono, as reveladas a todos e quem está a olhar para ela (lookhand: só esse)
+        return c["o"] == me or bool(c.get("r")) or t["seats"][me].get("look") == c["s"]
     if z == "battlefield" and c.get("d"):
         return me in (c["o"], c["s"])
     return True
@@ -191,6 +191,8 @@ def view(t, me):
         v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {}, "mat": s.get("mat"), "orb": s.get("orb"),
              "mk": s.get("mk") or [], "me": i == me, "library": len(z["library"]), "arts": s.get("arts") or {},
              "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
+        if s.get("look") is not None:  # público: todos sabem quem está a olhar para a mão de quem (as cartas não)
+            v["look"] = s["look"]
         if i == me and s["peek"]:
             v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]
         seats.append(v)
@@ -278,7 +280,10 @@ def apply(t, me, d):
         if not card:
             raise ValueError("Essa carta já não está lá.")
         # nas zonas escondidas (mão, biblioteca) só mexe o dono; nas públicas qualquer um (é entre amigos)
-        if card["z"] in ("hand", "library") and card["o"] != me:
+        # a exceção: quem está a olhar para a mão de outro (Thoughtseize, Duress, Kitesail Freebooter…) tira de lá a
+        # carta escolhida para o cemitério, o exílio ou a biblioteca dele
+        took = c0 == "move" and card["z"] == "hand" and seat.get("look") == card["s"] and d.get("to") in ("graveyard", "exile", "library")
+        if card["z"] in ("hand", "library") and card["o"] != me and not took:
             raise PermissionError("Essa carta não é tua.")
         if card["z"] == "library" and not _sees(t, card, me):
             raise PermissionError("Não podes ver essa carta.")
@@ -501,6 +506,15 @@ def apply(t, me, d):
             c["r"] = on
         if on:
             _log(t, me, "revealhand", names=[c["n"] for c in hand])
+    elif c0 == "lookhand":  # olhar para a mão de outro jogador: só quem olha recebe as cartas; o registo diz a todos que olhou
+        if d.get("seat") is None:
+            seat.pop("look", None)
+        else:
+            who = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
+            if who == me:
+                raise ValueError("Essa mão já é tua.")
+            seat["look"] = who
+            _log(t, me, "lookhand", p=who, n=len(t["zones"][who]["hand"]))
     elif c0 in ("mill", "exiletop"):  # moer (topo para o cemitério) ou exilar o topo, n cartas
         z, to = t["zones"][me], "graveyard" if c0 == "mill" else "exile"
         n = min(_num(d.get("n"), 1, 20, 1), len(z["library"]))
@@ -517,6 +531,8 @@ def apply(t, me, d):
         n = len(t["seats"])
         nxt = next((x % n for x in range(t["active"] + 1, t["active"] + n + 1) if not t["seats"][x % n]["out"]), t["active"])
         t["active"], t["turn"] = nxt, t["turn"] + 1
+        for s2 in t["seats"]:  # ninguém fica a olhar para a mão de outro de um turno para o outro
+            s2.pop("look", None)
         _log(t, me, "pass", p=nxt, turn=t["turn"])
     elif c0 == "concede":
         seat["out"] = True
@@ -815,6 +831,36 @@ def selfcheck():
         assert '"live"' not in con.execute("SELECT state FROM freetables WHERE id=?", (tid,)).fetchone()[0]
     call("POST", "host", {"c": "live", "v": {"k": "end"}})
     assert not call("GET", "guest:rui")[1]["live"] and call("POST", "host", {"c": "live", "v": {"k": "x"}})[0] == 400
+    # olhar para a mão de outro (Thoughtseize): só quem olha vê os nomes, o terceiro não; tira uma para o cemitério
+    with db() as con:
+        lid = create(con, "hubert", "L", [{"by": "host", "name": "H", "deck": deck("A")}, {"by": "guest:rui", "name": "Rui", "deck": deck("B")},
+                                         {"by": "guest:ana", "name": "Ana", "deck": deck("C")}])
+    lt = T[lid]
+    lget = lambda who: route(db, "GET", f"/api/freetables/{lid}", "hubert", None, who, 0)[1]  # noqa: E731
+    lpost = lambda who, b: route(db, "POST", f"/api/freetables/{lid}", "hubert", b, who, 0)  # noqa: E731
+    hn = {lt["cards"][str(x)]["n"] for x in lt["zones"][0]["hand"]}
+    h0 = lt["zones"][0]["hand"][0]
+    assert lpost("guest:rui", {"c": "move", "id": h0, "to": "graveyard"})[0] == 403  # sem olhar, não
+    assert lpost("guest:rui", {"c": "lookhand", "seat": 1})[0] == 400  # a própria mão
+    assert lpost("guest:rui", {"c": "lookhand", "seat": 0})[0] == 200
+    rv, av, hv = lget("guest:rui"), lget("guest:ana"), lget("host")
+    assert all("n" in c for c in rv["seats"][0]["hand"]) and rv["seats"][1]["look"] == 0 and av["seats"][1]["look"] == 0
+    assert all("n" not in c for c in rv["seats"][2]["hand"]), "olhar para uma mão não mostra as outras"
+    assert not any(n in json.dumps(av) for n in hn) and all("n" not in c for c in hv["seats"][1]["hand"]), "o terceiro viu a mão olhada"
+    assert lt["log"][-1]["k"] == "lookhand" and lt["log"][-1]["p"] == 0 and not any(n in json.dumps(lt["log"][-1]) for n in hn)
+    for bad in ({"c": "move", "id": h0, "to": "hand"}, {"c": "move", "id": h0, "to": "battlefield"}, {"c": "reveal", "id": h0}):
+        assert lpost("guest:rui", bad)[0] == 403, bad
+    assert lpost("guest:ana", {"c": "move", "id": h0, "to": "graveyard"})[0] == 403  # quem não olha, não
+    nm = lt["cards"][str(h0)]["n"]
+    assert lpost("guest:rui", {"c": "move", "id": h0, "to": "graveyard"})[0] == 200
+    assert lt["zones"][0]["graveyard"] == [h0] and lt["log"][-1]["name"] == nm and lt["log"][-1]["w"] == 0  # descartada: pública
+    h1 = lt["zones"][0]["hand"][0]
+    assert lpost("guest:rui", {"c": "move", "id": h1, "to": "library", "bottom": True})[0] == 200 and lt["zones"][0]["library"][-1] != h1  # Vendilion Clique: fundo (id novo)
+    assert lt["log"][-1]["name"] is None  # para a biblioteca: sem nome
+    lpost("guest:rui", {"c": "lookhand", "seat": None})
+    assert all("n" not in c for c in lget("guest:rui")["seats"][0]["hand"]) and "look" not in lget("guest:ana")["seats"][1]
+    lpost("guest:ana", {"c": "lookhand", "seat": 1}); lpost("guest:ana", {"c": "pass"})
+    assert all("look" not in s2 for s2 in lt["seats"])  # passar a vez fecha os olhares
     print("selfcheck mesa livre ok")
 
 

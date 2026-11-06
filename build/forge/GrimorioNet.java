@@ -391,7 +391,10 @@ public class GrimorioNet {
                     if (mayView(t)) po.add("top", card(t, false));
                 }
                 boolean mine = me != null && p.getId() == me.getId();
-                po.add("hand", cards(p.getHand(), !mine));
+                // a mão do adversário vai escondida, menos as cartas que posso ver (Telepathy, Revelation, «joga com a mão revelada»)
+                JsonArray hand = new JsonArray();
+                if (p.getHand() != null) for (CardView c : p.getHand()) hand.add(card(c, !mine && !mayView(c)));
+                po.add("hand", hand);
                 JsonObject mp = new JsonObject();  // reserva de mana: {"W": 1, "C": 2}
                 for (int k = 0; k < 6; k++) { int n = p.getMana(forge.card.MagicColor.WUBRGC[k]); if (n > 0) mp.addProperty(String.valueOf("WUBRGC".charAt(k)), n); }
                 if (mp.size() > 0) po.add("mana", mp);

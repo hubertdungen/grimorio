@@ -9,7 +9,7 @@ import { tx, LOCALE } from './i18n.js'
 
 const Rules = lazy(() => import('./Rules.jsx'))
 const REACT = ['👍', '😂', '😮', '🔥', '😭', '🤝']  // como freetable.REACT
-const ICON = { draw: '🂠', shuffle: '🔀', mulligan: '♻', move: '↪', flip: '⟲', face: '🂠', attack: '⚔', untapall: '↺', token: '✦', life: '♥', poison: '☠', dice: '🎲', reveal: '👁', revealhand: '👁', peek: '👁', pass: '▶', concede: '🏳', close: '■', start: '🃏' }
+const ICON = { draw: '🂠', shuffle: '🔀', mulligan: '♻', move: '↪', flip: '⟲', face: '🂠', attack: '⚔', untapall: '↺', token: '✦', life: '♥', poison: '☠', dice: '🎲', reveal: '👁', revealhand: '👁', peek: '👁', lookhand: '👁', pass: '▶', concede: '🏳', close: '■', start: '🃏' }
 const EN_KW = KW.source.slice(3, -3).split('|')
 const MENTION = /([@#])\[([^\]]{1,60})\]/g
 const hhmm = ts => new Date(ts * 1000).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })
