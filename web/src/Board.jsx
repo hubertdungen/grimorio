@@ -662,6 +662,24 @@ const fieldMix = (z, data) => {
   const v = ['W', 'U', 'B', 'R', 'G', 'C'].map(k => (w[k] / tot >= 0.08 ? w[k] / tot : 0))
   return [...v.map(x => x.toFixed(2)), (w.W ? Math.min(1, wsp / w.W) : 0).toFixed(2)].join(',')
 }
+// o que pesa na esfera além das cores (data-env, orb3d.js): dano levado, feitiços na mesa a favor/contra, cemitério,
+// exílio, biblioteca a acabar (a esfera pinga), calor e frio (brilho por fora; com calor ou pouca vida, transpira)
+export const orbEnv = (k, s, data) => {
+  const z = s[k]; if (!z) return undefined
+  const base = z.command?.length ? 40 : 20, cl = x => Math.max(0, Math.min(1, x))
+  const mine = new Set((z.perms || []).map(p => p.key))
+  const others = (s.sides || []).filter(x => x !== k).flatMap(x => s[x]?.perms || [])
+  let good = 0, heat = 0, cold = 0
+  for (const p of z.perms || []) { const c = lookup(data, p.name); if (!c) continue
+    if (/Aura|Equipment/.test(c.t) && mine.has(p.attachedTo)) good += 0.25; else if (/Enchantment/.test(c.t) && !/Aura/.test(c.t)) good += 0.12
+    if (/\bSnow\b/.test(c.t)) cold += 0.2 }
+  const bad = others.filter(p => p.attachedTo && mine.has(p.attachedTo)).length * 0.4
+  for (const n of z.graveyard || []) { const c = lookup(data, n); if (c && /Instant|Sorcery/.test(c.t)) { if (/R/.test(c.co || '')) heat += 0.12; if (/U/.test(c.co || '')) cold += 0.08 } }
+  const w = (fieldMix(z, data) || '').split(',').map(Number)
+  heat += (w[3] || 0) * 0.9; cold += (w[1] || 0) * 0.5
+  const lib = Number.isFinite(z.library) ? z.library : 40
+  return [cl((base - z.life) / base), cl(good), cl(bad), cl((z.graveyard?.length || 0) / 30), cl((z.exile?.length || 0) / 15), lib <= 10 ? cl(1 - lib / 10) : 0, cl(heat), cl(cold)].map(x => x.toFixed(2)).join(',')
+}
 const locked = new Map()  // o aspeto «pelo deck» fixa-se quando já se viram 5 cartas (não muda a meio do jogo)
 export function orbLook(k, z, data, ctx, name) {
   const P = fpPrefs(), mine = ctx.mine === k, other = ctx.looks?.[k]  // other: a que outro jogador escolheu (online)
@@ -700,7 +718,7 @@ export function OrbPick({ onChange }) {
   )
 }
 
-function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look, dead = null, side }) {  // dead: a causa da derrota (endOut/ORB_DEATH: dmg, psn, mill, cmd, alt, lose, concede, draw)  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
+function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look, dead = null, side, env }) {  // dead: a causa da derrota (endOut/ORB_DEATH: dmg, psn, mill, cmd, alt, lose, concede, draw)  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
   const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null), [broken, setBroken] = useState(!!dead), [charging, setCharging] = useState(false)
   useOrbPhysics(orbRef)
   // esfera 3D (Definições › padrão da mesa): o mesmo elemento, desenhado pelo orb3d.js; sem WebGL fica a clássica
@@ -761,7 +779,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     return () => { clearInterval(iv); if (el) el._beat = null }
   }, [low, dead, fast, life <= 2, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-w={look?.w} data-psn={poison > 0 ? Math.min(1, poison / pmax).toFixed(2) : undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-w={look?.w} data-env={env} data-psn={poison > 0 ? Math.min(1, poison / pmax).toFixed(2) : undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} title={tx('{n} de vida', { n: lifeTxt(life) })}>
       {three && <canvas ref={cvRef} className="orb3d" aria-hidden="true" />}
       {rich.includes('god') && <i className="orb-rays" aria-hidden="true" />}
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
@@ -1192,7 +1210,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg(), oc = useContext(OrbCtx)
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
-      <Orb life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} look={orbLook(k, z, data, oc, name)} side={k}
+      <Orb env={orbEnv(k, s, data)} life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} look={orbLook(k, z, data, oc, name)} side={k}
         dead={s.out?.[k] || (z.life <= 0 ? 'dmg' : (z.poison || 0) >= (s.giant ? 15 : 10) ? 'psn' : Object.values(z.cmdDmg || {}).some(n => n >= 21) ? 'cmd' : z.out || s.lost === k ? (z.library === 0 ? 'mill' : 'lose') : null)} />
       <div className="bname">
         <b title={name}>{name}</b>

@@ -28,7 +28,7 @@ const VS = 'varying vec3 vN; varying vec3 vP; varying vec2 vUv; varying vec3 vO;
 // o líquido: cor do estilo com fumo a mexer, brilho de dentro (mais forte no centro) e mais escuro para as bordas
 const CORE_FS = `${NOISE}
 uniform float t; uniform vec3 c1; uniform vec3 c2; uniform vec3 core; uniform vec3 deep; uniform float speed; uniform float dens; uniform float glow; uniform float rot; uniform float frost;
-uniform float elem; uniform vec3 wA; uniform vec3 wB; uniform float wlite; uniform float tox; uniform vec3 ink; uniform vec4 inkP; uniform float inkK;
+uniform float elem; uniform vec3 wA; uniform vec3 wB; uniform float wlite; uniform float tox; uniform vec4 env1; uniform float exl; uniform vec3 ink; uniform vec4 inkP; uniform float inkK;
 varying vec3 vN; varying vec3 vP; varying vec3 vO;
 float ridge(float x){ return 1. - abs(2.*x - 1.); }
 // um líquido por cor de mana, cada um com a sua viscosidade (tt já vem com a velocidade da mistura)
@@ -82,6 +82,15 @@ void main(){
   if (elem > .5) { vec3 e = elemCol(vO*2.2, t*speed*.5); col = e * (.45 + .55*facing) * (dens > .2 ? 1. : .35); }
   col += core * pow(facing, 3.) * glow * (elem > .5 ? .45 : .9);       // brilho de dentro, no centro
   col *= .5 + glow*.8;
+  // dano levado: o líquido fica pisado, com capilares vermelhos
+  if (env1.x > 0.) { float cap = pow(ridge(fbm(vO*3.2 + t*.05)), 7.); col = mix(col, col*vec3(.78,.5,.5), env1.x*.45) + cap*env1.x*vec3(.75,.05,.08); }
+  // feitiços a favor: faíscas douradas a subir; contra: gavinhas escuras a entrar pelas bordas
+  if (env1.y > 0.) col += smoothstep(.965, .99, n(vO*12. - vec3(0., t*.9, 0.)))*env1.y*vec3(1.,.88,.55)*1.4;
+  if (env1.z > 0.) { float te = smoothstep(.45, .7, fbm(vO*2.8 + vec3(t*.12, 0., 0.)) + (1. - facing)*.5); col = mix(col, vec3(.06,.02,.08), te*env1.z*.75); }
+  // cemitério: sedimento escuro no fundo, mais alto com mais cartas; exílio: fantasmas pálidos a subir
+  if (env1.w > 0.) { float lvl = -.9 + env1.w*.6, sed = 1. - smoothstep(lvl - .06, lvl + .04, vO.y + (n(vO*8. + t*.05) - .5)*.08);
+    col = mix(col, vec3(.13,.11,.1)*(.6 + .8*n(vO*22.)), sed*.85); }
+  if (exl > 0.) col += smoothstep(.62, .82, fbm(vO*3. + vec3(0., -t*.3, t*.05)))*exl*vec3(.65,.75,.95)*.55;
   // veneno: veios tóxicos e bolhas a subir, mais com mais veneno; o líquido puxa para verde-roxo
   if (tox > 0.) {
     float tv = 1. - smoothstep(0., .05, abs(fbm(vO*2.5 + t*.2) - .5)), bub = smoothstep(.78, .82, n(vO*7. + vec3(0., -t*(1. + 2.*tox), 0.)));
@@ -96,9 +105,9 @@ void main(){
   col = mix(col, vec3(.75,.9,1.), frost*.6);
   gl_FragColor = vec4(col, 1.);
 }`
-const GLASS_FS = `
-uniform vec3 tint; uniform float crack; uniform sampler2D crackTex; uniform float back; uniform float dim;
-varying vec3 vN; varying vec3 vP; varying vec2 vUv;
+const GLASS_FS = `${NOISE}
+uniform vec3 tint; uniform float crack; uniform sampler2D crackTex; uniform float back; uniform float dim; uniform float sweat; uniform float frostG; uniform float gt;
+varying vec3 vN; varying vec3 vP; varying vec2 vUv; varying vec3 vO;
 void main(){
   vec3 N = normalize(vN) * (back > .5 ? -1. : 1.), V = normalize(-vP), R = reflect(-V, N);
   float fr = pow(1. - max(dot(N, V), 0.), 2.6);
@@ -111,6 +120,9 @@ void main(){
   float on = step(c.r, crack) * step(.01, crack);
   float line = c.g * on, dark = c.b * on * (1. - c.g);
   col = mix(col, vec3(.02), dark * .7) + line * vec3(1.15);
+  // suor: gotas no vidro que escorrem devagar; geada: cristais brancos a partir da borda
+  if (sweat > 0. && back < .5) { float bead = smoothstep(.9, .96, n(vec3(vO.x*16., vO.y*9. + gt*.25, vO.z*16.))); col += bead*sweat*vec3(.9); a += bead*sweat*.55; }
+  if (frostG > 0.) { float fz = smoothstep(.7, 1., fbm(vO*7.)*.6 + fr*.9) * frostG; col = mix(col, vec3(.88,.95,1.), fz*.7); a += fz*.4; }
   a = clamp(a + line * .95 + dark * .55, 0., 1.) * dim;
   gl_FragColor = vec4(col, a);
 }`
@@ -145,9 +157,9 @@ function init() {
   cam.position.set(0, 0.2, 6); cam.lookAt(0, 0, 0)
   const coreU = { t: { value: 0 }, c1: { value: new THREE.Color() }, c2: { value: new THREE.Color() }, core: { value: new THREE.Color() }, deep: { value: new THREE.Color() },
     speed: { value: 1 }, dens: { value: 0.9 }, glow: { value: 0.6 }, rot: { value: 0 }, frost: { value: 0 },
-    elem: { value: 0 }, wA: { value: new THREE.Vector3() }, wB: { value: new THREE.Vector3() }, wlite: { value: 0 }, tox: { value: 0 }, ink: { value: new THREE.Color() }, inkP: { value: new THREE.Vector4() }, inkK: { value: 0 } }
+    env1: { value: new THREE.Vector4() }, exl: { value: 0 }, elem: { value: 0 }, wA: { value: new THREE.Vector3() }, wB: { value: new THREE.Vector3() }, wlite: { value: 0 }, tox: { value: 0 }, ink: { value: new THREE.Color() }, inkP: { value: new THREE.Vector4() }, inkK: { value: 0 } }
   const core = new THREE.Mesh(new THREE.SphereGeometry(0.9, 64, 48), new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: CORE_FS, uniforms: coreU }))
-  const crackTex = crackTexture(), glassU = back => ({ tint: { value: new THREE.Color() }, crack: { value: 0 }, crackTex: { value: crackTex }, back: { value: back }, dim: { value: 1 } })
+  const crackTex = crackTexture(), glassU = back => ({ tint: { value: new THREE.Color() }, crack: { value: 0 }, crackTex: { value: crackTex }, back: { value: back }, dim: { value: 1 }, sweat: { value: 0 }, frostG: { value: 0 }, gt: { value: 0 } })
   const glassMat = back => new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: GLASS_FS, uniforms: glassU(back), transparent: true, depthWrite: false, side: back ? THREE.BackSide : THREE.FrontSide })
   const glassBack = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), glassMat(1)), glass = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 48), glassMat(0))
   const sprite = (stops, sz) => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64)
@@ -191,7 +203,7 @@ function read(o) {
     core: col(v('--core'), '#5ee08a'), deep: col(v('--deep'), '#06301a'), s1: col(v('--smoke'), '#c8ffd9'), s2: col(v('--smoke2'), '#3ddc84'), glow: col(v('--glow'), '#22c55e'),
     low: el.classList.contains('low'), dead: el.classList.contains('dead'), burst: el.classList.contains('bursting'), mood: el.dataset.mood || '', react: el.dataset.react || '',
     anim: el.dataset.a || 'calmo', ab: +(cs.getPropertyValue('--ab') || 0) || 0, cols: (el.dataset.cols || '').split('').filter(c => COL[c]), fx: el.dataset.fx3 || '',
-    w: el.dataset.w ? el.dataset.w.split(',').map(Number) : null, tox: +el.dataset.psn || 0, ink: el.dataset.ink || '',
+    w: el.dataset.w ? el.dataset.w.split(',').map(Number) : null, env: el.dataset.env ? el.dataset.env.split(',').map(Number) : [0, 0, 0, 0, 0, 0, 0, 0], tox: +el.dataset.psn || 0, ink: el.dataset.ink || '',
   }
   if (o.st.ink && o.st.ink !== o.ink) { o.inkAt = performance.now(); o.inkDir = el._inkDir || [0, 0] }
   o.ink = o.st.ink
@@ -206,6 +218,7 @@ function read(o) {
 const INK = { bite: '#7a0010', blood: '#8a0012', claws: '#5a0a0a', sword: '#9ca3af', arrow: '#6b4423', horn: '#5c4033', smash: '#6b5b4b', dive: '#475569', thunder: '#e0f2fe',
   fire: '#ff7a1a', ice: '#bfe9ff', leaf: '#2f7a2f', holy: '#ffe08a', prism: '#f0abfc', metal: '#a1a1aa', goo: '#3f6212', rot: '#4d5d1a' }
 const ECOL = ['#f2b84b', '#38a8f0', '#4a3a2a', '#ff6a2a', '#4caf50', '#9aa3ad'].map(c => new THREE.Color(c)), MIX = new THREE.Color(), TMP = new THREE.Color()
+const HOT = new THREE.Color('#ff6a1a'), COLD = new THREE.Color('#9fdcff')
 const FLOOR = -1.1, GREY = new THREE.Color('#9a958f'), TOXIC = new THREE.Color('#5fd13a'), STONE = new THREE.Color('#6b6b70')
 // cada derrota morre à sua maneira: vida a 0 estilhaça (cacos no chão) ou cai inteira e rola (ao acaso, com semente:
 // igual em todos os ecrãs); veneno derrete numa poça verde; moer escoa o líquido e o vidro vazio desfaz-se em pó;
@@ -252,6 +265,10 @@ function draw(now) {
       // o brilho de dentro com a cor da mistura (antes vinha do estilo CSS: o pântano ficava roxo)
       MIX.setRGB(0, 0, 0); w.slice(0, 6).forEach((x, i) => { if (x) MIX.add(TMP.copy(ECOL[i]).multiplyScalar(x)) }); u.core.value.copy(MIX); u.deep.value.copy(MIX).multiplyScalar(0.25) }
     u.tox.value = s.dead ? 0 : Math.min(1, s.tox)
+    const E = s.dead ? [0, 0, 0, 0, 0, 0, 0, 0] : s.env
+    u.env1.value.set(E[0], E[1], E[2], E[3]); u.exl.value = E[4]
+    const sweat = Math.max(E[6] > 0.35 ? (E[6] - 0.35) * 1.5 : 0, s.low ? 0.45 : 0), frostG = E[7] > 0.3 ? (E[7] - 0.3) * 1.4 : 0
+    for (const g of [r.glass, r.glassBack]) { const gu = g.material.uniforms; gu.sweat.value = Math.min(1, sweat); gu.frostG.value = Math.min(1, frostG); gu.gt.value = t }
     const ik = o.inkAt ? (now - o.inkAt) / 1000 : 9  // o que entrou espalha-se ~6 s e assenta
     u.inkK.value = ik < 6 ? Math.min(1, ik * 4) * (1 - ik / 6) : 0
     if (u.inkK.value > 0) { u.ink.value.set(INK[o.ink] || '#7a0010'); const d = o.inkDir, L = Math.hypot(d[0], d[1]) || 1
@@ -273,6 +290,8 @@ function draw(now) {
     r.glow2.material.color.set(cols ? COL[cols[1] || cols[0]] : '#000000')
     const ga = s.dead ? 0 : s.mood || s.react ? 0.95 : s.ab > 0 ? 0.55 + 0.35 * s.ab : 0.4
     r.glow.material.opacity = ga; r.glow2.material.opacity = cols && cols.length > 1 ? ga * 0.8 : 0
+    const hc = E[6] - E[7]  // calor e frio: o halo puxa para laranja-brasa ou azul-gelo e cresce
+    if (Math.abs(hc) > 0.15 && !s.dead) { r.glow.material.color.lerp(hc > 0 ? HOT : COLD, Math.min(0.75, Math.abs(hc))); r.glow.material.opacity = Math.min(1, ga + Math.abs(hc) * 0.45) }
     r.caustic.material.color.copy(w ? MIX : s.core).lerp(new THREE.Color('#ffffff'), 0.5); r.caustic.material.opacity = s.dead ? 0 : 0.55
     // a casca rebentada: a física dos cacos (ou da esfera inteira a cair e rolar) e o chão rachado; câmara mais alta
     if (s.dead && !o.fr) startFracture(o, now)
@@ -327,10 +346,15 @@ function draw(now) {
       const u2 = h.children[1].material.uniforms; u2.tint.value.copy(s.core); u2.crack.value = 0.5 })
     if (opening || md === 'split') r.ball.visible = r.glass.visible = r.glassBack.visible = false
     // verter (dentada, sangue): gotas da cor do líquido caem pelo lado e fazem uma poça
+    const leak = !fr && E[5] > 0  // biblioteca a acabar: gotas a pingar por baixo, mais depressa quanto menos cartas
+    if (leak && !o.drops && now - (o.leakAt || 0) > 2600 - 2000 * E[5]) { o.leakAt = now; o.drip = { p: [0.05, -0.95, 0.35], v: [0, -0.2, 0] } }
     const spill = s.fx === 'spill' && !fr
     if (spill && !o.drops) o.drops = Array.from({ length: 10 }, () => ({ p: [0.75 + Math.random() * 0.2, Math.random() * 0.4, 0.4], v: [0.6 + Math.random(), 0.6 + Math.random(), (Math.random() - 0.5)] }))
     if (!s.fx) o.drops = null
-    r.drops.visible = !!o.drops
+    r.drops.visible = !!o.drops || !!o.drip
+    if (o.drip && !o.drops) { stepBody(o.drip, 0.016, 0.05); r.drops.children.forEach((m, k) => { m.visible = k === 0 }); r.drops.children[0].position.set(...o.drip.p); r.drops.children[0].material.color.copy(w ? MIX : s.core)
+      if (o.drip.p[1] <= FLOOR + 0.06) o.drip = null }
+    else r.drops.children.forEach(m => { m.visible = true })
     if (o.drops) o.drops.forEach((b, k) => { stepBody(b, 0.016, 0.05); const m = r.drops.children[k]; m.position.set(...b.p); m.material.color.copy(s.core) })
     r.puddle.material.opacity = o.drops ? 0.75 * Math.min(1, (1 - fxk) * 2) : 0; r.puddle.material.color.copy(s.core); r.puddle.position.x = 1.2; r.puddle.scale.setScalar(1)
     if (md === 'melt') { const k = Math.min(1, age / 2.4); r.puddle.material.opacity = 0.85 * k; r.puddle.material.color.copy(TOXIC); r.puddle.position.x = 0; r.puddle.scale.setScalar(0.4 + 1.6 * k) }
