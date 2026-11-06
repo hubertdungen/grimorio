@@ -3807,4 +3807,8 @@ export default {
   "Moeda: ganhou {p}": "Münze: {p} hat gewonnen",
   "Escolheu ir em segundo: começas tu.": "Hat sich für den zweiten Zug entschieden: du beginnst.",
   "Escolheu jogar primeiro.": "Hat sich entschieden, zuerst zu spielen.",
+  "Regras rápidas": "Schnelle Regeln",
+  "Ex.: dash, atropelar, prioridade…": "Z. B. Dash, Trampelschaden, Priorität…",
+  "Pesquisar nas regras": "In den Regeln suchen",
+  "Nada encontrado.": "Nichts gefunden.",
 }

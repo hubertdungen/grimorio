@@ -3767,3 +3767,8 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .zmana { position: fixed; z-index: 2147481350; width: 16px; height: 16px; border-radius: 50%; pointer-events: none;
   background: radial-gradient(circle at 35% 30%, #fff 0 10%, var(--c) 38%, color-mix(in srgb, var(--c) 45%, #000) 85%); box-shadow: 0 0 10px var(--c), 0 0 22px color-mix(in srgb, var(--c) 60%, transparent); }
 @media (prefers-reduced-motion: reduce) { .zwisp, .zland.shock2, .zvortex, .zring, .zmana { display: none; } }
+/* regras rápidas no painel do Forge Play */
+.rq-open { align-self: flex-start; }
+.rq { display: grid; gap: 6px; padding: 8px; border-radius: 10px; background: #ffffff08; border: 1px solid var(--line); max-height: 40vh; overflow: auto; }
+.rq-bar { display: flex; gap: 6px; align-items: center; } .rq-bar input { flex: 1; min-width: 0; }
+.rq-hit b { color: var(--gold, #f2b84b); } .rq-hit p { margin: 2px 0; font-size: 12px; line-height: 1.4; }

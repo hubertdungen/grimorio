@@ -3815,4 +3815,8 @@ export default {
   "Moeda: ganhou {p}": "Coin: {p} won",
   "Escolheu ir em segundo: começas tu.": "They chose to go second: you start.",
   "Escolheu jogar primeiro.": "They chose to play first.",
+  "Regras rápidas": "Quick rules",
+  "Ex.: dash, atropelar, prioridade…": "E.g. dash, trample, priority…",
+  "Pesquisar nas regras": "Search the rules",
+  "Nada encontrado.": "Nothing found.",
 }

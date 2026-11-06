@@ -10,6 +10,7 @@ import { playDiff } from './sfx.js'
 import { ask as confirmAsk } from './confirm.jsx'
 import { addDmg } from './game.js'
 import { Syms } from './ui.jsx'
+import RulesQuick from './rulesquick.jsx'
 import { obviousPay } from './mana.js'
 import { useBackClose } from './backnav.js'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
@@ -39,6 +40,11 @@ function endWhy(out) {
   const lost = (out || []).filter(x => LOSS_TXT[x.r]), alt = (out || []).find(x => x.r === 'altwin')
   return [...lost.map(x => `${x.name}: ${LOSS_TXT[x.r]}${x.card ? ` (${x.card})` : ''}`), ...(alt?.card ? [tx('Vitória alternativa: {c}', { c: alt.card })] : [])].join(' · ')
 }
+// o Forge pede atacantes/bloqueadores? Um pedido de prioridade traz «Phase: Declare Attackers Step» e não é isso: antes
+// passava por pedido de atacantes (no turno da IA ficava «o adversário está a pensar» com o OK escondido) e, no passo dos
+// bloqueadores, os cliques viravam bloqueios
+const ATK_ASK = m => !!m && !/^(Priority:|Waiting for)/.test(m) && /Declare attackers|Select creatures to attack/i.test(m)
+const BLK_ASK = m => !!m && !/^(Priority:|Waiting for)/.test(m) && /Declare blockers|Select creatures to block/i.test(m)
 function promptText(msg, st, me) {
   const m = String(msg || '')
   if (!m) return ''
@@ -406,9 +412,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // turno anterior ficava lá (e depois de recarregar a página a meio do combate aparecia «Declara os atacantes» quando
   // eram os bloqueadores). No turno dele, isso é só «à espera».
   const theirTurn = !!st && st.active !== me?.id
-  const pr = theirTurn && /Declare attackers|Select creatures to attack/i.test(s?.prompt?.msg || '') ? { msg: `Waiting for ${opp?.name || ''}`, buttons: [] } : s?.prompt
+  const pr = theirTurn && ATK_ASK(s?.prompt?.msg) ? { msg: `Waiting for ${opp?.name || ''}`, buttons: [] } : s?.prompt
   const btns = (pr?.buttons || []).filter(b => b.label)
-  const blocking = theirTurn && /declare blockers|Select creatures to block/i.test(pr?.msg || '')  // o Forge pede os bloqueadores (cliques = bloquear)
+  const blocking = theirTurn && BLK_ASK(pr?.msg)  // o Forge pede os bloqueadores (cliques = bloquear)
   const ask = s?.asks?.[0]
   const hoverId = useRef(null), [flipped, setFlipped] = useState(() => new Set()), [lift, setLift] = useState(null)  // carta debaixo do rato; viradas; levantada na mão
   // «voltar» do telemóvel: fecha primeiro o que está aberto por cima; com o jogo a decorrer nunca sai da mesa (avisa e fica)
@@ -685,7 +691,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       return
     }
     const ai = attackIntent.current
-    if (ai && Date.now() < ai.until && /Declare attackers|Select creatures to attack/i.test(pr?.msg || '') && !s.asks?.length) {
+    if (ai && Date.now() < ai.until && ATK_ASK(pr?.msg) && !s.asks?.length) {
       attackIntent.current = null
       const on = new Set((st.combat || []).map(x => x.att))
       ai.ids.filter(x => !on.has(x)).reduce((q, x) => q.then(() => ai.defs?.[x] && send(ai.defs[x])).then(() => send({ c: 'card', id: x })), Promise.resolve())
@@ -770,7 +776,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // (o Chrome do Android só deixa em ecrã inteiro). Sem nenhum dos dois: diz para ligar a rotação automática. Ao sair, volta ao normal.
   const touchDev = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
   // a declarar atacantes; OK sem nenhum atacante com criaturas que podiam atacar = talvez um OK sem querer: pergunta antes
-  const declaring = !theirTurn && /Declare attackers|Select creatures to attack/i.test(pr?.msg || '')
+  const declaring = !theirTurn && ATK_ASK(pr?.msg)
   // um só toque conta: com a pergunta aberta (Enter no botão dela também chegava aqui) ou o mesmo pedido já respondido
   // (toque duplo antes de o Forge mudar de passo) não se carrega outra vez — antes a pergunta aparecia 2x e o 2.º OK passava um passo a mais
   const pressing = useRef(false), pressedAt = useRef(null), saidNo = useRef('')  // saidNo: já disse «não ataco/não bloqueio» neste passo
@@ -992,6 +998,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')} />))}</span>}
+          <RulesQuick />
           <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')} {tx('Duplo clique numa carta tua na mesa abre as ações dela, em qualquer fase (também a atacar e a bloquear).')}</p>
           <div className="fp-dicebar"><span className="muted small">🎲</span>
             {[['d6', ['d6']], ['2d6', ['d6', 'd6']], ['d20', ['d20']], [tx('moeda'), ['moeda']]].map(([l, t]) => <button key={l} type="button" className="link small" onClick={() => dice.roll(t)} title={tx('Lançar na mesa')}>{l}</button>)}

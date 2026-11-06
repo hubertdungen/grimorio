@@ -3807,4 +3807,8 @@ export default {
   "Moeda: ganhou {p}": "Moneda: ganó {p}",
   "Escolheu ir em segundo: começas tu.": "Eligió ir segundo: empiezas tú.",
   "Escolheu jogar primeiro.": "Eligió jugar primero.",
+  "Regras rápidas": "Reglas rápidas",
+  "Ex.: dash, atropelar, prioridade…": "P. ej.: dash, arrollar, prioridad…",
+  "Pesquisar nas regras": "Buscar en las reglas",
+  "Nada encontrado.": "No se encontró nada.",
 }

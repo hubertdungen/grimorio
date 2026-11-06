@@ -3807,4 +3807,8 @@ export default {
   "Moeda: ganhou {p}": "硬币：{p} 赢了",
   "Escolheu ir em segundo: começas tu.": "对方选择后手：你先手。",
   "Escolheu jogar primeiro.": "对方选择先手。",
+  "Regras rápidas": "快速规则",
+  "Ex.: dash, atropelar, prioridade…": "例如：dash、践踏、优先权…",
+  "Pesquisar nas regras": "搜索规则",
+  "Nada encontrado.": "没有找到。",
 }
