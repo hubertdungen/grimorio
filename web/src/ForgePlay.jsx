@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, ORB_DEATH } from './Board.jsx'
 import { tx } from './i18n.js'
-import { playDiff } from './sfx.js'
+import { playDiff, play } from './sfx.js'
 import { ask as confirmAsk } from './confirm.jsx'
 import { addDmg, lookup } from './game.js'
 import { Syms } from './ui.jsx'
@@ -429,6 +429,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       if (ask || big || pressing.current || document.querySelector('.ask-bg') || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return  // carta em grande aberta: o Esc é dela
       if (act) { if ((e.key === 'Enter' || e.key === ' ') && !act.pw?.length) { e.preventDefault(); activate() } else if (e.key === 'Escape') { e.preventDefault(); setAct(null) } return }
       const P = fpPrefs()
+      if (P.clock && clockRef.current && e.key.toLowerCase() === P.clockKey && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); stopClock(); return }
       if (e.key.toLowerCase() === P.tap && hoverId.current != null && !e.ctrlKey && !e.metaKey && document.querySelector(`.bside.bottom .pc[data-z="k:${hoverId.current}"]`)) { e.preventDefault(); permClick(hoverId.current, document.querySelector(`.bside.bottom .pc[data-z="k:${hoverId.current}"]`)); return }  // rato por cima de uma carta tua na mesa + T = virá-la (tap) / ativá-la, como o clique
       if (e.key.toLowerCase() === P.flip && hoverId.current != null && !e.ctrlKey && !e.metaKey) { e.preventDefault(); const k = hoverId.current; setFlipped(f => { const n = new Set(f); n.has(k) ? n.delete(k) : n.add(k); return n }); return }
       const end = btns.find(b => b.label === 'End Turn')
@@ -715,6 +716,41 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     // à hora de mandar volta-se a ver: se entretanto o adversário respondeu (outra coisa no topo), não se passa por ti
     setTimeout(() => { if (autoAct(sNow.current)?.k === a.k) send(a.c); else autoKey.current = '' }, a.ms)
   }, [s?.seq])  // eslint-disable-line react-hooks/exhaustive-deps
+  // relógio de torneio (Definições › Mesa): quando te cabe responder a algo do adversário (no topo da pilha, ou no turno
+  // dele) tens N s e depois passa sozinho, como num torneio a sério. Stop (tecla, S por omissão, ou o botão) dá mais X s,
+  // uma vez por pergunta. No teu turno com a pilha vazia (estás a jogar) e nas escolhas (bloquear, alvos) não conta;
+  // começar a responder (lançar, escolher) muda a pergunta e o relógio sai
+  const [clock, setClock] = useState(null), clockRef = useRef(null)
+  const clockKeyOf = x => {
+    const P = fpPrefs(), p = x?.prompt, msg = p?.msg || ''
+    if (!P.clock || !p || x.asks?.length || x.ended || !/^Priority:/.test(msg)) return null
+    const b0 = (p.buttons || []).filter(b => b.label)[0]
+    if (b0?.c !== 'ok' || !b0.on) return null
+    const sx = x.state, meId = (sx?.players || []).find(q => q.me)?.id, top = sx?.stack?.[0]
+    if (top ? top.by === meId : sx?.active === meId) return null
+    return `${msg}|${sx?.stack?.length || 0}|${top?.card ?? ''}|${sx?.turn}|${sx?.phase}`
+  }
+  useEffect(() => {
+    const k = clockKeyOf(s)
+    if (!k) { if (clockRef.current) { clockRef.current = null; setClock(null) } return }
+    if (clockRef.current?.k === k) return
+    const total = fpPrefs().clockSec * 1000
+    clockRef.current = { k, until: Date.now() + total, total, stopped: false, now: Date.now() }; setClock({ ...clockRef.current })
+  }, [s?.seq])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {  // o tic-tac; ao fim, OK por ti (se a pergunta ainda for a mesma)
+    if (!clock?.k) return
+    const iv = setInterval(() => {
+      const c = clockRef.current; if (!c) return
+      if (Date.now() >= c.until) { clockRef.current = null; setClock(null); if (clockKeyOf(sNow.current) === c.k) send({ c: 'ok' }); return }
+      setClock({ ...c, now: Date.now() })
+    }, 200)
+    return () => clearInterval(iv)
+  }, [clock?.k])  // eslint-disable-line react-hooks/exhaustive-deps
+  const stopClock = () => {
+    const c = clockRef.current; if (!c || c.stopped) return
+    const extra = fpPrefs().clockExtra * 1000
+    Object.assign(c, { until: Date.now() + extra, total: extra, stopped: true, now: Date.now() }); setClock({ ...c }); play('tick', { amount: 1 })
+  }
   useEffect(() => {  // ordenar gatilhos iguais (três City of Brass ao mesmo tempo): a ordem não muda nada, responde-se sozinho
     const a = s?.asks?.[0]
     if (a?.kind === 'order' && (a.options || []).length > 1 && a.options.every(o => o.label === a.options[0].label)) answer(a, [])
@@ -862,6 +898,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useFlip(fitTable, seqKey, lay)
   if (!st) return <div className="fp-wait">{err ? <p className="bad-t">{err}</p> : <p className="muted">{tx('O Forge está a abrir o jogo (uns 20 segundos)…')}</p>}</div>
   const myTurn = st.active === me?.id
+  const clockLeft = clock ? Math.max(0, clock.until - (clock.now || Date.now())) : 0
+  const clockUi = clock && <div className={`fp-clock ${clock.stopped ? 'stopped' : ''} ${clockLeft < 3000 ? 'hurry' : ''}`} role="timer">
+    <i style={{ '--k': (clockLeft / clock.total).toFixed(3) }} />
+    <span>{clock.stopped ? tx('A pensar: passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) }) : tx('Passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) })}</span>
+    {!clock.stopped && <button type="button" className="fp-stop" onClick={stopClock} title={tx('Parar para pensar: mais {n} s para responder', { n: fpPrefs().clockExtra })}>⏸ {tx('Stop')} <kbd>{fpPrefs().clockKey.toUpperCase()}</kbd></button>}
+  </div>
   const bs = { sides: ['a', 'b'], a: zoneOf(me || {}, st.combat), b: zoneOf(opp || {}, st.combat), active: myTurn ? 'a' : 'b', i: s.seq, exact: true, dmg }
   for (const x of planned) { const p = bs.a.perms.find(q => q.key === String(x.blk)); if (p && !p.blocking) Object.assign(p, { blocking: String(x.att), planned: true }) }
   bs.lost = s.ended && s.winner ? (s.winner === me?.name ? 'b' : 'a') : null  // quem perdeu: a esfera dele rebenta (Hud)
@@ -1004,6 +1046,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <p><Syms text={promptText(pr?.msg, st, me)} />{blockBox}</p>
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
+        {clockUi}
         <FsBtn />
       </div>}
       <aside className="fp-side">
@@ -1012,6 +1055,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}
           <p><Syms text={promptText(pr?.msg, st, me)} /></p>
           {blockBox}
+          {clockUi}
           <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')} />))}</span>}

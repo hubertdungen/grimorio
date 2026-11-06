@@ -16,6 +16,8 @@ export const cardVars = (px, k = 'var(--pk, 1)') => (px ? { '--px': `calc(${px}p
 export const fpPrefs = () => {
   let o = {}; try { o = JSON.parse(localStorage.getItem('grimorio.fp.prefs') || '{}') } catch { /* sem armazenamento */ }
   return { space: o.space !== false, shiftSpace: o.shiftSpace !== false,  // Shift+Espaço = acabar o turno (ligado por omissão)
+    // relógio de torneio: a responder ao adversário tens clockSec s e depois passa sozinho; Stop (clockKey) dá mais clockExtra s
+    clock: o.clock !== false, clockSec: Math.max(3, Math.min(30, +o.clockSec || 8)), clockExtra: Math.max(5, Math.min(90, +o.clockExtra || 20)), clockKey: /^[a-z0-9]$/.test(o.clockKey || '') ? o.clockKey : 's',
     flip: o.flip || 'f', tap: o.tap || 't',
     autopay: o.autopay === true, autoresolve: o.autoresolve === true,  // pagar sozinho: desligado por omissão
     place: ['grid', 'free', 'rows'].includes(o.place) ? o.place : 'grid', persp: o.persp !== false, tilt: Number.isFinite(o.tilt) ? o.tilt : 30,

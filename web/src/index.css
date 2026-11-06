@@ -3847,6 +3847,24 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 /* Definições: a secção onde se está fica marcada no índice (dourado, com um traço à esquerda) */
 .set-index button { transition: background .2s, color .2s, box-shadow .2s; }
 .set-index button.on { color: var(--gold2); background: #f2b84b17; box-shadow: inset 3px 0 0 var(--gold); font-weight: 600; }
-/* Definições em ecrãs largos: mais largas e, a partir de 2000px (2K), as secções em duas colunas */
+/* Definições em ecrãs largos: só mais largas (as secções ficam numa coluna, pela ordem do índice) */
 @media (min-width: 1400px) { .settings.set-layout { max-width: 1200px; grid-template-columns: 240px minmax(0, 1fr); } }
-@media (min-width: 2000px) { .settings.set-layout { max-width: 1760px; } .set-main { display: block; column-count: 2; column-gap: 16px; } .set-main > section { break-inside: avoid; margin: 0 0 16px; display: block; } .set-main > section[hidden] { display: none; } }
+@media (min-width: 2000px) { .settings.set-layout { max-width: 1500px; grid-template-columns: 260px minmax(0, 1fr); } }  /* 2K: só mais largo, uma coluna (o índice segue a ordem) */
+
+/* relógio de torneio no Forge Play: a barra encolhe até passar sozinho; Stop dá mais tempo uma vez */
+.fp-clock { position: relative; display: flex; align-items: center; gap: 8px; margin: 6px 0; padding: 6px 8px 8px; border-radius: 10px; background: #f2b84b14; border: 1px solid #f2b84b40; font-size: 13px; overflow: hidden; }
+.fp-clock > i { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--k, 1) * 100%); background: var(--gold); transition: width .2s linear; }
+.fp-clock.hurry { border-color: #ff6b6b88; background: #ff6b6b14; } .fp-clock.hurry > i { background: #ff6b6b; }
+.fp-clock.stopped { border-color: #7cc4ff66; background: #7cc4ff12; } .fp-clock.stopped > i { background: #7cc4ff; }
+.fp-clock > span { flex: 1; }
+.fp-stop { padding: 3px 10px; border-radius: 8px; font-weight: 700; } .fp-stop kbd { margin-left: 4px; }
+.set-clock { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 2px 0 6px 26px; }
+
+/* Definições: o cabeçalho com o título à esquerda e Fechar à direita, numa linha só (antes ficava por cima do 1.º cartão) */
+.set-layout .set-head { display: flex; align-items: center; gap: 12px; padding: 4px 0 12px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.set-head h2 { display: inline-flex; align-items: center; gap: 8px; } .set-head h2 .ic { width: 24px; height: 24px; color: var(--gold2); }
+.set-close { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 99px; background: var(--panel2, #ffffff0d); border: 1px solid var(--line); color: var(--text); font-weight: 600; transition: background .2s, border-color .2s, color .2s; }
+.set-close:hover { background: #f2b84b1f; border-color: var(--gold); color: var(--gold2); }
+.set-close span { font-size: 15px; line-height: 1; }
+/* cada opção de ligar/desligar na sua linha */
+.set-main label.chk { display: flex; align-items: flex-start; gap: 6px; }

@@ -1,6 +1,6 @@
 // Definições: perfil (edições sem login), língua, jogos do Forge em simultâneo (com sugestão pela RAM livre agora), som e
 // dados (exportar/importar uma cópia e, opcional, sincronizar com uma pasta na nuvem: backup.py).
-import { IL } from './icons.jsx'
+import { IL, Icon } from './icons.jsx'
 import { MatPick } from './Board.jsx'
 import { ApkUpdate } from './apkupdate.jsx'
 import { fpPrefs, setFpPrefs, CARD_PX } from './fpprefs.js'
@@ -114,6 +114,12 @@ function TableKeys() {
     <>
       <label className="chk"><input type="checkbox" checked={p.space} onChange={e => save({ space: e.target.checked })} /> {tx('Espaço faz o mesmo que Enter (OK / passar)')}</label>
       <label className="chk"><input type="checkbox" checked={p.shiftSpace} onChange={e => save({ shiftSpace: e.target.checked })} /> {tx('Shift+Espaço acaba o turno (como Shift+Enter)')}</label>
+      <label className="chk"><input type="checkbox" checked={p.clock} onChange={e => save({ clock: e.target.checked })} /> {tx('Relógio de torneio: a responder ao adversário, passa sozinho ao fim de uns segundos')}</label>
+      {p.clock && <div className="set-clock">
+        <label className="fmt"><span>{tx('Segundos para responder')}</span><input type="number" min={3} max={30} value={p.clockSec} style={{ width: 70 }} onChange={e => save({ clockSec: Math.max(3, Math.min(30, +e.target.value || 8)) })} /></label>
+        <label className="fmt"><span>{tx('Stop: segundos a mais para pensar')}</span><input type="number" min={5} max={90} value={p.clockExtra} style={{ width: 70 }} onChange={e => save({ clockExtra: Math.max(5, Math.min(90, +e.target.value || 20)) })} /></label>
+        <label className="fmt"><span>{tx('Tecla de Stop')}</span><input value={p.clockKey.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (okKey(k) && k !== p.tap && k !== p.flip) save({ clockKey: k }) }} /></label>
+      </div>}
       <label className="fmt"><span>{tx('Tecla para virar a carta debaixo do rato (a outra face, ou de pernas para o ar; só no teu ecrã)')}</span>
         <input value={p.flip.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (okKey(k) && k !== p.tap) save({ flip: k }) }} /></label>
       <label className="fmt"><span>{tx('Tecla para virar (tap) a carta tua na mesa debaixo do rato — o mesmo que clicar nela')}</span>
@@ -294,9 +300,13 @@ function SetIndex({ box }) {
 
 export default function Settings({ prof, onClose, onSwitch, onNew }) {
   const box = useRef(null)
+  useEffect(() => {  // Esc fecha (fora de caixas de texto e sem uma janela aberta por cima)
+    const k = e => { if (e.key === 'Escape' && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && !document.querySelector('.ask-bg')) onClose() }
+    addEventListener('keydown', k); return () => removeEventListener('keydown', k)
+  }, [onClose])
   return (
     <div className="view settings set-layout">
-      <div className="set-head"><h2>⚙ {tx('Definições')}</h2><button onClick={onClose}>{tx('Fechar')}</button></div>
+      <div className="set-head"><h2><Icon n="gear" /> {tx('Definições')}</h2><button type="button" className="set-close" onClick={onClose} aria-label={tx('Fechar')} title={tx('Fechar (Esc)')}><span aria-hidden="true">✕</span> {tx('Fechar')}</button></div>
       <SetIndex box={box} />
       <div className="set-main" ref={box}>
       {prof?.mode === 'profiles' && prof.current && <section className="card"><h3>{tx('Perfil')}</h3><ProfileManage prof={prof} onSwitch={onSwitch} onNew={onNew} /></section>}
