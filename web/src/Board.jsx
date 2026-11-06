@@ -527,19 +527,19 @@ function useOrbPhysics(ref) {
     const click = e => { if (el._dragged && performance.now() - el._dragged < 450) { e.stopPropagation(); e.preventDefault() } }  // largar não é clicar
     // esfera contra esfera: a que vem a voar empurra a outra (e o vidro tilinta)
     let hitAt = 0
-    const other = e => {
+    const other = e => {  // outra esfera a voar ou um dado a rolar («grim-die», sem el)
       const d = e.detail
-      if (!d?.el || d.el === el || S.drag?.on || !d.r) return
+      if (!d || d.el === el || S.drag?.on || !d.r) return
       const [x, y, r] = center(), dx = x - d.x, dy = y - d.y, L = Math.hypot(dx, dy) || 1, sp = Math.hypot(d.vx, d.vy)
       if (L > r + d.r || sp < 60 || performance.now() - hitAt < 250) return
       hitAt = performance.now(); clink(sp)
       el._kick((dx / L) * sp * 0.8, (dy / L) * sp * 0.8)
     }
-    addEventListener('grim-orb', other)
+    addEventListener('grim-orb', other); addEventListener('grim-die', other)
     el.addEventListener('pointerdown', down); el.addEventListener('click', click, true)
     addEventListener('pointermove', move, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', up)
     return () => {
-      cancelAnimationFrame(S.raf); land(); document.body.classList.remove('orb-grab'); removeEventListener('grim-orb', other)
+      cancelAnimationFrame(S.raf); land(); document.body.classList.remove('orb-grab'); removeEventListener('grim-orb', other); removeEventListener('grim-die', other)
       el.removeEventListener('pointerdown', down); el.removeEventListener('click', click, true)
       removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up)
     }
@@ -1341,6 +1341,13 @@ function exileDissolve(el) {
   host.append(box); el.style.visibility = 'hidden'
   setTimeout(() => box.remove(), 2100)
 }
+// um dado a rolar por cima de uma carta da mesa: o toque (como a esfera da vida faz)
+const dieBumped = new WeakMap()
+if (typeof window !== 'undefined') addEventListener('grim-die', e => {
+  const d = e.detail, pc = d && document.elementsFromPoint(d.x, d.y).find(x => x.matches?.('.pc[data-z^="k:"]'))?.closest('.pc')
+  if (!pc || performance.now() - (dieBumped.get(pc) || 0) < 600) return
+  dieBumped.set(pc, performance.now()); pc.classList.remove('orb-bump'); void pc.offsetWidth; pc.classList.add('orb-bump'); setTimeout(() => pc.classList.remove('orb-bump'), 650)
+})
 function ghostOut(el, to) {  // ver leaveGhost
   leaveGhost((el.querySelector('.pc-rot') || el).getBoundingClientRect(), el.querySelector('.pc-f img')?.src, el.classList.contains('tapped'), to)
   el.style.visibility = 'hidden'

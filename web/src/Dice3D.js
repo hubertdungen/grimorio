@@ -106,11 +106,24 @@ export function createTray(el, { colors, words = ['Cara', 'Coroa'], onHit, onSet
     const vs = g.bodies.map(b => swap(b.sw, readValue(b)))
     return { type: g.type, v: g.type === 'd100' ? (vs[0] + vs[1] || 100) : g.type === 'd10' ? vs[0] || 10 : vs[0], ...(g.type === 'd100' && { parts: vs }) }
   }))
+  // os dados a rolar anunciam onde estão no ecrã (ponto, velocidade em px/s e raio): a esfera da vida leva um empurrão
+  // quando um lhe bate e as cartas por onde passam dão um toque (Board.jsx «grim-die»)
+  const V3 = new THREE.Vector3(), V4 = new THREE.Vector3()
+  const scr = (p, out) => { out.set(p[0], p[1], p[2]); table.localToWorld(out); out.project(camera); const r = cv.getBoundingClientRect(); return [r.left + (out.x + 1) / 2 * r.width, r.top + (1 - out.y) / 2 * r.height] }
+  let emitN = 0
+  const emit = () => {
+    if ((emitN = (emitN + 1) % 2)) return
+    for (const { b } of meshes) {
+      if (Math.hypot(b.v[0], b.v[2]) < 1.2) continue
+      const a = scr(b.x, V3), c = scr([b.x[0] + b.v[0] * 0.05, b.x[1], b.x[2] + b.v[2] * 0.05], V4), e = scr([b.x[0] + b.S.R, b.x[1], b.x[2]], V4)
+      dispatchEvent(new CustomEvent('grim-die', { detail: { x: a[0], y: a[1], vx: (c[0] - a[0]) / 0.05, vy: (c[1] - a[1]) / 0.05, r: Math.max(6, Math.abs(e[0] - a[0]) * 1.2) } }))
+    }
+  }
   let tPrev = 0
   const loop = now => {
     const n = tPrev ? Math.max(1, Math.min(16, Math.round((now - tPrev) / 1000 / world.DT))) : 4; tPrev = now  // pelo tempo real (aparelhos lentos não ficam em câmara lenta)
     for (let k = 0; k < n; k++) world.step(hit)
-    sync(); render()
+    sync(); render(); emit()
     if (world.done() && !drag) { tPrev = 0; if (!settled) { settled = true; report() } return }
     raf = requestAnimationFrame(loop)
   }
