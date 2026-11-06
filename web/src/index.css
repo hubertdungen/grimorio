@@ -3844,3 +3844,6 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 /* com o fluido de partículas a auréola, os raios e o suor são físicos (orb3d.js): os desenhos 2D saem */
 .orb.has3d[data-o3][data-pf="1"] > .orb-halo, .orb.has3d[data-o3][data-pf="1"] > .orb-rays, .orb.has3d[data-o3][data-pf="1"] > .orb-sweat { display: none; }
 .zmana { transition: none; will-change: transform; }
+/* Definições: a secção onde se está fica marcada no índice (dourado, com um traço à esquerda) */
+.set-index button { transition: background .2s, color .2s, box-shadow .2s; }
+.set-index button.on { color: var(--gold2); background: #f2b84b17; box-shadow: inset 3px 0 0 var(--gold); font-weight: 600; }

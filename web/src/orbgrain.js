@@ -9,7 +9,7 @@ const TRANSIENT = NAMES.map(k => !!(MAT[k].ttl && MAT[k].ttl < 1))  // raios e c
 const IDX = k => NAMES.indexOf(k)
 const FIRE = IDX('fire'), LAVA = IDX('lava'), MAGMA = IDX('magma'), EMBER = IDX('ember'), FLASH = IDX('flash'), METAL = IDX('metal'), CRYSTAL = IDX('crystal'), CRUST = IDX('crust')
 // como cada matéria se desenha em grão: 0 opaco (líquido, pó, sólido), 1 gás (fofo, translúcido), 2 luz (soma, brilha)
-const GK = NAMES.map((k, i) => (KIND[i] === 2 ? 1 : KIND[i] === 3 ? 2 : 0))
+export const GK = NAMES.map((k, i) => (KIND[i] === 2 ? 1 : KIND[i] === 3 ? 2 : 0))
 // tamanho do grão por matéria (mundo): os gases fofos, o pó fino
 const GS = NAMES.map((k, i) => (GK[i] === 1 ? 0.36 : MAT[k].solid ? 0.13 : GK[i] === 2 ? 0.14 : 0.19))
 // agitação própria (browniano): o gás e a luz espalham-se, o líquido quase não, o sólido nada
@@ -52,7 +52,7 @@ export class Grains {
     for (let i = 0; i < fs.count; i++) { if (!fs.alive[i] || TRANSIENT[fs.m[i]]) continue; const c = this.cell(fs.x[i * 3], fs.x[i * 3 + 1], fs.x[i * 3 + 2], H); this.next[i] = this.head[c]; this.head[c] = i }
   }
   cell(x, y, z, H) { const G = this.GN, f = v => Math.max(0, Math.min(G - 1, Math.floor((v + 3) / H))); return (f(x) * G + f(y)) * G + f(z) }
-  ok(fs, j) { return j >= 0 && j < fs.count && fs.alive[j] && !TRANSIENT[fs.m[j]] && fs.fade[j] <= 0.5 }
+  ok(fs, j) { return j >= 0 && j < fs.count && fs.alive[j] && !TRANSIENT[fs.m[j]] && fs.fade[j] <= 0.5 && (!this.outOnly || fs.out[j]) }  // outOnly: com a GPU, só o que verteu
   anchor(fs, g) {  // uma âncora nova: primeiro as que têm grãos a menos (a quota), senão ao acaso; o grão nasce perto dela
     for (let t = 0; t < 10; t++) {
       const j = this.def && this.def.length ? this.def.pop() : (this.rnd() * fs.count) | 0

@@ -268,10 +268,24 @@ function SetIndex({ box }) {
     for (const s of box.current?.querySelectorAll('section.card') || []) s.hidden = !!n && !s.textContent.toLowerCase().includes(n)
   }, [q, box])
   const n = q.trim().toLowerCase()
+  // a secção onde se está (a que passa pela parte de cima do ecrã) fica marcada no índice enquanto se desce
+  const [cur, setCur] = useState(secs[0]?.id)
+  useEffect(() => {
+    const els = secs.map(s => document.getElementById(s.id)).filter(Boolean)
+    if (!els.length || !window.IntersectionObserver) return
+    const seen = new Map()
+    const io = new IntersectionObserver(es => {
+      for (const e of es) seen.set(e.target.id, e.isIntersecting)
+      const first = els.find(el => seen.get(el.id) && !el.hidden)
+      if (first) setCur(first.id)
+    }, { rootMargin: '-12% 0px -60% 0px' })
+    els.forEach(el => io.observe(el))
+    return () => io.disconnect()
+  }, [secs])
   return (
     <nav className="set-index" aria-label={tx('Secções')}>
       <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Filtrar definições…')} aria-label={tx('Filtrar definições')} />
-      {secs.filter(s => !n || !document.getElementById(s.id)?.hidden).map(s => <button key={s.id} className="link plain" onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>{s.t}</button>)}
+      {secs.filter(s => !n || !document.getElementById(s.id)?.hidden).map(s => <button key={s.id} className={`link plain ${cur === s.id ? 'on' : ''}`} aria-current={cur === s.id ? 'true' : undefined} onClick={() => { setCur(s.id); document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>{s.t}</button>)}
     </nav>
   )
 }

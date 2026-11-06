@@ -26,7 +26,8 @@ export const fpPrefs = () => {
     orb3d: o.orb3d !== false,  // esfera em 3D (WebGL); desligado = a clássica
     orbFluid: o.orbFluid !== false,  // fluidos por cor pelo que está em campo (só no estilo automático); desligado = o líquido do estilo
     orbParticles: o.orbParticles !== false,  // fluido de partículas com física; desligado = o líquido simplificado, por shader
-    orbGrain: o.orbGrain === 'fx' ? 'fx' : 'real',  // o aspeto das partículas: grãos com luz própria (realista) ou formas e brilhos (o de antes)
+    orbGrain: o.orbGrain === 'fx' ? 'fx' : 'real',
+    orbQuality: ['gpu', 'cpu', 'leve'].includes(o.orbQuality) ? o.orbQuality : 'auto',  // onde se simulam os grãos: automática (a GPU se der), placa gráfica, processador, leve  // o aspeto das partículas: grãos com luz própria (realista) ou formas e brilhos (o de antes)
     orbScale: Number.isFinite(o.orbScale) ? Math.max(0.8, Math.min(1.6, o.orbScale)) : 1 }  // tamanho das esferas da vida (80–160 %)
 }
 export const setFpPrefs = v => { try { const o = JSON.parse(localStorage.getItem('grimorio.fp.prefs') || '{}'); localStorage.setItem('grimorio.fp.prefs', JSON.stringify({ ...o, ...v })) } catch { /* sem armazenamento */ } }

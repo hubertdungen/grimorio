@@ -11,6 +11,7 @@
 import * as THREE from 'three'
 import { FluidSim, MANA_MAT, MAT as FMAT } from './orbfluid.js'
 import { Grains } from './orbgrain.js'
+import { GpuGrains, gpuOk } from './orbgpu.js'
 
 const COL = { W: '#f5c451', U: '#4cc9f0', B: '#a78bfa', R: '#ff5c3a', G: '#4ade80', C: '#cbd5e1' }
 const SIZE = 300  // o quadro é 2,5× a esfera (CSS .orb3d): espaço para o halo e o que verte
@@ -464,8 +465,15 @@ void main(){
 // os grãos de um orbe e os raios, para este fotograma
 function drawGrains(r, o, fs, now, xf, dt) {
   const rl = realInit(r)
+  // Definições › Qualidade da esfera: placa gráfica (dezenas de milhares de grãos), processador, ou leve; automática = a GPU
+  // se der. Na partida (cair, derreter, encolher) os grãos do processador fazem tudo
+  const pq = o.el.dataset.pq || 'auto', useGpu = !xf && !o.fr && pq !== 'cpu' && pq !== 'leve' && (o.gpuOk ??= gpuOk(r.renderer))
+  if (useGpu) {
+    if (!o.gg) { o.gg = new GpuGrains(r.renderer, LOW ? 176 : 256, rl.pass); o.gg.points(r.scene, GFS, r.ptMats[0].uniforms.scale) }
+    o.gg.step(fs, dt, now); o.gg.show(true, r.cam.position.length())
+  }
   if (!o.gr) {
-    const n = LOW ? 2200 : 5000
+    const n = pq === 'leve' ? 1200 : LOW ? 2200 : 5000
     o.gr = new Grains(n, Math.floor(o.seed * 1e6) + 11)
     const mk = m => { const g = new THREE.BufferGeometry()
       for (const [k, d] of [['position', 3], ['color', 3], ['size', 1], ['alpha', 1], ['vel', 3]]) g.setAttribute(k, new THREE.BufferAttribute(new Float32Array(n * d), d).setUsage(THREE.DynamicDrawUsage))
@@ -473,8 +481,11 @@ function drawGrains(r, o, fs, now, xf, dt) {
     o.gpts = { objs: [mk(rl.gm[0]), mk(rl.gm[1]), mk(rl.gm[2])], tmp: { vel: new Float32Array(n * 3), pos: new Float32Array(n * 3), col: new Float32Array(n * 3), size: new Float32Array(n), al: new Float32Array(n), grp: new Float32Array(n) } }
     o.gpts.objs[0].renderOrder = 1.4; o.gpts.objs[1].renderOrder = 1.6; o.gpts.objs[2].renderOrder = 1.8
   }
-  o.gr.step(fs, dt)
-  const T = o.gpts.tmp, n = o.gr.fill(fs, T.pos, T.col, T.size, T.al, T.grp, now, xf, T.vel), cnt = [0, 0, 0], A = o.gpts.objs.map(p => p.geometry.attributes)
+  o.gr.outOnly = useGpu
+  let anyOut = !useGpu
+  for (let i = 0; i < fs.count && !anyOut; i++) if (fs.alive[i] && fs.out[i]) anyOut = true
+  if (anyOut) o.gr.step(fs, dt)  // com a GPU, os do processador só desenham o que verteu
+  const T = o.gpts.tmp, n = anyOut ? o.gr.fill(fs, T.pos, T.col, T.size, T.al, T.grp, now, xf, T.vel) : 0, cnt = [0, 0, 0], A = o.gpts.objs.map(p => p.geometry.attributes)
   for (let i = 0; i < n; i++) {
     const s = T.grp[i], a = A[s], k = cnt[s]++
     a.position.array[k * 3] = T.pos[i * 3]; a.position.array[k * 3 + 1] = T.pos[i * 3 + 1]; a.position.array[k * 3 + 2] = T.pos[i * 3 + 2]
@@ -808,6 +819,7 @@ function draw(now) {
       r.renderer.autoClear = false; r.cam.layers.set(1); r.renderer.render(r.scene, r.cam); r.renderer.autoClear = true; r.cam.layers.set(0)  // o vidro da frente por cima de tudo
     }
     if (o.gpts) for (const p of o.gpts.objs) p.visible = false
+    if (o.gg) o.gg.show(false, 0)
     if (r.rl) r.rl.zl.visible = false
     r.comp.visible = false; r.hot.visible = false
     if (o.pts) for (const p of o.pts.objs) p.visible = false
