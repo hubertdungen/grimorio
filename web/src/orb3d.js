@@ -12,7 +12,7 @@ import * as THREE from 'three'
 import { FluidSim, MANA_MAT } from './orbfluid.js'
 
 const COL = { W: '#f5c451', U: '#4cc9f0', B: '#a78bfa', R: '#ff5c3a', G: '#4ade80', C: '#cbd5e1' }
-const SIZE = 192
+const SIZE = 300  // o quadro é 2,5× a esfera (CSS .orb3d): espaço para o halo e o que verte
 let R = null
 const orbs = new Set()
 let raf = 0, t0 = performance.now()
@@ -158,7 +158,7 @@ function init() {
   if (R) return R
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true })
   renderer.setSize(SIZE, SIZE, false); renderer.setPixelRatio(1)
-  const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50)
+  const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(46, 1, 0.1, 50)
   cam.position.set(0, 1.35, 5.85); cam.lookAt(0, 0, 0)  // um pouco por cima: vê-se que é uma esfera e a fundura do que tem dentro
   const coreU = { t: { value: 0 }, c1: { value: new THREE.Color() }, c2: { value: new THREE.Color() }, core: { value: new THREE.Color() }, deep: { value: new THREE.Color() },
     speed: { value: 1 }, dens: { value: 0.9 }, glow: { value: 0.6 }, rot: { value: 0 }, frost: { value: 0 },
@@ -181,11 +181,51 @@ function init() {
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ map: shTex, transparent: true, depthWrite: false }))
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = -1.02; scene.add(shadow)
   glassBack.renderOrder = 0; glass.renderOrder = 3  // as partículas do fluido desenham-se entre a parte de trás e a da frente do vidro
-  const ptVS = 'attribute float size; attribute float alpha; attribute vec3 color; varying vec3 vC; varying float vA; uniform float scale; void main(){ vC = color; vA = alpha; vec4 mv = modelViewMatrix * vec4(position, 1.); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }'
-  const ptFS = 'varying vec3 vC; varying float vA; uniform float add; void main(){ vec2 d = gl_PointCoord - .5; float r = length(d); if (r > .5) discard; float a = (1. - smoothstep(.18, .5, r)) * vA; float sh = add > .5 ? 1.5 : .78 + .55 * (.2 - d.y) - r * .35; gl_FragColor = vec4(vC * sh, a); }'
-  const ptMat = additive => new THREE.ShaderMaterial({ vertexShader: ptVS, fragmentShader: ptFS, uniforms: { scale: { value: 150 }, add: { value: additive ? 1 : 0 } }, transparent: true, depthWrite: false,
+  const ptVS = 'attribute float size; attribute float alpha; attribute vec3 color; attribute float shape; attribute float rot; varying vec3 vC; varying float vA; varying float vS; varying float vR; uniform float scale; void main(){ vC = color; vA = alpha; vS = shape; vR = rot; vec4 mv = modelViewMatrix * vec4(position, 1.); gl_PointSize = size * scale / -mv.z * (shape > .5 ? 1.6 : 1.); gl_Position = projectionMatrix * mv; }'
+  // formas: 0 gota (sombreada), 1 pena (oval com haste), 2 estrela de quatro pontas, 3 raio (traço em zigue-zague)
+  const ptFS = `varying vec3 vC; varying float vA; varying float vS; varying float vR; uniform float add;
+void main(){
+  vec2 d = gl_PointCoord - .5; float c = cos(vR), s = sin(vR); vec2 q = vec2(c * d.x - s * d.y, s * d.x + c * d.y);
+  float a, sh = 1.;
+  if (vS > 2.5) { float w = abs(q.y + sin(q.x * 38.) * .05); a = (1. - smoothstep(.015, .06, w)) * (1. - smoothstep(.3, .5, abs(q.x))); sh = 1.6; }
+  else if (vS > 1.5) { float st = min(abs(q.x), abs(q.y)) * 6. + length(q) * 1.4; a = 1. - smoothstep(.25, .75, st); sh = 1.5; }
+  else if (vS > .5) { vec2 e = q / vec2(.17, .46); float r2 = dot(e, e); a = (1. - smoothstep(.75, 1., r2)) * (1. - .45 * (1. - smoothstep(.0, .02, abs(q.x)))); sh = .85 + .4 * (.2 - q.y); }
+  else { float r = length(d); if (r > .5) discard; a = 1. - smoothstep(.18, .5, r); sh = add > .5 ? 1.5 : .78 + .55 * (.2 - d.y) - r * .35; }
+  if (a < .01) discard;
+  gl_FragColor = vec4(vC * sh, a * vA);
+}`
+  const ptMat = additive => new THREE.ShaderMaterial({ vertexShader: ptVS, fragmentShader: ptFS, uniforms: { scale: { value: 150 * (300 / 192) * (Math.tan(15 * Math.PI / 180) / Math.tan(23 * Math.PI / 180)) }, add: { value: additive ? 1 : 0 } }, transparent: true, depthWrite: false,
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending })
   const ptMats = [ptMat(false), ptMat(true)]
+  // gás: baforada irregular (ruído) e chama: gota alongada a tremer (as funções de ruído antes do main)
+  ptMats.forEach(m => {
+    m.fragmentShader = m.fragmentShader.replace('void main(){', `float hh(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+float nn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f); return mix(mix(hh(i), hh(i + vec2(1, 0)), f.x), mix(hh(i + vec2(0, 1)), hh(i + vec2(1, 1)), f.x), f.y); }
+void main(){`).replace('if (vS > 2.5) {', `if (vS > 4.5) { vec2 e = q / vec2(.22, .48); e.y += .25; float r2 = dot(e, e); a = (1. - smoothstep(.3, 1., r2)) * (.7 + .3 * nn(q * 9. + vR * 3.)); sh = 1.3 + .5 * (1. - r2); }
+  else if (vS > 3.5) { float r = length(d); float n2 = nn(q * 5. + vR) * .6 + nn(q * 11. - vR) * .4; a = (1. - smoothstep(.1, .5, r + (n2 - .5) * .25)) * (.55 + .45 * n2); sh = .8 + .35 * n2; }
+  else if (vS > 2.5) {`)
+  })
+  // líquidos: cada partícula soma uma mancha gaussiana (cor × peso, peso) numa imagem à parte; depois um quadrado no ecrã
+  // desenha só onde o peso passa o limiar — a superfície contínua do líquido — com reflexo, brilho e borda pela inclinação
+  const liqMat = new THREE.ShaderMaterial({ vertexShader: ptVS, fragmentShader: 'varying vec3 vC; varying float vA; void main(){ vec2 d = gl_PointCoord - .5; float k = exp(-dot(d, d) * 14.) * vA; gl_FragColor = vec4(vC * k, k); }',
+    uniforms: { scale: { value: 1 } }, transparent: true, depthTest: false, depthWrite: false, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor })
+  const LQ = 160, liqRT = new THREE.WebGLRenderTarget(LQ, LQ, { type: renderer.capabilities.isWebGL2 ? THREE.HalfFloatType : THREE.UnsignedByteType })
+  const liqScene = new THREE.Scene()
+  const comp = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ transparent: true, depthTest: false, depthWrite: false,
+    uniforms: { tex: { value: liqRT.texture }, px: { value: 1 / LQ }, thr: { value: 0.32 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
+    fragmentShader: `uniform sampler2D tex; uniform float px; uniform float thr; varying vec2 vUv;
+void main(){
+  vec4 c = texture2D(tex, vUv); float w = c.a; if (w < thr * .7) discard;
+  vec3 col = c.rgb / max(w, 1e-3);
+  float gx = texture2D(tex, vUv + vec2(px, 0.)).a - texture2D(tex, vUv - vec2(px, 0.)).a, gy = texture2D(tex, vUv + vec2(0., px)).a - texture2D(tex, vUv - vec2(0., px)).a;
+  vec3 N = normalize(vec3(-gx * 2.2, -gy * 2.2, 1.)), L = normalize(vec3(-.45, .65, .6)), H = normalize(L + vec3(0., 0., 1.));
+  float dif = .55 + .5 * max(dot(N, L), 0.), spec = pow(max(dot(N, H), 0.), 40.) * .9, rim = pow(1. - N.z, 2.) * .55, deep = smoothstep(thr, thr * 3.5, w);
+  vec3 o = col * dif * (.75 + .35 * deep) + spec + rim * col * .8;
+  gl_FragColor = vec4(o, smoothstep(thr * .7, thr * 1.15, w) * (.82 + .15 * deep));
+}` }))
+  comp.frustumCulled = false; comp.renderOrder = 1; comp.visible = false; scene.add(comp)
+  glass.layers.set(1)  // o vidro da frente desenha-se por último, por cima do líquido (Orb: camada 1)
   // física a sério: a esfera parte-se em cacos que caem e saltam no chão (e lá ficam), ou cai inteira, rola e desfaz-se;
   // partir ao meio abre duas metades; uma dentada verte gotas que fazem uma poça; o chão racha onde ela cai
   const shards = new THREE.Group(), parts = []
@@ -208,7 +248,7 @@ function init() {
   const puddle = new THREE.Mesh(new THREE.CircleGeometry(0.7, 32), new THREE.MeshBasicMaterial({ color: '#ff2a3a', transparent: true, opacity: 0, depthWrite: false }))
   puddle.rotation.x = -Math.PI / 2; puddle.position.y = -1.11
   scene.add(floor, puddle, shards, ...halves, drops)
-  R = { renderer, scene, cam, core, coreU, glass, glassBack, glow, glow2, caustic, ball, shards, parts, halves, drops, floor, puddle, ptMats, shadow }
+  R = { renderer, scene, cam, core, coreU, glass, glassBack, glow, glow2, caustic, ball, shards, parts, halves, drops, floor, puddle, ptMats, shadow, liqMat, liqRT, liqScene, comp }
   return R
 }
 
@@ -253,20 +293,26 @@ function holesFor(o, crack) {
 // desenhar o fluido: partículas opacas/normais e as de luz (aditivas), com o tamanho e a cor de cada uma
 function drawFluid(r, o, fs, now) {
   if (!o.pts) {
-    const mk = mat => { const g = new THREE.BufferGeometry(), n = fs.max
-      for (const [k, d] of [['position', 3], ['color', 3], ['size', 1], ['alpha', 1]]) g.setAttribute(k, new THREE.BufferAttribute(new Float32Array(n * d), d).setUsage(THREE.DynamicDrawUsage))
-      const p = new THREE.Points(g, mat); p.frustumCulled = false; p.renderOrder = mat === r.ptMats[1] ? 2 : 1; p.visible = false; r.scene.add(p); return p }
-    o.pts = { objs: [mk(r.ptMats[0]), mk(r.ptMats[1])], tmp: { pos: new Float32Array(fs.max * 3), col: new Float32Array(fs.max * 3), size: new Float32Array(fs.max), glow: new Float32Array(fs.max), alpha: new Float32Array(fs.max) } }
+    const mk = (mat, sc, ord) => { const g = new THREE.BufferGeometry(), n = fs.max
+      for (const [k, d] of [['position', 3], ['color', 3], ['size', 1], ['alpha', 1], ['shape', 1], ['rot', 1]]) g.setAttribute(k, new THREE.BufferAttribute(new Float32Array(n * d), d).setUsage(THREE.DynamicDrawUsage))
+      const p = new THREE.Points(g, mat); p.frustumCulled = false; p.renderOrder = ord; p.visible = false; (sc || r.scene).add(p); return p }
+    o.pts = { objs: [mk(r.liqMat, r.liqScene, 0), mk(r.ptMats[0], null, 1.5), mk(r.ptMats[0], null, 1.7), mk(r.ptMats[1], null, 2)],
+      tmp: { pos: new Float32Array(fs.max * 3), col: new Float32Array(fs.max * 3), size: new Float32Array(fs.max), glow: new Float32Array(fs.max), alpha: new Float32Array(fs.max), shape: new Float32Array(fs.max), rot: new Float32Array(fs.max), kind: new Float32Array(fs.max) } }
   }
-  const T = o.pts.tmp, n = fs.fill(T.pos, T.col, T.size, T.glow, T.alpha, now), cnt = [0, 0]
+  const T = o.pts.tmp, n = fs.fill(T.pos, T.col, T.size, T.glow, T.alpha, now, T.shape, T.rot, T.kind), cnt = [0, 0, 0, 0]
   const A = o.pts.objs.map(p => p.geometry.attributes)
+  r.liqMat.uniforms.scale.value = r.ptMats[0].uniforms.scale.value * (r.liqRT.width / SIZE) * 2.1  // na imagem à parte: manchas maiores (fundem-se)
   for (let i = 0; i < n; i++) {
-    const s = T.glow[i] >= 0.5 ? 1 : 0, a = A[s], k = cnt[s]++
+    const s = T.kind[i], a = A[s], k = cnt[s]++
     a.position.array[k * 3] = T.pos[i * 3]; a.position.array[k * 3 + 1] = T.pos[i * 3 + 1]; a.position.array[k * 3 + 2] = T.pos[i * 3 + 2]
     a.color.array[k * 3] = T.col[i * 3]; a.color.array[k * 3 + 1] = T.col[i * 3 + 1]; a.color.array[k * 3 + 2] = T.col[i * 3 + 2]
-    a.size.array[k] = T.size[i]; a.alpha.array[k] = T.alpha[i]
+    a.size.array[k] = T.size[i]; a.alpha.array[k] = T.alpha[i]; a.shape.array[k] = T.shape[i]; a.rot.array[k] = T.rot[i]
   }
-  o.pts.objs.forEach((p, s) => { const a = A[s]; for (const k of ['position', 'color', 'size', 'alpha']) a[k].needsUpdate = true; p.geometry.setDrawRange(0, cnt[s]); p.visible = cnt[s] > 0 })
+  o.pts.objs.forEach((p, s) => { const a = A[s]; for (const k of ['position', 'color', 'size', 'alpha', 'shape', 'rot']) a[k].needsUpdate = true; p.geometry.setDrawRange(0, cnt[s]); p.visible = cnt[s] > 0 })
+  // o líquido: as manchas somadas na imagem à parte; o quadrado no ecrã desenha a superfície
+  const rr = r.renderer, prev = rr.getRenderTarget()
+  rr.setRenderTarget(r.liqRT); rr.setClearColor(0x000000, 0); rr.clear(); if (cnt[0]) rr.render(r.liqScene, r.cam); rr.setRenderTarget(prev)
+  r.comp.visible = cnt[0] > 0
 }
 const FLOOR = -1.1, GREY = new THREE.Color('#9a958f'), TOXIC = new THREE.Color('#5fd13a'), STONE = new THREE.Color('#6b6b70')
 // cada derrota morre à sua maneira: vida a 0 estilhaça (cacos no chão) ou cai inteira e rola (ao acaso, com semente:
@@ -374,8 +420,8 @@ function draw(now) {
     // presença na mesa (E[8]): o halo cresce e acende, suave como o resto
     // o quadro do canvas vê ~4 unidades à profundidade do halo: maior do que isso, a borda cortava-o a direito (a «máscara
     // quadrada»); cresce pouco e o resto da presença vai para a intensidade
-    const pr = s.dead ? 0 : E[8] || 0, gs = Math.min(3.75, 3.4 * (1 + 0.1 * pr))
-    r.glow.scale.set(gs, gs, 1); r.glow2.scale.set(Math.min(2.9, gs * 0.85), Math.min(2.9, gs * 0.85), 1)
+    const pr = s.dead ? 0 : E[8] || 0, gs = Math.min(5.2, 3.4 * (1 + 0.4 * pr))  // com o quadro maior o halo pode crescer sem bater na borda
+    r.glow.scale.set(gs, gs, 1); r.glow2.scale.set(gs * 0.85, gs * 0.85, 1)
     r.glow.material.opacity = Math.min(1, ga + 0.3 * pr); r.glow2.material.opacity = cols && cols.length > 1 ? Math.min(1, ga + 0.3 * pr) * 0.8 : 0
     const hc = E[6] - E[7]  // calor e frio: o halo puxa para laranja-brasa ou azul-gelo e cresce
     if (Math.abs(hc) > 0.15 && !s.dead) { r.glow.material.color.lerp(hc > 0 ? HOT : COLD, Math.min(0.75, Math.abs(hc))); r.glow.material.opacity = Math.min(1, ga + Math.abs(hc) * 0.45) }
@@ -385,7 +431,7 @@ function draw(now) {
     if (!s.dead) o.fr = null
     const fr = o.fr, dt = fr ? Math.min(0.033, (now - fr.last) / 1000) : 0
     if (fr) fr.last = now
-    r.cam.position.set(0, fr ? 2.4 : 1.35, fr ? 11.5 : 5.85); r.cam.lookAt(0, fr ? -0.5 : 0, 0)
+    r.cam.position.set(0, fr ? 1.52 : 1.35, fr ? 7.26 : 5.85); r.cam.lookAt(0, fr ? -0.5 : 0, 0)  // partida: a mesma moldura de antes com a abertura nova
     const age = fr ? (now - fr.t0) / 1000 : 0, md = fr?.mode
     r.glass.rotation.y = r.glassBack.rotation.y = 0  // as malhas são partilhadas: o rodopio do implodir não passa para a esfera seguinte
     const crumble = md === 'shatter' || (md === 'drain' && age > 1.5)  // moer: primeiro escoa, depois o vidro vazio desfaz-se
@@ -474,10 +520,12 @@ function draw(now) {
       fs.step(dts, [gx, gy, 0], { dead: s.dead, stir: s.mood ? 5 : s.react ? 2 : 0 })
       drawFluid(r, o, fs, now / 1000)
     }
-    r.renderer.render(r.scene, r.cam)
+    r.cam.layers.set(0); r.renderer.render(r.scene, r.cam)
+    r.renderer.autoClear = false; r.cam.layers.set(1); r.renderer.render(r.scene, r.cam); r.renderer.autoClear = true; r.cam.layers.set(0)  // o vidro da frente por cima de tudo
+    r.comp.visible = false
     if (o.pts) for (const p of o.pts.objs) p.visible = false
     const cv = (px && px.querySelector('canvas.orb3d')) || o.cv, g = cv.getContext('2d')
-    if (cv.width !== SIZE) { cv.width = SIZE; cv.height = SIZE }
+    if (cv.width !== SIZE || cv.height !== SIZE) { cv.width = SIZE; cv.height = SIZE }  // um canvas novo é 300×150: a largura já batia certo e a altura ficava a meio
     g.clearRect(0, 0, SIZE, SIZE); g.drawImage(r.renderer.domElement, 0, 0)
     if (!o.ready) { o.ready = true; o.el.dataset.o3 = '1' }  // já há desenho 3D: só agora a esfera clássica sai do caminho
   }
