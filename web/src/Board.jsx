@@ -409,8 +409,10 @@ function useOrbPhysics(ref) {
       const r = el.getBoundingClientRect(), w = el.offsetWidth || r.width, h = el.offsetHeight || r.height, k = r.width / w || 1, px = el.cloneNode(true)
       // a perspetiva da mesa: o tamanho a que se vê uma esfera em cada altura do ecrã, pelas esferas que lá estão (a do
       // adversário, ao fundo e mais pequena; a minha, perto). A voar, a cópia cresce ao vir para cá e encolhe ao ir para lá
-      const root = el.closest('.fp-stage, .board, .fp') || document
-      S.persp = [...root.querySelectorAll('.bside .orb:not(.orb-proxy)')].map(o => { const q = o.getBoundingClientRect(); return [q.top + q.height / 2, q.width / (o.offsetWidth || q.width) || 1] }).filter(a => a[1] > 0).sort((a, b) => a[0] - b[0])
+      // a escala de cada lado mede-se pelas cartas (a esfera do adversário é endireitada de propósito e quase não encolhe):
+      // a largura no ecrã a dividir pela largura real, a mediana de algumas cartas; a altura é a da esfera desse lado
+      const sideK = b => { const ks = [...b.querySelectorAll('.pc')].slice(0, 12).map(c => c.getBoundingClientRect().width / (c.offsetWidth || 1)).filter(x => x > 0).sort((x, y) => x - y); return ks.length ? ks[ks.length >> 1] : 0 }
+      S.persp = [...document.querySelectorAll('.bside')].map(b => { const o = b.querySelector('.orb:not(.orb-proxy)'), q = o?.getBoundingClientRect(); return q?.width ? [q.top + q.height / 2, sideK(b)] : null }).filter(a => a && a[1] > 0).sort((a, b) => a[0] - b[0])
       S.home = [r.left + r.width / 2, r.top + r.height / 2]; S.k0 = k
       px.classList.add('orb-proxy'); px.removeAttribute('title')
       Object.assign(px.style, { position: 'fixed', left: `${S.home[0] - w / 2}px`, top: `${S.home[1] - h / 2}px`, width: `${w}px`, height: `${h}px`, margin: '0', transformOrigin: '50% 50%', transform: `scale(${k})`, visibility: 'visible' })
@@ -428,8 +430,8 @@ function useOrbPhysics(ref) {
       px.style.translate = `${S.x.toFixed(1)}px ${S.y.toFixed(1)}px`
       const P = S.persp
       if (P?.length > 1 && S.home) {  // o tamanho da perspetiva na altura onde está (um pouco além das esferas, a continuar)
-        const y = S.home[1] + S.y, [y0, k0] = P[0], [y1, k1] = P[P.length - 1], t = y1 - y0 > 20 ? (y - y0) / (y1 - y0) : 0
-        const kk = Math.max(Math.min(k0, k1) * 0.8, Math.min(Math.max(k0, k1) * 1.15, k0 + (k1 - k0) * t))
+        const [y0, k0] = P[0], [y1, k1] = P[P.length - 1], at = y => { const t = y1 - y0 > 20 ? (y - y0) / (y1 - y0) : 0; return Math.max(Math.min(k0, k1) * 0.85, Math.min(Math.max(k0, k1) * 1.12, k0 + (k1 - k0) * t)) }
+        const kk = S.k0 * at(S.home[1] + S.y) / at(S.home[1])  // relativo a casa: em casa tem o tamanho de sempre
         px.style.transform = `scale(${kk.toFixed(3)})`
       }
       const sv = v => Math.max(-9, Math.min(9, -v / 120)).toFixed(1)  // o fumo lá dentro fica para trás (inércia do líquido)
