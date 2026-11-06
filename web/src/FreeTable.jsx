@@ -2,12 +2,12 @@
 // O servidor (freetable.py) guarda a mesa e manda a cada um só o que pode ver; aqui desenha-se a mesa do Forge Play
 // (tablekit.js + as peças do Board.jsx) e cada gesto vira um comando pequeno (mover, virar, marcadores, vida, dados…).
 // As cartas no campo têm x/y no lado de quem as controla: todos veem a mesma arrumação (o lado dos outros ao contrário).
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { img } from './data.js'
 import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, CombatLinks } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
-import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop } from './tablekit.js'
+import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop, flipFrom } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
 import { lookup, isCreature, isLand, flipKind, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
@@ -144,6 +144,7 @@ function SidePhase({ s, data, send, onClose }) {
     <p className="row-btns small">{s.seats.map((v, i) => <span key={i} className={`ml-seat ${sd.ok[i] ? 'ready' : ''}`}><b>{v.name}</b> {sd.ok[i] == null ? <span className="muted">{tx('sem sideboard')}</span> : sd.ok[i] ? <span className="ok-t">✓ {tx('pronto')}</span> : <span className="muted">{tx('a escolher o sideboard…')}</span>}</span>)}</p>
     <p className="small muted">{tx('O jogo começa quando estiverem todos prontos, ou daqui a {n} s com a lista que cada um tiver.', { n: left })}</p>
   </>
+  const who = i => (i == null ? tx('A mesa') : s.seats[i]?.name || '?'), n = s.seats.length
   return <div className="sbs-phase"><section className="card">
     {cur != null && sd.mine[cur]
       ? <SideboardStep key={cur} data={data} deck={sd.mine[cur].deck} base={sd.mine[cur].base} fmt={FORMAT[s.seats[cur]?.format]} onReady={go} onKeep={go}
@@ -151,7 +152,9 @@ function SidePhase({ s, data, send, onClose }) {
       : <>{head}<p><span className="spin-dot" /> {tx('À espera dos outros jogadores…')}</p>
         <div className="row-btns">{mine.map(i => <button key={i} onClick={() => setEdit(i)}>{tx('Mudar o sideboard')}{mine.length > 1 ? ` · ${s.seats[i]?.deck}` : ''}</button>)}
           {onClose && <button onClick={onClose}>← {tx('sair da mesa')}</button>}</div></>}
-  </section></div>
+  </section>
+  {/* a conversa da mesa continua enquanto se escolhe (só as mensagens e o «pronto» de cada um: ainda não há cartas) */}
+  <aside className="sbs-chat"><TableChat log={s.log} who={who} keyOf={i => KEYS[(i - s.me + n) % n]} me={s.me} data={data} send={send} fmt={e => line(e, who)} names={[]} /></aside></div>
 }
 
 function Table({ id, data, onClose, onNext, onBegin }) {
@@ -190,6 +193,16 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   }
   const frac = (x, y) => { const r = fitTable.current?.getBoundingClientRect(); return r?.width ? { x: (x - r.left) / r.width, y: (y - r.top) / r.height } : null }
   const toScreen = g => {  // na minha vista: quem mexe e está do outro lado da mesa vê-a rodada 180°
+    const fd = g.fx != null && fitTable.current?.querySelector(`.ml-field[data-seat="${g.seat}"]`)
+    if (fd) {  // por cima do lado dele: o mesmo ponto do campo dele, que aqui pode estar em perspetiva — um marcador dentro do
+      // campo dá o sítio no ecrã já com a inclinação (pela mesa inteira, a carta andava ~150 px abaixo de onde aterra)
+      let q = fd.querySelector(':scope > .ml-probe')
+      if (!q) { q = Object.assign(document.createElement('i'), { className: 'ml-probe' }); Object.assign(q.style, { position: 'absolute', width: 0, height: 0, pointerEvents: 'none' }); fd.appendChild(q) }
+      const m = fd.classList.contains('mirror')
+      Object.assign(q.style, { left: `${(m ? 1 - g.fx : g.fx) * 100}%`, top: `${(m ? 1 - g.fy : g.fy) * 100}%` })
+      const b = q.getBoundingClientRect()
+      return { x: b.left, y: b.top }
+    }
     const r = fitTable.current?.getBoundingClientRect(), top = fitTable.current?.querySelector(`.bside[data-seat="${g.seat}"]`)?.classList.contains('top')
     return r?.width ? { x: r.left + (top ? 1 - g.x : g.x) * r.width, y: r.top + (top ? 1 - g.y : g.y) * r.height } : null
   }
@@ -207,6 +220,15 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   }, [id])  // eslint-disable-line react-hooks/exhaustive-deps
   const ghosts = Object.entries(s?.live || {}).map(([seat, v]) => ({ seat: +seat, ...v }))
   const ghostKey = JSON.stringify(s?.live || {})
+  const dropAt = useRef({})  // lugar -> a carta que ele arrasta: {id, x, y (no meu ecrã), key (onde estava), end (quando a largou)}
+  const handed = g => { const d = dropAt.current[g.seat]; return !!d && d.id === g.id && (d.gone || cardKey(g.id) !== d.key) }  // a carta dele já aterrou (o «largou» pode chegar depois)
+  const cardKey = cid => { const e = byId.get(cid); return e ? `${e.seat}|${e.z}|${e.c.x}|${e.c.y}|${e.c.at}|${e.c.atk}` : '' }
+  useEffect(() => {
+    const now = Date.now()
+    for (const [seat, d] of Object.entries(dropAt.current)) if (!ghosts.some(g => g.seat === +seat && g.k === 'card')) { if (d.gone) delete dropAt.current[seat]; else d.end ??= now }
+    for (const g of ghosts) if (g.k === 'card' && !handed(g)) { const p = toScreen(g); if (p) dropAt.current[g.seat] = { id: g.id, ...p, key: cardKey(g.id) } }
+    if (Object.values(dropAt.current).some(d => d.end)) { const t = setTimeout(() => redraw(x => x + 1), 950); return () => clearTimeout(t) }  // o fantasma que ficou à espera sai
+  }, [ghostKey])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {  // a esfera que o outro está a mexer: segue o que ele manda
     for (const g of ghosts) if (g.k === 'orb') { const p = toScreen(g); p && fitTable.current?.querySelector(`.bside[data-seat="${g.id}"] .orb`)?._remoteTo?.(p.x, p.y) }
   }, [ghostKey])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -281,9 +303,21 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   useZoneFlights(fitTable, `${s?.seq}|${ver}`, () => {
     const m = new Map()
     seats.forEach((v, i) => ['hand', 'graveyard', 'exile', 'battlefield'].forEach(z => (v[z] || []).forEach(c => m.set(c.id, {
-      z, fly: z === 'battlefield' || (z === 'hand' && i === me), src: z === 'hand' ? (i === me ? null : `.bside[data-seat="${i}"] .fp-hand`) : z === 'battlefield' ? null : `.bside[data-seat="${i}"] [data-zone="${z}"]` }))))
+      z, fly: z === 'battlefield' || (z === 'hand' && i === me), src: z === 'hand' ? (i === me ? null : `.bside[data-seat="${i}"] .fp-hand`) : z === 'battlefield' ? null : `.bside[data-seat="${i}"] [data-zone="${z}"]`,
+      ...(z === 'hand' && i === me && { from: `.bside[data-seat="${i}"] [data-zone="library"]` }) }))))  // comprada (ou do topo espreitado): voa da biblioteca
     return m
   })
+  // a carta que o outro arrastou e largou: o fantasma dele fica onde a largou até a jogada chegar (antes sumia e, um
+  // instante depois, a carta voava da mão dele, longe dali) e a carta parte desse sítio (corre entre os voos e o useFlip)
+  useLayoutEffect(() => {
+    for (const [seat, d] of Object.entries(dropAt.current)) {
+      if (d.gone) continue
+      if (cardKey(d.id) === d.key) { if (d.end && Date.now() - d.end > 900) delete dropAt.current[seat]; continue }  // a jogada ainda não chegou
+      // a jogada chegou (às vezes antes do «largou»: são dois pedidos): a carta parte do fantasma e ele sai já
+      if (byId.get(d.id)?.z === 'battlefield') flipFrom.set(String(d.id), { left: d.x - 27, top: d.y - 38, width: 54, height: 75 })
+      d.gone = true
+    }
+  }, [s?.seq])  // eslint-disable-line react-hooks/exhaustive-deps
   useFlip(fitTable, `${s?.seq}|${ver}`)
   const [, redraw] = useState(0)
   const P = fpPrefs()
@@ -321,21 +355,21 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     if (!target?.closest('.fp-table')) return false
     const e = byId.get(cid)
     const pile = target.closest('.bside')?.dataset.seat === String(me) && target.closest('[data-zone]')?.dataset.zone
-    if (pile) { mv(cid, pile); return true }
+    if (pile) { mv(cid, pile); return 'leave' }  // sai de onde estava: o fantasma espera pela resposta (não volta ao sítio)
     if (target.closest('.fp-hand.mine')) {
       if (from === 'hand') {  // dentro da mão: mudar a ordem (só no teu ecrã)
         const h = target.closest('[data-h]')?.dataset.h, ids = (seats[me]?.hand || []).map(c => String(c.id)).filter(k => k !== String(cid))
         const i = h ? ids.indexOf(h) : -1
         ids.splice(i < 0 ? ids.length : i, 0, String(cid)); setHandOrder(ids); return 'local'
       }
-      mv(cid, 'hand'); return true
+      mv(cid, 'hand'); return 'leave'
     }
     const field = target.closest('.ml-field'), seat = field && +field.dataset.seat
     // aura, equipamento, fortificação (não é criatura) largada em cima de uma carta do campo: fica presa a ela
     const host = target.closest('.ml-field .pc[data-z^="k:"]'), hid = host && +host.dataset.z.slice(2)
     if (host && hid !== cid && e?.c.n && !isCreature(data, { name: e.c.n }) && !isLand(data, { name: e.c.n })) {
       if (from === 'field') { attach(cid, hid); return true }
-      const w = spot(e.c); mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me }).then(() => attach(cid, hid)); return true
+      const w = spot(e.c); play('tick', { amount: 1 }); mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me, at: hid }); return true  // num só comando: antes ia para uma casa livre e só depois saltava para a carta
     }
     if (field && seat === me) {
       const w = spot(e?.c, x, y)
@@ -353,7 +387,10 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const previewLive = m => {  // a carta que arrasto: os outros veem-na a andar (de face se a podem ver, senão o verso)
     preview(m)
     const p = m && frac(m.x, m.y)
-    if (p) live({ k: 'card', id: m.id, ...p }); else if (!m) live({ k: 'end' })
+    // por cima do meu lado (que aqui está direito): também em frações do meu campo, para os outros o verem na perspetiva deles
+    const f = p && myField()?.getBoundingClientRect(), sd = p && fitTable.current?.querySelector(`.bside[data-seat="${me}"]`)?.getBoundingClientRect()
+    const own = f?.width && sd && m.x >= sd.left && m.x <= sd.right && m.y >= sd.top && m.y <= sd.bottom
+    if (p) live({ k: 'card', id: m.id, ...p, ...(own && { fx: (m.x - f.left) / f.width, fy: (m.y - f.top) / f.height }) }); else if (!m) live({ k: 'end' })
   }
   const { down, dragged } = useDrag(drop, cid => openMenu(cid, downAt.current.x, downAt.current.y), previewLive, '[data-h], .bside.bottom .pc[data-z^="k:"]', el => { const z = el?.dataset.z, id = z?.startsWith('k:') ? +z.slice(2) : +el?.dataset.zid, n = byId.get(id)?.c?.n; if (n) setBig(n) })
   const [handOrder, setHandOrder] = useState(null)
@@ -556,9 +593,14 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     </div>
   )
   const menuStyle = m => ({ left: Math.max(8, Math.min(innerWidth - 230, m.x)), top: Math.max(8, Math.min(innerHeight - 380, m.y)) })
+  // o menu de uma carta do campo tem ~520 px: aberto na metade de baixo passava do fundo do ecrã e os últimos (exílio,
+  // biblioteca, zona de comando) não se alcançavam — sobe o que for preciso, pela altura a sério
+  const fitMenu = el => { if (el && el.getBoundingClientRect().top + el.offsetHeight > innerHeight - 8) el.style.top = `${Math.max(8, innerHeight - 8 - el.offsetHeight)}px` }
   const zc = zoom && lookup(data, zoom)
   const zoneCards = zone ? seats[zone.seat]?.[zone.which] || [] : []
   const top = mine?.top
+  const lg = [...ghosts.filter(g => g.k !== 'orb' && !(g.k === 'card' && handed(g))),  // e as largadas há pouco cuja jogada ainda não chegou
+    ...Object.entries(dropAt.current).filter(([seat, d]) => d.end && !d.gone && Date.now() - d.end < 900 && cardKey(d.id) === d.key && !s.live?.[seat]).map(([seat, d]) => ({ seat: +seat, k: 'card', id: d.id, p: d }))]
   return (
     <div className={`fp ml ${dice.res ? 'dice-on' : ''} ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${phone && chatOpen ? 'chat-open' : ''}`} ref={fitBox} onMouseLeave={() => peek.hide()} onMouseOver={onOver}
       onPointerDown={e => { downAt.current = { x: e.clientX, y: e.clientY }; peek.hide() }}
@@ -566,8 +608,8 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
       <FsBtn className="on-table" />
-      {ghosts.some(g => g.k !== 'orb') && createPortal(<div className="live-ghosts" aria-hidden="true">{ghosts.filter(g => g.k !== 'orb').map(g => {  // o que os outros estão a agarrar agora
-        const p = toScreen(g), n = g.k === 'card' && byId.get(g.id)?.c?.n, c = n && lookup(data, n)
+      {lg.length > 0 && createPortal(<div className="live-ghosts" aria-hidden="true">{lg.map(g => {  // o que os outros estão a agarrar agora
+        const p = g.p || toScreen(g), n = g.k === 'card' && byId.get(g.id)?.c?.n, c = n && lookup(data, n)
         return p && <div key={`${g.seat}${g.k}`} className={`live-ghost ${g.k}`} style={{ left: p.x, top: p.y }}>
           {g.k === 'die' ? <span className="lg-die">🎲</span> : c ? <img src={img(c, 'small')} alt="" /> : <span className="lg-back" />}<small>{who(g.seat)}</small></div>
       })}</div>, onTop())}
@@ -600,7 +642,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       </aside>
       {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {menu && <div className="ml-menu-back" onClick={() => setMenu(null)} onContextMenu={e => { e.preventDefault(); setMenu(null) }}>
-        <div className={`ml-menu ${menu.life != null || menu.ctr != null ? 'rows' : ''}`} style={menuStyle(menu)} onClick={e => e.stopPropagation()} role="menu">
+        <div className={`ml-menu ${menu.life != null || menu.ctr != null ? 'rows' : ''}`} style={menuStyle(menu)} ref={fitMenu} onClick={e => e.stopPropagation()} role="menu">
           {menuItems().map(([l, f, bs], k) => (bs ? <div key={k} className="ml-mrow"><span>{l}</span>{bs.map(([bl, bf], j) => <button key={j} onClick={bf} disabled={ended} aria-label={`${l} ${bl}`}>{bl}</button>)}</div>
             : f ? <button key={k} role="menuitem" onClick={() => { setMenu(null); f() }} disabled={ended && !menu.more}>{l}</button> : <b key={k}>{l}</b>))}
         </div></div>}

@@ -56,8 +56,10 @@ import forge.game.player.IHasIcon;
 public class GrimorioNet {
     static final Gson G = new GsonBuilder().disableHtmlEscaping().create();
 
+    static int logN = 0;  // n.º de cada aviso (msg/flash): o browser só recebe os últimos 12 e contava-os pelo tamanho da lista
     static void send(JsonObject o) {
         synchronized (GrimorioNet.class) {
+            if (o.has("t") && ("msg".equals(o.get("t").getAsString()) || "flash".equals(o.get("t").getAsString()))) o.addProperty("n", ++logN);
             System.out.println("@@GN " + G.toJson(o));
             System.out.flush();
         }
@@ -641,6 +643,9 @@ public class GrimorioNet {
             if (min < 0 || max < 0) {  // lista só para ler (avisos, cartas reveladas): mostra-se e não se espera resposta
                 JsonObject o = new JsonObject(); o.addProperty("t", "msg"); o.addProperty("title", msg);
                 JsonArray l = new JsonArray(); for (T x : choices) l.add(display != null ? display.apply(x) : label(x)); o.add("list", l);
+                JsonArray cs = new JsonArray();  // cartas reveladas: o browser mostra as imagens (nome e id)
+                for (T x : choices) if (x instanceof CardView) { JsonObject c = new JsonObject(); c.addProperty("name", label(x)); c.addProperty("id", ((CardView) x).getId()); cs.add(c); }
+                if (cs.size() > 0) o.add("cards", cs);
                 send(o);
                 return new ArrayList<>();
             }
@@ -673,17 +678,35 @@ public class GrimorioNet {
         }
         @Override public <T> List<T> insertInList(String title, T item, List<T> list) { List<T> out = new ArrayList<>(list); out.add(0, item); return out; }
         @Override public List<PaperCard> sideboard(CardPool sb, CardPool main, String msg) { return null; }
+        // escolher depois de revelar (Vendilion Clique, Thoughtseize pelo motor, tutores com «reveal»): a mão/as cartas
+        // reveladas todas vão com o pedido; as opções são só as que se podem escolher
+        static void reveal(JsonObject p, DelayedReveal dr) {
+            if (dr == null || dr.getCards() == null) return;
+            JsonArray a = new JsonArray();
+            for (CardView c : dr.getCards()) { JsonObject o = new JsonObject(); o.addProperty("name", label(c)); o.addProperty("id", c.getId()); a.add(o); }
+            p.add("reveal", a);
+            if (dr.getMessagePrefix() != null) p.addProperty("revealTitle", dr.getMessagePrefix());
+        }
+        static void revealOnly(DelayedReveal dr) {  // nada a escolher (só terrenos na mão revelada…): mostra-se na mesma
+            if (dr == null) return;
+            JsonObject o = new JsonObject(); reveal(o, dr);
+            if (!o.has("reveal")) return;
+            JsonArray l = new JsonArray(); for (JsonElement c : o.getAsJsonArray("reveal")) l.add(c.getAsJsonObject().get("name"));
+            JsonObject m = new JsonObject(); m.addProperty("t", "msg"); m.addProperty("title", o.has("revealTitle") ? o.get("revealTitle").getAsString() : "Revealed");
+            m.add("list", l); m.add("cards", o.get("reveal")); send(m);
+        }
         @Override public GameEntityView chooseSingleEntityForEffect(String title, List<? extends GameEntityView> opts, DelayedReveal dr, boolean optional) {
-            if (opts == null || opts.isEmpty()) return null;
-            if (!optional && opts.size() == 1) return opts.get(0);
+            if (opts == null || opts.isEmpty()) { revealOnly(dr); return null; }
+            if (!optional && opts.size() == 1) { revealOnly(dr); return opts.get(0); }
             JsonObject p = new JsonObject(); p.addProperty("msg", title); p.addProperty("min", optional ? 0 : 1); p.addProperty("max", 1);
-            p.add("options", options(new ArrayList<GameEntityView>(opts), null));
+            p.add("options", options(new ArrayList<GameEntityView>(opts), null)); reveal(p, dr);
             List<Integer> r = idx(ask("choose", p));
             return r.isEmpty() || r.get(0) < 0 || r.get(0) >= opts.size() ? (optional ? null : opts.get(0)) : opts.get(r.get(0));
         }
         @Override public List<GameEntityView> chooseEntitiesForEffect(String title, List<? extends GameEntityView> opts, int min, int max, DelayedReveal dr) {
+            if (opts == null || opts.isEmpty()) { revealOnly(dr); return new ArrayList<>(); }
             JsonObject p = new JsonObject(); p.addProperty("msg", title); p.addProperty("min", min); p.addProperty("max", max);
-            p.add("options", options(new ArrayList<GameEntityView>(opts), null));
+            p.add("options", options(new ArrayList<GameEntityView>(opts), null)); reveal(p, dr);
             List<GameEntityView> out = new ArrayList<>();
             for (int i : idx(ask("choose", p))) if (i >= 0 && i < opts.size()) out.add(opts.get(i));
             return out;

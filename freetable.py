@@ -31,9 +31,9 @@ LIVE_K = ("orb", "die", "card", "end")  # o que se mostra ao vivo aos outros enq
 SIDE_T = 180  # segundos para o sideboard entre jogos de uma série; depois joga cada um com a lista que tem
 
 
-def _frac(x):
+def _frac(x, lo=-0.2, hi=1.2):
     try:
-        return max(-0.2, min(1.2, round(float(x), 4)))
+        return max(lo, min(hi, round(float(x), 4)))
     except (TypeError, ValueError):
         return 0.5
 
@@ -77,19 +77,32 @@ def _deal(t, i):
     t["seats"][i]["peek"] = 0
 
 
-def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None):  # first: quem começa (a moeda do lobby)
+def _find(con, tid):
+    """A mesa pelo id: em memória ou na base de dados (None se não há)."""
+    with COND:
+        t = T.get(tid) if tid else None
+    if t is None and tid and con is not None:
+        r = con.execute("SELECT state FROM freetables WHERE id=?", (tid,)).fetchone()
+        t = r and json.loads(r[0])
+    return t
+
+
+def lists(con, tid):
+    """As listas com que a mesa jogou ({lugar: {main, side, cm}}): o torneio guarda-as para reabrir uma mesa perdida a meio da série."""
+    return (_find(con, tid) or {}).get("lists")
+
+
+def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=None):  # first: quem começa (a moeda do lobby)
     """seats = [{by, name, deck: {name, format, main, side, commanders}}] -> id da mesa (já com 7 cartas na mão de cada um).
     solo: um só lugar, para testar um deck (goldfish), com a vida de um adversário imaginário.
     side = o número do jogo (2+) de uma série (tournament.open_table; 0 = sem sideboard): antes de dar as cartas cada lugar com sideboard escolhe a lista
-    (comando «side»); prev = a mesa do jogo anterior, de onde vêm as listas escolhidas (e que fica a apontar para esta)."""
+    (comando «side»); prev = a mesa do jogo anterior, de onde vêm as listas escolhidas (e que fica a apontar para esta);
+    was = as listas do jogo anterior guardadas à parte (lists()), para quando essa mesa já não existe."""
     init(con)
     if not (1 if solo else 2) <= len(seats) <= (1 if solo else 4):
         raise ValueError("A mesa livre leva entre 2 e 4 jogadores.")
-    with COND:
-        pt = T.get(prev) if prev else None
-    if prev and pt is None:
-        r = con.execute("SELECT state FROM freetables WHERE id=?", (prev,)).fetchone()
-        pt = r and json.loads(r[0])
+    pt = _find(con, prev)
+    last = (pt or {}).get("lists") or was or {}
     t = {"id": secrets.token_hex(6), "owner": owner, "name": str(name or "Mesa livre")[:80], "seq": 1, "ts": time.time(),
          "status": "playing", "turn": 1, "active": first if 0 <= first < len(seats) else 0, "seats": [], "cards": {}, "zones": [], "log": [], "roll": None,
          "lists": {}, **({"solo": True, "gf": 20} if solo else {})}
@@ -105,8 +118,8 @@ def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None):  # 
         sd = _clip(d.get("side") or {}) if not cmdrs else {}
         if sd:  # a lista da série: a escolhida no jogo anterior (se ainda for a mesma pilha de cartas) ou a guardada
             base = {"main": lst["main"], "side": sd}
-            was = ((pt or {}).get("lists") or {}).get(str(i))
-            lst.update(was if was and _pool(was) == _pool(base) else base, cm=cmdrs)
+            w = last.get(str(i))
+            lst.update(w if w and _pool(w) == _pool(base) else base, cm=cmdrs)
             if side and not solo:
                 t.setdefault("sb", {})[str(i)] = {"ok": False, "base": base}
         t["lists"][str(i)] = lst
@@ -342,7 +355,7 @@ def apply(t, me, d):
     """Um comando do jogador `me`. Erros de uso -> ValueError (a mesa fica como estava)."""
     c0 = str(d.get("c") or "")
     seat = t["seats"][me]
-    if t["status"] == "side" and c0 in ("side", "chat", "close"):  # a escolher o sideboard: só isto (ainda não há cartas)
+    if t["status"] == "side" and c0 in ("side", "chat", "react", "close"):  # a escolher o sideboard: só isto (ainda não há cartas; a conversa sim)
         pass
     elif t["status"] != "playing" or c0 == "side":
         raise ValueError("O sideboard já fechou." if c0 == "side" else "Esta mesa já terminou." if t["status"] == "ended" else "Ainda se está a escolher o sideboard.")
@@ -384,6 +397,10 @@ def apply(t, me, d):
         to = d.get("to")
         if to not in ZONES:
             raise ValueError("Zona desconhecida.")
+        # at: largada em cima de outra carta do campo (aura, equipamento): entra já presa a ela, sem passar por uma casa livre
+        host = t["cards"].get(str(d.get("at"))) if d.get("at") is not None else None
+        if d.get("at") is not None and (to != "battlefield" or c["z"] == "battlefield" or not host or host["z"] != "battlefield" or host["id"] == c["id"]):
+            raise ValueError("Só se prende a outra carta do campo.")
         was_pub, src = _public(c), c["z"]
         if to == "battlefield":
             dest = _num(d.get("seat"), 0, len(t["seats"]) - 1, c["s"] if src == "battlefield" else me)
@@ -422,6 +439,9 @@ def apply(t, me, d):
         if src == "library":  # saiu do topo que estava a ser espreitado
             seat["peek"] = max(0, seat["peek"] - 1)
         _log(t, me, "move", name=c["n"] if was_pub or _public(c) else None, fr=src, to=to, w=c["o"], bottom=bool(d.get("bottom")) or None)
+        if host:
+            c["at"] = host["id"]
+            _log(t, me, "attach", name=None if c.get("d") else c["n"], to=None if host.get("d") else host["n"])
     elif c0 in ("tap", "flip", "face", "attack", "counter", "phase", "attach"):
         c = need()
         if c["z"] != "battlefield":
@@ -733,6 +753,8 @@ def route(db, method, path, owner, body, who, since=0, seat=None):
                 live.pop(me, None)
             else:
                 live[me] = {"k": v["k"], "x": _frac(v.get("x")), "y": _frac(v.get("y")), "id": _num(v.get("id"), 0, 2 ** 31, 0), "ts": time.time()}
+                if v.get("fx") is not None:  # carta por cima do próprio lado: em frações do campo (os outros veem-no em perspetiva)
+                    live[me].update(fx=_frac(v["fx"], -0.5, 1.5), fy=_frac(v.get("fy"), -0.5, 1.5))
             t["seq"] += 1
             COND.notify_all()
         return 200, {"ok": True}
@@ -908,6 +930,10 @@ def selfcheck():
     call("POST", "host", {"c": "move", "id": h1, "to": "battlefield", "x": 0.2, "y": 0.2})
     assert call("POST", "host", {"c": "attach", "id": h1, "to": boss})[0] == 200 and call("GET", "guest:rui")[1]["seats"][0]["battlefield"][-1]["at"] == boss
     assert call("POST", "host", {"c": "attach", "id": h1, "to": h1})[0] == 400
+    h2 = t["zones"][0]["hand"][0]  # largada da mão em cima de outra carta: entra já presa (um só comando)
+    assert call("POST", "host", {"c": "move", "id": h2, "to": "graveyard", "at": boss})[0] == 400 and call("POST", "host", {"c": "move", "id": h2, "to": "battlefield", "at": h2})[0] == 400
+    assert t["cards"][str(h2)]["z"] == "hand" and call("POST", "host", {"c": "move", "id": h2, "to": "battlefield", "x": 0.3, "y": 0.3, "at": boss})[0] == 200
+    assert t["cards"][str(h2)]["at"] == boss and [e["k"] for e in t["log"][-2:]] == ["move", "attach"]
     call("POST", "guest:rui", {"c": "phase", "id": boss})
     assert t["cards"][str(boss)]["ph"]
     call("POST", "guest:rui", {"c": "move", "id": boss, "to": "command"})
@@ -922,6 +948,8 @@ def selfcheck():
     # ao vivo: o que um agarra o outro vê (e quem agarra não se vê a si), sem ir para a base de dados
     assert call("POST", "host", {"c": "live", "v": {"k": "orb", "x": 0.3, "y": 0.9, "id": 0}}) == (200, {"ok": True})
     assert call("GET", "guest:rui")[1]["live"]["0"]["k"] == "orb" and not call("GET", "host")[1]["live"]
+    call("POST", "host", {"c": "live", "v": {"k": "card", "x": 0.3, "y": 0.9, "id": 5, "fx": 0.4, "fy": 9}})
+    assert call("GET", "guest:rui")[1]["live"]["0"] == {"k": "card", "x": 0.3, "y": 0.9, "id": 5, "fx": 0.4, "fy": 1.5}
     with db() as con:
         _save(con, t)
         assert '"live"' not in con.execute("SELECT state FROM freetables WHERE id=?", (tid,)).fetchone()[0]
@@ -975,6 +1003,7 @@ def selfcheck():
     assert not any(x in json.dumps(rv) + json.dumps(av) for x in ("A Card", "A Side")), "outro lugar viu a lista do anfitrião"
     assert not any(x in json.dumps(hv) + json.dumps(av) for x in ("B Card", "B Side")), "outro lugar viu a lista do convidado"
     assert spost("host", {"c": "draw", "n": 1})[0] == 400 and spost("guest:rui", {"c": "side", "seat": 0, "deck": hv["side"]["mine"]["0"]["deck"]})[0] == 403
+    assert spost("guest:rui", {"c": "chat", "text": "gg"})[0] == 200 and spost("host", {"c": "react", "i": s2["log"][-1]["id"], "e": REACT[0]})[0] == 200  # a conversa continua
     assert spost("guest:ana", {"c": "side", "seat": 2, "deck": {"main": {}, "side": {}}})[0] == 400  # sem sideboard
     good = {"main": {**deck("A")["main"], "A Card 0": 2, "A Side 0": 2}, "side": {"A Card 0": 2, "A Side 1": 2, "A Side 2": 2}}  # 2 saem, 2 entram
     for bad in ({"main": {**good["main"], "Black Lotus": 1}, "side": good["side"]}, {"main": {"A Card 0": 2}, "side": {}}, {"main": {**good["main"], "A Card 1": 4.0}, "side": good["side"]}, "x",
@@ -998,6 +1027,10 @@ def selfcheck():
     with db() as con:  # o deck guardado mudou entretanto (outra pilha): volta à guardada
         g4 = create(con, "hubert", "S4", [{**seats3[0], "deck": {**sdeck("A"), "side": {"A Side 0": 6}}}] + seats3[1:], side=4, prev=g3)
     assert route(db, "GET", f"/api/freetables/{g4}", "hubert", None, "host", 0)[1]["side"]["mine"]["0"]["deck"]["side"] == {"A Side 0": 6}
+    with db() as con:  # a mesa perdeu-se e reabre sem a anterior: as listas guardadas à parte (lists) continuam a escolha
+        assert lists(con, g2)["0"]["main"] == good["main"] and lists(con, "nada") is None
+        g5 = create(con, "hubert", "S5", seats3, side=3, prev="nada", was=lists(con, g2))
+    assert route(db, "GET", f"/api/freetables/{g5}", "hubert", None, "host", 0)[1]["side"]["mine"]["0"]["deck"] == good
     print("selfcheck mesa livre ok")
 
 

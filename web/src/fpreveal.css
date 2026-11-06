@@ -1,0 +1,24 @@
+/* Forge Play: cartas reveladas (painel e por cima de uma escolha) e o «diz o nome de uma carta» */
+.fp-rv { display: grid; gap: 8px; padding: 8px 10px; border-radius: 12px; background: #f2b84b0f; border: 1px solid #f2b84b40; }
+.fp-rv-t { font-size: 14px; color: var(--gold2); } .fp-rv-t small { margin-left: 4px; color: var(--muted); font-weight: 500; }
+.fp-rv-c { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; --cw: clamp(72px, 8.5vw, 116px); max-height: 56vh; overflow-y: auto; }
+.fp-rv-c .fp-opt { animation: fpDeal .38s cubic-bezier(.2, 1.3, .4, 1) both; }
+.fp-rv-c .fp-opt.dim .fp-card { filter: grayscale(.75) brightness(.5); cursor: default; }
+.fp-rv-ask { position: relative; width: min(1180px, 100%); padding-top: 18px; }
+.fp-rv-ask .fp-rv { background: none; border: 0; padding: 0; }
+.fp-rv-ask .fp-rv-c { --cw: clamp(96px, 10vw, 150px); max-height: 66vh; }
+.fp-rv-x { position: absolute; top: 6px; right: 8px; min-height: 0; padding: 2px 9px; border-radius: 99px; background: #0006; border: 1px solid #ffffff22; font-size: 15px; line-height: 1.4; }
+
+.fp-name-ask { width: min(560px, 96vw); } .fp-name-ask input { width: 100%; }
+.fp-nm { display: grid; gap: 2px; max-height: 50vh; overflow-y: auto; }
+.fp-nm button { display: flex; align-items: center; gap: 10px; min-height: 0; padding: 4px 8px; border-radius: 8px; border: 1px solid transparent; background: none; text-align: left; }
+.fp-nm button.on { border-color: var(--gold); background: #f2b84b1f; }
+.fp-nm img, .fp-nm i { flex: none; width: 34px; aspect-ratio: 488 / 680; border-radius: 3px; object-fit: cover; background: #2a2440; }
+.fp-nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-ghost.fp-wait { padding: 0; text-align: inherit; }  /* o fantasma à espera do Forge (tablekit) não é o ecrã «à espera» (.fp-wait do index.css): ficava sem imagem */
+
+/* a moeda do início: a mesa escurece por baixo da camada dos dados (.fp-dice, z 20) e a legenda fica ao centro */
+.fp-coin-intro { position: absolute; inset: 0; z-index: 19; display: grid; place-content: end center; justify-items: center; gap: 4px; padding-bottom: 12%; cursor: pointer;
+  background: radial-gradient(ellipse at center, #05040b99, #05040be6 70%); animation: fp-fade .25s ease-out; }
+.fp-coin-intro b { font-size: clamp(18px, 2.4vw, 28px); color: var(--gold2); text-shadow: 0 2px 10px #000; }
+.fp-coin-intro small { color: var(--muted); }

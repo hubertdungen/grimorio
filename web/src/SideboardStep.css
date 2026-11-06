@@ -18,3 +18,8 @@
 .sbs-act { margin-top: 10px; }
 /* mesa livre: o sideboard antes do jogo 2+ de uma série (FreeTable.jsx › SidePhase) */
 .sbs-phase { box-sizing: border-box; width: 100%; max-width: 1200px; max-height: 100%; margin: 0 auto; padding: 12px 16px; overflow-y: auto; }
+/* com a conversa da mesa ao lado (TableChat); por baixo num ecrã estreito */
+.sbs-phase { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 12px; align-items: start; max-width: 1540px; }
+.sbs-chat { position: sticky; top: 0; display: flex; height: min(78vh, 720px); }
+.sbs-chat .ml-chat { min-height: 0; }
+@media (max-width: 900px) { .sbs-phase { grid-template-columns: minmax(0, 1fr); } .sbs-chat { position: static; height: 360px; } }

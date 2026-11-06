@@ -1462,7 +1462,12 @@ def open_table(con, owner, st, m, name="", prev=None):
     uma série cada um escolhe primeiro o sideboard na mesa (freetable: as listas do jogo anterior vêm de `prev`)."""
     seats = [{"by": st["players"][i].get("by") or "host", "name": (st["players"][i].get("fr") or owner)[:40],
               "deck": {**st["decks"][i], "name": st["players"][i]["name"], "format": st["players"][i].get("format")}} for i in m["p"]]
-    m["table"] = freetable.create(con, owner, f"{name} · {m['id']}"[:80], seats, side=len(m["g"]) + 1 if st["bo"] > 1 and m["g"] else 0, prev=prev)
+    # as listas do jogo anterior ficam também no torneio (escondidas como o side_pick): se esta mesa se perder, a que
+    # reabre («Pronto»/«Abrir», sem `prev`) começa o sideboard da escolha do jogo anterior e não da lista guardada
+    key, hsb = f"{m['id']}:mesa", st.setdefault("hsb", {})
+    if prev and (ls := freetable.lists(con, prev)):
+        hsb[key] = ls
+    m["table"] = freetable.create(con, owner, f"{name} · {m['id']}"[:80], seats, side=len(m["g"]) + 1 if st["bo"] > 1 and m["g"] else 0, prev=prev, was=hsb.get(key))
     m["seats"] = list(m["p"])  # (os «prontos» ficam: quem estava pronto vai direto à mesa)
 
 
@@ -2078,13 +2083,16 @@ def selfcheck():
     finally:
         playnet.start = real
     assert got["mine"]["main"]["Negate"] == 2 and st["decks"][0]["main"]["Opt"] == 4 and "hsb" not in public(("t", 0, "n", "elim", "modern", "running", None, 2, json.dumps(st)))
-    real, got = freetable.create, {}  # mesa livre: o jogo 2+ abre com o sideboard primeiro e as listas da mesa anterior
+    real, rl, got = freetable.create, freetable.lists, {}  # mesa livre: o jogo 2+ abre com o sideboard primeiro e as listas da mesa anterior
     freetable.create = lambda con, owner, name, seats, **kw: got.update(kw, seats=seats) or "t2"
+    freetable.lists = lambda con, tid: {"0": {"main": {"Island": 56, "Negate": 2}}} if tid == "t1" else None
     try:
         open_table(None, "o", st, m, "n", prev="t1")
+        assert got["side"] == 2 and got["prev"] == "t1" and got["seats"][0]["deck"]["side"] == {"Negate": 2} and m["table"] == "t2"
+        open_table(None, "o", st, m, "n")  # a mesa perdeu-se e reabre sem `prev`: as listas do jogo anterior continuam
+        assert got["prev"] is None and got["was"]["0"]["main"]["Negate"] == 2 and "hsb" not in public(("t", 0, "n", "elim", "modern", "running", None, 2, json.dumps(st)))
     finally:
-        freetable.create = real
-    assert got["side"] == 2 and got["prev"] == "t1" and got["seats"][0]["deck"]["side"] == {"Negate": 2} and m["table"] == "t2"
+        freetable.create, freetable.lists = real, rl
     DB, DATA = keep
     print("selfcheck ok")
 

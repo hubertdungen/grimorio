@@ -1,6 +1,7 @@
 // Forge Play nativo: jogas contra a IA do Forge com a mesa do Grimório. O motor corre no servidor (playnet.py +
 // build/forge/GrimorioNet.java) e manda o estado do jogo, o pedido atual (o que o motor espera de ti) e as escolhas
 // pendentes; aqui desenha-se a mesa e cada clique volta como comando (carta, jogador, OK/cancelar, mana, responder).
+import './fpreveal.css'
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
@@ -255,6 +256,72 @@ function GridAsk({ a, data, answer, zoom }) {
     </div>)
 }
 
+// cartas reveladas (Gitaxian Probe, Peek, Thoughtseize, Vendilion Clique, o topo da biblioteca…): o título do Forge em
+// português quando se reconhece. «Bot's Hand», «Looking at cards in Bot's Library», «Revealed»
+const ZONE_T = { hand: p => tx('Mão de {p}', { p }), library: p => tx('Biblioteca de {p}', { p }), graveyard: p => tx('Cemitério de {p}', { p }), exile: p => tx('Exílio de {p}', { p }) }
+function revealTitle(t) {
+  const s = String(t || '').trim(), m = s.match(/^(?:Looking at cards in )?(.+?)(?:'s|’s|') (hand|library|graveyard|exile)$/i)
+  if (m) return ZONE_T[m[2].toLowerCase()](m[1])
+  return !s || /^Revealed?( cards)?$/i.test(s) ? tx('Cartas reveladas') : s
+}
+const rvCardsOf = rv => rv.cards || (rv.list || []).map((name, k) => ({ name, id: -1 - k }))  // sem ids (GrimorioNet antigo): pelo nome
+const rvSame = (c, o) => o.card != null && (c.id >= 0 ? o.card === c.id : o.label === c.name)
+// as reveladas que vão com este pedido: as do próprio pedido (Vendilion Clique: a mão toda) ou as do aviso de há pouco,
+// se a escolha é entre elas (Thoughtseize: a mão revelada e a escolha das que se podem descartar)
+function rvFor(a, rvLog) {
+  if (a.reveal?.length) return { title: a.revealTitle, cards: a.reveal }
+  if (!rvLog || a.kind !== 'choose') return null
+  const cards = rvCardsOf(rvLog)
+  return (a.options || []).some(o => cards.some(c => rvSame(c, o))) ? { title: rvLog.title, cards } : null
+}
+// as cartas reveladas, com imagem; on(c) = a opção que essa carta escolhe (as outras ficam esbatidas quando há escolha)
+function RevealCards({ rv, data, zoom, on, pick = [], peek }) {  // peek(nome): um clique numa carta que não se escolhe abre-a em grande
+  const cs = rvCardsOf(rv)
+  const any = !!on && cs.some(c => on(c) >= 0)
+  return (
+    <div className="fp-rv"><b className="fp-rv-t">{revealTitle(rv.title)} <small>{cs.length}</small></b>
+      <div className="fp-rv-c">{cs.map((c, k) => { const o = on ? on(c) : -1
+        return <div key={k} className={`fp-opt ${any && o < 0 ? 'dim' : ''} ${o >= 0 && pick.includes(o) ? 'on' : ''}`} onMouseEnter={() => zoom?.({ name: c.name })}>
+          <FCard c={c} data={data} big onClick={o >= 0 && rv.choose ? () => rv.choose(o) : peek && (() => peek(c.name))} /></div> })}</div></div>)
+}
+
+// dizer o nome de uma carta (Cabal Therapy, Pithing Needle, Lost Legacy…): o Forge manda ~25 mil nomes — procura-se
+// por escrito e só se desenham os 40 melhores (o nome inteiro, o início, o início de cada palavra, no meio)
+const fold = s => String(s).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/æ/g, 'ae').replace(/œ/g, 'oe')  // «Æther Vial» = aether
+const NAME_ASK = a => a.kind === 'choose' && (a.options || []).every(o => o.card == null && o.player == null) && (a.options.length > 200 || /\bname a card|card name\b/i.test(a.msg || ''))
+function nameHits(idx, q, n = 40) {  // idx: [[nome normalizado, palavras, índice]]; devolve os índices, melhores primeiro
+  const s = fold(q).trim(), ws = s.split(/[^a-z0-9]+/).filter(Boolean)
+  if (!s) return []
+  const out = []
+  for (const [l, w, k] of idx) {
+    const r = l === s ? 0 : l.startsWith(s) ? 1 : ws.every(x => w.some(y => y.startsWith(x))) ? 2 : l.includes(s) ? 3 : ws.every(x => l.includes(x)) ? 4 : -1
+    if (r >= 0) out.push([r, l.length, l, k])
+  }
+  return out.sort((a, b) => a[0] - b[0] || a[1] - b[1] || (a[2] < b[2] ? -1 : 1)).slice(0, n).map(x => x[3])
+}
+function NameAsk({ a, st, data, answer, zoom }) {
+  const im = useImg()
+  const [q, setQ] = useState(''), [i, setI] = useState(0), list = useRef(null)
+  const [idx] = useState(() => a.options.map((o, k) => { const l = fold(o.label); return [l, l.split(/[^a-z0-9]+/).filter(Boolean), k] }))
+  const hits = useMemo(() => nameHits(idx, q), [idx, q])
+  const go = k => k != null && answer(a, [k])
+  const key = e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const n = Math.max(0, Math.min(hits.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1))); setI(n); list.current?.children[n]?.scrollIntoView({ block: 'nearest' }) }
+    else if (e.key === 'Enter') { e.preventDefault(); go(hits[i]) }
+  }
+  return (
+    <div className="fp-ask fp-name-ask"><p>{/^Choose a card name\.?$/i.test(a.msg || '') ? tx('Diz o nome de uma carta') : a.msg}</p>
+      <ForWhat src={sourceOf(a.msg, a.card, a.cardName, st)} data={data} />
+      <input type="search" autoFocus value={q} placeholder={tx('Escreve o nome de uma carta…')} onChange={e => { setQ(e.target.value); setI(0) }} onKeyDown={key} aria-activedescendant={hits.length ? `fp-nm-${i}` : undefined} />
+      <div className="fp-nm" ref={list} role="listbox">{hits.map((k, j) => { const o = a.options[k], c = lookup(data, o.label); return (
+        <button key={k} id={`fp-nm-${j}`} role="option" aria-selected={j === i} className={j === i ? 'on' : ''} onMouseEnter={() => { setI(j); zoom?.({ name: o.label }) }} onClick={() => go(k)}>
+          {c ? <img src={im(c, 'small')} alt="" loading="lazy" draggable="false" /> : <i />}<span>{o.label}</span></button>) })}</div>
+      {q.trim() && !hits.length && <p className="muted small">{tx('Nenhuma carta com esse nome.')}</p>}
+      <div className="row-btns">{hits.length > 0 && <button className="primary" onClick={() => go(hits[i])}>{tx('Escolher {c}', { c: a.options[hits[i]].label })} <kbd>⏎</kbd></button>}
+        {(a.min ?? 1) === 0 && <button onClick={() => answer(a, [])}>{tx('Nenhuma')}</button>}</div>
+    </div>)
+}
+
 // carta em grande para o toque (tocar e manter numa carta, Forge Play e mesa livre): ecrã escurecido com a carta ao centro;
 // dois dedos ampliam (até 3×), duplo toque amplia/volta, arrastar para baixo ou um toque fecha; Esc no teclado
 export function BigCard({ name, data, onClose }) {
@@ -313,7 +380,7 @@ function ForWhat({ src, data }) {
   )
 }
 const MANA_ASK = /\bmana\b/i  // «Select Mana to Produce»
-function Ask({ a, st, data, answer, zoom, payCancel, undo }) {  // payCancel: o Forge está a meio de um pagamento (cancelá-lo desfaz tudo); undo: desfazer a última ação
+function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rvLog: cartas reveladas há pouco (Thoughtseize: a mão toda por cima da escolha)  // payCancel: o Forge está a meio de um pagamento (cancelá-lo desfaz tudo); undo: desfazer a última ação
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
   const escRef = useRef(null)
   useBackClose(a.kind === 'choose' && ((a.min === 0 && (a.max ?? 1) === 1) || !!payCancel || (!!undo && MANA_ASK.test(a.msg || ''))), () => escRef.current?.())  // «voltar» = Cancelar, quando dá
@@ -338,7 +405,9 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo }) {  // payCancel: o 
     <div className="fp-ask"><p>{a.msg || a.title}</p>
       {a.options ? <div className="row-btns">{a.options.map((o, k) => <button key={k} onClick={() => answer(a, o)}>{o}</button>)}</div>
         : <form className="row-btns" onSubmit={e => { e.preventDefault(); answer(a, txt) }}><input autoFocus type={a.numeric ? 'number' : 'text'} value={txt} onChange={e => setTxt(e.target.value)} /><button className="primary">{tx('OK')}</button></form>}</div>)
-  if (a.kind === 'choose' && (a.options || []).every(o => o.card != null)) {  // só cartas: scry, vigiar ou uma lista grande
+  if (NAME_ASK(a)) { escRef.current = (a.min ?? 1) === 0 ? () => answer(a, []) : null; return <NameAsk a={a} st={st} data={data} answer={answer} zoom={zoom} /> }
+  const rv = rvFor(a, rvLog)
+  if (!rv && a.kind === 'choose' && (a.options || []).every(o => o.card != null)) {  // só cartas: scry, vigiar ou uma lista grande
     const m = a.msg || ''
     if (/bottom of (your )?library/i.test(m)) return <PileAsk a={a} data={data} answer={answer} zoom={zoom} dest="bottom" />
     if (/into (your |the )?graveyard|put in the graveyard/i.test(m) && (a.min ?? 0) === 0) return <PileAsk a={a} data={data} answer={answer} zoom={zoom} dest="gy" />
@@ -354,13 +423,18 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo }) {  // payCancel: o 
   escRef.current = cancel
   const head = a.card != null && (all.find(c => c.id === a.card) || (a.cardName && { id: a.card, name: a.cardName }))  // jogar o terreno ou ciclar: a carta em grande
   const toggle = k => (one ? answer(a, [k]) : setPick(p => (p.includes(k) ? p.filter(x => x !== k) : p.length < max ? [...p, k] : p)))
+  // a carta revelada -> a opção dela (pelo id; sem id, pelo nome); se todas as opções estão nas reveladas, escolhe-se lá
+  const optOf = c => (a.options || []).findIndex(o => rvSame(c, o))
+  const rvCards = rv?.cards
+  const inRv = !!rvCards && (a.options || []).length > 0 && (a.options || []).every(o => rvCards.some(c => rvSame(c, o)))
   return (
     <div className="fp-ask"><p>{a.ability ? tx('Como queres usar {c}?', { c: a.msg }) : /^Select target /.test(a.msg || '') ? `${tx('Escolhe o alvo')}: ${a.msg.slice(14)}` : a.msg} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
       {head && <div className="fp-opts fp-reveal-c"><FCard c={head} data={data} big /></div>}
       {!head && !a.ability && <ForWhat src={sourceOf(a.msg, a.card, a.cardName, st)} data={data} />}
-      <div className="fp-opts">{(a.options || []).map((o, k) => { const c = cardOf(o); return c
+      {rv && <RevealCards rv={{ ...rv, cards: rvCards, choose: toggle }} data={data} zoom={zoom} on={optOf} pick={pick} />}
+      {!inRv && <div className="fp-opts">{(a.options || []).map((o, k) => { const c = cardOf(o); return c
         ? <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => toggle(k)} onZoom={zoom} />{o.stack && <small className="fp-stk-lbl"><Syms text={o.label} /></small>}</div>
-        : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={a.ability ? abilityLabel(o.label, a.msg) : o.label} /></button> })}</div>
+        : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={a.ability ? abilityLabel(o.label, a.msg) : o.label} /></button> })}</div>}
       <div className="row-btns">{!one && <button className="primary" disabled={pick.length < min} onClick={() => answer(a, pick)}>{tx('Confirmar ({n})', { n: pick.length })}</button>}
         {min === 0 && !one && <button onClick={() => answer(a, [])}>{tx('Nenhum')}</button>}
         {cancel && <button onClick={cancel}>{tx('Cancelar')} <kbd>Esc</kbd></button>}</div>
@@ -370,6 +444,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo }) {  // payCancel: o 
 
 export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, series, onEnd }) {  // againLabel: o texto do botão de voltar a jogar (torneios: o jogo seguinte da partida)
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [toast, setToast] = useState(null)
+  const [rvl, setRvl] = useState(null)  // cartas reveladas: um painel com as imagens, até o fechares (ou até à escolha que vem com elas)
   const seen = useRef(0)
   useEffect(() => {  // espera longa: o servidor responde quando há novidades (ou ao fim de 20 s)
     let live = true, since = 0
@@ -391,11 +466,22 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     return () => { live = false }
   }, [sid])
   useEffect(() => {  // avisos do motor (cartas reveladas, erros): aparecem uns segundos
-    const log = s?.log || [], n = log.length
-    if (!n || seen.current === n) return
-    seen.current = n
-    const m = log[n - 1]
-    if (/^AI can't play/.test(m.title || '')) return  // o aviso do Forge sobre cartas que a IA joga mal não interessa a quem joga
+    // cada aviso traz o n.º dele (GrimorioNet); o servidor só manda os últimos 12, por isso contá-los pelo tamanho da lista
+    // deixava de ver avisos novos a meio do jogo. Ao abrir a mesa (seen = 0) conta só o último, como antes
+    const log = s?.log || [], n = log.length, last = log[n - 1]
+    if (!n) return
+    // «Bot has won the coin toss.» chega a quem perdeu como aviso (notifyOfValue do Forge), não como pedido: a moeda vai
+    // logo ao ar (antes esperava 1,5 s pelo turno 1); o aviso em si não aparece (a moeda já o diz)
+    const coin = log.find(m => /won the coin toss/i.test(m.msg || ''))
+    if (coin && !sawWin.current) { sawWin.current = true; toss(/\byou have won/i.test(coin.msg)) }
+    const key = last.n ?? n
+    if (seen.current === key) return
+    const fresh = (last.n != null && seen.current ? log.filter(m => m.n > seen.current) : [last]).filter(m => !/^AI can't play/.test(m.title || '') && m !== coin)
+    seen.current = key
+    const rv = fresh.filter(m => m.list?.length).pop()
+    if (rv) setRvl(rv)
+    const m = fresh.filter(m => !m.list?.length).pop()
+    if (!m) return  // o aviso do Forge sobre cartas que a IA joga mal não interessa a quem joga
     // flash = o Forge recusou o clique (sem alvos válidos, sem mana, fora de tempo): sem isto parecia que nada acontecia
     setToast(m.t === 'flash' ? { title: tx('O Forge recusou essa jogada'), msg: tx('Não há alvos válidos, falta mana ou não é a altura. Uma aura como Hardlight Containment precisa de um artefacto teu em jogo.') } : m)
   }, [s?.log])
@@ -406,7 +492,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     return () => clearTimeout(a)
   }, [toast])
   const send = c => j(`/api/playnet/${sid}/cmd`, c).catch(e => setErr(e.message))
-  const answer = (a, v) => { setS(x => ({ ...x, asks: x.asks.filter(y => y.id !== a.id) })); send({ c: 'answer', id: a.id, v }) }
+  const answer = (a, v) => {
+    if (rvl && !a.reveal?.length && rvFor(a, rvl)) setRvl(null)  // a escolha que vinha com as reveladas: o painel fecha com ela
+    setS(x => ({ ...x, asks: x.asks.filter(y => y.id !== a.id) })); send({ c: 'answer', id: a.id, v })
+  }
   const st = s?.state, players = st?.players || []
   const me = players.find(p => p.me) || players.find(p => !p.ai), opp = players.find(p => p !== me)
   // o servidor guarda a última mensagem do Forge, que no turno da IA nem sempre é trocada: um «Declare attackers» do teu
@@ -424,10 +513,16 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useBackClose(!!s?.ended, () => onClose?.())
   const [act, setAct] = useState(null)  // {id, x, y, lines}: confirmar ativar uma habilidade de uma permanente tua (um clique já não ativa às escondidas)
   useBackClose(!!zone, () => setZone(null)); useBackClose(!!act, () => setAct(null))  // cemitério/exílio e o «Ativar …?»
+  useBackClose(!!rvl && !ask, () => setRvl(null))
+  useEffect(() => {  // painel das reveladas: Esc, Enter ou Espaço fecham-no (com a carta em grande aberta, o Esc é dela)
+    if (!rvl || ask) return
+    const k = e => { if (!document.querySelector('.fp-big') && /^(Escape|Enter| )$/.test(e.key) && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) { e.preventDefault(); setRvl(null) } }
+    addEventListener('keydown', k); return () => removeEventListener('keydown', k)
+  }, [rvl, ask])
   useEffect(() => { if (!/^Priority:/.test(pr?.msg || '')) setLift(null) }, [pr?.msg])  // o Forge pede uma escolha: a carta levantada desce (as escolhidas sobem com moldura)
   useEffect(() => {  // Enter/Espaço = o botão principal (passar ao passo seguinte), Shift+Enter ou Shift+Espaço = acabar o turno, Esc = o outro botão
     const k = e => {
-      if (ask || big || pressing.current || document.querySelector('.ask-bg') || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return  // carta em grande aberta: o Esc é dela
+      if (ask || big || rvl || pressing.current || document.querySelector('.ask-bg') || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return  // carta em grande aberta: o Esc é dela
       if (act) { if ((e.key === 'Enter' || e.key === ' ') && !act.pw?.length) { e.preventDefault(); activate() } else if (e.key === 'Escape') { e.preventDefault(); setAct(null) } return }
       const P = fpPrefs()
       if (P.clock && clockRef.current && e.key.toLowerCase() === P.clockKey && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); stopClock(); return }
@@ -878,14 +973,32 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // Uma vez por jogo (sessionStorage), mesmo a recarregar.
   // as faces da moeda são os jogadores: o nome (curto) e as cores do deck de cada um — cai com a face de quem ganhou
   const tossed = useRef(false), sawWin = useRef(false)
+  // a moeda é a 1.ª coisa do jogo: o three.js dos dados carrega enquanto o Forge abre o jogo e a camada dos dados
+  // cria-se logo que a mesa existe (antes só ao 1.º lançamento: a moeda aparecia uns segundos depois)
+  useEffect(() => { import('./Dice3D.js').catch(() => {}) }, [])
+  // no início (turno ≤ 1) a moeda cria-a ela própria: aquecer ao mesmo tempo atrasava o lançamento (o 1.º desenho do WebGL
+  // ocupa a página) — aí só aquece se a moeda não vier (série, recarregar)
+  useEffect(() => { if (!st) return; const t = setTimeout(dice.warm, st.turn > 1 ? 0 : 2500); return () => clearTimeout(t) }, [!!st])  // eslint-disable-line react-hooks/exhaustive-deps
+  // no início do jogo a moeda ao ar fica sozinha por cima da mesa escurecida (um toque salta), até cair e se ver quem ganhou
+  const [intro, setIntro] = useState(null), coinToast = useRef(null)  // {won}; coinToast: o aviso de quem ganhou, para depois da moeda
+  useEffect(() => { if (!intro && coinToast.current) { setToast(coinToast.current); coinToast.current = null } }, [intro])
+  useEffect(() => {
+    if (!intro) return
+    const t = setTimeout(() => setIntro(null), dice.res?.items ? 1600 : 7000)  // depois de cair: 1,6 s para ler; sem cair (sem WebGL…): 7 s no máximo
+    return () => clearTimeout(t)
+  }, [intro, !!dice.res?.items])  // eslint-disable-line react-hooks/exhaustive-deps
   const coinFace = (p, side) => ({ n: String(p?.name || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).slice(0, 2).join(' ').slice(0, 12) || '?',
     c: (document.querySelector(`.bside.${side} .orb:not(.orb-proxy)`)?.dataset.cols || '').replace(/[^WUBRGC]/g, '') })
   const toss = won => {
     if (tossed.current) return
     tossed.current = true
     try { const k = `grimorio.fp.toss.${sid}`; if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1') } catch { /* sem armazenamento: lança na mesma */ }
+    if ((st?.turn || 0) <= 1) setIntro({ won })
     setTimeout(() => dice.roll(['moeda'], [won ? 1 : 2], { words: [coinFace(me, 'bottom'), coinFace(opp, 'top')] }), 200)
-    if (!won) setTimeout(() => setToast({ title: tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') }), msg: st?.active === me?.id ? tx('Escolheu ir em segundo: começas tu.') : tx('Escolheu jogar primeiro.') }), 2000)
+    if (!won) {  // o aviso de quem ganhou: com a moeda de abertura, só depois de ela cair (antes aparecia com a moeda no ar)
+      const t = { title: tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') }), msg: st?.active === me?.id ? tx('Escolheu ir em segundo: começas tu.') : tx('Escolheu jogar primeiro.') }
+      if ((st?.turn || 0) <= 1) coinToast.current = t; else setTimeout(() => setToast(t), 2000)
+    }
   }
   // a moeda: «you have won the coin toss» (com a escolha Jogar/Comprar) é tua; «X has won the coin toss» é o aviso a quem
   // perdeu — antes as duas contavam como tuas e ganhavas sempre
@@ -1066,7 +1179,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <DamageFx hits={hits} data={data} />
         {bs && <ZoneFx s={bs} data={data} />}
       </div>
-      </div><div className="fp-dice" ref={diceBox} /></div>
+      </div>{intro && <div className="fp-coin-intro" onClick={() => setIntro(null)} role="status">
+        <b>{dice.res?.items ? (intro.won ? tx('Ganhaste a moeda ao ar') : tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') })) : tx('Moeda ao ar: quem começa?')}</b>
+        <small>{tx('toca para continuar')}</small></div>}
+      <div className="fp-dice" ref={diceBox} /></div>
       {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
         <p><Syms text={promptText(pr?.msg, st, me)} />{blockBox}</p>
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
@@ -1103,7 +1219,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           {err && <p className="small bad-t">{err}</p>}
         </div>
       </aside>
-      {ask && <div className="fp-modal"><Ask key={ask.id} a={ask} st={st} data={data} answer={answer} zoom={setZoom} payCancel={/Pay Mana Cost/i.test(pr?.msg || '') && btns.some(b => b.label === 'Cancel') ? () => send({ c: 'cancel' }) : null} undo={st.stack?.length ? null : () => send({ c: 'undo' })} /></div>}
+      {rvl && !ask && <div className="fp-modal" onClick={() => setRvl(null)}><div className="fp-ask fp-rv-ask" role="dialog" aria-label={revealTitle(rvl.title)} onClick={e => e.stopPropagation()}>
+        <button type="button" className="fp-rv-x" aria-label={tx('Fechar')} onClick={() => setRvl(null)}>✕</button>
+        <RevealCards rv={rvl} data={data} zoom={setZoom} peek={setBig} />
+        <div className="row-btns"><button className="primary" onClick={() => setRvl(null)}>{tx('OK')} <kbd>⏎</kbd></button></div></div></div>}
+      {ask && <div className="fp-modal"><Ask key={ask.id} a={ask} rv={rvl} st={st} data={data} answer={answer} zoom={setZoom} payCancel={/Pay Mana Cost/i.test(pr?.msg || '') && btns.some(b => b.label === 'Cancel') ? () => send({ c: 'cancel' }) : null} undo={st.stack?.length ? null : () => send({ c: 'undo' })} /></div>}
       {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {act && <div className="fp-act-bg" onPointerDown={() => setAct(null)} />}
       {act && <div className={`fp-act ${act.up ? '' : 'below'}`} role="dialog" aria-label={tx('Ativar {c}', { c: act.name })} style={{ left: act.x, top: act.y }}>
