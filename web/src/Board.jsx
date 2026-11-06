@@ -406,9 +406,14 @@ function useOrbPhysics(ref) {
     const center = () => { const r = cur().getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2, r.width / 2] }
     const lift = () => {  // descola da mesa: a cópia fica por cima de tudo, no mesmo sítio e tamanho do ecrã
       if (S.px) return
-      const r = el.getBoundingClientRect(), k = r.width / (el.offsetWidth || r.width) || 1, px = el.cloneNode(true)
+      const r = el.getBoundingClientRect(), w = el.offsetWidth || r.width, h = el.offsetHeight || r.height, k = r.width / w || 1, px = el.cloneNode(true)
+      // a perspetiva da mesa: o tamanho a que se vê uma esfera em cada altura do ecrã, pelas esferas que lá estão (a do
+      // adversário, ao fundo e mais pequena; a minha, perto). A voar, a cópia cresce ao vir para cá e encolhe ao ir para lá
+      const root = el.closest('.fp-stage, .board, .fp') || document
+      S.persp = [...root.querySelectorAll('.bside .orb:not(.orb-proxy)')].map(o => { const q = o.getBoundingClientRect(); return [q.top + q.height / 2, q.width / (o.offsetWidth || q.width) || 1] }).filter(a => a[1] > 0).sort((a, b) => a[0] - b[0])
+      S.home = [r.left + r.width / 2, r.top + r.height / 2]; S.k0 = k
       px.classList.add('orb-proxy'); px.removeAttribute('title')
-      Object.assign(px.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${el.offsetWidth}px`, height: `${el.offsetHeight}px`, margin: '0', transformOrigin: '0 0', transform: `scale(${k})`, visibility: 'visible' })
+      Object.assign(px.style, { position: 'fixed', left: `${S.home[0] - w / 2}px`, top: `${S.home[1] - h / 2}px`, width: `${w}px`, height: `${h}px`, margin: '0', transformOrigin: '50% 50%', transform: `scale(${k})`, visibility: 'visible' })
       px.addEventListener('pointerdown', down)
       host().append(px); el.style.visibility = 'hidden'; el._proxy = px; S.px = px
     }
@@ -421,6 +426,12 @@ function useOrbPhysics(ref) {
       const b = el.querySelector(':scope > b'), pb = px.querySelector(':scope > b')
       if (b && pb && pb.textContent !== b.textContent) pb.textContent = b.textContent
       px.style.translate = `${S.x.toFixed(1)}px ${S.y.toFixed(1)}px`
+      const P = S.persp
+      if (P?.length > 1 && S.home) {  // o tamanho da perspetiva na altura onde está (um pouco além das esferas, a continuar)
+        const y = S.home[1] + S.y, [y0, k0] = P[0], [y1, k1] = P[P.length - 1], t = y1 - y0 > 20 ? (y - y0) / (y1 - y0) : 0
+        const kk = Math.max(Math.min(k0, k1) * 0.8, Math.min(Math.max(k0, k1) * 1.15, k0 + (k1 - k0) * t))
+        px.style.transform = `scale(${kk.toFixed(3)})`
+      }
       const sv = v => Math.max(-9, Math.min(9, -v / 120)).toFixed(1)  // o fumo lá dentro fica para trás (inércia do líquido)
       px.style.setProperty('--slx', `${sv(S.vx)}px`); px.style.setProperty('--sly', `${sv(S.vy)}px`)
       px.style.setProperty('--lift', Math.min(1, Math.hypot(S.x, S.y) / 120 + (S.drag?.on ? 0.6 : 0)).toFixed(2))
