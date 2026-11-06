@@ -3835,4 +3835,10 @@ export default {
   "O teu deck está à vista": "Dein Deck ist sichtbar",
   "O teu deck voltou a estar fechado.": "Dein Deck ist wieder geschlossen.",
   "Fluido de partículas com física (desligado: o líquido simplificado)": "Partikelflüssigkeit mit Physik (aus: die vereinfachte Flüssigkeit)",
+  "A tua mão no lobby": "Deine Hand in der Lobby",
+  "Clica para devolver à mesa": "Klicken, um sie auf den Tisch zurückzulegen",
+  "Larga aqui uma carta para a veres na tua mão": "Leg hier eine Karte ab, um sie in deiner Hand anzusehen",
+  "O deck de {n} está aberto na mesa.": "Das Deck von {n} liegt offen auf dem Tisch.",
+  "O deck de {n} está aberto na mesa: agarra e atira as cartas, toca numa para a virar; larga-a em baixo para a ver na tua mão.": "Das Deck von {n} liegt offen auf dem Tisch: Karten greifen und werfen, eine antippen zum Umdrehen; unten ablegen, um sie in der Hand anzusehen.",
+  "{p} tem {n} na mão": "{p} hat {n} auf der Hand",
 }

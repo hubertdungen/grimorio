@@ -3835,4 +3835,10 @@ export default {
   "O teu deck está à vista": "你的套牌已公开",
   "O teu deck voltou a estar fechado.": "你的套牌重新关闭了。",
   "Fluido de partículas com física (desligado: o líquido simplificado)": "带物理的粒子流体（关闭：简化液体）",
+  "A tua mão no lobby": "你在大厅中的手牌",
+  "Clica para devolver à mesa": "点击放回桌上",
+  "Larga aqui uma carta para a veres na tua mão": "把卡牌放到这里即可在手中查看",
+  "O deck de {n} está aberto na mesa.": "{n} 的套牌已在桌上打开。",
+  "O deck de {n} está aberto na mesa: agarra e atira as cartas, toca numa para a virar; larga-a em baixo para a ver na tua mão.": "{n} 的套牌已在桌上打开：抓起并投掷卡牌，点一下翻面；放到下方即可在手中查看。",
+  "{p} tem {n} na mão": "{p} 手中有 {n} 张",
 }

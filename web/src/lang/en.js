@@ -3843,4 +3843,10 @@ export default {
   "O teu deck está à vista": "Your deck is visible",
   "O teu deck voltou a estar fechado.": "Your deck is closed again.",
   "Fluido de partículas com física (desligado: o líquido simplificado)": "Particle fluid with physics (off: the simplified liquid)",
+  "A tua mão no lobby": "Your hand in the lobby",
+  "Clica para devolver à mesa": "Click to put it back on the table",
+  "Larga aqui uma carta para a veres na tua mão": "Drop a card here to see it in your hand",
+  "O deck de {n} está aberto na mesa.": "{n}'s deck is open on the table.",
+  "O deck de {n} está aberto na mesa: agarra e atira as cartas, toca numa para a virar; larga-a em baixo para a ver na tua mão.": "{n}'s deck is open on the table: grab and throw the cards, tap one to flip it; drop it at the bottom to see it in your hand.",
+  "{p} tem {n} na mão": "{p} has {n} in hand",
 }

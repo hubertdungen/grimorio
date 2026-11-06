@@ -3805,3 +3805,14 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .lobby3d-chat p { margin: 2px 0; font-size: 13px; } .lobby3d-chat b { color: var(--gold, #f2b84b); margin-right: 4px; }
 .lobby3d-say { display: flex; gap: 6px; } .lobby3d-say input { flex: 1; min-width: 0; }
 @media (max-width: 760px) { .lobby3d { grid-template-columns: 1fr; } .lobby3d-view { height: 260px; } }
+
+/* lobby: a faixa da mão, as cartas na mão e a carta em grande */
+.lobby3d-main { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lobby3d-handzone { position: absolute; left: 0; right: 0; bottom: 0; height: 16%; display: grid; place-items: center; font-size: 12px; color: #fff8; background: linear-gradient(transparent, #0008); pointer-events: none; }
+.lobby3d-hand { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lobby3d-hc { padding: 0; width: 62px; aspect-ratio: 488 / 680; border-radius: 5px; overflow: hidden; background: #2a2140; transition: transform .15s; }
+.lobby3d-hc:hover { transform: translateY(-6px) scale(1.05); }
+.lobby3d-hc img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lobby3d-hc span { font-size: 10px; padding: 4px; display: block; }
+.lobby3d-big { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); z-index: 5; width: min(260px, 60%); aspect-ratio: 488 / 680; border-radius: 12px; overflow: hidden; box-shadow: 0 18px 50px #000c; background: #2a2140; display: grid; place-items: center; }
+.lobby3d-big img { width: 100%; height: 100%; object-fit: cover; }

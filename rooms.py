@@ -9,7 +9,10 @@ import freetable
 import sim
 import tournament
 
-ROOM = re.compile(r"^/api/rooms(?:/([a-f0-9]{10})(?:/(join|leave|start|cancel|ready|lend|plays|chat|show))?)?$")
+ROOM = re.compile(r"^/api/rooms(?:/([a-f0-9]{10})(?:/(join|leave|start|cancel|ready|lend|plays|chat|show|live))?)?$")
+# o lobby 3D ao vivo (só em memória, nunca na base de dados): posição de cada caixa/carta, virada, na mão de quem, o deck
+# aberto. Quem mexe manda; os outros lêem várias vezes por segundo. Some quando a sala começa ou é cancelada.
+LIVE = {}
 GO = 4  # segundos de contagem quando estão todos prontos (mesa livre)
 
 
@@ -34,6 +37,34 @@ def lent(con, owner, spec):
             b = json.loads(r[0])
             out.append({"id": did, **{k: b.get(k) for k in ("name", "format", "main", "commanders", "cover", "coverImg")}})
     return out
+
+
+def live(con, owner, rid, who, method, body):
+    r = con.execute("SELECT status FROM rooms WHERE id=? AND owner=?", (rid, owner)).fetchone()
+    if not r or r[0] != "open":
+        LIVE.pop(rid, None)
+        return 404, {"erro": "Essa sala não está aberta."}
+    L = LIVE.setdefault(rid, {"seq": 0, "objs": {}, "open": None})
+    if method == "POST":
+        b = body or {}
+        num = lambda v, lo=-20.0, hi=20.0: max(lo, min(hi, float(v))) if isinstance(v, (int, float)) else 0.0
+        for o in (b.get("objs") or [])[:160]:
+            if not isinstance(o, dict) or not o.get("id"):
+                continue
+            i = str(o["id"])[:80]
+            cur = L["objs"].get(i, {})
+            cur.update(x=num(o.get("x")), z=num(o.get("z")), r=num(o.get("r"), -1e3, 1e3), f=bool(o.get("f")), by=who, t=round(time.time(), 2))
+            if "hand" in o:
+                cur["hand"] = who if o.get("hand") else None
+            L["objs"][i] = cur
+        if "open" in b:
+            o = b.get("open")
+            for i in [k for k in L["objs"] if "#" in k]:  # as cartas do deck que estava aberto saem da mesa
+                del L["objs"][i]
+            L["open"] = {"key": str(o.get("key"))[:80], "list": [[str(n)[:80], max(1, min(4, int(c)))] for n, c in (o.get("list") or [])[:90] if isinstance(c, int)],
+                         "by": who, "t": time.time()} if isinstance(o, dict) and o.get("key") else None
+        L["seq"] += 1
+    return 200, {"seq": L["seq"], "objs": L["objs"], "open": L["open"], "me": who}
 
 
 def lobby(con, owner, p, who):
@@ -82,6 +113,7 @@ def start_livre(con, owner, rid, spec, players):
         seats.append({"by": p["by"], "name": p.get("byName") or owner, "deck": d})
     tid = freetable.create(con, owner, spec.get("name"), seats, first=int(spec.get("first") or 0))
     con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
+    LIVE.pop(rid, None)
     return tid
 
 
@@ -120,6 +152,8 @@ def route(con, method, path, owner, body, guest=None):
         return 404, {"erro": "rota desconhecida"}
     rid, act = m.group(1), m.group(2)
     who = f"guest:{guest['id']}" if guest else "host"
+    if act == "live":
+        return live(con, owner, rid, who, method, body)
     if method == "GET" and not rid:
         due(con, owner)
         return 200, [view(con, r, who, owner) for r in rows(con, owner, open_only=bool(guest))]

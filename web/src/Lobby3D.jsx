@@ -1,31 +1,67 @@
-// O lobby 3D da mesa livre (antes de começar): as caixas dos decks numa mesa (lobby3d.js), a conversa da sala e a moeda
-// de quem começa. A tua caixa: clicar deixa (ou não) os outros ver e mexer no teu deck; a de outro: abre-se se o dono
-// deixar e as cartas espalham-se na mesa (agarram-se, atiram-se, viram-se com um toque).
+// O lobby 3D da mesa livre (antes de começar): as caixas dos decks numa mesa (lobby3d.js), igual para todos (canal ao
+// vivo da sala, /api/rooms/<id>/live: quem mexe manda, todos lêem 4×/s), a conversa e a moeda de quem começa.
+// A tua caixa: clicar deixa (ou não) os outros ver e mexer no teu deck; a de outro abre-se (para todos) se o dono deixar.
+// As cartas ficam na mesa viradas para baixo (um toque vira-a, para todos); para ver uma a sério, larga-a na faixa de
+// baixo — fica na tua mão: passar o rato (ou manter premido) mostra-a em grande, um clique devolve-a à mesa.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { tx } from './i18n.js'
 import { img } from './data.js'
 import { lookup } from './game.js'
 
+const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then(r => r.json()).catch(() => null)
+
 export default function Lobby3D({ r, data, act }) {
   const box = useRef(null), api = useRef(null), [open, setOpen] = useState(null), [msg, setMsg] = useState(''), [text, setText] = useState(''), [ok3d, setOk3d] = useState(true)
-  const tossed = useRef(null), chatEnd = useRef(null)
+  const [hand, setHand] = useState([]), [big, setBig] = useState(null), [others, setOthers] = useState({}), tossed = useRef(null), chatEnd = useRef(null), me = useRef('host'), hold = useRef(0)
   const seats = useMemo(() => r.players.map(p => {
     const list = p.list || null, cols = new Set()
     if (list) for (const n of Object.keys(list)) for (const k of String(lookup(data, n)?.ci || '').replace(/[^WUBRG]/g, '')) cols.add(k)
     const cc = p.cover && lookup(data, p.cover)
     return { key: `${p.by || 'host'}|${p.ref}`, name: p.by || tx('Anfitrião'), deck: p.name, n: p.n || 60, cols: [...cols].slice(0, 3), cover: cc ? img(cc, 'art_crop') : null, show: !!p.show, mine: !!p.mine, list }
   }), [r.players, data])
+  const seatsRef = useRef(seats); seatsRef.current = seats
+  const cardsOf = s => Object.entries(s.list || {}).map(([name, n]) => { const c = lookup(data, name); return { name, n, url: c ? img(c, 'small') : null } })
   useEffect(() => {
     let gone = false
     import('./lobby3d.js').then(m => {
       if (gone || !box.current) return
-      try { api.current = m.createLobby(box.current, { onClick: key => clickRef.current?.(key) }); api.current.setSeats(seatsRef.current) } catch { setOk3d(false) }
+      try {
+        api.current = m.createLobby(box.current, {
+          onClick: key => clickRef.current?.(key),
+          onMove: objs => post(`/api/rooms/${r.id}/live`, { objs }),  // o que eu mexo: os outros vêem-no a deslizar até lá
+          onHand: (id, name, url) => setHand(h => [...h.filter(x => x.id !== id), { id, name, url }]),
+        })
+        api.current.setSeats(seatsRef.current)
+      } catch { setOk3d(false) }
       box.current._click = key => clickRef.current?.(key)  // o mesmo clique numa caixa, para os testes
     }).catch(() => setOk3d(false))
     return () => { gone = true; api.current?.dispose(); api.current = null }
-  }, [])
-  const seatsRef = useRef(seats); seatsRef.current = seats
+  }, [r.id])
   useEffect(() => { api.current?.setSeats(seats) }, [seats])
+  // o canal ao vivo: o que os outros mexem, o deck aberto e quantas cartas cada um tem na mão
+  useEffect(() => {
+    let t = 0, busy = false
+    const tick = async () => {
+      if (busy) return
+      busy = true
+      try {
+        const L = await fetch(`/api/rooms/${r.id}/live`).then(x => (x.ok ? x.json() : null)).catch(() => null)
+        if (!L || !api.current) return
+        me.current = L.me
+        const want = L.open?.key || null
+        if (want !== api.current.openKey()) {
+          if (want) { const s = seatsRef.current.find(x => x.key === want); api.current.openDeck(want, L.open.list.map(([name, n]) => { const c = lookup(data, name); return { name, n, url: c ? img(c, 'small') : null } })); setOpen(want); if (s && L.open.by !== L.me) setMsg(tx('O deck de {n} está aberto na mesa.', { n: s.name })) }
+          else { api.current.closeDeck(); setOpen(null); setHand([]) }
+        }
+        api.current.setRemote(L.objs, L.me)
+        const cnt = {}
+        for (const o of Object.values(L.objs || {})) if (o.hand && o.hand !== L.me) cnt[o.hand] = (cnt[o.hand] || 0) + 1
+        setOthers(cnt)
+      } finally { busy = false }
+    }
+    tick(); t = setInterval(tick, 250)
+    return () => clearInterval(t)
+  }, [r.id, data])
   // a moeda: quando a contagem começa, o servidor já tirou quem começa (r.first) — todos a veem cair do lado dessa pessoa
   useEffect(() => {
     if (r.go == null) { tossed.current = null; return }
@@ -41,21 +77,37 @@ export default function Lobby3D({ r, data, act }) {
     if (!s) return
     if (s.mine) { act(r.id, 'show', { on: !s.show }); setMsg(s.show ? tx('O teu deck voltou a estar fechado.') : tx('Os outros já podem abrir e ver o teu deck.')); return }
     if (!s.show || !s.list) { setMsg(tx('{n} ainda não deixa ver o deck.', { n: s.name })); return }
-    if (open === key) { api.current?.closeDeck(); setOpen(null); return }
-    api.current?.openDeck(key, Object.entries(s.list).map(([name, n]) => { const c = lookup(data, name); return { name, n, url: c ? img(c, 'small') : null } }))
-    setOpen(key); setMsg(tx('O deck de {n} está aberto na mesa: agarra e atira as cartas, toca numa para a virar.', { n: s.name }))
+    if (open === key) { closeAll(); return }
+    const list = cardsOf(s)
+    api.current?.openDeck(key, list)
+    post(`/api/rooms/${r.id}/live`, { open: { key, list: list.map(c => [c.name, c.n]) } })
+    setOpen(key); setHand([]); setMsg(tx('O deck de {n} está aberto na mesa: agarra e atira as cartas, toca numa para a virar; larga-a em baixo para a ver na tua mão.', { n: s.name }))
   }
+  const closeAll = () => { api.current?.closeDeck(); setOpen(null); setHand([]); post(`/api/rooms/${r.id}/live`, { open: null }) }
+  const back = c => { setHand(h => h.filter(x => x.id !== c.id)); setBig(null); api.current?.returnCard(c.id, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 1.2) }
   useEffect(() => { chatEnd.current?.scrollIntoView({ block: 'nearest' }) }, [r.chat?.length])
   const send = e => { e.preventDefault(); const m = text.trim(); if (!m) return; setText(''); act(r.id, 'chat', { m }) }
-  const me = seats.find(s => s.mine)
+  const mine = seats.find(s => s.mine), nameOf = by => seats.find(s => s.key.startsWith(`${by}|`))?.name || by
   return (
     <div className="lobby3d">
-      {ok3d && <div className="lobby3d-view" ref={box} aria-label={tx('Mesa do lobby com as caixas dos decks')}>
-        {open && <button type="button" className="small lobby3d-close" onClick={() => { api.current?.closeDeck(); setOpen(null) }}>📦 {tx('Guardar as cartas na caixa')}</button>}
-      </div>}
+      <div className="lobby3d-main">
+        {ok3d && <div className="lobby3d-view" ref={box} aria-label={tx('Mesa do lobby com as caixas dos decks')}>
+          {open && <button type="button" className="small lobby3d-close" onClick={closeAll}>📦 {tx('Guardar as cartas na caixa')}</button>}
+          {open && <span className="lobby3d-handzone">✋ {tx('Larga aqui uma carta para a veres na tua mão')}</span>}
+        </div>}
+        {(hand.length > 0 || Object.keys(others).length > 0) && <div className="lobby3d-hand" aria-label={tx('A tua mão no lobby')}>
+          {hand.map(c => <button key={c.id} type="button" className="lobby3d-hc" title={tx('Clica para devolver à mesa')}
+            onMouseEnter={() => setBig(c)} onMouseLeave={() => setBig(null)} onClick={() => back(c)}
+            onPointerDown={e => { if (e.pointerType !== 'mouse') { clearTimeout(hold.current); hold.current = setTimeout(() => setBig(c), 450) } }}
+            onPointerUp={() => clearTimeout(hold.current)}>
+            {c.url ? <img src={c.url} alt={c.name} /> : <span>{c.name}</span>}</button>)}
+          {Object.entries(others).map(([by, n]) => <small key={by} className="muted">{tx('{p} tem {n} na mão', { p: nameOf(by), n })}</small>)}
+        </div>}
+        {big && <div className="lobby3d-big" onPointerDown={() => setBig(null)}>{big.url ? <img src={big.url.replace('/small/', '/normal/')} alt={big.name} /> : <b>{big.name}</b>}</div>}
+      </div>
       <div className="lobby3d-side">
         <p className="small muted">{msg || tx('Arrasta e atira as caixas. Clica na tua para deixares (ou não) os outros verem o teu deck; clica na de outro para o abrir, se ele deixar.')}</p>
-        {me && <button type="button" className={`small ${me.show ? 'on' : ''}`} onClick={() => clickRef.current(me.key)}>{me.show ? `👁 ${tx('O teu deck está à vista')}` : `🔒 ${tx('Deixar ver o meu deck')}`}</button>}
+        {mine && <button type="button" className={`small ${mine.show ? 'on' : ''}`} onClick={() => clickRef.current(mine.key)}>{mine.show ? `👁 ${tx('O teu deck está à vista')}` : `🔒 ${tx('Deixar ver o meu deck')}`}</button>}
         <div className="lobby3d-chat" role="log" aria-label={tx('Conversa da sala')}>
           {(r.chat || []).map((c, k) => <p key={k}><b>{c.w}</b> {c.m}</p>)}
           {!(r.chat || []).length && <p className="muted small">{tx('Ainda ninguém falou. Diz olá!')}</p>}

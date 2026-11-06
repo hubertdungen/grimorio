@@ -3835,4 +3835,10 @@ export default {
   "O teu deck está à vista": "Tu mazo está a la vista",
   "O teu deck voltou a estar fechado.": "Tu mazo vuelve a estar cerrado.",
   "Fluido de partículas com física (desligado: o líquido simplificado)": "Fluido de partículas con física (desactivado: el líquido simplificado)",
+  "A tua mão no lobby": "Tu mano en el lobby",
+  "Clica para devolver à mesa": "Haz clic para devolverla a la mesa",
+  "Larga aqui uma carta para a veres na tua mão": "Suelta aquí una carta para verla en tu mano",
+  "O deck de {n} está aberto na mesa.": "El mazo de {n} está abierto en la mesa.",
+  "O deck de {n} está aberto na mesa: agarra e atira as cartas, toca numa para a virar; larga-a em baixo para a ver na tua mão.": "El mazo de {n} está abierto en la mesa: agarra y lanza las cartas, toca una para darle la vuelta; suéltala abajo para verla en tu mano.",
+  "{p} tem {n} na mão": "{p} tiene {n} en la mano",
 }

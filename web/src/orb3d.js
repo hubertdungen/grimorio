@@ -459,14 +459,18 @@ function draw(now) {
       const sum = Object.values(frac).reduce((a, b) => a + b, 0) || 1
       for (const k in frac) frac[k] /= sum
       const life = +o.el.dataset.life || 20
-      fs.setTargets(frac, Math.max(0.2, Math.min(0.92, 0.25 + 0.5 * Math.min(1, life / 20) + 0.17 * (s.ab || 0))))
+      fs.setTargets(frac, Math.min(0.98, 0.84 + 0.1 * Math.min(1, life / 20) + 0.05 * (s.ab || 0)))  // sempre bem cheia; a vida só tira um pouco
       if (crack > 0.3 && !s.dead) {  // fendas (as mesmas direções enquanto durarem; a força acompanha as rachas)
         if (!fs.holes.length || fs.holes.every(h => h.patched)) fs.setCracks(holesFor(o, crack))
         fs.holes.forEach(h => { if (!h.patched) h.k = crack })
       }
       if (o.lastLife != null && life > o.lastLife) fs.heal(Math.min(1, (life - o.lastLife) / 5))  // curar: remendos com crosta
       o.lastLife = life
-      const gx = Math.max(-14, Math.min(14, -ax * 0.0011)), gy = -3 + Math.max(-14, Math.min(14, ay * 0.0011))
+      // reage: um golpe empurra-o do lado de onde veio; quase a rebentar agita-se; arrastar/atirar/chocar mexe-o pela inércia
+      if (s.react && s.react !== o.fsReact) { const d = o.el._inkDir || [Math.random() - 0.5, -1]; fs.kick([-d[0], d[1], 0.4], s.react === 'gain' ? 0.35 : 0.9) }
+      o.fsReact = s.react
+      if (s.burst) fs.kick([Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5], 0.25)
+      const gx = Math.max(-16, Math.min(16, -ax * 0.0014)), gy = Math.max(-16, Math.min(16, ay * 0.0014))
       fs.step(dts, [gx, gy, 0], { dead: s.dead, stir: s.mood ? 5 : s.react ? 2 : 0 })
       drawFluid(r, o, fs, now / 1000)
     }

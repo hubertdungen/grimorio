@@ -11,21 +11,25 @@
 // g: gravidade (negativa sobe), drag: arrasto do ar, fr: atrito no vidro (0 escorrega, 1 cola), sz: tamanho,
 // glow: 0 opaco … 1 luz, a: opacidade, wave: ondula (luz), solid: pó/grão (sem coesão), stick: cola ao vidro
 export const MAT = {
-  water: { k: 0.6, kn: 0.9, rho: 3.2, s: 0.25, b: 0.05, g: 1, drag: 0.02, fr: 0.05, sz: 1, glow: 0.1, a: 0.85, col: [0.15, 0.55, 0.95] },
-  light: { k: 0.05, kn: 0.15, rho: 1.2, s: 0.05, b: 0, g: -0.12, drag: 0.6, fr: 0, sz: 0.8, glow: 1, a: 0.9, wave: 1, col: [1, 0.86, 0.45] },
-  smoke: { k: 0.04, kn: 0.1, rho: 0.8, s: 0.1, b: 0, g: -0.45, drag: 1.4, fr: 0, sz: 2.1, glow: 0, a: 0.32, col: [0.3, 0.24, 0.36] },
-  mud: { k: 0.7, kn: 1.1, rho: 3.6, s: 0.9, b: 0.25, g: 1.25, drag: 0.04, fr: 0.5, sz: 1.05, glow: 0, a: 0.95, col: [0.26, 0.17, 0.08] },
-  spore: { k: 0.1, kn: 0.2, rho: 1.5, s: 0.1, b: 0, g: 0.15, drag: 0.9, fr: 0.6, sz: 0.55, glow: 0.25, a: 0.9, solid: 1, col: [0.35, 0.12, 0.42] },
-  lava: { k: 0.55, kn: 0.9, rho: 3.4, s: 1.1, b: 0.3, g: 0.8, drag: 0.03, fr: 0.3, sz: 1.1, glow: 0.75, a: 1, col: [1, 0.33, 0.06] },
-  ember: { k: 0.02, kn: 0.05, rho: 1, s: 0, b: 0, g: -0.7, drag: 0.5, fr: 0, sz: 0.5, glow: 1, a: 1, col: [1, 0.75, 0.3] },
-  paste: { k: 0.8, kn: 1.2, rho: 3.4, s: 1.8, b: 0.6, g: 0.75, drag: 0.05, fr: 0.8, sz: 1.15, glow: 0.05, a: 0.95, stick: 0.4, col: [0.22, 0.62, 0.28] },
-  metal: { k: 0.4, kn: 0.6, rho: 2.6, s: 0.02, b: 0, g: 1.5, drag: 0.02, fr: 0.9, sz: 0.6, glow: 0.2, a: 1, solid: 1, col: [0.66, 0.69, 0.75] },
-  blood: { k: 0.6, kn: 0.9, rho: 3.3, s: 0.45, b: 0.1, g: 1.1, drag: 0.03, fr: 0.2, sz: 1, glow: 0.05, a: 0.95, col: [0.62, 0.02, 0.06] },
-  poison: { k: 0.05, kn: 0.12, rho: 0.9, s: 0.1, b: 0, g: -0.3, drag: 1, fr: 0, sz: 1.3, glow: 0.45, a: 0.55, col: [0.38, 0.95, 0.22] },
-  rock: { k: 0.3, kn: 0.5, rho: 2.8, s: 0.02, b: 0, g: 1.8, drag: 0.02, fr: 0.95, sz: 0.9, glow: 0, a: 1, solid: 1, col: [0.42, 0.36, 0.3] },
-  frost: { k: 0.15, kn: 0.3, rho: 1.8, s: 0.2, b: 0, g: 0.35, drag: 0.4, fr: 0.7, sz: 0.6, glow: 0.4, a: 0.9, solid: 1, col: [0.8, 0.93, 1] },
-  crust: { k: 0, kn: 0, rho: 1, s: 0, b: 0, g: 0, drag: 0, fr: 1, sz: 1.1, glow: 0, a: 1, solid: 1, col: [0.45, 0.2, 0.08] },
+  water: { k: 0.6, kn: 0.9, rho: 0.8, s: 0.25, b: 0.05, g: 1, drag: 0.02, fr: 0.05, sz: 1, glow: 0.1, a: 0.85, col: [0.15, 0.55, 0.95] },
+  light: { k: 0.05, kn: 0.15, rho: 0.3, s: 0.05, b: 0, g: -0.12, drag: 0.6, fr: 0, sz: 0.8, glow: 1, a: 0.42, wave: 1, col: [0.95, 0.66, 0.22] },
+  smoke: { k: 0.04, kn: 0.1, rho: 0.2, s: 0.1, b: 0, g: -0.45, drag: 1.4, fr: 0, sz: 2.1, glow: 0.05, a: 0.5, col: [0.46, 0.38, 0.54] },
+  mud: { k: 0.7, kn: 1.1, rho: 0.9, s: 0.9, b: 0.25, g: 1.25, drag: 0.04, fr: 0.5, sz: 1.05, glow: 0.05, a: 0.95, col: [0.42, 0.29, 0.15] },
+  spore: { k: 0.1, kn: 0.2, rho: 0.375, s: 0.1, b: 0, g: 0.15, drag: 0.9, fr: 0.6, sz: 0.7, glow: 0.3, a: 0.95, solid: 1, col: [0.55, 0.25, 0.65] },
+  lava: { k: 0.55, kn: 0.9, rho: 0.85, s: 1.1, b: 0.3, g: 0.8, drag: 0.03, fr: 0.3, sz: 1.1, glow: 0.75, a: 1, col: [1, 0.33, 0.06] },
+  ember: { k: 0.02, kn: 0.05, rho: 0.25, s: 0, b: 0, g: -0.7, drag: 0.5, fr: 0, sz: 0.5, glow: 1, a: 1, col: [1, 0.75, 0.3] },
+  paste: { k: 0.8, kn: 1.2, rho: 0.85, s: 1.8, b: 0.6, g: 0.75, drag: 0.05, fr: 0.8, sz: 1.15, glow: 0.05, a: 0.95, stick: 0.4, col: [0.22, 0.62, 0.28] },
+  metal: { k: 0.4, kn: 0.6, rho: 0.65, s: 0.02, b: 0, g: 1.5, drag: 0.02, fr: 0.9, sz: 0.6, glow: 0.2, a: 1, solid: 1, col: [0.66, 0.69, 0.75] },
+  blood: { k: 0.6, kn: 0.9, rho: 0.825, s: 0.45, b: 0.1, g: 1.1, drag: 0.03, fr: 0.2, sz: 1, glow: 0.05, a: 0.95, col: [0.62, 0.02, 0.06] },
+  poison: { k: 0.05, kn: 0.12, rho: 0.225, s: 0.1, b: 0, g: -0.3, drag: 1, fr: 0, sz: 1.3, glow: 0.45, a: 0.55, col: [0.38, 0.95, 0.22] },
+  rock: { k: 0.3, kn: 0.5, rho: 0.7, s: 0.02, b: 0, g: 1.8, drag: 0.02, fr: 0.95, sz: 0.9, glow: 0, a: 1, solid: 1, col: [0.42, 0.36, 0.3] },
+  frost: { k: 0.15, kn: 0.3, rho: 0.45, s: 0.2, b: 0, g: 0.35, drag: 0.4, fr: 0.7, sz: 0.6, glow: 0.4, a: 0.9, solid: 1, col: [0.8, 0.93, 1] },
+  crust: { k: 0, kn: 0, rho: 0.25, s: 0, b: 0, g: 0, drag: 0, fr: 1, sz: 1.1, glow: 0, a: 1, solid: 1, col: [0.45, 0.2, 0.08] },
 }
+// a gravidade é o centro da esfera: cada matéria é puxada para lá com força própria (os pesados fazem o núcleo, os
+// gases e a luz ficam por fora) e roda à volta do centro com velocidade própria (as camadas raspam e misturam-se)
+const CENTER = { metal: 7, rock: 7, mud: 5.5, lava: 4.5, paste: 4.2, blood: 4, water: 3.2, frost: 2.4, spore: 1.6, ember: 1, light: 0.9, poison: 0.7, smoke: 0.5, crust: 0 }
+const SWIRL = { water: 1.5, light: 2.3, smoke: 1.7, mud: 0.5, spore: 1.1, lava: 0.7, ember: 2.1, paste: 0.3, metal: 0.25, blood: 1.2, poison: 1.6, rock: 0.2, frost: 0.9, crust: 0 }
 // as cores de mana → que matéria a fonte produz (proporções dentro da cor)
 export const MANA_MAT = { W: [['light', 1]], U: [['water', 0.85], ['frost', 0.15]], B: [['mud', 0.5], ['smoke', 0.35], ['spore', 0.15]],
   R: [['lava', 0.8], ['ember', 0.2]], G: [['paste', 0.8], ['spore', 0.2]], C: [['metal', 0.8], ['rock', 0.2]] }
@@ -33,7 +37,10 @@ export const MANA_MAT = { W: [['light', 1]], U: [['water', 0.85], ['frost', 0.15
 const PATCH = { blood: [0.5, 0.22, 0.08], water: [0.86, 0.86, 0.8], frost: [0.86, 0.9, 0.95], lava: [0.08, 0.06, 0.08], ember: [0.08, 0.06, 0.08], paste: [0.55, 0.42, 0.12],
   mud: [0.3, 0.22, 0.12], metal: [0.78, 0.8, 0.84], rock: [0.4, 0.36, 0.3], light: [0.95, 0.85, 0.5], spore: [0.3, 0.4, 0.18], smoke: [0.25, 0.22, 0.28], poison: [0.3, 0.55, 0.15] }
 
-const R = 0.84, H = 0.14, H2 = H * H  // raio da esfera (por dentro do vidro), alcance das vizinhas
+const R = 0.84
+// o alcance entre vizinhas acompanha o número de partículas (poucas = mais afastadas), para encherem sempre a esfera;
+// cada simulador tem o seu e passa a ser o em uso no início de cada passo (as esferas correm uma de cada vez)
+let H = 0.24, H2 = H * H, GN = 12  // raio da esfera (por dentro do vidro), alcance das vizinhas
 const NAMES = Object.keys(MAT), CRUST = NAMES.indexOf('crust')
 const TK = NAMES.map(k => MAT[k].k), TKN = NAMES.map(k => MAT[k].kn), TRHO = NAMES.map(k => MAT[k].rho), TS = NAMES.map(k => MAT[k].s), TB = NAMES.map(k => MAT[k].b)
 
@@ -44,8 +51,9 @@ export class FluidSim {
     this.m = new Uint8Array(n); this.alive = new Uint8Array(n); this.age = new Float32Array(n); this.fade = new Float32Array(n)  // fade>0: a dissolver-se
     this.out = new Uint8Array(n)  // 1: já verteu para fora do vidro
     this.count = 0; this.t = 0; this.want = {}; this.holes = []; this.rnd = mulberry(seed)
-    this.head = new Int32Array(16 * 16 * 16); this.next = new Int32Array(n)
-    this.pi = new Int32Array(n * 24); this.pj = new Int32Array(n * 24); this.np = 0  // os pares de vizinhas (uma procura por passo)
+    this.H = Math.max(0.2, Math.cbrt(2.48 / (n * 0.95)) * 1.5); this.GN = Math.max(6, Math.floor(3.2 / this.H))
+    this.head = new Int32Array(this.GN ** 3); this.next = new Int32Array(n)
+    this.pi = new Int32Array(n * 40); this.pj = new Int32Array(n * 40); this.np = 0  // os pares de vizinhas (uma procura por passo)
     this.rho = new Float32Array(n); this.rhn = new Float32Array(n)
   }
   // o que a esfera deve ter (fração de cada matéria, soma ≈ 1) e quanta matéria no total (0..1 do máximo)
@@ -79,6 +87,15 @@ export class FluidSim {
     this.m[i] = NAMES.indexOf(mat); this.alive[i] = 1; this.age[i] = 0; this.fade[i] = 0; this.out[i] = 0
     return i
   }
+  // um golpe/choque: empurra o fluido a partir do ponto (dir no vidro) e agita-o (força 0..1)
+  kick(dir = [0, 1, 0], f = 1) {
+    const L = Math.hypot(...dir) || 1, d = dir.map(x => (x / L) * R)
+    for (let i = 0; i < this.count; i++) {
+      if (!this.alive[i] || this.out[i]) continue
+      const o = i * 3, dx = this.x[o] - d[0], dy = this.x[o + 1] - d[1], dz = this.x[o + 2] - d[2], r = Math.hypot(dx, dy, dz) || 1, k = f * 4.5 * Math.max(0, 1.6 - r)
+      this.v[o] += (dx / r) * k + (this.rnd() - 0.5) * f * 2; this.v[o + 1] += (dy / r) * k + (this.rnd() - 0.5) * f * 2; this.v[o + 2] += (dz / r) * k + (this.rnd() - 0.5) * f * 2
+    }
+  }
   // fendas: direções no vidro por onde verte (força 0..1); curar fecha-as com crosta do que lá estava
   setCracks(list) { this.holes = list }
   heal(amount = 1) {
@@ -99,6 +116,7 @@ export class FluidSim {
   }
   // um passo: g = gravidade no referencial da esfera (inclui a inércia), dead = partida (verte tudo para o chão)
   step(dt, g, opts = {}) {
+    H = this.H; H2 = H * H; GN = this.GN
     let n = this.count
     const X = this.x, P = this.p, V = this.v, Mi = this.m, dead = !!opts.dead, stir = opts.stir || 0
     dt = Math.min(dt, 1 / 30); this.t += dt
@@ -122,8 +140,17 @@ export class FluidSim {
       this.age[i] += dt
       if (this.fade[i] > 0) { this.fade[i] += dt / 1.6; if (this.fade[i] >= 1) { this.alive[i] = 0; continue } }
       if (NAMES[Mi[i]] === 'crust') { V[o] = V[o + 1] = V[o + 2] = 0; continue }
-      const gs = this.out[i] ? 1.2 : M.g
-      V[o] += g[0] * gs * dt; V[o + 1] += g[1] * gs * dt; V[o + 2] += g[2] * gs * dt
+      const nm = NAMES[Mi[i]]
+      if (this.out[i]) { V[o] += g[0] * dt; V[o + 1] += (g[1] - 3.2) * dt; V[o + 2] += g[2] * dt }  // já fora: cai para o chão
+      else {
+        // puxado para o centro (força da matéria), a rodar à volta do eixo (que muda devagar), mais a inércia da esfera
+        const kc = CENTER[nm], sw = SWIRL[nm], ax = Math.sin(this.t * 0.11) * 0.35, az = Math.cos(this.t * 0.13) * 0.35, aL = Math.hypot(ax, 1, az)
+        const ux = ax / aL, uy = 1 / aL, uz = az / aL, x = X[o], y = X[o + 1], z = X[o + 2]
+        V[o] += (-kc * x + g[0]) * dt; V[o + 1] += (-kc * y + g[1]) * dt; V[o + 2] += (-kc * z + g[2]) * dt
+        // a rotação é uma velocidade a que tende (não uma força que se acumula: colava tudo ao vidro, oco por dentro)
+        const kr = Math.min(1, dt * 1.8) * 0.5, tx = sw * (uy * z - uz * y) * 0.7, ty = sw * (uz * x - ux * z) * 0.7, tz = sw * (ux * y - uy * x) * 0.7
+        V[o] += (tx - V[o]) * kr; V[o + 1] += (ty - V[o + 1]) * kr; V[o + 2] += (tz - V[o + 2]) * kr
+      }
       if (M.wave) { V[o] += Math.sin(this.t * 2.2 + X[o + 1] * 7) * 0.9 * dt; V[o + 2] += Math.cos(this.t * 1.7 + X[o] * 6) * 0.9 * dt; V[o + 1] += Math.sin(this.t * 3 + X[o] * 5) * 0.4 * dt }
       if (stir) { V[o] += -X[o + 2] * stir * dt; V[o + 2] += X[o] * stir * dt }
       const dr = Math.max(0, 1 - M.drag * dt); V[o] *= dr; V[o + 1] *= dr; V[o + 2] *= dr
@@ -203,8 +230,8 @@ export class FluidSim {
       const o = i * 3, cx = gc(X[o]), cy = gc(X[o + 1]), cz = gc(X[o + 2])
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let d = -1; d <= 1; d++) {
         const x = cx + a, y = cy + b, z = cz + d
-        if (x < 0 || y < 0 || z < 0 || x > 15 || y > 15 || z > 15) continue
-        for (let j = this.head[x + y * 16 + z * 256]; j >= 0; j = this.next[j]) {
+        if (x < 0 || y < 0 || z < 0 || x > GN - 1 || y > GN - 1 || z > GN - 1) continue
+        for (let j = this.head[x + y * GN + z * GN * GN]; j >= 0; j = this.next[j]) {
           if (j <= i) continue
           const p = j * 3, dx = X[p] - X[o], dy = X[p + 1] - X[o + 1], dz = X[p + 2] - X[o + 2]
           if (dx * dx + dy * dy + dz * dz < H2 && c < max) { this.pi[c] = i; this.pj[c] = j; c++ }
@@ -213,16 +240,16 @@ export class FluidSim {
     }
     this.np = c
   }
-  cell(i) { const o = i * 3, f = v => Math.max(0, Math.min(15, ((v + 1.6) / 3.2 * 16) | 0)); return f(this.x[o]) + f(this.x[o + 1]) * 16 + f(this.x[o + 2]) * 256 }
+  cell(i) { const o = i * 3; return gc(this.x[o]) + gc(this.x[o + 1]) * GN + gc(this.x[o + 2]) * GN * GN }
   pairs(fn) {
     const X = this.x
     for (let i = 0; i < this.count; i++) {
       if (!this.alive[i]) continue
-      const o = i * 3, f = v => Math.max(0, Math.min(15, ((v + 1.6) / 3.2 * 16) | 0)), cx = f(X[o]), cy = f(X[o + 1]), cz = f(X[o + 2])
+      const o = i * 3, cx = gc(X[o]), cy = gc(X[o + 1]), cz = gc(X[o + 2])
       for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (let c = -1; c <= 1; c++) {
         const x = cx + a, y = cy + b, z = cz + c
-        if (x < 0 || y < 0 || z < 0 || x > 15 || y > 15 || z > 15) continue
-        for (let j = this.head[x + y * 16 + z * 256]; j >= 0; j = this.next[j]) {
+        if (x < 0 || y < 0 || z < 0 || x > GN - 1 || y > GN - 1 || z > GN - 1) continue
+        for (let j = this.head[x + y * GN + z * GN * GN]; j >= 0; j = this.next[j]) {
           if (j <= i) continue
           const p = j * 3, dx = X[p] - X[o], dy = X[p + 1] - X[o + 1], dz = X[p + 2] - X[o + 2], d2 = dx * dx + dy * dy + dz * dz
           if (d2 < H2 && d2 > 1e-9) fn(i, j, dx, dy, dz, Math.sqrt(d2))
@@ -253,7 +280,7 @@ export class FluidSim {
       const c = NAMES[this.m[i]] === 'crust' && this.crustCol ? [this.crustCol[o], this.crustCol[o + 1], this.crustCol[o + 2]] : M.col
       const tw = M.wave ? 0.75 + 0.25 * Math.sin(now * 4 + i) : 1
       col[k * 3] = c[0] * tw; col[k * 3 + 1] = c[1] * tw; col[k * 3 + 2] = c[2] * tw
-      size[k] = M.sz * (M.wave ? 0.8 + 0.4 * Math.sin(now * 3 + i * 1.7) : 1); glow[k] = M.glow
+      size[k] = M.sz * (this.H / 0.24) * (M.wave ? 0.8 + 0.4 * Math.sin(now * 3 + i * 1.7) : 1); glow[k] = M.glow  // poucas partículas = gotas maiores
       alpha[k] = M.a * (this.fade[i] > 0 ? 1 - this.fade[i] : 1) * (this.age[i] < 0.25 ? this.age[i] / 0.25 : 1)
       k++
     }
@@ -261,7 +288,7 @@ export class FluidSim {
   }
 }
 
-const gc = v => Math.max(0, Math.min(15, ((v + 1.6) / 3.2 * 16) | 0))
+const gc = v => Math.max(0, Math.min(GN - 1, ((v + 1.6) / 3.2 * GN) | 0))
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 } }
 function perp(d) { const a = Math.abs(d[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0], c = cross(d, a), L = Math.hypot(...c) || 1; return c.map(x => x / L) }
 function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]] }
@@ -270,14 +297,14 @@ function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b
 export function selfcheck() {
   const f = new FluidSim(300, 7)
   f.setTargets({ water: 0.6, smoke: 0.4 }, 0.8)
-  for (let s = 0; s < 240; s++) f.step(1 / 60, [0, -3, 0])
-  const avg = k => { let y = 0, c = 0; for (let i = 0; i < f.count; i++) if (f.alive[i] && NAMES[f.m[i]] === k && !f.out[i]) { y += f.x[i * 3 + 1]; c++ } return c ? y / c : 0 }
+  for (let s = 0; s < 240; s++) f.step(1 / 60, [0, 0, 0])
+  const avg = k => { let y = 0, c = 0; for (let i = 0; i < f.count; i++) if (f.alive[i] && NAMES[f.m[i]] === k && !f.out[i]) { y += Math.hypot(f.x[i * 3], f.x[i * 3 + 1], f.x[i * 3 + 2]); c++ } return c ? y / c : 0 }
   const live = () => { let c = 0; for (let i = 0; i < f.count; i++) if (f.alive[i] && !f.out[i]) c++; return c }
   if (!(live() > 150)) throw new Error('a fonte não encheu: ' + live())
-  if (!(avg('water') < avg('smoke'))) throw new Error('a água não assentou por baixo do fumo')
+  if (!(avg('water') < avg('smoke'))) throw new Error('a água não ficou por dentro do fumo (o centro é a gravidade)')
   f.setCracks([{ d: [0, -1, 0], k: 1 }])
   let out = 0
-  for (let s = 0; s < 120; s++) out += f.step(1 / 60, [0, -3, 0])
+  for (let s = 0; s < 120; s++) out += f.step(1 / 60, [0, -6, 0])  // a esfera abanada para baixo: verte pela fenda de baixo
   if (!(out > 0)) throw new Error('a fenda não verteu')
   f.heal(1)
   if (!f.holes[0].patched) throw new Error('curar não remendou')
