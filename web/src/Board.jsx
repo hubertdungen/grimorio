@@ -135,7 +135,7 @@ function effectOf(c, kind) {
   if (!c) return ''
   const lines = c.o.split('\n').map(l => l.replace(/\([^)]*\)/g, '').trim()).filter(Boolean)
   const pick = kind === 'trigger' ? lines.find(l => /^(When|Whenever|At)\b/.test(l) || /\b(When|Whenever)\b/.test(l))
-    : kind === 'activate' ? lines.find(l => /^[^"]{1,60}:/.test(l) && !/Add \{/.test(l)) || lines.find(l => l.includes(':')) : null
+    : kind === 'activate' ? lines.find(l => /^[^"]{1,60}:/.test(l) && !/\bAdd (?:\{|one|two|three|X|\w+ mana)/.test(l)) || lines.find(l => l.includes(':')) : null
   const t = pick || lines.join(' ')
   return t.length > 220 ? `${t.slice(0, 217)}…` : t
 }
@@ -151,14 +151,21 @@ const KEYS = [
   ['kw', /\b(?:flying|trample|deathtouch|lifelink|haste|vigilance|first strike|double strike|reach|hexproof|shroud|indestructible|flash|menace|defender|ward(?: \{[^}]+\}| \d+)?|protection from [a-z]+|cycling|landcycling|flashback|kicker|multikicker|prowess|convoke|cascade|delve|crew \d+|equip(?: \{[^}]+\})?|enchant [a-z]+|persist|undying|storm|affinity for [a-z]+|dredge \d+|madness|morph|megamorph|evoke|infect|toxic \d+|wither|proliferate|transform(?:s|ed)?|explore(?:s)?|adapt \d+|ninjutsu|landfall|treasure|food|clue|monarch|initiative|mutate|foretell|disturb|training|connive(?:s)?|blitz|casualty \d+|bargain|craft|discover \d+|offspring|gift|fight(?:s)?|investigate|amass \w+ \d+|venture into the dungeon|ascend|surveil|scry|bushido \d+|exalted|annihilator \d+|rampage \d+|flanking|horsemanship|shadow|fear|intimidate|skulk|outlast|bolster \d+|support \d+|renown \d+|exploit|embalm|eternalize|escape|mentor|riot|spectacle|afterlife \d+|jump-start|surge|emerge|devour \d+|evolve|extort|unearth|encore|boast|ward|backup \d+|prototype|reconfigure|channel|ninjutsu|split second|suspend \d+|vanishing \d+|fading \d+|echo|cumulative upkeep|buyback|retrace|rebound|miracle|overload|bestow|dash|fabricate \d+|partner|companion|cleave|daybound|nightbound|decayed|plot|saddle \d+|spree|valiant|collect evidence \d+|disguise|cloak|manifest(?: dread)?)\b/gi],
   ['grave', /discards? (?:a|an|one|two|X|\d+|that|their hand)[^.,;]*?(?:card|hand)s?|mills? (?:a|an|one|two|three|four|five|X|\d+) cards?|return[^.,;]*? from (?:your|their|a) graveyard[^.,;]*/gi],
 ]
+// o texto da pilha que vem do motor: «Birds of Paradise (123) - Birds of Paradise deals 1 damage…» → só o efeito
+function stkText(t, name) {
+  let x = String(t || '').trim()
+  if (name && x.startsWith(name)) x = x.slice(name.length).replace(/^\s*(\(\d+\))?\s*-?\s*/, '')
+  return x.length > 220 ? `${x.slice(0, 217)}…` : x
+}
 function hiText(t) {  // texto → pedaços com <b class> nas frases-chave (a primeira que apanha ganha)
   const hits = []
   for (const [k, re] of KEYS) for (const m of t.matchAll(re)) if (!hits.some(h => m.index < h.e && m.index + m[0].length > h.s)) hits.push({ s: m.index, e: m.index + m[0].length, k })
   hits.sort((a, b) => a.s - b.s)
   const out = []
   let i = 0
-  hits.forEach((h, j) => { if (h.s > i) out.push(t.slice(i, h.s)); out.push(<b key={j} className={`fx-${h.k}`}>{t.slice(h.s, h.e)}</b>); i = h.e })
-  if (i < t.length) out.push(t.slice(i))
+  const sy = (x, k) => <Syms key={`s${k}`} text={x.replace(/\((T|Q|[WUBRGC]|\d+|X)\)/g, '{$1}')} />  // o Forge às vezes escreve (T)
+  hits.forEach((h, j) => { if (h.s > i) out.push(sy(t.slice(i, h.s), j)); out.push(<b key={j} className={`fx-${h.k}`}>{sy(t.slice(h.s, h.e), `b${j}`)}</b>); i = h.e })
+  if (i < t.length) out.push(sy(t.slice(i), 'z'))
   return out
 }
 export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
@@ -173,6 +180,8 @@ export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
     setMore((rev.more || []).map((x, k) => ({ ...x, key: `${ri}-${k}`, ms: Math.min(ms, 1800) })))  // as outras que saíram ao mesmo tempo
     clearTimeout(gT.current)
     gT.current = setTimeout(() => { setGhost(null); setMore([]) }, ms)
+    const cd = lookup(data, rev.card)
+    if (cd && !/\b(Instant|Sorcery)\b/.test(cd.t)) setTimeout(() => stackToField(rev.card), 380)
   }, [ri]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (quiet) { clearTimeout(gT.current); setGhost(null); setMore([]) } }, [quiet])
   useEffect(() => () => clearTimeout(gT.current), [])
@@ -200,7 +209,7 @@ export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
           {top ? <>
             <small>{KIND_L[top.kind] || top.kind}{n > 1 ? ` · ${tx('{n} na pilha', { n })}` : ''}</small>
             <b>{short(top.card) || tx('habilidade')}{tgt ? <span className="muted"> → {tgt}</span> : null}</b>
-            {tc && <p>{hiText(effectOf(tc, top.kind))}</p>}
+            {(top.text || tc) && <p>{hiText(top.text ? stkText(top.text, top.card) : effectOf(tc, top.kind))}</p>}
           </> : <>
             <small>{tx('A resolver')}</small>
             <b>{short(ghost.card)}</b>
@@ -1126,6 +1135,54 @@ function shatter(el, creature) {
   setTimeout(() => { el.style.visibility = 'hidden'; box.style.visibility = '' }, 170)
   setTimeout(() => box.remove(), 2000)
 }
+// uma permanente que resolveu: a carta da pilha voa até onde ela entrou (antes ficava na pilha a desvanecer enquanto a
+// permanente já tinha aparecido do outro lado: pareciam duas)
+function stackToField(name) {
+  const from = [...document.querySelectorAll('.stackfx .stk.resolving')].pop(), sn = short(name)
+  const to = [...document.querySelectorAll('.bside .pc.in')].reverse().find(e => e.querySelector('.pc-f img')?.alt === sn || e.title?.split('\n')[0] === sn)
+  if (!from || !to) return
+  const a = from.getBoundingClientRect(), rot = to.querySelector('.pc-rot') || to, b = rot.getBoundingClientRect()
+  if (!a.width || !b.width) return
+  const g = document.createElement('div'), src = from.querySelector('img')?.src || to.querySelector('.pc-f img')?.src
+  g.className = 'zghost fly'
+  Object.assign(g.style, { left: `${a.left}px`, top: `${a.top}px`, width: `${a.width}px`, height: `${a.height}px` })
+  if (src) g.style.backgroundImage = `url("${src}")`
+  fxHost().append(g)
+  from.classList.add('flown'); to.style.visibility = 'hidden'
+  const an = g.animate([{ transform: 'none' }, { transform: `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${b.width / a.width}, ${b.height / a.height})` }],
+    { duration: 420, easing: 'cubic-bezier(.45, 0, .25, 1)', fill: 'forwards' })
+  g.style.transformOrigin = '0 0'
+  const done = () => { to.style.visibility = ''; g.remove() }
+  an.onfinish = done; setTimeout(done, 900)
+}
+// exilada por uma permanente que a guarda (Journey to Nowhere, Oblivion Ring, Banishing Light, Sheltered by Ghosts,
+// Fiend Hunter…): em vez de se desfazer em luz, a carta sobe, brilha e é sugada para dentro de quem a exilou, com um feixe
+const HOLDS = /When [^.]*enters[^.]*?,? (?:you may )?exile (?:another |up to one )?target/i
+function ghostInto(el, holder) {
+  const rot = el.querySelector('.pc-rot') || el, r = rot.getBoundingClientRect()
+  if (!r.width) return false
+  const src = el.querySelector('.pc-f img')?.src, g = document.createElement('div'), host = fxHost()
+  g.className = 'zghost into'
+  Object.assign(g.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, transformOrigin: '50% 50%' })
+  if (src) g.style.backgroundImage = `url("${src}")`
+  host.append(g); el.style.visibility = 'hidden'
+  const go = n => {  // espera que quem a guarda já esteja no sítio (pode vir a voar da pilha: fica escondida até chegar)
+    if (n < 16 && (holder.style.visibility === 'hidden' || document.querySelector('.zghost.fly'))) return setTimeout(() => go(n + 1), 90)
+    const h = (holder.querySelector('.pc-rot') || holder).getBoundingClientRect()
+    const dx = h.left + h.width / 2 - (r.left + r.width / 2), dy = h.top + h.height / 2 - (r.top + r.height / 2)
+    const beam = document.createElement('i'), L = Math.hypot(dx, dy)
+    beam.className = 'zbeam'
+    Object.assign(beam.style, { left: `${r.left + r.width / 2}px`, top: `${r.top + r.height / 2}px`, width: `${L}px`, rotate: `${Math.atan2(dy, dx)}rad` })
+    host.append(beam); setTimeout(() => beam.remove(), 900)
+    g.animate([{ transform: 'translateY(-14px) scale(1.06)', opacity: 1, filter: 'brightness(1.8)' },
+      { transform: `translate(${dx}px, ${dy}px) scale(.12) rotate(200deg)`, opacity: 0.2, filter: 'brightness(2.6) blur(1px)' }],
+      { duration: 650, easing: 'cubic-bezier(.6, 0, .9, .5)', fill: 'forwards' }).onfinish = () => g.remove()
+    setTimeout(() => g.remove(), 1200)
+    holder.classList.remove('holds'); void holder.offsetWidth; holder.classList.add('holds'); setTimeout(() => holder.classList.remove('holds'), 1400)
+  }
+  setTimeout(() => go(0), 900)
+  return true
+}
 function ghostOut(el, to) {  // ver leaveGhost
   leaveGhost((el.querySelector('.pc-rot') || el).getBoundingClientRect(), el.querySelector('.pc-f img')?.src, el.classList.contains('tapped'), to)
   el.style.visibility = 'hidden'
@@ -1143,7 +1200,7 @@ function sparkle(el) {
   }
 }
 export function ZoneFx({ s, data, quiet }) {
-  const prev = useRef(null), seen = useRef(new Set())
+  const prev = useRef(null), seen = useRef(new Set()), keys = useRef(null)
   useLayoutEffect(() => {
     if (!s?.sides) return
     const snap = {}
@@ -1154,6 +1211,12 @@ export function ZoneFx({ s, data, quiet }) {
     const p = prev.current
     prev.current = snap
     const calm = quiet || !p || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    // quando entrou cada permanente: quem exilou pode ter aparecido um desenho antes da carta exilada sair (Forge Play)
+    const first = keys.current || new Map(), tnow = Date.now(), boot = !keys.current, live = s.sides.flatMap(k => (s[k]?.perms || []).filter(p => !p.dying))
+    for (const p of live) if (!first.has(p.key)) first.set(p.key, boot ? 0 : tnow)
+    for (const k of first.keys()) if (!live.some(p => p.key === k)) first.delete(k)
+    keys.current = first
+    const holder = live.find(p => tnow - first.get(p.key) < 2000 && HOLDS.test(lookup(data, p.name)?.o || ''))
     try {
       const deadTo = {}
       for (const k of s.sides) for (const perm of s[k]?.perms || []) {
@@ -1164,6 +1227,7 @@ export function ZoneFx({ s, data, quiet }) {
         if (calm) continue
         const el = document.querySelector(`.bside.p-${k} .pc[data-z="k:${CSS.escape(String(perm.key))}"]`)
         if (el && to === 'graveyard') shatter(el, isCreature(data, perm))
+        else if (el && to === 'exile' && holder && document.querySelector(`[data-z="k:${CSS.escape(String(holder.key))}"]`)) ghostInto(el, document.querySelector(`[data-z="k:${CSS.escape(String(holder.key))}"]`))  // também uma aura presa (.pc-attc)
         else if (el && to === 'exile') { ghostOut(el, 'exile'); sparkle(el) }
         else if (el && (to === 'hand' || to === 'library')) ghostOut(el, to)
       }

@@ -805,7 +805,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.splice(Math.min(g.idx ?? 1e9, bs[g.side].perms.length), 0, { ...toPerm(g.c), dying: g.to || true })
   const hashN = t => [...String(t)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
   const sideOfP = pid => (pid === me?.id ? 'a' : 'b')
-  bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name,
+  bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name, text: x.ability ? x.text : undefined,  // o texto do Forge: o que foi mesmo ativado
     kind: !x.ability ? 'cast' : /^(When|Whenever|At)\b/.test(x.text || '') ? 'trigger' : 'activate',
     // alvos: as linhas da pilha (StackLinks) e o «→ alvo» da legenda
     tc: (x.tc || []).map(String), tp: (x.tp || []).map(sideOfP),

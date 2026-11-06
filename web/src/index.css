@@ -3691,3 +3691,16 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 @keyframes dtstamp { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.4) rotate(-20deg); } 20% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -70%); } }
 .board.quiet .pc-kfx, .board.quiet .pc-kfx::after { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .pc-kfx, .pc-kfx::after, .dtmark { animation: none !important; } }
+
+/* da pilha para o campo: a carta voa (a da pilha some logo) */
+.stackfx .stk.resolving.flown { visibility: hidden; }
+.zghost.fly { transform-origin: 0 0; }
+/* exilada por quem a guarda: o feixe entre as duas e quem a guarda a brilhar */
+.zghost.into { box-shadow: 0 0 18px #fff6, 0 0 6px #bfe3ff; }
+.zbeam { position: fixed; z-index: 2147481100; height: 3px; transform-origin: 0 50%; pointer-events: none; border-radius: 2px;
+  background: linear-gradient(90deg, #ffffff00, #fff8dc 30%, #bfe3ff 70%, #ffffff00); box-shadow: 0 0 10px #fff8dc; animation: zbeam .85s ease-out forwards; }
+@keyframes zbeam { 0% { opacity: 0; transform: scaleX(.2); } 30% { opacity: 1; transform: scaleX(1); } 100% { opacity: 0; } }
+.pc.holds .pc-rot { animation: holds 1.3s ease-out; }
+@keyframes holds { 0%, 100% { filter: none; } 35% { filter: brightness(1.7) drop-shadow(0 0 12px #fff3c4); } }
+.zghost.into { animation: intolift .6s ease-out forwards; }
+@keyframes intolift { to { transform: translateY(-14px) scale(1.06); filter: brightness(1.8); } }
