@@ -40,7 +40,8 @@ export const lookup = (data, n) => (n ? data.byName.get(n) || data.byLower.get(S
 // a carta de uma permanente: numa ficha só conta a carta real com o nome inteiro igual (uma ficha «Blood» apanhava a
 // face de «Flesh // Blood», com a imagem e o tipo de feitiço dela); senão é a ficha desenhada/do índice de fichas
 export const permCard = (data, p) => {
-  const c = lookup(data, p?.name)
+  // uma ficha que é cópia de uma carta («Jace, Cunning Castaway Token»): a carta verdadeira, sem o « Token»
+  const c = lookup(data, p?.name) || (p?.token && /\sToken$/.test(String(p.name)) ? lookup(data, String(p.name).replace(/\s+Token$/, '')) : null)
   return c && p.token && c.n.toLowerCase() !== String(p.name).replace(/ Token$/, '').toLowerCase() ? null : c
 }
 // nomes dos marcadores (tabuleiro e menus da mesa livre)

@@ -8,7 +8,7 @@ import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx
 import { tx } from './i18n.js'
 import { playDiff } from './sfx.js'
 import { ask as confirmAsk } from './confirm.jsx'
-import { addDmg } from './game.js'
+import { addDmg, lookup } from './game.js'
 import { Syms } from './ui.jsx'
 import RulesQuick from './rulesquick.jsx'
 import { obviousPay } from './mana.js'
@@ -525,7 +525,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const setLay = f => setLayS(x => { const y = f(x); try { localStorage.setItem(`grimorio.fp.${sid}`, JSON.stringify(y)) } catch { /* sem armazenamento */ } return y })
   const keysIn = (box, sel, attr) => [...box.querySelectorAll(sel)].map(e => e.getAttribute(attr).replace(/^k:/, ''))
   const moveBefore = (keys, k, before) => { const l = keys.filter(x => x !== k), i = before == null ? -1 : l.indexOf(before); l.splice(i < 0 ? l.length : i, 0, k); return l }
-  const kindOf = c => (c?.land ? 'lands' : c?.creature || c?.loyalty != null || c?.counters?.DEFENSE != null ? 'front' : 'others')  // pela palavra do Forge: uma Enduring de volta é encantamento
+  const kindOf = c => {  // pela palavra do Forge e, na mão (onde nem sempre vem), pelo tipo da carta nos dados
+    const inHand = c && (me?.hand || []).some(h => h.id === c.id)  // no campo manda o Forge (uma Enduring volta como encantamento)
+    const t = inHand && !c.hidden ? (lookup(data, c.name)?.t || '').split(' // ')[0] : ''
+    return c?.land || (!c?.creature && /\bLand\b/.test(t) && !/Creature/.test(t)) ? 'lands'
+      : c?.creature || c?.loyalty != null || c?.counters?.DEFENSE != null || /\b(Creature|Planeswalker|Battle)\b/.test(t) ? 'front' : 'others'
+  }  // pela palavra do Forge: uma Enduring de volta é encantamento
   // onde a carta vai ficar no teu lado: largada à altura das cartas de uma fila (a fila debaixo do dedo ou a dela —
   // criaturas, terrenos, outras) entra nessa fila, no sítio pela posição; largada longe das filas fica solta onde a
   // pousaste (Livre) ou na casa mais perto (Grelha). Com «Filas automáticas» vai sempre para uma fila.
@@ -545,6 +550,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     // encantamento/artefacto (não criatura, não terreno) só entra na fila dele: largado no espaço vazio à direita (que é da
     // fila dos terrenos ou das criaturas, esticadas) antes ia parar a essa fila; agora fica solto onde o largaste
     if (kind === 'others' && under && !under.classList.contains('others')) under = null
+    if (kind === 'front' && under && !under.classList.contains('front')) under = null  // uma criatura largada nos terrenos não vai para lá
     for (const row of [...new Set([under, rowOf(kind)])].filter(Boolean)) {
       const cs = [...row.querySelectorAll('.pc[data-z^="k:"]')].filter(e => e.dataset.z !== `k:${id}` && !e.closest('.bfree')).map(e => e.getBoundingClientRect())
       const q = cs.length ? { top: Math.min(...cs.map(r => r.top)), bottom: Math.max(...cs.map(r => r.bottom)) } : row.getBoundingClientRect()
@@ -555,8 +561,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       const before = keys.find(k => { const e = row.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect(); return e && e.left + e.width / 2 > x }) ?? null
       return { row: r, before, box: row.classList.contains('rear') ? row.querySelector('.brow.others') || row : row }
     }
-    if (P.place === 'rows') return { row: kind, before: null, box: rowOf(kind) }
-    return { free: spotOn(side, x, y, kind, P.place === 'grid', id) }
+    // fora das filas: cada carta vai para a fila dela (criaturas/planeswalkers à frente, encantamentos e artefactos na
+    // deles), na posição pelo x; só no modo Livre fica solta onde a largaste
+    if (P.place !== 'free') {
+      const row = side.querySelector(`.brow.${kind}`), keys = row ? keysIn(row, '.pc[data-z^="k:"]', 'data-z').filter(k => k !== String(id)) : []
+      const before = row && keys.find(k => { const e = row.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect(); return e && e.left + e.width / 2 > x }) || null
+      return { row: kind, before, box: row || null }
+    }
+    return { free: spotOn(side, x, y, kind, false, id) }
   }
   const putAt = (id, w) => setLay(l => {  // guarda o sítio escolhido (a carta pode ainda estar na mão: conta quando entrar)
     const free = { ...l.free }; delete free[id]

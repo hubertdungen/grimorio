@@ -22,8 +22,10 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
     if (!el) {
       const card = e.pointerType !== 'mouse' && onPeek && e.target.closest('[data-z^="k:"], [data-zid], .hc[data-z], .stk[data-z]')
       if (!card) return
-      const x0 = e.clientX, y0 = e.clientY, t = setTimeout(() => { buzz(); onPeek(card) }, 450)
-      const off = () => { clearTimeout(t); removeEventListener('pointermove', mv); removeEventListener('pointerup', off); removeEventListener('pointercancel', off) }
+      let peeked = false
+      const x0 = e.clientX, y0 = e.clientY, t = setTimeout(() => { peeked = true; buzz(); onPeek(card) }, 450)
+      const off = () => { clearTimeout(t); removeEventListener('pointermove', mv); removeEventListener('pointerup', off); removeEventListener('pointercancel', off)
+        if (peeked) { dragged.current = true; setTimeout(() => { dragged.current = false }, 0) } }
       const mv = ev => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) off() }
       addEventListener('pointermove', mv); addEventListener('pointerup', off); addEventListener('pointercancel', off)
       return
@@ -31,7 +33,8 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
     const id = +(el.dataset.h || el.dataset.z.slice(2)), from = el.dataset.from || (el.dataset.h ? 'hand' : 'field')
     const r = el.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY
     let gap = null, ghost = null, raf = 0, x = r.left + r.width / 2, y = r.top + r.height / 2, tx0 = x0, ty0 = y0, rot = 0, rx = 0, over = null
-    const long = e.pointerType !== 'mouse' && setTimeout(() => { buzz(); onLong?.(id) }, 450)  // tocar e manter = ver em grande (com um toque de vibração)
+    let longed = false
+    const long = e.pointerType !== 'mouse' && setTimeout(() => { longed = true; buzz(); onLong?.(id) }, 450)  // tocar e manter = ver em grande (com um toque de vibração)
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     const mark = t => { if (over) over.classList.remove('fp-over'); over = t; if (t) t.classList.add('fp-over') }
     const targetAt = (px, py) => document.elementFromPoint(px, py)
@@ -63,6 +66,9 @@ export function useDrag(onDrop, onLong, onMove, sel = '[data-h], .bside.bottom .
     const up = ev => {
       clearTimeout(long)
       window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up)
+      // depois de manter premido (carta em grande), o toque que se segue não é um clique: abria o menu do planeswalker por
+      // cima da carta em grande, ou ativava/virava a carta
+      if (longed && !ghost) { dragged.current = true; setTimeout(() => { dragged.current = false }, 0); return }
       if (!ghost) return
       cancelAnimationFrame(raf); mark(null); gap?.classList.remove('fp-gap'); onMove?.(null)
       dragged.current = true; dragEnd = Date.now(); setTimeout(() => { dragged.current = false }, 0)  // o clique que vem a seguir ao largar não conta

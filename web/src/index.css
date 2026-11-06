@@ -3790,3 +3790,7 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .ml-aside { position: relative; }
 .ml-aside .fp-zoom:not(:has(img)) { display: none; }
 .ml-aside .fp-zoom:has(img) { position: absolute; top: 0; left: 0; right: 0; z-index: 30; max-height: none; pointer-events: none; box-shadow: 0 18px 50px #000c; }
+/* os montes (biblioteca, cemitério, exílio) por cima da faixa da mão: no tablet a mão cobria-os e tocar no grimório
+   não fazia nada (o toque ia para a mão) */
+.bhud .zones { position: relative; z-index: 9; }  /* a mão (.fp-hand) está no 8 */
+.bhud .zones { pointer-events: none; } .bhud .zones > * { pointer-events: auto; }  /* só os montes: o vazio da faixa deixa passar para a mão */
