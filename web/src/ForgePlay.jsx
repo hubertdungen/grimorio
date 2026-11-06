@@ -801,6 +801,16 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useEffect(() => () => { try { window.GrimorioApp?.orientation?.('auto'); screen.orientation?.unlock?.() } catch { /* nada a desfazer */ } }, [])
   const persp = () => { setFpPrefs({ persp: !fpPrefs().persp }); redraw(x => x + 1) }
   const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null), peek = usePeek(), diceBox = useRef(null), dice = useTableDice(diceBox)
+  // quem começa: a moeda 3D cai na mesa com o resultado que o Forge decidiu (cara = começas tu), uma vez por jogo
+  const tossed = useRef(false)
+  useEffect(() => {
+    if (tossed.current || !st?.turn || st.turn > 1 || st.active == null || !me) return
+    tossed.current = true
+    try { const k = `grimorio.fp.toss.${sid}`; if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1') } catch { /* sem armazenamento: lança na mesma */ }
+    const meFirst = st.active === me.id
+    setTimeout(() => dice.roll(['moeda'], [meFirst ? 1 : 2]), 500)  // sem limpar: uma mudança de estado a meio não a pode cancelar
+    setTimeout(() => setToast({ title: meFirst ? tx('Moeda: começas tu') : tx('Moeda: começa {p}', { p: opp?.name || tx('o adversário') }), msg: '' }), 2300)
+  }, [st?.turn, st?.active])  // eslint-disable-line react-hooks/exhaustive-deps
   const P = fpPrefs()
   const stage = useStage(fitBox, stageWrap, !!st)
   // a arte escolhida em cada deck ({a: {carta: edição/imagem}, b: …}): estável entre estados para não redesenhar a mesa toda
