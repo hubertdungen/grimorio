@@ -11,7 +11,7 @@ import { playEvent, play } from './sfx.js'
 import { attackStyle, attackFx } from './orbfx.js'
 import { leaveGhost } from './tablekit.js'
 import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
-import { PHASES, replayStates, giantTurns, lookup, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
+import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
 const PH_SHORT = { untap: tx('Desvirar'), upkeep: tx('Manut.'), draw: tx('fase§Compra'), main1: tx('Princ. 1'), combat: tx('Combate'), main2: tx('Princ. 2'), end: tx('fase§Final') }
@@ -262,7 +262,7 @@ function PtExplain({ p, data, at }) {  // at: onde está o número (no ecrã): a
 export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // tgt: [lado, nome] do jogador atacado (3+ jogadores)
   const [ex, setEx] = useState(null)  // a conta do P/R aberta: o retângulo do número
   const [enter] = useState(() => !quiet && !(Date.now() - (seenAt.get(p.key) || 0) < 600000))
-  const c = lookup(data, p.name)
+  const c = permCard(data, p)
   const creature = isCreature(data, p)
   const pt = creature ? powTough(data, p) : null
   const kws = kwsOf(c, p)
@@ -680,7 +680,7 @@ export const orbEnv = (k, s, data) => {
   const mine = new Set((z.perms || []).map(p => p.key))
   const others = (s.sides || []).filter(x => x !== k).flatMap(x => s[x]?.perms || [])
   let good = 0, heat = 0, cold = 0
-  for (const p of z.perms || []) { const c = lookup(data, p.name); if (!c) continue
+  for (const p of z.perms || []) { const c = permCard(data, p); if (!c) continue
     if (/Aura|Equipment/.test(c.t) && mine.has(p.attachedTo)) good += 0.25; else if (/Enchantment/.test(c.t) && !/Aura/.test(c.t)) good += 0.12
     if (/\bSnow\b/.test(c.t)) cold += 0.2 }
   const bad = others.filter(p => p.attachedTo && mine.has(p.attachedTo)).length * 0.4
@@ -1302,7 +1302,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
       {hand}
       <div className="zones">
         {z.command.map(c => {
-          const cc = lookup(data, c.name)
+          const cc = lookup(data, c.name) || tokenCard(c.name)  // masmorras (venture/iniciativa) vêm do índice de fichas
           return (
             <div key={c.name} data-cmd={c.name} className={`cmdz ${c.out ? 'out' : ''}`} title={`${tx('Zona de comando: {c}', { c: short(c.name) })}${c.room ? ` · ${tx('sala: {r}', { r: c.room })}` : ''}${c.casts ? ` · ${tx('lançado {n}× · imposto +{x}', { n: c.casts, x: 2 * c.casts })}` : ''}${c.out ? ` ${tx('(está em jogo ou na pilha)')}` : ''}`} data-z={`n:${c.name}`}>
               {cc ? <img src={im(cc, 'art_crop')} alt={c.name} /> : <span>{short(c.name)}</span>}
@@ -1385,7 +1385,7 @@ function zoomInfo(z, s, data) {
     for (const k of s.sides) {
       const p = s[k].perms.find(x => x.key === key)
       if (p) {
-        const c = lookup(data, p.name)
+        const c = permCard(data, p)
         const att = all.filter(x => x.attachedTo === key)
         const host = p.attachedTo && all.find(x => x.key === p.attachedTo)
         const pt = isCreature(data, p) ? powTough(data, p) : null

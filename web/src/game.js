@@ -37,6 +37,12 @@ export function initialState(life = 20, setup = null) {
 }
 
 export const lookup = (data, n) => (n ? data.byName.get(n) || data.byLower.get(String(n).toLowerCase()) : null)
+// a carta de uma permanente: numa ficha só conta a carta real com o nome inteiro igual (uma ficha «Blood» apanhava a
+// face de «Flesh // Blood», com a imagem e o tipo de feitiço dela); senão é a ficha desenhada/do índice de fichas
+export const permCard = (data, p) => {
+  const c = lookup(data, p?.name)
+  return c && p.token && c.n.toLowerCase() !== String(p.name).replace(/ Token$/, '').toLowerCase() ? null : c
+}
 // nomes dos marcadores (tabuleiro e menus da mesa livre)
 export const CT = { '+1/+1': '+1/+1', '-1/-1': '−1/−1', loyalty: tx('lealdade'), lore: tx('capítulo'), charge: tx('carga'), stun: tx('atordoamento'), shield: tx('escudo'), oil: tx('óleo'), time: tx('tempo'), defense: tx('defesa'), poison: tx('veneno'),
   fade: tx('desvanecer'), age: tx('idade'), level: tx('nível'), finality: tx('finalidade'), bounty: tx('recompensa'), energy: tx('energia'), experience: tx('experiência'), rad: tx('radiação') }
@@ -47,7 +53,7 @@ const faces = n => String(n || '').split(' // ')
 // imagem rodada 180°), null = não se vira
 export const flipKind = c => (!c ? null : c.df ? 'df' : c.n.includes(' // ') && /\bflip (?!a coin|that coin|coins)/i.test(c.o || '') ? 'flip' : null)
 export const typeOf = (data, perm) => {
-  const c = lookup(data, perm.name)
+  const c = permCard(data, perm)
   const tl = c ? c.t.split(' // ')[perm.flipped && c.t.includes(' // ') ? 1 : 0] : ''
   return tl || (perm.token ? (perm.pt ? tx('Ficha de criatura') : tx('Ficha')) : '')
 }
@@ -61,7 +67,7 @@ const comesBackNonCreature = c => /It's not a creature/i.test(c?.o || '')
 const COL_W = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }
 const NUM_W = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8 }
 export function devotionGate(data, perm) {
-  const c = lookup(data, perm.name)
+  const c = permCard(data, perm)
   const m = c && /as long as your devotion to (white|blue|black|red|green)(?: and (white|blue|black|red|green))? is less than (\w+)/i.exec(c.o)
   return m ? { cols: [m[1], m[2]].filter(Boolean).map(x => COL_W[x.toLowerCase()]), need: NUM_W[m[3].toLowerCase()] || +m[3] || 0 } : null
 }
@@ -84,7 +90,7 @@ export const isLand = (data, perm) => perm.land || /\bLand\b/.test(typeOf(data, 
 
 // P/R atual: base (do Forge ou da carta) + marcadores +1/+1 e −1/−1 + efeitos até ao fim do turno
 export function powTough(data, perm) {
-  const c = lookup(data, perm.name)
+  const c = permCard(data, perm)
   const base = perm.pt || (c && /\//.test(c.pt) ? c.pt : null)
   if (!base) return null
   let [p, t] = base.split('/').map(x => parseInt(x, 10))
@@ -100,7 +106,7 @@ export function powTough(data, perm) {
 export function ptExplain(data, perm) {
   const pt = powTough(data, perm)
   if (!pt) return null
-  const c = lookup(data, perm.name), m = /^(\d+)\/(\d+)$/.exec(c?.pt || '')
+  const c = permCard(data, perm), m = /^(\d+)\/(\d+)$/.exec(c?.pt || '')
   const printed = m && !perm.token ? [+m[1], +m[2]] : null
   const k = perm.counters || {}, plus = k['+1/+1'] || 0, minus = k['-1/-1'] || 0
   const other = printed ? [pt.p - printed[0] - plus + minus, pt.t - printed[1] - plus + minus] : null

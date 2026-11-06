@@ -12,12 +12,17 @@ tokens, by_card, by_name, parts_name = {}, {}, {}, {}
 with gzip.open(os.path.join(RAW, "oracle.jsonl.gz"), "rt") as fh:
     for line in fh:
         c = json.loads(line)
-        if c.get("layout") in ("token", "double_faced_token") or "Token" in c.get("type_line", ""):
+        # masmorras (venture/iniciativa: as salas na zona de comando) também, para terem imagem
+        if c.get("layout") in ("token", "double_faced_token") or "Token" in c.get("type_line", "") or c.get("type_line", "").split(" — ")[0] == "Dungeon":
             if c.get("layout") == "emblem":
                 continue
             pt = f'{c["power"]}/{c["toughness"]}' if "power" in c else ""
             tokens[c["id"]] = [c["name"], pt, "".join(c.get("colors") or []), c.get("type_line", "")]
             by_name.setdefault(c["name"].lower(), []).append(c["id"])
+            if " // " in c["name"]:  # ficha de duas faces («Undercity // The Initiative»): também por cada face
+                for f in c["name"].split(" // "):
+                    if c["id"] not in by_name.setdefault(f.lower(), []):
+                        by_name[f.lower()].append(c["id"])
         for part in c.get("all_parts") or []:
             if part.get("component") == "token" and part.get("id") != c["id"]:
                 by_card.setdefault(c["name"], []).append(part["id"])
