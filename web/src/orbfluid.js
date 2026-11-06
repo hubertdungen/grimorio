@@ -102,7 +102,7 @@ export class FluidSim {
     this.max = n
     this.x = new Float32Array(n * 3); this.p = new Float32Array(n * 3); this.v = new Float32Array(n * 3)
     this.m = new Uint8Array(n); this.alive = new Uint8Array(n); this.age = new Float32Array(n); this.fade = new Float32Array(n)  // fade>0: a dissolver-se
-    this.out = new Uint8Array(n)  // 1: já verteu para fora do vidro
+    this.out = new Uint8Array(n); this.outT = new Float32Array(n)  // 1: já verteu para fora do vidro (outT: há quanto tempo)
     this.count = 0; this.t = 0; this.want = {}; this.holes = []; this.rnd = mulberry(seed)
     this.H = Math.max(0.2, Math.cbrt(2.48 / (n * 0.95)) * 1.5); this.GN = Math.max(6, Math.floor(3.2 / this.H))
     this.head = new Int32Array(this.GN ** 3); this.next = new Int32Array(n)
@@ -138,7 +138,7 @@ export class FluidSim {
     const j = this.rnd, s = 0.05
     this.x[i * 3] = x + (j() - 0.5) * s; this.x[i * 3 + 1] = y + (j() - 0.5) * s; this.x[i * 3 + 2] = z + (j() - 0.5) * s
     this.v[i * 3] = (j() - 0.5) * 0.6; this.v[i * 3 + 1] = (j() - 0.5) * 0.6; this.v[i * 3 + 2] = (j() - 0.5) * 0.6
-    this.m[i] = NAMES.indexOf(mat); this.alive[i] = 1; this.age[i] = 0; this.fade[i] = 0; this.out[i] = 0
+    this.m[i] = NAMES.indexOf(mat); this.alive[i] = 1; this.age[i] = 0; this.fade[i] = 0; this.out[i] = 0; this.outT[i] = 0
     if (this.tint) this.tint[i] = 0
     return i
   }
@@ -202,7 +202,8 @@ export class FluidSim {
     const X = this.x, P = this.p, V = this.v, Mi = this.m, dead = !!opts.dead, stir = opts.stir || 0
     dt = Math.min(dt, 1 / 30); this.t += dt
     // a fonte: o que falta sai do centro, devagar; o que sobra dissolve-se (fade) — sem mudanças de repente
-    if (!dead) {
+    if (opts.freeze) return 0  // pedra: tudo parado onde estava
+    if (!dead && !opts.hold) {
       const have = {}
       for (let i = 0; i < n; i++) if (this.alive[i] && !this.out[i] && !this.fade[i]) { const k = NAMES[Mi[i]]; have[k] = (have[k] || 0) + 1 }
       let budget = this.t < 1.2 ? 60 : Math.max(2, Math.round(70 * dt * 6))  // ao aparecer enche depressa; depois, devagar
@@ -227,10 +228,15 @@ export class FluidSim {
       const zk = ZAP_OF[NAMES[Mi[i]]]
       if (zk && !this.out[i] && this.zaps < 3 && this.rnd() < (M.charge ? 0.012 : 0.002) * (1 + (opts.charge || 0))) this.bolt(i, zk)
       const nm = NAMES[Mi[i]]
-      if (this.out[i]) { V[o] += g[0] * dt; V[o + 1] += (g[1] - 3.2) * dt; V[o + 2] += g[2] * dt }  // já fora: cai para o chão
+      if (this.out[i]) {  // já fora: o que pesa cai para o chão; o gás sobe e desfaz-se; a luz espalha-se e apaga-se
+        const kd = KIND[Mi[i]]; this.outT[i] += dt
+        if (kd === 2) { V[o + 1] += 2.2 * dt; V[o] *= 0.985; V[o + 2] *= 0.985; if (!this.fade[i] && this.outT[i] > 1.5 + (i % 7) * 0.4) this.fade[i] = 1e-3 }
+        else if (kd === 3) { V[o] *= 0.97; V[o + 1] = V[o + 1] * 0.97 + 0.6 * dt; V[o + 2] *= 0.97; if (!this.fade[i] && this.outT[i] > 0.8 + (i % 5) * 0.3) this.fade[i] = 1e-3 }
+        else { V[o] += g[0] * dt; V[o + 1] += (g[1] - 3.2) * dt; V[o + 2] += g[2] * dt }
+      }
       else {
         // puxado para o centro (força da matéria), a rodar à volta do eixo (que muda devagar), mais a inércia da esfera
-        const kc = CENTER[nm] ?? 1, sw = SWIRL[nm] ?? 0, A = AXIS[nm] || [0, 1, 0], wob = Math.sin(this.t * 0.11) * 0.3, aL = Math.hypot(A[0] + wob, A[1], A[2] - wob) || 1
+        const kc = (CENTER[nm] ?? 1) * (opts.pull ?? 1), sw = SWIRL[nm] ?? 0, A = AXIS[nm] || [0, 1, 0], wob = Math.sin(this.t * 0.11) * 0.3, aL = Math.hypot(A[0] + wob, A[1], A[2] - wob) || 1
         const ux = (A[0] + wob) / aL, uy = A[1] / aL, uz = (A[2] - wob) / aL, x = X[o], y = X[o + 1], z = X[o + 2]
         V[o] += (-kc * x + g[0]) * dt; V[o + 1] += (-kc * y + g[1]) * dt; V[o + 2] += (-kc * z + g[2]) * dt
         // a rotação é uma velocidade a que tende (não uma força que se acumula: colava tudo ao vidro, oco por dentro)
@@ -291,7 +297,7 @@ export class FluidSim {
       if (this.out[i] || dead) {
         this.out[i] = 1
         if (X[o + 1] < FLOOR) { X[o + 1] = FLOOR; const f = 1 - Math.min(1, M.fr + 0.4); V[o] *= f; V[o + 2] *= f }
-        if (this.age[i] > 40 && !this.fade[i]) this.fade[i] = 1e-3
+        if (this.outT[i] > (dead ? 30 : 12) && !this.fade[i]) this.fade[i] = 1e-3
       } else {
         const r = Math.hypot(X[o], X[o + 1], X[o + 2])
         if (r > R) {
@@ -354,13 +360,34 @@ export class FluidSim {
       }
     }
   }
+  release(xf = null, kick = 1, mode = 'burst') {
+    const xs = xf?.s || [1, 1, 1], xo = xf?.o || [0, 0, 0]
+    for (let i = 0; i < this.count; i++) {
+      if (!this.alive[i] || this.out[i]) continue
+      const o = i * 3, M = MAT[NAMES[this.m[i]]], vis = 1 / (1 + (M.s || 0) * 0.5)
+      for (let q = 0; q < 3; q++) { const x = this.x[o + q] * xs[q] + xo[q], d = x - this.x[o + q]; this.x[o + q] = x; this.p[o + q] += d }
+      const rx = this.x[o] - xo[0], ry = this.x[o + 1] - xo[1], rz = this.x[o + 2] - xo[2], L = Math.hypot(rx, ry, rz) || 1, sp = kick * (1.5 + this.rnd() * 2.5) * vis
+      if (mode === 'split') { this.v[o] = Math.sign(rx || this.rnd() - 0.5) * sp * 1.2; this.v[o + 1] = sp * 0.5 + ry; this.v[o + 2] = rz / L * sp * 0.4 }
+      else { this.v[o] = rx / L * sp; this.v[o + 1] = ry / L * sp + kick * 1.6; this.v[o + 2] = rz / L * sp * 0.6 }
+      this.p[o] = this.x[o] - this.v[o] / 60; this.p[o + 1] = this.x[o + 1] - this.v[o + 1] / 60; this.p[o + 2] = this.x[o + 2] - this.v[o + 2] / 60
+      this.out[i] = 1; this.outT[i] = 0
+    }
+  }
+  // arrastar o dedo pelo que verteu empurra-o (coordenadas da cena)
+  poke(x, y, vx, vy) {
+    for (let i = 0; i < this.count; i++) {
+      if (!this.alive[i] || !this.out[i]) continue
+      const o = i * 3, d = Math.hypot(this.x[o] - x, this.x[o + 1] - y)
+      if (d < 0.6) { const k = (1 - d / 0.6) * 0.01; this.x[o] += vx * k * 0.016; this.p[o] -= vx * k * 0.016; this.x[o + 1] += Math.max(0, -vy * k) * 0.016 + 0.004; this.p[o + 1] -= Math.max(0.5, -vy * k) * 0.016 }
+    }
+  }
   compact() {
     let w = 0
     for (let i = 0; i < this.count; i++) {
       if (!this.alive[i]) continue
       if (w !== i) {
         this.x.copyWithin(w * 3, i * 3, i * 3 + 3); this.p.copyWithin(w * 3, i * 3, i * 3 + 3); this.v.copyWithin(w * 3, i * 3, i * 3 + 3)
-        this.m[w] = this.m[i]; this.alive[w] = 1; this.age[w] = this.age[i]; this.fade[w] = this.fade[i]; this.out[w] = this.out[i]
+        this.m[w] = this.m[i]; this.alive[w] = 1; this.age[w] = this.age[i]; this.fade[w] = this.fade[i]; this.out[w] = this.out[i]; this.outT[w] = this.outT[i]
         if (this.crustCol) this.crustCol.copyWithin(w * 3, i * 3, i * 3 + 3)
         if (this.tint) this.tint[w] = this.tint[i]
       }
@@ -369,20 +396,24 @@ export class FluidSim {
     this.count = w
   }
   // para desenhar: posição, cor, tamanho, brilho e opacidade de cada partícula viva
-  fill(pos, col, size, glow, alpha, now = 0, shape = null, rot = null, kind = null) {
+  fill(pos, col, size, glow, alpha, now = 0, shape = null, rot = null, kind = null, xf = null) {
     let k = 0
+    const xs = xf?.s || [1, 1, 1], xo = xf?.o || [0, 0, 0], cz = Math.cos(xf?.rz || 0), sz = Math.sin(xf?.rz || 0), tc = xf?.col, tk = xf?.k || 0, sm = Math.min(xs[0], xs[1], xs[2])
     for (let i = 0; i < this.count; i++) {
       if (!this.alive[i]) continue
       const M = MAT[NAMES[this.m[i]]], o = i * 3
-      pos[k * 3] = this.x[o]; pos[k * 3 + 1] = this.x[o + 1]; pos[k * 3 + 2] = this.x[o + 2]
+      if (xf && !this.out[i]) { const x = this.x[o] * xs[0], y = this.x[o + 1] * xs[1]; pos[k * 3] = x * cz - y * sz + xo[0]; pos[k * 3 + 1] = x * sz + y * cz + xo[1]; pos[k * 3 + 2] = this.x[o + 2] * xs[2] + xo[2] }
+      else { pos[k * 3] = this.x[o]; pos[k * 3 + 1] = this.x[o + 1]; pos[k * 3 + 2] = this.x[o + 2] }
       const nmi = NAMES[this.m[i]]
       const c = (nmi === 'crust' || (nmi === 'flash' && this.tint?.[i])) && this.crustCol ? [this.crustCol[o], this.crustCol[o + 1], this.crustCol[o + 2]]
         : M.prism ? [0.6 + 0.4 * Math.sin(now * 2 + i), 0.6 + 0.4 * Math.sin(now * 2 + i + 2.1), 0.6 + 0.4 * Math.sin(now * 2 + i + 4.2)] : M.col
       const tw = M.wave ? 0.75 + 0.25 * Math.sin(now * 4 + i) : 1
       col[k * 3] = c[0] * tw; col[k * 3 + 1] = c[1] * tw; col[k * 3 + 2] = c[2] * tw
+      if (tc && tk > 0) for (let q = 0; q < 3; q++) col[k * 3 + q] += (tc[q] - col[k * 3 + q]) * tk
       if (shape) { shape[k] = M.shape || (KIND[this.m[i]] === 2 ? SHAPE_GAS : nmi === 'fire' || nmi === 'ember' ? SHAPE_FIRE : 0); rot[k] = (M.shape === 3 ? Math.atan2(this.v[o + 1], this.v[o]) : i * 1.7 + now * (M.wave ? 0.6 : 0.2)) }
       if (kind) kind[k] = KIND[this.m[i]]
       size[k] = M.sz * (this.H / 0.24) * (M.wave ? 0.8 + 0.4 * Math.sin(now * 3 + i * 1.7) : 1); glow[k] = M.glow  // poucas partículas = gotas maiores
+      if (xf && !this.out[i]) size[k] *= sm  // encolhe com o vidro (implodir)
       alpha[k] = M.a * (this.fade[i] > 0 ? 1 - this.fade[i] : 1) * (this.age[i] < 0.25 ? this.age[i] / 0.25 : 1)
       k++
     }

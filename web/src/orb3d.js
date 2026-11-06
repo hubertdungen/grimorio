@@ -291,7 +291,49 @@ function holesFor(o, crack) {
   return Array.from({ length: crack > 0.8 ? 4 : crack > 0.5 ? 3 : 2 }, () => { const a = rnd() * Math.PI * 2, y = -0.2 - rnd() * 0.75, c = Math.sqrt(1 - y * y); return { d: [Math.cos(a) * c, y, Math.sin(a) * c], k: crack } })
 }
 // desenhar o fluido: partículas opacas/normais e as de luz (aditivas), com o tamanho e a cor de cada uma
-function drawFluid(r, o, fs, now) {
+// o halo com física: motas de luz nas cores do deck a orbitar por fora do vidro, cada uma no seu eixo e sentido; ficam
+// para trás quando arrastas a esfera, espalham-se com os golpes, são mais com mais presença na mesa e apagam-se na morte
+const HN = 56, hexRGB = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255] }
+function stepHalo(r, o, { cols, pr, g, hit, dead, dt, now, glow }) {
+  let H = o.halo
+  if (!H) {
+    const geo = new THREE.BufferGeometry()
+    for (const [k, d] of [['position', 3], ['color', 3], ['size', 1], ['alpha', 1], ['shape', 1], ['rot', 1]]) geo.setAttribute(k, new THREE.BufferAttribute(new Float32Array(HN * d), d).setUsage(THREE.DynamicDrawUsage))
+    const pts = new THREE.Points(geo, r.ptMats[1]); pts.frustumCulled = false; pts.renderOrder = 2.5; pts.visible = false; r.scene.add(pts)
+    const rnd = mulb(Math.floor(o.seed * 1e5)), p = new Float32Array(HN * 3), v = new Float32Array(HN * 3), A = [], R0 = [], W = [], a = new Float32Array(HN)
+    for (let i = 0; i < HN; i++) {
+      const th = rnd() * Math.PI * 2, ph = Math.acos(rnd() * 2 - 1), rr = 1.22 + rnd() * 0.55
+      p.set([Math.sin(ph) * Math.cos(th) * rr, Math.cos(ph) * rr, Math.sin(ph) * Math.sin(th) * rr], i * 3)
+      const ax = [(rnd() - 0.5) * 0.9, 1, (rnd() - 0.5) * 0.9], L = Math.hypot(...ax); A.push(ax.map(c => c / L))
+      R0.push(rr); W.push((0.5 + rnd() * 0.9) * (i % 3 === 0 ? -1 : 1))  // um terço gira ao contrário
+    }
+    H = o.halo = { pts, p, v, A, R0, W, a }
+  }
+  const { p, v, A, R0, W, a } = H, at = H.pts.geometry.attributes
+  const want = dead ? 0 : Math.round(10 + 46 * Math.min(1, pr))
+  for (let i = 0; i < HN; i++) {
+    const o3 = i * 3, x = p[o3], y = p[o3 + 1], z = p[o3 + 2], d = Math.hypot(x, y, z) || 1, nx = x / d, ny = y / d, nz = z / d
+    const [ux, uy, uz] = A[i], w = W[i] * (1 + 0.6 * pr)
+    // a velocidade da órbita (eixo × posição) e a mola que a segura no raio dela
+    const tx = (uy * z - uz * y) * w, ty = (uz * x - ux * z) * w, tz = (ux * y - uy * x) * w, sp = (R0[i] - d) * 5
+    const relax = dead ? 0.2 : 1.6
+    v[o3] += ((tx - v[o3]) * relax + nx * sp + g[0]) * dt; v[o3 + 1] += ((ty - v[o3 + 1]) * relax + ny * sp + g[1] - (dead ? 2.5 : 0)) * dt; v[o3 + 2] += ((tz - v[o3 + 2]) * relax + nz * sp + g[2]) * dt
+    if (hit) { const k = hit * (0.6 + ((i * 7919) % 100) / 100); v[o3] += nx * k; v[o3 + 1] += ny * k; v[o3 + 2] += nz * k }
+    if (d < 1.08) { v[o3] += nx * 3 * dt * 20; v[o3 + 1] += ny * 3 * dt * 20; v[o3 + 2] += nz * 3 * dt * 20 }  // não entra no vidro
+    for (let q = 0; q < 3; q++) { v[o3 + q] = Math.max(-8, Math.min(8, v[o3 + q])); p[o3 + q] += v[o3 + q] * dt }
+    // aparecem e apagam-se devagar (presença); atrás da esfera quase não se veem
+    a[i] += ((i < want ? 1 : 0) - a[i]) * Math.min(1, dt * (dead ? 1.2 : 0.8))
+    const c = hexRGB(cols.length ? COL[cols[i % cols.length]] : glow), tw = 0.65 + 0.35 * Math.sin(now * (2 + (i % 5)) + i)
+    at.position.array.set([p[o3], p[o3 + 1], p[o3 + 2]], o3); at.color.array.set(c, o3)
+    const behind = p[o3 + 2] < 0 && Math.hypot(p[o3], p[o3 + 1]) < 1 ? 0.2 : 1, fast = Math.min(1, Math.hypot(v[o3], v[o3 + 1], v[o3 + 2]) / 6)
+    at.alpha.array[i] = a[i] * tw * behind * 0.85; at.size.array[i] = 0.32 + 0.22 * tw + 0.25 * fast
+    at.shape.array[i] = i % 4 === 0 ? 2 : 0; at.rot.array[i] = now * 0.5 + i
+  }
+  for (const k of ['position', 'color', 'size', 'alpha', 'shape', 'rot']) at[k].needsUpdate = true
+  H.pts.visible = true
+}
+function mulb(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296 } }
+function drawFluid(r, o, fs, now, xf = null) {
   if (!o.pts) {
     const mk = (mat, sc, ord) => { const g = new THREE.BufferGeometry(), n = fs.max
       for (const [k, d] of [['position', 3], ['color', 3], ['size', 1], ['alpha', 1], ['shape', 1], ['rot', 1]]) g.setAttribute(k, new THREE.BufferAttribute(new Float32Array(n * d), d).setUsage(THREE.DynamicDrawUsage))
@@ -299,7 +341,7 @@ function drawFluid(r, o, fs, now) {
     o.pts = { objs: [mk(r.liqMat, r.liqScene, 0), mk(r.ptMats[0], null, 1.5), mk(r.ptMats[0], null, 1.7), mk(r.ptMats[1], null, 2)],
       tmp: { pos: new Float32Array(fs.max * 3), col: new Float32Array(fs.max * 3), size: new Float32Array(fs.max), glow: new Float32Array(fs.max), alpha: new Float32Array(fs.max), shape: new Float32Array(fs.max), rot: new Float32Array(fs.max), kind: new Float32Array(fs.max) } }
   }
-  const T = o.pts.tmp, n = fs.fill(T.pos, T.col, T.size, T.glow, T.alpha, now, T.shape, T.rot, T.kind), cnt = [0, 0, 0, 0]
+  const T = o.pts.tmp, n = fs.fill(T.pos, T.col, T.size, T.glow, T.alpha, now, T.shape, T.rot, T.kind, xf), cnt = [0, 0, 0, 0]
   const A = o.pts.objs.map(p => p.geometry.attributes)
   r.liqMat.uniforms.scale.value = r.ptMats[0].uniforms.scale.value * (r.liqRT.width / SIZE) * 2.1  // na imagem à parte: manchas maiores (fundem-se)
   for (let i = 0; i < n; i++) {
@@ -438,7 +480,9 @@ function draw(now) {
     r.shards.visible = !!fr && crumble
     const showWhole = !fr || md === 'drop' || md === 'melt' || md === 'implode' || md === 'stone' || (md === 'drain' && !crumble)
     r.ball.visible = r.glass.visible = r.glassBack.visible = showWhole
-    r.parts.forEach(m => { m.children[0].visible = md !== 'drain' })  // os cacos do moer já não têm líquido
+    const pfOn = o.el.dataset.pf === '1' && !!o.fs
+    r.parts.forEach(m => { m.children[0].visible = md !== 'drain' && !pfOn })  // os cacos do moer (e com partículas) já não têm líquido
+    r.halves.forEach(h => { h.children[0].visible = !pfOn })
     if (fr && crumble) fr.parts.forEach((b, k) => { stepBody(b, dt); const m = r.parts[k]; m.position.set(...b.p); m.rotation.set(...b.r)
       const u2 = m.children[1].material.uniforms; u2.tint.value.copy(md === 'drain' ? GREY : s.core); u2.crack.value = 1
       if (md === 'drain') m.scale.setScalar(Math.max(0.001, 1 - Math.max(0, age - 2.6) / 1.4)); else m.scale.setScalar(1) })
@@ -517,13 +561,38 @@ function draw(now) {
       o.fsReact = s.react
       if (s.burst) fs.kick([Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5], 0.25)
       const gx = Math.max(-16, Math.min(16, -ax * 0.0014)), gy = Math.max(-16, Math.min(16, ay * 0.0014))
-      fs.step(dts, [gx, gy, 0], { dead: s.dead, stir: s.mood ? 5 : s.react ? 2 : 0 })
-      drawFluid(r, o, fs, now / 1000)
+      let g3 = [gx, gy, 0], opt = { dead: s.dead, stir: s.mood ? 5 : s.react ? 2 : 0 }, xf = null
+      if (fr) {  // a morte: cada modo trata o líquido à sua maneira; quando o vidro deixa de o segurar, solta-se onde está
+        const F = fr.fl || (fr.fl = {}), bx = { o: r.ball.position.toArray(), s: r.ball.scale.toArray() }
+        const go = (k, m) => { if (!F.rel) { F.rel = true; fs.release(bx, k, m) } }
+        g3 = [0, 0, 0]; opt = { hold: true, dead: false }
+        if (md === 'shatter') go(1.3)  // rebenta: tudo para fora com o empurrão dos cacos
+        else if (md === 'split') { if (age > 0.25) go(1, 'split') }  // cortada: verte para os dois lados
+        else if (md === 'drop') {  // cai e salta com o líquido lá dentro (chapinha no ressalto); desfeita, espalha-se no chão
+          const v = fr.ball.v, pv = F.pv || v.slice(), k = 0.12 / Math.max(dt, 1e-3); F.pv = v.slice()
+          g3 = [-(v[0] - pv[0]) * k, -(v[1] - pv[1] + 9 * dt) * k, 0].map(c => Math.max(-14, Math.min(14, c))); xf = bx
+          if (age > 1.6) go(0.6)
+        } else if (md === 'melt') {  // veneno: fica tóxico, assenta no fundo, o vidro abate e escorre
+          const k = Math.min(1, age / 2.4); xf = { ...bx, col: [0.37, 0.82, 0.23], k: 0.75 * k }; opt.pull = 1 - 0.7 * k; g3 = [0, -6 * k, 0]
+          if (age > 1.4) go(0.2)
+        } else if (md === 'drain') {  // moída: escoa pelo fundo, cinzenta; o resto cai quando o vidro se desfaz
+          xf = { col: [0.6, 0.58, 0.56], k: 0.7 * Math.min(1, age / 1.4) }; opt.pull = 0.15; g3 = [0, -9, 0]
+          if (!F.hole) { F.hole = 1; fs.setCracks([{ d: [0, -1, 0], k: 8 }]) }
+          if (crumble) go(0.4)
+        } else if (md === 'implode') { xf = bx; opt.pull = 3; opt.stir = 14 }  // engolida: roda e encolhe com o vidro até um ponto
+        else if (md === 'stone') { opt.freeze = true; xf = { col: [0.42, 0.42, 0.44], k: Math.min(0.85, age / 0.8) } }  // empate: pedra, parada
+        if (F.rel) opt.dead = true
+      }
+      fs.step(fr ? dt || 1 / 60 : dts, g3, opt)
+      drawFluid(r, o, fs, now / 1000, xf)
+      const hit = s.react && s.react !== o.haloReact ? (s.react === 'gain' ? 1.2 : 3.5) : s.burst ? 0.08 : 0; o.haloReact = s.react
+      stepHalo(r, o, { cols: s.cols, pr: E[8] || 0, g: [gx * 0.6, gy * 0.6, 0], hit, dead: s.dead, dt: Math.min(0.05, dts), now: now / 1000, glow: '#' + s.glow.getHexString() })
     }
     r.cam.layers.set(0); r.renderer.render(r.scene, r.cam)
     r.renderer.autoClear = false; r.cam.layers.set(1); r.renderer.render(r.scene, r.cam); r.renderer.autoClear = true; r.cam.layers.set(0)  // o vidro da frente por cima de tudo
     r.comp.visible = false
     if (o.pts) for (const p of o.pts.objs) p.visible = false
+    if (o.halo) o.halo.pts.visible = false
     const cv = (px && px.querySelector('canvas.orb3d')) || o.cv, g = cv.getContext('2d')
     if (cv.width !== SIZE || cv.height !== SIZE) { cv.width = SIZE; cv.height = SIZE }  // um canvas novo é 300×150: a largura já batia certo e a altura ficava a meio
     g.clearRect(0, 0, SIZE, SIZE); g.drawImage(r.renderer.domElement, 0, 0)
@@ -536,8 +605,11 @@ export function attachOrb3d(el, cv) {
   const o = { el, cv, seed: Math.random() * 10 }
   // partida: arrastar empurra os cacos perto do dedo (em vez de mexer a esfera toda) — coordenadas do ecrã → da cena
   el._poke = (x, y, vx, vy) => {
-    if (!o.fr || o.fr.mode !== 'shatter') return
-    const r = (el._proxy?.querySelector('canvas.orb3d') || cv).getBoundingClientRect(), span = 2 * Math.tan(Math.PI / 12) * 11.5
+    if (!o.fr) return
+    const r = (el._proxy?.querySelector('canvas.orb3d') || cv).getBoundingClientRect(), span = 2 * Math.tan(23 * Math.PI / 180) * Math.hypot(7.26, 2.02)  // a câmara da partida
+    const wx0 = ((x - r.left) / r.width - 0.5) * span, wy0 = -((y - r.top) / r.height - 0.5) * span - 0.5
+    if (o.fs) o.fs.poke(wx0, wy0, vx, vy)
+    if (o.fr.mode !== 'shatter') return
     const wx = ((x - r.left) / r.width - 0.5) * span, wy = -((y - r.top) / r.height - 0.5) * span - 0.5
     for (const b of o.fr.parts) {
       const d = Math.hypot(b.p[0] - wx, b.p[1] - wy)
