@@ -3855,6 +3855,7 @@ export default {
   "Stop": "暂停",
   "Fechar (Esc)": "关闭（Esc）",
   "Relógio em pausa: estás fora da mesa": "计时已暂停：你不在牌桌前",
+  "{p} ganhou a moeda ao ar.": "{p} 赢得了掷硬币。",
   "Aspeto das partículas": "粒子外观",
   // Regras › Guia do Grimório (Guide.jsx)
   "Os botões desta área": "本区域的按钮",

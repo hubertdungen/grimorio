@@ -57,7 +57,8 @@ function promptText(msg, st, me) {
   const sv = m.match(/Put (.+?) on the top of library or graveyard/i), sc = m.match(/Put (.+?) on (?:the )?top or bottom of (?:your )?library/i)
   if (sv) return tx('Vigiar: {c} fica no topo da biblioteca ou vai para o cemitério?', { c: sv[1] })
   if (sc) return tx('Vidência: {c} fica no topo ou vai para o fundo da biblioteca?', { c: sc[1] })
-  if (/won the coin toss/.test(m)) return tx('Ganhaste a moeda ao ar: jogas primeiro ou vais em segundo?')
+  if (/you have won the coin toss/i.test(m)) return tx('Ganhaste a moeda ao ar: jogas primeiro ou vais em segundo?')
+  if (/has won the coin toss/i.test(m)) return tx('{p} ganhou a moeda ao ar.', { p: m.split(/ has won/i)[0].trim() || tx('o adversário') })
   // «you are going first!» = começas tu; «IA is going first.\nTu, you are going 2nd.» = começa outro (antes dava sempre «Começas tu»)
   if (/keep your hand/.test(m)) {
     if (/you are going first/i.test(m)) return tx('Começas tu. Ficas com esta mão?')
@@ -874,7 +875,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     setTimeout(() => dice.roll(['moeda'], [won ? 1 : 2], { words: [coinFace(me, 'bottom'), coinFace(opp, 'top')] }), 200)
     if (!won) setTimeout(() => setToast({ title: tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') }), msg: st?.active === me?.id ? tx('Escolheu ir em segundo: começas tu.') : tx('Escolheu jogar primeiro.') }), 2000)
   }
-  useEffect(() => { if (/won the coin toss/.test(pr?.msg || '')) { sawWin.current = true; toss(true) } }, [pr?.msg])  // eslint-disable-line react-hooks/exhaustive-deps
+  // a moeda: «you have won the coin toss» (com a escolha Jogar/Comprar) é tua; «X has won the coin toss» é o aviso a quem
+  // perdeu — antes as duas contavam como tuas e ganhavas sempre
+  useEffect(() => {
+    const m = pr?.msg || ''
+    if (!/won the coin toss/i.test(m)) return
+    const mine = /you have won the coin toss/i.test(m) || (pr?.buttons || []).some(b => /^(Play|Draw)$/.test(b.label))
+    sawWin.current = true; toss(mine)
+  }, [pr?.msg])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!st?.turn || st.turn > 1 || st.active == null || !me) return
     if (series && (series.w?.[0] || 0) + (series.w?.[1] || 0) > 0) { tossed.current = true; return }  // jogo 2+ da série: escolhe quem perdeu

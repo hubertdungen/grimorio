@@ -3855,6 +3855,7 @@ export default {
   "Stop": "Stopp",
   "Fechar (Esc)": "Schließen (Esc)",
   "Relógio em pausa: estás fora da mesa": "Uhr pausiert: du bist nicht am Tisch",
+  "{p} ganhou a moeda ao ar.": "{p} hat den Münzwurf gewonnen.",
   "Aspeto das partículas": "Aussehen der Partikel",
   // Regras › Guia do Grimório (Guide.jsx)
   "Os botões desta área": "Die Buttons in diesem Bereich",

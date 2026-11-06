@@ -3863,6 +3863,7 @@ export default {
   "Stop": "Stop",
   "Fechar (Esc)": "Close (Esc)",
   "Relógio em pausa: estás fora da mesa": "Clock paused: you are away from the table",
+  "{p} ganhou a moeda ao ar.": "{p} won the coin toss.",
   "Aspeto das partículas": "Particle look",
   // Regras › Guia do Grimório (Guide.jsx)
   "Os botões desta área": "The buttons in this area",

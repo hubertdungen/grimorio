@@ -100,11 +100,12 @@ export function createLobby(el, { onClick, onMove, onHand } = {}) {
   const coinMat = [new THREE.MeshStandardMaterial({ color: '#c9a227', metalness: 0.8, roughness: 0.3 }),
     new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (g, w) => { g.fillStyle = '#e8c24a'; g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, 7); g.fill(); g.fillStyle = '#6b4a00'; g.font = 'bold 70px serif'; g.textAlign = 'center'; g.fillText('★', w / 2, w / 2 + 25) }), metalness: 0.6, roughness: 0.35 }),
     new THREE.MeshStandardMaterial({ map: canvasTex(128, 128, (g, w) => { g.fillStyle = '#bfc5cc'; g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, 7); g.fill(); g.fillStyle = '#3c4148'; g.font = 'bold 64px serif'; g.textAlign = 'center'; g.fillText('☾', w / 2, w / 2 + 22) }), metalness: 0.6, roughness: 0.35 })]
-  const toss = (key, face) => {
+  const toss = (key, face, face2) => {
     const b = boxes.get(key)
     if (!b) return
     if (coin) scene.remove(coin.mesh)
-    const mats = face ? [coinMat[0], new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (g, w) => { g.save(); g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, 7); g.clip(); drawPlayerCoin(g, w, face); g.restore() }), metalness: 0.55, roughness: 0.32 }), coinMat[2]] : coinMat
+    const mats = face ? [coinMat[0], new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (g, w) => { g.save(); g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, 7); g.clip(); drawPlayerCoin(g, w, face); g.restore() }), metalness: 0.55, roughness: 0.32 }),
+      face2 ? new THREE.MeshStandardMaterial({ map: canvasTex(256, 256, (g, w) => { g.save(); g.beginPath(); g.arc(w / 2, w / 2, w / 2, 0, 7); g.clip(); drawPlayerCoin(g, w, face2); g.restore() }), metalness: 0.55, roughness: 0.32 }) : coinMat[2]] : coinMat
     const m = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.06, 40), mats); m.castShadow = true; scene.add(m)
     coin = { mesh: m, t0: performance.now(), to: [b.b.x * 0.7, b.b.z * 0.7 + 0.2] }
   }

@@ -68,7 +68,8 @@ export default function Lobby3D({ r, data, act }) {
     const k = `${r.id}|${r.first}`
     if (tossed.current === k || !seats[r.first]) return
     tossed.current = k
-    api.current?.toss(seats[r.first].key, { n: String(seats[r.first].name || '?').slice(0, 12), c: (seats[r.first].cols || []).join('') })
+    const fc = x => ({ n: String(x.name || '?').slice(0, 12), c: (x.cols || []).join('') }), other = seats.length === 2 ? seats.find((x, i) => i !== r.first) : null
+    api.current?.toss(seats[r.first].key, fc(seats[r.first]), other && fc(other))
     setMsg(tx('🪙 A moeda decidiu: começa {n}', { n: seats[r.first].name }))
   }, [r.go, r.first, r.id, seats])
   const clickRef = useRef(null)
