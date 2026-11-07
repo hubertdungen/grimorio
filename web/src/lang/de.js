@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Como {n} carta tua ({names}) · {t}|Como {n} cartas tuas ({names}) · {t}": "Wie {n} deiner Karten ({names}) · {t}|Wie {n} deiner Karten ({names}) · {t}",
   "Convites (links dos amigos)": "Einladungen (Links der Freunde)",
   "{P} procura na biblioteca": "{P} durchsucht die Bibliothek",
   "Procurar na biblioteca": "Bibliothek durchsuchen",

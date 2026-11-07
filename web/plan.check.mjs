@@ -24,7 +24,7 @@ assert.ok(decks.length >= 5, 'faltam decks no servidor')
 
 const isArt = c => /Artifact/.test(c.t.split(' // ')[0]), isEnch = c => /Enchantment/.test(c.t.split(' // ')[0])
 const bad = []
-let nEnch = 0, nArt = 0
+let nEnch = 0, nArt = 0, nTri = 0, nEp = 0
 const metas = {}
 for (const deck of decks) {
   const fmt = FORMAT[deck.format] || FORMAT.casual
@@ -54,6 +54,13 @@ for (const deck of decks) {
   if (top === 'auras' && profile[0].raw >= 1) {  // deck de encantamentos: artefactos só a fechar um combo ou a tapar uma lacuna
     nEnch++
     for (const r of top15) if (isArt(r.c) && !isEnch(r.c) && !why(r).some(k => k === 'combo' || k === 'falta')) bad.push(`${tag} artefacto fora do plano: ${r.c.n} — ${r.why.map(w => w.txt).join(' | ')}`)
+    // enchantresses criatura (o mesmo motor sem ser encantamento) ao nível do Enchantress's Presence: o payoff vale por si
+    const ep = recs.find(r => r.c.n === "Enchantress's Presence")
+    if (ep) nEp++
+    if (ep) for (const n of ['Mesa Enchantress', 'Verduran Enchantress', 'Satyr Enchanter', 'Eidolon of Blossoms', 'Setessan Champion']) {
+      const r = recs.find(r => r.c.n === n)
+      if (!deck.main[n] && (!r || r.score < ep.score - 0.05)) bad.push(`${tag} ${n} abaixo do Enchantress's Presence (${r ? r.score.toFixed(3) : 'fora das 80'} < ${ep.score.toFixed(3)})`)
+    }
     const onPlan = top15.filter(r => why(r).some(k => k === 'inter' || k === 'combo')).length
     if (onPlan < 12) bad.push(`${tag} só ${onPlan}/15 servem o plano`)
     if (deck.main['Heliod, Sun-Crowned'] && !deck.main['Walking Ballista'] && profile[0].raw >= 2) {  // o combo do Heliod sobe
@@ -62,13 +69,20 @@ for (const deck of decks) {
       else if (p >= 30 && k >= 15) bad.push(`${tag} Walking Ballista (combo com o Heliod a ${p}%) só em ${k + 1}.º`)
     }
   }
-  if (top === 'art' && profile[0].raw >= 1) {  // deck de artefactos: o grosso das sugestões são artefactos
-    nArt++
-    const n = recs.slice(0, 10).filter(r => isArt(r.c)).length
+  // tribal com um segundo plano («Slivers Control»): a tribo não tapa o resto, o outro eixo também chega ao top 15
+  const sec = profile[0]?.s.tribe && profile[0].raw >= 1 && profile.find(x => !x.s.tribe && x.raw >= 0.6)
+  if (sec) {
+    nTri++
+    const n = top15.filter(r => r.detail.inter.some(y => y.label === sec.s.name)).length, nt = top15.filter(r => r.detail.inter.some(y => y.label === profile[0].s.name)).length
+    if (n < 2 || nt < 3) bad.push(`${tag} ${profile[0].s.name} ${nt}/15 e ${sec.s.name} ${n}/15`)
+  }
+  if (top === 'art' && profile[0].raw >= 1) {  // deck de artefactos: o grosso das sugestões são artefactos ou payoffs deles
+    nArt++  // (Deadly Dispute, Puresteel Paladin: aproveitam 6+ artefactos do deck)
+    const n = recs.slice(0, 10).filter(r => isArt(r.c) || r.detail.inter.some(y => y.side === 'usa' && y.label === profile[0].s.name && y.who.length >= 6)).length
     if (n < 7) bad.push(`${tag} só ${n}/10 artefactos`)
   }
 }
-console.log(`${decks.length} decks em ${Math.round((performance.now() - t0) / 1000)} s · ${nEnch} de encantamentos · ${nArt} de artefactos`)
-assert.ok(nEnch >= 1 && nArt >= 1, 'faltam decks de encantamentos/artefactos para testar')
+console.log(`${decks.length} decks em ${Math.round((performance.now() - t0) / 1000)} s · ${nEnch} de encantamentos · ${nArt} de artefactos · ${nTri} tribais com 2.º plano`)
+assert.ok(nEnch >= 1 && nArt >= 1 && nTri >= 1 && nEp >= 1, 'faltam decks de encantamentos/artefactos/tribais para testar')
 assert.deepEqual(bad, [])
 console.log('plan.check ok')

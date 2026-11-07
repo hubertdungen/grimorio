@@ -7,6 +7,7 @@ import { lookup } from './game.js'
 import { loadSet } from './Draft.jsx'
 import { DIFF_INFO } from './difficulty.js'
 import { tx, num, LOCALE } from './i18n.js'
+import { SymTxt } from './ui.jsx'
 
 async function api(path, opts) {
   const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts })
@@ -181,18 +182,18 @@ function Built({ ev, data, openDeck, goTournament, onBack }) {
       goTournament()
     } catch (e) { setErr(e.message); setBusy(false) }
   }
-  const cols = k => { const m = ev.players[k].deck.main || {}; return COLS.split('').filter(c => ({ W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' })[c] in m).join('') || 'C' }
+  const cols = k => { const m = ev.players[k].deck.main || {}; return COLS.split('').filter(c => ({ W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest' })[c] in m).map(c => `{${c}}`).join('') || '{C}' }  // símbolos de mana, não letras
   return (
     <div className="view limited">
       <div className="ld-bar"><button onClick={onBack}>{tx('← Voltar')}</button><b>{name} {[...new Set(ev.sets)].join('/')}</b></div>
       <section className="card">
         {ev.human ? <>
           <h3>{tx('O teu pool: {n} cartas', { n: ev.players[0].pool.length })}</h3>
-          <p className="small">{tx('O Forge sugere um deck de 40 ({c}); o resto do pool fica no sideboard. Muda o que quiseres no Construir antes do torneio.', { c: cols(0) })}</p>
+          <p className="small"><SymTxt text={tx('O Forge sugere um deck de 40 ({c}); o resto do pool fica no sideboard. Muda o que quiseres no Construir antes do torneio.', { c: cols(0) })} /></p>
           <button onClick={build}>✎ {deckId ? tx('Abrir o meu deck no Construir') : tx('Montar o meu deck no Construir')}</button>
         </> : <h3>{tx('Os 8 decks estão prontos')}</h3>}
         <h4>{tx('Os bots')}</h4>
-        <ul className="ld-bots">{ev.players.slice(ev.human ? 1 : 0).map(p => <li key={p.seat}>{tx('Bot {n}', { n: p.seat })} · <b>{cols(p.seat)}</b> <span className="muted small">{Object.entries(p.deck.main || {}).filter(([n]) => { const c = lookup(data, n); return c && c.mt !== 'Land' }).sort((a, b) => (lookup(data, b[0])?.r === 'm' || lookup(data, b[0])?.r === 'r') - (lookup(data, a[0])?.r === 'm' || lookup(data, a[0])?.r === 'r')).slice(0, 3).map(([n]) => n).join(' · ')}</span></li>)}</ul>
+        <ul className="ld-bots">{ev.players.slice(ev.human ? 1 : 0).map(p => <li key={p.seat}>{tx('Bot {n}', { n: p.seat })} · <b><SymTxt text={cols(p.seat)} /></b> <span className="muted small">{Object.entries(p.deck.main || {}).filter(([n]) => { const c = lookup(data, n); return c && c.mt !== 'Land' }).sort((a, b) => (lookup(data, b[0])?.r === 'm' || lookup(data, b[0])?.r === 'r') - (lookup(data, a[0])?.r === 'm' || lookup(data, a[0])?.r === 'r')).slice(0, 3).map(([n]) => n).join(' · ')}</span></li>)}</ul>
       </section>
       {ev.status === 'tournament' ? <section className="card"><p>{tx('O torneio já foi criado.')}</p><button className="primary" onClick={goTournament}>🏆 {tx('Ver o torneio')}</button></section> : (
         <section className="card ld-tour">
