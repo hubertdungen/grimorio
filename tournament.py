@@ -1495,7 +1495,9 @@ def open_table(con, owner, st, m, name="", prev=None):
     key, hsb = f"{m['id']}:mesa", st.setdefault("hsb", {})
     if prev and (ls := freetable.lists(con, prev)):
         hsb[key] = ls
-    m["table"] = freetable.create(con, owner, f"{name} · {m['id']}"[:80], seats, side=len(m["g"]) + 1 if st["bo"] > 1 and m["g"] else 0, prev=prev, was=hsb.get(key))
+    ch = chooser(m, list(m["p"])) if len(m["p"]) == 2 else None  # série a dois: começa quem perdeu o jogo anterior
+    m["table"] = freetable.create(con, owner, f"{name} · {m['id']}"[:80], seats, side=len(m["g"]) + 1 if st["bo"] > 1 and m["g"] else 0, prev=prev, was=hsb.get(key),
+                                  **({"first": "ab".index(ch)} if ch else {}))
     m["seats"] = list(m["p"])  # (os «prontos» ficam: quem estava pronto vai direto à mesa)
 
 
