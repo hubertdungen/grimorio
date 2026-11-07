@@ -5,13 +5,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { img } from './data.js'
-import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, CombatLinks } from './Board.jsx'
+import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, CombatLinks, DamageFx } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop, flipFrom } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
 import Friends from './Friends.jsx'
 import { remoteOn } from './remote.js'
-import { lookup, isCreature, isLand, flipKind, staticPump, CT, CT_ICON } from './game.js'
+import { lookup, isCreature, isLand, flipKind, staticPump, powTough, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
 import { tx } from './i18n.js'
@@ -166,6 +166,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const zWait = useRef({})
   const [srch, setSrch] = useState('')
   const [invites, setInvites] = useState(false)
+  const [hits, setHits] = useState([])
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [menu, setMenu] = useState(null)
   const [help, setHelp] = useState(() => lsGet(HELP_K) !== '1'), [lift, setLift] = useState(null), [ver, setVer] = useState(0)
   const [seatSel, setSeatSel] = useState(null), seatQ = c => (seatSel != null ? `${c}seat=${seatSel}` : '')  // quem tem os dois decks de uma partida escolhe o lugar
@@ -260,6 +261,18 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     seats.forEach((v, i) => ['hand', 'battlefield', 'graveyard', 'exile', 'command', 'top'].forEach(z => (v[z] || []).forEach(c => m.set(c.id, { c, seat: i, z }))))
     return m
   }, [s]) // eslint-disable-line react-hooks/exhaustive-deps
+  // declarou um ataque: a criatura investe na direção do alvo (para cima no meu lado, para baixo nos dos outros)
+  const atkSig = seats.flatMap(v => v.battlefield.filter(c => c.atk != null).map(c => c.id)).join(','), prevAtk = useRef(null)
+  useEffect(() => {
+    const now = new Set(atkSig ? atkSig.split(',') : []), pv = prevAtk.current
+    prevAtk.current = now
+    if (!pv || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    for (const id of now) {
+      if (pv.has(id)) continue
+      const el = fitTable.current?.querySelector(`.pc[data-z="k:${id}"]`), up = byId.get(+id)?.seat === me
+      el?.animate?.([{ translate: '0 0', filter: 'none' }, { translate: `0 ${up ? -26 : 26}px`, filter: 'drop-shadow(0 0 12px #ff2a3a) brightness(1.2)', offset: 0.35 }, { translate: '0 0', filter: 'none' }], { duration: 520, easing: 'cubic-bezier(.2,.9,.3,1.2)' })
+    }
+  }, [atkSig]) // eslint-disable-line react-hooks/exhaustive-deps
   // a vida mudou: o orbe pisca com o +N/−N
   const lives = seats.map(v => v.life).join('|'), prevLives = useRef(null), [lifeFx, setLifeFx] = useState(null)
   useEffect(() => {
@@ -269,6 +282,9 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     const i = now.findIndex((x, k) => x !== pv[k])
     if (i < 0) return
     setLifeFx({ p: keyOf(i), d: now[i] - pv[i] })
+    // perdeu vida com criaturas a atacá-lo: cada atacante vai à esfera com o golpe à sua maneira (o mesmo do Forge Play)
+    const atk = now[i] < pv[i] ? seats.flatMap(v => v.battlefield.filter(c => c.atk === i && c.atc == null && c.n)) : []
+    if (atk.length) setHits(atk.map(c => ({ key: `${s.seq}:${c.id}`, from: String(c.id), fromName: c.n, to: { side: keyOf(i) }, n: atk.length === 1 ? pv[i] - now[i] : Math.max(1, powTough(data, { name: c.n, counters: c.k || {} })?.p || 1), kind: 'cmb' })))
     const t = setTimeout(() => setLifeFx(null), 1200); return () => clearTimeout(t)
   }, [lives]) // eslint-disable-line react-hooks/exhaustive-deps
   // o que mudou nas cartas do campo (marcadores, transformar/virar) e no veneno: os mesmos números a saltar da arena
@@ -443,7 +459,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const others = Array.from({ length: n - 1 }, (_, k) => (me + 1 + k) % n)
   const fx = { hl: new Set(), par: 0, pops: new Map(), life: lifeFx, player: null }
   const hs = { active: keyOf(s.active), exact: true, i: s.seq, sides: [] }
-  const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: v.cd || {}, poison: v.poison, energy: v.energy || 0, emblems: [], out: false, perms: [],
+  const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: v.cd || {}, poison: v.poison, energy: v.energy || 0, emblems: [], out: false, perms: v.battlefield.filter(c => c.n && !c.ph).map(c => permOf(c)),  // as permanentes: a esfera ganha as cores e o fluido do que está em campo (como no Forge Play)
     monarch: v.mk?.includes('monarch'), initiative: v.mk?.includes('initiative'), blessing: v.mk?.includes('blessing') })
   const handOf = v => (handOrder ? [...v.hand].sort((a, b) => { const i = handOrder.indexOf(String(a.id)), k = handOrder.indexOf(String(b.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : v.hand)
   const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, atkKey: c.atc != null ? String(c.atc) : undefined, atkName: c.atc != null ? byId.get(c.atc)?.c?.n : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph })
@@ -650,6 +666,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
           <div className={`fp-table board table ${P.cardPx ? 'px' : ''} ${seats.some(v => v.battlefield.some(c => c.atk != null)) ? 'combat-on' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onContextMenu={onCtx} onMouseMove={tilt} onPointerDown={down}>
             {/* a linha do atacante até ao planeswalker/batalha que ataca */}
+            <DamageFx hits={hits} data={data} />
             <CombatLinks s={{ sides: seats.map((_, i) => keyOf(i)), ...Object.fromEntries(seats.map((v, i) => [keyOf(i), { perms: v.battlefield.map(permOf) }])) }} />
             <div className="ml-opps" style={{ '--np': others.length }}>{others.map(i => side(i, true, others.length > 1))}</div>
             <div className="fp-mid">
