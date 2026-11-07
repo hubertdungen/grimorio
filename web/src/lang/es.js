@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "A melhor carta do deck, escolhida sozinha": "La mejor carta del mazo, elegida sola",
   "a cor do estilo da esfera": "el color del estilo de la esfera",
   "a parte do fluido que vem das cartas desta cor em campo (os terrenos contam menos; cemitério e exílio um pouco)": "la parte del fluido que viene de las cartas de este color en el campo (las tierras cuentan menos; cementerio y exilio un poco)",
   "Arco dourado: a vida que te resta em relação à inicial ({p})": "Arco dorado: la vida que te queda respecto a la inicial ({p})",

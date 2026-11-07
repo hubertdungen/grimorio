@@ -733,7 +733,7 @@ function RefreshDialog({ data, deck, setDeck, say, onClose }) {
   })()
   const apply = () => {
     const { j, p, art, prints } = got
-    setDeck(d => ({ ...d, art, prints: { ...(d.prints || {}), ...prints }, source: url.trim(), ...(j.cover ? { coverImg: j.cover } : {}),
+    setDeck(d => ({ ...d, art, prints: { ...(d.prints || {}), ...prints }, source: url.trim(),
       ...(list ? { commanders: p.commanders.length ? p.commanders : d.commanders, main: p.main, side: p.side, maybe: p.maybe, groups: [] } : {}) }))
     say(tx('Atualizado do site: {arts} artes próprias, {prints} edições', { arts: Object.keys(art).length, prints: Object.keys(prints).length }) + (j.cover ? tx(', capa') : '') + (list ? tx(' e a lista') : '') + '.')
     onClose()
@@ -792,7 +792,7 @@ function ImportDialog({ data, deck, setDeck, say, onClose, onImported }) {
     // formato: o do site se a lista for legal nele; senão detectado pelas cartas (link, ou lista colada num deck vazio)
     const fx = (info || !count(deck.main)) && mode === 'replace' ? fixFormat(data, p, info?.format) : null
     setDeck(d => {
-      if (mode === 'replace') return { ...d, community: community || undefined, ...(info ? { name: info.name || d.name } : {}), ...(info?.cover ? { coverImg: info.cover } : {}), ...(fx ? { format: fx.format } : {}), commanders: p.commanders.length ? p.commanders : d.commanders, main: p.main, side: p.side, maybe: p.maybe, prints, art, ...src, groups: [] }
+      if (mode === 'replace') return { ...d, community: community || undefined, ...(info ? { name: info.name || d.name } : {}), ...(fx ? { format: fx.format } : {}), commanders: p.commanders.length ? p.commanders : d.commanders, main: p.main, side: p.side, maybe: p.maybe, prints, art, ...src, groups: [] }
       const z = k => { const o = { ...(d[k] || {}) }; for (const [n, q] of Object.entries(p[k])) o[n] = (o[n] || 0) + q; return o }
       return { ...d, main: z('main'), side: z('side'), maybe: z('maybe'), prints: { ...(d.prints || {}), ...prints }, art: { ...(d.art || {}), ...art }, commanders: [...new Set([...d.commanders, ...p.commanders])] }
     })

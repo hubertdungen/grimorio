@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "A melhor carta do deck, escolhida sozinha": "Die beste Karte des Decks, automatisch gewählt",
   "a cor do estilo da esfera": "die Farbe des Kugelstils",
   "a parte do fluido que vem das cartas desta cor em campo (os terrenos contam menos; cemitério e exílio um pouco)": "der Anteil der Flüssigkeit, der von Karten dieser Farbe im Spiel kommt (Länder zählen weniger, Friedhof und Exil ein wenig)",
   "Arco dourado: a vida que te resta em relação à inicial ({p})": "Goldener Bogen: dein verbleibendes Leben im Vergleich zum Startleben ({p})",

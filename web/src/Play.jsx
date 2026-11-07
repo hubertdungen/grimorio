@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { tx } from './i18n.js'
 import { DIFF_INFO } from './difficulty.js'
 import { FORMAT, CASUAL_META } from './formats.js'
-import { img, coverOf, colorsOf } from './data.js'
+import { img, coverOf, coverImgOf, colorsOf } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import ForgeTable from './ForgePlay.jsx'
 import SideboardStep from './SideboardStep.jsx'
@@ -39,8 +39,8 @@ const metaDecks = new Map()  // id -> deck do meta (para a capa e as cores), uma
 
 // a capa de um deck: imagem própria, a carta escolhida ou a carta mais forte da lista
 function Cover({ d, data }) {
-  const c = d && !d.coverImg && coverOf(d, data)
-  const src = d?.coverImg || (c ? img(c, 'art_crop') : null)
+  const c = d && !coverImgOf(d) && coverOf(d, data)
+  const src = coverImgOf(d) || (c ? img(c, 'art_crop') : null)
   return <span className="pv-art">{src ? <img src={src} alt="" loading="lazy" /> : <i>✦</i>}</span>
 }
 

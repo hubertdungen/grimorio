@@ -3,7 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT } from './formats.js'
 import { Empty, Mana, Stars } from './ui.jsx'
-import { img, HUE, coverOf, colorsOf } from './data.js'
+import { img, HUE, coverOf, coverImgOf, colorsOf } from './data.js'
 import ProfileImport from './ProfileImport.jsx'
 import DeckSearch from './DeckSearch.jsx'
 import DeckCompare, { similarity } from './DeckCompare.jsx'
@@ -160,8 +160,8 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
       <label className="dbox-check" title={tx('Selecionar (para comparar ou mudar vários de uma vez)')}><input type="checkbox" checked={!!selected} onChange={() => onSelect(d.id)} /></label>
       <button className={`dbox-fav ${d.fav ? 'on' : ''}`} onClick={() => onFav(d)} title={d.fav ? tx('Tirar dos favoritos') : tx('Pôr nos favoritos')}>{d.fav ? '★' : '☆'}</button>
       <div className="dbox-top">
-      <button className="dbox-art" onClick={() => open('deck')} title={d.coverImg ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
-        {d.coverImg ? <img src={d.coverImg} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
+      <button className="dbox-art" onClick={() => open('deck')} title={coverImgOf(d) ? tx('Capa: imagem própria') : c ? tx('Capa: {name}', { name: c.n }) : d.name}>
+        {coverImgOf(d) ? <img src={coverImgOf(d)} alt="" loading="lazy" /> : c && d.art?.[c.n] ? <img className="own-art" src={d.art[c.n]} alt={c.n} loading="lazy" /> : c ? <img src={img(c, 'art_crop')} alt={c.n} loading="lazy" /> : <span className="dbox-noart">✦</span>}
         <span className="dbox-fmt">{FORMAT[d.format]?.name || d.format}{d.friend && <span className="dbox-fr" title={tx('Deck de um amigo convidado')}> · 🤝 {d.friendName}</span>}{d.community && <span title={tx('Deck da comunidade (de outra pessoa)')}> · <Ico n="globe" /> {tx('Comunidade')}</span>}</span>
       </button>{tro?.length > 0 && <span className="dbox-tro"><Trophies list={tro} />{tp && <b className="tro-pts" title={`${tx('{p} pontos de troféus · n.º {r} de {n} no ranking dos teus decks', { p: tp.p, r: tp.rank, n: tp.of })}\n${tx('Estrelas brancas {s}: {a} dos {p} pontos de troféus (até 4★) + {b} do desempenho (até 2★)', { s: num(tp.s), a: num(pointStars(tp.p)), p: tp.p, b: num(tp.s - pointStars(tp.p)) })}${tp.blue ? `\n${tx('{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)', { a: tp.p - tp.blue, b: tp.blue })}` : ''}`}>{tp.rank === 1 ? '👑 ' : `#${tp.rank} · `}{tp.p} · {num(tp.s)}★</b>}</span>}</div>
       <div className="dbox-body">

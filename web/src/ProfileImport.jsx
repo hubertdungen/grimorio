@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { parseList } from './deck.js'
 import { FORMAT, fixFormat } from './formats.js'
-import { img, importExtras } from './data.js'
+import { img, importExtras, coverOf } from './data.js'
 import { tx } from './i18n.js'
 
 const LINK = /https?:\/\/(?:www\.)?(?:tappedout\.net\/mtg-decks\/[\w-]+|moxfield\.com\/decks\/[\w-]+|archidekt\.com\/decks\/\d+[\w/-]*|mtggoldfish\.com\/(?:deck|archetype)\/[\w/-]+|deckstats\.net\/decks\/\d+\/[\w-]+|mtgtop8\.com\/event\?[^\s"'|]+|scryfall\.com\/@[\w-]+\/decks\/[\w-]+)\/?/i
@@ -25,7 +25,11 @@ const parseTokens = src => {
 // (og:image); numa página de perfil leva todos os decks com a imagem de cada um. Abre o Grimório com a lista.
 const bookmarklet = origin => `javascript:(()=>{const R=/https:\\/\\/tappedout\\.net\\/mtg-decks\\/[\\w-]+\\//,X=/\\/mtg-decks\\/(search|latest|top|new)\\//;const pic=a=>{let n=a;for(let k=0;k<5&&n&&n!==document.body;k++,n=n.parentElement){const i=n.querySelector&&n.querySelector('img');const s=i&&(i.dataset.src||i.currentSrc||i.src);if(s&&!/avatar|gravatar|logo|icon/i.test(s))return s;const b=getComputedStyle(n).backgroundImage;if(b&&b.startsWith('url('))return b.slice(5,-2)}return''};let l;const og=document.querySelector('meta[property="og:image"]');const here=(location.href.match(R)||[])[0];if(here&&!X.test(here))l=[here+'|'+(og?og.content:'')];else{const m=new Map();for(const a of document.querySelectorAll('a[href*="/mtg-decks/"]')){const u=(a.href.match(R)||[])[0];if(!u||X.test(u))continue;const p=pic(a);if(!m.has(u)||(!m.get(u)&&p))m.set(u,p)}l=[...m].map(([u,p])=>u+'|'+p)}if(!l.length){alert(${JSON.stringify(tx('Não encontrei decks nesta página.'))});return}window.open('${origin}/#importar='+encodeURIComponent(l.join(' ')))})()`
 
+// a capa automática de um deck da lista (a melhor carta: comandante ou a não-terreno com mais cópias)
+const autoOfWith = data => d => (d.cards?.length ? coverOf({ commanders: d.commanders || [], main: d.main || Object.fromEntries((d.cards || []).map(c => [c.n, 1])) }, data) || d.cards[0] : null)
+
 export default function ProfileImport({ data, initial = '', onDone, say }) {
+  const autoOf = autoOfWith(data)
   const [text, setText] = useState(initial)
   const [list, setList] = useState([])
   const [busy, setBusy] = useState('')
@@ -87,10 +91,11 @@ export default function ProfileImport({ data, initial = '', onDone, say }) {
       const d = sel[k]
       setBusy(tx(d.capa ? 'A atualizar capa e artes {k}/{n}: {name}' : 'A importar {k}/{n}: {name}', { k: k + 1, n: sel.length, name: d.name }))
       try {
-        const pickImg = d.pick ? img(data.byName.get(d.pick), 'art_crop') : null
+        // capa: só o que se escolheu aqui — uma carta (pick) ou a imagem do site ('@site'); sem escolha, a melhor carta do deck (automática)
+        const site = d.pick === '@site', pickImg = d.pick && !site ? img(data.byName.get(d.pick), 'art_crop') : null
         let j = d.j
         if (!j) { const r = await fetch(`/api/import?url=${encodeURIComponent(d.url)}`); j = await r.json(); if (!r.ok) throw new Error(j.erro) }
-        const cover = pickImg || d.img || j.cover || null
+        const cover = pickImg || (site ? d.img || j.cover || null : null)
         const p = parseList(j.text, data)
         const { art, prints } = await importExtras(data, p, j)
         if (d.capa && d.ex) {  // deck que já tens: artes do site (TappedOut), edições e capa; a lista fica como está
@@ -102,7 +107,7 @@ export default function ProfileImport({ data, initial = '', onDone, say }) {
         const fmt = fixFormat(data, p, j.format).format
         await fetch('/api/decks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
           name: j.name || d.name, format: fmt, commanders: p.commanders, main: p.main, side: p.side, maybe: p.maybe, seeds: [], prints, art, source: d.url, groups: [],
-          notes: tx('Importado de {src}: {url}', { src: j.source, url: d.url }), cover: d.pick || undefined, coverImg: d.pick ? null : cover, count: Object.values(p.main).reduce((a, b) => a + b, 0) + p.commanders.length,
+          notes: tx('Importado de {src}: {url}', { src: j.source, url: d.url }), cover: d.pick && !site ? d.pick : undefined, coverImg: site ? cover : null, count: Object.values(p.main).reduce((a, b) => a + b, 0) + p.commanders.length,
           ...owner,
         }) })
         ok++
@@ -132,7 +137,7 @@ export default function ProfileImport({ data, initial = '', onDone, say }) {
           <ul className="lib-list pi-list">{list.map((d, k) => (
             <li key={d.url}>
               <button className="pi-cov" onClick={() => upd(d.url, x => ({ open: !x.open }))} title={tx('Escolher a capa')} disabled={!d.cards}>
-                {d.pick ? <img className="pi-img" src={img(data.byName.get(d.pick), 'art_crop')} alt="" /> : d.img ? <img className="pi-img" src={d.img} alt="" loading="lazy" /> : d.cards?.[0] ? <img className="pi-img" src={img(d.cards[0], 'art_crop')} alt="" /> : <span className="pi-img" />}
+                {d.pick && d.pick !== '@site' ? <img className="pi-img" src={img(data.byName.get(d.pick), 'art_crop')} alt="" /> : d.pick === '@site' && d.img ? <img className="pi-img" src={d.img} alt="" loading="lazy" /> : autoOf(d) ? <img className="pi-img" src={img(autoOf(d), 'art_crop')} alt="" /> : <span className="pi-img" />}
                 {d.cards && <i>🖼</i>}
               </button>
               <label className="chk"><input type="checkbox" checked={d.on} onChange={() => setList(l => l.map((x, j) => (j === k ? { ...x, on: !x.on } : x)))} /> <b>{d.name}</b></label>
@@ -140,7 +145,8 @@ export default function ProfileImport({ data, initial = '', onDone, say }) {
               {d.ex && <select className="small" value={d.capa ? 'capa' : 'novo'} onChange={e => setList(l => l.map((x, j) => (j === k ? { ...x, capa: e.target.value === 'capa' } : x)))}>
                 <option value="capa">{tx('Já tens «{name}»: atualizar capa e artes das cartas', { name: d.ex.name })}</option><option value="novo">{tx('Importar como deck novo')}</option></select>}
               {d.open && d.cards && <div className="pi-pick">
-                {d.img && <button className={!d.pick ? 'on' : ''} onClick={() => upd(d.url, () => ({ pick: null, open: false }))} title={tx('Imagem do site')}><img src={d.img} alt="" /><small>{tx('do site')}</small></button>}
+                {autoOf(d) && <button className={!d.pick ? 'on' : ''} onClick={() => upd(d.url, () => ({ pick: null, open: false }))} title={tx('A melhor carta do deck, escolhida sozinha')}><img src={img(autoOf(d), 'small')} alt="" /><small>{tx('automática')}</small></button>}
+                {d.img && <button className={d.pick === '@site' ? 'on' : ''} onClick={() => upd(d.url, () => ({ pick: '@site', open: false }))} title={tx('Imagem do site')}><img src={d.img} alt="" /><small>{tx('do site')}</small></button>}
                 {d.cards.slice(0, 40).map(c => <button key={c.n} className={d.pick === c.n ? 'on' : ''} onClick={() => upd(d.url, () => ({ pick: c.n, open: false }))} title={c.n}><img src={img(c, 'small')} alt={c.n} loading="lazy" /></button>)}
               </div>}
             </li>

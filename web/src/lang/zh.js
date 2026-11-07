@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "A melhor carta do deck, escolhida sozinha": "套牌中最好的牌，自动选择",
   "a cor do estilo da esfera": "球体风格的颜色",
   "a parte do fluido que vem das cartas desta cor em campo (os terrenos contam menos; cemitério e exílio um pouco)": "流体中来自战场上该颜色牌的部分（地计算较少；坟墓场和放逐区略计）",
   "Arco dourado: a vida que te resta em relação à inicial ({p})": "金色弧线：剩余生命相对于起始生命（{p}）",

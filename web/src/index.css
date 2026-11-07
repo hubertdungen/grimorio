@@ -1482,7 +1482,7 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .sync-hint button { margin-left: auto; }
 
 /* capa com a arte própria do site (é a carta inteira): mostra a zona da ilustração */
-.dbox-art img.own-art { object-position: 50% 15%; }
+.dbox-art img.own-art { object-position: 50% 15%; transform: scale(1.22); }  /* arte própria = a carta inteira (TappedOut): só a ilustração, sem as bordas nem as linhas do nome e do tipo */
 img.card-full { object-position: 50% 20%; }
 img.card-full { transform: scale(1.4); }  /* capa com a carta inteira: só a ilustração (main.jsx marca-as) */
 

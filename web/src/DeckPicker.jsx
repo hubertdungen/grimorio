@@ -2,7 +2,7 @@
 // ficam em «⋯ mais») e lista com capa, cores e nº de cartas.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FORMAT } from './formats.js'
-import { img } from './data.js'
+import { img, coverImgOf } from './data.js'
 import { Mana } from './ui.jsx'
 import { tx } from './i18n.js'
 
@@ -11,7 +11,7 @@ const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : 
 const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 
 function thumb(d, data) {
-  if (d.coverImg) return d.coverImg
+  if (coverImgOf(d)) return coverImgOf(d)
   const n = d.cover || d.commanders?.[0] || Object.entries(d.main || {}).map(([n, q]) => [data.byName.get(n), q]).filter(([c]) => c && c.mt !== 'Land').sort((a, b) => b[1] - a[1] || b[0].cmc - a[0].cmc)[0]?.[0]?.n
   const c = n && data.byName.get(n)
   return c ? d.art?.[c.n] || img(c, 'art_crop') : null  // arte própria do site (carta inteira) ou a ilustração da Scryfall

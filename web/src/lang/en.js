@@ -3868,6 +3868,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "A melhor carta do deck, escolhida sozinha": "The deck's best card, picked automatically",
   "a cor do estilo da esfera": "the colour of the orb's style",
   "a parte do fluido que vem das cartas desta cor em campo (os terrenos contam menos; cemitério e exílio um pouco)": "the share of the fluid that comes from cards of this colour on the battlefield (lands count less; graveyard and exile a little)",
   "Arco dourado: a vida que te resta em relação à inicial ({p})": "Gold arc: the life you have left compared with your starting life ({p})",

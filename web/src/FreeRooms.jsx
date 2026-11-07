@@ -2,7 +2,7 @@
 // sentas — os teus, um que quem aloja empresta, um do meta ou uma lista colada/um link (fica guardado como deck teu).
 import { useEffect, useRef, useState } from 'react'
 import { FORMAT } from './formats.js'
-import { img, coverOf, colorsOf } from './data.js'
+import { img, coverOf, coverImgOf, colorsOf } from './data.js'
 import { parseList } from './deck.js'
 import { Mana } from './ui.jsx'
 import ProfileImport from './ProfileImport.jsx'
@@ -20,7 +20,7 @@ const META_FMT = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper'
 
 // a capa de um deck (imagem própria ou a carta da capa), como nos mosaicos do Jogar contra o Forge
 export function DeckArt({ d, data }) {
-  const c = d && !d.coverImg && coverOf(d, data), src = d?.coverImg || (c ? img(c, 'art_crop') : null)
+  const c = d && !coverImgOf(d) && coverOf(d, data), src = coverImgOf(d) || (c ? img(c, 'art_crop') : null)
   return <span className="pv-art">{src ? <img src={src} alt="" loading="lazy" /> : <i>✦</i>}</span>
 }
 

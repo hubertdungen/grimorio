@@ -1204,6 +1204,9 @@ export const comboTurn = fmt => (fmt?.cmd ? 8 : 6)
 // caixa do deck (Biblioteca, Torneio): cores das bordas, capa e cores do deck
 export const HUE = { W: '#efe3b8', U: '#3f86d6', B: '#7a6585', R: '#d6503a', G: '#3d9a58' }
 // capa: a escolhida, senão o comandante, a 1.ª semente ou a carta não-terreno com mais cópias (e mais cara de mana)
+// a imagem própria da capa — menos as que não são cartas: um deck importado do TappedOut trazia a «tarte» das cores do
+// site como capa; essas contam como «sem imagem» e a capa volta à melhor carta (coverOf)
+export const coverImgOf = d => (d?.coverImg && !(/tappedout\.net/i.test(d.coverImg) && !/mtg-cards/i.test(d.coverImg)) ? d.coverImg : null)
 export const coverOf = (d, data) => {
   const n = d.cover || d.commanders?.[0] || d.seeds?.[0] ||
     Object.entries(d.main || {}).map(([n, q]) => [data.byName.get(n), q]).filter(([c]) => c && c.mt !== 'Land').sort((a, b) => b[1] - a[1] || b[0].cmc - a[0].cmc)[0]?.[0]?.n
