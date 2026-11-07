@@ -4037,3 +4037,11 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .orb-egg .egg-bars li:hover { background: #ffffff0d; border-radius: 6px; }
 .orb-egg .egg-hint { margin: 4px 0 6px; min-height: 2.6em; font-size: 12px; line-height: 1.35; color: #cbd5e1; opacity: .7; }
 .orb-egg .egg-hint.on { color: #fde68a; opacity: 1; }
+/* «Os meus jogos» (Jogar contra o Forge) */
+.mg-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 340px; overflow: auto; }
+.mg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 7px 10px; border-radius: 10px; background: #ffffff06; border: 1px solid var(--line); color: inherit; cursor: pointer; }
+.mg-row:hover { border-color: var(--gold); background: #f2b84b0d; }
+.mg-play { color: var(--gold); }
+.mg-names { flex: 1 1 200px; min-width: 0; }
+.mg-res { font-size: 12px; padding: 1px 8px; border-radius: 99px; background: #ffffff10; }
+.mg-res.win { background: #16a34a33; color: #86efac; } .mg-res.loss { background: #dc262633; color: #fca5a5; }

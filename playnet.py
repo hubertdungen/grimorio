@@ -15,6 +15,7 @@ OK_CMDS = {"ok", "cancel", "card", "player", "answer", "mana", "alpha", "undo", 
 IDLE = 2 * 3600             # um jogo parado há mais de 2 h fecha-se
 AFK = 300                   # mesa estrita (pessoa contra pessoa): quem deve uma decisão e não mexe há 5 min desiste
 ON_END = None               # server.py: ON_END(rate, side) quando um jogo acaba com vencedor (ratings, uma vez por jogo)
+ON_KEEP = None              # server.py: ON_KEEP(owner, jogo) quando acaba um jogo avulso contra o Forge (s["keep"]): «Os meus jogos»
 
 
 def _over(s, winner):
@@ -74,10 +75,21 @@ def _reader(sid, p):
             except Exception as e:  # um erro nos ratings não pode parar o jogo
                 print("playnet: ratings:", e, flush=True)
     with COND:
-        if sid in S:
-            S[sid]["ended"] = True
-            S[sid]["seq"] += 1
+        s = S.get(sid)
+        keep = None
+        if s:
+            s["ended"] = True
+            s["seq"] += 1
             COND.notify_all()
+            if s.get("keep") and s.get("snaps") and not s.get("kept"):  # um jogo avulso: guarda-se para rever («Os meus jogos»)
+                s["kept"] = True
+                keep = (s["keep"], {"names": s.get("names"), "players": s.get("players"), "winner": s.get("side"), "turns": (s["state"] or {}).get("turn"),
+                                    "snaps": list(s["snaps"]), "out": s.get("out"), "ts": time.time()})
+    if keep and ON_KEEP:
+        try:
+            ON_KEEP(*keep)
+        except Exception as e:  # guardar a réplica não pode parar nada
+            print("playnet: os meus jogos:", e, flush=True)
 
 
 SNAPS = 400  # fotografias do estado por jogo, no máximo (as do fim ficam: tira-se do meio)

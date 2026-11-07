@@ -38,8 +38,16 @@ SIM_OPP = re.compile(r"^/api/sim/opponents/([a-z0-9-]{1,130})$")
 SIM_JOB = re.compile(r"^/api/sim/jobs/([0-9a-f]{12})$")
 
 
+def keep_game(owner, g):
+    """Guarda um jogo avulso contra o Forge para rever («Os meus jogos»); ficam os 60 últimos de cada dono."""
+    with db() as con:
+        con.execute("INSERT INTO my_games (owner, ts, game) VALUES (?,?,?)", (owner, g.get("ts") or time.time(), zlib.compress(json.dumps(g, ensure_ascii=False).encode(), 6)))
+        con.execute("DELETE FROM my_games WHERE owner=? AND id NOT IN (SELECT id FROM my_games WHERE owner=? ORDER BY ts DESC LIMIT 60)", (owner, owner))
+
+
 def db():
     con = sqlite3.connect(os.path.join(ARGS.data_dir, "grimorio.db"))
+    con.execute("CREATE TABLE IF NOT EXISTS my_games (id INTEGER PRIMARY KEY, owner TEXT, ts REAL, game BLOB)")  # «Os meus jogos»
     con.execute("CREATE TABLE IF NOT EXISTS decks (id TEXT PRIMARY KEY, name TEXT, format TEXT,"
                 " body TEXT NOT NULL, updated REAL NOT NULL)")
     con.execute("CREATE TABLE IF NOT EXISTS sim_games (id INTEGER PRIMARY KEY, ts REAL, deck_id TEXT, deck_name TEXT,"
@@ -547,6 +555,19 @@ class H(BaseHTTPRequestHandler):
                      for i, b in ((i, json.loads(b)) for i, b in rows) if not b.get("friend")]
             name = ((self.profile() or {}).get("name") if self.mode() == "profiles" else self.owner()) or ""
             return self.json({"grimorio": "decks", "v": 1, "name": name, "decks": decks})
+        if p == "/api/mygames":  # «Os meus jogos»: os jogos avulsos contra o Forge, para rever (os 60 últimos)
+            with db() as con:
+                rows = con.execute("SELECT id, ts, game FROM my_games WHERE owner=? ORDER BY ts DESC LIMIT 60", (self.owner(),)).fetchall()
+            out = []
+            for i, ts, g in rows:
+                g = json.loads(zlib.decompress(g))
+                out.append({"id": i, "ts": ts, "names": g.get("names"), "players": g.get("players"), "winner": g.get("winner"), "turns": g.get("turns")})
+            return self.json(out)
+        mg2 = re.match(r"^/api/mygames/(\d+)$", p)
+        if mg2:
+            with db() as con:
+                r = con.execute("SELECT game FROM my_games WHERE id=? AND owner=?", (int(mg2.group(1)), self.owner())).fetchone()
+            return self.json(json.loads(zlib.decompress(r[0]))) if r else self.json({"erro": "Esse jogo já não existe."}, 404)
         if p == "/api/me":  # nome para mostrar (o do perfil, nunca o id interno)
             return self.json({"user": (self.profile() or {}).get("name") if self.mode() == "profiles" else self.owner()})
         mg = re.match(r"^/api/decks/([a-z0-9-]{8,40})/games$", p)
@@ -701,7 +722,11 @@ class H(BaseHTTPRequestHandler):
                 okey = f"meta:{o['id']}" if o.get("id") else f"deck:{o['deck_id']}" if o.get("deck_id") else ""
                 rate = {"deck_id": did, "owner": owner, "format": str(d.get("format") or a.get("format") or "")[:40], "casual": bool(d.get("casual")),
                         "opp": str(okey)[:140], "opp_name": b.get("name"), "round": str(d.get("round") or "")[:60] or None, "bo": d.get("bo") or 1} if did and okey else None
-                return self.json({"id": playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or str(d.get("name") or "")[:30] or "Tu", rate, d.get("chooser") if d.get("chooser") in ("a", "b") else None)}, 201)
+                sid = playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or str(d.get("name") or "")[:30] or "Tu", rate, d.get("chooser") if d.get("chooser") in ("a", "b") else None)
+                with playnet.COND:
+                    if sid in playnet.S:
+                        playnet.S[sid]["keep"] = owner  # jogo avulso: fica em «Os meus jogos» quando acabar
+                return self.json({"id": sid}, 201)
             if act == "cmd":
                 playnet.cmd(sid, owner, d)
                 return self.json({"ok": True})
@@ -1356,7 +1381,7 @@ def selfcheck():
         import subprocess
         fake, subs, real_start, real_submit, real_status = {}, [], playnet.start, sim.submit, sim.status
 
-        def fake_start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None):
+        def fake_start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None, chooser=None):
             sid = f"{len(fake) + 1:012x}"
             fake[sid] = {"owner": owner, "rate": rate, "deck": deck["name"], "opp": opp["name"]}
             with playnet.COND:
@@ -1554,6 +1579,7 @@ if __name__ == "__main__":
     tournament.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma os torneios a decorrer
     ratings.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma a Arena automática se estava ligada
     playnet.ON_END = ratings.forgeplay_end  # jogos do Forge Play acabados com vencedor contam para os ratings
+    playnet.ON_KEEP = keep_game  # jogos avulsos contra o Forge: «Os meus jogos» (réplicas)
     backup.init(ARGS.data_dir)  # pasta na nuvem (se ligada): traz o que mudou noutros aparelhos e leva o daqui
     share.adopt(ARGS.data_dir)  # a partilha que estava ligada continua com o mesmo endereço depois de reiniciar
     print(f"Grimório em http://{ARGS.host}:{ARGS.port}", flush=True)

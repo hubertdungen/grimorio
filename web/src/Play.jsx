@@ -11,6 +11,7 @@ import { img, coverOf, coverImgOf, colorsOf } from './data.js'
 import { Mana, Stars } from './ui.jsx'
 import ForgeTable from './ForgePlay.jsx'
 import SideboardStep from './SideboardStep.jsx'
+import MyGames from './MyGames.jsx'
 import { lockFsOrientation } from './wakelock.js'
 
 async function j(url, body) {
@@ -251,6 +252,8 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
           </div>
         </section>
       )}
+
+      <MyGames data={data} />
 
       {!useNative && <details className="card">
         <summary><b>{tx('Como se joga no Forge')}</b></summary>
