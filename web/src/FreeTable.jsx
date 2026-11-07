@@ -489,7 +489,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, blocking: c.blk != null ? String(c.blk) : undefined, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, atkKey: c.atc != null ? String(c.atc) : undefined, atkName: c.atc != null ? byId.get(c.atc)?.c?.n : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph })
   const onField = new Set(seats.flatMap(v => v.battlefield.map(c => c.id)))
   // a pilha: os feitiços lançados (no campo de quem lança, marcados sp) pela ordem em que entraram; o de cima resolve primeiro
-  const stack = seats.flatMap(v => v.battlefield.filter(c => c.sp)).sort((a, b) => b.sp - a.sp)
+  const stack = seats.flatMap((v, i) => v.battlefield.filter(c => c.sp).map(c => ({ ...c, s: i }))).sort((a, b) => b.sp - a.sp)  // s: quem lançou (o lado onde está)
   const aimed = new Set(stack.map(c => c.tg?.card).filter(x => x != null)), aimedP = new Set(stack.map(c => c.tg?.seat).filter(x => x != null))
   const tgInfo = c => {  // o alvo de um feitiço da pilha, para o spellFx
     if (c.tg?.seat != null) return { seat: c.tg.seat, who: who(c.tg.seat) }
