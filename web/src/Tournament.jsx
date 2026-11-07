@@ -128,7 +128,9 @@ export default function TournamentView({ data, fmt, deckId, guest, online }) {
     return () => clearInterval(t)
   }, [view])
   const [own, setOwn] = useState({})
-  useEffect(() => { j('/api/decks').then(ds => setOwn(Object.fromEntries(ds.map(d => [d.id, d.friend ? 'ami' : d.community ? 'com' : 'meu'])))).catch(() => {}) }, [])
+  // de quem é cada deck, na vista de quem vê: um convidado recebe só os dele (guardados aqui como «de amigo») — para ele são
+  // os «meus», e os do anfitrião e dos outros amigos são «de amigo» (_guest)
+  useEffect(() => { j('/api/decks').then(ds => setOwn({ ...Object.fromEntries(ds.map(d => [d.id, d.friend && !guest ? 'ami' : d.community ? 'com' : 'meu'])), ...(guest && { _guest: true }) })).catch(() => {}) }, [guest])
   if (table) return <div className="view play fp-view">{String(table).startsWith('fp:') ? <ForgeTable key={table} sid={table.slice(3)} data={data} onClose={() => setTable(null)} />  // mesa estrita: o Forge Play contra a outra pessoa
     : <FreeTable key={table} id={table} data={data} onClose={() => setTable(null)} />}</div>
   return (
@@ -1235,7 +1237,7 @@ function BetsPanel({ b, won, place, P, data, num, going, type }) {
 // de onde vem cada deck: meta, meu, de um amigo ou da comunidade (id do deck -> meu/ami/com, carregado no TournamentView)
 const OwnCtx = createContext({})
 const OWN_I = { meta: ['📊', tx('Meta')], meu: ['🧙', tx('Meu')], ami: ['🤝', tx('Amigo')], com: ['🌐', tx('Comunidade')] }
-const ownOf = (p, own) => (!p ? null : p.src === 'meta' ? 'meta' : p.fr ? 'ami' : p.com ? 'com' : own[p.ref] || 'meu')
+const ownOf = (p, own) => (!p ? null : p.src === 'meta' ? 'meta' : own[p.ref] || (p.com ? 'com' : p.fr || own._guest ? 'ami' : 'meu'))
 function OwnTag({ p }) {  // a etiqueta por extenso, onde há espaço (classificação, pódio)
   const k = ownOf(p, useContext(OwnCtx))
   return k ? <span className={`fmt-tag own own-${k}`}>{OWN_I[k][0]} {OWN_I[k][1]}</span> : null
