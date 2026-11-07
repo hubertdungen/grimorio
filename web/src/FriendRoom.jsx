@@ -147,12 +147,3 @@ export function BringMine({ data, onDone }) {
   )
 }
 
-// Biblioteca › «Exportar decks»: todos os meus decks num ficheiro (para o Grimório de um amigo, sem a app à mão)
-export async function exportDecks() {
-  const b = await j('/api/decks/export')
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(b)], { type: 'application/json' }))
-  a.download = `grimorio-decks${b.name ? `-${b.name.replace(/[^\w-]+/g, '')}` : ''}.json`
-  a.click()
-  return b.decks.length
-}

@@ -542,7 +542,9 @@ class H(BaseHTTPRequestHandler):
         if p == "/api/decks/export":  # «Exportar decks»: os meus decks inteiros num ficheiro, para levar ao Grimório de um amigo
             with db() as con:
                 rows = con.execute("SELECT id, body FROM decks WHERE owner=? AND deleted IS NULL ORDER BY updated DESC", (self.owner(),)).fetchall()
-            decks = [{k: b.get(k) for k in guests.DECK_KEYS} | {"id": i} for i, b in ((i, json.loads(b)) for i, b in rows) if not b.get("friend")]
+            # o deck inteiro (capa, artes escolhidas, sideboard, maybeboard, notas…), menos o que é só deste Grimório
+            decks = [{k: v for k, v in b.items() if k not in ("updated", "friend", "friendName", "rating", "ratings")} | {"id": i}
+                     for i, b in ((i, json.loads(b)) for i, b in rows) if not b.get("friend")]
             name = ((self.profile() or {}).get("name") if self.mode() == "profiles" else self.owner()) or ""
             return self.json({"grimorio": "decks", "v": 1, "name": name, "decks": decks})
         if p == "/api/me":  # nome para mostrar (o do perfil, nunca o id interno)

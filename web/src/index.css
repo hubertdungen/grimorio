@@ -3961,3 +3961,15 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .ml-mirror .ml-rtop, .ml-field.mirror .ml-rtop { top: auto; bottom: 6px; }
 .ml-libn { display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 12px; }
 .ml-libn b { min-width: 22px; text-align: center; }
+/* Biblioteca › Exportar / Importar decks */
+.dio { display: flex; flex-direction: column; gap: 10px; }
+.dio-tabs { align-self: flex-start; }
+.dio-list { list-style: none; margin: 0; padding: 6px; max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line); border-radius: 10px; }
+.dio-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 7px; }
+.dio-list li:hover { background: #ffffff08; }
+.dio-list li.off { opacity: .5; }
+.dio-name { flex: 1 1 180px; min-width: 0; }
+.dio-drop { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 14px; text-align: center; border: 2px dashed var(--line); border-radius: 14px; cursor: pointer; position: relative; transition: border-color .2s, background .2s; }
+.dio-drop.over, .dio-drop:hover { border-color: var(--gold); background: #f2b84b0f; }
+.dio-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.dio textarea { width: 100%; }

@@ -914,6 +914,33 @@ import { ptExplain } from './src/game.js'
   }
   console.log('selfcheck conta do poder/resistência ok')
 }
+{  // Exportar / Importar decks: zip ida e volta, .dek, .csv, vários colados, o ficheiro do Grimório
+  const { makeZip, readZip } = await import('./src/zip.js')
+  const { fromText, listsZip } = await import('./src/deckio.js')
+  const z = makeZip([{ name: 'Bolts.txt', text: '4 Lightning Bolt\n20 Forest' }, { name: 'Ç ñ.txt', text: 'çã' }])
+  const back = await readZip(z.buffer)
+  assert.deepEqual(back.map(f => f.name), ['Bolts.txt', 'Ç ñ.txt']) ; assert.equal(back[1].text, 'çã')
+  // um .zip comprimido (deflate), como o das outras apps
+  const { deflateRawSync } = await import('node:zlib')
+  const raw = deflateRawSync(Buffer.from('2 Lightning Bolt')), nm = Buffer.from('d.txt'), crc = 0
+  const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(8, 8); lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(raw.length, 18); lh.writeUInt32LE(16, 22); lh.writeUInt16LE(nm.length, 26)
+  const ch = Buffer.alloc(46); ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(8, 10); ch.writeUInt32LE(raw.length, 20); ch.writeUInt32LE(16, 24); ch.writeUInt16LE(nm.length, 28); ch.writeUInt32LE(0, 42)
+  const cd = Buffer.concat([ch, nm]), ed = Buffer.alloc(22); ed.writeUInt32LE(0x06054b50, 0); ed.writeUInt16LE(1, 8); ed.writeUInt16LE(1, 10); ed.writeUInt32LE(cd.length, 12); ed.writeUInt32LE(30 + nm.length + raw.length, 16)
+  const zz = Buffer.concat([lh, nm, raw, cd, ed])
+  assert.equal((await readZip(zz.buffer.slice(zz.byteOffset, zz.byteOffset + zz.length)))[0].text, '2 Lightning Bolt')
+  const dek = fromText(data, '<?xml version="1.0"?><Deck><Cards CatID="1" Quantity="4" Sideboard="false" Name="Lightning Bolt" /><Cards CatID="2" Quantity="2" Sideboard="true" Name="Sol Ring" /></Deck>', 'MTGO', 'x.dek')
+  assert.deepEqual([dek[0].deck.main, dek[0].deck.side], [{ 'Lightning Bolt': 4 }, { 'Sol Ring': 2 }])
+  const csv = fromText(data, '"Count","Name","Board"\n4,"Lightning Bolt","main"\n1,"Sol Ring","sideboard"\n1,"Atraxa, Praetors\' Voice","commander"\n', 'Mox', 'm.csv')
+  assert.deepEqual([csv[0].deck.main, csv[0].deck.side, csv[0].deck.commanders], [{ 'Lightning Bolt': 4 }, { 'Sol Ring': 1 }, ['Atraxa, Praetors\' Voice']])
+  const many = fromText(data, 'Nome: Burn\n4 Lightning Bolt\n---\nNome: Ramp\n20 Forest\n1 Carta Que Não Existe', 'Colado')
+  assert.deepEqual(many.map(x => [x.deck.name, x.count, x.unknown.length]), [['Burn', 4, 0], ['Ramp', 20, 1]])
+  assert.equal(fromText(data, 'Deck\n4 Lightning Bolt\n\nSideboard\n2 Sol Ring', 'Um').length, 1)  // o «Deck» do Arena não parte em dois
+  const b = fromText(data, JSON.stringify({ grimorio: 'decks', v: 1, decks: [{ id: 'x', name: 'A', format: 'modern', main: { 'Lightning Bolt': 4 }, notes: 'n' }] }))
+  assert.equal(b[0].deck.notes, 'n'); assert.equal(b[0].deck.id, 'x')
+  const lz = await readZip(listsZip([{ name: 'A/B', main: { 'Lightning Bolt': 4 } }, { name: 'a/b', main: { Forest: 1 } }]).buffer)
+  assert.deepEqual(lz.map(f => f.name), ['A_B.txt', 'a_b (2).txt']); assert.match(lz[0].text, /4 Lightning Bolt/)
+  console.log('selfcheck exportar/importar decks ok')
+}
 // fichas (tokens.js + permCard): nome sem «Token» e sem maiúsculas, P/R e cores desempatam, a carta que a criou manda,
 // uma ficha «Blood» não é a face de «Flesh // Blood», e o lookup pelo nome também chega às fichas
 {
