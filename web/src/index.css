@@ -3998,8 +3998,7 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .orb { -webkit-touch-callout: none; }
 .orb-egg { position: fixed; z-index: 2147483200; width: min(310px, calc(100vw - 24px)); max-height: calc(100vh - 16px); overflow: auto; padding: 12px 14px; border-radius: 14px;
   background: linear-gradient(160deg, #181528f7, #10131ff7); border: 1px solid #f2b84b; box-shadow: 0 16px 40px #000d, 0 0 24px #f2b84b22; color: #e5e7eb; font-size: 12px;
-  pointer-events: none; animation: egg-in .35s cubic-bezier(.34, 1.56, .64, 1); backdrop-filter: blur(6px); }
-@media (hover: none) { .orb-egg { pointer-events: auto; } }
+  pointer-events: auto; animation: egg-in .35s cubic-bezier(.34, 1.56, .64, 1); backdrop-filter: blur(6px); }
 @keyframes egg-in { from { opacity: 0; transform: scale(.9) translateY(6px); } }
 .orb-egg header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
 .orb-egg header b { color: var(--gold); font-size: 14px; } .orb-egg header small { color: var(--muted); text-align: right; }
@@ -4023,3 +4022,11 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
   .fp-stage.persp .bside.top .bhud > .orb[data-egg="1"]:not(.orb-proxy) { transform: rotateX(calc(var(--tilt) * -1)) translateX(var(--pfx, 0px)); }
   .orb-egg { animation: none; } .egg-bars i b { transition: none; }
 }
+
+/* ficha da esfera: as fatias e as barras respondem ao rato; a linha de explicação por baixo dos gráficos */
+.orb-egg .egg-hit { cursor: help; transition: opacity .15s; }
+.orb-egg .egg-hit:hover { opacity: .75; }
+.orb-egg .egg-bars li { cursor: help; }
+.orb-egg .egg-bars li:hover { background: #ffffff0d; border-radius: 6px; }
+.orb-egg .egg-hint { margin: 4px 0 6px; min-height: 2.6em; font-size: 12px; line-height: 1.35; color: #cbd5e1; opacity: .7; }
+.orb-egg .egg-hint.on { color: #fde68a; opacity: 1; }
