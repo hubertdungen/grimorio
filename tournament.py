@@ -811,6 +811,10 @@ def create(owner, d):
                 p.pop("ctl", None)
         if misto and (cmd or t == "mesas" or table):
             raise ValueError("Com bots no torneio misto não há Commander nem mesas de 3–4 (o Forge Play é um contra um). Para isso, jogam todos eles mesmos.")
+        if d.get("strict") and (cmd or t in ("mesas", "equipas") or table):
+            raise ValueError("A mesa estrita é 1 contra 1 sem Commander (o Forge faz cumprir as regras entre duas pessoas).")
+        if d.get("strict"):  # pessoa contra pessoa na mesa estrita (o Forge com as duas) em vez da mesa livre
+            st["strict"] = True
         if d.get("free"):  # mesa livre: sem bots; cada partida joga-se numa mesa livre entre os donos dos decks
             st.update(free=True, friends=True, start_at=0)
         elif misto:  # misto: cada partida joga-se conforme quem joga cada deck (ver how())
@@ -1044,16 +1048,16 @@ def route(method, path, owner, body=None, bettor=None):
                     rdy = rdy | {who} if on else rdy - {who}
                     m["rdy"] = sorted(rdy)
                     if not m.get("table") and owners <= rdy:
-                        open_table(con, owner, st, m, row[2])
+                        start_pvp(st, m, owner) if kind == "pvp" else open_table(con, owner, st, m, row[2])
                 elif who != "host":
                     return 403, {"erro": "Só quem aloja pode fazer isto."}
                 elif parts[1] == "open" and not m.get("table"):  # quem aloja abre já a mesa
-                    open_table(con, owner, st, m, row[2])
+                    start_pvp(st, m, owner) if kind == "pvp" else open_table(con, owner, st, m, row[2])
                 elif parts[1] == "result":  # quem aloja marca o resultado do jogo (índice do jogador no torneio, None = empate)
                     w = (body or {}).get("w")
                     if w is not None and w not in m["p"]:
                         return 400, {"erro": "Esse deck não joga esta partida."}
-                    if kind == "play":  # o jogo do Forge Play em curso pára: conta o que quem aloja marcou
+                    if kind in ("play", "pvp"):  # o jogo do Forge Play em curso pára: conta o que quem aloja marcou
                         drop_play(m, owner)
                     m.setdefault("seats", list(m["p"]))
                     table_game(con, tid, st, m, None if w is None else m["seats"].index(w), owner, "Marcado por quem aloja")
@@ -1402,7 +1406,22 @@ def how(st, m):
     hs = [ctl(st, i) for i in m["p"] if i is not None and i >= 0]
     if m.get("bot") or not any(hs):
         return "forge"
-    return "mesa" if all(hs) else "play"
+    return ("pvp" if st.get("strict") else "mesa") if all(hs) else "play"
+
+
+def start_pvp(st, m, owner):
+    """Mesa estrita: o jogo do Forge com as duas pessoas desta partida (playnet.start_pvp); a mesa vai como «fp:<sessão>»
+    (o browser abre o Forge Play) e o resultado chega como o de um jogo do Forge Play (m["play"], lado a/b = m["seats"])."""
+    a, b = m["p"][0], m["p"][1]
+    P, hsb = st["players"], st.get("hsb") or {}
+    by = lambda i: ctl(st, i) or "host"  # noqa: E731
+    key = lambda i: owner if by(i) == "host" else f"{owner}~{by(i)}"  # noqa: E731
+    flat = lambda d: {**d, "main": {**(d.get("main") or {}), **{c: 1 for c in d.get("commanders") or []}}, "commanders": []}  # noqa: E731
+    decks = {s: flat({**st["decks"][i], "name": P[i]["name"], **(hsb.get(f"{m['id']}:{by(i)}") or {})}) for s, i in (("a", a), ("b", b))}
+    names = {s: (P[i].get("fr") or ("Anfitrião" if by(i) == "host" else "Convidado"))[:40] for s, i in (("a", a), ("b", b))}
+    sid = playnet.start_pvp(DATA, {"a": key(a), "b": key(b)}, decks, names)
+    m.update(play=sid, seats=[a, b], by="host", pvp=True, table="fp:" + sid)
+    m.pop("want", None)
 
 
 def mine_to_play(st, m):
@@ -1473,12 +1492,14 @@ def open_table(con, owner, st, m, name="", prev=None):
 
 def drop_play(m, owner):
     """Fecha o jogo do Forge Play desta partida (se houver) e tira-a da fila."""
-    if m.get("play"):
+    if m.get("play") and m.get("pvp"):  # mesa estrita: fecha o jogo para os dois
+        playnet.kill(m["play"])
+    elif m.get("play"):
         try:
             playnet.stop(m["play"], owner if m.get("by", "host") == "host" else f"{owner}~{m['by']}")
         except KeyError:
             pass
-    for k in ("play", "want", "by", "seats"):
+    for k in ("play", "want", "by", "seats", "pvp") + (("table",) if str(m.get("table") or "").startswith("fp:") else ()):
         m.pop(k, None)
 
 
@@ -1514,7 +1535,7 @@ def step():
         rows = con.execute("SELECT id, status, state, owner FROM tournaments WHERE status IN ('running', 'paused') ORDER BY ts").fetchall()
         tours = [(tid, status, json.loads(s), owner) for tid, status, s, owner in rows]
         for tid, status, st, owner in tours:
-            for m in [m for m in st["matches"] if m.get("table") and m["st"] == "ready"]:  # torneio de mesa livre
+            for m in [m for m in st["matches"] if m.get("table") and m["st"] == "ready" and not str(m["table"]).startswith("fp:")]:  # torneio de mesa livre
                 r = freetable.result(m["table"], db)
                 if r and not r["ended"]:
                     continue
@@ -1537,6 +1558,10 @@ def step():
                 m.pop("play")  # parado sem vencedor (ou o servidor reiniciou): a partida volta a esperar por mim
                 m.pop("seats", None)
                 m.pop("since", None)
+                if m.pop("pvp", None):  # mesa estrita: o jogo seguinte da série abre logo para os dois (ou volta ao «Pronto»)
+                    m.pop("table", None)
+                    if r and r["side"] and m["st"] != "done" and how(st, m) == "pvp":
+                        start_pvp(st, m, owner)
                 resolve(st)
                 save(con, tid, st)
                 return
@@ -2021,6 +2046,7 @@ def selfcheck():
     mx = {"misto": True, "players": [{"by": "host", "ctl": True}, {"by": "guest:aaaaaaaaaaaa", "ctl": True}, {"by": "host"}, {"by": "guest:aaaaaaaaaaaa"}]}
     kinds = {k: how(mx, {"p": p}) for k, p in {"pp": [0, 1], "pb": [0, 2], "bp": [3, 1], "bb": [2, 3]}.items()}
     assert kinds == {"pp": "mesa", "pb": "play", "bp": "play", "bb": "forge"}, kinds
+    assert how({**mx, "strict": True}, {"p": [0, 1]}) == "pvp" and how({**mx, "strict": True}, {"p": [0, 2]}) == "play"  # mesa estrita só entre pessoas
     assert ctl(mx, 1) == "guest:aaaaaaaaaaaa" and ctl(mx, 3) is None and how(mx, {"p": [0, 1], "bot": 1}) == "forge"
     assert next_match({**mx, "matches": [{"id": "x", "st": "ready", "p": [0, 2]}, {"id": "y", "st": "ready", "p": [3, 1]}, {"id": "z", "st": "ready", "p": [2, 3]}]})["id"] == "z"
     m = {"id": "x", "st": "ready", "p": [0, 1], "g": [], "w": [0, 0], "table": "t1", "rdy": ["host"], "since": 1}

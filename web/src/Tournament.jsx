@@ -229,6 +229,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
   const [mixOn, setMixOn] = useState(true)
   const mixF = casual && mixOn  // formatos misturados (só em casual)
   const [hold, setHold] = useState(() => ls('grimorio.torneio.hold') === '1')
+  const [strict, setStrict] = useState(() => ls('grimorio.torneio.estrita') === '1')  // pessoas entre si na mesa estrita (o Forge com as duas) em vez da mesa livre
   const [wait, setWait] = useState(() => +ls('grimorio.torneio.espera') || 0)  // misto: minutos à espera de uma pessoa; depois joga o bot
   const [playMe, setPlayMe] = useState(() => ls('grimorio.torneio.playme') === '1')  // os jogos do meu deck jogo-os eu (Forge Play)  // só começa com o OK (escolha guardada, também nas Definições)
   const [metaFmt, setMetaFmt] = useState('')
@@ -380,7 +381,7 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
   const openRoom = async () => {
     setBusy(true); setErr('')
     try {
-      await post('/api/rooms', { name: name.trim() || suggested, type, format, casual, hold, cross, bo: boOf, third, rounds: R, seeding, team, ...(free && { free: true }), ...(misto && { misto: true, wait }),
+      await post('/api/rooms', { name: name.trim() || suggested, type, format, casual, hold, cross, bo: boOf, third, rounds: R, seeding, team, ...(free && { free: true }), ...(misto && { misto: true, wait }), ...((free || misto) && strict && { strict: true }),
         players: players.map(({ src, ref, difficulty, cover, colors, me, name: nm, plays }) => ({ src, ref, difficulty, cover, colors, me, name: nm, plays })) })
       onRoom()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
@@ -510,6 +511,8 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
       <div className="row-btns tc-go">
         {asRoom ? <button className="primary" onClick={openRoom} disabled={busy || n > max}>{tx('🚪 Abrir a sala')}</button>
           : <button className="primary" onClick={start} disabled={busy || n < lo || n > max || teamBad}>{tx('🏆 Começar o torneio')}</button>}
+        {(free || misto) && <label className="chk small" title={tx('Pessoa contra pessoa joga-se com todas as regras do Forge, cada um no seu ecrã (como contra o Forge), em vez da mesa livre sem regras. Só 1 contra 1 e sem Commander.')}>
+          <input type="checkbox" checked={strict} onChange={e => { setStrict(e.target.checked); ls('grimorio.torneio.estrita', e.target.checked ? '1' : '0') }} /> ⚖ {tx('Mesa estrita entre pessoas (regras do Forge)')}</label>}
         {misto && <label className="small tc-wait" title={tx('Se a pessoa de uma partida não aparecer (não carregar em «Jogar» nem em «Pronto»), o bot joga a partida por ela. Quem aloja também pode dar qualquer partida ao bot.')}>{tx('Se alguém não aparecer:')} <select value={wait} onChange={e => { setWait(+e.target.value); ls('grimorio.torneio.espera', e.target.value) }}>
           <option value={0}>{tx('espera sempre')}</option>{[5, 10, 15, 30].map(m => <option key={m} value={m}>{tx('o bot joga ao fim de {m} min', { m })}</option>)}</select></label>}
         <label className="chk small" title={tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}><input type="checkbox" checked={hold} onChange={e => { setHold(e.target.checked); ls('grimorio.torneio.hold', e.target.checked ? '1' : '0') }} /> {tx('Só começar quando eu der OK')}</label>
@@ -1259,7 +1262,7 @@ function SideWhy({ m, P }) {
 }
 
 // como se joga cada partida (tournament.how): no Forge (bot contra bot), no Forge Play (pessoa contra bot) ou à mesa livre
-const HOW = { forge: ['🤖', tx('Bot contra bot: joga-se no Forge, com as regras todas')], play: ['🎮', tx('Pessoa contra bot: joga-se no Forge Play, com as regras do Forge')], mesa: ['🃏', tx('Pessoas entre si: joga-se numa mesa livre')] }
+const HOW = { forge: ['🤖', tx('Bot contra bot: joga-se no Forge, com as regras todas')], play: ['🎮', tx('Pessoa contra bot: joga-se no Forge Play, com as regras do Forge')], mesa: ['🃏', tx('Pessoas entre si: joga-se numa mesa livre')], pvp: ['⚖', tx('Pessoas entre si na mesa estrita: o Forge faz cumprir as regras, cada um no seu ecrã')] }
 function Match({ m, data, P, live, num, onGame, label, me, casual, odds, bet }) {
   const now = live?.ids?.has(m.id), tt = m.b === 'T'  // tt: 2 contra 2 à mesma mesa (p = equipa a, equipa a, equipa b, equipa b)
   const slot = k => {
