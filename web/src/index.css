@@ -854,6 +854,13 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .bhud.withhand > .myhand.opp { order: 0; }
 .bhud.withhand > .myhand small { font-size: 11px; }
 .brow.rear > .brow.others { margin-left: auto; border-left: 0; padding-left: 0; }
+/* alinhamento das filas (Definições › Mesa): os terrenos no espaço até às outras permanentes; as criaturas acabam no mesmo
+   sítio — um espaçador da largura das outras (--oth, medido no Side) que é o primeiro a encolher: cheia, a fila das
+   criaturas fica com a largura toda; safe: nunca sai pela esquerda */
+.bside[data-align] .brow.rear > .brow.lands { flex-grow: 1; }
+.bside[data-align] > .brow.front::after { content: ''; flex: 0 1000 max(0px, calc(var(--oth, 0px) - 6px)); min-width: 0; }
+.bside[data-align="center"] > .brow.front, .bside[data-align="center"] .brow.rear > .brow.lands { justify-content: safe center; }
+.bside[data-align="right"] > .brow.front, .bside[data-align="right"] .brow.rear > .brow.lands { justify-content: safe flex-end; }
 /* pilhas (biblioteca, cemitério, exílio) ao tamanho dos terrenos */
 .board .pile-c { width: max(34px, calc(var(--lw) * .8)); }
 .board .cmdz { width: max(48px, calc(var(--lw) * 1.1)); }

@@ -134,6 +134,12 @@ function TableKeys() {
           <option value="free">{tx('Livre: fica onde a largares')}</option>
           <option value="rows">{tx('Filas automáticas (criaturas, terrenos, outras)')}</option>
         </select></label>
+      <label className="fmt"><span>{tx('Filas dos terrenos e das criaturas')}</span>
+        <select value={p.rowAlign} onChange={e => save({ rowAlign: e.target.value })}>
+          <option value="left">{tx('À esquerda')}</option>
+          <option value="center">{tx('Ao centro')}</option>
+          <option value="right">{tx('À direita, até às outras permanentes')}</option>
+        </select></label>
       <label className="fmt"><span>{tx('Tamanho das cartas na mesa')}</span>
         <select value={p.cardPx} onChange={e => save({ cardPx: +e.target.value })}>
           {CARD_PX.map(n => <option key={n} value={n}>{n ? tx('{n} px (terrenos também)', { n }) : tx('Automático (cabe no ecrã)')}</option>)}

@@ -20,7 +20,9 @@ export const fpPrefs = () => {
     clock: o.clock !== false, clockSec: Math.max(3, Math.min(30, +o.clockSec || 8)), clockExtra: Math.max(5, Math.min(90, +o.clockExtra || 20)), clockKey: /^[a-z0-9]$/.test(o.clockKey || '') ? o.clockKey : 's',
     flip: o.flip || 'f', tap: o.tap || 't',
     autopay: o.autopay === true, autoresolve: o.autoresolve === true,  // pagar sozinho: desligado por omissão
-    place: ['grid', 'free', 'rows'].includes(o.place) ? o.place : 'grid', persp: o.persp !== false, tilt: Number.isFinite(o.tilt) ? o.tilt : 30,
+    place: ['grid', 'free', 'rows'].includes(o.place) ? o.place : 'grid',
+    rowAlign: ['center', 'right'].includes(o.rowAlign) ? o.rowAlign : 'left',  // filas dos terrenos e das criaturas: à esquerda, ao centro ou à direita (antes das outras permanentes)
+    persp: o.persp !== false, tilt: Number.isFinite(o.tilt) ? o.tilt : 30,
     oppFace: o.oppFace === 'far' ? 'far' : 'me',  // cartas dos adversários: viradas para mim (legíveis) ou para eles (180°, como numa mesa a sério)
     cardPx: CARD_PX.includes(o.cardPx) ? o.cardPx : 0,  // tamanho das cartas na mesa (0 = automático)
     mat: MATS.includes(o.mat) ? o.mat : null, mats: o.mats !== false,
