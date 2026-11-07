@@ -3990,3 +3990,36 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .ptr-hand.idle { opacity: .45; }
 @media (prefers-reduced-motion: reduce) { .ptr-hand { transition: opacity .6s; } }
 .fp-blk.atk { background: #4a1414; border-color: #ff6b6baa; color: #fee2e2; }
+
+/* o segredo da esfera da vida (OrbEgg.jsx): o rato parado em cima aproxima-a devagar (até 1,6×) e abre a ficha dela */
+.orb[data-egg]:not(.orb-proxy) { z-index: 40; transition: background .5s, box-shadow .5s, transform .45s ease-out; }
+.orb[data-egg="1"]:not(.orb-proxy) { transform: scale(1.6); transition: background .5s, box-shadow .5s, transform 7s cubic-bezier(.3, .1, .3, 1); }
+.fp-stage.persp .bside.top .bhud > .orb[data-egg="1"]:not(.orb-proxy) { transform: rotateX(calc(var(--tilt) * -1)) translateX(var(--pfx, 0px)) translateY(-160%) scale(1.6) translateY(160%); }  /* a dobradiça está em 50% 210%: aproxima à volta do centro */
+.orb { -webkit-touch-callout: none; }
+.orb-egg { position: fixed; z-index: 2147483200; width: min(310px, calc(100vw - 24px)); max-height: calc(100vh - 16px); overflow: auto; padding: 12px 14px; border-radius: 14px;
+  background: linear-gradient(160deg, #181528f7, #10131ff7); border: 1px solid #f2b84b; box-shadow: 0 16px 40px #000d, 0 0 24px #f2b84b22; color: #e5e7eb; font-size: 12px;
+  pointer-events: none; animation: egg-in .35s cubic-bezier(.34, 1.56, .64, 1); backdrop-filter: blur(6px); }
+@media (hover: none) { .orb-egg { pointer-events: auto; } }
+@keyframes egg-in { from { opacity: 0; transform: scale(.9) translateY(6px); } }
+.orb-egg header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.orb-egg header b { color: var(--gold); font-size: 14px; } .orb-egg header small { color: var(--muted); text-align: right; }
+.egg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.egg-row figure { margin: 0; text-align: center; } .egg-row figcaption { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.egg-chart { width: 100%; max-width: 130px; display: block; margin: 0 auto; }
+.egg-life { fill: #fff; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; } .egg-lifel { fill: #9a93b5; font-size: 8px; }
+.egg-mix { display: flex; flex-wrap: wrap; gap: 3px 10px; margin: 8px 0 0; padding: 0; list-style: none; font-size: 11px; }
+.egg-mix i, .egg-pip { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; box-shadow: 0 0 0 1px #0006; }
+.egg-mix li.muted { flex-basis: 100%; color: var(--muted); }
+.egg-say { margin: 8px 0 6px; color: var(--gold2); font-style: italic; }
+.egg-bars { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.egg-bars li { display: grid; grid-template-columns: 1fr 80px 32px; gap: 6px; align-items: center; font-size: 11px; } .egg-bars li.off { opacity: .42; }
+.egg-bars i { height: 6px; border-radius: 3px; background: #ffffff14; overflow: hidden; } .egg-bars i b { display: block; height: 100%; border-radius: 3px; transition: width .45s; }
+.egg-bars em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.egg-specs { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 10px 0 0; padding-top: 8px; border-top: 1px solid #f2b84b33; }
+.egg-specs dt { color: var(--muted); } .egg-specs dd { margin: 0; text-align: right; }
+.egg-state { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0 0; } .egg-state span { padding: 1px 7px; border-radius: 9px; background: #f2b84b1f; border: 1px solid #f2b84b44; }
+@media (prefers-reduced-motion: reduce) {
+  .orb[data-egg="1"]:not(.orb-proxy) { transform: none; }
+  .fp-stage.persp .bside.top .bhud > .orb[data-egg="1"]:not(.orb-proxy) { transform: rotateX(calc(var(--tilt) * -1)) translateX(var(--pfx, 0px)); }
+  .orb-egg { animation: none; } .egg-bars i b { transition: none; }
+}

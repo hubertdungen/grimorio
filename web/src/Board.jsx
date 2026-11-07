@@ -10,6 +10,7 @@ import { useColors, sideColors, Syms, keepOnScreen } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { attackStyle, attackFx } from './orbfx.js'
 import { leaveGhost } from './tablekit.js'
+import OrbEgg from './OrbEgg.jsx'
 import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
 import { snapBoard } from './fpboard.js'
 import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
@@ -838,7 +839,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     if (!el) return
     let fx = 0
     const fit = () => {
-      if (!el.isConnected) return
+      if (!el.isConnected || el.dataset.egg) return  // a aproximar-se (OrbEgg): a medida mudava a meio
       if (!el.closest('.fp-stage.persp .bside.top')) { if (fx) { fx = 0; el.style.removeProperty('--pfx') } return }
       const nm = el.parentElement?.querySelector(':scope > .bname')
       if (!nm) return
@@ -878,6 +879,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
       {d && !fast ? <i key={step} className={`orb-flash ${d < 0 ? 'loss' : 'gain'}`} /> : null}
       {d && !fast ? <i key={`f${step}`} className={`float ${d < 0 ? 'loss' : 'gain'}`}>{d > 0 ? '+' : '−'}{lifeTxt(Math.abs(d))}</i> : null}
       {hit && !fast ? <i key={`h${step}`} className="orb-hit" /> : null}
+      <OrbEgg orb={orbRef} start={start} poison={poison} pmax={pmax} names={[ORB_T_NAME, ORB_A_NAME]} />
       {poison > 0 && <i key={psnHit && !fast ? `p${step}` : 'p'} className={`orb-psn ${poison >= pmax - 3 ? 'crit' : ''} ${psnHit && !fast ? 'up' : ''}`} title={tx('{n} marcadores de veneno ({m} = derrota)', { n: poison, m: pmax })}>☠ {poison}</i>}
     </div>
   )
