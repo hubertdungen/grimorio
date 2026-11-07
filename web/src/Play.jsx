@@ -127,7 +127,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
     if (!useNative) return go(tx('A arrancar o Forge…'), '/api/play/start', { format: fmt.key, difficulty: diff, deck: mineDeck, opponent })
     setErr(''); setBusy(tx('A arrancar o Forge…'))
     // rate_id/format/round/bo: o jogo conta para os ratings
-    j('/api/playnet', { difficulty: diff, deck: myDeck, opponent, casual, name: tx('Tu'), rate_id: deck.id, format: fmt.key, round: ser?.id, bo: ser?.bo || 1 })
+    j('/api/playnet', { difficulty: diff, deck: myDeck, opponent, casual, name: tx('Tu'), rate_id: deck.id, format: fmt.key, round: ser?.id, bo: ser?.bo || 1, ...(ser?.last && { chooser: ser.last }) })  // jogo 2+: quem perdeu o anterior escolhe (a = eu)
       .then(r => setNet(r.id)).catch(e => setErr(e.message)).finally(() => setBusy(''))
   }
   const stopNet = async () => { if (net) await j(`/api/playnet/${net}/stop`, {}).catch(() => {}); setNet(null) }
@@ -142,7 +142,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
       <div className="row-btns fp-bar"><b>⚔ {deck.name}</b> <span className="muted small">{tx('contra a IA do Forge · {f}', { f: fmt.name })}</span>
         <button className="link small" onClick={stopNet}>■ {tx('Parar o jogo')}</button></div>
       <ForgeTable key={net} sid={net} data={data} onClose={() => { stopNet(); setSeries(null) }} series={series} cols={{ a: colorsOf(deck, data).join(''), b: opp?.d ? colorsOf(opp.d, data).join('') : '' }}
-        onEnd={won => setSeries(x => { if (!x || won == null) return x; const w = won ? [x.w[0] + 1, x.w[1]] : [x.w[0], x.w[1] + 1]; return { ...x, w, done: Math.max(...w) > x.bo / 2 } })}
+        onEnd={won => setSeries(x => { if (!x || won == null) return x; const w = won ? [x.w[0] + 1, x.w[1]] : [x.w[0], x.w[1] + 1]; return { ...x, w, last: won ? 'b' : 'a', done: Math.max(...w) > x.bo / 2 } })}
         onAgain={() => { setNet(null); if (series && !series.done) setBetween(true); else start(null) }} />
     </div>
   )

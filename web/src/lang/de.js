@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Perdeste o jogo anterior: escolhes tu — jogas primeiro ou vais em segundo?": "Du hast das letzte Spiel verloren und wählst: zuerst spielen oder ziehen?",
+  "{p} perdeu o jogo anterior: escolhe quem começa.": "{p} hat das letzte Spiel verloren und wählt, wer beginnt.",
   "Mesa estrita entre pessoas (regras do Forge)": "Strenger Tisch zwischen Menschen (Forge-Regeln)",
   "Pessoa contra pessoa joga-se com todas as regras do Forge, cada um no seu ecrã (como contra o Forge), em vez da mesa livre sem regras. Só 1 contra 1 e sem Commander.": "Mensch gegen Mensch wird mit allen Forge-Regeln gespielt, jeder auf seinem Bildschirm (wie gegen Forge), statt am freien Tisch ohne Regeln. Nur 1 gegen 1 und ohne Commander.",
   "Pessoas entre si na mesa estrita: o Forge faz cumprir as regras, cada um no seu ecrã": "Menschen untereinander am strengen Tisch: Forge setzt die Regeln durch, jeder auf seinem Bildschirm",

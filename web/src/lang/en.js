@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Perdeste o jogo anterior: escolhes tu — jogas primeiro ou vais em segundo?": "You lost the last game, so you choose: play first or draw?",
+  "{p} perdeu o jogo anterior: escolhe quem começa.": "{p} lost the last game and chooses who starts.",
   "Mesa estrita entre pessoas (regras do Forge)": "Strict table between people (Forge rules)",
   "Pessoa contra pessoa joga-se com todas as regras do Forge, cada um no seu ecrã (como contra o Forge), em vez da mesa livre sem regras. Só 1 contra 1 e sem Commander.": "Person vs person is played with all of Forge's rules, each on their own screen (like against Forge), instead of the free table without rules. Only 1 vs 1 and no Commander.",
   "Pessoas entre si na mesa estrita: o Forge faz cumprir as regras, cada um no seu ecrã": "People against each other at the strict table: Forge enforces the rules, each on their own screen",

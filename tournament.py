@@ -1409,6 +1409,15 @@ def how(st, m):
     return ("pvp" if st.get("strict") else "mesa") if all(hs) else "play"
 
 
+def chooser(m, seats):
+    """Jogo 2+ de uma série: quem perdeu o anterior escolhe jogar ou comprar ('a'/'b' nestes lugares); None = moeda."""
+    last = next((g for g in reversed(m.get("g") or []) if g.get("w") is not None), None)
+    if not last or last["w"] not in seats:
+        return None
+    loser = next((i for i in seats if i != last["w"]), None)
+    return "ab"[seats.index(loser)] if loser is not None else None
+
+
 def start_pvp(st, m, owner):
     """Mesa estrita: o jogo do Forge com as duas pessoas desta partida (playnet.start_pvp); a mesa vai como «fp:<sessão>»
     (o browser abre o Forge Play) e o resultado chega como o de um jogo do Forge Play (m["play"], lado a/b = m["seats"])."""
@@ -1419,7 +1428,7 @@ def start_pvp(st, m, owner):
     flat = lambda d: {**d, "main": {**(d.get("main") or {}), **{c: 1 for c in d.get("commanders") or []}}, "commanders": []}  # noqa: E731
     decks = {s: flat({**st["decks"][i], "name": P[i]["name"], **(hsb.get(f"{m['id']}:{by(i)}") or {})}) for s, i in (("a", a), ("b", b))}
     names = {s: (P[i].get("fr") or ("Anfitrião" if by(i) == "host" else "Convidado"))[:40] for s, i in (("a", a), ("b", b))}
-    sid = playnet.start_pvp(DATA, {"a": key(a), "b": key(b)}, decks, names)
+    sid = playnet.start_pvp(DATA, {"a": key(a), "b": key(b)}, decks, names, chooser=chooser(m, [a, b]))
     m.update(play=sid, seats=[a, b], by="host", pvp=True, table="fp:" + sid)
     m.pop("want", None)
 
@@ -1451,7 +1460,7 @@ def start_play(st, m, tid, owner, who, name):
             "opp": f"{'meta' if P[other]['src'] == 'meta' else 'deck'}:{P[other]['ref']}", "opp_name": P[other]["name"],
             "round": f"{tid}:{m['id']}", "bo": st["bo"]} if st.get("misto") and P[h]["src"] == "meus" and P[other]["src"] in ("meus", "meta") else None
     key = owner if who == "host" else f"{owner}~{who}"  # cada convidado tem as suas sessões (playnet: uma por dono)
-    m["play"] = playnet.start(DATA, key, mine, opp, P[other].get("difficulty") or "default", name or "Tu", rate)
+    m["play"] = playnet.start(DATA, key, mine, opp, P[other].get("difficulty") or "default", name or "Tu", rate, chooser(m, [h, other]))
     m["seats"], m["by"] = [h, other], who
     m.pop("want", None)
 
@@ -2046,6 +2055,7 @@ def selfcheck():
     mx = {"misto": True, "players": [{"by": "host", "ctl": True}, {"by": "guest:aaaaaaaaaaaa", "ctl": True}, {"by": "host"}, {"by": "guest:aaaaaaaaaaaa"}]}
     kinds = {k: how(mx, {"p": p}) for k, p in {"pp": [0, 1], "pb": [0, 2], "bp": [3, 1], "bb": [2, 3]}.items()}
     assert kinds == {"pp": "mesa", "pb": "play", "bp": "play", "bb": "forge"}, kinds
+    assert chooser({"g": [{"w": 1}]}, [0, 1]) == "a" and chooser({"g": [{"w": 1}]}, [1, 0]) == "b" and chooser({"g": []}, [0, 1]) is None
     assert how({**mx, "strict": True}, {"p": [0, 1]}) == "pvp" and how({**mx, "strict": True}, {"p": [0, 2]}) == "play"  # mesa estrita só entre pessoas
     assert ctl(mx, 1) == "guest:aaaaaaaaaaaa" and ctl(mx, 3) is None and how(mx, {"p": [0, 1], "bot": 1}) == "forge"
     assert next_match({**mx, "matches": [{"id": "x", "st": "ready", "p": [0, 2]}, {"id": "y", "st": "ready", "p": [3, 1]}, {"id": "z", "st": "ready", "p": [2, 3]}]})["id"] == "z"

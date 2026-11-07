@@ -93,7 +93,7 @@ def _kill(s):
         subprocess.run(["docker", "kill", s["container"]], capture_output=True)
 
 
-def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None):
+def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None, chooser=None):
     """deck/opp = {name, main, side, commanders}; devolve o id da sessão. Um jogo de cada vez por dono. rate: para os
     ratings quando acabar (ratings.from_forgeplay), ou None (não conta)."""
     _cleanup()
@@ -107,7 +107,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None
             _kill(S.pop(sid))
     profs = {i: p for i, p, *_ in sim.DIFFICULTIES}
     oname = str(opp.get("name") or "Forge")[:40]
-    sid, p, container = _spawn(data_dir, deck, opp, [str(name)[:40] or "Tu", profs.get(difficulty) or "Default", oname], ai_b=True)
+    sid, p, container = _spawn(data_dir, deck, opp, [str(name)[:40] or "Tu", profs.get(difficulty) or "Default", oname] + (["ai", chooser] if chooser in ("a", "b") else []), ai_b=True)
     with COND:
         S[sid] = {"owner": owner, "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
                   "ended": False, "winner": None, "ts": time.time(), "names": {"a": deck.get("name"), "b": opp.get("name")},
@@ -117,7 +117,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None
     return sid
 
 
-def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None):
+def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None):
     """Mesa estrita: duas pessoas no mesmo jogo do Forge, cada uma com o seu ecrã (o GrimorioNet com dois humanos).
     seats = {"a": chave, "b": chave} (o dono ou «<dono>~guest:<id>»); decks/names = {"a": …, "b": …}. Devolve o id."""
     _cleanup()
@@ -131,7 +131,7 @@ def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None):
     nb = str(names.get("b") or "Jogador 2")[:40]
     if nb == na:  # quem ganhou vem pelo nome: os dois têm de ser diferentes
         nb = f"{nb[:36]} (2)"
-    sid, p, container = _spawn(data_dir, decks["a"], decks["b"], [na, "Default", nb, "pvp"], ai_b=False)
+    sid, p, container = _spawn(data_dir, decks["a"], decks["b"], [na, "Default", nb, "pvp"] + ([chooser] if chooser in ("a", "b") else []), ai_b=False)
     blank = lambda: {"state": None, "prompt": None, "asks": {}, "log": [], "since": time.time(), "last": 0}  # noqa: E731
     with COND:
         S[sid] = {"owner": seats["a"], "seats": dict(seats), "pv": {"a": blank(), "b": blank()}, "afk": afk, "clock": clock,

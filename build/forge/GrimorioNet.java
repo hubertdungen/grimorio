@@ -57,8 +57,24 @@ public class GrimorioNet {
     static final Gson G = new GsonBuilder().disableHtmlEscaping().create();
 
     static int logN = 0;  // n.º de cada aviso (msg/flash): o browser só recebe os últimos 12 e contava-os pelo tamanho da lista
+    // jogo 2+ de uma série (7.º argumento «a»/«b»): quem perdeu o anterior escolhe jogar ou comprar, sem moeda. O Forge, em
+    // cada processo novo, «atira a moeda» (Aggregates.random → MyRandom.nextInt) e quem a ganha escolhe com
+    // chooseStartingPlayer: a moeda cai sempre em quem perdeu, e os textos da moeda dizem «perdeu o jogo anterior»
+    static String CHOOSER = null;
+    static class CoinRandom extends java.util.Random {
+        volatile int force = -1;
+        @Override public int nextInt(int bound) {
+            if (force >= 0 && force < bound) for (StackTraceElement f : Thread.currentThread().getStackTrace())
+                if ("determineFirstTurnPlayer".equals(f.getMethodName())) { int r = force; force = -1; return r; }
+            return super.nextInt(bound);
+        }
+    }
     static void send(JsonObject o) {
         synchronized (GrimorioNet.class) {
+            if (CHOOSER != null && o.has("msg") && o.get("msg").isJsonPrimitive()) {
+                String m = o.get("msg").getAsString();
+                if (m.contains("won the coin toss")) o.addProperty("msg", m.replace("have won the coin toss", "lost the last game").replace("has won the coin toss", "lost the last game"));
+            }
             if (o.has("t") && ("msg".equals(o.get("t").getAsString()) || "flash".equals(o.get("t").getAsString()))) o.addProperty("n", ++logN);
             System.out.println("@@GN " + G.toJson(o));
             System.out.flush();
@@ -85,6 +101,11 @@ public class GrimorioNet {
         FModel.getPreferences().setPref(forge.localinstance.properties.ForgePreferences.FPref.UI_SELECT_FROM_CARD_DISPLAYS, false);
         Deck dh = DeckSerializer.fromFile(new File(a[0])), da = DeckSerializer.fromFile(new File(a[1]));
         boolean pvp = a.length > 5 && "pvp".equals(a[5]);
+        if (a.length > 6 && ("a".equals(a[6]) || "b".equals(a[6]))) {  // série: quem perdeu o jogo anterior escolhe
+            CHOOSER = a[6];
+            CoinRandom cr = new CoinRandom(); cr.force = "a".equals(a[6]) ? 0 : 1;
+            forge.util.MyRandom.setRandom(cr);
+        }
         LobbyPlayer human = GamePlayerUtil.getGuiPlayer();
         human.setName(a.length > 2 ? a[2] : "Tu");
         LobbyPlayer other = pvp ? new forge.player.LobbyPlayerHuman(a.length > 4 ? a[4] : "Jogador 2", 0, 0)  // a outra pessoa

@@ -61,6 +61,8 @@ function promptText(msg, st, me) {
   if (sv) return tx('Vigiar: {c} fica no topo da biblioteca ou vai para o cemitério?', { c: sv[1] })
   if (sc) return tx('Vidência: {c} fica no topo ou vai para o fundo da biblioteca?', { c: sc[1] })
   if (/you have won the coin toss/i.test(m)) return tx('Ganhaste a moeda ao ar: jogas primeiro ou vais em segundo?')
+  if (/you lost the last game/i.test(m)) return tx('Perdeste o jogo anterior: escolhes tu — jogas primeiro ou vais em segundo?')
+  if (/lost the last game/i.test(m)) return tx('{p} perdeu o jogo anterior: escolhe quem começa.', { p: m.split(/ lost the last/i)[0].trim() || tx('o adversário') })
   if (/has won the coin toss/i.test(m)) return tx('{p} ganhou a moeda ao ar.', { p: m.split(/ has won/i)[0].trim() || tx('o adversário') })
   // «you are going first!» = começas tu; «IA is going first.\nTu, you are going 2nd.» = começa outro (antes dava sempre «Começas tu»)
   if (/keep your hand/.test(m)) {
@@ -1138,7 +1140,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (!st?.turn || st.turn > 1 || st.active == null || !me) return
     if (series && (series.w?.[0] || 0) + (series.w?.[1] || 0) > 0) { tossed.current = true; return }  // jogo 2+ da série: escolhe quem perdeu
     // só se a pergunta «ganhaste a moeda» não chegar entretanto (o estado pode chegar antes dela: saía sempre a face do outro)
-    const t = setTimeout(() => { if (!sawWin.current) toss(false) }, 1500)
+    // série (também nos torneios): «lost the last game» no pedido ou no registo = escolheu quem perdeu, sem moeda
+    const t = setTimeout(() => { if (!sawWin.current && ![pr?.msg, ...(s?.log || []).map(x => x.msg)].some(x => /lost the last game/i.test(x || ''))) toss(false) }, 1500)
     return () => clearTimeout(t)
   }, [st?.turn, st?.active])  // eslint-disable-line react-hooks/exhaustive-deps
   const P = fpPrefs()

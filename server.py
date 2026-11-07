@@ -701,7 +701,7 @@ class H(BaseHTTPRequestHandler):
                 okey = f"meta:{o['id']}" if o.get("id") else f"deck:{o['deck_id']}" if o.get("deck_id") else ""
                 rate = {"deck_id": did, "owner": owner, "format": str(d.get("format") or a.get("format") or "")[:40], "casual": bool(d.get("casual")),
                         "opp": str(okey)[:140], "opp_name": b.get("name"), "round": str(d.get("round") or "")[:60] or None, "bo": d.get("bo") or 1} if did and okey else None
-                return self.json({"id": playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or str(d.get("name") or "")[:30] or "Tu", rate)}, 201)
+                return self.json({"id": playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or str(d.get("name") or "")[:30] or "Tu", rate, d.get("chooser") if d.get("chooser") in ("a", "b") else None)}, 201)
             if act == "cmd":
                 playnet.cmd(sid, owner, d)
                 return self.json({"ok": True})
