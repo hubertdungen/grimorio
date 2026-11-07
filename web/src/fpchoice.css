@@ -39,3 +39,4 @@
 /* outras escolhas só de texto (opções do Forge): colunas da mesma largura, o texto parte em linhas — nenhuma enche a janela */
 .fp-opts:not(:has(> :not(.fp-optl))) { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }
 .fp-opts > .fp-optl { white-space: normal; overflow-wrap: anywhere; min-height: 44px; line-height: 1.3; }
+.fp-optl.short { opacity: .5; }
