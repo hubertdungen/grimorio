@@ -3923,3 +3923,6 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .fp-aim { outline: 3px solid var(--gold); outline-offset: 2px; border-radius: 8px; animation: fpaim .3s ease-in-out infinite alternate; }
 .orb.fp-aim { border-radius: 50%; }
 @keyframes fpaim { from { outline-color: #f2b84b; box-shadow: 0 0 0 0 #f2b84b88; } to { outline-color: #fff3c4; box-shadow: 0 0 18px 4px #f2b84b88; } }
+/* mesa livre: a carta em grande flutua por cima da mesa (fora do painel, que fica só com os botões e a conversa) */
+.fp.ml .fp-stagebox > .fp-zoom.ml-float { position: absolute !important; top: 10px; right: 10px; z-index: 61; width: clamp(200px, 21vw, 340px); max-height: none; aspect-ratio: 488 / 680; background: none; pointer-events: none; filter: drop-shadow(0 14px 30px #000c); }
+.fp.ml .fp-stagebox > .fp-zoom.ml-float.left { right: auto; left: 10px; }

@@ -158,6 +158,8 @@ function SidePhase({ s, data, send, onClose }) {
 }
 
 function Table({ id, data, onClose, onNext, onBegin }) {
+  const [zLeft, setZLeft] = useState(false)
+  const zWait = useRef({})
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [menu, setMenu] = useState(null)
   const [help, setHelp] = useState(() => lsGet(HELP_K) !== '1'), [lift, setLift] = useState(null), [ver, setVer] = useState(0)
   const [seatSel, setSeatSel] = useState(null), seatQ = c => (seatSel != null ? `${c}seat=${seatSel}` : '')  // quem tem os dois decks de uma partida escolhe o lugar
@@ -492,7 +494,13 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     const cid = el ? +(el.dataset.h || el.dataset.zid || el.dataset.z.slice(2)) : null
     hoverId.current = cid
     const c = cid != null && byId.get(cid)?.c
-    if (c?.n) setZoom(c.n)
+    // a carta em grande só depois de 1 s parado em cima dela; sai assim que o rato sai das cartas
+    if (c?.n) {
+      if (zWait.current.n === c.n) return
+      clearTimeout(zWait.current.t); if (!menu) setZoom(null)
+      const r = stageWrap.current?.getBoundingClientRect(), left = !!r && e.clientX > r.left + r.width / 2
+      zWait.current = { n: c.n, t: setTimeout(() => { setZLeft(left); setZoom(c.n) }, 1000) }
+    } else if (!el && !e.target.closest('.fp-zoom')) { clearTimeout(zWait.current.t); zWait.current = {}; if (!menu) setZoom(null) }
   }
   const tilt = e => {
     const el = e.target.closest('.pc, .fp-card')
@@ -602,12 +610,14 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const lg = [...ghosts.filter(g => g.k !== 'orb' && !(g.k === 'card' && handed(g))),  // e as largadas há pouco cuja jogada ainda não chegou
     ...Object.entries(dropAt.current).filter(([seat, d]) => d.end && !d.gone && Date.now() - d.end < 900 && cardKey(d.id) === d.key && !s.live?.[seat]).map(([seat, d]) => ({ seat: +seat, k: 'card', id: d.id, p: d }))]
   return (
-    <div className={`fp ml ${dice.res ? 'dice-on' : ''} ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${phone && chatOpen ? 'chat-open' : ''}`} ref={fitBox} onMouseLeave={() => peek.hide()} onMouseOver={onOver}
+    <div className={`fp ml ${dice.res ? 'dice-on' : ''} ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${phone && chatOpen ? 'chat-open' : ''}`} ref={fitBox} onMouseLeave={() => { peek.hide(); clearTimeout(zWait.current.t); zWait.current = {}; if (!menu) setZoom(null) }} onMouseOver={onOver}
       onPointerDown={e => { downAt.current = { x: e.clientX, y: e.clientY }; peek.hide() }}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && (pen.down(e) || dice.grab(e))) e.stopPropagation() }}
       onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
       <FsBtn className="on-table" />
+      {/* a carta em grande flutua por cima da mesa, do lado oposto ao rato: no painel tapava os botões (passar a vez, mulligan, dados, caneta) */}
+      {zc && <div className={`fp-zoom ml-float ${zLeft ? 'left' : ''}`} aria-hidden="true"><img key={zc.n} className="fp-zin" src={img(zc, 'normal', false, artOf(allArts, null, zc))} alt="" /></div>}
       {lg.length > 0 && createPortal(<div className="live-ghosts" aria-hidden="true">{lg.map(g => {  // o que os outros estão a agarrar agora
         const p = g.p || toScreen(g), n = g.k === 'card' && byId.get(g.id)?.c?.n, c = n && lookup(data, n)
         return p && <div key={`${g.seat}${g.k}`} className={`live-ghost ${g.k}`} style={{ left: p.x, top: p.y }}>
@@ -635,7 +645,6 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         <div className="fp-dice" ref={diceBox} />
       </div>
       <aside className="fp-side ml-aside">
-        <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={img(zc, 'normal', false, artOf(allArts, null, zc))} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         {tools}
         {err && <p className="small bad-t ml-err">{err}</p>}
         {(!phone || chatOpen) && <TableChat log={s.log} who={who} keyOf={keyOf} me={me} data={data} send={send} fmt={e => line(e, who)} names={names} onSeen={setSeen} />}
