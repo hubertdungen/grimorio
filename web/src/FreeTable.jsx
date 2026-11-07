@@ -552,7 +552,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     const hand = isMe
       ? <div className="fp-hand mine">{handOf(v).map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} h={c.id} data={data} big cls={`${c.r ? 'ml-rev' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>
       : <div className="fp-hand opp" title={tx('{n} carta na mão|{n} cartas na mão', { n: v.hand.length })}>{v.hand.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n, hidden: !c.n }} data={data} cls={c.n ? 'ml-rev' : ''} />)}</div>
-    const hud = <Hud k={k} z={zOf(v)} name={`${v.name}${v.out ? ' 🏳' : ''}`} fmt={FORMAT[v.format]?.name || null} s={hs} data={data} fx={{ ...fx, player: psnFx?.p === k ? { p: k, psn: true } : null }} fast={false} start={v.life > 20 ? 40 : 20}
+    const hud = <Hud k={k} z={zOf(v)} name={`${v.name}${v.out ? ' 🏳' : ''}${s.teams && !isMe && s.teams[i] === s.teams[me] ? ` 🤝 ${tx('parceiro')}` : ''}`} fmt={FORMAT[v.format]?.name || null} s={hs} data={data} fx={{ ...fx, player: psnFx?.p === k ? { p: k, psn: true } : null }} fast={false} start={v.life > 20 ? 40 : 20}
       openZone={() => {}} top={top} hand={<>{cmd}{hand}</>} openLib={isMe ? onLib : v.libv ? () => setZone({ seat: i, which: 'libv' }) : null} />
     const field = (
       <div className={`ml-field ${top ? 'mirror' : ''}`} data-seat={i}>
@@ -766,7 +766,8 @@ function Table({ id, data, onClose, onNext, onBegin }) {
             <div className="ml-opps" style={{ '--np': others.length }}>{others.map(i => side(i, true, others.length > 1))}</div>
             <div className="fp-mid">
               <span className="ml-badge" title={tx('Sem bots e sem regras automáticas: cada um mexe nas suas cartas.')}>🃏 {tx('Mesa livre · sem regras')}</span>
-              <span className="fp-turn">{tx('Turno {n}', { n: s.turn })} · {s.active === me ? tx('a tua vez') : tx('vez de {p}', { p: who(s.active) })}</span>
+              <span className="fp-turn">{tx('Turno {n}', { n: s.turn })} · {s.teams ? (s.teams[s.active] === s.teams[me] ? tx('vez da tua equipa') : tx('vez de {p}', { p: seats.map((_, i) => i).filter(i => s.teams[i] === s.teams[s.active]).map(who).join(' + ') }))
+                : s.active === me ? tx('a tua vez') : tx('vez de {p}', { p: who(s.active) })}{s.teams && <b className="ml-2hg" title={tx('Two-Headed Giant: vida 30 e veneno partilhados pela equipa')}> · 2HG</b>}</span>
               {!ended && <span className="fp-phases ml-steps" role="group" aria-label={tx('Fases')}>{STEPS.map(([k, l], i) => <button key={k} type="button" className={`${s.step === i ? 'on' : ''} ${s.step === i && k === 'combat' ? 'combat' : ''}`} disabled={!myTurn} onClick={() => send({ c: 'step', to: i })} title={myTurn ? tx('Espaço ou Enter: fase seguinte · Shift+Espaço: passar a vez') : undefined}>{l}</button>)}</span>}
               {s.day && <DayNight v={s.day} onClick={ended ? null : () => send({ c: 'day' })} />}
               {pickAt != null && <span className="ml-pickmsg">📎 {tx('Toca na carta a que a queres prender')} <button className="ml-mini" onClick={() => setPickAt(null)}>✕</button></span>}

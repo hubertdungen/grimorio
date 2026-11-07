@@ -64,9 +64,9 @@ export function NewSolo({ data, deckId, openTable }) {
 }
 
 export function NewFreeRoom({ data, deckId, onRoom }) {
-  const [decks, setDecks] = useState(null), [name, setName] = useState(tx('Mesa livre')), [max, setMax] = useState(2), [strict, setStrict] = useState(false), [deck, setDeck] = useState(deckId || ''), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
+  const [decks, setDecks] = useState(null), [name, setName] = useState(tx('Mesa livre')), [max, setMax] = useState(2), [strict, setStrict] = useState(false), [giant, setGiant] = useState(false), [deck, setDeck] = useState(deckId || ''), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
   useEffect(() => { j('/api/decks').then(ds => { const mine = ds.filter(d => !d.friend); setDecks(mine); setDeck(v => (mine.some(d => d.id === v) ? v : mine[0]?.id || '')) }).catch(e => setErr(e.message)) }, [])
-  const go = async () => { setBusy(true); setErr(''); try { await post('/api/rooms', { type: 'livre', name, max: strict ? 2 : max, strict, players: [{ src: 'meus', ref: deck }] }); onRoom() } catch (e) { setErr(e.message) } finally { setBusy(false) } }
+  const go = async () => { setBusy(true); setErr(''); try { await post('/api/rooms', { type: 'livre', name, max: strict ? 2 : giant ? 4 : max, strict, giant: !strict && giant, players: [{ src: 'meus', ref: deck }] }); onRoom() } catch (e) { setErr(e.message) } finally { setBusy(false) } }
   return (
     <section className="card nr-free">
       <h3>🃏 {tx('Nova mesa livre')} <span className="muted small">{tx('abre a sala e partilha o link: cada amigo entra com um deck seu e, quando começares, jogam todos na mesma mesa, ao vivo')}</span></h3>
@@ -74,7 +74,8 @@ export function NewFreeRoom({ data, deckId, onRoom }) {
         <label>{tx('Nome')}<input value={name} onChange={e => setName(e.target.value)} maxLength={80} /></label>
         <label>{tx('Mesa')}<span className="seg"><button className={!strict ? 'on' : ''} onClick={() => setStrict(false)} title={tx('Sem regras: cada um mexe nas suas cartas, 2 a 4 jogadores')}>🃏 {tx('Livre')}</button>
           <button className={strict ? 'on' : ''} onClick={() => setStrict(true)} title={tx('O motor do Forge faz cumprir as regras, como a jogar contra o Forge, mas contra a outra pessoa (1 contra 1)')}>⚖ {tx('Estrita')}</button></span></label>
-        {!strict && <label>{tx('Jogadores')}<span className="seg">{[2, 3, 4].map(k => <button key={k} className={max === k ? 'on' : ''} onClick={() => setMax(k)}>{k}</button>)}</span></label>}
+        {!strict && <label>{tx('Jogadores')}<span className="seg">{[2, 3, 4].map(k => <button key={k} className={max === k && !giant ? 'on' : ''} onClick={() => { setMax(k); setGiant(false) }}>{k}</button>)}
+          <button className={giant ? 'on' : ''} onClick={() => { setGiant(true); setMax(4) }} title={tx('Duas equipas de dois: vida 30 e veneno partilhados, cada equipa joga o turno junta')}>2 × 2 {tx('Two-Headed Giant')}</button></span></label>}
       </div>
       {strict && <p className="small nr-strict">⚖ {tx('Mesa estrita: 1 contra 1 com todas as regras do Forge (mana, pilha, combate, alvos), cada um no seu ecrã. Num deck de Commander o comandante entra no deck. Quem não decidir durante 5 minutos perde o jogo.')}</p>}
       <h4 className="ml-h4">{tx('O teu deck')}</h4>

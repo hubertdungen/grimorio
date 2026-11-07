@@ -25,6 +25,8 @@ def init(con):
 def span(spec):
     """(mínimo, máximo) de decks: a mesa livre leva 2 até ao máximo escolhido (4 no máximo)."""
     if spec.get("type") == "livre":
+        if spec.get("giant"):  # Two-Headed Giant: exatamente 4 (duas equipas de dois)
+            return 4, 4
         return 2, max(2, min(4, int(spec.get("max") or 4)))
     return tournament.TYPES.get(spec.get("type"), (2, 32))
 
@@ -94,7 +96,7 @@ def view(con, r, who, owner=None):
     livre = spec.get("type") == "livre" and status == "open"
     return {"id": rid, "ts": ts, "status": status, "tid": tid, "name": spec.get("name"), "type": spec.get("type"),
             "format": spec.get("format"), "casual": bool(spec.get("casual")), "bo": spec.get("bo"), "min": lo, "max": hi, "free": bool(spec.get("free")),
-            "misto": bool(spec.get("misto")), **({"wait": spec.get("wait") or 0} if spec.get("misto") else {}), **({"strict": True} if spec.get("strict") else {}),
+            "misto": bool(spec.get("misto")), **({"wait": spec.get("wait") or 0} if spec.get("misto") else {}), **({"strict": True} if spec.get("strict") else {}), **({"giant": True} if spec.get("giant") else {}),
             "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref"), "src": p.get("src"),
                          "host": p.get("by") == "host", "ready": bool(p.get("ready")), "show": bool(p.get("show")),
                          **(lobby(con, owner, p, who) if livre else {}),
@@ -142,7 +144,7 @@ def start_livre(con, owner, rid, spec, players):
         con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
         LIVE.pop(rid, None)
         return tid
-    tid = freetable.create(con, owner, spec.get("name"), seats, first=int(spec.get("first") or 0))
+    tid = freetable.create(con, owner, spec.get("name"), seats, first=int(spec.get("first") or 0), giant=bool(spec.get("giant")))
     con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
     LIVE.pop(rid, None)
     return tid
@@ -194,14 +196,16 @@ def route(con, method, path, owner, body, guest=None):
         if guest:
             return 403, {"erro": "Só quem aloja pode abrir salas."}
         d = body or {}
-        spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold", "free", "misto", "wait", "strict")}
+        spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold", "free", "misto", "wait", "strict", "giant")}
         players = [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "name", "plays")}, "by": "host"} for p in (d.get("players") or []) if isinstance(p, dict)]
         for p in players:  # sem nome (pedido pela API): o do deck guardado
             p["name"] = p["name"] or (p["src"] == "meus" and deck_ok(con, owner, p["ref"], None)) or None
         if spec["type"] == "livre":  # mesa livre: um lugar por pessoa (o anfitrião com um deck seu), qualquer formato
             spec.update(format=None, casual=True, max=max(2, min(4, int(d.get("max") or 4))), strict=bool(d.get("strict")) or None)
             if spec["strict"]:  # mesa estrita: o Forge faz cumprir as regras, só 1 contra 1
-                spec["max"] = 2
+                spec["max"], spec["giant"] = 2, None
+            elif spec.get("giant"):  # Two-Headed Giant: 4 lugares, equipas pela ordem (1.º+2.º contra 3.º+4.º)
+                spec.update(giant=True, max=4)
             players = players[:1]
             dname = players and deck_ok(con, owner, players[0].get("ref"), None)
             if not dname:

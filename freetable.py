@@ -95,7 +95,8 @@ def lists(con, tid):
     return (_find(con, tid) or {}).get("lists")
 
 
-def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=None):  # first: quem começa (a moeda do lobby)
+def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=None, giant=False):  # first: quem começa (a moeda do lobby)
+    # giant: Two-Headed Giant (4 lugares: 0+1 contra 2+3) — vida da equipa 30 e veneno 15 partilhados, turnos da equipa
     """seats = [{by, name, deck: {name, format, main, side, commanders}}] -> id da mesa (já com 7 cartas na mão de cada um).
     solo: um só lugar, para testar um deck (goldfish), com a vida de um adversário imaginário.
     side = o número do jogo (2+) de uma série (tournament.open_table; 0 = sem sideboard): antes de dar as cartas cada lugar com sideboard escolhe a lista
@@ -104,11 +105,13 @@ def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=
     init(con)
     if not (1 if solo else 2) <= len(seats) <= (1 if solo else 4):
         raise ValueError("A mesa livre leva entre 2 e 4 jogadores.")
+    if giant and len(seats) != 4:
+        raise ValueError("O Two-Headed Giant é para 4 jogadores (duas equipas de dois).")
     pt = _find(con, prev)
     last = (pt or {}).get("lists") or was or {}
     t = {"id": secrets.token_hex(6), "owner": owner, "name": str(name or "Mesa livre")[:80], "seq": 1, "ts": time.time(),
          "status": "playing", "turn": 1, "active": first if 0 <= first < len(seats) else 0, "seats": [], "cards": {}, "zones": [], "log": [], "roll": None,
-         "lists": {}, **({"solo": True, "gf": 20} if solo else {})}
+         "lists": {}, **({"solo": True, "gf": 20} if solo else {}), **({"teams": [0, 0, 1, 1]} if giant else {})}
     for i, s in enumerate(seats):
         d = s["deck"] or {}
         cmdrs = [str(c) for c in (d.get("commanders") or []) if c][:2]
@@ -130,6 +133,10 @@ def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=
         t["seats"].append({"by": s["by"], "name": str(s.get("name") or "?")[:40], "deck": str(d.get("name") or "")[:80],
                            "format": d.get("format"), "life": 40 if cmd else 20, "life0": 40 if cmd else 20, "poison": 0, "energy": 0, "cd": {}, "mk": [],
                            "out": False, "peek": 0, "arts": sim.art_map(d)})  # a arte escolhida no deck
+    if giant:  # 2HG: a vida da equipa começa em 30 (regra 810.9a)
+        for s2 in t["seats"]:
+            s2["life"] = s2["life0"] = 30
+        t["active"] = (first if 0 <= first < 4 else 0) // 2 * 2  # a equipa que começa: o 1.º lugar dela
     if t.get("sb"):  # sideboard primeiro: as cartas só se dão quando todos estão prontos (ou o tempo acaba)
         t.update(status="side", sideTo=time.time() + SIDE_T, game=int(side))
         _log(t, None, "sidestart", n=SIDE_T)
@@ -290,7 +297,7 @@ def view(t, me):
             v["srch"] = bool(s.get("srch"))
         seats.append(v)
     return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
-            "step": t.get("step", 3), "auto": t["seats"][me].get("auto", True), "me": me, "host": t["seats"][me]["by"] == "host", "mine": [i for i, s in enumerate(t["seats"]) if s["by"] == t["seats"][me]["by"]],
+            "step": t.get("step", 3), "auto": t["seats"][me].get("auto", True), "me": me, **({"teams": t["teams"]} if t.get("teams") else {}), "host": t["seats"][me]["by"] == "host", "mine": [i for i, s in enumerate(t["seats"]) if s["by"] == t["seats"][me]["by"]],
             "res": t.get("res"), "result": t.get("result"), "solo": bool(t.get("solo")), "gf": t.get("gf"), "day": t.get("day"), "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
             "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE], "next": t.get("next"),
             # a escolher o sideboard: de todos só se sabe quem já está pronto; a lista (e a guardada) só a dos meus lugares
@@ -368,7 +375,14 @@ def _draw(t, me, n):
 
 
 def _mine_active(t, me):
-    return t["seats"][t["active"]]["by"] == t["seats"][me]["by"]
+    a = t["active"]
+    return t["seats"][a]["by"] == t["seats"][me]["by"] or me in _mates(t, a)  # 2HG: os dois da equipa mexem nas fases
+
+
+def _mates(t, i):
+    """2HG: os parceiros de equipa do lugar i (sem ele); [] fora do Two-Headed Giant."""
+    tm = t.get("teams")
+    return [k for k in range(len(t["seats"])) if tm and k != i and tm[k] == tm[i]] if tm else []
 
 
 def _step(t, to):
@@ -585,6 +599,9 @@ def apply(t, me, d):
         who = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
         s = t["seats"][who]
         s[c0] = _num(s.get(c0, 0) + _num(d.get("d"), -999, 999), -999 if c0 == "life" else 0, 9999)
+        for k in _mates(t, who):  # 2HG: a vida e o veneno são da equipa (o parceiro fica igual)
+            if c0 in ("life", "poison"):
+                t["seats"][k][c0] = s[c0]
         _log(t, me, c0, p=who, d=_num(d.get("d"), -999, 999), v=s[c0])
     elif c0 == "cmdmg":  # dano de comandante: conta por comandante (21 = derrota) e também tira à vida
         who = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
@@ -682,12 +699,17 @@ def apply(t, me, d):
                 _log(t, me, "shuffle")
     elif c0 == "pass":
         n = len(t["seats"])
-        nxt = next((x % n for x in range(t["active"] + 1, t["active"] + n + 1) if not t["seats"][x % n]["out"]), t["active"])
+        tm = t.get("teams")
+        nxt = next((x % n for x in range(t["active"] + 1, t["active"] + n + 1) if not t["seats"][x % n]["out"]
+                    and (not tm or tm[x % n] != tm[t["active"]])), t["active"])  # 2HG: a vez passa à outra equipa
         t["active"], t["turn"] = nxt, t["turn"] + 1
         for s2 in t["seats"]:  # ninguém fica a olhar para a mão de outro de um turno para o outro
             s2.pop("look", None)
         _log(t, me, "pass", p=nxt, turn=t["turn"])
         _turn_start(t, nxt)
+        for k in _mates(t, nxt):  # 2HG: o turno é da equipa — o parceiro também desvira e compra
+            if not t["seats"][k]["out"]:
+                _turn_start(t, k)
     elif c0 == "revealtop":  # o topo da biblioteca: uma vez (fica no registo) ou sempre (always: liga/desliga)
         lib = t["zones"][me]["library"]
         if d.get("always"):
@@ -1024,6 +1046,19 @@ def selfcheck():
     assert not call("GET", "guest:rui")[1]["pen"]
     # a solo: novo turno (desvira + compra), adversário imaginário, recomeçar com o comandante na zona de comando
     with db() as con:
+        # Two-Headed Giant: 4 lugares, vida 30 partilhada, a vez passa à outra equipa e os dois parceiros compram
+        gid = create(con, "hubert", "2HG", [{"by": b, "name": b, "deck": deck(b)} for b in ("host", "guest:a", "guest:b", "guest:c")], giant=True)
+        gt = T[gid]
+        assert [x["life"] for x in gt["seats"]] == [30] * 4 and gt["teams"] == [0, 0, 1, 1] and gt["active"] == 0
+        apply(gt, 0, {"c": "life", "seat": 1, "d": -4}); assert [x["life"] for x in gt["seats"]] == [26, 26, 30, 30]
+        h2, h3 = len(gt["zones"][2]["hand"]), len(gt["zones"][3]["hand"])
+        apply(gt, 1, {"c": "pass"}); assert gt["active"] == 2 and len(gt["zones"][2]["hand"]) == h2 + 1 and len(gt["zones"][3]["hand"]) == h3 + 1
+        assert view(gt, 3)["teams"] == [0, 0, 1, 1]
+        try:
+            create(con, "hubert", "x", [{"by": "host", "name": "H", "deck": deck("H")}] * 2, giant=True)
+            raise AssertionError("2HG com 2 lugares")
+        except ValueError:
+            pass
         sid = create(con, "hubert", "Solo", [{"by": "host", "name": "H", "deck": deck("C", "commander", ["C Boss"])}], solo=True)
     so = T[sid]
     assert len(so["seats"]) == 1 and so["seats"][0]["life"] == 40
