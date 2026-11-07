@@ -40,6 +40,7 @@ def _frac(x, lo=-0.2, hi=1.2):
 
 # as fases do turno (mesa livre): Espaço/Enter avança; depois do fim passa a vez
 STEPS = ("untap", "upkeep", "draw", "main1", "combat", "main2", "end")
+PTR_Z = ("hand", "field", "graveyard", "exile", "library", "command", "stack", "life", "table")  # zonas do cursor (nunca a carta)
 PEN_LIFE = 8  # segundos que um traço da caneta fica no estado (o browser apaga-o antes, a desvanecer)
 PATH = re.compile(r"^/api/freetables/([a-f0-9]{12})$")
 RNG = random.SystemRandom()
@@ -198,7 +199,7 @@ def _clean(c):
 
 
 def _save(con, t):
-    st = {k: v for k, v in t.items() if k not in ("pen", "live")}  # a caneta e o «ao vivo» são passageiros: não se gravam
+    st = {k: v for k, v in t.items() if k not in ("pen", "live", "ptr")}  # a caneta e o «ao vivo» são passageiros: não se gravam
     con.execute("INSERT OR REPLACE INTO freetables VALUES (?,?,?,?)", (t["id"], t["owner"], t["ts"], json.dumps(st, ensure_ascii=False)))
 
 
@@ -297,7 +298,9 @@ def view(t, me):
                          "mine": {i: {"deck": {k: t["lists"][i][k] for k in ("main", "side")}, "base": x["base"]}
                                   for i, x in t["sb"].items() if t["seats"][int(i)]["by"] == t["seats"][me]["by"]}}} if t["status"] == "side" else {}),
             # o que os outros estão a agarrar agora (esfera, dado, carta): posição em frações da mesa, na vista de quem mexe
-            "live": {str(i): {k: v for k, v in x.items() if k != "ts"} for i, x in (t.get("live") or {}).items() if i != me and x["ts"] > time.time() - 2}}
+            "live": {str(i): {k: v for k, v in x.items() if k != "ts"} for i, x in (t.get("live") or {}).items() if i != me and x["ts"] > time.time() - 2},
+            # o cursor de cada outro jogador (a «mãozinha»): onde anda e há quanto tempo parou; some ao fim de 8 s
+            "ptr": {str(i): {**{k: v for k, v in x.items() if k != "ts"}, "age": round(time.time() - x["ts"], 1)} for i, x in (t.get("ptr") or {}).items() if i != me and x["ts"] > time.time() - 8}}
 
 
 def _log(t, seat, k, **kw):
@@ -872,6 +875,20 @@ def route(db, method, path, owner, body, who, since=0, seat=None):
             return 200, view(t, me)
     if not isinstance(body, dict):
         return 400, {"erro": "Comando inválido."}
+    if body.get("c") == "ptr":  # o meu cursor (~8/s, só quando mexe): na mesa toda (x, y) ou num campo (fs, fx, fy) e a zona
+        v = body.get("v") or {}
+        with COND:
+            if not isinstance(v, dict) or v.get("off"):
+                (t.get("ptr") or {}).pop(me, None)
+            else:
+                z = str(v.get("z") or "")
+                p = {"x": _frac(v.get("x")), "y": _frac(v.get("y")), "z": z if z in PTR_Z else "", "ts": time.time()}
+                if v.get("fs") is not None and v.get("fx") is not None:
+                    p.update(fs=_num(v.get("fs"), 0, len(t["seats"]) - 1, 0), fx=_frac(v["fx"]), fy=_frac(v.get("fy")))
+                t.setdefault("ptr", {})[me] = p
+            t["seq"] += 1
+            COND.notify_all()
+        return 200, {"ok": True}
     if body.get("c") == "live":  # ao vivo (várias vezes por segundo): só em memória e uma resposta pequena
         v = body.get("v") or {}
         if not isinstance(v, dict) or v.get("k") not in LIVE_K:
@@ -1129,6 +1146,12 @@ def selfcheck():
         _save(con, t)
         assert '"live"' not in con.execute("SELECT state FROM freetables WHERE id=?", (tid,)).fetchone()[0]
     call("POST", "host", {"c": "live", "v": {"k": "end"}})
+    # o cursor: os outros veem onde ando e em que zona (nunca a carta); não se grava; «off» tira-o
+    call("POST", "host", {"c": "ptr", "v": {"x": 0.2, "y": 0.8, "z": "hand", "fs": 0, "fx": 0.5, "fy": 2}})
+    pg = call("GET", "guest:rui")[1]["ptr"]["0"]
+    assert pg["z"] == "hand" and pg["fy"] <= 1.2 and pg["age"] < 1 and not call("GET", "host")[1]["ptr"], pg
+    call("POST", "host", {"c": "ptr", "v": {"x": 0.2, "y": 0.8, "z": "carta-secreta"}}); assert call("GET", "guest:rui")[1]["ptr"]["0"]["z"] == ""
+    call("POST", "host", {"c": "ptr", "v": {"off": True}}); assert not call("GET", "guest:rui")[1]["ptr"]
     assert not call("GET", "guest:rui")[1]["live"] and call("POST", "host", {"c": "live", "v": {"k": "x"}})[0] == 400
     # olhar para a mão de outro (Thoughtseize): só quem olha vê os nomes, o terceiro não; tira uma para o cemitério
     with db() as con:

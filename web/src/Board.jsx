@@ -341,6 +341,8 @@ export function MatPick({ onMat, others = true }) {
         {[null, ...MATS].map(m => <button key={m || '-'} type="button" role="radio" aria-checked={p.mat === m} className={`matsw ${p.mat === m ? 'on' : ''}`} data-mat={m || undefined}
           title={m ? MAT_NAME[m] : tx('Sem padrão')} onClick={() => save({ mat: m })}>{m ? '' : '∅'}</button>)}
       </div>
+      <label className="chk small"><input type="checkbox" checked={p.ptrSee} onChange={e => save({ ptrSee: e.target.checked })} /> {tx('Ver os cursores dos outros jogadores (mesa livre e lobby online)')}</label>
+      <label className="chk small"><input type="checkbox" checked={p.ptrShow} onChange={e => save({ ptrShow: e.target.checked })} /> {tx('Mostrar o meu cursor aos outros')}</label>
       {others && <label className="chk small"><input type="checkbox" checked={p.mats} onChange={e => save({ mats: e.target.checked })} /> {tx('Ver o padrão de cada jogador (desligado: vês o teu em todos os lados)')}</label>}
       <b className="small">{tx('Esfera da vida')}</b>
       <OrbPick onChange={onMat} />

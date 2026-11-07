@@ -238,8 +238,11 @@ export function createLobby(el, { onClick, onMove, onHand } = {}) {
   const fit = () => { const w = el.clientWidth || 600, h = el.clientHeight || 320; renderer.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix() }
   const ro = new ResizeObserver(fit); ro.observe(el); fit()
   raf = requestAnimationFrame(frame)
+  // cursores: o ponto do rato no plano da mesa (null fora dela) e um ponto da mesa no ecrã (px dentro do el), com a câmara daqui
+  const toPlane = (cx, cy) => { const r = renderer.domElement.getBoundingClientRect(); if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom) return null; at({ clientX: cx, clientY: cy }); return ray.ray.intersectPlane(plane, hit) ? { x: +hit.x.toFixed(3), z: +hit.z.toFixed(3) } : null }
+  const toScreen = (x, z) => { const v = new THREE.Vector3(x, 0, z).project(cam); return v.z > 1 ? null : { x: (v.x + 1) / 2 * el.clientWidth, y: (1 - v.y) / 2 * el.clientHeight } }
   return {
-    setSeats, toss, setRemote, returnCard,
+    setSeats, toss, setRemote, returnCard, toPlane, toScreen,
     openDeck, closeDeck, openKey: () => openKey, openT: () => openT,
     dispose: () => { alive = false; cancelAnimationFrame(raf); ro.disconnect(); removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); renderer.dispose(); cv.remove() },
   }

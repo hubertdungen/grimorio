@@ -7,11 +7,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { tx } from './i18n.js'
 import { img } from './data.js'
 import { lookup } from './game.js'
+import { fpPrefs } from './fpprefs.js'
+import { Hands, throttlePtr, useTick, ptrCol } from './ptrs.jsx'
 
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then(r => r.json()).catch(() => null)
 
 export default function Lobby3D({ r, data, act }) {
   const box = useRef(null), api = useRef(null), [open, setOpen] = useState(null), [msg, setMsg] = useState(''), [text, setText] = useState(''), [ok3d, setOk3d] = useState(true)
+  const [ptrs, setPtrs] = useState({}), ptrAt = useRef({})  // os cursores dos outros: {quem: {x, z (no plano da mesa), n, age}}
   const [hand, setHand] = useState([]), [big, setBig] = useState(null), [others, setOthers] = useState({}), tossed = useRef(null), chatEnd = useRef(null), me = useRef('host'), hold = useRef(0)
   const seats = useMemo(() => r.players.map(p => {
     const list = p.list || null, cols = new Set()
@@ -54,6 +57,7 @@ export default function Lobby3D({ r, data, act }) {
           else { api.current.closeDeck(); setOpen(null); setHand([]) }
         }
         api.current.setRemote(L.objs, L.me)
+        setPtrs(L.ptr || {})
         const cnt = {}
         for (const o of Object.values(L.objs || {})) if (o.hand && o.hand !== L.me) cnt[o.hand] = (cnt[o.hand] || 0) + 1
         setOthers(cnt)
@@ -72,6 +76,19 @@ export default function Lobby3D({ r, data, act }) {
     api.current?.toss(seats[r.first].key, fc(seats[r.first]), other && fc(other))
     setMsg(tx('🪙 A moeda decidiu: começa {n}', { n: seats[r.first].name }))
   }, [r.go, r.first, r.id, seats])
+  // o meu cursor no plano da mesa (~8/s, só quando mexe): cada um vê-o na sua câmara
+  const myName = useRef(''); myName.current = seats.find(s => s.mine)?.name || ''
+  const ptrSend = useMemo(() => throttlePtr(v => post(`/api/rooms/${r.id}/live`, { ptr: v })), [r.id])
+  useEffect(() => {
+    const el = box.current
+    if (!el || !fpPrefs().ptrShow) return
+    const mv = e => { const p = api.current?.toPlane(e.clientX, e.clientY); if (p) ptrSend({ ...p, n: myName.current }, e.clientX, e.clientY) }
+    const out = () => ptrSend({ off: true }, 0, 0)
+    el.addEventListener('pointermove', mv); el.addEventListener('pointerleave', out)
+    return () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerleave', out); out() }
+  }, [r.id, ok3d, ptrSend])
+  const seePtr = fpPrefs().ptrSee
+  useTick(seePtr && Object.keys(ptrs).length > 0)
   const clickRef = useRef(null)
   clickRef.current = key => {
     const s = seatsRef.current.find(x => x.key === key)
@@ -93,6 +110,12 @@ export default function Lobby3D({ r, data, act }) {
     <div className="lobby3d">
       <div className="lobby3d-main">
         {ok3d && <div className="lobby3d-view" ref={box} aria-label={tx('Mesa do lobby com as caixas dos decks')}>
+          {seePtr && api.current && <div className="ptr-box"><Hands list={Object.entries(ptrs).map(([k, g]) => {
+            const sig = `${g.x},${g.z}`, a = ptrAt.current
+            if (a[k]?.sig !== sig) a[k] = { sig, t: Date.now() - (g.age || 0) * 1000 }
+            const q = api.current.toScreen(g.x, g.z)
+            return q && { key: k, x: q.x, y: q.y, col: ptrCol(k), name: (g.n || tx('Alguém')).slice(0, 16), zone: '', age: (Date.now() - a[k].t) / 1000 }
+          }).filter(Boolean)} /></div>}
           {open && <button type="button" className="small lobby3d-close" onClick={closeAll}>📦 {tx('Guardar as cartas na caixa')}</button>}
           {open && <span className="lobby3d-handzone">✋ {tx('Larga aqui uma carta para a veres na tua mão')}</span>}
         </div>}

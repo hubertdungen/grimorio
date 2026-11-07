@@ -18,6 +18,7 @@ import { tx } from './i18n.js'
 import { play, playFreeLog } from './sfx.js'
 import TableChat from './TableChat.jsx'
 import { usePen, PEN_COLS } from './tablepen.js'
+import { Hands, throttlePtr, useTick, ptrCol } from './ptrs.jsx'
 import { useBackClose } from './backnav.js'
 import HandLook from './HandLook.jsx'
 import SideboardStep from './SideboardStep.jsx'
@@ -234,6 +235,29 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     addEventListener('grim-orb', f)
     return () => { removeEventListener('grim-orb', f); clearTimeout(idle) }
   }, [id])  // eslint-disable-line react-hooks/exhaustive-deps
+  // ---------- cursores: o meu vai aos outros (~8/s, só quando mexe; num campo em frações dele, direito), os deles são
+  // «mãozinhas» na cor de cada um, no sítio certo na minha perspetiva (o mesmo toScreen dos fantasmas de arrastar)
+  const ptrSend = useMemo(() => throttlePtr(v => j(`/api/freetables/${id}${seatQ('?')}`, { c: 'ptr', v }).catch(() => {})), [id])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!fpPrefs().ptrShow) return
+    let inside = false
+    const mv = e => {
+      const tb = fitTable.current, el = e.target
+      if (!tb || !(el instanceof Element) || !tb.contains(el)) { if (inside) { inside = false; ptrSend({ off: true }, 0, 0) } return }
+      const p = frac(e.clientX, e.clientY)
+      if (!p) return
+      inside = true
+      const f = el.closest('.ml-field')
+      const z = el.closest('.fp-hand') ? 'hand' : el.closest('.ml-stack') ? 'stack' : el.closest('.orb') ? 'life' : el.closest('[data-zone]')?.dataset.zone || (f ? 'field' : 'table')
+      const v = { ...p, z }
+      if (f) { const r = f.getBoundingClientRect(), m = f.classList.contains('mirror'), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height; Object.assign(v, { fs: +f.dataset.seat, fx: m ? 1 - fx : fx, fy: m ? 1 - fy : fy }) }
+      ptrSend(v, e.clientX, e.clientY)
+    }
+    addEventListener('pointermove', mv)
+    return () => { removeEventListener('pointermove', mv); ptrSend({ off: true }, 0, 0) }
+  }, [id, ptrSend])
+  const ptrAt = useRef({}), seePtr = fpPrefs().ptrSee
+  useTick(seePtr && Object.keys(s?.ptr || {}).length > 0)
   const ghosts = Object.entries(s?.live || {}).map(([seat, v]) => ({ seat: +seat, ...v }))
   const ghostKey = JSON.stringify(s?.live || {})
   const dropAt = useRef({})  // lugar -> a carta que ele arrasta: {id, x, y (no meu ecrã), key (onde estava), end (quando a largou)}
@@ -707,6 +731,12 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       <FsBtn className="on-table" />
       {/* a carta em grande flutua por cima da mesa, do lado oposto ao rato: no painel tapava os botões (passar a vez, mulligan, dados, caneta) */}
       {zc && <div className={`fp-zoom ml-float ${zLeft ? 'left' : ''}`} aria-hidden="true"><img key={zc.n} className="fp-zin" src={img(zc, 'normal', false, artOf(allArts, null, zc))} alt="" /></div>}
+      {seePtr && s.ptr && Object.keys(s.ptr).length > 0 && createPortal(<div className="ptr-layer"><Hands list={Object.entries(s.ptr).map(([seat, g]) => {
+        const sig = `${g.x},${g.y},${g.fx},${g.fy},${g.z}`, a = ptrAt.current
+        if (a[seat]?.sig !== sig) a[seat] = { sig, t: Date.now() - (g.age || 0) * 1000 }  // quando mexeu pela última vez (relógio daqui)
+        const q = g.fs != null ? toScreen({ seat: g.fs, fx: g.fx, fy: g.fy }) : toScreen({ seat: +seat, x: g.x, y: g.y })
+        return q && { key: seat, x: q.x, y: q.y, col: ptrCol(+seat), name: short(who(+seat)).slice(0, 16), zone: g.z, age: (Date.now() - a[seat].t) / 1000 }
+      }).filter(Boolean)} /></div>, onTop())}
       {lg.length > 0 && createPortal(<div className="live-ghosts" aria-hidden="true">{lg.map(g => {  // o que os outros estão a agarrar agora
         const p = g.p || toScreen(g), n = g.k === 'card' && byId.get(g.id)?.c?.n, c = n && lookup(data, n)
         return p && <div key={`${g.seat}${g.k}`} className={`live-ghost ${g.k}`} style={{ left: p.x, top: p.y }}>

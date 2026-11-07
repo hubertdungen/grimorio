@@ -3973,3 +3973,12 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .dio-drop.over, .dio-drop:hover { border-color: var(--gold); background: #f2b84b0f; }
 .dio-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .dio textarea { width: 100%; }
+/* cursores dos outros jogadores («mãozinhas»): mesa livre e lobby online */
+.ptr-layer { position: fixed; inset: 0; pointer-events: none; z-index: 2147482600; }
+.ptr-box { position: absolute; inset: 0; pointer-events: none; z-index: 30; overflow: hidden; }
+.ptr-hand { position: absolute; left: 0; top: 0; display: flex; align-items: flex-start; gap: 2px; pointer-events: none; transition: transform .14s linear, opacity .6s; will-change: transform; }
+.ptr-hand svg { margin: -1px 0 0 -9px; fill: var(--c); stroke: #10131f; stroke-width: 1.4; filter: drop-shadow(0 2px 4px #000a) drop-shadow(0 0 6px var(--c)); }
+.ptr-hand span { margin-top: 14px; padding: 1px 6px; border-radius: 8px; font-size: 11px; line-height: 1.35; white-space: nowrap; color: #10131f; background: var(--c); box-shadow: 0 2px 8px #0008; font-weight: 600; }
+.ptr-hand span small { font-weight: 500; opacity: .8; font-size: 10px; }
+.ptr-hand.idle { opacity: .45; }
+@media (prefers-reduced-motion: reduce) { .ptr-hand { transition: opacity .6s; } }

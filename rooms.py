@@ -58,6 +58,12 @@ def live(con, owner, rid, who, method, body):
             if "hand" in o:
                 cur["hand"] = who if o.get("hand") else None
             L["objs"][i] = cur
+        if isinstance(b.get("ptr"), dict):  # o meu cursor na mesa (plano x/z) e o nome curto: os outros veem a «mãozinha»
+            q = b["ptr"]
+            if q.get("off"):
+                L.setdefault("ptr", {}).pop(who, None)
+            else:
+                L.setdefault("ptr", {})[who] = {"x": num(q.get("x")), "z": num(q.get("z")), "n": str(q.get("n") or "")[:24], "t": round(time.time(), 2)}
         if "open" in b:
             o = b.get("open")
             for i in [k for k in L["objs"] if "#" in k]:  # as cartas do deck que estava aberto saem da mesa
@@ -65,7 +71,9 @@ def live(con, owner, rid, who, method, body):
             L["open"] = {"key": str(o.get("key"))[:80], "list": [[str(n)[:80], max(1, min(4, int(c)))] for n, c in (o.get("list") or [])[:90] if isinstance(c, int)],
                          "by": who, "t": time.time()} if isinstance(o, dict) and o.get("key") else None
         L["seq"] += 1
-    return 200, {"seq": L["seq"], "objs": L["objs"], "open": L["open"], "me": who}
+    now = time.time()
+    return 200, {"seq": L["seq"], "objs": L["objs"], "open": L["open"], "me": who,
+                 "ptr": {k: {**v, "age": round(now - v["t"], 1)} for k, v in (L.get("ptr") or {}).items() if k != who and now - v["t"] < 8}}
 
 
 def lobby(con, owner, p, who):
