@@ -164,6 +164,9 @@ public class GrimorioNet {
                 e.printStackTrace();
             } finally {
                 busy.decrementAndGet();
+                // os estados mandados durante o clique levaram as jogáveis de antes (busy): virar um terreno para mana
+                // deixava a criatura que agora dá para pagar sem brilho até à próxima mudança; o estado volta a ir, já certo
+                dirty = true;
             }
         }
 

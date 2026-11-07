@@ -15,6 +15,7 @@ import { Syms } from './ui.jsx'
 import RulesQuick from './rulesquick.jsx'
 import { obviousPay } from './mana.js'
 import { useBackClose } from './backnav.js'
+import { showCardPeek, hideCardPeek, pressPeek } from './deckview.js'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 
 async function j(url, body) {
@@ -95,9 +96,12 @@ export function FCard({ c, data, onClick, h, cls = '', big, flip, from, tag }) {
   if (!c || c.hidden) return <div className={`fp-card back ${cls}`} />
   const card = lookup(data, c.name)
   const src = card ? im(card, big ? 'normal' : 'small', !!(flip && card.df)) : null  // virada: a outra face (cartas de duas faces)
+  // fora da mão (escolhas, mão revelada, cemitério…): a carta em grande por cima de tudo, com o rato ou com o dedo a manter —
+  // o painel da carta fica por baixo do fundo escuro do diálogo (cinzento) e no telemóvel nem se vê
+  const pk = big && h == null && card ? { ...pressPeek(card), onMouseEnter: e => showCardPeek(e, card), onMouseLeave: hideCardPeek } : null
   return (
     <button type="button" className={`fp-card ${c.sel ? 'sel' : ''} ${c.picked ? 'picked' : ''} ${flip && !card?.df ? 'upside' : ''} ${cls}`} title={c.name} data-h={h} data-from={from} data-zid={c.id}
-      onClick={onClick && (() => onClick(c))} onContextMenu={e => e.preventDefault()}>
+      {...pk} onClick={onClick && (() => onClick(c))} onContextMenu={e => e.preventDefault()}>
       <span className="fp-cin">{/* na mão só o interior sobe com o rato: o botão (a zona do clique) fica parado */}
         {src ? <img src={src} alt={c.name} loading="lazy" draggable="false" /> : <span className="fp-name">{c.name}</span>}
         {c.pt && <i className="fp-pt">{c.pt[0]}/{c.pt[1]}</i>}
@@ -458,6 +462,19 @@ function ForWhat({ src, data }) {
   )
 }
 const MANA_ASK = /\bmana\b/i  // «Select Mana to Produce»
+// «Choose X for Walking Ballista»: o Forge dá sempre 0 a 9, seja qual for a mana; com {X}{X} cada 1 de X custa 2. Quanto custa
+// cada escolha (custo da carta com X = 0, mais X por cada {X}) e quanta mana há por usar. Numa habilidade (a carta já está em
+// campo e não na mão, ou sem X no custo da carta) fica null: o custo é o da habilidade, que o pedido não diz
+function xCostOf(a, st, data) {
+  const m = a?.kind === 'choose' && /^Choose X for (.+?)\s*$/i.exec(String(a.msg || '').split('\n')[0])
+  if (!m || !(a.options || []).some(o => /^\d+$/.test(o.label))) return null
+  const d = lookup(data, m[1]), n = ((d?.mc || '').split(' // ')[0].match(/\{X\}/gi) || []).length
+  const me = (st?.players || []).find(p => p.me)
+  if (!n || !me || ((me.battlefield || []).some(c => c.name === m[1]) && !(me.hand || []).some(c => c.name === m[1]))) return null
+  const src = c => { if (c.tapped || c.hidden || (c.creature && c.sick)) return false; if (c.land) return true; const o = lookup(data, c.name)?.o || ''; return /\{T\}[^:\n]*:\s*Add\b/.test(o) }
+  const avail = (me.battlefield || []).filter(src).length + Object.values(me.mana || {}).reduce((s, k) => s + (+k || 0), 0)
+  return { name: d.n || m[1], n, base: d.cmc || 0, avail }
+}
 function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rvLog: cartas reveladas há pouco (Thoughtseize: a mão toda por cima da escolha)  // payCancel: o Forge está a meio de um pagamento (cancelá-lo desfaz tudo); undo: desfazer a última ação
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
   const escRef = useRef(null)
@@ -507,6 +524,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rv
   const optOf = c => (a.options || []).findIndex(o => rvSame(c, o))
   const rvCards = rv?.cards
   const inRv = !!rvCards && (a.options || []).length > 0 && (a.options || []).every(o => rvCards.some(c => rvSame(c, o)))
+  const xi = xCostOf(a, st, data)
   return (
     <div className="fp-ask"><p>{a.ability ? tx('Como queres usar {c}?', { c: a.msg }) : /^Select target /.test(a.msg || '') ? `${tx('Escolhe o alvo')}: ${a.msg.slice(14)}` : a.msg} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
       {head && <div className="fp-opts fp-reveal-c"><FCard c={head} data={data} big /></div>}
@@ -514,7 +532,10 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rv
       {rv && <RevealCards rv={{ ...rv, cards: rvCards, choose: toggle }} data={data} zoom={zoom} on={optOf} pick={pick} />}
       {!inRv && <div className="fp-opts">{(a.options || []).map((o, k) => { const c = cardOf(o); return c
         ? <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => toggle(k)} onZoom={zoom} />{o.stack && <small className="fp-stk-lbl"><Syms text={o.label} /></small>}</div>
+        : xi && /^\d+$/.test(o.label) ? (t => <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''} ${t > xi.avail ? 'short' : ''}`} title={t > xi.avail ? tx('Não chega: tens {m} de mana por usar.', { m: xi.avail }) : ''} onClick={() => toggle(k)}>
+          X = {o.label} · <b>{tx('custa {m}', { m: t })}</b></button>)(xi.base + xi.n * +o.label)
         : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={a.ability ? abilityLabel(o.label, a.msg) : o.label} /></button> })}</div>}
+      {xi && <small className="muted">{xi.n > 1 ? tx('{c} tem {k} X no custo: cada 1 de X custa {k} de mana (X = 1 custa {t} no total).', { c: xi.name, k: xi.n, t: xi.base + xi.n }) + ' ' : ''}{tx('Tens {m} de mana por usar (terrenos por virar, reserva e fontes de mana).', { m: xi.avail })}</small>}
       <div className="row-btns">{!one && <button className="primary" disabled={pick.length < min} onClick={() => answer(a, pick)}>{tx('Confirmar ({n})', { n: pick.length })}</button>}
         {min === 0 && !one && <button onClick={() => answer(a, [])}>{tx('Nenhum')}</button>}
         {cancel && <button onClick={cancel}>{tx('Cancelar')} <kbd>Esc</kbd></button>}</div>
@@ -1190,7 +1211,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (h) {  // na mão, um clique só levanta a carta (jogar = arrastá-la para a mesa ou duplo clique); se o Forge pede uma carta da mão, escolhe-a
       const id = +h.dataset.h
       if (byId.get(id)?.sel || !/^Priority:/.test(pr?.msg || '')) return send({ c: 'card', id })  // o Forge pede uma escolha: o clique escolhe
-      setLift(l => (l === id ? null : id)); setZoom(byId.get(id)); return
+      const c = byId.get(id), hl = handAbilities(c)
+      setLift(l => (l === id && !hl.length ? null : id)); setZoom(c)
+      // uma carta com uma habilidade que se usa da mão (ciclar, channel, ninjutsu, forecast, bloodrush, suspender…): o toque
+      // mostra-a, com «Usar» — antes só se levantava e, se não dava para a lançar, não havia como ciclá-la sem a arrastar
+      if (hl.length) { const r = h.getBoundingClientRect(), ok = c.play || st.pfail; setAct({ hand: true, off: !ok, hint: ok ? '' : tx('Agora o Forge não deixa usá-la: falta mana para o custo, ou não é a altura (ninjutsu: com um atacante teu por bloquear).'), id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top - 8, up: true, lines: hl, name: c.name }) }
+      return
     }
     const z = e.target.closest('[data-z]')?.dataset.z
     if (z?.startsWith('k:')) return permClick(+z.slice(2), e.target.closest('[data-z]'))
@@ -1223,11 +1249,20 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     return (opp?.battlefield || []).some(x => x.loyalty != null || x.counters?.DEFENSE != null) ? { c: 'player', i: players.indexOf(opp) } : null
   }
   const activateAb = d => { if (!act) return; castNow(act.id); send({ c: 'card', id: act.id, ab: d }); setAct(null) }  // a habilidade de lealdade escolhida
-  const activate = () => { if (!act) return; castNow(act.id); send({ c: 'card', id: act.id }); setAct(null) }  // pedido explícito: o «pagar sozinho» pode pagar
+  const activate = () => { if (!act || act.off) return; castNow(act.id); send({ c: 'card', id: act.id }); setAct(null) }  // pedido explícito: o «pagar sozinho» pode pagar
   // as habilidades ativadas de uma carta (custo: efeito, Equip…), pelo texto
   function abilitiesOf(c) {
     const d = c && (lookup(data, c.name))
     return String(d?.o || '').split('\n').map(l => l.replace(/\([^)]*\)/g, '').trim()).filter(l => /^[^"]{1,90}?:\s/.test(l) || /^Equip\b/i.test(l))
+  }
+  // as que se usam com a carta na mão (não é lançá-la): ciclar e variantes, channel, bloodrush, forecast, transmutar,
+  // ninjutsu, suspender, foretell, plot, reinforce, e «Descarta/Revela/Exila esta carta (da tua mão): …»
+  function handAbilities(c) {
+    const d = c && !c.hidden && lookup(data, c.name), nm = String(d?.n || c?.name || '').split(' // ')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    if (!d) return []
+    const self = nm && new RegExp(`\\b(?:Discard|Reveal|Exile) (?:this card|${nm})(?: from your hand)?\\b[^:"]*:`, 'i')
+    return String(d.o || '').split('\n').map(l => l.replace(/\([^)]*\)/g, '').trim()).filter(l => /^[A-Za-z ]*cycling\s*(?:\{|—|-)/i.test(l) || /^(?:Channel|Bloodrush|Forecast)\s*—/i.test(l)
+      || /^(?:Transmute|(?:Commander )?ninjutsu|Foretell|Plot)\s+\{/i.test(l) || /^(?:Suspend|Reinforce)\s+(?:\d+|X)\s*—/i.test(l) || (self && /^[^"]*:/.test(l) && self.test(l)))
   }
   // duplo clique numa carta TUA na mesa, em qualquer fase (também a atacar e a bloquear): as ações dessa carta; numa do
   // adversário: a carta em grande
@@ -1347,7 +1382,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {act && <div className="fp-act-bg" onPointerDown={() => setAct(null)} />}
       {act && <div className={`fp-act ${act.up ? '' : 'below'}`} role="dialog" aria-label={tx('Ativar {c}', { c: act.name })} style={{ left: act.x, top: act.y }}>
-        <b>{act.dbl ? act.name : tx('Ativar {c}?', { c: act.name })}</b>
+        <b>{act.dbl ? act.name : act.hand ? tx('Usar {c} da mão', { c: act.name }) : tx('Ativar {c}?', { c: act.name })}</b>
         {act.pw?.length ? <>
           {act.pw.map((a, k) => { const m = a.d.match(/^\[?([+−-]?(?:\d+|X))\]?\s*:\s*/), cost = m?.[1]?.replace('-', '−') || '', txt = m ? a.d.slice(m[0].length) : a.d
             return <button key={k} type="button" className={`pw-ab ${/^\+/.test(cost) ? 'up' : /^[−]/.test(cost) ? 'down' : ''}`} disabled={!a.ok} onClick={() => activateAb(a.d)}
@@ -1357,10 +1392,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         </> : <>
           {act.lines.map((l, k) => <p key={k}><Syms text={l} /></p>)}
           {!act.lines.length && <p className="muted small">{tx('Esta carta não tem habilidades para ativar.')}</p>}
-          {act.lines.length > 1 && <small className="muted">{tx('Com mais de uma, escolhes a seguir.')}</small>}
+          {act.lines.length > 1 && !act.hand && <small className="muted">{tx('Com mais de uma, escolhes a seguir.')}</small>}
+          {act.hand && <small className="muted">{tx('Lançá-la também se escolhe a seguir (ou arrasta-a para a mesa).')}</small>}
         </>}
         {act.hint && <small className="fp-act-hint">{act.hint}</small>}
-        <div className="row-btns">{act.lines.length > 0 && !act.pw?.length && <button className="primary" autoFocus onClick={activate}>{tx('Ativar')} <kbd>⏎</kbd></button>}
+        <div className="row-btns">{act.lines.length > 0 && !act.pw?.length && <button className="primary" autoFocus disabled={act.off} onClick={activate}>{act.hand ? tx('Usar') : tx('Ativar')} <kbd>⏎</kbd></button>}
           {act.dbl && <button onClick={() => { setBig(act.name); setAct(null) }}>{tx('Ver a carta')}</button>}<button onClick={() => setAct(null)}>{act.lines.length ? tx('Cancelar') : tx('Fechar')} <kbd>Esc</kbd></button></div>
       </div>}
       {reveal && <div className="fp-modal"><div className="fp-ask fp-reveal" key={`${reveal.card}`}>

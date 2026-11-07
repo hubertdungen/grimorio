@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { tx } from './i18n.js'
 import { img, pidOf } from './data.js'
+import { showCardPeek, hideCardPeek, pressPeek } from './deckview.js'
 import { cnt, sbMove, sbCheck } from './sideboard.js'
 import './SideboardStep.css'
 
@@ -28,7 +29,8 @@ export default function SideboardStep({ data, deck, base = deck, fmt, onReady, o
           const dl = k === 'main' ? delta(n) : -delta(n)
           return (
             <button key={n} className={`sbs-card ${dl > 0 ? 'up' : ''}`} draggable onDragStart={() => setDrag({ from: k, n })} onDragEnd={() => setDrag(null)}
-              onClick={() => mv(k, n)} title={`${n} · ${k === 'main' ? tx('Tirar um para o sideboard') : tx('Pôr um no deck')}`}>
+              onClick={() => mv(k, n)} title={`${n} · ${k === 'main' ? tx('Tirar um para o sideboard') : tx('Pôr um no deck')}`}
+              {...(c && { ...pressPeek(c, pidOf(d, n)), onMouseEnter: e => showCardPeek(e, c, pidOf(d, n)), onMouseLeave: hideCardPeek })}>
               {c ? <img src={img(c, 'small', false, pidOf(d, n))} alt={n} loading="lazy" draggable={false} /> : <span className="sbs-nm">{n}</span>}
               <b className="sbs-q">{q}</b>
               {dl !== 0 && <small className={`sbs-d ${dl > 0 ? 'up' : 'dn'}`}>{dl > 0 ? `+${dl}` : dl}</small>}

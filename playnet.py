@@ -170,7 +170,7 @@ def cmd(sid, owner, c):
         s["ts"] = time.time()
         p = s["p"]
     try:
-        p.stdin.write((json.dumps({k: c[k] for k in ("c", "id", "i", "v", "color") if k in c}) + "\n").encode())
+        p.stdin.write((json.dumps({k: c[k] for k in ("c", "id", "i", "v", "color", "ab") if k in c}) + "\n").encode())
         p.stdin.flush()
     except (BrokenPipeError, OSError):
         raise ValueError("O jogo já acabou.")
