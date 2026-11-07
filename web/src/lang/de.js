@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Mesa estrita: com todas as regras do Forge (mana, pilha, combate, alvos), cada um no seu ecrã — 1 contra 1, todos contra todos a 3–4 ou Two-Headed Giant. Num deck de Commander o comandante entra no deck. Quem não decidir durante 5 minutos perde o jogo.": "Strenger Tisch: mit allen Forge-Regeln (Mana, Stapel, Kampf, Ziele), jeder auf seinem Bildschirm — 1 gegen 1, jeder gegen jeden zu 3–4 oder Two-Headed Giant. In einem Commander-Deck kommt der Kommandeur ins Deck. Wer 5 Minuten lang nicht entscheidet, verliert das Spiel.",
   "A melhor carta do deck, escolhida sozinha": "Die beste Karte des Decks, automatisch gewählt",
   "a cor do estilo da esfera": "die Farbe des Kugelstils",
   "a parte do fluido que vem das cartas desta cor em campo (os terrenos contam menos; cemitério e exílio um pouco)": "der Anteil der Flüssigkeit, der von Karten dieser Farbe im Spiel kommt (Länder zählen weniger, Friedhof und Exil ein wenig)",

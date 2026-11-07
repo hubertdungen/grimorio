@@ -3868,6 +3868,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Mesa estrita: com todas as regras do Forge (mana, pilha, combate, alvos), cada um no seu ecrã — 1 contra 1, todos contra todos a 3–4 ou Two-Headed Giant. Num deck de Commander o comandante entra no deck. Quem não decidir durante 5 minutos perde o jogo.": "Strict table: with all of Forge's rules (mana, stack, combat, targets), each on their own screen — 1 vs 1, free-for-all with 3–4 or Two-Headed Giant. In a Commander deck the commander goes into the deck. Whoever doesn't decide for 5 minutes loses the game.",
   "A melhor carta do deck, escolhida sozinha": "The deck's best card, picked automatically",
   "a cor do estilo da esfera": "the colour of the orb's style",
   "a parte do fluido que vem das cartas desta cor em campo (os terrenos contam menos; cemitério e exílio um pouco)": "the share of the fluid that comes from cards of this colour on the battlefield (lands count less; graveyard and exile a little)",

@@ -141,32 +141,40 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None
     return sid
 
 
-def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None):
-    """Mesa estrita: duas pessoas no mesmo jogo do Forge, cada uma com o seu ecrã (o GrimorioNet com dois humanos).
-    seats = {"a": chave, "b": chave} (o dono ou «<dono>~guest:<id>»); decks/names = {"a": …, "b": …}. Devolve o id."""
+def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, mode=None):
+    """Mesa estrita: 2 a 4 pessoas no mesmo jogo do Forge, cada uma com o seu ecrã (o GrimorioNet com vários humanos).
+    seats = {"a": chave, "b": chave[, "c", "d"]} (o dono ou «<dono>~guest:<id>»); decks/names com as mesmas letras.
+    mode (3–4 lugares): "ffa" todos contra todos ou "2hg" Two-Headed Giant (a+b contra c+d, só a 4). Devolve o id."""
     _cleanup()
-    for k in ("a", "b"):
+    ks = [k for k in "abcd" if k in seats]
+    if ks != list("abcd"[:len(ks)]) or not 2 <= len(ks) <= 4:
+        raise ValueError("A mesa estrita leva de 2 a 4 jogadores.")
+    if mode == "2hg" and len(ks) != 4:
+        raise ValueError("O Two-Headed Giant é para 4 jogadores.")
+    for k in ks:
         d = decks.get(k)
         if not isinstance(d, dict) or not isinstance(d.get("main"), dict) or not d["main"]:
             raise ValueError("Falta um dos decks.")
         if d.get("commanders"):
             raise ValueError("A mesa estrita é só para formatos 1 contra 1 (sem Commander).")
-    na = str(names.get("a") or "Jogador 1")[:40]
-    nb = str(names.get("b") or "Jogador 2")[:40]
-    if nb == na:  # quem ganhou vem pelo nome: os dois têm de ser diferentes
-        nb = f"{nb[:36]} (2)"
-    sid, p, container = _spawn(data_dir, decks["a"], decks["b"], [na, "Default", nb, "pvp"] + ([chooser] if chooser in ("a", "b") else []), ai_b=False)
+    nm = {}
+    for k in ks:  # quem ganhou vem pelo nome: têm de ser todos diferentes
+        n0 = str(names.get(k) or f"Jogador {'abcd'.index(k) + 1}")[:40]
+        nm[k] = n0 if n0 not in nm.values() else f"{n0[:36]} ({'abcd'.index(k) + 1})"
+    extra = [(k, decks[k], nm[k]) for k in ks[2:]]
+    args = [nm["a"], "Default", nm["b"], "pvp", chooser if chooser in ks else "-"] + ([mode if mode in ("ffa", "2hg") else "ffa"] if extra else [])
+    sid, p, container = _spawn(data_dir, decks["a"], decks["b"], args, ai_b=False, extra=extra)
     blank = lambda: {"state": None, "prompt": None, "asks": {}, "log": [], "since": time.time(), "last": 0}  # noqa: E731
     with COND:
-        S[sid] = {"owner": seats["a"], "seats": dict(seats), "pv": {"a": blank(), "b": blank()}, "afk": afk, "clock": clock,
+        S[sid] = {"owner": seats["a"], "seats": {k: seats[k] for k in ks}, "pv": {k: blank() for k in ks}, "afk": afk, "clock": clock,
                   "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
-                  "ended": False, "winner": None, "ts": time.time(), "names": {"a": decks["a"].get("name"), "b": decks["b"].get("name")},
-                  "players": {"a": na, "b": nb}, "rate": None, "arts": {"a": sim.art_map(decks["a"]), "b": sim.art_map(decks["b"])}}
+                  "ended": False, "winner": None, "ts": time.time(), "names": {k: decks[k].get("name") for k in ks},
+                  "players": nm, "rate": None, "arts": {k: sim.art_map(decks[k]) for k in ks}}
     threading.Thread(target=_reader, args=(sid, p), daemon=True).start()
     return sid
 
 
-def _spawn(data_dir, deck, opp, args, ai_b):
+def _spawn(data_dir, deck, opp, args, ai_b, extra=()):
     """Arranca o GrimorioNet (contentor no servidor, Java local nos pacotes) com os dois decks -> (sid, processo, contentor)."""
     fdir = sim.forge_dir(data_dir)
     ext = os.path.join(os.path.dirname(os.path.realpath(fdir)), "forge-ext")  # ao lado do Forge (o build.sh põe-no lá)
@@ -180,11 +188,15 @@ def _spawn(data_dir, deck, opp, args, ai_b):
         txt, _ = sim.to_dck(d, side.upper(), "Constructed", names, ai=ai_b and side == "b")  # o meu deck (a) fica como está; na mesa estrita os dois
         with open(os.path.join(jdir, f"{side}.dck"), "w", encoding="utf-8") as f:
             f.write(txt)
+    for side, d, _ in extra:  # mesa estrita a 3–4: os lugares c e d
+        txt, _ = sim.to_dck(d, side.upper(), "Constructed", names, ai=False)
+        with open(os.path.join(jdir, f"{side}.dck"), "w", encoding="utf-8") as f:
+            f.write(txt)
     jvm = ["-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
     container = None
     if sim.RUNTIME == "local":
         cmd = [sim.JAVA, *jvm, f"-Duser.home={os.path.join(jdir, 'home')}", "-cp", os.pathsep.join([ext, os.path.join(fdir, sim.FORGE_JAR)]),
-               "GrimorioNet", os.path.join(jdir, "a.dck"), os.path.join(jdir, "b.dck"), *args]
+               "GrimorioNet", os.path.join(jdir, "a.dck"), os.path.join(jdir, "b.dck"), *args, *(f"{os.path.join(jdir, k + '.dck')}|{n}" for k, _, n in extra)]
         p = subprocess.Popen(cmd, cwd=fdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
     else:
         container = f"{sim.PREFIX}net-{sid}"
@@ -195,7 +207,7 @@ def _spawn(data_dir, deck, opp, args, ai_b):
             if os.path.isdir(os.path.join(ext, sub)):
                 cmd += ["-v", f"{os.path.join(ext, sub)}:{dst}:ro"]
         cmd += ["-v", f"{ext}:/ext:ro", sim.IMAGE, "java", *jvm, "-cp", f"/ext:{sim.FORGE_JAR}", "GrimorioNet",
-                "/run/a.dck", "/run/b.dck", *args]
+                "/run/a.dck", "/run/b.dck", *args, *(f"/run/{k}.dck|{n}" for k, _, n in extra)]
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
     return sid, p, container
 
@@ -238,12 +250,14 @@ def poll(sid, owner, since=0, wait=20.0):
             COND.wait(timeout=end - time.time())
         seat = _seat(s, owner)
         v = s["pv"][seat] if seat else s
-        # o browser assume «a = eu»: no lugar b trocam-se os nomes, as artes e como perdeu cada um
-        sw = (lambda d: {"a": (d or {}).get("b"), "b": (d or {}).get("a")} if d else d) if seat == "b" else (lambda d: d)
+        # o browser assume «a = eu» e os outros pela ordem dos lugares a seguir a mim: roda os nomes, as artes e as derrotas
+        ks = list(s.get("seats") or {}) or ["a", "b"]
+        rot = ks[ks.index(seat):] + ks[:ks.index(seat)] if seat in ks else ks
+        sw = (lambda d: {"abcd"[i]: (d or {}).get(k) for i, k in enumerate(rot)} if d else d) if seat and seat != "a" else (lambda d: d)
         out = s.get("out")
         return {"seq": s["seq"], "state": v["state"], "prompt": v["prompt"], "asks": list(v["asks"].values()), "log": v["log"][-12:],
                 "ended": s["ended"], "winner": s["winner"], "names": sw(s["names"]), "crash": bool(s.get("crash")),
-                "arts": sw(s.get("arts")), "out": sw(out) if isinstance(out, dict) and set(out) <= {"a", "b"} else out, "draw": s.get("draw", False),
+                "arts": sw(s.get("arts")), "out": sw(out) if isinstance(out, dict) and set(out) <= set("abcd") else out, "draw": s.get("draw", False),
                 **({"pvp": {"seat": seat, "afk": s.get("afk", AFK), "clock": s.get("clock")}} if seat else {})}
 
 

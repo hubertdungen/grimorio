@@ -132,14 +132,16 @@ def start_livre(con, owner, rid, spec, players):
             raise ValueError(f"O deck «{p.get('name')}» já não existe.")
         seats.append({"by": p["by"], "name": p.get("byName") or me, "deck": d})
     if spec.get("strict"):  # mesa estrita: um jogo do Forge com as duas pessoas (playnet); o id vai como «fp:<sessão>»
-        if len(seats) != 2:
-            raise ValueError("A mesa estrita é para 2 jogadores.")
+        if not 2 <= len(seats) <= 4:
+            raise ValueError("A mesa estrita é para 2 a 4 jogadores.")
         key = lambda by: owner if by == "host" else f"{owner}~{by}"  # noqa: E731  (convidado: «<dono>~guest:<id>», como no Forge Play)
         flat = lambda d: {**d, "main": {**(d.get("main") or {}), **{c: 1 for c in d.get("commanders") or []}}, "commanders": []}  # noqa: E731
-        first = int(spec.get("first") or 0) % 2
-        order = [seats[first], seats[1 - first]]  # quem ganhou a moeda fica no lugar «a» (o Forge volta a decidir quem começa)
-        sid = playnet.start_pvp(tournament.DATA, {"a": key(order[0]["by"]), "b": key(order[1]["by"])},
-                                {"a": flat(order[0]["deck"]), "b": flat(order[1]["deck"])}, {"a": order[0]["name"], "b": order[1]["name"]})
+        giant = bool(spec.get("giant")) and len(seats) == 4
+        first = 0 if giant else int(spec.get("first") or 0) % len(seats)
+        order = seats[first:] + seats[:first]  # a 2–3: a ordem a partir de quem ganhou a moeda (o Forge volta a decidir quem começa); 2HG: as equipas pela ordem
+        ks = "abcd"[:len(order)]
+        sid = playnet.start_pvp(tournament.DATA, {k: key(x["by"]) for k, x in zip(ks, order)}, {k: flat(x["deck"]) for k, x in zip(ks, order)},
+                                {k: x["name"] for k, x in zip(ks, order)}, mode="2hg" if giant else "ffa")
         tid = "fp:" + sid
         con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
         LIVE.pop(rid, None)
@@ -202,9 +204,7 @@ def route(con, method, path, owner, body, guest=None):
             p["name"] = p["name"] or (p["src"] == "meus" and deck_ok(con, owner, p["ref"], None)) or None
         if spec["type"] == "livre":  # mesa livre: um lugar por pessoa (o anfitrião com um deck seu), qualquer formato
             spec.update(format=None, casual=True, max=max(2, min(4, int(d.get("max") or 4))), strict=bool(d.get("strict")) or None)
-            if spec["strict"]:  # mesa estrita: o Forge faz cumprir as regras, só 1 contra 1
-                spec["max"], spec["giant"] = 2, None
-            elif spec.get("giant"):  # Two-Headed Giant: 4 lugares, equipas pela ordem (1.º+2.º contra 3.º+4.º)
+            if spec.get("giant"):  # Two-Headed Giant: 4 lugares, equipas pela ordem (1.º+2.º contra 3.º+4.º); também na mesa estrita
                 spec.update(giant=True, max=4)
             players = players[:1]
             dname = players and deck_ok(con, owner, players[0].get("ref"), None)

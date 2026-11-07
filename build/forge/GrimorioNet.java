@@ -101,11 +101,16 @@ public class GrimorioNet {
         FModel.getPreferences().setPref(forge.localinstance.properties.ForgePreferences.FPref.UI_SELECT_FROM_CARD_DISPLAYS, false);
         Deck dh = DeckSerializer.fromFile(new File(a[0])), da = DeckSerializer.fromFile(new File(a[1]));
         boolean pvp = a.length > 5 && "pvp".equals(a[5]);
-        if (a.length > 6 && ("a".equals(a[6]) || "b".equals(a[6]))) {  // série: quem perdeu o jogo anterior escolhe
+        if (a.length > 6 && a[6].length() == 1 && "abcd".contains(a[6])) {  // série: quem perdeu o jogo anterior escolhe
             CHOOSER = a[6];
-            CoinRandom cr = new CoinRandom(); cr.force = "a".equals(a[6]) ? 0 : 1;
+            CoinRandom cr = new CoinRandom(); cr.force = "abcd".indexOf(a[6]);
             forge.util.MyRandom.setRandom(cr);
         }
+        // mesa estrita com 3–4 pessoas: 8.º argumento o modo («ffa» todos contra todos, «2hg» Two-Headed Giant: a+b contra
+        // c+d), 9.º e 10.º os lugares c e d como «caminho.dck|nome»
+        String mode = a.length > 7 ? a[7] : "-";
+        List<String[]> extra = new ArrayList<>();
+        for (int k = 8; k < a.length && k < 10; k++) { String[] x = a[k].split("\\|", 2); if (x.length == 2) extra.add(x); }
         LobbyPlayer human = GamePlayerUtil.getGuiPlayer();
         human.setName(a.length > 2 ? a[2] : "Tu");
         LobbyPlayer other = pvp ? new forge.player.LobbyPlayerHuman(a.length > 4 ? a[4] : "Jogador 2", 0, 0)  // a outra pessoa
@@ -114,8 +119,18 @@ public class GrimorioNet {
         List<RegisteredPlayer> players = new ArrayList<>();
         players.add(rh.setPlayer(human));
         players.add(ra.setPlayer(other));
+        List<RegisteredPlayer> more = new ArrayList<>();
+        if (pvp) for (String[] x : extra) {
+            RegisteredPlayer r = new RegisteredPlayer(DeckSerializer.fromFile(new File(x[0])));
+            players.add(r.setPlayer(new forge.player.LobbyPlayerHuman(x[1], 0, 0))); more.add(r);
+        }
+        boolean giant = pvp && "2hg".equals(mode) && players.size() == 4;
+        if (giant) for (int k = 0; k < 4; k++) { players.get(k).setTeamNumber(k < 2 ? 1 : 2); players.get(k).setStartingLife(30); }  // 2HG: a+b contra c+d, 30 de vida
         Bridge gui = new Bridge(pvp ? "a" : null);
-        if (pvp) { PVP = new HashMap<>(); PVP.put("a", gui); PVP.put("b", new Bridge("b")); gui.pname = human.getName(); PVP.get("b").pname = other.getName(); }
+        if (pvp) {
+            PVP = new HashMap<>(); PVP.put("a", gui); PVP.put("b", new Bridge("b")); gui.pname = human.getName(); PVP.get("b").pname = other.getName();
+            for (int k = 0; k < more.size(); k++) { Bridge b = new Bridge(String.valueOf("cd".charAt(k))); b.pname = extra.get(k)[1]; PVP.put(b.seat, b); }
+        }
         Thread in = new Thread(() -> gui.readCommands(), "grimorio-in");  // um só leitor: na mesa estrita encaminha pelo «seat»
         in.setDaemon(true);
         in.start();
@@ -124,7 +139,15 @@ public class GrimorioNet {
         if (pvp) {
             Map<RegisteredPlayer, IGuiGame> guis = new HashMap<>();
             guis.put(rh, PVP.get("a")); guis.put(ra, PVP.get("b"));
+            for (int k = 0; k < more.size(); k++) guis.put(more.get(k), PVP.get(String.valueOf("cd".charAt(k))));
             hm.startMatch(GameType.Constructed, EnumSet.noneOf(GameType.class), players, guis);
+            if (giant) {  // 2HG: vida e veneno da equipa, perdem juntos, a equipa que começa não compra (GrimorioSim.Giant)
+                Thread gt = new Thread(() -> {
+                    for (int k = 0; k < 200 && HM.getGame() == null; k++) try { Thread.sleep(50); } catch (InterruptedException e) { return; }
+                    if (HM.getGame() != null) HM.getGame().subscribeToEvents(new GrimorioSim.Giant(HM.getGame()));
+                }, "grimorio-2hg");
+                gt.setDaemon(true); gt.start();
+            }
         } else hm.startMatch(GameType.Constructed, EnumSet.noneOf(GameType.class), players, rh, gui);
         // o jogo corre noutras threads; esta espera pelo fim (o Bridge sai do processo em finishGame/afterGameEnd)
         while (true) Thread.sleep(1000);
@@ -481,6 +504,7 @@ public class GrimorioNet {
                 if (game != null) for (forge.game.player.Player x : game.getPlayers()) if (x.getId() == p.getId()) rp = x;
                 if (rp != null) try {  // designações: monarca, iniciativa, bênção da cidade, velocidade
                     if (rp.isMonarch()) po.addProperty("monarch", true);
+                    if (PVP != null && PVP.size() > 2) po.addProperty("team", rp.getTeam());  // mesa estrita a 3–4: a equipa (2HG)
                     if (rp.hasInitiative()) po.addProperty("initiative", true);
                     if (rp.hasBlessing()) po.addProperty("blessing", true);
                     if (!rp.noSpeed()) po.addProperty("speed", rp.getSpeed());
