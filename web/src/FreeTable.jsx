@@ -64,6 +64,8 @@ function line(e, who) {
     case 'poison': return tx('{T}: veneno {v} ({d})', { T, v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
     case 'dice': return tx('{P} lança {x}', { P, x: e.types.map((t, i) => `${t === 'moeda' ? tx('moeda') : t}: ${t === 'moeda' ? (e.v[i] === 1 ? tx('Cara') : tx('Coroa')) : e.v[i]}`).join(', ') })
     case 'reveal': return tx('{P} revela {c}', { P, c })
+    case 'revealtop': return e.always === false ? tx('{P} deixa de revelar o topo da biblioteca', { P }) : e.always ? tx('{P} joga com o topo da biblioteca à vista ({c})', { P, c }) : tx('{P} revela o topo da biblioteca: {c}', { P, c })
+    case 'showlib': return e.on ? tx('{P} mostra a biblioteca aos outros', { P }) : tx('{P} volta a esconder a biblioteca', { P })
     case 'revealhand': return tx('{P} revela a mão: {x}', { P, x: (e.names || []).map(short).join(', ') })
     case 'search': return tx('{P} procura na biblioteca', { P })
     case 'peek': return tx('{P} olha para as {n} cartas do topo da biblioteca', { P, n: e.n })
@@ -415,6 +417,11 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       if (hc.c.atk != null) { send({ c: 'block', id: cid, att: hid }); return false }
       if (/\b(Planeswalker|Battle)\b/.test(lookup(data, hc.c.n)?.t || '')) { send({ c: 'attack', id: cid, seat: hc.seat, card: hid }); return false }
     }
+    // um terreno largado em cima de outro terreno teu: fica empilhado nele (um pouco deslocado, por cima)
+    if (hc && hc.seat === me && hid !== cid && e?.c.n && isLand(data, { name: e.c.n }) && isLand(data, { name: hc.c.n })) {
+      const at = { x: Math.min(0.97, (hc.c.x ?? 0.5) + 0.012), y: Math.min(0.97, (hc.c.y ?? 0.5) + 0.035) }
+      play('tick', { amount: 1 }); mv(cid, 'battlefield', { ...at, seat: me }); return from === 'field' ? 'local' : true
+    }
     // aura, equipamento, fortificação (não é criatura) largada em cima de uma carta do campo: fica presa a ela
     if (host && hid !== cid && e?.c.n && !isCreature(data, { name: e.c.n }) && !isLand(data, { name: e.c.n })) {
       if (from === 'field') { attach(cid, hid); return true }
@@ -452,7 +459,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       if (e.key === 'Escape') { setMenu(null); setZone(null); pen.setOn(false); return }
       if (e.key.toLowerCase() === 'p') { e.preventDefault(); pen.setOn(v => !v); return }
       const P2 = fpPrefs(), hv = hoverId.current, onField = hv != null && byId.get(hv)?.z === 'battlefield'
-      const lk = { d: () => send({ c: 'draw', n: 1 }), v: () => send({ c: 'peek', n: 3 }), s: () => send({ c: 'shuffle' }), m: () => send({ c: 'mill', n: 1 }), x: () => send({ c: 'exiletop', n: 1 }) }[e.key.toLowerCase()]
+      const lk = { d: () => send({ c: 'draw', n: 1 }), v: () => send({ c: 'peek', n: nPeek }), s: () => send({ c: 'shuffle' }), m: () => send({ c: 'mill', n: 1 }), x: () => send({ c: 'exiletop', n: 1 }) }[e.key.toLowerCase()]
       if (lk && !e.shiftKey && s?.status === 'playing' && e.key.toLowerCase() !== P2.tap && e.key.toLowerCase() !== P2.flip) { e.preventDefault(); setLibMenu(null); lk(); return }  // biblioteca: D comprar, V ver o topo, S baralhar, M moer, X exilar o topo
       if (e.key.toLowerCase() === P2.tap && onField) { e.preventDefault(); tap(hv); return }
       if (e.key.toLowerCase() === P2.flip && onField) { e.preventDefault(); turnOver(hv); return }
@@ -515,22 +522,24 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       ? <div className="fp-hand mine">{handOf(v).map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} h={c.id} data={data} big cls={`${c.r ? 'ml-rev' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>
       : <div className="fp-hand opp" title={tx('{n} carta na mão|{n} cartas na mão', { n: v.hand.length })}>{v.hand.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n, hidden: !c.n }} data={data} cls={c.n ? 'ml-rev' : ''} />)}</div>
     const hud = <Hud k={k} z={zOf(v)} name={`${v.name}${v.out ? ' 🏳' : ''}`} fmt={FORMAT[v.format]?.name || null} s={hs} data={data} fx={{ ...fx, player: psnFx?.p === k ? { p: k, psn: true } : null }} fast={false} start={v.life > 20 ? 40 : 20}
-      openZone={() => {}} top={top} hand={<>{cmd}{hand}</>} openLib={isMe ? onLib : null} />
+      openZone={() => {}} top={top} hand={<>{cmd}{hand}</>} openLib={isMe ? onLib : v.libv ? () => setZone({ seat: i, which: 'libv' }) : null} />
     const field = (
       <div className={`ml-field ${top ? 'mirror' : ''}`} data-seat={i}>
         {v.battlefield.filter(c => !c.sp && !(c.at != null && onField.has(c.at))).map(c => {
           const left = top ? 1 - (c.x ?? 0.5) : c.x ?? 0.5, tp = top ? 1 - (c.y ?? 0.5) : c.y ?? 0.5
           return (
             <div key={c.id} className={`bfree-c ${kindOf(c)} ${pickAt != null && pickAt !== c.id ? 'ml-pick' : ''} ${aimed.has(c.id) ? 'ml-tgt' : ''}`} style={{ left: `clamp(calc(var(--w) * .5), ${left * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${tp * 100}%, calc(100% - var(--w) * .7))` }}>
+              {c.nt && <span className="ml-note" title={c.nt}>📝 {c.nt}</span>}
               <Perm p={{ ...permOf(c), pump: pumpOf.get(c.id) || undefined }} data={data} hl={0} pop={pops.get(String(c.id)) || null} att={attOf.get(c.id)} n={0} quiet={false} tgt={c.atk != null ? [keyOf(c.atk), short(c.atc != null ? byId.get(c.atc)?.c?.n || who(c.atk) : who(c.atk))] : null} />
             </div>)
         })}
+        {v.rtop && <span className="ml-rtop" data-zid={v.rtop.id} title={tx('O topo da biblioteca, à vista de todos')}><FCard c={{ id: v.rtop.id, name: v.rtop.n }} data={data} /><small>▤ {tx('topo')}</small></span>}
         {!v.battlefield.length && isMe && <span className="ml-empty">{tx('o teu lado da mesa: arrasta para aqui as cartas da mão')}</span>}
       </div>
     )
     return (<Arts.Provider key={i} value={{ arts: { [k]: v.arts }, k }}><OrbCtx.Provider value={{ mine: isMe ? k : null, seed: s?.id || '', looks: !isMe && v.orb ? { [k]: v.orb } : null }}>
       <div className={`bside ml-side ${aimedP.has(i) ? 'ml-tgt-p' : ''} ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i} data-mat={(isMe || !P.mats ? P.mat : v.mat) || undefined}
-        onClickCapture={e => { const z = e.target.closest('[data-zone]')?.dataset.zone; if (z === 'graveyard' || z === 'exile') { e.stopPropagation(); setZone({ seat: i, which: z }) } }}>
+        onClickCapture={e => { const z = e.target.closest('[data-zone]')?.dataset.zone; if (z === 'graveyard' || z === 'exile' || (z === 'library' && v.libv)) { e.stopPropagation(); setZone({ seat: i, which: z === 'library' ? 'libv' : z }) } }}>
         {top ? <>{hud}{field}</> : <>{field}{hud}</>}
       </div></OrbCtx.Provider></Arts.Provider>
     )
@@ -627,10 +636,12 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         ...(flipKind(cd) === 'df' ? [['⟲ ' + tx('Transformar (outra face)'), () => send({ c: 'flip', id: cid })]] : flipKind(cd) === 'flip' ? [['⟲ ' + tx('Virar a carta flip (180°)'), () => send({ c: 'flip', id: cid })]] : []),
         c.at != null ? ['📎 ' + tx('Soltar (deixa de estar presa)'), () => attach(cid, null)] : ['📎 ' + tx('Prender a… (toca na carta)'), () => setPickAt(cid)],
         [c.ph ? '◐ ' + tx('Voltar à fase') : '◐ ' + tx('Sair de fase (phasing)'), () => send({ c: 'phase', id: cid })],
+        ...(c.n ? [['⧉ ' + tx('Criar uma ficha cópia'), () => send({ c: 'token', name: short(c.n), x: Math.min(0.95, (c.x ?? 0.5) + 0.06), y: c.y ?? 0.5 })]] : []),
+        ['📝 ' + (c.nt ? tx('Mudar a nota') : tx('Pôr uma nota')), () => { const v = window.prompt(tx('Nota nesta carta (todos a veem; vazia apaga):'), c.nt || ''); if (v != null) send({ c: 'note', id: cid, txt: v }) }],
         ...(owner || c.d ? [[c.d ? tx('🂠 Virar para cima') : tx('🂠 Virar para baixo'), () => send({ c: 'face', id: cid })]] : []),
         ...to, ...(owner && !c.tok ? [['♛ ' + tx('Zona de comando'), () => mv(cid, 'command')]] : [])]
     }
-    if (z === 'hand') return [...head, ['▶ ' + tx('Jogar (para o campo)'), () => toField(cid)], ['🂠 ' + tx('Jogar virada para baixo'), () => toField(cid, { down: true })],
+    if (z === 'hand') return [...head, ['▶ ' + tx('Jogar (para o campo)'), () => toField(cid)], ['⚡ ' + tx('Lançar (para a pilha)'), () => send({ c: 'cast', id: cid })], ['🂠 ' + tx('Jogar virada para baixo'), () => toField(cid, { down: true })],
       [c.r ? tx('🙈 Esconder outra vez') : tx('👁 Revelar a todos'), () => send({ c: 'reveal', id: cid })], ...to]
     return [...head, ['▶ ' + tx('Para o campo'), () => toField(cid)], ...(z !== 'battlefield' && c.n ? [['⚡ ' + tx('Lançar (para a pilha)'), () => send({ c: 'cast', id: cid })]] : []), ...to, ...(z !== 'command' && owner ? [['♛ ' + tx('Zona de comando'), () => mv(cid, 'command')]] : []),
       ...(z === 'command' && c.cm ? [[`${tx('Imposto de comandante')} +${2 * (c.cc || 0)}`, null, [['−', () => send({ c: 'tax', id: cid, d: -1 })], ['＋', () => send({ c: 'tax', id: cid, d: 1 })]]]] : [])]
@@ -649,7 +660,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         {mine && <span className="ml-pair ml-life">{[[-1, '−', tx('Perder 1 de vida')], [0], [1, '＋', tx('Ganhar 1 de vida')]].map(([d, ic, l]) => (d ? <button key={d} type="button" className="ml-t" disabled={ended} onClick={() => send({ c: 'life', seat: me, d })} title={l} aria-label={l}><i aria-hidden="true">{ic}</i></button>
           : <b key="v" className="ml-n" title={tx('A tua vida')}>♥ {mine.life}</b>))}</span>}
         <span className="ml-pair">{T('🂠', tx('Comprar'), () => send({ c: 'draw', n: nDraw }))}<select className="ml-n" value={nDraw} onChange={e => setNDraw(+e.target.value)} aria-label={tx('Quantas cartas')}>{[1, 2, 3, 4, 5, 7].map(x => <option key={x} value={x}>{x}</option>)}</select></span>
-        <span className="ml-pair">{T('👁', tx('Ver o topo'), () => send({ c: 'peek', n: nPeek }), { title: tx('Só tu vês: depois escolhe o que fica no topo, vai para o fundo, para a mão ou para o cemitério') })}<select className="ml-n" value={nPeek} onChange={e => setNPeek(+e.target.value)} aria-label={tx('Quantas cartas do topo')}>{[1, 2, 3, 4, 5, 7, 10].map(x => <option key={x} value={x}>{x}</option>)}</select></span>
+        <span className="ml-pair">{T('👁', tx('Ver o topo'), () => send({ c: 'peek', n: nPeek }), { title: tx('Só tu vês: depois escolhe o que fica no topo, vai para o fundo, para a mão ou para o cemitério') })}<select className="ml-n" value={nPeek} onChange={e => setNPeek(+e.target.value)} aria-label={tx('Quantas cartas do topo')}>{[...new Set([1, 2, 3, 4, 5, 6, 7, 8, 10, 15, 20, nPeek])].sort((a, b) => a - b).map(x => <option key={x} value={x}>{x}</option>)}</select></span>
       </div>
       <div className="ml-tg">
         {T('🔀', tx('Baralhar'), () => send({ c: 'shuffle' }))}
@@ -745,7 +756,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
             : f ? <button key={k} role="menuitem" onClick={() => { setMenu(null); f() }} disabled={ended && !menu.more}>{l}</button> : <b key={k}>{l}</b>))}
         </div></div>}
       {zone && <div className="fp-modal zone" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
-        <p><b>{zone.which === 'graveyard' ? tx('Cemitério de {n}', { n: who(zone.seat) }) : tx('Exílio de {n}', { n: who(zone.seat) })}</b> · {zoneCards.length} <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
+        <p><b>{zone.which === 'graveyard' ? tx('Cemitério de {n}', { n: who(zone.seat) }) : zone.which === 'libv' ? tx('Biblioteca de {n}', { n: who(zone.seat) }) : tx('Exílio de {n}', { n: who(zone.seat) })}</b> · {zoneCards.length} <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
         <p className="small muted">{tx('Toca numa carta para a mudares de sítio; duplo clique põe-na na mão (com Shift: no campo).')}</p>
         <div className="fp-opts">{zoneCards.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} data={data} big onClick={e => {
           const now = Date.now(), x = downAt.current.x, y = downAt.current.y
@@ -755,9 +766,12 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       {libMenu && <div className="ml-libmenu-bg" onPointerDown={() => setLibMenu(null)} />}
       {libMenu && <div className="ml-libmenu" role="menu" style={{ left: libMenu.x, top: libMenu.y }}>
         <b>▤ {tx('Biblioteca')} · {seats[me]?.library ?? ''}</b>
-        {[['🂠', tx('Comprar 1'), 'D', () => send({ c: 'draw', n: 1 })], ['🂠', tx('Comprar 2'), '', () => send({ c: 'draw', n: 2 })], ['👁', tx('Ver o topo (3)'), 'V', () => send({ c: 'peek', n: 3 })],
+        <span className="ml-libn">{tx('Quantas')} <button type="button" className="ml-mini" onClick={() => setNPeek(x => Math.max(1, x - 1))} aria-label="−">−</button><b>{nPeek}</b><button type="button" className="ml-mini" onClick={() => setNPeek(x => Math.min(40, x + 1))} aria-label="+">＋</button></span>
+        {[['🂠', tx('Comprar 1'), 'D', () => send({ c: 'draw', n: 1 })], ['🂠', tx('Comprar {n}', { n: nPeek }), '', () => send({ c: 'draw', n: nPeek })], ['👁', tx('Ver o topo / vidência / surveil ({n})', { n: nPeek }), 'V', () => send({ c: 'peek', n: nPeek })],
           ['🔍', tx('Procurar na biblioteca'), '', () => send({ c: 'peek', s: 1 })],
-          ['🔀', tx('Baralhar'), 'S', () => send({ c: 'shuffle' })], ['⚰', tx('Moer 1 (topo para o cemitério)'), 'M', () => send({ c: 'mill', n: 1 })], ['⌀', tx('Exilar o topo'), 'X', () => send({ c: 'exiletop', n: 1 })]]
+          ['🔀', tx('Baralhar'), 'S', () => send({ c: 'shuffle' })], ['⚰', tx('Moer {n} (topo para o cemitério)', { n: nPeek }), 'M', () => send({ c: 'mill', n: nPeek })], ['⌀', tx('Exilar o topo ({n})', { n: nPeek }), 'X', () => send({ c: 'exiletop', n: nPeek })],
+          ['📣', tx('Revelar o topo a todos'), '', () => send({ c: 'revealtop' })], [(mine?.rt ? '✓ ' : '◻ ') + tx('Jogar com o topo à vista'), '', '', () => send({ c: 'revealtop', always: 1 })],
+          [(mine?.ls ? '✓ ' : '◻ ') + tx('Mostrar a biblioteca aos outros'), '', '', () => send({ c: 'showlib' })]]
           .map(([i, l, k, f]) => <button key={l} type="button" role="menuitem" onClick={() => { setLibMenu(null); f() }}><span>{i} {l}</span>{k && <kbd>{k}</kbd>}</button>)}
         <small className="muted">{tx('Duplo clique na biblioteca compra uma.')}</small>
       </div>}

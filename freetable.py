@@ -193,7 +193,7 @@ def _tick(t):
 
 def _clean(c):
     """Estado de mesa a zeros (a carta entrou numa zona nova)."""
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "at", "ph", "sp", "tg", "blk"):
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "at", "ph", "sp", "tg", "blk", "nt"):
         c.pop(k, None)  # (cm = comandante e cc = vezes lançado da zona de comando ficam)
 
 
@@ -245,7 +245,12 @@ def _public(c):
 def _sees(t, c, me):
     z = c["z"]
     if z == "library":
-        return c["o"] == me and c["id"] in t["zones"][me]["library"][:t["seats"][me]["peek"]]
+        own, lib, so = c["o"], t["zones"][c["o"]]["library"], t["seats"][c["o"]]
+        if so.get("rt") and lib and lib[0] == c["id"]:  # «revelar sempre o topo» (Courser of Kruphix, Future Sight…)
+            return True
+        if so.get("ls") and me != own:  # a biblioteca mostrada aos outros (Telepathy-like, ou só para mostrar)
+            return True
+        return own == me and c["id"] in lib[:t["seats"][me]["peek"]]
     if z == "hand":  # a mão: o dono, as reveladas a todos e quem está a olhar para ela (lookhand: só esse)
         return c["o"] == me or bool(c.get("r")) or t["seats"][me].get("look") == c["s"]
     if z == "battlefield" and c.get("d"):
@@ -258,7 +263,7 @@ def _card(t, cid, me):
     out = {"id": c["id"], "o": c["o"]}
     if _sees(t, c, me):
         out["n"] = c["n"]
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "tok", "at", "ph", "cm", "cc", "sp", "tg", "blk"):
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "tok", "at", "ph", "cm", "cc", "sp", "tg", "blk", "nt"):
         if c.get(k) not in (None, False, {}):
             out[k] = c[k]
     return out
@@ -274,6 +279,11 @@ def view(t, me):
              "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
         if s.get("look") is not None:  # público: todos sabem quem está a olhar para a mão de quem (as cartas não)
             v["look"] = s["look"]
+        if s.get("rt") and z["library"]:
+            v["rtop"] = _card(t, z["library"][0], me)
+        v["rt"], v["ls"] = bool(s.get("rt")), bool(s.get("ls"))
+        if s.get("ls") and i != me:
+            v["libv"] = [_card(t, c, me) for c in z["library"]]
         if i == me and s["peek"]:
             v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]
             v["srch"] = bool(s.get("srch"))
@@ -675,6 +685,23 @@ def apply(t, me, d):
             s2.pop("look", None)
         _log(t, me, "pass", p=nxt, turn=t["turn"])
         _turn_start(t, nxt)
+    elif c0 == "revealtop":  # o topo da biblioteca: uma vez (fica no registo) ou sempre (always: liga/desliga)
+        lib = t["zones"][me]["library"]
+        if d.get("always"):
+            seat["rt"] = not seat.get("rt")
+            _log(t, me, "revealtop", always=seat["rt"], name=t["cards"][str(lib[0])]["n"] if lib and seat["rt"] else None)
+        elif lib:
+            _log(t, me, "revealtop", name=t["cards"][str(lib[0])]["n"])
+    elif c0 == "showlib":  # mostrar a biblioteca toda aos outros (liga/desliga)
+        seat["ls"] = not seat.get("ls")
+        _log(t, me, "showlib", on=seat["ls"])
+    elif c0 == "note":  # uma nota numa carta do campo (todos a veem); vazia apaga
+        c = need()
+        txt = str(d.get("txt") or "").strip()[:140]
+        if txt:
+            c["nt"] = txt
+        else:
+            c.pop("nt", None)
     elif c0 == "block":  # bloquear: esta criatura (do campo) fica a bloquear o atacante; att=None deixa de bloquear
         c = need()
         if c["z"] != "battlefield":
@@ -1040,6 +1067,15 @@ def selfcheck():
     assert t["cards"][str(boss)]["ph"]
     call("POST", "guest:rui", {"c": "move", "id": boss, "to": "command"})
     assert "at" not in t["cards"][str(h1)] and "ph" not in t["cards"][str(boss)]  # o comandante saiu: a aura fica solta
+    # revelar o topo (sempre) e mostrar a biblioteca: os outros veem; nota numa carta
+    call("POST", "host", {"c": "revealtop", "always": 1})
+    rv = call("GET", "guest:rui")[1]["seats"][0]
+    assert rv["rt"] and rv["rtop"]["n"] == t["cards"][str(t["zones"][0]["library"][0])]["n"]
+    call("POST", "host", {"c": "revealtop", "always": 1}); assert "rtop" not in call("GET", "guest:rui")[1]["seats"][0]
+    call("POST", "host", {"c": "showlib"})
+    assert len(call("GET", "guest:rui")[1]["seats"][0]["libv"]) == len(t["zones"][0]["library"]) and all(c.get("n") for c in call("GET", "guest:rui")[1]["seats"][0]["libv"])
+    assert "libv" not in call("GET", "host")[1]["seats"][0]
+    call("POST", "host", {"c": "showlib"}); assert "libv" not in call("GET", "guest:rui")[1]["seats"][0]
     # bloquear um atacante
     z0, z1 = t["zones"][0], t["zones"][1]
     a0, d0 = z0["hand"][1], z1["hand"][1]

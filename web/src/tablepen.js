@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 export const PEN_COLS = ['#ffd166', '#ff5c8a', '#4cc9f0', '#80ed99', '#ffffff', '#c77dff']  // como freetable.PEN
-const HOLD = 2600, FADE = 1600  // ms a brilhar e a desvanecer
+const HOLD = 1300, FADE = 1100, MAXP = 120  // cada ponto brilha HOLD ms e desvanece em FADE: a cauda vai-se apagando enquanto desenhas; no máximo MAXP pontos por traço
 
 export function usePen({ table, layer, me, flip, send, chunks }) {
   const [on, setOn] = useState(false), [col, setCol] = useState(() => PEN_COLS[me % PEN_COLS.length])
@@ -33,22 +33,23 @@ export function usePen({ table, layer, me, flip, send, chunks }) {
     const at = ([z, x, y]) => { const q = rects.get(z) || rects.get(-1); return [q.r.left - box.left + (q.m ? 1 - x : x) * q.r.width, q.r.top - box.top + (q.m ? 1 - y : y) * q.r.height] }
     let alive = false
     g.lineCap = g.lineJoin = 'round'
+    const alpha = t0 => { const age = now - t0; return age < HOLD ? 1 : Math.max(0, 1 - (age - HOLD) / FADE) }
     for (const [k, s] of strokes.current) {
-      const age = now - s.t, a = age < HOLD ? 1 : 1 - (age - HOLD) / FADE
-      if (a <= 0) { strokes.current.delete(k); continue }
+      s.pts = s.pts.filter(q => alpha(q.t) > 0).slice(-MAXP)  // a cauda apaga-se (pelo tempo e pelo comprimento)
+      if (!s.pts.length) { strokes.current.delete(k); continue }
       alive = true
-      g.globalAlpha = a; g.strokeStyle = s.col; g.shadowColor = s.col; g.shadowBlur = 14; g.lineWidth = 4
-      g.beginPath()
-      s.pts.forEach((p, i) => { const [x, y] = at(p); if (i) g.lineTo(x, y); else g.moveTo(x, y) })
-      if (s.pts.length === 1) { const [x, y] = at(s.pts[0]); g.lineTo(x + 0.1, y) }
-      g.stroke()
-      g.shadowBlur = 0; g.lineWidth = 1.6; g.strokeStyle = '#fff'; g.globalAlpha = a * 0.7; g.stroke()  // o miolo branco: brilho de néon
+      g.strokeStyle = s.col; g.shadowColor = s.col
+      for (let i = 0; i < s.pts.length; i++) {  // segmento a segmento: cada um com a idade do seu ponto
+        const a = alpha(s.pts[i].t) * (s.pts.length > 30 ? Math.min(1, (i + 1) / 30) : 1), [x1, y1] = at(s.pts[i].p), [x0, y0] = i ? at(s.pts[i - 1].p) : [x1 - 0.1, y1]
+        g.globalAlpha = a; g.shadowBlur = 14; g.lineWidth = 4; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke()
+        g.shadowBlur = 0; g.lineWidth = 1.6; g.strokeStyle = '#fff'; g.globalAlpha = a * 0.7; g.stroke(); g.strokeStyle = s.col  // o miolo branco: brilho de néon
+      }
     }
     if (alive) raf.current = requestAnimationFrame(draw)
   }
-  const add = (k, c, pts) => {
-    const s = strokes.current.get(k) || { col: c, pts: [] }
-    s.pts.push(...pts); s.t = performance.now(); strokes.current.set(k, s)
+  const add = (k, c, pts) => {  // pts que chegam juntos (dos outros, aos bocados) espalham-se no tempo: a cauda fica igual à de quem desenha
+    const s = strokes.current.get(k) || { col: c, pts: [] }, now = performance.now()
+    pts.forEach((p, i) => s.pts.push({ p, t: now - (pts.length - 1 - i) * 15 })); strokes.current.set(k, s)
     draw()
   }
   useEffect(() => {  // traços dos outros (os meus já estão desenhados)
