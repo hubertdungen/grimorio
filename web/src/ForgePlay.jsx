@@ -1295,7 +1295,16 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const blockBox = blockList.length > 0 && <span className="fp-blocks" role="list" aria-label={tx('A bloquear')}>
     <b>🛡 {tx('A bloquear')}:</b>{blockList.map(x => <span key={`${x.blk}`} role="listitem" className={`fp-blk ${x.planned ? 'planned' : ''}`}>
       {byId.get(x.blk)?.name || '?'} → {byId.get(x.att)?.name || '?'}{x.planned && <i> ({tx('marcado')})</i>}
-      {(x.planned || blocking) && <button type="button" className="link small" title={tx('Desfazer este bloqueio')} onClick={() => (x.planned ? unplan(x.blk) : send({ c: 'card', id: x.blk }))}>✕</button>}</span>)}
+      {(x.planned || blocking) && <button type="button" className="link small" title={tx('Desfazer este bloqueio')} onClick={() => (x.planned ? unplan(x.blk) : unblock(x))}>✕</button>}</span>)}
+  </span>
+  // desfazer um bloqueio aceite: no Forge um clique no bloqueador só o tira se o atacante «atual» for o que ele bloqueia (senão
+  // muda o bloqueio para esse) — primeiro escolhe-se o atacante, depois o bloqueador
+  const unblock = async x => { await send({ c: 'card', id: x.att }); await send({ c: 'card', id: x.blk }) }
+  // a declarar atacantes: a lista «A atacar» com ✕ (no Forge, clicar num atacante tira-o do combate)
+  const atkList = !theirTurn && ATK_ASK(pr?.msg) ? (st?.combat || []).map(x => x.att).filter(a => byId.get(a)) : []
+  const atkBox = atkList.length > 0 && <span className="fp-blocks" role="list" aria-label={tx('A atacar')}>
+    <b>⚔ {tx('A atacar')}:</b>{atkList.map(a => <span key={a} role="listitem" className="fp-blk atk">{byId.get(a)?.name || '?'}
+      <button type="button" className="link small" title={tx('Tirar do ataque')} onClick={() => send({ c: 'card', id: a })}>✕</button></span>)}
   </span>
   const zc = zoom && (lookup(data, zoom.name))
   const nOpp = opp?.hand?.length || 0, mana = Object.entries(me?.mana || {})
@@ -1336,7 +1345,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <small>{tx('toca para continuar')}</small></div>}
       <div className="fp-dice" ref={diceBox} /></div>
       {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
-        <p><Syms text={promptText(pr?.msg, st, me)} />{blockBox}</p>
+        <p><Syms text={promptText(pr?.msg, st, me)} />{blockBox}{atkBox}</p>
         {unstick}{selPick}
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
@@ -1348,7 +1357,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}
           <p><Syms text={promptText(pr?.msg, st, me)} /></p>
-          {blockBox}
+          {blockBox}{atkBox}
           {clockUi}
           {unstick}
           {selPick}

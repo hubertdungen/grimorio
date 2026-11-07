@@ -3982,3 +3982,4 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .ptr-hand span small { font-weight: 500; opacity: .8; font-size: 10px; }
 .ptr-hand.idle { opacity: .45; }
 @media (prefers-reduced-motion: reduce) { .ptr-hand { transition: opacity .6s; } }
+.fp-blk.atk { background: #4a1414; border-color: #ff6b6baa; color: #fee2e2; }

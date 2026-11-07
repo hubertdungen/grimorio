@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "A atacar": "攻击中",
+  "Tirar do ataque": "移出攻击",
   "comando": "指挥区",
   "Mostrar o meu cursor aos outros": "向其他人显示我的光标",
   "Ver os cursores dos outros jogadores (mesa livre e lobby online)": "显示其他玩家的光标（自由牌桌和在线大厅）",

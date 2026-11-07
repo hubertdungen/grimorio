@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "A atacar": "Attacking",
+  "Tirar do ataque": "Remove from the attack",
   "comando": "command",
   "Mostrar o meu cursor aos outros": "Show my cursor to the others",
   "Ver os cursores dos outros jogadores (mesa livre e lobby online)": "See the other players' cursors (free table and online lobby)",
