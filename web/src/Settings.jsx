@@ -140,6 +140,11 @@ function TableKeys() {
           <option value="center">{tx('Ao centro')}</option>
           <option value="right">{tx('À direita, até às outras permanentes')}</option>
         </select></label>
+      <label className="fmt"><span>{tx('Filas de cada lado da mesa')}</span>
+        <select value={p.rowsMax} onChange={e => save({ rowsMax: +e.target.value })}>
+          <option value={4}>{tx('Automático: até 4 (criaturas e terrenos em duas linhas quando não cabem)')}</option>
+          <option value={2}>{tx('Sempre 2, como antes (as cartas encostam-se)')}</option>
+        </select></label>
       <label className="fmt"><span>{tx('Tamanho das cartas na mesa')}</span>
         <select value={p.cardPx} onChange={e => save({ cardPx: +e.target.value })}>
           {CARD_PX.map(n => <option key={n} value={n}>{n ? tx('{n} px (terrenos também)', { n }) : tx('Automático (cabe no ecrã)')}</option>)}

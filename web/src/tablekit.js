@@ -150,34 +150,71 @@ export const STAGE = { wide: [1280, 820], tall: [560, 1000] }  // ao alto mais e
 // saírem da mesa; mede-se depois de cada mudança, só dentro da mesa de tamanho fixo
 export function useOverlap(tableRef) {
   useLayoutEffect(() => {
+    const root = tableRef.current
+    if (!root) return
+    const tb = () => root.getBoundingClientRect().bottom
+    const tight = () => [...root.querySelectorAll('.bside')].some(bs => {
+      // só as filas: o que flutua (o sítio onde a carta vai cair, .fp-slot, camadas absolutas) não conta como fila a encavalitar
+      const ks = [...bs.children].filter(k => k.offsetHeight && !k.classList.contains('bfree') && !k.classList.contains('fp-slot') && getComputedStyle(k).position !== 'absolute').map(k => k.getBoundingClientRect())
+      return ks.some((q, i) => i && q.top < ks[i - 1].bottom - 4) || bs.getBoundingClientRect().bottom > tb() + 2
+    })
+    // para partir uma fila em duas linhas: as filas não se podem encavalitar umas nas outras nem no nome, na vida e nos
+    // montes do jogador (a mão é uma camada por cima, pode tapá-las), nem sair da mesa
+    const clash = () => [...root.querySelectorAll('.bside')].some(bs => {
+      const rows = [...bs.children].filter(k => k.matches('.brow') && k.offsetHeight).map(k => k.getBoundingClientRect())
+      const hud = [...bs.querySelectorAll(':scope > .bhud > :not(.myhand):not(.fp-hand)')].filter(k => k.offsetHeight).map(k => k.getBoundingClientRect())
+      return rows.some((q, i) => (i && q.top < rows[i - 1].bottom - 4) || q.bottom > tb() + 2 || hud.some(h => h.top < q.bottom - 4 && h.bottom > q.top + 4)) || hud.some(h => h.bottom > tb() + 2)
+    })
+    const kidsOf = row => [...row.children].filter(k => k.offsetWidth && !k.classList.contains('brk'))
+    // encosta as cartas de cada linha da fila (--ov negativo) até caberem; numa fila com duas linhas, pela mais comprida
+    const overlap = row => {
+      const kids = kidsOf(row), n = kids.length, cur = parseFloat(row.style.getPropertyValue('--ov')) || 0
+      if (n < 2) { row.style.removeProperty('--ov'); return true }
+      const two = row.dataset.lines === '2', b = two ? kids.findIndex(k => k.previousElementSibling?.classList.contains('brk')) : -1
+      const lines = b > 0 ? [kids.slice(0, b), kids.slice(b)] : [kids]
+      // as outras permanentes (artefactos, encantamentos, planeswalkers) medem-se pelo conteúdo: o espaço delas é até 60%
+      // da faixa de trás (medir a largura delas próprias encolhia-as de vez e o planeswalker ficava tapado pela saga)
+      const room = (row.matches('.brow.rear > .brow.others') ? row.parentElement.clientWidth * 0.6 : row.clientWidth) - 4
+      let ov = 0, fits = true
+      const gap = parseFloat(getComputedStyle(row).columnGap) || 0
+      for (const ks of lines) {
+        if (ks.length < 2) continue
+        // em duas linhas, pela largura própria de cada grupo (scrollWidth: no Coliseu os grupos encolhem, e a quebra de
+        // linha conta com a largura toda — passar dela fazia uma 3.ª linha)
+        const natural = two ? ks.reduce((a, k) => a + k.scrollWidth, 0) + (ks.length - 1) * gap : ks[ks.length - 1].offsetLeft + ks[ks.length - 1].offsetWidth - ks[0].offsetLeft - (ks.length - 1) * cur
+        const want = (room - natural) / (ks.length - 1), min = 8 - ks[0].offsetWidth  // até ficar só uma tira de 8 px: nunca passa da borda
+        if (natural > room) { ov = Math.min(ov, Math.max(min, want)); fits &&= want >= min }
+      }
+      if (Math.abs(ov - cur) > 0.5) row.style.setProperty('--ov', `${ov}px`)
+      return fits
+    }
+    // grelha adaptável (Definições › Mesa): a fila das criaturas e a dos terrenos partem-se em duas linhas (até 4 filas por
+    // lado) quando numa linha só as cartas ficariam tapadas mais de um terço cada — mas só se as duas linhas couberem na
+    // altura do lado, com o tamanho de carta que está; com espaço outra vez, voltam a uma linha
+    // a mais apertada primeiro; a decisão parte sempre de todas numa linha, para não depender do que estava antes
+    const two = fpPrefs().rowsMax !== 2, want = [], px = root.classList.contains('px')  // px: um tamanho escolhido não encolhe para dar lugar às linhas
+    for (const row of root.querySelectorAll('.bside > .brow.front, .bside .brow.rear > .brow.lands')) {
+      const kids = kidsOf(row), n = kids.length
+      const gap = parseFloat(getComputedStyle(row).columnGap) || 0, natural = kids.reduce((a, k) => a + k.scrollWidth, 0) + (n - 1) * gap
+      // (e cada linha tem de caber, nem que encostadas: senão a quebra de linha fazia uma 3.ª)
+      if (two && n > 2 && row.querySelector(':scope > .brk') && natural - (row.clientWidth - 4) > (n - 1) * (natural / n) / 3) want.push([1 - (row.clientWidth - 4) / natural, row])
+      else if (row.dataset.lines) { delete row.dataset.lines; overlap(row) }
+    }
+    if (want.length) {
+      for (const [, row] of want) if (row.dataset.lines) { delete row.dataset.lines; overlap(row) }
+      for (const [, row] of want.sort((a, b) => b[0] - a[0])) { row.dataset.lines = '2'; if (!overlap(row) || clash() || (px && tight())) { delete row.dataset.lines; overlap(row) } }
+    }
     // tamanho de carta escolhido (Definições › Mesa) maior do que cabe na altura da mesa: as filas de um lado
     // encavalitavam-se (a dos terrenos por cima das criaturas) — encolhe-se aos poucos (--pk) até cada lado caber
-    const root = tableRef.current
     // a arrastar uma carta (o fantasma existe) não se mexe no tamanho: a carta no ar fazia uma fila parecer cheia, tudo
     // encolhia de repente e depois voltava a crescer um passo por desenho (cartas a crescer e nunca alinhadas)
-    if (root?.classList.contains('px') && !document.querySelector('.fp-ghost:not(.fp-wait)')) {  // fp-wait: já largada, à espera do Forge
-      const tb = () => root.getBoundingClientRect().bottom
-      const tight = () => [...root.querySelectorAll('.bside')].some(bs => {
-        // só as filas: o que flutua (o sítio onde a carta vai cair, .fp-slot, camadas absolutas) não conta como fila a encavalitar
-        const ks = [...bs.children].filter(k => k.offsetHeight && !k.classList.contains('bfree') && !k.classList.contains('fp-slot') && getComputedStyle(k).position !== 'absolute').map(k => k.getBoundingClientRect())
-        return ks.some((q, i) => i && q.top < ks[i - 1].bottom - 4) || bs.getBoundingClientRect().bottom > tb() + 2
-      })
+    if (root.classList.contains('px') && !document.querySelector('.fp-ghost:not(.fp-wait)')) {  // fp-wait: já largada, à espera do Forge
       let k = +root.style.getPropertyValue('--pk') || 1  // parte do valor atual: cresce um passo de cada vez quando há espaço
       const set = v => root.style.setProperty('--pk', v.toFixed(2))
       if (tight()) while (k > 0.45 && tight()) { k -= 0.05; set(k) }
       else while (k < 1) { const n = Math.min(1, k + 0.05); set(n); if (tight()) { set(k); break } k = n }  // cresce de uma vez até ao maior que cabe
     }
-    for (const row of tableRef.current?.querySelectorAll('.brow.front, .brow.lands, .brow.others, .fp-hand') || []) {
-      const kids = [...row.children].filter(k => k.offsetWidth), n = kids.length
-      const cur = parseFloat(row.style.getPropertyValue('--ov')) || 0
-      if (n < 2) { row.style.removeProperty('--ov'); continue }
-      const span = kids[n - 1].offsetLeft + kids[n - 1].offsetWidth - kids[0].offsetLeft, natural = span - (n - 1) * cur
-      // as outras permanentes (artefactos, encantamentos, planeswalkers) medem-se pelo conteúdo: o espaço delas é até 60%
-      // da faixa de trás (medir a largura delas próprias encolhia-as de vez e o planeswalker ficava tapado pela saga)
-      const room = (row.matches('.brow.rear > .brow.others') ? row.parentElement.clientWidth * 0.6 : row.clientWidth) - 4
-      const ov = natural > room ? Math.max(8 - kids[0].offsetWidth, (room - natural) / (n - 1)) : 0  // até ficar só uma tira de 8 px: nunca passa da borda
-      if (Math.abs(ov - cur) > 0.5) row.style.setProperty('--ov', `${ov}px`)
-    }
+    for (const row of root.querySelectorAll('.brow.front, .brow.lands, .brow.others, .fp-hand')) overlap(row)
   })
 }
 
