@@ -1698,8 +1698,19 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
   const hud = <Hud k={k} z={z} name={name} fmt={formats?.[k]} s={s} data={data} fx={fx} fast={fast} start={start} openZone={openZone} top={top} hand={hand} bet={bets?.[k]} bot={bots?.[k]} own={owns?.[k]} />
   const { arts } = useContext(Arts), art = useMemo(() => ({ arts, k }), [arts, k])
   useEffect(() => { const t = Date.now(); for (const p of z.perms) seenAt.set(p.key, t) })
+  // alinhamento das filas (Definições › Mesa), igual nos dois lados do ecrã: os terrenos alinham-se no espaço à esquerda
+  // das outras permanentes; a fila das criaturas guarda o mesmo espaço à direita (--oth) para acabar no mesmo sítio que os
+  // terrenos (e centrar por cima deles). Cheia, a fila das criaturas usa a largura toda (justify safe: nunca sai pela esquerda)
+  const align = fpPrefs().rowAlign, sideRef = useRef(null)
+  useLayoutEffect(() => {
+    const el = sideRef.current, rear = el?.querySelector(':scope > .brow.rear'), lands = rear?.querySelector(':scope > .brow.lands')
+    if (align === 'left' || !lands) return
+    const fit = () => el.style.setProperty('--oth', `${Math.max(0, rear.offsetLeft + rear.offsetWidth - lands.offsetLeft - lands.offsetWidth)}px`)
+    const ro = new ResizeObserver(fit); ro.observe(rear); ro.observe(lands); fit()
+    return () => { ro.disconnect(); el.style.removeProperty('--oth') }
+  }, [align])
   return (
-    <Arts.Provider value={art}><div className={`bside ${top ? 'top' : 'bottom'} ${z.perms.filter(p => p.attacking).length === 1 ? 'lone-atk' : ''} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`} data-mat={mat || undefined}>
+    <Arts.Provider value={art}><div ref={sideRef} data-align={align === 'left' ? undefined : align} className={`bside ${top ? 'top' : 'bottom'} ${z.perms.filter(p => p.attacking).length === 1 ? 'lone-atk' : ''} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`} data-mat={mat || undefined}>
       {top ? <>{hud}{back}{front}</> : <>{front}{back}{hud}</>}
       {loose.length > 0 && <div className="bfree">{loose.map(p => (
         <div key={p.key} className={`bfree-c ${isCreature(data, p) ? 'front' : isLand(data, p) ? 'lands' : 'others'}`} style={{ left: `clamp(calc(var(--w) * .5), ${free[p.key].x * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${free[p.key].y * 100}%, calc(100% - var(--w) * .7))` }}>
