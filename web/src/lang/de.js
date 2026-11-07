@@ -3952,6 +3952,7 @@ export default {
   "Primeiro resolve o de cima": "Zuerst den obersten verrechnen",
   "Resolver": "Verrechnen",
   "Voltar à mão": "Zurück auf die Hand",
+  "Como {n} carta tua ({names}) · {t}|Como {n} cartas tuas ({names}) · {t}": "Wie {n} deiner Karten ({names}) · {t}|Wie {n} deiner Karten ({names}) · {t}",
   "Convites (links dos amigos)": "Einladungen (Links der Freunde)",
   "{P} procura na biblioteca": "{P} durchsucht die Bibliothek",
   "Procurar na biblioteca": "Bibliothek durchsuchen",

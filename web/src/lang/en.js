@@ -3960,6 +3960,7 @@ export default {
   "Primeiro resolve o de cima": "Resolve the top one first",
   "Resolver": "Resolve",
   "Voltar à mão": "Back to hand",
+  "Como {n} carta tua ({names}) · {t}|Como {n} cartas tuas ({names}) · {t}": "Like {n} of your cards ({names}) · {t}|Like {n} of your cards ({names}) · {t}",
   "Convites (links dos amigos)": "Invites (friends' links)",
   "{P} procura na biblioteca": "{P} searches their library",
   "Procurar na biblioteca": "Search library",

@@ -127,6 +127,13 @@ const tribeCat = T => {
     pay: c => { const o = txt(c).replace(/create[^.]*|becomes? [^.]*/g, '').replace(/this \w+/g, ''); return re.test(o) || /choose a creature type|creatures? (cards? )?of the chosen type|creature type of your choice|share a creature type/.test(o) } }
 }
 
+// Controlo: respostas e compra fora das criaturas (contra-feitiços, remoção, Brainstorm). Ninguém dispara ninguém: é um eixo
+// do plano pela fatia do deck, de 20% (a interação de qualquer deck, que as lacunas já tratam) a 40% das cópias não-terreno.
+// Um tribal de controlo («Slivers Control») quer as duas coisas, não só a tribo.
+const CTRL = ['counter', 'removal', 'wipe', 'bounce', 'draw', 'selection']
+const isCtrl = c => nonland(c) && !creature(c) && !c.tg.includes('hate') && CTRL.some(t => c.tg.includes(t))
+const ctrlCat = { k: 'ctrl', ic: '⛉', name: tx('Controlo'), fn: true }
+
 // «Sempre que lanças um feitiço de encantamento/criatura/histórico…»: que tipos pede o gatilho (null = qualquer feitiço).
 // Uma criatura-artefacto barata não dispara a Sythis nem o Generous Visitor (só encantamentos), mas dispara a Karametra.
 const COLOR_W = { white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G' }
@@ -162,7 +169,7 @@ export function deckThemes(data, deck) {
   const tri = tribes(entries, nl).map(tribeCat)
   const all = [...SYN.map((s, b) => ({ s, test: (c, side) => ((side ? PAY : EN)[c.i] >> b) & 1 })),
     ...tri.map(s => ({ s, test: (c, side) => ((!nonland(c) && !s.lands) ? 0 : side ? s.pay(c) : s.en(c)) }))]
-  const cats = []
+  const cats = [], byQ = (a, b) => b.q - a.q || (a.c.er ?? 1e9) - (b.c.er ?? 1e9)
   for (const { s, test } of all) {
     const en = [], pay = []
     for (const [c, k] of entries) { if (test(c, 0)) en.push({ c, q: k }); if (test(c, 1)) pay.push({ c, q: k }) }
@@ -170,15 +177,16 @@ export function deckThemes(data, deck) {
     const narrow = s.core === 'en' ? E : s.core === 'pay' ? P : Math.max(E, P)
     if (!(E && P) && narrow < 0.1 * nl) continue
     if (!P && s.core === 'en' && !E) continue
-    const H = E + P ? (2 * E * P) / (E + P) : 0
-    const raw = (H + 0.25 * narrow) / target, strength = Math.min(1, raw)
+    // tribo: os lords também são membros (as duas metades são as mesmas cartas); contados uma vez, a tribo não esmaga os outros eixos
+    const B = s.tribe ? en.filter(x => pay.some(y => y.c === x.c)).reduce((a, x) => a + x.q, 0) / 2 : 0
+    const H = E + P - 2 * B > 0 ? (2 * (E - B) * (P - B)) / (E + P - 2 * B) : 0
+    const raw = (H + 0.25 * (narrow - B)) / target, strength = Math.min(1, raw)
     if (strength < 0.2 || en.length + pay.length < 2) continue
     const reasons = []
     if (!P) reasons.push(tx('Falta quem beneficie: as que ativam estão sozinhas.'))
     else if (!E) reasons.push(tx('Falta quem ative: as que beneficiam não têm combustível.'))
     else if (P * 4 < E) reasons.push(tx('Muito combustível para poucas que beneficiam.'))
     else if (E * 4 < P) reasons.push(tx('Muitas que beneficiam para pouco combustível.'))
-    const byQ = (a, b) => b.q - a.q || (a.c.er ?? 1e9) - (b.c.er ?? 1e9)
     const x = { s, test, en: en.sort(byQ), pay: pay.sort(byQ), E, P, raw, strength, reasons, sug: [] }
     if (s.k === 'cast') {  // dispara quem pede o tipo dela; aproveita as cartas do deck do tipo que pede
       const wants = new Map(x.pay.map(y => [y.c, castWants(y.c)])), spells = entries.filter(([c]) => nonland(c)).map(([c, k]) => ({ c, q: k }))
@@ -187,6 +195,9 @@ export function deckThemes(data, deck) {
     } else { x.trig = c => (test(c, 0) ? x.pay : []); x.uses = c => (test(c, 1) ? x.en : []) }
     cats.push(x)
   }
+  const ctl = entries.filter(([c]) => isCtrl(c)).map(([c, k]) => ({ c, q: k })).sort(byQ), C = ctl.reduce((a, x) => a + x.q, 0)
+  const raw = Math.min(1, (C / nl - 0.2) / 0.2)
+  if (raw >= 0.2) cats.push({ s: ctrlCat, test: (c, side) => !side && isCtrl(c), en: ctl, pay: [], E: C, P: 0, raw, strength: raw, reasons: [], sug: [], trig: () => [], uses: c => (isCtrl(c) ? ctl : []) })
   return { cats: cats.sort((a, b) => b.raw - a.raw), entries }
 }
 
@@ -195,7 +206,7 @@ export function deckThemes(data, deck) {
  * cats: [{s, en:[{c,q}], pay:[{c,q}], E, P, strength 0..1, reasons, sug:[{c, side}]}] por força.
  */
 export function deckSynergy(data, deck, ctx, { perCat = 6 } = {}) {
-  const { cats, entries } = deckThemes(data, deck)
+  const T = deckThemes(data, deck), { entries } = T, cats = T.cats.filter(x => !x.s.fn)  // controlo é plano, não sinergia
   const q = Object.fromEntries(entries.map(([c, k]) => [c.n, k]))
   // Sugestões: uma passagem pelas cartas; legais no formato, dentro das cores, fora do deck.
   // Ordem = rank EDHREC ÷ (1 + encaixe noutras categorias do deck); se um lado está em falta, esse primeiro.

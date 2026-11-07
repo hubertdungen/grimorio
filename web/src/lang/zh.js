@@ -3952,6 +3952,7 @@ export default {
   "Primeiro resolve o de cima": "先结算最上面的",
   "Resolver": "结算",
   "Voltar à mão": "返回手牌",
+  "Como {n} carta tua ({names}) · {t}|Como {n} cartas tuas ({names}) · {t}": "与你的 {n} 张牌同类（{names}）· {t}|与你的 {n} 张牌同类（{names}）· {t}",
   "Convites (links dos amigos)": "邀请（好友链接）",
   "{P} procura na biblioteca": "{P} 搜寻牌库",
   "Procurar na biblioteca": "搜寻牌库",

@@ -584,6 +584,8 @@ export function termsOf(data) {
   return list
 }
 
+// motor de cartas: compra a cada gatilho («whenever you cast an enchantment spell, draw a card»); não «whenever you draw»
+const ENGINE = /whenever[^.]*, (you may )?([^.]*\band )?draw (a|two|that many|x) cards?/
 export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTerms = [], commanders = [], needs = {}, co = null, deckStats = null, bracket = null, gcCount = 0, meta = null, archetype = null, prefs = null, tastes = [], deckSize = 99, turn = 8, profile = null }) {
   const pf = prefs?.on ? prefs : null
   const nivel = pf?.nivel ?? 3
@@ -637,7 +639,8 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
   const maxRaw = Math.max(0, ...prof.map(x => x.raw))
   // fm/pm: o lado escasso vale até 1,5× (combustível quando há mais quem beneficie, e vice-versa; Mesa Enchantress com 32 encantamentos)
   const scarce = (a, b) => 1 + 0.5 * Math.min(1, Math.max(0, a / Math.max(1, b) - 1))
-  const plan = prof.map(x => ({ x, w: Math.min(1, x.raw) * Math.min(1, x.raw / (0.5 * maxRaw)), fm: scarce(x.P, x.E), pm: scarce(x.E, x.P) })).filter(p => p.w >= 0.1)
+  // o controlo (synergy.js ctrlCat) não tem lados: uma resposta ou compra num deck de controlo vale como as duas metades de um tema
+  const plan = prof.map(x => ({ x, w: Math.min(1, x.raw) * Math.min(1, x.raw / (0.5 * maxRaw)), fm: scarce(x.P, x.E), pm: x.s.fn ? 1.5 : scarce(x.E, x.P) })).filter(p => p.w >= 0.1)
   const hasPlan = maxRaw >= 0.6, SAT = 6  // SAT: cópias do outro lado que já fazem do tema um motivo inteiro
   // tribo a sério: é um tema do deck (tem quem fale dela: lords, «Sliver you control»); Human por acaso não conta
   const hasTribe = tribe && tribeN >= Math.max(3, creatures * 0.3) && prof.some(x => x.s.tribe === tribe)
@@ -755,21 +758,27 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     if (c.tg.includes('hate')) P.texto *= 0.5
     // Plano: quantas cartas do deck esta dispara (é «en» de um tema com quem beneficie) ou aproveita (é «pay» com combustível);
     // o lado em falta de um tema desequilibrado vale mais. inter = os motivos, do mais forte para o mais fraco.
-    const inter = []
+    const inter = [], engine = ENGINE.test(c.o.toLowerCase())
     let pv = 0
     for (const { x, w, fm, pm } of plan) {
       const tr = x.trig(c), us = x.uses(c)
       const tq = tr.reduce((a, y) => a + y.q, 0), uq = us.reduce((a, y) => a + y.q, 0)
-      const vt = w * Math.min(1, tq / SAT) * fm, vu = w * Math.min(1, uq / SAT) * pm
+      // um motor do tema principal com combustível (compra a cada gatilho: Mesa Enchantress, Setessan Champion) vale por si:
+      // o dobro como payoff, e conta como combustível, que é o que compra. Sem isto a enchantress criatura ficava muito abaixo
+      // da encantamento (Enchantress's Presence), que soma ser combustível; só o do tema principal, senão os motores dos temas
+      // menores (Beast Whisperer, Tome of the Guildpact num deck de encantamentos) passavam à frente do plano
+      const eng = engine && x === prof[0] && uq >= SAT
+      const vt = w * (eng ? 1 : Math.min(1, tq / SAT)) * fm, vu = w * Math.min(1, uq / SAT) * pm * (eng ? 2 : 1)
       if (vt + vu < 0.04) continue
-      pv += vt + vu
+      // na tribo, membro e lord são a mesma carta: os dois lados contam uma vez e meia, não duas (senão a tribo tapa os outros eixos)
+      pv += x.s.tribe ? Math.max(vt, vu) + 0.5 * Math.min(vt, vu) : vt + vu
       if (tr.length) inter.push({ side: 'alimenta', x, who: tr.map(y => y.c.i), v: vt })
-      if (us.length) inter.push({ side: 'usa', x, who: us.map(y => y.c.i), v: vu })
+      if (us.length) inter.push({ side: x.s.fn ? 'como' : 'usa', x, who: us.map(y => y.c.i), v: vu })
     }
     inter.sort((a, b) => b.v - a.v)
     // sem teto baixo: um motor que dispara e aproveita (Enchantress's Presence) vale mais do que só combustível (Snake Umbra);
     // fechar um combo conta como servir o plano (Walking Ballista com o Heliod), senão mil encantamentos tapavam-no
-    P.plano = 0.16 * Math.min(4, pv + (completes ? 2 * Math.min(1, cw / 0.18) : 0))
+    P.plano = 0.16 * Math.min(4, pv + (completes ? 2 * Math.min(1.5, cw / 0.18) : 0))  // um combo provável (wP > 1) vale mais
     // Decks reais (EDHREC): inclusão e sinergia com o comandante, lift com as outras cartas.
     const edh = co?.get(i)
     let edhCmd = null
@@ -878,6 +887,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
       if (shown.length < 2 && !shown.some(y => y.x === x.x || (y.side === x.side && y.who.length === set.size && y.who.every(i => set.has(i))))) shown.push(x)
     }
     for (const x of shown) why.push({ k: 'inter', txt: x.side === 'alimenta' ? tx('Dispara {n} carta tua ({names}) · {t}|Dispara {n} cartas tuas ({names}) · {t}', { n: x.who.length, names: names(x.who), t: x.x.s.name })
+      : x.side === 'como' ? tx('Como {n} carta tua ({names}) · {t}|Como {n} cartas tuas ({names}) · {t}', { n: x.who.length, names: names(x.who), t: x.x.s.name })
       : tx('Aproveita {n} carta tua ({names}) · {t}|Aproveita {n} cartas tuas ({names}) · {t}', { n: x.who.length, names: names(x.who), t: x.x.s.name }) })
     if (r.need && !r.softNeed) why.push({ k: 'falta', txt: tx('Lacuna — {what}: o deck tem {h} de {n}', { what: TAG_LABEL[r.need[0]].toLowerCase(), h: r.need[1][0], n: r.need[1][1] }) + (r.needQ.length ? tx('; esta é {q}', { q: r.needQ.join(tx(' e ')) }) : '') })
     if (r.offPlan) why.push({ k: 'perto', txt: tx('Fora do plano ({p}); nenhuma sinergia no deck', { p: prof[0].s.name }) })

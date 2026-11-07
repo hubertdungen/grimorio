@@ -3952,6 +3952,7 @@ export default {
   "Primeiro resolve o de cima": "Primero resuelve el de arriba",
   "Resolver": "Resolver",
   "Voltar à mão": "Volver a la mano",
+  "Como {n} carta tua ({names}) · {t}|Como {n} cartas tuas ({names}) · {t}": "Como {n} carta tuya ({names}) · {t}|Como {n} cartas tuyas ({names}) · {t}",
   "Convites (links dos amigos)": "Invitaciones (enlaces de los amigos)",
   "{P} procura na biblioteca": "{P} busca en su biblioteca",
   "Procurar na biblioteca": "Buscar en la biblioteca",
