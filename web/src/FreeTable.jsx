@@ -538,6 +538,13 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   // P/R automático: equipamentos/auras presos e anthems de quem a controla (e os «−1/−1» dos outros)
   const fieldOf = seats.map(v => v.battlefield.filter(c => c.n && !c.ph && !c.sp).map(permOf))
   const pumpOf = new Map(seats.flatMap((v, i) => v.battlefield.filter(c => c.n && !c.ph).map(c => [c.id, staticPump(data, permOf(c), attOf.get(c.id) || [], fieldOf[i], fieldOf.filter((_, j) => j !== i).flat())])))
+  // a esfera «inteligente» (orbEnv, como no Forge Play): o estado de cada lado — dano levado (base 40 num jogo de Commander),
+  // auras a favor e contra (attachedTo), presença, cinto de terrenos, enxame, calor/frio dos feitiços, biblioteca a acabar
+  hs.sides = seats.map((_, i) => keyOf(i))
+  seats.forEach((v, i) => {
+    hs[keyOf(i)] = { ...zOf(v), command: [...v.command, ...v.battlefield].some(c => c.cm) ? [{ name: '' }] : [],
+      perms: v.battlefield.filter(c => c.n && !c.ph && !c.sp).map(c => ({ ...permOf(c), attachedTo: c.at != null ? String(c.at) : undefined })) }
+  })
   const side = (i, top, compact) => {
     const v = seats[i], k = keyOf(i), isMe = i === me
     const cmd = v.command.length > 0 && <div className="ml-cmd" title={tx('Zona de comando')}>{v.command.map(c => (
