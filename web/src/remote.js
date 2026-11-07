@@ -5,11 +5,11 @@
 // para lá (fica no perfil de convidado, com o mesmo id de cada vez: atualiza-se em vez de duplicar).
 import { tx } from './i18n.js'
 
-export const API = 1  // = guests.API no servidor
+export const API = 2  // = guests.API no servidor
 let R = null  // { base, token }
 export const remoteOn = () => !!R
 export const setRemote = r => { R = r }
-const ROOM = /^\/api\/(rooms|freetables|guest\/me)(\/|$)/
+const ROOM = /^\/api\/(rooms|freetables|playnet|guest\/me)(\/|$)/  // playnet: a mesa estrita
 const JOIN = /^\/api\/rooms\/[a-z0-9]+\/join$/
 
 const auth = (init = {}) => { const h = new Headers(init.headers); h.set('Authorization', `Bearer ${R.token}`); return { ...init, headers: h, credentials: 'omit' } }

@@ -6,6 +6,7 @@ visível aos amigos (`friends_open`) para o verem ao vivo e apostarem.
 import json, re, secrets, sqlite3, time
 
 import freetable
+import playnet
 import sim
 import tournament
 
@@ -85,7 +86,7 @@ def view(con, r, who, owner=None):
     livre = spec.get("type") == "livre" and status == "open"
     return {"id": rid, "ts": ts, "status": status, "tid": tid, "name": spec.get("name"), "type": spec.get("type"),
             "format": spec.get("format"), "casual": bool(spec.get("casual")), "bo": spec.get("bo"), "min": lo, "max": hi, "free": bool(spec.get("free")),
-            "misto": bool(spec.get("misto")), **({"wait": spec.get("wait") or 0} if spec.get("misto") else {}),
+            "misto": bool(spec.get("misto")), **({"wait": spec.get("wait") or 0} if spec.get("misto") else {}), **({"strict": True} if spec.get("strict") else {}),
             "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref"), "src": p.get("src"),
                          "host": p.get("by") == "host", "ready": bool(p.get("ready")), "show": bool(p.get("show")),
                          **(lobby(con, owner, p, who) if livre else {}),
@@ -120,6 +121,19 @@ def start_livre(con, owner, rid, spec, players):
         if not d:
             raise ValueError(f"O deck «{p.get('name')}» já não existe.")
         seats.append({"by": p["by"], "name": p.get("byName") or me, "deck": d})
+    if spec.get("strict"):  # mesa estrita: um jogo do Forge com as duas pessoas (playnet); o id vai como «fp:<sessão>»
+        if len(seats) != 2:
+            raise ValueError("A mesa estrita é para 2 jogadores.")
+        key = lambda by: owner if by == "host" else f"{owner}~{by}"  # noqa: E731  (convidado: «<dono>~guest:<id>», como no Forge Play)
+        flat = lambda d: {**d, "main": {**(d.get("main") or {}), **{c: 1 for c in d.get("commanders") or []}}, "commanders": []}  # noqa: E731
+        first = int(spec.get("first") or 0) % 2
+        order = [seats[first], seats[1 - first]]  # quem ganhou a moeda fica no lugar «a» (o Forge volta a decidir quem começa)
+        sid = playnet.start_pvp(tournament.DATA, {"a": key(order[0]["by"]), "b": key(order[1]["by"])},
+                                {"a": flat(order[0]["deck"]), "b": flat(order[1]["deck"])}, {"a": order[0]["name"], "b": order[1]["name"]})
+        tid = "fp:" + sid
+        con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
+        LIVE.pop(rid, None)
+        return tid
     tid = freetable.create(con, owner, spec.get("name"), seats, first=int(spec.get("first") or 0))
     con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
     LIVE.pop(rid, None)
@@ -172,12 +186,14 @@ def route(con, method, path, owner, body, guest=None):
         if guest:
             return 403, {"erro": "Só quem aloja pode abrir salas."}
         d = body or {}
-        spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold", "free", "misto", "wait")}
+        spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold", "free", "misto", "wait", "strict")}
         players = [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "name", "plays")}, "by": "host"} for p in (d.get("players") or []) if isinstance(p, dict)]
         for p in players:  # sem nome (pedido pela API): o do deck guardado
             p["name"] = p["name"] or (p["src"] == "meus" and deck_ok(con, owner, p["ref"], None)) or None
         if spec["type"] == "livre":  # mesa livre: um lugar por pessoa (o anfitrião com um deck seu), qualquer formato
-            spec.update(format=None, casual=True, max=max(2, min(4, int(d.get("max") or 4))))
+            spec.update(format=None, casual=True, max=max(2, min(4, int(d.get("max") or 4))), strict=bool(d.get("strict")) or None)
+            if spec["strict"]:  # mesa estrita: o Forge faz cumprir as regras, só 1 contra 1
+                spec["max"] = 2
             players = players[:1]
             dname = players and deck_ok(con, owner, players[0].get("ref"), None)
             if not dname:

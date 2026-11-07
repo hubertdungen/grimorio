@@ -66,6 +66,10 @@ public class GrimorioNet {
     }
 
     static HostedMatch HM;  // o jogo a sério (não só as vistas): para saber que cartas se podem jogar agora
+    // mesa estrita (6.º argumento «pvp»): dois humanos, um Bridge por lugar («a», «b»); as linhas levam "s" = o lugar e os
+    // comandos chegam com "seat"; null = contra a IA do Forge (um Bridge só, sem lugar)
+    static Map<String, Bridge> PVP = null;
+    static final java.util.concurrent.atomic.AtomicBoolean END_SENT = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     public static void main(String[] a) throws Exception {
         if (System.getProperty("java.awt.headless") == null) System.setProperty("java.awt.headless", "true");
@@ -80,20 +84,27 @@ public class GrimorioNet {
         // espera um clique lá; desligado pergunta por listas (getChoices/many/order), que o browser mostra como escolhas
         FModel.getPreferences().setPref(forge.localinstance.properties.ForgePreferences.FPref.UI_SELECT_FROM_CARD_DISPLAYS, false);
         Deck dh = DeckSerializer.fromFile(new File(a[0])), da = DeckSerializer.fromFile(new File(a[1]));
+        boolean pvp = a.length > 5 && "pvp".equals(a[5]);
         LobbyPlayer human = GamePlayerUtil.getGuiPlayer();
         human.setName(a.length > 2 ? a[2] : "Tu");
-        LobbyPlayer ai = GamePlayerUtil.createAiPlayer(a.length > 4 ? a[4] : "Forge", a.length > 3 ? a[3] : "Default");  // nome (o deck dele), perfil
+        LobbyPlayer other = pvp ? new forge.player.LobbyPlayerHuman(a.length > 4 ? a[4] : "Jogador 2", 0, 0)  // a outra pessoa
+            : GamePlayerUtil.createAiPlayer(a.length > 4 ? a[4] : "Forge", a.length > 3 ? a[3] : "Default");  // nome (o deck dele), perfil
         RegisteredPlayer rh = new RegisteredPlayer(dh), ra = new RegisteredPlayer(da);
         List<RegisteredPlayer> players = new ArrayList<>();
         players.add(rh.setPlayer(human));
-        players.add(ra.setPlayer(ai));
-        Bridge gui = new Bridge();
-        Thread in = new Thread(() -> gui.readCommands(), "grimorio-in");
+        players.add(ra.setPlayer(other));
+        Bridge gui = new Bridge(pvp ? "a" : null);
+        if (pvp) { PVP = new HashMap<>(); PVP.put("a", gui); PVP.put("b", new Bridge("b")); }
+        Thread in = new Thread(() -> gui.readCommands(), "grimorio-in");  // um só leitor: na mesa estrita encaminha pelo «seat»
         in.setDaemon(true);
         in.start();
         HostedMatch hm = new HostedMatch();  // sem o GuiDesktop.hostMatch (precisa da janela Swing)
         HM = hm;
-        hm.startMatch(GameType.Constructed, EnumSet.noneOf(GameType.class), players, rh, gui);
+        if (pvp) {
+            Map<RegisteredPlayer, IGuiGame> guis = new HashMap<>();
+            guis.put(rh, PVP.get("a")); guis.put(ra, PVP.get("b"));
+            hm.startMatch(GameType.Constructed, EnumSet.noneOf(GameType.class), players, guis);
+        } else hm.startMatch(GameType.Constructed, EnumSet.noneOf(GameType.class), players, rh, gui);
         // o jogo corre noutras threads; esta espera pelo fim (o Bridge sai do processo em finishGame/afterGameEnd)
         while (true) Thread.sleep(1000);
     }
@@ -106,7 +117,20 @@ public class GrimorioNet {
         volatile JsonObject lastPrompt = new JsonObject();
         final Set<Integer> selectable = ConcurrentHashMap.newKeySet();
 
-        Bridge() {
+        final String seat;  // mesa estrita: «a» ou «b»; null contra a IA
+        // tudo o que este ecrã manda leva o lugar (na mesa estrita): o playnet.py separa por lugar
+        void send(JsonObject o) { if (seat != null) o.addProperty("s", seat); GrimorioNet.send(o); }
+        // mesa estrita: este lugar está à espera do outro (o Forge não lhe pede nada agora)
+        boolean waitingForOther() {
+            try {
+                Object c = getGameController();
+                if (c instanceof forge.player.PlayerControllerHuman) return ((forge.player.PlayerControllerHuman) c).getInputQueue().getInput() == null && asks.isEmpty();
+            } catch (Throwable e) { }
+            return false;
+        }
+
+        Bridge(String seat) {
+            this.seat = seat;
             ScheduledExecutorService ex = Executors.newSingleThreadScheduledExecutor(r -> { Thread t = new Thread(r, "grimorio-state"); t.setDaemon(true); return t; });
             // também sem «dirty»: no fim do jogo o Forge corre as conquistas na EDT e rebenta sem a imagem do troféu
             // (IMG_COMMON_TROPHY, não há skin sem janela) antes de chamar o finishGame; o fim sai daqui pelo estado
@@ -180,12 +204,20 @@ public class GrimorioNet {
                     final String ln = line;
                     try {
                         JsonObject c = JsonParser.parseString(line).getAsJsonObject();
+                        Bridge b = PVP != null && c.has("seat") ? PVP.get(c.get("seat").getAsString()) : this;
+                        if (b == null) continue;
                         if ("answer".equals(c.get("c").getAsString())) {
-                            CompletableFuture<JsonElement> f = asks.remove(c.get("id").getAsInt());
+                            CompletableFuture<JsonElement> f = b.asks.remove(c.get("id").getAsInt());
                             if (f != null) f.complete(c.get("v"));
                             continue;
                         }
-                        cmds.submit(() -> command(c, ln));
+                        if ("concede".equals(c.get("c").getAsString()) && !b.asks.isEmpty()) {  // a desistir a meio de uma escolha: solta-a
+                            b.cmds.submit(() -> b.command(c, ln));
+                            for (CompletableFuture<JsonElement> f : b.asks.values()) f.complete(JsonNull.INSTANCE);
+                            b.asks.clear();
+                            continue;
+                        }
+                        b.cmds.submit(() -> b.command(c, ln));
                     } catch (Exception e) {
                         System.err.println("comando inválido: " + line);
                         e.printStackTrace();
@@ -373,6 +405,7 @@ public class GrimorioNet {
             o.addProperty("t", "state");
             if (pfail) o.addProperty("pfail", true);
             o.addProperty("turn", gv.getTurn());
+            if (seat != null) o.addProperty("waitme", waitingForOther());
             if (gv.getPhase() != null) o.addProperty("phase", gv.getPhase().name());
             if (gv.getPlayerTurn() != null) o.addProperty("active", gv.getPlayerTurn().getId());
             JsonArray ps = new JsonArray();
@@ -590,7 +623,7 @@ public class GrimorioNet {
         @Override public void flashIncorrectAction() { JsonObject o = new JsonObject(); o.addProperty("t", "flash"); send(o); }
         @Override public void alertUser() { }
         volatile boolean ended = false;  // o fim só se manda uma vez (pelo finishGame do Forge ou pelo estado que já diz «acabou»)
-        @Override public synchronized void finishGame() { if (ended) return; ended = true; dirty = true; sendState(); JsonObject o = new JsonObject(); o.addProperty("t", "end"); GameView gv = getGameView(); if (gv != null) o.addProperty("winner", gv.getWinningPlayerName()); outcome(o); send(o); new Thread(() -> { try { Thread.sleep(1500); } catch (InterruptedException e) { } System.exit(0); }).start(); }
+        @Override public synchronized void finishGame() { if (ended) return; ended = true; dirty = true; sendState(); if (END_SENT.getAndSet(true)) return; JsonObject o = new JsonObject(); o.addProperty("t", "end"); GameView gv = getGameView(); if (gv != null) o.addProperty("winner", gv.getWinningPlayerName()); outcome(o); send(o); new Thread(() -> { try { Thread.sleep(1500); } catch (InterruptedException e) { } System.exit(0); }).start(); }
         @Override public void afterGameEnd() { finishGame(); }
         // como acabou, por jogador: a causa do Forge (LifeReachedZero, Milled, Poisoned, SpellEffect, CommanderDamage,
         // OpponentWon, Conceded, IntentionalDraw; «win», «altwin», «draw») e a carta que o fez; e se foi empate
@@ -704,7 +737,7 @@ public class GrimorioNet {
             p.add("reveal", a);
             if (dr.getMessagePrefix() != null) p.addProperty("revealTitle", dr.getMessagePrefix());
         }
-        static void revealOnly(DelayedReveal dr) {  // nada a escolher (só terrenos na mão revelada…): mostra-se na mesma
+        void revealOnly(DelayedReveal dr) {  // nada a escolher (só terrenos na mão revelada…): mostra-se na mesma
             if (dr == null) return;
             JsonObject o = new JsonObject(); reveal(o, dr);
             if (!o.has("reveal")) return;

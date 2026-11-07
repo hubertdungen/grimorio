@@ -13,8 +13,8 @@ import hashlib, html, json, os, re, secrets, socket, sqlite3, time, urllib.parse
 COOKIE = "grimorio_guest"
 # versão da API das salas para outro Grimório (a app de um amigo fala com estas rotas com «Authorization: Bearer <convite>»):
 # sobe quando as rotas de BEARER mudarem de forma incompatível; a app do amigo compara e, se não bater, abre a página daqui
-API = 1
-BEARER = re.compile(r"^/api/(guest/me|guest/decks|rooms(/[a-z0-9]{1,16}(/[a-z]{1,12})?)?|freetables/[a-z0-9]{1,16}(/[a-z]{1,12})?)$")
+API = 2  # 2: a mesa estrita (playnet pelo convite)
+BEARER = re.compile(r"^/api/(guest/me|guest/decks|rooms(/[a-z0-9]{1,16}(/[a-z]{1,12})?)?|freetables/[a-z0-9]{1,16}(/[a-z]{1,12})?|playnet/[a-f0-9]{12}(/cmd|/stop)?)$")  # playnet: a mesa estrita
 VOLTA = re.compile(r"https?://[A-Za-z0-9.:\[\]-]{1,120}/?")  # «← O meu Grimório»: só a origem do Grimório de quem vem
 DECK = re.compile(r"^/api/decks/([a-z0-9-]{8,40})$")
 TOUR = re.compile(r"^/api/tournaments/([a-z0-9]{12})(/.*)?$")

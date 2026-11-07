@@ -1196,7 +1196,7 @@ def selfcheck():
         assert call("POST", f"/api/rooms/{room['id']}/join", {"deck": hs[0]}, G)[0] == 400  # deck do anfitrião: não
         st, rv, _ = call("POST", f"/api/rooms/{room['id']}/join", {"deck": dk["id"]}, G)
         assert st == 200 and len(rv["players"]) == 4 and rv["players"][3]["mine"], rv
-        assert call("POST", f"/api/rooms/{room['id']}/join", {"deck": dk["id"]}, G)[0] == 409  # um deck por amigo
+        _r = call("POST", f"/api/rooms/{room['id']}/join", {"deck": dk["id"]}, G); assert _r[0] == 409, _r  # um deck por amigo
         assert call("POST", f"/api/rooms/{room['id']}/start", None, G)[0] == 403  # só o anfitrião começa
         st, sr, _ = call("POST", f"/api/rooms/{room['id']}/start")
         assert st == 200 and sr["tid"], sr
@@ -1269,7 +1269,7 @@ def selfcheck():
         assert call("POST", "/api/rooms", {"name": "Livre QA", "type": "livre", "max": 2, "players": [{"src": "meus", "ref": dk["id"]}]})[0] == 400  # deck do amigo: não
         st, lr, _ = call("POST", "/api/rooms", {"name": "Livre QA", "type": "livre", "max": 2, "players": [{"src": "meus", "ref": hs[0]}, {"src": "meus", "ref": hs[1]}]})
         assert st == 201, lr
-        assert call("POST", f"/api/rooms/{lr['id']}/join", {"deck": hs[1]})[0] == 409  # um lugar por pessoa, também para o anfitrião
+        _r = call("POST", f"/api/rooms/{lr['id']}/join", {"deck": hs[1]}); assert _r[0] == 409, _r  # um lugar por pessoa, também para o anfitrião
         st, rv, _ = call("POST", f"/api/rooms/{lr['id']}/join", {"deck": dk["id"]}, G)
         assert st == 200 and rv["type"] == "livre" and rv["max"] == 2 and len(rv["players"]) == 2, rv
         assert call("POST", f"/api/rooms/{lr['id']}/start", None, G)[0] == 403

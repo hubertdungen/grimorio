@@ -129,7 +129,8 @@ export default function TournamentView({ data, fmt, deckId, guest, online }) {
   }, [view])
   const [own, setOwn] = useState({})
   useEffect(() => { j('/api/decks').then(ds => setOwn(Object.fromEntries(ds.map(d => [d.id, d.friend ? 'ami' : d.community ? 'com' : 'meu'])))).catch(() => {}) }, [])
-  if (table) return <div className="view play fp-view"><FreeTable key={table} id={table} data={data} onClose={() => setTable(null)} /></div>
+  if (table) return <div className="view play fp-view">{String(table).startsWith('fp:') ? <ForgeTable key={table} sid={table.slice(3)} data={data} onClose={() => setTable(null)} />  // mesa estrita: o Forge Play contra a outra pessoa
+    : <FreeTable key={table} id={table} data={data} onClose={() => setTable(null)} />}</div>
   return (
     <OwnCtx.Provider value={own}><div className={`view tour ${hlOn() ? 'hl-mine' : ''}`}>
       {online && !guest && <NetBar />}
