@@ -105,7 +105,7 @@ assert.equal(inferFormat(data, { commanders: [], main: { 'Lightning Bolt': 4, Fo
 assert.equal(inferFormat(data, { commanders: [], main: { 'Sol Ring': 1, Forest: 59 } }), 'vintage')
 console.log('selfcheck formato ok')
 // Modelo do tabuleiro (game.js) com eventos tirados de registos reais do Forge (sim.py, parse_game)
-import { replayStates, powTough } from './src/game.js'
+import { replayStates, powTough, staticPump } from './src/game.js'
 {
   const G = [
     { n: 'Krenko, Mob Boss', t: 'Legendary Creature — Goblin Warrior', o: '{T}: Create X 1/1 red Goblin creature tokens.', pt: '3/3', kw: [] },
@@ -886,6 +886,18 @@ import { ptExplain } from './src/game.js'
   const gm = { byName: new Map([['Grizzly Bears', { n: 'Grizzly Bears', pt: '2/2', t: 'Creature — Bear' }]]), byLower: new Map() }
   const x = ptExplain(gm, { name: 'Grizzly Bears', pt: '3/2', counters: { '+1/+1': 2 } })
   assert.deepEqual([x.printed, x.plus, x.other, x.total], [[2, 2], 2, [1, 0], [5, 4]])
+  {  // mesa livre: equipamentos, auras e anthems contam sozinhos
+    const C = [['Elf A', '1/1', 'Creature — Elf', ''], ['Bear B', '2/2', 'Creature — Bear', ''], ['Bonesplitter', '', 'Artifact — Equipment', 'Equipped creature gets +2/+0.\nEquip {1}'],
+      ['Anthem', '', 'Enchantment', 'Creatures you control get +1/+1.'], ['Lord', '2/2', 'Creature — Elf Druid', 'Other Elf creatures you control get +1/+1.'],
+      ['Pump', '', 'Enchantment', '{1}: Creatures you control get +1/+1 until end of turn.'], ['Curse', '', 'Enchantment', 'Creatures your opponents control get -1/-1.']]
+    const g2 = { byName: new Map(C.map(([n, pt, t, o]) => [n, { n, pt, t, o }])), byLower: new Map() }, P = n => ({ key: n, name: n })
+    const field = ['Elf A', 'Bear B', 'Anthem', 'Lord', 'Pump'].map(P)
+    assert.deepEqual(staticPump(g2, P('Elf A'), [P('Bonesplitter')], field, [P('Curse')]), [3, 1])  // +2/+0 +1/+1 (anthem) +1/+1 (elfo) −1/−1
+    assert.deepEqual(staticPump(g2, P('Bear B'), [], field, []), [1, 1])
+    assert.deepEqual(staticPump(g2, P('Lord'), [], field, []), [1, 1])  // «other»: o próprio senhor não conta
+    assert.equal(staticPump(g2, P('Anthem'), [], field, []), null)  // não é criatura
+    assert.equal(powTough(g2, { ...P('Elf A'), pump: [3, 1] }).p, 4)
+  }
   console.log('selfcheck conta do poder/resistência ok')
 }
 // fichas (tokens.js + permCard): nome sem «Token» e sem maiúsculas, P/R e cores desempatam, a carta que a criou manda,

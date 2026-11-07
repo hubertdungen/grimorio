@@ -109,6 +109,25 @@ export function powTough(data, perm) {
   return { p, t, boosted: plus > 0 || perm.pump?.[0] > 0 || perm.pump?.[1] > 0, hurt: plus < 0 || perm.pump?.[0] < 0 || perm.pump?.[1] < 0 }
 }
 
+// mesa livre (sem motor de regras): o que equipamentos/auras presos e os «anthems» dão a uma criatura, lido do texto.
+// attached = as presas a ela; mine = as permanentes de quem a controla; theirs = as dos outros. -> [p, t] ou null
+// ponytail: só os padrões estáticos simples («gets +N/+N»); «for each», «until end of turn» e custos de ativação ficam de fora
+export function staticPump(data, perm, attached = [], mine = [], theirs = []) {
+  if (!isCreature(data, perm)) return null
+  const types = typeOf(data, perm)
+  const lines = q => (permCard(data, q)?.o || '').split('\n//\n')[0].split(/[.\n]/).filter(l => !/for each|until end of turn|:/i.test(l))
+  let p = 0, t = 0
+  const add = m => { p += +m[1]; t += +m[2] }
+  for (const a of attached) for (const l of lines(a)) { const m = /(?:equipped|enchanted) creature gets ([+-]\d+)\/([+-]\d+)/i.exec(l); if (m) add(m) }
+  for (const q of mine) for (const l of lines(q)) {
+    const m = /\b(other )?(?:([A-Z][a-z]+) )?creatures you control get ([+-]\d+)\/([+-]\d+)/i.exec(l)
+    if (!m || (m[1] && q.key === perm.key) || (m[2] && !new RegExp(`\\b${m[2]}\\b`).test(types))) continue
+    add([0, m[3], m[4]])
+  }
+  for (const q of theirs) for (const l of lines(q)) { const m = /creatures your opponents control get ([+-]\d+)\/([+-]\d+)/i.exec(l); if (m) add(m) }
+  return p || t ? [p, t] : null
+}
+
 // a conta do poder/resistência de uma criatura na mesa: o impresso, os marcadores +1/+1 e −1/−1 e o resto (auras,
 // anthems, até ao fim do turno) = o que falta para o total. printed/other null quando a carta não tem P/R impresso (fichas)
 export function ptExplain(data, perm) {

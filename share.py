@@ -2,9 +2,9 @@
 dá um endereço https://….trycloudflare.com para este Grimório. guests.py trata esse endereço como de convidados:
 sem convite só se vê a app, sem dados. O cloudflared usa-se do PATH ou descarrega-se do GitHub oficial da Cloudflare.
 """
-import os, platform, re, shutil, stat, subprocess, threading, urllib.request
+import json, os, platform, re, shutil, signal, stat, subprocess, threading, time, urllib.request
 
-STATE = {"proc": None, "url": None, "err": None}
+STATE = {"proc": None, "pid": None, "url": None, "err": None, "dd": None}
 REL = "https://github.com/cloudflare/cloudflared/releases/latest/download/"
 URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 
@@ -38,9 +38,38 @@ def binary(data_dir):
     return path
 
 
+def _alive(pid):
+    if not pid or os.name != "posix":
+        return False
+    try:
+        os.kill(pid, 0)
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return b"cloudflared" in f.read()
+    except OSError:
+        return False
+
+
+def _saved(dd):
+    return os.path.join(dd, "share.json")
+
+
+def adopt(data_dir):
+    """No arranque do servidor (Linux): o túnel de antes continua vivo (anda por conta própria) -> fica o mesmo endereço.
+    Antes o registo do cloudflared ia por um pipe para o servidor; reiniciado o servidor, o pipe enchia e o túnel parava."""
+    STATE["dd"] = data_dir
+    try:
+        with open(_saved(data_dir)) as f:
+            sv = json.load(f)
+    except (OSError, ValueError):
+        return status()
+    if _alive(sv.get("pid")) and URL_RE.fullmatch(sv.get("url") or ""):
+        STATE.update(pid=sv["pid"], url=sv["url"])
+    return status()
+
+
 def status():
     p = STATE["proc"]
-    running = bool(p and p.poll() is None)
+    running = bool(p and p.poll() is None) or _alive(STATE["pid"])
     return {"running": running, "url": STATE["url"] if running else None, "err": STATE["err"]}
 
 
@@ -56,18 +85,33 @@ def start(data_dir, port, host="127.0.0.1"):
     # o servidor ouve em 127.0.0.1 (pacotes) ou em 0.0.0.0; só se --host for um IP da rede é que o túnel vai lá
     # Windows: sem janela de consola (a app não tem consola) e sem herdar um stdin que não existe
     target = "127.0.0.1" if host in ("0.0.0.0", "", "::", "localhost") else host
-    p = subprocess.Popen([exe, "tunnel", "--url", f"http://{target}:{port}", "--no-autoupdate"], stdin=subprocess.DEVNULL,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, errors="replace",
-                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    STATE["proc"] = p
+    # o registo vai para um ficheiro (num pipe, sem o servidor a ler — depois de reiniciar — enchia e o túnel parava)
+    log = os.path.join(data_dir, "cloudflared.log")
+    with open(log, "w") as lf:
+        p = subprocess.Popen([exe, "tunnel", "--url", f"http://{target}:{port}", "--no-autoupdate"], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL, stderr=lf, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                             start_new_session=os.name == "posix")  # sobrevive a reiniciar o servidor (Linux); no Windows fecha com a app
+    STATE.update(proc=p, pid=None, dd=data_dir)
 
     def watch():  # o endereço aparece no registo do cloudflared ao fim de uns segundos
-        for line in p.stderr:
-            m = URL_RE.search(line)
-            if m and not STATE["url"]:
+        for _ in range(120):
+            try:
+                with open(log, errors="replace") as f:
+                    m = URL_RE.search(f.read())
+            except OSError:
+                m = None
+            if m:
                 STATE["url"] = m.group(0)
-        if not STATE["url"]:
-            STATE["err"] = "O túnel não arrancou (sem internet?)."
+                try:
+                    with open(_saved(data_dir), "w") as f:
+                        json.dump({"pid": p.pid, "url": STATE["url"]}, f)
+                except OSError:
+                    pass
+                return
+            if p.poll() is not None:
+                break
+            time.sleep(0.5)
+        STATE["err"] = "O túnel não arrancou (sem internet?)."
     threading.Thread(target=watch, daemon=True).start()
     return status()
 
@@ -80,7 +124,14 @@ def stop():
             p.wait(timeout=5)
         except subprocess.TimeoutExpired:
             p.kill()
-    STATE.update(proc=None, url=None)
+    elif _alive(STATE["pid"]):  # o túnel adotado no arranque
+        os.kill(STATE["pid"], signal.SIGTERM)
+    if STATE["dd"]:
+        try:
+            os.remove(_saved(STATE["dd"]))
+        except OSError:
+            pass
+    STATE.update(proc=None, pid=None, url=None)
     return status()
 
 
@@ -98,4 +149,9 @@ def route(method, path, data_dir, port, host="127.0.0.1"):
 if __name__ == "__main__":  # verificação sem rede
     assert URL_RE.search("INF |  https://abc-def-12.trycloudflare.com  |").group(0) == "https://abc-def-12.trycloudflare.com"
     assert status() == {"running": False, "url": None, "err": None}
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:  # adotar: só um cloudflared vivo com um endereço válido
+        with open(_saved(d), "w") as f:
+            json.dump({"pid": os.getpid(), "url": "https://a-b.trycloudflare.com"}, f)
+        assert adopt(d)["running"] is False  # o pid é deste python, não de um cloudflared
     print("selfcheck ok")

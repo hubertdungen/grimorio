@@ -1553,5 +1553,6 @@ if __name__ == "__main__":
     ratings.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma a Arena automática se estava ligada
     playnet.ON_END = ratings.forgeplay_end  # jogos do Forge Play acabados com vencedor contam para os ratings
     backup.init(ARGS.data_dir)  # pasta na nuvem (se ligada): traz o que mudou noutros aparelhos e leva o daqui
+    share.adopt(ARGS.data_dir)  # a partilha que estava ligada continua com o mesmo endereço depois de reiniciar
     print(f"Grimório em http://{ARGS.host}:{ARGS.port}", flush=True)
     ThreadingHTTPServer((ARGS.host, ARGS.port), H).serve_forever()

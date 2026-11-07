@@ -276,6 +276,7 @@ def view(t, me):
             v["look"] = s["look"]
         if i == me and s["peek"]:
             v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]
+            v["srch"] = bool(s.get("srch"))
         seats.append(v)
     return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
             "step": t.get("step", 3), "auto": t["seats"][me].get("auto", True), "me": me, "host": t["seats"][me]["by"] == "host", "mine": [i for i, s in enumerate(t["seats"]) if s["by"] == t["seats"][me]["by"]],
@@ -652,10 +653,18 @@ def apply(t, me, d):
             _take(t, c); _clean(c); _put(t, c, me, to)
         seat["peek"] = max(0, seat["peek"] - n)
         _log(t, me, c0, n=n)
-    elif c0 == "peek":
-        seat["peek"] = _num(d.get("n"), 0, len(t["zones"][me]["library"]))
-        if seat["peek"]:
-            _log(t, me, "peek", n=seat["peek"])
+    elif c0 == "peek":  # s=1: procurar na biblioteca (vê-a toda; ao fechar baralha)
+        lib = t["zones"][me]["library"]
+        if d.get("s"):
+            seat["peek"], seat["srch"] = len(lib), True
+            _log(t, me, "search")
+        else:
+            seat["peek"] = _num(d.get("n"), 0, len(lib))
+            if seat["peek"]:
+                _log(t, me, "peek", n=seat["peek"])
+            elif seat.pop("srch", None):
+                RNG.shuffle(lib)
+                _log(t, me, "shuffle")
     elif c0 == "pass":
         n = len(t["seats"])
         nxt = next((x % n for x in range(t["active"] + 1, t["active"] + n + 1) if not t["seats"][x % n]["out"]), t["active"])
@@ -985,6 +994,11 @@ def selfcheck():
     assert t["cards"][str(boss)]["ph"]
     call("POST", "guest:rui", {"c": "move", "id": boss, "to": "command"})
     assert "at" not in t["cards"][str(h1)] and "ph" not in t["cards"][str(boss)]  # o comandante saiu: a aura fica solta
+    call("POST", "host", {"c": "peek", "s": 1})  # procurar na biblioteca: vê-a toda e ao fechar baralha
+    hv0 = call("GET", "host")[1]["seats"][0]
+    assert hv0["srch"] and len(hv0["top"]) == len(t["zones"][0]["library"]) and all(c.get("n") for c in hv0["top"])
+    assert not any("top" in x for x in call("GET", "guest:rui")[1]["seats"])
+    call("POST", "host", {"c": "peek", "n": 0}); assert t["log"][-1]["k"] == "shuffle" and not t["seats"][0].get("srch")
     h1 = len(t["zones"][1]["hand"])
     call("POST", "host", {"c": "pass"})
     assert t["active"] == 1 and t["turn"] == 2

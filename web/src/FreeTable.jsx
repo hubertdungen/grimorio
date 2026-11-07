@@ -9,7 +9,7 @@ import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, CombatLinks } from './B
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop, flipFrom } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
-import { lookup, isCreature, isLand, flipKind, CT, CT_ICON } from './game.js'
+import { lookup, isCreature, isLand, flipKind, staticPump, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
 import { tx } from './i18n.js'
@@ -60,6 +60,7 @@ function line(e, who) {
     case 'dice': return tx('{P} lança {x}', { P, x: e.types.map((t, i) => `${t === 'moeda' ? tx('moeda') : t}: ${t === 'moeda' ? (e.v[i] === 1 ? tx('Cara') : tx('Coroa')) : e.v[i]}`).join(', ') })
     case 'reveal': return tx('{P} revela {c}', { P, c })
     case 'revealhand': return tx('{P} revela a mão: {x}', { P, x: (e.names || []).map(short).join(', ') })
+    case 'search': return tx('{P} procura na biblioteca', { P })
     case 'peek': return tx('{P} olha para as {n} cartas do topo da biblioteca', { P, n: e.n })
     case 'lookhand': return tx('{P} olha para a mão de {T} ({n} carta)|{P} olha para a mão de {T} ({n} cartas)', { P, T, n: e.n })
     case 'mill': return tx('{P} moi {n} carta (do topo para o cemitério)|{P} moi {n} cartas (do topo para o cemitério)', { P, n: e.n })
@@ -161,6 +162,7 @@ function SidePhase({ s, data, send, onClose }) {
 function Table({ id, data, onClose, onNext, onBegin }) {
   const [zLeft, setZLeft] = useState(false)
   const zWait = useRef({})
+  const [srch, setSrch] = useState('')
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [menu, setMenu] = useState(null)
   const [help, setHelp] = useState(() => lsGet(HELP_K) !== '1'), [lift, setLift] = useState(null), [ver, setVer] = useState(0)
   const [seatSel, setSeatSel] = useState(null), seatQ = c => (seatSel != null ? `${c}seat=${seatSel}` : '')  // quem tem os dois decks de uma partida escolhe o lugar
@@ -445,6 +447,9 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const onField = new Set(seats.flatMap(v => v.battlefield.map(c => c.id)))
   const attOf = new Map()  // carta -> as que estão presas a ela
   for (const v of seats) for (const c of v.battlefield) if (c.at != null && onField.has(c.at)) attOf.set(c.at, [...(attOf.get(c.at) || []), permOf(c)])
+  // P/R automático: equipamentos/auras presos e anthems de quem a controla (e os «−1/−1» dos outros)
+  const fieldOf = seats.map(v => v.battlefield.filter(c => c.n && !c.ph).map(permOf))
+  const pumpOf = new Map(seats.flatMap((v, i) => v.battlefield.filter(c => c.n && !c.ph).map(c => [c.id, staticPump(data, permOf(c), attOf.get(c.id) || [], fieldOf[i], fieldOf.filter((_, j) => j !== i).flat())])))
   const side = (i, top, compact) => {
     const v = seats[i], k = keyOf(i), isMe = i === me
     const cmd = v.command.length > 0 && <div className="ml-cmd" title={tx('Zona de comando')}>{v.command.map(c => (
@@ -460,7 +465,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
           const left = top ? 1 - (c.x ?? 0.5) : c.x ?? 0.5, tp = top ? 1 - (c.y ?? 0.5) : c.y ?? 0.5
           return (
             <div key={c.id} className={`bfree-c ${kindOf(c)} ${pickAt != null && pickAt !== c.id ? 'ml-pick' : ''}`} style={{ left: `clamp(calc(var(--w) * .5), ${left * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${tp * 100}%, calc(100% - var(--w) * .7))` }}>
-              <Perm p={permOf(c)} data={data} hl={0} pop={pops.get(String(c.id)) || null} att={attOf.get(c.id)} n={0} quiet={false} tgt={c.atk != null ? [keyOf(c.atk), short(c.atc != null ? byId.get(c.atc)?.c?.n || who(c.atk) : who(c.atk))] : null} />
+              <Perm p={{ ...permOf(c), pump: pumpOf.get(c.id) || undefined }} data={data} hl={0} pop={pops.get(String(c.id)) || null} att={attOf.get(c.id)} n={0} quiet={false} tgt={c.atk != null ? [keyOf(c.atk), short(c.atc != null ? byId.get(c.atc)?.c?.n || who(c.atk) : who(c.atk))] : null} />
             </div>)
         })}
         {!v.battlefield.length && isMe && <span className="ml-empty">{tx('o teu lado da mesa: arrasta para aqui as cartas da mão')}</span>}
@@ -618,6 +623,10 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const zc = zoom && lookup(data, zoom)
   const zoneCards = zone ? seats[zone.seat]?.[zone.which] || [] : []
   const top = mine?.top
+  const srchList = cs => {  // procurar na biblioteca: por ordem de nome, filtrada pelo nome, tipo ou texto
+    const q = srch.trim().toLowerCase(), all = [...cs].sort((a, b) => (a.n || '').localeCompare(b.n || ''))
+    return q ? all.filter(c => { const d = lookup(data, c.n); return [c.n, d?.t, d?.o].some(x => x?.toLowerCase().includes(q)) }) : all
+  }
   const lg = [...ghosts.filter(g => g.k !== 'orb' && !(g.k === 'card' && handed(g))),  // e as largadas há pouco cuja jogada ainda não chegou
     ...Object.entries(dropAt.current).filter(([seat, d]) => d.end && !d.gone && Date.now() - d.end < 900 && cardKey(d.id) === d.key && !s.live?.[seat]).map(([seat, d]) => ({ seat: +seat, k: 'card', id: d.id, p: d }))]
   return (
@@ -679,17 +688,19 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       {libMenu && <div className="ml-libmenu" role="menu" style={{ left: libMenu.x, top: libMenu.y }}>
         <b>▤ {tx('Biblioteca')} · {seats[me]?.library ?? ''}</b>
         {[['🂠', tx('Comprar 1'), 'D', () => send({ c: 'draw', n: 1 })], ['🂠', tx('Comprar 2'), '', () => send({ c: 'draw', n: 2 })], ['👁', tx('Ver o topo (3)'), 'V', () => send({ c: 'peek', n: 3 })],
+          ['🔍', tx('Procurar na biblioteca'), '', () => send({ c: 'peek', s: 1 })],
           ['🔀', tx('Baralhar'), 'S', () => send({ c: 'shuffle' })], ['⚰', tx('Moer 1 (topo para o cemitério)'), 'M', () => send({ c: 'mill', n: 1 })], ['⌀', tx('Exilar o topo'), 'X', () => send({ c: 'exiletop', n: 1 })]]
           .map(([i, l, k, f]) => <button key={l} type="button" role="menuitem" onClick={() => { setLibMenu(null); f() }}><span>{i} {l}</span>{k && <kbd>{k}</kbd>}</button>)}
         <small className="muted">{tx('Duplo clique na biblioteca compra uma.')}</small>
       </div>}
       {top && <div className="fp-modal"><div className="fp-ask">
-        <p><b>👁 {tx('O topo da tua biblioteca')}</b> <span className="muted small">{tx('só tu vês estas cartas (a primeira é a de cima)')}</span></p>
-        <div className="fp-opts ml-top">{top.map((c, k) => (
+        {mine.srch ? <p><b>🔍 {tx('A tua biblioteca')}</b> <span className="muted small">{tx('só tu vês; ao fechar baralha')}</span> <input className="ml-srch" type="search" autoFocus value={srch} onChange={e => setSrch(e.target.value)} placeholder={tx('Procurar: nome, tipo ou texto (ex.: Forest, Equipment)')} aria-label={tx('Procurar na biblioteca')} /></p>
+          : <p><b>👁 {tx('O topo da tua biblioteca')}</b> <span className="muted small">{tx('só tu vês estas cartas (a primeira é a de cima)')}</span></p>}
+        <div className="fp-opts ml-top">{(mine.srch ? srchList(top) : top).map((c, k) => (
           <div key={c.id} className="ml-topc"><FCard c={{ id: c.id, name: c.n }} data={data} big /><small className="muted">{k + 1}.º</small>
             <span className="row-btns"><button className="small" onClick={() => mv(c.id, 'hand')} title={tx('Para a mão')}>✋</button><button className="small" onClick={() => mv(c.id, 'library', { bottom: true })} title={tx('Para o fundo')}>▥</button>
               <button className="small" onClick={() => mv(c.id, 'graveyard')} title={tx('Para o cemitério')}>⚰</button><button className="small" onClick={() => mv(c.id, 'exile')} title={tx('Para o exílio')}>⌀</button><button className="small" onClick={() => toField(c.id)} title={tx('Para o campo')}>▶</button></span></div>))}</div>
-        <div className="row-btns"><button className="primary" onClick={() => send({ c: 'peek', n: 0 })}>{tx('Feito (as que sobram ficam no topo)')}</button></div></div></div>}
+        <div className="row-btns"><button className="primary" onClick={() => { setSrch(''); send({ c: 'peek', n: 0 }) }}>{mine.srch ? tx('Baralhar e fechar') : tx('Feito (as que sobram ficam no topo)')}</button></div></div></div>}
       {mine?.look != null && seats[mine.look] && <HandLook name={who(mine.look)} cards={seats[mine.look].hand.filter(c => c.n)} data={data} mv={mv} onDone={() => send({ c: 'lookhand', seat: null })} onZoom={setZoom} />}
       {help && <Help onClose={() => { setHelp(false); lsSet(HELP_K, '1') }} />}
       {matOpen && <MatModal onClose={() => setMatOpen(false)} onMat={p => { send({ c: 'mat', v: p.mat }); send({ c: 'orb', v: p.orb }); redraw(x => x + 1) }} />}
