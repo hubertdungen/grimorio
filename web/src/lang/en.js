@@ -3868,6 +3868,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Convites (links dos amigos)": "Invites (friends' links)",
   "{P} procura na biblioteca": "{P} searches their library",
   "Procurar na biblioteca": "Search library",
   "A tua biblioteca": "Your library",

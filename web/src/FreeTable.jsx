@@ -9,6 +9,8 @@ import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, CombatLinks } from './B
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop, flipFrom } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
+import Friends from './Friends.jsx'
+import { remoteOn } from './remote.js'
 import { lookup, isCreature, isLand, flipKind, staticPump, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
@@ -163,6 +165,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const [zLeft, setZLeft] = useState(false)
   const zWait = useRef({})
   const [srch, setSrch] = useState('')
+  const [invites, setInvites] = useState(false)
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [menu, setMenu] = useState(null)
   const [help, setHelp] = useState(() => lsGet(HELP_K) !== '1'), [lift, setLift] = useState(null), [ver, setVer] = useState(0)
   const [seatSel, setSeatSel] = useState(null), seatQ = c => (seatSel != null ? `${c}seat=${seatSel}` : '')  // quem tem os dois decks de uma partida escolhe o lugar
@@ -529,6 +532,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       ['🂠 ' + tx('Tamanho das cartas: {x} (muda para o seguinte)', { x: P.cardPx ? `${P.cardPx} px` : tx('automático') }), () => { const i = CARD_PX.indexOf(fpPrefs().cardPx); setFpPrefs({ cardPx: CARD_PX[(i + 1) % CARD_PX.length] }); redraw(x => x + 1) }],
       ['🎨 ' + tx('Padrão da mesa'), () => setMatOpen(true)],
       ['❓ ' + tx('Como se joga aqui'), () => setHelp(true)],
+      ...(s.host && !remoteOn() ? [['🔗 ' + tx('Convites (links dos amigos)'), () => setInvites(true)]] : []),
       [(s.auto ? '✓ ' : '◻ ') + tx('Começo do turno automático (desvirar e comprar)'), () => send({ c: 'auto', on: !s.auto })],
       [s.day === 'day' ? '☾ ' + tx('Passar a noite') : '☀ ' + tx('Passar a dia'), () => send({ c: 'day' })],
       ...(s.day ? [['◌ ' + tx('Tirar o dia/noite'), () => send({ c: 'day', v: null })]] : []),
@@ -703,6 +707,8 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         <div className="row-btns"><button className="primary" onClick={() => { setSrch(''); send({ c: 'peek', n: 0 }) }}>{mine.srch ? tx('Baralhar e fechar') : tx('Feito (as que sobram ficam no topo)')}</button></div></div></div>}
       {mine?.look != null && seats[mine.look] && <HandLook name={who(mine.look)} cards={seats[mine.look].hand.filter(c => c.n)} data={data} mv={mv} onDone={() => send({ c: 'lookhand', seat: null })} onZoom={setZoom} />}
       {help && <Help onClose={() => { setHelp(false); lsSet(HELP_K, '1') }} />}
+      {invites && <div className="modal-bg" onClick={() => setInvites(false)}><div className="modal ml-invites" onClick={e => e.stopPropagation()} role="dialog" aria-label={tx('Convites (links dos amigos)')}>
+        <button className="link small ml-inv-x" onClick={() => setInvites(false)} aria-label={tx('fechar')}>✕</button><Friends /></div></div>}
       {matOpen && <MatModal onClose={() => setMatOpen(false)} onMat={p => { send({ c: 'mat', v: p.mat }); send({ c: 'orb', v: p.orb }); redraw(x => x + 1) }} />}
       {cardPop && lookup(data, cardPop) && <div className="fp-modal" onClick={() => setCardPop(null)}><img className="ml-pop" src={img(lookup(data, cardPop), 'normal', false, artOf(allArts, null, lookup(data, cardPop)))} alt={cardPop} /></div>}
       {s.result ? <p className="ml-ended win">{s.result.w == null ? tx('🤝 Empate') : tx('🏆 Ganhou {p}', { p: who(s.result.w) })}{onClose && <button className="small" onClick={onClose}>{tx('sair da mesa')}</button>}</p>

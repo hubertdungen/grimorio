@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Convites (links dos amigos)": "邀请（好友链接）",
   "{P} procura na biblioteca": "{P} 搜寻牌库",
   "Procurar na biblioteca": "搜寻牌库",
   "A tua biblioteca": "你的牌库",

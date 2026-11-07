@@ -3937,3 +3937,5 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .ml-life .ml-t:last-child { border-radius: 0 9px 9px 0; }
 .ml-life .ml-t i { font-size: 15px; }
 .ml-srch { margin-left: 8px; min-width: min(320px, 60vw); }
+.ml-invites { position: relative; max-width: min(720px, 94vw); max-height: 86vh; overflow: auto; }
+.ml-inv-x { position: absolute; top: 8px; right: 10px; }
