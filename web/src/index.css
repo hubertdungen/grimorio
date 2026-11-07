@@ -3926,3 +3926,13 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 /* mesa livre: a carta em grande flutua por cima da mesa (fora do painel, que fica só com os botões e a conversa) */
 .fp.ml .fp-stagebox > .fp-zoom.ml-float { position: absolute !important; top: 10px; right: 10px; z-index: 61; width: clamp(200px, 21vw, 340px); max-height: none; aspect-ratio: 488 / 680; background: none; pointer-events: none; filter: drop-shadow(0 14px 30px #000c); }
 .fp.ml .fp-stagebox > .fp-zoom.ml-float.left { right: auto; left: 10px; }
+/* mesa livre: as fases (clicáveis na tua vez) */
+.ml-steps { display: inline-flex; flex-wrap: wrap; gap: 3px; }
+.ml-steps button { font: inherit; font-size: 12px; padding: 2px 9px; border-radius: 999px; color: var(--muted); background: none; border: 1px solid var(--line); cursor: pointer; transition: background .3s, color .3s; }
+.ml-steps button:disabled { cursor: default; }
+.ml-steps button:not(:disabled):not(.on):hover { color: var(--text, #fff); border-color: var(--gold); }
+.ml-steps button.on { color: #111; background: var(--gold); border-color: var(--gold); }
+.ml-steps button.on.combat { background: #d61f3a; color: #fff; box-shadow: 0 0 0 2px #ff6b81aa, 0 0 14px #ff2a4acc; animation: phasecombat 1.2s ease-in-out infinite; }
+.ml-life .ml-n { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 54px; border-radius: 0; border-left: 1px solid var(--line); border-right: 0; font-weight: 700; color: #ff8fa0; }
+.ml-life .ml-t:last-child { border-radius: 0 9px 9px 0; }
+.ml-life .ml-t i { font-size: 15px; }

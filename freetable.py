@@ -38,6 +38,8 @@ def _frac(x, lo=-0.2, hi=1.2):
         return 0.5
 
 
+# as fases do turno (mesa livre): Espaço/Enter avança; depois do fim passa a vez
+STEPS = ("untap", "upkeep", "draw", "main1", "combat", "main2", "end")
 PEN_LIFE = 8  # segundos que um traço da caneta fica no estado (o browser apaga-o antes, a desvanecer)
 PATH = re.compile(r"^/api/freetables/([a-f0-9]{12})$")
 RNG = random.SystemRandom()
@@ -276,7 +278,7 @@ def view(t, me):
             v["top"] = [_card(t, c, me) for c in z["library"][:s["peek"]]]
         seats.append(v)
     return {"id": t["id"], "name": t["name"], "seq": t["seq"], "status": t["status"], "turn": t["turn"], "active": t["active"],
-            "me": me, "host": t["seats"][me]["by"] == "host", "mine": [i for i, s in enumerate(t["seats"]) if s["by"] == t["seats"][me]["by"]],
+            "step": t.get("step", 3), "auto": t["seats"][me].get("auto", True), "me": me, "host": t["seats"][me]["by"] == "host", "mine": [i for i, s in enumerate(t["seats"]) if s["by"] == t["seats"][me]["by"]],
             "res": t.get("res"), "result": t.get("result"), "solo": bool(t.get("solo")), "gf": t.get("gf"), "day": t.get("day"), "seats": seats, "log": t["log"][-120:], "roll": t["roll"],
             "pen": [x for x in t.get("pen", []) if x["ts"] > time.time() - PEN_LIFE], "next": t.get("next"),
             # a escolher o sideboard: de todos só se sabe quem já está pronto; a lista (e a guardada) só a dos meus lugares
@@ -349,6 +351,43 @@ def _draw(t, me, n):
         _put(t, c, me, "hand")
     t["seats"][me]["peek"] = max(0, t["seats"][me]["peek"] - n)
     return n
+
+
+def _mine_active(t, me):
+    return t["seats"][t["active"]]["by"] == t["seats"][me]["by"]
+
+
+def _step(t, to):
+    """Entrar numa fase. Com o automático de quem tem a vez: desvirar desvira tudo; comprar compra 1 e segue para a principal.
+    Depois do combate os atacantes deixam de o ser."""
+    a = t["active"]
+    t["step"] = to
+    auto = t["seats"][a].get("auto", True)
+    if STEPS[to] == "untap" and auto:
+        _untap(t, a)
+    if STEPS[to] == "draw" and auto:
+        if t["turn"] > 1:  # quem começa não compra no primeiro turno
+            _log(t, a, "draw", n=_draw(t, a, 1))
+        t["step"] = STEPS.index("main1")
+    if to > STEPS.index("combat"):
+        for c in t["cards"].values():
+            c.pop("atk", None); c.pop("atc", None)
+
+
+def _untap(t, i):
+    for cid in t["zones"][i]["battlefield"]:
+        c = t["cards"][str(cid)]
+        c.pop("t", None); c.pop("atk", None); c.pop("atc", None)
+
+
+def _turn_start(t, i):
+    """Começo do turno de i: com o automático desvira e compra (fica na principal); sem ele fica no desvirar."""
+    if t["seats"][i].get("auto", True):
+        _untap(t, i)
+        _log(t, i, "newturn", n=_draw(t, i, 1), turn=t["turn"])
+        t["step"] = STEPS.index("main1")
+    else:
+        t["step"] = 0
 
 
 def apply(t, me, d):
@@ -495,9 +534,7 @@ def apply(t, me, d):
                 del ks[k]
             c["k"] = ks
     elif c0 in ("untapall", "newturn"):  # newturn: desvirar tudo e comprar uma (o começo do teu turno; a solo conta o turno)
-        for cid in t["zones"][me]["battlefield"]:
-            c = t["cards"][str(cid)]
-            c.pop("t", None); c.pop("atk", None); c.pop("atc", None)
+        _untap(t, me)
         if c0 == "untapall":
             _log(t, me, "untapall")
         else:
@@ -626,6 +663,16 @@ def apply(t, me, d):
         for s2 in t["seats"]:  # ninguém fica a olhar para a mão de outro de um turno para o outro
             s2.pop("look", None)
         _log(t, me, "pass", p=nxt, turn=t["turn"])
+        _turn_start(t, nxt)
+    elif c0 == "step":  # a fase seguinte (ou a escolhida); depois do fim passa a vez
+        if not _mine_active(t, me):
+            raise ValueError("Só quem tem a vez muda a fase.")
+        to = _num(d.get("to"), 0, len(STEPS), t.get("step", 3) + 1) if d.get("to") is not None else t.get("step", 3) + 1
+        if to >= len(STEPS):
+            return apply(t, me, {"c": "pass"})
+        _step(t, to)
+    elif c0 == "auto":  # desvirar e comprar sozinho no começo do meu turno
+        seat["auto"] = bool(d.get("on"))
     elif c0 == "concede":
         seat["out"] = True
         _log(t, me, "concede")
@@ -938,8 +985,20 @@ def selfcheck():
     assert t["cards"][str(boss)]["ph"]
     call("POST", "guest:rui", {"c": "move", "id": boss, "to": "command"})
     assert "at" not in t["cards"][str(h1)] and "ph" not in t["cards"][str(boss)]  # o comandante saiu: a aura fica solta
+    h1 = len(t["zones"][1]["hand"])
     call("POST", "host", {"c": "pass"})
     assert t["active"] == 1 and t["turn"] == 2
+    # fases: quem recebe a vez desvira e compra sozinho e fica na principal; Espaço avança; depois do fim passa a vez
+    assert t["step"] == STEPS.index("main1") and len(t["zones"][1]["hand"]) == h1 + 1
+    assert call("POST", "host", {"c": "step"})[0] == 400  # não é a vez do anfitrião
+    for want in ("combat", "main2", "end"):
+        call("POST", "guest:rui", {"c": "step"}); assert STEPS[t["step"]] == want, t["step"]
+    call("POST", "guest:rui", {"c": "auto", "on": False}); call("POST", "guest:rui", {"c": "step"})
+    assert t["active"] == 0 and t["turn"] == 3 and t["step"] == STEPS.index("main1")
+    call("POST", "host", {"c": "step", "to": 6}); call("POST", "host", {"c": "step"})  # a vez do Rui, sem automático: fica no desvirar
+    assert t["active"] == 1 and t["step"] == 0
+    call("POST", "guest:rui", {"c": "auto", "on": True}); h1 = len(t["zones"][1]["hand"])
+    call("POST", "guest:rui", {"c": "step", "to": 2}); assert t["step"] == STEPS.index("main1") and len(t["zones"][1]["hand"]) == h1 + 1
     assert call("POST", "host", {"c": "rm -rf"})[0] == 400 and call("POST", "guest:rui", {"c": "close"})[0] == 403
     consistent()
     # o registo nunca diz o nome de uma carta escondida
