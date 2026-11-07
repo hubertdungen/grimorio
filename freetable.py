@@ -193,7 +193,7 @@ def _tick(t):
 
 def _clean(c):
     """Estado de mesa a zeros (a carta entrou numa zona nova)."""
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "at", "ph"):
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "at", "ph", "sp", "tg", "blk"):
         c.pop(k, None)  # (cm = comandante e cc = vezes lançado da zona de comando ficam)
 
 
@@ -258,7 +258,7 @@ def _card(t, cid, me):
     out = {"id": c["id"], "o": c["o"]}
     if _sees(t, c, me):
         out["n"] = c["n"]
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "tok", "at", "ph", "cm", "cc"):
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "tok", "at", "ph", "cm", "cc", "sp", "tg", "blk"):
         if c.get(k) not in (None, False, {}):
             out[k] = c[k]
     return out
@@ -372,13 +372,13 @@ def _step(t, to):
         t["step"] = STEPS.index("main1")
     if to > STEPS.index("combat"):
         for c in t["cards"].values():
-            c.pop("atk", None); c.pop("atc", None)
+            c.pop("atk", None); c.pop("atc", None); c.pop("blk", None)
 
 
 def _untap(t, i):
     for cid in t["zones"][i]["battlefield"]:
         c = t["cards"][str(cid)]
-        c.pop("t", None); c.pop("atk", None); c.pop("atc", None)
+        c.pop("t", None); c.pop("atk", None); c.pop("atc", None); c.pop("blk", None)
 
 
 def _turn_start(t, i):
@@ -447,6 +447,8 @@ def apply(t, me, d):
             if src == "battlefield" and dest == c["s"]:  # só mudar de sítio (vem para cima das outras)
                 _take(t, c); _put(t, c, dest, "battlefield")
                 c["x"], c["y"] = _pos(d.get("x")), _pos(d.get("y"))
+                if d.get("free"):  # arrastada para fora da carta a que estava presa: solta-se
+                    c.pop("at", None)
                 return
             _take(t, c)
             if src != "battlefield":
@@ -673,6 +675,50 @@ def apply(t, me, d):
             s2.pop("look", None)
         _log(t, me, "pass", p=nxt, turn=t["turn"])
         _turn_start(t, nxt)
+    elif c0 == "block":  # bloquear: esta criatura (do campo) fica a bloquear o atacante; att=None deixa de bloquear
+        c = need()
+        if c["z"] != "battlefield":
+            raise ValueError("Só bloqueia uma carta do campo.")
+        if d.get("att") is None:
+            c.pop("blk", None)
+        else:
+            a = t["cards"].get(str(d["att"]))
+            if not a or a["z"] != "battlefield" or a.get("atk") is None:
+                raise ValueError("Essa carta não está a atacar.")
+            c["blk"] = a["id"]
+            _log(t, me, "block", name=c["n"], att=a["n"])
+    elif c0 == "cast":  # lançar (com alvo ou sem): fica na pilha — no campo de quem lança, marcada sp — até resolver
+        c = need()
+        if c["z"] == "battlefield" or c["z"] == "library" and not _sees(t, c, me):
+            raise ValueError("Essa carta não se lança daí.")
+        tg, tgt, tgn = d.get("tg") or {}, None, None
+        if tg.get("card") is not None:
+            o = t["cards"].get(str(tg["card"]))
+            if not o or o["z"] != "battlefield" or o["id"] == c["id"]:
+                raise ValueError("O alvo já não está em jogo.")
+            tgt, tgn = {"card": o["id"]}, (o["n"] if _public(o) else None)
+        elif tg.get("seat") is not None:
+            i = _num(tg.get("seat"), 0, len(t["seats"]) - 1)
+            tgt, tgn = {"seat": i}, t["seats"][i]["name"]
+        src = c["z"]
+        _take(t, c); _clean(c)
+        if src == "command" and c.get("cm"):
+            c["cc"] = c.get("cc", 0) + 1
+        _put(t, c, me, "battlefield")
+        c["x"], c["y"], c["sp"] = 0.5, 0.5, t["seq"] + 1  # a ordem na pilha
+        if tgt:
+            c["tg"] = tgt
+        _log(t, me, "cast", name=c["n"], tgn=tgn, tgs=tgt.get("seat") if tgt else None)
+    elif c0 == "resolve":  # sai da pilha: uma permanente fica no campo (perm=1, onde se diz); o resto vai para o cemitério do dono
+        c = need()
+        if not c.get("sp"):
+            raise ValueError("Esse feitiço já não está na pilha.")
+        c.pop("sp", None); c.pop("tg", None)
+        _log(t, me, "resolve", name=c["n"])
+        if d.get("perm"):
+            c["x"], c["y"] = _pos(d.get("x")), _pos(d.get("y"))
+        else:
+            _take(t, c); _put(t, c, c["o"], "graveyard")
     elif c0 == "step":  # a fase seguinte (ou a escolhida); depois do fim passa a vez
         if not _mine_active(t, me):
             raise ValueError("Só quem tem a vez muda a fase.")
@@ -994,6 +1040,26 @@ def selfcheck():
     assert t["cards"][str(boss)]["ph"]
     call("POST", "guest:rui", {"c": "move", "id": boss, "to": "command"})
     assert "at" not in t["cards"][str(h1)] and "ph" not in t["cards"][str(boss)]  # o comandante saiu: a aura fica solta
+    # bloquear um atacante
+    z0, z1 = t["zones"][0], t["zones"][1]
+    a0, d0 = z0["hand"][1], z1["hand"][1]
+    call("POST", "host", {"c": "move", "id": a0, "to": "battlefield"}); call("POST", "guest:rui", {"c": "move", "id": d0, "to": "battlefield"})
+    call("POST", "host", {"c": "attack", "id": a0, "seat": 1}); call("POST", "guest:rui", {"c": "block", "id": d0, "att": a0})
+    assert t["cards"][str(d0)]["blk"] == a0 and t["log"][-1]["k"] == "block"
+    call("POST", "guest:rui", {"c": "block", "id": d0, "att": None}); assert "blk" not in t["cards"][str(d0)]
+    call("POST", "host", {"c": "move", "id": a0, "to": "hand"}); call("POST", "guest:rui", {"c": "move", "id": d0, "to": "hand"})
+    # a pilha: lançar com alvo, responder (anular) e resolver
+    z0, z1 = t["zones"][0], t["zones"][1]
+    bolt, cs = z0["hand"][0], z1["hand"][0]
+    call("POST", "host", {"c": "cast", "id": bolt, "tg": {"seat": 1}})
+    b = t["cards"][str(bolt)]
+    assert b["z"] == "battlefield" and b["sp"] and b["tg"] == {"seat": 1} and t["log"][-1]["k"] == "cast"
+    assert next(c for c in call("GET", "guest:rui")[1]["seats"][0]["battlefield"] if c["id"] == bolt)["sp"]
+    call("POST", "guest:rui", {"c": "cast", "id": cs, "tg": {"card": bolt}})
+    assert t["cards"][str(cs)]["tg"] == {"card": bolt}
+    call("POST", "guest:rui", {"c": "resolve", "id": cs}); call("POST", "guest:rui", {"c": "move", "id": bolt, "to": "graveyard"})  # anulado
+    assert bolt in z0["graveyard"] and cs in z1["graveyard"] and "sp" not in b and "tg" not in b
+    assert call("POST", "host", {"c": "resolve", "id": bolt})[0] == 400
     call("POST", "host", {"c": "peek", "s": 1})  # procurar na biblioteca: vê-a toda e ao fechar baralha
     hv0 = call("GET", "host")[1]["seats"][0]
     assert hv0["srch"] and len(hv0["top"]) == len(t["zones"][0]["library"]) and all(c.get("n") for c in hv0["top"])

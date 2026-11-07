@@ -11,7 +11,7 @@ import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTabl
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
 import Friends from './Friends.jsx'
 import { remoteOn } from './remote.js'
-import { lookup, isCreature, isLand, flipKind, staticPump, powTough, CT, CT_ICON } from './game.js'
+import { lookup, isCreature, isLand, flipKind, staticPump, spellFx, powTough, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
 import { tx } from './i18n.js'
@@ -46,6 +46,9 @@ function line(e, who) {
   switch (e.k) {
     case 'start': return tx('A mesa abriu: cada um tem 7 cartas na mão.')
     case 'draw': return tx('{P} compra {n} carta|{P} compra {n} cartas', { P, n: e.n })
+    case 'cast': return e.tgn ? tx('{P} lança {c} → {t}', { P, c, t: short(e.tgn) }) : tx('{P} lança {c}', { P, c })
+    case 'resolve': return tx('{c} resolve', { c })
+    case 'block': return tx('{P} bloqueia {a} com {c}', { P, c, a: short(e.att) })
     case 'shuffle': return tx('{P} baralha a biblioteca', { P })
     case 'mulligan': return tx('{P} faz mulligan (nova mão de {n})', { P, n: e.n })
     case 'move': {
@@ -114,6 +117,8 @@ function Help({ onClose }) {
         <li><b>{tx('Jogar')}</b> — {tx('arrasta uma carta da mão para o teu lado da mesa (ou duplo clique).')}</li>
         <li><b>{tx('Virar (tap)')}</b> — {tx('clica numa carta tua na mesa (ou {k} com o rato por cima).', { k: K.t })}</li>
         <li><b>{tx('Atacar')}</b> — {tx('arrasta a tua criatura para o lado do adversário: fica virada e a atacar.')}</li>
+        <li><b>{tx('Feitiços e alvos')}</b> — {tx('arrasta um instantâneo ou feitiço para uma carta ou para a esfera de um jogador: vai para a pilha com esse alvo. Para responder, arrasta uma carta para cima do feitiço na pilha (Counterspell…). Ao «Resolver», o dano, destruir, exilar, devolver, anular, comprar e a vida fazem-se sozinhos.')}</li>
+        <li><b>{tx('Bloquear')}</b> — {tx('arrasta a tua criatura para cima de um atacante. Para atacar um planeswalker ou uma batalha, larga o atacante em cima dela. Uma aura ou equipamento arrastado para fora da carta solta-se.')}</li>
         <li><b>{tx('Cemitério, exílio, mão, biblioteca')}</b> — {tx('arrasta a carta para o monte, ou usa o menu da carta (clique direito; no telemóvel, tocar e manter).')}</li>
         <li><b>{tx('Marcadores, virar para baixo, transformar, revelar')}</b> — {tx('no menu da carta.')}</li>
         <li><b>{tx('Auras e equipamentos')}</b> — {tx('larga-os em cima da carta (ou «Prender a…» no menu): ficam presos a ela e saem soltos se ela sair.')}</li>
@@ -285,6 +290,10 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     // perdeu vida com criaturas a atacá-lo: cada atacante vai à esfera com o golpe à sua maneira (o mesmo do Forge Play)
     const atk = now[i] < pv[i] ? seats.flatMap(v => v.battlefield.filter(c => c.atk === i && c.atc == null && c.n)) : []
     if (atk.length) setHits(atk.map(c => ({ key: `${s.seq}:${c.id}`, from: String(c.id), fromName: c.n, to: { side: keyOf(i) }, n: atk.length === 1 ? pv[i] - now[i] : Math.max(1, powTough(data, { name: c.n, counters: c.k || {} })?.p || 1), kind: 'cmb' })))
+    else if (now[i] < pv[i]) {  // um feitiço que acabou de resolver (Lightning Bolt…): o golpe vem do meio da mesa, à maneira dele
+      const r = s.log.slice(-4).reverse().find(x => x.k === 'resolve')
+      if (r) setHits([{ key: `${s.seq}:r`, fromName: r.name, to: { side: keyOf(i) }, n: pv[i] - now[i], kind: 'spl' }])
+    }
     const t = setTimeout(() => setLifeFx(null), 1200); return () => clearTimeout(t)
   }, [lives]) // eslint-disable-line react-hooks/exhaustive-deps
   // o que mudou nas cartas do campo (marcadores, transformar/virar) e no veneno: os mesmos números a saltar da arena
@@ -390,8 +399,23 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       mv(cid, 'hand'); return 'leave'
     }
     const field = target.closest('.ml-field'), seat = field && +field.dataset.seat
-    // aura, equipamento, fortificação (não é criatura) largada em cima de uma carta do campo: fica presa a ela
     const host = target.closest('.ml-field .pc[data-z^="k:"]'), hid = host && +host.dataset.z.slice(2)
+    // lançar: em cima de um feitiço da pilha = responder-lhe (anular…); um instantâneo/feitiço em cima de uma carta ou de
+    // uma esfera = com esse alvo; noutro sítio da mesa = sem alvo. Fica na pilha até quem lança carregar em «Resolver»
+    const stk = target.closest('.ml-stk'), orb = target.closest('.bside .orb')
+    const sorc = e?.c.n && /\b(Instant|Sorcery)\b/.test(short(lookup(data, e.c.n)?.t || ''))
+    if (from !== 'field' && e?.c.n && (stk || sorc)) {
+      const tg = stk ? { card: +stk.dataset.sp } : host && hid !== cid ? { card: hid } : orb ? { seat: +orb.closest('.bside').dataset.seat } : null
+      play('tick', { amount: 1 }); send({ c: 'cast', id: cid, ...(tg && { tg }) }); return 'leave'
+    }
+    // combate: a tua criatura largada em cima de um atacante = bloqueia-o; num planeswalker/batalha de outro = ataca-o
+    const hc = host && byId.get(hid)
+    if (from === 'field' && hc && hc.seat !== me && e?.c.n && isCreature(data, { name: e.c.n })) {
+      play('tick', { amount: 1 })
+      if (hc.c.atk != null) { send({ c: 'block', id: cid, att: hid }); return false }
+      if (/\b(Planeswalker|Battle)\b/.test(lookup(data, hc.c.n)?.t || '')) { send({ c: 'attack', id: cid, seat: hc.seat, card: hid }); return false }
+    }
+    // aura, equipamento, fortificação (não é criatura) largada em cima de uma carta do campo: fica presa a ela
     if (host && hid !== cid && e?.c.n && !isCreature(data, { name: e.c.n }) && !isLand(data, { name: e.c.n })) {
       if (from === 'field') { attach(cid, hid); return true }
       const w = spot(e.c); play('tick', { amount: 1 }); mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me, at: hid }); return true  // num só comando: antes ia para uma casa livre e só depois saltava para a carta
@@ -401,7 +425,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       if (from === 'field') {  // no teu lado: muda de sítio já no ecrã (o servidor confirma a seguir)
         setS(v => ({ ...v, seats: v.seats.map((st, i) => (i !== me ? st : { ...st, battlefield: [...st.battlefield.filter(c => c.id !== cid), { ...st.battlefield.find(c => c.id === cid), x: w.x, y: w.y }] })) }))
         setVer(v => v + 1)
-        mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me }); return 'local'
+        mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me, ...(e?.c.at != null && { free: 1 }) }); return 'local'  // presa a outra e largada fora dela: solta-se
       }
       mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me }); return true
     }
@@ -417,7 +441,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     const own = f?.width && sd && m.x >= sd.left && m.x <= sd.right && m.y >= sd.top && m.y <= sd.bottom
     if (p) live({ k: 'card', id: m.id, ...p, ...(own && { fx: (m.x - f.left) / f.width, fy: (m.y - f.top) / f.height }) }); else if (!m) live({ k: 'end' })
   }
-  const { down, dragged } = useDrag(drop, cid => openMenu(cid, downAt.current.x, downAt.current.y), previewLive, '[data-h], .bside.bottom .pc[data-z^="k:"]', el => { const z = el?.dataset.z, id = z?.startsWith('k:') ? +z.slice(2) : +el?.dataset.zid, n = byId.get(id)?.c?.n; if (n) setBig(n) })
+  const { down, dragged } = useDrag(drop, cid => openMenu(cid, downAt.current.x, downAt.current.y), previewLive, '[data-h], .bside.bottom .pc[data-z^="k:"], .bside.bottom .pc-attc[data-z]', el => { const z = el?.dataset.z, id = z?.startsWith('k:') ? +z.slice(2) : +el?.dataset.zid, n = byId.get(id)?.c?.n; if (n) setBig(n) })
   const [handOrder, setHandOrder] = useState(null)
   const openMenu = (cid, x, y) => { const e = byId.get(cid); if (!e || (e.z === 'hand' && e.c.o !== me)) return; setMenu({ id: cid, x, y }); setZoom(byId.get(cid)?.c.n || null); peek.hide() }
 
@@ -459,15 +483,29 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const others = Array.from({ length: n - 1 }, (_, k) => (me + 1 + k) % n)
   const fx = { hl: new Set(), par: 0, pops: new Map(), life: lifeFx, player: null }
   const hs = { active: keyOf(s.active), exact: true, i: s.seq, sides: [] }
-  const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: v.cd || {}, poison: v.poison, energy: v.energy || 0, emblems: [], out: false, perms: v.battlefield.filter(c => c.n && !c.ph).map(c => permOf(c)),  // as permanentes: a esfera ganha as cores e o fluido do que está em campo (como no Forge Play)
+  const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: v.cd || {}, poison: v.poison, energy: v.energy || 0, emblems: [], out: false, perms: v.battlefield.filter(c => c.n && !c.ph && !c.sp).map(c => permOf(c)),  // as permanentes: a esfera ganha as cores e o fluido do que está em campo (como no Forge Play)
     monarch: v.mk?.includes('monarch'), initiative: v.mk?.includes('initiative'), blessing: v.mk?.includes('blessing') })
   const handOf = v => (handOrder ? [...v.hand].sort((a, b) => { const i = handOrder.indexOf(String(a.id)), k = handOrder.indexOf(String(b.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : v.hand)
-  const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, atkKey: c.atc != null ? String(c.atc) : undefined, atkName: c.atc != null ? byId.get(c.atc)?.c?.n : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph })
+  const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, blocking: c.blk != null ? String(c.blk) : undefined, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, atkKey: c.atc != null ? String(c.atc) : undefined, atkName: c.atc != null ? byId.get(c.atc)?.c?.n : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph })
   const onField = new Set(seats.flatMap(v => v.battlefield.map(c => c.id)))
+  // a pilha: os feitiços lançados (no campo de quem lança, marcados sp) pela ordem em que entraram; o de cima resolve primeiro
+  const stack = seats.flatMap(v => v.battlefield.filter(c => c.sp)).sort((a, b) => b.sp - a.sp)
+  const aimed = new Set(stack.map(c => c.tg?.card).filter(x => x != null)), aimedP = new Set(stack.map(c => c.tg?.seat).filter(x => x != null))
+  const tgInfo = c => {  // o alvo de um feitiço da pilha, para o spellFx
+    if (c.tg?.seat != null) return { seat: c.tg.seat, who: who(c.tg.seat) }
+    const t = c.tg?.card != null && byId.get(c.tg.card)
+    return t && t.z === 'battlefield' ? { card: { ...permOf(t.c), id: t.c.id, pump: pumpOf.get(t.c.id) }, spell: !!t.c.sp } : null
+  }
+  const resolveSp = async c => {  // resolve e faz o que o texto diz (dano, destruir, exilar, devolver, anular, comprar, vida)
+    const fx = c.n ? spellFx(data, c.n, tgInfo(c)) : null, perm = !!c.n && !/\b(Instant|Sorcery)\b/.test(short(lookup(data, c.n)?.t || ''))
+    const w = perm ? spot(c) : null
+    await send({ c: 'resolve', id: c.id, ...(perm && { perm: 1, x: w.x, y: w.y }) })
+    for (const x of fx?.cmds || []) await send(x.self ? { c: 'life', seat: me, d: x.d } : x)
+  }
   const attOf = new Map()  // carta -> as que estão presas a ela
   for (const v of seats) for (const c of v.battlefield) if (c.at != null && onField.has(c.at)) attOf.set(c.at, [...(attOf.get(c.at) || []), permOf(c)])
   // P/R automático: equipamentos/auras presos e anthems de quem a controla (e os «−1/−1» dos outros)
-  const fieldOf = seats.map(v => v.battlefield.filter(c => c.n && !c.ph).map(permOf))
+  const fieldOf = seats.map(v => v.battlefield.filter(c => c.n && !c.ph && !c.sp).map(permOf))
   const pumpOf = new Map(seats.flatMap((v, i) => v.battlefield.filter(c => c.n && !c.ph).map(c => [c.id, staticPump(data, permOf(c), attOf.get(c.id) || [], fieldOf[i], fieldOf.filter((_, j) => j !== i).flat())])))
   const side = (i, top, compact) => {
     const v = seats[i], k = keyOf(i), isMe = i === me
@@ -480,10 +518,10 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       openZone={() => {}} top={top} hand={<>{cmd}{hand}</>} openLib={isMe ? onLib : null} />
     const field = (
       <div className={`ml-field ${top ? 'mirror' : ''}`} data-seat={i}>
-        {v.battlefield.filter(c => !(c.at != null && onField.has(c.at))).map(c => {
+        {v.battlefield.filter(c => !c.sp && !(c.at != null && onField.has(c.at))).map(c => {
           const left = top ? 1 - (c.x ?? 0.5) : c.x ?? 0.5, tp = top ? 1 - (c.y ?? 0.5) : c.y ?? 0.5
           return (
-            <div key={c.id} className={`bfree-c ${kindOf(c)} ${pickAt != null && pickAt !== c.id ? 'ml-pick' : ''}`} style={{ left: `clamp(calc(var(--w) * .5), ${left * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${tp * 100}%, calc(100% - var(--w) * .7))` }}>
+            <div key={c.id} className={`bfree-c ${kindOf(c)} ${pickAt != null && pickAt !== c.id ? 'ml-pick' : ''} ${aimed.has(c.id) ? 'ml-tgt' : ''}`} style={{ left: `clamp(calc(var(--w) * .5), ${left * 100}%, calc(100% - var(--w) * .5))`, top: `clamp(calc(var(--w) * .7), ${tp * 100}%, calc(100% - var(--w) * .7))` }}>
               <Perm p={{ ...permOf(c), pump: pumpOf.get(c.id) || undefined }} data={data} hl={0} pop={pops.get(String(c.id)) || null} att={attOf.get(c.id)} n={0} quiet={false} tgt={c.atk != null ? [keyOf(c.atk), short(c.atc != null ? byId.get(c.atc)?.c?.n || who(c.atk) : who(c.atk))] : null} />
             </div>)
         })}
@@ -491,7 +529,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       </div>
     )
     return (<Arts.Provider key={i} value={{ arts: { [k]: v.arts }, k }}><OrbCtx.Provider value={{ mine: isMe ? k : null, seed: s?.id || '', looks: !isMe && v.orb ? { [k]: v.orb } : null }}>
-      <div className={`bside ml-side ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i} data-mat={(isMe || !P.mats ? P.mat : v.mat) || undefined}
+      <div className={`bside ml-side ${aimedP.has(i) ? 'ml-tgt-p' : ''} ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i} data-mat={(isMe || !P.mats ? P.mat : v.mat) || undefined}
         onClickCapture={e => { const z = e.target.closest('[data-zone]')?.dataset.zone; if (z === 'graveyard' || z === 'exile') { e.stopPropagation(); setZone({ seat: i, which: z }) } }}>
         {top ? <>{hud}{field}</> : <>{field}{hud}</>}
       </div></OrbCtx.Provider></Arts.Provider>
@@ -583,7 +621,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       const opp = others.filter(i => !seats[i].out)
       return [...head, [c.t ? tx('↺ Desvirar') : tx('↻ Virar (tap)'), () => tap(cid)],
         ...opp.flatMap(i => [['⚔ ' + tx('Atacar {p}', { p: who(i) }), () => send({ c: 'attack', id: cid, seat: i })],
-          ...seats[i].battlefield.filter(x => x.n && /\b(Planeswalker|Battle)\b/.test(lookup(data, x.n)?.t || '')).map(x => ['⚔ ' + tx('Atacar {p}', { p: short(x.n) }), () => send({ c: 'attack', id: cid, seat: i, card: x.id })])]), ...(c.atk != null ? [[tx('Deixar de atacar'), () => send({ c: 'attack', id: cid, seat: null })]] : []),
+          ...seats[i].battlefield.filter(x => x.n && /\b(Planeswalker|Battle)\b/.test(lookup(data, x.n)?.t || '')).map(x => ['⚔ ' + tx('Atacar {p}', { p: short(x.n) }), () => send({ c: 'attack', id: cid, seat: i, card: x.id })])]), ...(c.atk != null ? [[tx('Deixar de atacar'), () => send({ c: 'attack', id: cid, seat: null })]] : []), ...(c.blk != null ? [[tx('Deixar de bloquear'), () => send({ c: 'block', id: cid, att: null })]] : []),
         [`+1/+1 ${c.k?.['+1/+1'] || 0}`, null, [['−', ctr('+1/+1', -1)], ['＋', ctr('+1/+1', 1)]]], [`${tx('Lealdade')} ${c.k?.loyalty || 0}`, null, [['−', ctr('loyalty', -1)], ['＋', ctr('loyalty', 1)]]],
         ['◆ ' + tx('Outros marcadores…'), () => setTimeout(() => setMenu({ ctr: cid, x: menu.x, y: menu.y }))],
         ...(flipKind(cd) === 'df' ? [['⟲ ' + tx('Transformar (outra face)'), () => send({ c: 'flip', id: cid })]] : flipKind(cd) === 'flip' ? [['⟲ ' + tx('Virar a carta flip (180°)'), () => send({ c: 'flip', id: cid })]] : []),
@@ -594,7 +632,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     }
     if (z === 'hand') return [...head, ['▶ ' + tx('Jogar (para o campo)'), () => toField(cid)], ['🂠 ' + tx('Jogar virada para baixo'), () => toField(cid, { down: true })],
       [c.r ? tx('🙈 Esconder outra vez') : tx('👁 Revelar a todos'), () => send({ c: 'reveal', id: cid })], ...to]
-    return [...head, ['▶ ' + tx('Para o campo'), () => toField(cid)], ...to, ...(z !== 'command' && owner ? [['♛ ' + tx('Zona de comando'), () => mv(cid, 'command')]] : []),
+    return [...head, ['▶ ' + tx('Para o campo'), () => toField(cid)], ...(z !== 'battlefield' && c.n ? [['⚡ ' + tx('Lançar (para a pilha)'), () => send({ c: 'cast', id: cid })]] : []), ...to, ...(z !== 'command' && owner ? [['♛ ' + tx('Zona de comando'), () => mv(cid, 'command')]] : []),
       ...(z === 'command' && c.cm ? [[`${tx('Imposto de comandante')} +${2 * (c.cc || 0)}`, null, [['−', () => send({ c: 'tax', id: cid, d: -1 })], ['＋', () => send({ c: 'tax', id: cid, d: 1 })]]]] : [])]
   }
   const rollDice = async types => { const thr = await dice.throwFrom(); send({ c: 'dice', types, ...(thr && { thr }) }) }
@@ -667,6 +705,15 @@ function Table({ id, data, onClose, onNext, onBegin }) {
           <div className={`fp-table board table ${P.cardPx ? 'px' : ''} ${seats.some(v => v.battlefield.some(c => c.atk != null)) ? 'combat-on' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onContextMenu={onCtx} onMouseMove={tilt} onPointerDown={down}>
             {/* a linha do atacante até ao planeswalker/batalha que ataca */}
             <DamageFx hits={hits} data={data} />
+            {stack.length > 0 && <div className="ml-stack" role="list" aria-label={tx('Pilha')}><b className="ml-stack-h">{tx('Pilha')}</b>
+              {stack.map((c, k) => { const fx = c.n && spellFx(data, c.n, tgInfo(c)), tn = c.tg?.seat != null ? who(c.tg.seat) : c.tg?.card != null ? short(byId.get(c.tg.card)?.c?.n) || tx('uma carta') : null
+                return <div key={c.id} className={`ml-stk ${k === 0 ? 'top' : ''}`} role="listitem" data-sp={c.id} data-zid={c.id}>
+                  <FCard c={{ id: c.id, name: c.n }} data={data} />
+                  <span className="ml-stk-t"><small>{who(c.s)}{tn ? ` → ${tn}` : ''}</small>{fx?.say && <small className="muted">{fx.say}</small>}
+                    {c.s === me ? <span className="row-btns"><button type="button" className="small primary" disabled={k !== 0} onClick={() => resolveSp(c)} title={k !== 0 ? tx('Primeiro resolve o de cima') : fx?.say || tx('Resolver')}>✓ {tx('Resolver')}</button>
+                      <button type="button" className="small" onClick={() => mv(c.id, 'hand')} title={tx('Voltar à mão')}>↩</button></span>
+                      : k === 0 && <small className="muted">{tx('Para responder, arrasta uma carta para aqui')}</small>}</span>
+                </div> })}</div>}
             <CombatLinks s={{ sides: seats.map((_, i) => keyOf(i)), ...Object.fromEntries(seats.map((v, i) => [keyOf(i), { perms: v.battlefield.map(permOf) }])) }} />
             <div className="ml-opps" style={{ '--np': others.length }}>{others.map(i => side(i, true, others.length > 1))}</div>
             <div className="fp-mid">

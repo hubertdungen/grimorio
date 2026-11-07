@@ -3939,3 +3939,16 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .ml-srch { margin-left: 8px; min-width: min(320px, 60vw); }
 .ml-invites { position: relative; max-width: min(720px, 94vw); max-height: 86vh; overflow: auto; }
 .ml-inv-x { position: absolute; top: 8px; right: 10px; }
+/* mesa livre: a pilha (feitiços lançados) e os alvos */
+.ml-stack { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); z-index: 30; display: flex; flex-direction: column; gap: 6px; padding: 8px; max-height: 80%; overflow: auto;
+  border-radius: 12px; background: #10131fe8; border: 1px solid var(--gold); box-shadow: 0 14px 34px #000c; }
+.ml-stack-h { font-size: 12px; color: var(--gold); text-transform: uppercase; letter-spacing: .08em; }
+.ml-stk { display: flex; gap: 8px; align-items: center; padding: 4px; border-radius: 9px; border: 1px solid transparent; }
+.ml-stk.top { border-color: #ffffff2a; background: #ffffff0a; }
+.ml-stk .fcard, .ml-stk > :first-child { width: 64px; flex: none; }
+.ml-stk-t { display: flex; flex-direction: column; gap: 3px; max-width: 190px; font-size: 12px; }
+.ml-stk-t .row-btns { gap: 4px; }
+.fp-dragging .ml-stk, body:has(.fp-ghost) .ml-stk { outline: 2px dashed #ffffff40; }
+.bfree-c.ml-tgt .pc { box-shadow: 0 0 0 3px #ff5c3a, 0 0 18px #ff5c3acc; animation: mltgt 1s ease-in-out infinite; border-radius: 6px; }
+.bside.ml-tgt-p .orb { box-shadow: 0 0 0 3px #ff5c3a, 0 0 22px #ff5c3a; }
+@keyframes mltgt { 50% { box-shadow: 0 0 0 3px #ffb08a, 0 0 26px #ff5c3a; } }

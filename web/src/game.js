@@ -128,6 +128,41 @@ export function staticPump(data, perm, attached = [], mine = [], theirs = []) {
   return p || t ? [p, t] : null
 }
 
+// mesa livre: o que um feitiço faz ao resolver, lido do texto (os casos mais comuns) -> { cmds, say } ou null.
+// tg: { seat, who } (um jogador) | { card: perm (com id), spell: na pilha? } | null; os cmds são comandos da mesa livre
+// ponytail: só alvo único e efeitos diretos (dano, destruir, exilar, devolver, anular, comprar, vida); o resto faz-se à mão
+export function spellFx(data, name, tg) {
+  const c = lookup(data, name)
+  if (!c) return null
+  const o = (c.o || '').split('\n//\n')[0].toLowerCase().replace(/\([^)]*\)/g, '')
+  const cmds = [], say = [], num = w => N[w] ?? (+w || 0)
+  const gone = (to, line) => { cmds.push({ c: 'move', id: tg.card.id, to }); say.push(line) }
+  const tn = tg?.card?.name || tx('a carta')
+  if (tg?.spell) {
+    if (/counter target [^.]*spell/.test(o)) gone('graveyard', tx('anula {c}', { c: tn }))
+  } else if (tg?.card) {
+    const pt = powTough(data, tg.card), dm = /deals? (\d+) damage to (?:any target|target (?:creature|planeswalker|permanent|attacking|blocking)[^.]*|any one target)/.exec(o)
+    const mm = /target creature (?:gets|an opponent controls gets) ([+-]\d+)\/([+-]\d+)/.exec(o)
+    if (/exile target/.test(o)) gone('exile', tx('exila {c}', { c: tn }))
+    else if (/destroy target/.test(o)) gone('graveyard', tx('destrói {c}', { c: tn }))
+    else if (/return target [^.]*to (?:its|their) owner'?s?'? hands?/.test(o)) gone('hand', tx('devolve {c} à mão', { c: tn }))
+    else if (/put target [^.]*on (?:the )?top of (?:its|their) owner'?s?'? library/.test(o)) gone('library', tx('põe {c} no topo da biblioteca', { c: tn }))
+    else if (dm && pt && +dm[1] >= pt.t) gone('graveyard', tx('{n} de dano: {c} morre', { n: dm[1], c: tn }))
+    else if (dm) say.push(tx('{n} de dano a {c}', { n: dm[1], c: tn }))
+    else if (mm && pt && pt.t + +mm[2] <= 0) gone('graveyard', tx('{c} fica com {p}/{t} e morre', { c: tn, p: pt.p + +mm[1], t: pt.t + +mm[2] }))
+  } else if (tg?.seat != null) {
+    const dm = /deals? (\d+) damage to (?:any target|target (?:player|opponent)|target player or planeswalker|target opponent or planeswalker|any one target)/.exec(o)
+    const ll = /target (?:player|opponent) loses (\d+) life/.exec(o)
+    const n = dm ? +dm[1] : ll ? +ll[1] : 0
+    if (n) { cmds.push({ c: 'life', seat: tg.seat, d: -n }); say.push(tx('{n} de dano a {p}', { n, p: tg.who || '' })) }
+  }
+  const dr = /(?:^|[.\n] *)draw (a|one|two|three|four|five|\d+) cards?/.exec(o)
+  if (dr) { cmds.push({ c: 'draw', n: num(dr[1]) }); say.push(tx('compras {n}', { n: num(dr[1]) })) }
+  const gl = /\byou gain (\d+) life/.exec(o)
+  if (gl) { cmds.push({ c: 'life', self: true, d: +gl[1] }); say.push(tx('ganhas {n} de vida', { n: gl[1] })) }
+  return cmds.length || say.length ? { cmds, say: say.join(' · ') } : null
+}
+
 // a conta do poder/resistência de uma criatura na mesa: o impresso, os marcadores +1/+1 e −1/−1 e o resto (auras,
 // anthems, até ao fim do turno) = o que falta para o total. printed/other null quando a carta não tem P/R impresso (fichas)
 export function ptExplain(data, perm) {

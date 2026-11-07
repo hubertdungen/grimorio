@@ -105,7 +105,7 @@ assert.equal(inferFormat(data, { commanders: [], main: { 'Lightning Bolt': 4, Fo
 assert.equal(inferFormat(data, { commanders: [], main: { 'Sol Ring': 1, Forest: 59 } }), 'vintage')
 console.log('selfcheck formato ok')
 // Modelo do tabuleiro (game.js) com eventos tirados de registos reais do Forge (sim.py, parse_game)
-import { replayStates, powTough, staticPump } from './src/game.js'
+import { replayStates, powTough, staticPump, spellFx } from './src/game.js'
 {
   const G = [
     { n: 'Krenko, Mob Boss', t: 'Legendary Creature — Goblin Warrior', o: '{T}: Create X 1/1 red Goblin creature tokens.', pt: '3/3', kw: [] },
@@ -897,6 +897,20 @@ import { ptExplain } from './src/game.js'
     assert.deepEqual(staticPump(g2, P('Lord'), [], field, []), [1, 1])  // «other»: o próprio senhor não conta
     assert.equal(staticPump(g2, P('Anthem'), [], field, []), null)  // não é criatura
     assert.equal(powTough(g2, { ...P('Elf A'), pump: [3, 1] }).p, 4)
+  }
+  {  // mesa livre: o que um feitiço faz ao resolver
+    const C = [['Lightning Bolt', 'Instant', 'Lightning Bolt deals 3 damage to any target.'], ['Path to Exile', 'Instant', 'Exile target creature. Its controller may search their library for a basic land card, put that card onto the battlefield tapped, then shuffle.'],
+      ['Counterspell', 'Instant', 'Counter target spell.'], ['Lightning Helix', 'Instant', 'Lightning Helix deals 3 damage to any target and you gain 3 life.'], ['Divination', 'Sorcery', 'Draw two cards.'],
+      ['Ox', 'Creature — Ox', '', '2/4'], ['Bear', 'Creature — Bear', '', '2/2'], ['Unsummon', 'Instant', "Return target creature to its owner's hand."]]
+    const g3 = { byName: new Map(C.map(([n, t, o, pt]) => [n, { n, t, o, pt: pt || '' }])), byLower: new Map() }
+    assert.deepEqual(spellFx(g3, 'Lightning Bolt', { seat: 1, who: 'Rui' }).cmds, [{ c: 'life', seat: 1, d: -3 }])
+    assert.deepEqual(spellFx(g3, 'Lightning Bolt', { card: { id: 7, name: 'Bear' } }).cmds, [{ c: 'move', id: 7, to: 'graveyard' }])
+    assert.deepEqual(spellFx(g3, 'Lightning Bolt', { card: { id: 8, name: 'Ox' } }).cmds, [])  // 3 de dano não chega
+    assert.deepEqual(spellFx(g3, 'Path to Exile', { card: { id: 7, name: 'Bear' } }).cmds, [{ c: 'move', id: 7, to: 'exile' }])
+    assert.deepEqual(spellFx(g3, 'Counterspell', { card: { id: 9, name: 'Divination' }, spell: true }).cmds, [{ c: 'move', id: 9, to: 'graveyard' }])
+    assert.deepEqual(spellFx(g3, 'Lightning Helix', { seat: 1 }).cmds, [{ c: 'life', seat: 1, d: -3 }, { c: 'life', self: true, d: 3 }])
+    assert.deepEqual(spellFx(g3, 'Divination', null).cmds, [{ c: 'draw', n: 2 }])
+    assert.deepEqual(spellFx(g3, 'Unsummon', { card: { id: 7, name: 'Bear' } }).cmds, [{ c: 'move', id: 7, to: 'hand' }])
   }
   console.log('selfcheck conta do poder/resistência ok')
 }
