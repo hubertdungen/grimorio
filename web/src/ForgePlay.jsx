@@ -734,6 +734,15 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // criaturas, terrenos, outras) entra nessa fila, no sítio pela posição; largada longe das filas fica solta onde a
   // pousaste (Livre) ou na casa mais perto (Grelha). Com «Filas automáticas» vai sempre para uma fila.
   // null = fora do teu lado ou por cima da tua barra; {row, before} = numa fila, antes dessa carta; {free} = solta
+  // a carta antes da qual entra a largada numa fila: na linha mais perto do y (a fila pode ter duas linhas, grelha
+  // adaptável), a primeira com o meio à direita do x; passado o fim dessa linha, antes da primeira da linha seguinte
+  const beforeAt = (row, keys, x, y) => {
+    const rs = keys.map(k => [k, row.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect()]).filter(([, e]) => e)
+    const cy = e => e.top + e.height / 2, ly = rs.reduce((b, [, e]) => (Math.abs(cy(e) - y) < Math.abs(b - y) ? cy(e) : b), Infinity)
+    const on = e => Math.abs(cy(e) - ly) < e.height / 2
+    const i = rs.findIndex(([, e]) => on(e) && e.left + e.width / 2 > x)
+    return (i >= 0 ? rs[i] : rs[rs.findLastIndex(([, e]) => on(e)) + 1])?.[0] ?? null
+  }
   const whereOn = (id, target, x, y) => {
     const side = target?.closest('.fp-table .bside.bottom')
     if (!side || target.closest('.bhud')) return null
@@ -742,7 +751,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     // um terreno vai sempre para a fila dos terrenos, mesmo em Livre ou largado longe dela: só a ordem segue onde o largaste
     if (kind === 'lands' && rowOf('lands')) {
       const row = rowOf('lands'), keys = keysIn(row, '.pc[data-z^="k:"]', 'data-z').filter(k => k !== String(id))
-      const before = keys.find(k => { const e = row.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect(); return e && e.left + e.width / 2 > x }) ?? null
+      const before = beforeAt(row, keys, x, y)
       return { row: 'lands', before, box: row }
     }
     let under = target.closest('.brow:not(.rear)') || (target.closest('.brow.rear') && rowOf(kind === 'front' ? 'lands' : kind))
@@ -757,14 +766,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       if (P.place !== 'rows' && (y < q.top - pad || y > q.bottom + pad)) continue
       const r = row.classList.contains('front') ? 'front' : row.classList.contains('lands') ? 'lands' : 'others'
       const keys = keysIn(row, '.pc[data-z^="k:"]', 'data-z').filter(k => k !== String(id))
-      const before = keys.find(k => { const e = row.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect(); return e && e.left + e.width / 2 > x }) ?? null
+      const before = beforeAt(row, keys, x, y)
       return { row: r, before, box: row.classList.contains('rear') ? row.querySelector('.brow.others') || row : row }
     }
     // fora das filas: cada carta vai para a fila dela (criaturas/planeswalkers à frente, encantamentos e artefactos na
     // deles), na posição pelo x; só no modo Livre fica solta onde a largaste
     if (P.place !== 'free') {
       const row = side.querySelector(`.brow.${kind}`), keys = row ? keysIn(row, '.pc[data-z^="k:"]', 'data-z').filter(k => k !== String(id)) : []
-      const before = row && keys.find(k => { const e = row.querySelector(`.pc[data-z="k:${k}"]`)?.getBoundingClientRect(); return e && e.left + e.width / 2 > x }) || null
+      const before = row ? beforeAt(row, keys, x, y) : null
       return { row: kind, before, box: row || null }
     }
     return { free: spotOn(side, x, y, kind, false, id) }

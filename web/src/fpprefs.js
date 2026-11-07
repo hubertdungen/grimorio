@@ -21,6 +21,7 @@ export const fpPrefs = () => {
     flip: o.flip || 'f', tap: o.tap || 't',
     autopay: o.autopay === true, autoresolve: o.autoresolve === true,  // pagar sozinho: desligado por omissão
     place: ['grid', 'free', 'rows'].includes(o.place) ? o.place : 'grid',
+    rowsMax: o.rowsMax === 2 ? 2 : 4,  // grelha: até 4 filas por lado (criaturas e terrenos em duas linhas quando estão apertados) ou sempre 2
     rowAlign: ['center', 'right'].includes(o.rowAlign) ? o.rowAlign : 'left',  // filas dos terrenos e das criaturas: à esquerda, ao centro ou à direita (antes das outras permanentes)
     persp: o.persp !== false, tilt: Number.isFinite(o.tilt) ? o.tilt : 30,
     oppFace: o.oppFace === 'far' ? 'far' : 'me',  // cartas dos adversários: viradas para mim (legíveis) ou para eles (180°, como numa mesa a sério)

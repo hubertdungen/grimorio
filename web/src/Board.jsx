@@ -388,14 +388,16 @@ function groups(perms, groupable) {
   return out
 }
 
-function Row({ perms, data, fx, att, cls, groupable, empty, quiet, who }) {  // who: nomes por lado, só com 3+ jogadores
-  const gs = groups(perms, groupable)
+// split: a fila pode partir-se em duas linhas (mesa de tamanho fixo, tablekit.useOverlap): .brk é a quebra, a meio dos
+// grupos, escondida enquanto a fila tem uma linha só (data-lines="2" mostra-a)
+function Row({ perms, data, fx, att, cls, groupable, empty, quiet, who, split }) {  // who: nomes por lado, só com 3+ jogadores
+  const gs = groups(perms, groupable), half = split && gs.length > 1 ? Math.ceil(gs.length / 2) : -1
   return (
     <div className={`brow ${cls}`}>
-      {gs.map(g => (
-        <div key={g.key} className={`grp ${g.items.length > 1 ? 'many' : ''}`}>
+      {gs.map((g, i) => (
+        <Fragment key={g.key}>{i === half && <i className="brk" />}<div className={`grp ${g.items.length > 1 ? 'many' : ''}`}>
           {g.items.slice(-4).map((p, j, vis) => <Perm key={p.key} p={p} data={data} hl={fx.hl.has(p.key) ? fx.par : 0} pop={fx.pops.get(p.key) || null} att={att.get(p.key)} n={j === vis.length - 1 ? g.items.length : 0} quiet={quiet} tgt={who?.[p.attacking] ? [p.attacking, short(who[p.attacking])] : null} />)}
-        </div>
+        </div></Fragment>
       ))}
       {!gs.length && empty && <span className="brow-empty">{empty}</span>}
     </div>
@@ -1692,10 +1694,10 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
   for (const p of live) { if (free?.[p.key]) { loose.push(p); continue } const r = place?.[p.key] || (isCreature(data, p) || walker(p) ? 'front' : isLand(data, p) ? 'lands' : 'others'); (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
   creatures.sort((x, y) => walker(x) - walker(y))  // estável: as criaturas pela ordem delas, os planeswalkers depois
   if (order) for (const xs of [creatures, lands, others]) xs.sort((x, y) => (order[x.key] ?? 1e9) - (order[y.key] ?? 1e9))
-  const front = <Row perms={creatures} data={data} fx={fx} att={att} cls="front" groupable={p => p.token} empty={tx('sem criaturas')} quiet={fast} who={who} />
+  const front = <Row perms={creatures} data={data} fx={fx} att={att} cls="front" groupable={p => p.token} empty={tx('sem criaturas')} quiet={fast} who={who} split />
   const back = (
     <div className="brow rear">
-      <Row perms={lands} data={data} fx={fx} att={att} cls="lands" groupable={() => true} quiet={fast} />
+      <Row perms={lands} data={data} fx={fx} att={att} cls="lands" groupable={() => true} quiet={fast} split />
       {others.length > 0 && <Row perms={others} data={data} fx={fx} att={att} cls="others" groupable={p => p.token} quiet={fast} />}
     </div>
   )
