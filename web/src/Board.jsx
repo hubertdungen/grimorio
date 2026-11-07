@@ -11,6 +11,7 @@ import { playEvent, play } from './sfx.js'
 import { attackStyle, attackFx } from './orbfx.js'
 import { leaveGhost } from './tablekit.js'
 import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
+import { snapBoard } from './fpboard.js'
 import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
@@ -44,6 +45,7 @@ function describe(ev, who) {
   const P = who[ev.p] || tx('Alguém'), c = short(ev.card), T = who[ev.target] || short(ev.target)
   switch (ev.k) {
     case 'turn': return tx('Turno {t} — {P}', { t: ev.t, P })
+    case 'snap': return ev.txt || ''  // réplica de um jogo jogado por pessoas: o que mudou nessa fotografia
     case 'nodraw': return tx('{P} não compra no 1.º turno (Two-Headed Giant: a equipa que começa)', { P })
     case 'phase': return tx('Fase: {ph}', { ph: PH_LABEL[ev.ph] || ev.ph })
     case 'mulligan': return ev.card === 'kept' ? tx('{P} fica com {n} carta|{P} fica com {n} cartas', { P, n: ev.n }) : tx('{P} faz mulligan para {n}', { P, n: ev.n })
@@ -1962,7 +1964,8 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   }, [game])
   useLayoutEffect(() => { fitRef.current?.() })
   const setHands = v => { setHandsS(v); onHands?.(v) }
-  const evs = useMemo(() => game.events || [], [game])  // game: Two-Headed Giant com os turnos da equipa (giantTurns)
+  // jogos jogados por pessoas (Forge Play, mesa estrita): fotografias do estado (game.snaps), um passo por fotografia
+  const evs = useMemo(() => (game.snaps ? game.snaps.map(x => ({ k: 'snap', txt: x.txt, p: x.p })) : game.events || []), [game])  // game: Two-Headed Giant com os turnos da equipa (giantTurns)
   const [pos, setPos] = useState({ i: 0, jump: true })
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeedS] = useState(speed0 ?? (live ? 3 : 2))
@@ -1974,7 +1977,8 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const start = game.startLife || 20
   const giant = game.mode === '2hg' ? game.teams : null
   const [px, setPx] = useState(() => fpPrefs().cardPx)  // tamanho das cartas escolhido (0 = automático)
-  const states = useMemo(() => replayStates(evs, data, start, game.setup || null, !!game.exact, giant), [evs, data, start, game.setup, game.exact, giant])
+  const states = useMemo(() => (game.snaps ? [snapBoard(game.snaps[0]?.st, 0), ...game.snaps.map((x, k) => snapBoard(x.st, k + 1))]
+    : replayStates(evs, data, start, game.setup || null, !!game.exact, giant)), [evs, data, start, game.setup, game.exact, giant, game.snaps])
   const i = Math.min(pos.i, evs.length)
   const go = (n, jump = true) => setPos({ i: Math.max(0, Math.min(evs.length, n)), jump })
   useEffect(() => {

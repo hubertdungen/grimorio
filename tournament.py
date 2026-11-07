@@ -404,6 +404,7 @@ def record(st, m, g, gid):
     win = None if g.get("crashed") else side(g.get("winner"))
     m["g"].append({"id": gid, "w": win, "t": g.get("turns"), "s": seats, **({"x": 1} if g.get("crashed") else {}),
                    **({"h": 1} if g.get("human") else {}),  # jogado por pessoas (Forge Play ou mesa livre)
+                   **({"r": 1} if g.get("snaps") else {}),  # … mas com fotografias do estado: dá para rever
                    **({"sb": m["sb"]} if m.get("sb") else {})})
     if g.get("crashed"):
         m["err"] = m.get("err", 0) + 1
@@ -1562,7 +1563,8 @@ def step():
                 if r and not r["ended"]:
                     continue
                 if r and r["side"]:  # acabou com vencedor: regista como um jogo do torneio
-                    g = {"winner": r["side"], "turns": r["turns"], "reason": "Jogado no Forge Play", "events": [], "human": True}
+                    g = {"winner": r["side"], "turns": r["turns"], "reason": "Jogado no Forge Play", "events": [], "human": True,
+                         **({"snaps": r["snaps"]} if r.get("snaps") else {})}  # fotografias do estado: dá para rever o jogo
                     gid = con.execute("INSERT INTO tournament_games (tid, ts, game) VALUES (?,?,?)", (tid, time.time(), zlib.compress(
                         json.dumps({**g, "match": m["id"], "seats": m["seats"]}, ensure_ascii=False).encode(), 6))).lastrowid
                     record(st, m, g, gid)  # ratings: só no misto, pelo playnet (ver start_play)

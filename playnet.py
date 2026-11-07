@@ -48,6 +48,8 @@ def _reader(sid, p):
             v = v if v is not None else s
             if k == "state":
                 v["state"] = m
+                if v is s or m.get("s") == "a":  # réplica: o estado de quem joga (na mesa estrita, o lugar a)
+                    _snap(s, m)
                 if m.get("over") and m.get("winner"):
                     rate = _over(s, m.get("winner"))
             elif k == "prompt":
@@ -76,6 +78,28 @@ def _reader(sid, p):
             S[sid]["ended"] = True
             S[sid]["seq"] += 1
             COND.notify_all()
+
+
+SNAPS = 400  # fotografias do estado por jogo, no máximo (as do fim ficam: tira-se do meio)
+
+
+def _snap(s, m):
+    """Guarda uma fotografia do estado quando o jogo muda de facto (turno, fase, vidas, cartas em jogo e nos montes),
+    sem as mãos dos outros (só quantas) nem o que é só do ecrã (jogáveis, pedidos)."""
+    ps = m.get("players") or []
+    sig = json.dumps([m.get("turn"), m.get("phase"), [(p.get("life"), len(p.get("hand") or []), [(c.get("id"), c.get("tapped")) for c in p.get("battlefield") or []],
+                                                     len(p.get("graveyard") or []), len(p.get("exile") or [])) for p in ps], len(m.get("stack") or [])])
+    if sig == s.get("snapsig"):
+        return
+    s["snapsig"] = sig
+    keep = ("turn", "phase", "active", "combat", "over", "winner")
+    st = {k: m[k] for k in keep if k in m}
+    st["players"] = [{**{k: v for k, v in p.items() if k not in ("hand", "playable")}, "hand": [{"hidden": True}] * len(p.get("hand") or [])} for p in ps]
+    act = next((p.get("name") for p in ps if p.get("id") == m.get("active")), "")
+    sn = s.setdefault("snaps", [])
+    sn.append({"st": st, "txt": f"T{m.get('turn') or 0} · {act} · {m.get('phase') or ''}".strip(" ·")})
+    if len(sn) > SNAPS:
+        del sn[len(sn) // 2]
 
 
 def _cleanup():
@@ -247,7 +271,8 @@ def result(sid):
         s = S.get(sid)
         if not s:
             return None
-        return {"ended": s["ended"], "side": s.get("side"), "turns": (s["state"] or {}).get("turn")}
+        st = s["state"] or (s.get("pv") or {}).get("a", {}).get("state") or {}
+        return {"ended": s["ended"], "side": s.get("side"), "turns": st.get("turn"), "snaps": list(s.get("snaps") or [])}
 
 
 def stop(sid, owner):

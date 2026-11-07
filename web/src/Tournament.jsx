@@ -977,7 +977,7 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
     return () => { off = true; clearTimeout(timer) }
   }, [tid])
   const P = t?.players || []
-  const games = useMemo(() => (t ? t.matches.flatMap(m => m.g.map((x, k) => ({ ...x, m, k })).filter(x => !x.h)).sort((a, b) => a.id - b.id) : []), [t])  // os das pessoas não têm jogo para rever
+  const games = useMemo(() => (t ? t.matches.flatMap(m => m.g.map((x, k) => ({ ...x, m, k })).filter(x => !x.h || x.r)).sort((a, b) => a.id - b.id) : []), [t])  // os das pessoas só com fotografias do estado (x.r)
   const fmt = FORMAT[t?.format] || FORMAT.modern
   const fl = useMemo(() => (onlyMine && t?.me != null ? games.filter(x => x.m.p.includes(t.me)) : games), [games, onlyMine, t?.me])  // o que se segue
   const openGame = async (x, away = false) => {  // away: salto para outra mesa à espera da seguida (mantém-na)
@@ -1250,7 +1250,7 @@ function Thumb({ data, p }) {
 
 function GameChips({ m, onGame, P }) {
   // x.h: jogado por pessoas (Forge Play ou mesa livre): só o resultado, sem jogo para rever
-  return m.g.map((x, k) => <button key={x.id} className={`gchip ${x.x ? 'x' : x.w == null ? '' : 'w'}`} disabled={!!x.h} onClick={() => onGame({ ...x, m, k })} title={`${x.x ? tx('O Forge falhou neste jogo (repetido)') : x.w == null ? tx('Empate') : tx('Ganhou {d}', { d: P[x.w]?.name })}${x.sb ? ` · ${tx('com sideboard')}` : ''}${x.h ? ` · ${tx('jogado por pessoas: só fica o resultado')}` : ''}`}>{tx('J{g}', { g: k + 1 })}{x.t ? ` · T${x.t}` : ''}{x.sb ? ' ⇄' : ''}{x.h ? ' 🧑' : ' ▶'}</button>)
+  return m.g.map((x, k) => <button key={x.id} className={`gchip ${x.x ? 'x' : x.w == null ? '' : 'w'}`} disabled={!!x.h && !x.r} onClick={() => onGame({ ...x, m, k })} title={`${x.x ? tx('O Forge falhou neste jogo (repetido)') : x.w == null ? tx('Empate') : tx('Ganhou {d}', { d: P[x.w]?.name })}${x.sb ? ` · ${tx('com sideboard')}` : ''}${x.h && !x.r ? ` · ${tx('jogado por pessoas: só fica o resultado')}` : ''}`}>{tx('J{g}', { g: k + 1 })}{x.t ? ` · T${x.t}` : ''}{x.sb ? ' ⇄' : ''}{x.h && !x.r ? ' 🧑' : ' ▶'}</button>)
 }
 
 // trocas de sideboard de cada jogo (tournament.py: g[k].sb = {participante: [{in, out, q, why, outWhy}]})

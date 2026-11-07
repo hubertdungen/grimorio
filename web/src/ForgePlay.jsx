@@ -7,6 +7,7 @@ import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, ORB_DEATH } from './Board.jsx'
+import { ctrs, toPerm, zoneOf } from './fpboard.js'
 import { tx } from './i18n.js'
 import { playDiff, play } from './sfx.js'
 import { ask as confirmAsk } from './confirm.jsx'
@@ -116,8 +117,6 @@ export function FCard({ c, data, onClick, h, cls = '', big, flip, from, tag }) {
 // estado do Forge -> o formato do tabuleiro das repetições (Board.jsx), para a mesa ser igual à da arena: criaturas à
 // frente, terrenos (agrupados) e artefactos/encantamentos atrás, a vida no orbe, cemitério e exílio nas pilhas
 // marcadores do Forge pelo nome («+1/+1», «Loyalty», «Lore», «Poison»…) -> as chaves do tabuleiro (minúsculas)
-const CTR = { P1P1: '+1/+1', M1M1: '-1/-1' }
-const ctrs = o => Object.fromEntries(Object.entries(o || {}).map(([k, n]) => [CTR[k] || (/^[+-]/.test(k) ? k : String(k).toLowerCase()), n]))
 // notCre: o Forge diz se é criatura agora (Enduring Vitality de volta do cemitério, deus sem devoção, Imprisoned in the Moon…)
 // a mana da reserva: uma mini-esfera 3D com o fluido da cor (o mesmo motor das esferas da vida: luz dourada, água,
 // pântano, lava, verde pastoso, metal), que chapinha quando a mana entra ou aumenta; sem WebGL, o botão redondo de cor
@@ -141,30 +140,6 @@ function ManaOrb({ k, n, onClick, title }) {
     </button>
   )
 }
-function toPerm(c, combat) {
-  const counters = ctrs(c.counters)
-  if (c.loyalty != null && counters.loyalty == null) counters.loyalty = +c.loyalty || 0  // o marcador «Loyalty» do Forge manda; «loyalty» da carta vem em texto («4»)
-  const plus = (counters['+1/+1'] || 0) - (counters['-1/-1'] || 0)  // o Forge já soma os marcadores ao P/R; o tabuleiro volta a somá-los
-  const at = combat?.find(x => x.att === c.id)
-  return {
-    key: String(c.id), name: c.name || '', hidden: !!c.hidden, tapped: !!c.tapped, sick: !!c.sick, token: !!c.token, flipped: !!c.flipped, col: c.col,  // col: as cores da ficha (escolher a imagem certa)
-    land: !!c.land, crewed: !!c.creature, notCre: !c.creature && !c.hidden && !c.faceDown, attachedTo: c.attachedTo != null ? String(c.attachedTo) : undefined, sel: !!c.sel, damage: c.dmg || 0, counters,
-    pt: c.pt ? `${c.pt[0] - plus}/${c.pt[1] - plus}` : undefined, faceDown: !!c.faceDown, phased: !!c.phased, goaded: !!c.goad, copy: !!c.copy, merged: c.merged,
-    attacking: at ? 'x' : undefined, atkName: at?.defc, atkKey: at?.defc ? String(at.def) : undefined, pw: c.pw, prot: c.prot, blocking: (b => (b ? String(b.att) : undefined))(combat?.find(x => x.blockers?.includes(c.id))),  // a chave do atacante: o par (⚔ n / 🛡 n) e a linha
-  }
-}
-function zoneOf(p, combat) {
-  const { poison = 0, energy = 0, ...pctr } = ctrs(p.counters), cz = p.command || []
-  return {
-    life: p.life, library: p.library, libTop: p.top || null, hand: p.hand?.length || 0, known: [], graveyard: (p.graveyard || []).map(c => c.name), exile: (p.exile || []).map(c => c.name),
-    // comandantes: o imposto (vezes lançado) e o dano de comandante vêm do Forge (cmdrs/cdmg); fora da zona de comando = .out
-    command: [...cz.filter(c => !c.emblem).map(c => ({ name: c.name, room: c.room, casts: p.cmdrs?.find(x => x.id === c.id)?.casts || 0 })),
-      ...(p.cmdrs || []).filter(x => !cz.some(c => c.id === x.id)).map(x => ({ name: x.name, casts: x.casts || 0, out: true }))], cmdDmg: p.cdmg || {}, poison, energy, pctr, emblems: cz.filter(c => c.emblem).map(c => c.name),
-    monarch: !!p.monarch, initiative: !!p.initiative, blessing: !!p.blessing, speed: p.speed || 0, out: false, perms: (p.battlefield || []).map(c => toPerm(c, combat)),
-  }
-}
-
-
 // dia/noite (daybound/nightbound): a pastilha troca com um meio giro quando muda
 export const DayNight = ({ v, onClick }) => <button type="button" key={v} className={`fp-day ${v}`} onClick={onClick} disabled={!onClick} title={v === 'day' ? tx('É dia (cartas daybound à vista)') : tx('É noite (cartas nightbound à vista)')}>{v === 'day' ? `☀ ${tx('dia')}` : `☾ ${tx('noite')}`}</button>
 

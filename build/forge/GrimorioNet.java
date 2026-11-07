@@ -115,7 +115,7 @@ public class GrimorioNet {
         players.add(rh.setPlayer(human));
         players.add(ra.setPlayer(other));
         Bridge gui = new Bridge(pvp ? "a" : null);
-        if (pvp) { PVP = new HashMap<>(); PVP.put("a", gui); PVP.put("b", new Bridge("b")); }
+        if (pvp) { PVP = new HashMap<>(); PVP.put("a", gui); PVP.put("b", new Bridge("b")); gui.pname = human.getName(); PVP.get("b").pname = other.getName(); }
         Thread in = new Thread(() -> gui.readCommands(), "grimorio-in");  // um só leitor: na mesa estrita encaminha pelo «seat»
         in.setDaemon(true);
         in.start();
@@ -139,6 +139,7 @@ public class GrimorioNet {
         final Set<Integer> selectable = ConcurrentHashMap.newKeySet();
 
         final String seat;  // mesa estrita: «a» ou «b»; null contra a IA
+        String pname;  // mesa estrita: o nome do jogador deste lugar (para desistir pelo jogador certo)
         // tudo o que este ecrã manda leva o lugar (na mesa estrita): o playnet.py separa por lugar
         void send(JsonObject o) { if (seat != null) o.addProperty("s", seat); GrimorioNet.send(o); }
         // mesa estrita: este lugar está à espera do outro (o Forge não lhe pede nada agora)
@@ -200,7 +201,15 @@ public class GrimorioNet {
                     case "mana": { int mc = "WUBRGC".indexOf(c.get("color").getAsString()); if (mc >= 0) ctl().useMana(forge.card.MagicColor.WUBRGC[mc]); break; }
                     case "alpha": ctl().alphaStrike(); break;
                     case "undo": ctl().undoLastAction(); break;
-                    case "concede": ctl().concede(); break;
+                    case "concede": {  // mesa estrita: desiste o jogador deste lugar (pelo nome); antes do jogo começar (moeda) o
+                        // controlador do ecrã ainda não é o dele e a desistência ia para o outro
+                        forge.game.Game g = HM == null ? null : HM.getGame();
+                        forge.game.player.Player me = null;
+                        if (seat != null && g != null && pname != null) for (forge.game.player.Player x : g.getPlayers()) if (pname.equals(x.getName())) me = x;
+                        if (me != null) { me.concede(); g.getAction().checkGameOverCondition(); dirty = true; }
+                        else ctl().concede();
+                        break;
+                    }
                     case "state": dirty = true; send(lastPrompt); break;
                     default: break;
                 }
