@@ -294,7 +294,7 @@ class H(BaseHTTPRequestHandler):
         if guests.is_guest_host(self.headers) and not guests.public_ok(method, p):
             return self.json({"erro": "Precisas de um convite para entrar.", "code": "invite"}, 403)
         if p.startswith("/api/share") and method in ("GET", "POST"):  # partilhar pela internet (túnel da Cloudflare)
-            return self.json(*reversed(share.route(method, p, ARGS.data_dir, ARGS.port, getattr(ARGS, "host", "0.0.0.0"))))
+            return self.json(*reversed(share.route(method, p, ARGS.data_dir, ARGS.port, getattr(ARGS, "host", "0.0.0.0"), self.body() if method == "POST" else None)))
         if p == "/api/rooms/remote" and method == "POST":  # entrar na sala de outro Grimório como o meu perfil, com os meus decks
             return self.remote_join()
         if p.startswith("/api/rooms") and method in ("GET", "POST"):  # salas de torneio com amigos (rooms.py)
@@ -1440,12 +1440,12 @@ def selfcheck():
             op.open(base + f"/convite/{fr['token']}?entrar=1&volta=javascript%3Aalert(1)")
         except urllib.error.HTTPError as e:
             assert e.headers["Location"] == "/"  # volta só com uma origem http(s)
-        assert call("GET", f"/convite/{fr['token']}/info")[1] == {"api": guests.API, "kind": "convite", "name": "Rui"}
+        _inf = call("GET", f"/convite/{fr['token']}/info")[1]; assert {k: _inf.get(k) for k in ("api", "kind", "name")} == {"api": guests.API, "kind": "convite", "name": "Rui"} and len(_inf.get("hid") or "") == 16, _inf
         assert call("GET", "/convite/naoexiste123/info")[0] == 404
         ir = call("POST", "/api/rooms", {"name": "Info QA", "type": "jogo", "format": "modern", "casual": True, "players": [{"src": "meus", "ref": hs[1]}]})[1]
         assert ir.get("id"), ir
         lk = next(r for r in call("GET", "/api/rooms")[1] if r["id"] == ir["id"])["link"]
-        assert call("GET", f"{lk}/info")[1] == {"api": guests.API, "kind": "sala", "name": "Info QA", "type": "jogo", "format": "modern", "casual": True}
+        _inf = call("GET", f"{lk}/info")[1]; assert {k: v for k, v in _inf.items() if k != "hid"} == {"api": guests.API, "kind": "sala", "name": "Info QA", "type": "jogo", "format": "modern", "casual": True} and _inf.get("hid"), _inf
         assert call("POST", "/api/rooms/remote", {"url": base + lk, "dry": True})[1]["info"]["format"] == "modern"
         K2 = "z" * 30
         st, it, _ = call("POST", f"/convite/{fr['token']}/trazer", {"key": K2, "decks": [{"id": "a1", "name": "Mono U", "format": "modern", "main": {"Island": 60}}]})

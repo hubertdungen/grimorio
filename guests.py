@@ -65,7 +65,22 @@ def lan_ip():
 
 
 def guest_hosts():
-    return {h.strip().lower() for h in os.environ.get("GRIMORIO_GUEST_HOSTS", "").split(",") if h.strip()}
+    """Os endereços de convidados: GRIMORIO_GUEST_HOSTS e o endereço público próprio (Definições › Amigos)."""
+    import share
+    own = share.custom_host()
+    return {h.strip().lower() for h in os.environ.get("GRIMORIO_GUEST_HOSTS", "").split(",") if h.strip()} | ({own} if own else set())
+
+
+def host_id(con):
+    """Identidade estável deste Grimório (não o endereço, que no túnel rápido muda a cada arranque): a app de um amigo
+    reconhece o mesmo anfitrião e atualiza a sala guardada em vez de criar outra."""
+    con.execute("CREATE TABLE IF NOT EXISTS host_meta (k TEXT PRIMARY KEY, v TEXT)")
+    r = con.execute("SELECT v FROM host_meta WHERE k='hid'").fetchone()
+    if r:
+        return r[0]
+    v = secrets.token_hex(8)
+    con.execute("INSERT OR IGNORE INTO host_meta VALUES ('hid', ?)", (v,))
+    return con.execute("SELECT v FROM host_meta WHERE k='hid'").fetchone()[0]
 
 
 def is_guest_host(headers):
@@ -97,7 +112,8 @@ def owner_route(con, method, path, owner, body, port, tunnel=None, host="0.0.0.0
         decks = {}
         for (f,) in con.execute("SELECT json_extract(body, '$.friend') FROM decks WHERE owner=? AND deleted IS NULL AND json_extract(body, '$.friend') IS NOT NULL", (owner,)):
             decks[f] = decks.get(f, 0) + 1
-        pub = os.environ.get("GRIMORIO_PUBLIC_URL", "").rstrip("/") or tunnel  # domínio próprio ou o túnel da partilha
+        import share
+        pub = os.environ.get("GRIMORIO_PUBLIC_URL", "").rstrip("/") or share.custom_url() or tunnel  # endereço próprio ou o túnel da partilha
         return 200, {"friends": [{"id": i, "name": n, "token": t, "created": c, "revoked": r, "decks": decks.get(i, 0)} for i, n, t, c, r in rows],
                      # só este computador (127.0.0.1, os pacotes por omissão): o link de casa não chegava a ninguém
                      "lan": None if host in ("127.0.0.1", "localhost", "::1") else f"http://{lan_ip()}:{port}", "public": pub or None}
@@ -140,7 +156,7 @@ def accept(h, con, token, query=""):
     token, _, act = token.partition("/")
     g = by_token(con, token)
     if act == "info":
-        return h.json({"api": API, "kind": "convite", "name": g["name"]}) if g else h.json({"erro": "Este convite já não é válido."}, 404)
+        return h.json({"api": API, "kind": "convite", "name": g["name"], "hid": host_id(con)}) if g else h.json({"erro": "Este convite já não é válido."}, 404)
     if not g or act:
         return _page(h, "<p>Este convite já não é válido. Pede outro a quem te convidou.</p>", 404)
     q = urllib.parse.parse_qs(query)
@@ -269,7 +285,7 @@ def room_link(h, con, token, name, me=None, act=""):
     (leva o perfil e os decks dessa app). me = {owner, profile} de quem abre o link (None num endereço de convidados)."""
     r = _room(con, token)
     if act == "info":  # para a app de um amigo: que sala é (o formato pré-escolhe os decks a levar)
-        return h.json({"api": API, "kind": "sala", "name": r[2], "type": r[3], "format": r[4], "casual": bool(r[5])}) if r and r[1] == "open" \
+        return h.json({"api": API, "kind": "sala", "name": r[2], "type": r[3], "format": r[4], "casual": bool(r[5]), "hid": host_id(con)}) if r and r[1] == "open" \
             else h.json({"erro": "Esta sala já não está aberta."}, 404)
     if not r or r[1] != "open" or act:
         return _page(h, "<p>Esta sala já não está aberta. Pede outro link a quem te convidou.</p>", 404)

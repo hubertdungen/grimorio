@@ -61,7 +61,7 @@ export function FriendRoomModal({ data, link = '', onClose, onRemote }) {
     try {
       // a sala aqui: os decks vão quando te sentares; a página de lá: os escolhidos vão já
       const r = await post('/api/rooms/remote', { url: u, decks: remoteOk ? [] : [...sel] })
-      const token = r.go.match(/\/convite\/([\w-]+)/)?.[1], room = { base: r.base, token, name: (peek.kind === 'sala' && info?.name) || '' }
+      const token = r.go.match(/\/convite\/([\w-]+)/)?.[1], room = { base: r.base, token, name: (peek.kind === 'sala' && info?.name) || '', ...(info?.hid && { hid: info.hid }) }
       if (remoteOk && await probe(room)) { saveRoom(room); return onRemote(room) }
       if (remoteOk && sel.size) await post('/api/rooms/remote', { url: `${r.base}/convite/${token}`, decks: [...sel] })
       window.location.href = hostPage(r.base, token)

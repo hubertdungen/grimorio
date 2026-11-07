@@ -40,7 +40,10 @@ async function bringDeck(_fetch, body) {
 // as salas de amigos onde já entraste (para voltar sem o link): [{ base, token, name, ts }]
 const K = 'grimorio.salasAmigos'
 export const rooms = () => { try { return JSON.parse(localStorage.getItem(K)) || [] } catch { return [] } }
-export const saveRoom = x => { try { localStorage.setItem(K, JSON.stringify([{ ...x, ts: Date.now() }, ...rooms().filter(y => y.base !== x.base || y.token !== x.token)].slice(0, 10))) } catch { /* sem armazenamento */ } }
+// o mesmo anfitrião (hid: a identidade dele, não o endereço — o túnel rápido muda de endereço a cada arranque) com o mesmo
+// convite: atualiza a sala guardada (fica com o endereço novo) em vez de criar outra
+const same = (x, y) => (y.base === x.base && y.token === x.token) || (!!x.hid && y.hid === x.hid && y.token === x.token)
+export const saveRoom = x => { try { localStorage.setItem(K, JSON.stringify([{ ...x, ts: Date.now() }, ...rooms().filter(y => !same(x, y))].slice(0, 10))) } catch { /* sem armazenamento */ } }
 export const dropRoom = x => { try { localStorage.setItem(K, JSON.stringify(rooms().filter(y => y.base !== x.base || y.token !== x.token))) } catch { /* sem armazenamento */ } }
 
 // a página de quem aloja na janela inteira (versões diferentes, torneios e Forge Play): com «← O meu Grimório»

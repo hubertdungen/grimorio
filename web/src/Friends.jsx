@@ -28,6 +28,16 @@ export default function Friends() {
     const t = setInterval(() => j('/api/share').then(x => { setSh(x); if (x.url || !x.running) load() }).catch(() => {}), 1500)
     return () => clearInterval(t)
   }, [sh])
+  // endereço público próprio (avançado): túnel com nome da Cloudflare (com o token), Tailscale Funnel, proxy…
+  const [own, setOwn] = useState(null), [ownUrl, setOwnUrl] = useState(''), [ownTok, setOwnTok] = useState(''), [ownMsg, setOwnMsg] = useState('')
+  useEffect(() => { j('/api/share/settings').then(x => { setOwn(x); setOwnUrl(x.url || '') }).catch(() => {}) }, [])
+  const saveOwn = async clear => {
+    setOwnMsg('')
+    try {
+      const x = await post('/api/share/settings', clear ? { url: '', token: '' } : { url: ownUrl.trim(), ...(ownTok.trim() && { token: ownTok.trim() }) })
+      setOwn(x); setOwnUrl(x.url || ''); setOwnTok(''); setOwnMsg(tx('Guardado.')); setSh(await j('/api/share')); load()
+    } catch (e) { setOwnMsg(tx(e.message)) }
+  }
   const toggleShare = async () => { setErr(''); try { setSh(await post(`/api/share/${sh?.running ? 'stop' : 'start'}`)); load() } catch (e) { setErr(e.message) } }
   if (!d) return err ? <p className="small bad-t">{err}</p> : null
   const add = async () => { setErr(''); try { await post('/api/friends', { name: name.trim() }); setName(''); load() } catch (e) { setErr(e.message) } }
@@ -51,19 +61,34 @@ export default function Friends() {
             <span className="row-btns">{!f.revoked && <button className="link small" onClick={() => revoke(f)}>{tx('revogar')}</button>}<button className="link small" onClick={() => remove(f)}>{tx('tirar')}</button></span></div>
           {f.revoked ? <p className="small muted">{tx('Convite revogado.')}</p> : links(f).map(([k, l, url]) => (
             <div key={k} className="fr-link">
-              <span className="small">{l}</span><code>{url}</code>
-              <button className="small" onClick={() => copy(url, f.id + k)}>{copied === f.id + k ? tx('copiado ✓') : tx('copiar')}</button>
+              <span className="small">{l}</span>
+              <button className="small primary" onClick={() => copy(url, f.id + k)}>{copied === f.id + k ? tx('copiado ✓') : `📋 ${tx('Copiar convite')}`}</button>
               <button className="small" onClick={() => setQr(qr === f.id + k ? null : f.id + k)} aria-pressed={qr === f.id + k}>QR</button>
+              {/* o endereço (no túnel rápido é um nome ao acaso) fica em detalhe: o que se partilha é o convite */}
+              <details className="fr-addr"><summary className="small muted">{tx('endereço')}</summary><code>{url}</code></details>
               {qr === f.id + k && <QR text={url} />}
             </div>))}
         </li>))}</ul>
       <div className="fr-share">
         <b>🌍 {tx('Partilhar pela internet')}</b>
-        <button className={sh?.running ? '' : 'primary'} onClick={toggleShare}>{sh?.running ? tx('Parar a partilha') : tx('Abrir a partilha')}</button>
+        {sh?.fixed && !own?.token ? <span className="small">{tx('Os convites usam o teu endereço: {u}', { u: sh.url })}</span>
+          : <button className={sh?.running ? '' : 'primary'} onClick={toggleShare}>{sh?.running ? tx('Parar a partilha') : tx('Abrir a partilha')}</button>}
         <span className="small muted">{sh?.running ? (sh.url ? tx('Ligado: os links «Pela internet» funcionam em qualquer lado enquanto estiver aberto.') : tx('a abrir o túnel…')) : tx('Túnel gratuito da Cloudflare: dá um endereço público sem abrir portas no router. Sem convite ninguém vê nada.')}</span>
         {sh?.err && <span className="small bad-t">{tx(sh.err)}</span>}
       </div>
       {!d.public && <p className="small muted">{tx('Para convidar pela internet abre a partilha acima (ou usa um domínio próprio). Em casa basta o link da rede local ou o QR.')}</p>}
+      {sh?.url && !sh.fixed && <p className="small muted">{tx('O túnel gratuito muda de endereço sempre que a partilha volta a abrir: basta reenviar o convite — a app do teu amigo reconhece este Grimório e atualiza a sala guardada.')}</p>}
+      <details className="fr-own" open={!!own?.url}>
+        <summary><b>{tx('Avançado: endereço público próprio')}</b></summary>
+        <p className="small muted">{tx('Um endereço fixo que passa a ser o dos convites: um túnel com nome da Cloudflare (cola também o token dele), o Tailscale Funnel ou um proxy teu. Sem nada aqui usa-se o túnel gratuito, com um endereço ao acaso.')}</p>
+        <div className="row-btns">
+          <input type="url" value={ownUrl} onChange={e => setOwnUrl(e.target.value)} placeholder="https://…" aria-label={tx('Endereço público próprio')} />
+          <input type="password" value={ownTok} onChange={e => setOwnTok(e.target.value)} placeholder={own?.token ? tx('token guardado (deixa vazio para manter)') : tx('token do túnel com nome (opcional)')} aria-label={tx('Token do túnel com nome')} autoComplete="off" />
+          <button className="primary" onClick={() => saveOwn(false)} disabled={!ownUrl.trim()}>{tx('Guardar')}</button>
+          {own?.url && <button onClick={() => saveOwn(true)}>{tx('Voltar ao túnel gratuito')}</button>}
+        </div>
+        {ownMsg && <p className="small">{ownMsg}</p>}
+      </details>
     </div>
   )
 }
