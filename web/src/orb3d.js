@@ -471,6 +471,8 @@ function drawGrains(r, o, fs, now, xf, dt) {
   // Definições › Qualidade da esfera: placa gráfica (dezenas de milhares de grãos), processador, ou leve; automática = a GPU
   // se der. Na partida (cair, derreter, encolher) os grãos do processador fazem tudo
   const pq = o.el.dataset.pq || 'auto', useGpu = !xf && !o.fr && pq !== 'cpu' && pq !== 'leve' && (o.gpuOk ??= gpuOk(r.renderer))
+  const gn = String(useGpu ? (LOW ? 176 : 256) ** 2 : pq === 'leve' ? 1200 : LOW ? 2200 : 5000)
+  if (o.el.dataset.gn !== gn) o.el.dataset.gn = gn  // quantos grãos (a ficha secreta da esfera, OrbEgg.jsx)
   if (useGpu) {
     if (!o.gg) { o.gg = new GpuGrains(r.renderer, LOW ? 176 : 256, rl.pass); o.gg.points(r.scene, GFS, r.ptMats[0].uniforms.scale) }
     o.gg.step(fs, dt, now); o.gg.show(true, r.cam.position.length())
