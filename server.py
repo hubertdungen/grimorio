@@ -3,7 +3,7 @@
 Serve a app React compilada (web/dist), os dados gerados por build/build.sh
 (já comprimidos em .gz) e guarda os decks numa SQLite fora do exFAT.
 """
-import argparse, functools, hashlib, http.cookies, json, os, re, secrets, sqlite3, time, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, functools, hashlib, http.cookies, json, os, re, secrets, sqlite3, threading, time, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
@@ -65,7 +65,15 @@ def db():
             con.execute(f"ALTER TABLE decks ADD COLUMN {col}")
         except sqlite3.OperationalError:
             pass
+    if getattr(_REQ, "cons", None) is not None:
+        _REQ.cons.append(con)
     return con
+
+
+# as ligações abertas pelo pedido em curso: gravam-se antes de a resposta sair. As rotas respondem dentro do `with db() as con:`
+# (que só grava ao sair do bloco) e o pedido seguinte do mesmo browser podia ler a base de dados antes disso — um amigo
+# acabado de criar não vinha na lista, quem entrou na Taverna ainda não era membro (o selfcheck falhava 1 vez em 3)
+_REQ = threading.local()
 
 
 GAME_EV = {"turn", "phase", "cast", "activate", "trigger", "resolve", "life", "damage", "mill", "draw", "block", "countered",
@@ -194,10 +202,22 @@ def update_state(raw=False):
 class H(BaseHTTPRequestHandler):
     server_version = "Grimorio/1.0"
 
+    def handle_one_request(self):
+        _REQ.cons = []
+        try:
+            super().handle_one_request()
+        finally:
+            _REQ.cons = None
+
     def log_message(self, *a):
         pass
 
     def send(self, code, body=b"", ctype="application/json", headers=None):
+        for c in getattr(_REQ, "cons", None) or []:  # grava o que o pedido mudou antes de responder (ver _REQ)
+            try:
+                c.commit()
+            except sqlite3.Error:
+                pass
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
