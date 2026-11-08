@@ -6,7 +6,7 @@ import './fpchoice.css'
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, GameMenuBtns, ORB_DEATH } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, GameMenuBtns, DrawerChip, TeamOrb, ORB_DEATH } from './Board.jsx'
 import { ctrs, toPerm, zoneOf } from './fpboard.js'
 import { tx } from './i18n.js'
 import { playDiff, play } from './sfx.js'
@@ -1149,7 +1149,21 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   }, [st?.turn, st?.active])  // eslint-disable-line react-hooks/exhaustive-deps
   const P = fpPrefs()
   const { compact, chrome, setChrome } = useGameFocus(fitBox), [sideOpen, setSideOpen] = useState(false), [promptOpen, setPromptOpen] = useState(false)
-  const stage = useStage(fitBox, stageWrap, !!st, false, compact)
+  // mesas com 3–4 (Definições › Mesa › «Mesas com 3–4»): gavetas — tu e UM adversário, como num 1 contra 1; a gaveta de cima troca
+  // de adversário, a de baixo mostra o lado do parceiro (Two-Headed Giant). Automático: gavetas no telemóvel e no tablet (ao alto,
+  // ou deitado num ecrã baixo) e todos à vista no computador; ⊞ / ⊟ trocam durante o jogo
+  const [dFocus, setDFocus] = useState(0), [viewMate, setViewMate] = useState(false), [allView, setAllView] = useState(null)
+  const multiT = tops.length > 1 || mates.length > 0, wideNow = innerWidth > innerHeight
+  const drawers = multiT && (allView != null ? !allView : P.multi === 'drawers' || (P.multi === 'auto' && compact && (!wideNow || innerHeight < 620)))
+  const focusP = drawers ? tops[dFocus % tops.length] : null, showMate = drawers && viewMate && mates[0]
+  const ownerOf = new Map(players.flatMap(p => [...(p.battlefield || []), ...(p.hand || [])].map(c => [c.id, p.id])))
+  const myIds = new Set([me, ...mates].filter(Boolean).map(p => p.id))
+  const atkBy = new Set((st?.combat || []).filter(x => myIds.has(x.def) || myIds.has(ownerOf.get(x.def))).map(x => ownerOf.get(x.att)))  // quem te ataca (ou ao parceiro)
+  const selOf = p => !!p.sel || ['battlefield', 'hand'].some(z => (p[z] || []).some(c => c.sel))  // tem alguma coisa que se escolhe agora
+  const atkKey = [...atkBy].join(), selKey = tops.filter(selOf).map(p => p.id).join()
+  useEffect(() => { if (!drawers) return; const t = tops.findIndex(p => atkBy.has(p.id)); if (t >= 0 && !atkBy.has(focusP?.id)) setDFocus(t) }, [atkKey, drawers])  // eslint-disable-line react-hooks/exhaustive-deps -- um adversário ataca-te: a mesa mostra-o
+  useEffect(() => { if (!drawers || !selKey || (focusP && selOf(focusP))) return; const t = tops.findIndex(selOf); if (t >= 0) setDFocus(t) }, [selKey, drawers])  // eslint-disable-line react-hooks/exhaustive-deps -- uma escolha noutra mesa: vai para lá
+  const stage = useStage(fitBox, stageWrap, !!st, false, compact, `${drawers}`)
   // a arte escolhida em cada deck ({a: {carta: edição/imagem}, b: …}): estável entre estados para não redesenhar a mesa toda
   const artsKey = JSON.stringify(s?.arts || null), artsCtx = useMemo(() => ({ arts: JSON.parse(artsKey), k: null }), [artsKey])
   const im = (c, size) => img(c, size, false, artOf(artsCtx.arts, null, c))
@@ -1198,9 +1212,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const picked = [...byId.values()].filter(c => c.picked).map(c => c.id)
   // escolhíveis que não se veem sozinhas na mesa: presas a outra carta (aura, Hopeful Eidolon com bestow), no cemitério,
   // no exílio, no topo da biblioteca ou noutra zona (selc do GrimorioNet): vão como botões no pedido — um toque escolhe
+  const hiddenOwner = id => { const o = ownerOf.get(id); return o != null && o !== me?.id && o !== focusP?.id && !(showMate && o === mates[0]?.id) }
   const zoneOfId = id => { for (const p of players) for (const z of ['battlefield', 'hand']) if ((p[z] || []).some(c => c.id === id)) return z; return null }
   const selHidden = /^Priority:/.test(pr?.msg || '') ? [] : (st.selc?.length ? st.selc : [...byId.values()].filter(c => c.sel).map(c => ({ id: c.id, name: c.name })))
-    .filter(x => { const c = byId.get(x.id); return !c || c.attachedTo != null || !zoneOfId(x.id) }).slice(0, 12)
+    .filter(x => { const c = byId.get(x.id); return !c || c.attachedTo != null || !zoneOfId(x.id) || (drawers && hiddenOwner(x.id)) }).slice(0, 12)  // gavetas: também as de quem não está à vista
   const selPick = selHidden.length > 0 && <div className="fp-selpick"><small>{tx('Também se escolhem (não estão à vista na mesa):')}</small><div>{selHidden.map(x => {
     const c = byId.get(x.id), nm = c && !c.hidden ? c.name : x.name, host = c?.attachedTo != null && byId.get(c.attachedTo)
     return <div key={x.id} role="button" tabIndex={0} className="fp-selb" data-zid={x.id} onClick={() => send({ c: 'card', id: x.id })} onKeyDown={e => { if (e.key === 'Enter') send({ c: 'card', id: x.id }) }}>
@@ -1232,6 +1247,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     }
     const z = e.target.closest('[data-z]')?.dataset.z
     if (z?.startsWith('k:')) return permClick(+z.slice(2), e.target.closest('[data-z]'))
+    if (e.target.closest('.team-orb')) return send({ c: 'player', i: players.indexOf(showMate ? mates[0] : me) })  // a esfera da equipa: quem está em baixo
     const orb = e.target.closest('.orb')
     if (orb) { const k = (orb.closest('.bside')?.className.match(/\bp-([a-d])\b/) || [])[1], who = k === 'a' ? me : others['bcd'.indexOf(k)] || opp; send({ c: 'player', i: players.indexOf(who) }) }  // a esfera de quem: o alvo/defensor
   }
@@ -1327,30 +1343,40 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     const q = el.getBoundingClientRect()
     el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
   }
+  const oppSide = (p, small) => <Side key={keyOf(p)} k={keyOf(p)} top compact={small} name={p.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
+    hand={p.hand?.length > 0 && <Hand z={{ hand: p.hand.length, known: p.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />
+  const mateSide = (p, small) => <Side key={keyOf(p)} k={keyOf(p)} compact={small} name={`${p.name} 🤝`} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
+    hand={p.hand?.length > 0 && <Hand z={{ hand: p.hand.length, known: p.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />
+  const mySide = me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
+    hand={<div className="fp-hand">{me.top?.play && <FCard key={`t${me.top.id}`} c={me.top} h={me.top.id} from="library" data={data} big cls={`play libtop-h ${lift === me.top.id ? 'lift' : ''}`} tag={`▲ ${tx('topo da biblioteca')}`} />}{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />
+  const teamOrb = drawers && mates.length > 0 && P.teamOrb  // Two-Headed Giant nas gavetas: a esfera da equipa a meio da mesa, no lugar das duas pequenas
+  const chip = (p, on, pick, mine) => <DrawerChip key={p.id} name={p.name} life={p.life} poison={p.counters?.POISON} hand={p.hand?.length || 0} perms={p.battlefield?.length || 0} out={p.life <= 0 || p.out} on={on} turn={st.active === p.id} atk={!mine && atkBy.has(p.id)} attn={selOf(p)} onClick={pick} mine={mine} />
+  const drawerTop = drawers && <div className="fp-drawer top" role="group" aria-label={tx('Adversários')}>
+    {tops.map((p, j) => chip(p, p === focusP, () => setDFocus(j)))}
+    {wideNow && <button type="button" className="fs-mini fp-dall" onClick={() => setAllView(true)} title={tx('Ver todos os jogadores ao mesmo tempo')} aria-label={tx('Ver todos os jogadores ao mesmo tempo')}>⊞</button>}</div>
+  const drawerBot = drawers && mates.length > 0 && <div className="fp-drawer bottom" role="group" aria-label={tx('A tua equipa')}>
+    {[me, ...mates].map(p => chip(p, (p === me) === !showMate, () => setViewMate(p !== me), true))}</div>
   return (<Arts.Provider value={artsCtx}><OrbCtx.Provider value={orbCtx}>
-    <div className={`fp ${dice.res ? 'dice-on' : ''} ${compact ? 'compact' : ''} ${compact && sideOpen ? 'side-open' : ''}`} ref={fitBox} onMouseLeave={() => { setZoom(null); peek.hide() }} onMouseOver={onOver} onPointerDown={peek.hide}
+    <div className={`fp ${dice.res ? 'dice-on' : ''} ${compact ? 'compact' : ''} ${drawers ? 'drawers' : ''} ${teamOrb ? 'has-team-orb' : ''} ${compact && sideOpen ? 'side-open' : ''}`} ref={fitBox} onMouseLeave={() => { setZoom(null); peek.hide() }} onMouseOver={onOver} onPointerDown={peek.hide}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
+      {drawerTop}
       <div className="fp-stagebox" ref={stageWrap} style={{ height: compact ? undefined : stage.h }}>
       <FsBtn className="on-table" />
+      {multiT && !drawers && <button type="button" className="fs-mini fp-dback" onClick={() => setAllView(false)} title={tx('Gavetas: tu e um adversário de cada vez')} aria-label={tx('Gavetas: tu e um adversário de cada vez')}>⊟</button>}
       <div className={`fp-stage ${stage.shape} ${stage.short ? 'short' : ''} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
       <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''} ${declaring ? 'fp-declaring' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
-        {tops.length > 1 ? <div className="opps" style={{ '--np': tops.length }}>{tops.map(p => <Side key={keyOf(p)} k={keyOf(p)} top compact name={p.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
-          hand={p.hand?.length > 0 && <Hand z={{ hand: p.hand.length, known: p.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />)}</div>
-          : tops[0] && <Side k={keyOf(tops[0])} top name={tops[0].name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
-            hand={tops[0].hand?.length > 0 && <Hand z={{ hand: tops[0].hand.length, known: tops[0].hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />}
+        {drawers ? focusP && oppSide(focusP) : tops.length > 1 ? <div className="opps" style={{ '--np': tops.length }}>{tops.map(p => oppSide(p, true))}</div> : tops[0] && oppSide(tops[0])}
         <div className="fp-mid">
           <span className="fp-turn">{tx('Turno {n}', { n: st.turn })} · {myTurn ? tx('teu') : actP?.name || opp?.name}</span>
           {st.day && <DayNight v={st.day} />}
           <span className="fp-phases">{PHASES.map(([k, l, ps]) => <i key={k} className={ps.includes(st.phase) ? (/^COMBAT/.test(st.phase || '') ? 'on combat' : 'on') : ''}>{l}</i>)}</span>
           {declaring && <span className="fp-declare" role="status">⚔ {tx('Declara os atacantes: toca nas criaturas que atacam e depois OK')}</span>}
           <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={artsCtx.arts} who={Object.fromEntries([['a', me?.name], ...others.map(p => [keyOf(p), p.name])])} speed={1} />
+          {teamOrb && <TeamOrb ks={['a', ...mates.map(keyOf)]} names={[me?.name, ...mates.map(p => p.name)]} s={bs} data={data} fx={fx} start={30} giant />}
         </div>
-        {me && (mates.length ? <div className="mine withmate">{<Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
-          hand={<div className="fp-hand">{me.top?.play && <FCard key={`t${me.top.id}`} c={me.top} h={me.top.id} from="library" data={data} big cls={`play libtop-h ${lift === me.top.id ? 'lift' : ''}`} tag={`▲ ${tx('topo da biblioteca')}`} />}{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}{mates.map(p => <Side key={keyOf(p)} k={keyOf(p)} compact name={`${p.name} 🤝`} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
-          hand={p.hand?.length > 0 && <Hand z={{ hand: p.hand.length, known: p.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />)}</div> : <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
-          hand={<div className="fp-hand">{me.top?.play && <FCard key={`t${me.top.id}`} c={me.top} h={me.top.id} from="library" data={data} big cls={`play libtop-h ${lift === me.top.id ? 'lift' : ''}`} tag={`▲ ${tx('topo da biblioteca')}`} />}{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />)}
+        {me && (drawers ? (showMate ? mateSide(mates[0]) : mySide) : mates.length ? <div className="mine withmate">{mySide}{mates.map(p => mateSide(p, true))}</div> : mySide)}
         {bs && <CombatLinks s={bs} />}
         {bs && <StackLinks s={bs} data={data} />}
         <DamageFx hits={hits} data={data} />
@@ -1360,6 +1386,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <b>{dice.res?.items ? (intro.won ? tx('Ganhaste a moeda ao ar') : tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') })) : tx('Moeda ao ar: quem começa?')}</b>
         <small>{tx('toca para continuar')}</small></div>}
       <div className="fp-dice" ref={diceBox} /></div>
+      {drawerBot}
       {(touchDev || compact) && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
         {compact && <GameMenuBtns chrome={chrome} setChrome={setChrome} side={sideOpen} setSide={setSideOpen} />}
         <p className={`${promptOpen || blockBox || atkBox ? 'open' : ''} ${/^Priority:/.test(pr?.msg || '') && !st.stack?.length && !blockBox && !atkBox ? 'routine' : ''}`} onClick={() => setPromptOpen(x => !x)}><Syms text={promptText(pr?.msg, st, me, compact)} />{blockBox}{atkBox}</p>

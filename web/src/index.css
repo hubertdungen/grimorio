@@ -4214,3 +4214,68 @@ body:has(.fp.compact) :is(.area.coliseu, .view.fp-view) { padding: 0; margin: 0;
   .fp.compact .fp-actbar .fp-pool { flex-wrap: wrap; justify-content: center; }
   .fp.compact .fp-actbar > .fp-clock { flex-wrap: wrap; justify-content: center; margin: 0; padding: 4px; gap: 4px; font-size: 10px; text-align: center; }
 }
+
+/* ---------- mesas com 3–4 em gavetas (Forge Play; Definições › Mesa › «Mesas com 3–4») ----------
+   a mesa é como num 1 contra 1 (tu em baixo, UM adversário em cima); a gaveta de cima tem uma ficha por adversário (toca: ele
+   passa para a mesa), a de baixo a tua e a do parceiro. ⊞ mostra todos (deitado), ⊟ volta às gavetas */
+.fp-drawer { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+  background: #10131ff2; z-index: 41; }
+.fp-drawer::-webkit-scrollbar { display: none; }
+.fp-drawer.top { border-bottom: 1px solid #ffffff22; padding-top: max(4px, env(safe-area-inset-top)); }
+.fp-drawer.bottom { border-top: 1px solid #ffffff22; }
+.fp-drawer .fp-dall { margin-left: auto; min-height: 34px; }
+.fp-dchip { position: relative; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 2px 10px 2px 3px; border-radius: 99px; border: 1px solid var(--line); background: var(--panel); color: var(--text); font-size: 12px; line-height: 1.1; cursor: pointer; }
+.fp-dchip b { max-width: 11ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.fp-dchip small { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.fp-dlife { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-style: normal; font-weight: 800; font-size: 13px; color: #fff;
+  background: radial-gradient(circle at 35% 30%, #7dd3fc, #1e3a8a); box-shadow: 0 0 8px #60a5fa66; }
+.fp-dchip.mine .fp-dlife { background: radial-gradient(circle at 35% 30%, #86efac, #166534); box-shadow: 0 0 8px #22c55e66; }
+.fp-dchip.on { border-color: var(--gold); background: #f2b84b22; box-shadow: inset 0 0 0 1px var(--gold); }
+.fp-dchip em { font-style: normal; font-size: 12px; }
+.fp-dturn { color: var(--gold); }
+.fp-dchip.atk { border-color: #ff4d6a; box-shadow: 0 0 0 1px #ff4d6a, 0 0 14px #ff2a4a99; animation: phasecombat 1.2s ease-in-out infinite; }
+.fp-datk { color: #ff8fa0; }
+.fp-dchip.attn:not(.on) { animation: fp-dattn 1s ease-in-out infinite alternate; }
+@keyframes fp-dattn { to { border-color: var(--gold); box-shadow: 0 0 0 2px #f2b84b, 0 0 16px #f2b84baa; } }
+.fp-dchip.out { opacity: .45; } .fp-dchip.out b { text-decoration: line-through; }
+@media (prefers-reduced-motion: reduce) { .fp-dchip.atk, .fp-dchip.attn { animation: none; } }
+.fs-mini.fp-dback { position: absolute; left: 8px; top: 8px; z-index: 30; opacity: .75; }
+/* onde ficam: compacta — gaveta de cima, mesa, gaveta de baixo, barra das ações (no telemóvel deitado a barra é a coluna da direita);
+   computador — a coluna do painel ao lado de tudo */
+.fp.compact.drawers { grid-template-rows: auto minmax(0, 1fr) auto auto; }
+.fp.drawers:not(.compact) > :is(.fp-drawer, .fp-stagebox) { grid-column: 1; }
+.fp.drawers:not(.compact) { grid-template-rows: auto minmax(0, 1fr) auto; }
+.fp.drawers:not(.compact) > .fp-side { grid-column: 2; grid-row: 1 / -1; min-height: 0; }
+.fp.ml.compact.drawers { grid-template-rows: auto minmax(0, 1fr) auto auto; }
+@media (min-aspect-ratio: 7/4) { .fp.ml.compact.drawers .ml-tools { grid-column: 2; grid-row: 1 / -1; } }
+@media (min-aspect-ratio: 7/4) {  /* telemóvel deitado: as duas gavetas na mesma faixa (a da equipa à direita) e fichas sem as contas */
+  .fp.compact.drawers { grid-template-rows: auto minmax(0, 1fr); }
+  .fp.compact.drawers > .fp-drawer.top { grid-area: 1 / 1; } .fp.compact.drawers > .fp-stagebox { grid-area: 2 / 1; }
+  .fp.compact.drawers > .fp-drawer.bottom { grid-area: 1 / 1; justify-self: end; border: 0; background: none; padding-top: max(4px, env(safe-area-inset-top)); }
+  .fp.compact.drawers > .fp-drawer .fp-dchip small { display: none; }
+  .fp.compact.drawers > .fp-drawer .fp-dall { margin-left: 0; }
+  .fp.compact.drawers > :is(.fp-drawer, .fp-stagebox) { grid-column: 1; }
+  .fp.compact.drawers > .fp-actbar { grid-column: 2; grid-row: 1 / -1; }
+}
+/* a esfera da equipa (Two-Headed Giant nas gavetas): maior, na ponta esquerda da linha do meio, sobre a borda do teu lado — inteira
+   sempre (a linha do meio deixa-lhe o lugar); as duas pequenas saem */
+.fp.has-team-orb .fp-mid { padding-left: 118px; }
+.team-orb { position: absolute; left: 14px; top: 50%; z-index: 7; translate: 0 -38%; display: grid; justify-items: center; gap: 2px; pointer-events: auto; }
+.team-orb .orb { width: 84px; height: 84px; }
+.team-orb .orb b { font-size: 26px; }
+.team-orb > small { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gold2); }
+.fp.has-team-orb .bside.bottom:not(.compact) > .bhud > .orb { display: none; }
+.fp.has-team-orb .bside.bottom:not(.compact) > .brow.front { margin-left: 100px; width: calc(100% - 100px); }  /* a primeira criatura não fica por baixo da esfera */
+/* réplicas com 3–4 em gavetas (Replay, Board.jsx): as gavetas por cima e por baixo da mesa */
+.board > .fp-drawer { flex: 1 0 100%; border-radius: 10px; }
+.board > .fp-drawer.bottom { order: 9; }
+.view.board:not(.compact):has(> .fp-drawer) { display: flex; flex-direction: column; align-items: stretch; }
+.board > .fs-mini.fp-dback { position: static; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .board.compact:has(> .fp-drawer.top) { grid-template-rows: auto auto minmax(0, 1fr); }
+  .board.compact > .fp-drawer.top { grid-area: 1 / 1; }
+  .board.compact > .fp-drawer.bottom { grid-area: 1 / 1; justify-self: end; background: none; }
+  .board.compact > .fp-drawer .fp-dchip small { display: none; }
+  .board.compact:has(> .fp-drawer.top) > .bwrap { grid-area: 2 / 1 / 4 / 2; }
+  .board.compact:has(> .fp-drawer.top) > .rp-ctrl { grid-area: 2 / 2 / 4 / 3; }
+}

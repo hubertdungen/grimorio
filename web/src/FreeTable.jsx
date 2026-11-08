@@ -5,7 +5,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { img } from './data.js'
-import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, GameMenuBtns, CombatLinks, DamageFx } from './Board.jsx'
+import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, GameMenuBtns, DrawerChip, TeamOrb, CombatLinks, DamageFx } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useGameFocus, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop, flipFrom } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
@@ -359,6 +359,8 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   }, [s?.roll?.n, !!s]) // eslint-disable-line react-hooks/exhaustive-deps
   const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null), peek = usePeek(), hoverId = useRef(null), downAt = useRef({ x: 0, y: 0 })
   const { compact, chrome, setChrome } = useGameFocus(fitBox), chatTog = phone || compact  // mesa compacta: a conversa abre-se como gaveta (💬)
+  // 3–4 lugares em gavetas (Definições › Mesa): um adversário de cada vez em cima; quem escolheste (pick) até alguém te atacar
+  const [, reDraw] = useState(0), pick = useRef({ seat: null, atk: '' }), [ftAll, setFtAll] = useState(null)
   const stage = useStage(fitBox, stageWrap, !!s, phone ? 62 : true, compact)  // telemóvel: a barra das ações fica fixa em baixo
   const penLayer = useRef(null), pen = usePen({ table: fitTable, layer: penLayer, me, flip: me !== 0, send, chunks: s?.pen })
   useOverlap(fitTable)
@@ -515,6 +517,14 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   if (sidePh) return <SidePhase s={s} data={data} send={send} onClose={onClose} />
   const mine = seats[me], ended = s.status !== 'playing'
   const others = Array.from({ length: n - 1 }, (_, k) => (me + 1 + k) % n)
+  const ftMates = s.teams ? others.filter(i => s.teams[i] === s.teams[me]) : [], ftTops = others.filter(i => !ftMates.includes(i))
+  const ftDrawers = others.length > 1 && (ftAll != null ? !ftAll : fpPrefs().multi === 'drawers' || (fpPrefs().multi === 'auto' && compact && (innerWidth < innerHeight || innerHeight < 620)))
+  const ours = new Set([me, ...ftMates]), atkMe = others.filter(i => seats[i].battlefield.some(c => c.atk != null && ours.has(c.atk))), atkKey = atkMe.join()
+  const fSeat = pick.current.seat != null && others.includes(pick.current.seat) && (pick.current.atk === atkKey || !atkMe.length) ? pick.current.seat : atkMe.find(i => ftTops.includes(i)) ?? ftTops[0] ?? others[0]
+  const choose = i => { pick.current = { seat: i, atk: atkKey }; reDraw(x => x + 1) }
+  const ftChip = (i, mine) => { const v = seats[i]; return <DrawerChip key={i} name={v.name} life={v.life} poison={v.p} hand={v.hand.length} perms={v.battlefield.length} out={v.out} on={mine ? (i === me ? !ftMates.includes(fSeat) : fSeat === i) : fSeat === i}
+    turn={s.active === i} atk={!mine && atkMe.includes(i)} mine={mine} onClick={() => choose(i === me ? ftTops[0] : i)} /> }
+  const ftTeamOrb = ftDrawers && ftMates.length > 0 && fpPrefs().teamOrb
   const fx = { hl: new Set(), par: 0, pops: new Map(), life: lifeFx, player: null }
   const hs = { active: keyOf(s.active), exact: true, i: s.seq, sides: [] }
   const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: v.cd || {}, poison: v.poison, energy: v.energy || 0, emblems: [], out: false, perms: v.battlefield.filter(c => c.n && !c.ph && !c.sp).map(c => permOf(c)),  // as permanentes: a esfera ganha as cores e o fluido do que está em campo (como no Forge Play)
@@ -735,12 +745,15 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const lg = [...ghosts.filter(g => g.k !== 'orb' && !(g.k === 'card' && handed(g))),  // e as largadas há pouco cuja jogada ainda não chegou
     ...Object.entries(dropAt.current).filter(([seat, d]) => d.end && !d.gone && Date.now() - d.end < 900 && cardKey(d.id) === d.key && !s.live?.[seat]).map(([seat, d]) => ({ seat: +seat, k: 'card', id: d.id, p: d }))]
   return (
-    <div className={`fp ml ${dice.res ? 'dice-on' : ''} ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${chatTog && chatOpen ? 'chat-open' : ''} ${compact ? 'compact' : ''}`} ref={fitBox} onMouseLeave={() => { peek.hide(); clearTimeout(zWait.current.t); zWait.current = {}; if (!menu) setZoom(null) }} onMouseOver={onOver}
+    <div className={`fp ml ${dice.res ? 'dice-on' : ''} ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${chatTog && chatOpen ? 'chat-open' : ''} ${compact ? 'compact' : ''} ${ftDrawers ? 'drawers' : ''} ${ftTeamOrb ? 'has-team-orb' : ''}`} ref={fitBox} onMouseLeave={() => { peek.hide(); clearTimeout(zWait.current.t); zWait.current = {}; if (!menu) setZoom(null) }} onMouseOver={onOver}
       onPointerDown={e => { downAt.current = { x: e.clientX, y: e.clientY }; peek.hide() }}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && (pen.down(e) || dice.grab(e))) e.stopPropagation() }}
       onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
+      {ftDrawers && <div className="fp-drawer top" role="group" aria-label={tx('Adversários')}>{ftTops.map(i => ftChip(i))}
+        {innerWidth > innerHeight && <button type="button" className="fs-mini fp-dall" onClick={() => setFtAll(true)} title={tx('Ver todos os jogadores ao mesmo tempo')} aria-label={tx('Ver todos os jogadores ao mesmo tempo')}>⊞</button>}</div>}
       <div className="fp-stagebox" ref={stageWrap} style={{ height: compact ? undefined : stage.h }}>
       <FsBtn className="on-table" />
+      {others.length > 1 && !ftDrawers && <button type="button" className="fs-mini fp-dback" onClick={() => setFtAll(false)} title={tx('Gavetas: tu e um adversário de cada vez')} aria-label={tx('Gavetas: tu e um adversário de cada vez')}>⊟</button>}
       {/* a carta em grande flutua por cima da mesa, do lado oposto ao rato: no painel tapava os botões (passar a vez, mulligan, dados, caneta) */}
       {zc && <div className={`fp-zoom ml-float ${zLeft ? 'left' : ''}`} aria-hidden="true"><img key={zc.n} className="fp-zin" src={img(zc, 'normal', false, artOf(allArts, null, zc))} alt="" /></div>}
       {seePtr && s.ptr && Object.keys(s.ptr).length > 0 && createPortal(<div className="ptr-layer"><Hands list={Object.entries(s.ptr).map(([seat, g]) => {
@@ -768,7 +781,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
                       : k === 0 && <small className="muted">{tx('Para responder, arrasta uma carta para aqui')}</small>}</span>
                 </div> })}</div>}
             <CombatLinks s={{ sides: seats.map((_, i) => keyOf(i)), ...Object.fromEntries(seats.map((v, i) => [keyOf(i), { perms: v.battlefield.map(permOf) }])) }} />
-            <div className="ml-opps" style={{ '--np': others.length }}>{others.map(i => side(i, true, others.length > 1))}</div>
+            <div className="ml-opps" style={{ '--np': ftDrawers ? 1 : others.length }}>{ftDrawers ? side(fSeat, true, false) : others.map(i => side(i, true, others.length > 1))}</div>
             <div className="fp-mid">
               <span className="ml-badge" title={tx('Sem bots e sem regras automáticas: cada um mexe nas suas cartas.')}>🃏 {tx('Mesa livre · sem regras')}</span>
               <span className="fp-turn">{tx('Turno {n}', { n: s.turn })} · {s.teams ? (s.teams[s.active] === s.teams[me] ? tx('vez da tua equipa') : tx('vez de {p}', { p: seats.map((_, i) => i).filter(i => s.teams[i] === s.teams[s.active]).map(who).join(' + ') }))
@@ -780,6 +793,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
                 <button className="ml-mini" onClick={() => send({ c: 'gf', d: -5 })}>−5</button><button className="ml-mini" onClick={() => send({ c: 'gf', d: -1 })}>−1</button>
                 <b>{s.gf}</b><button className="ml-mini" onClick={() => send({ c: 'gf', d: 1 })}>+1</button></span>}
               {s.log.length > 0 && <span className="ml-last muted small">{line(s.log[s.log.length - 1], who)}</span>}
+              {ftTeamOrb && <TeamOrb ks={[keyOf(me), ...ftMates.map(keyOf)]} names={[mine?.name, ...ftMates.map(i => seats[i].name)]} s={hs} data={data} fx={fx} start={30} giant />}
             </div>
             {mine && side(me, false, false)}
           </div>
@@ -787,6 +801,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         <canvas className="ml-pen" ref={penLayer} aria-hidden="true" />
         <div className="fp-dice" ref={diceBox} />
       </div>
+      {ftDrawers && ftMates.length > 0 && <div className="fp-drawer bottom" role="group" aria-label={tx('A tua equipa')}>{[me, ...ftMates].map(i => ftChip(i, true))}</div>}
       <aside className="fp-side ml-aside">
         {tools}
         {err && <p className="small bad-t ml-err">{err}</p>}

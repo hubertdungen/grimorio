@@ -600,6 +600,26 @@ export function FsBtn({ className = '' }) {
   }
   return <button type="button" className={`fs-mini ${className}`} onClick={go} title={`${on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')} (Shift+F)`} aria-label={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')}>{on ? '🗗' : '⛶'}</button>
 }
+// mesas com 3–4 em gavetas (Forge Play, mesa livre): a ficha de cada jogador que não está à vista — vida, mão, cartas na mesa,
+// quem joga (▶), quem te ataca (⚔, a vermelho) e quem tem alguma coisa a escolher agora (a pulsar). Tocar mostra-o na mesa
+export function DrawerChip({ name, life, poison, hand, perms, out, on, turn, atk, attn, onClick, mine }) {
+  const seen = el => { const p = el?.parentElement; if (on && p && (el.offsetLeft < p.scrollLeft || el.offsetLeft + el.offsetWidth > p.scrollLeft + p.clientWidth)) p.scrollLeft = el.offsetLeft - 8 }  // a ficha escolhida fica à vista
+  return <button type="button" ref={seen} className={`fp-dchip ${on ? 'on' : ''} ${turn ? 'turn' : ''} ${atk ? 'atk' : ''} ${attn ? 'attn' : ''} ${out ? 'out' : ''} ${mine ? 'mine' : ''}`} onClick={onClick} aria-pressed={on}
+    title={[name, tx('vida {n}', { n: life }), tx('{n} na mão', { n: hand }), atk ? tx('está a atacar-te') : '', turn ? tx('é a vez dele') : ''].filter(Boolean).join(' · ')}>
+    <i className="fp-dlife">{life}</i><b>{name}</b><small>✋{hand} ▦{perms}{poison ? ` ☠${poison}` : ''}</small>{atk && <em className="fp-datk">⚔</em>}{turn && <em className="fp-dturn">▶</em>}
+  </button>
+}
+// equipas / Two-Headed Giant: uma esfera maior partilhada a meio da mesa (Definições › Mesa) — a vida da equipa (no 2HG é uma só,
+// noutras equipas a soma) e reage a dano, vida e veneno de qualquer dos aliados
+export function TeamOrb({ ks, names = [], s, data, fx, start = 30, giant, fast }) {
+  const oc = useContext(OrbCtx), zs = ks.map(k => s[k]).filter(Boolean)
+  if (!zs.length) return null
+  const life = giant ? zs[0].life : zs.reduce((n, z) => n + (z.life || 0), 0), poison = giant ? zs[0].poison || 0 : Math.max(0, ...zs.map(z => z.poison || 0))
+  const lk = ks.find(k => fx.life?.p === k), hk = ks.find(k => fx.player?.p === k)
+  return <div className="team-orb" title={tx('Vida da equipa: {p}', { p: names.filter(Boolean).join(' + ') })}>
+    <Orb env={orbEnv(ks[0], s, data)} life={life} d={lk ? fx.life.d : 0} hit={!!hk} step={s.i} fast={fast} start={start} poison={poison} psnHit={!!hk && fx.player?.psn} pmax={giant ? 15 : 10} look={orbLook(ks[0], zs[0], data, oc, names[0])} side={ks[0]} dead={life <= 0 ? 'dmg' : null} />
+    <small>{tx('Equipa')}</small></div>
+}
 // mesa compacta (useGameFocus): ☰ mostra/esconde as barras da app (áreas, deck, parar o jogo); ⋯ abre a gaveta do painel
 export function GameMenuBtns({ chrome, setChrome, side, setSide, sideLabel = tx('Regras, dados, histórico e opções') }) {
   return <>
@@ -1996,7 +2016,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const [zoom, setZoom] = useState(null)
   const [zone, setZone] = useState(null)
   const [more, setMore] = useState(false)  // telemóvel: velocidade, mãos e turno atrás do ⚙
-  const [compact] = useState(isCompact), [logOpen, setLogOpen] = useState(false)  // mesa compacta: uma barra só, a mesa com a altura toda e o registo a pedido (📜)
+  const [compact] = useState(isCompact), [logOpen, setLogOpen] = useState(false), [rAll, setRAll] = useState(null), rPick = useRef({ k: null, atk: '' }), [, reDraw] = useState(0)  // mesa compacta: uma barra só, a mesa com a altura toda e o registo a pedido (📜)
   const logRef = useRef(null)
   const start = game.startLife || 20
   const giant = game.mode === '2hg' ? game.teams : null
@@ -2078,6 +2098,15 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const mates = multi && game.teams ? S.filter(k => k !== 'a' && game.teams[k] === game.teams.a) : []
   const tops = S.filter(k => k !== 'a' && !mates.includes(k))
   const hit = new Set(multi ? S.flatMap(k => s[k].perms.map(p => p.attacking)).filter(x => S.includes(x)) : [])
+  // 3–4 jogadores em gavetas (Definições › Mesa): um adversário de cada vez em cima, o parceiro pela gaveta de baixo; quem te
+  // ataca passa para a mesa sozinho (até escolheres outro)
+  const mp = fpPrefs().multi, rDrawers = multi && (rAll != null ? !rAll : mp === 'drawers' || (mp === 'auto' && compact && (innerWidth < innerHeight || innerHeight < 620)))
+  const ours = new Set(['a', ...mates]), atkUs = tops.filter(k => s[k].perms.some(p => ours.has(p.attacking))), atkKey = atkUs.join()
+  const rSeat = rPick.current.k && (rPick.current.atk === atkKey || !atkUs.length) ? rPick.current.k : atkUs[0] || tops[0]
+  const rFocus = tops.includes(rSeat) ? rSeat : tops[0], rMate = mates.includes(rSeat) ? rSeat : null
+  const rChoose = k => { rPick.current = { k, atk: atkKey }; reDraw(x => x + 1) }
+  const rChip = (k, mine) => <DrawerChip key={k} name={who[k]} life={lifeTxt(s[k].life)} poison={s[k].poison} hand={s[k].hand ?? 0} perms={s[k].perms.length} out={!!s[k].out} mine={mine}
+    on={mine ? (k === 'a' ? !rMate : rMate === k) : rFocus === k} turn={s.active === k} atk={!mine && atkUs.includes(k)} onClick={() => rChoose(k === 'a' ? tops[0] : k)} />
   const fm = k => (formats?.[k] ? <span className="fmt-tag">{formats[k]}</span> : null)
   const ownOf = d => (!d ? null : d.friend ? 'ami' : d.community ? 'com' : d.source === 'MTGTop8' || d.source === 'EDHREC' || 'archetype' in d ? 'meta' : 'meu')
   const own = owns || (game.decks && Object.fromEntries(Object.entries(game.decks).map(([k, d]) => [k, ownOf(d)])))  // Laboratório: dos decks do jogo
@@ -2115,9 +2144,14 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
         </div>
         <span className="muted small">{i}/{evs.length}</span>
       </div>
+      {rDrawers && <div className="fp-drawer top" role="group" aria-label={tx('Adversários')}>{tops.map(k => rChip(k))}
+        {innerWidth > innerHeight && <button type="button" className="fs-mini fp-dall" onClick={() => setRAll(true)} title={tx('Ver todos os jogadores ao mesmo tempo')} aria-label={tx('Ver todos os jogadores ao mesmo tempo')}>⊞</button>}</div>}
+      {rDrawers && mates.length > 0 && <div className="fp-drawer bottom" role="group" aria-label={tx('A tua equipa')}>{['a', ...mates].map(k => rChip(k, true))}</div>}
+      {multi && !rDrawers && compact && <button type="button" className="fs-mini fp-dback" onClick={() => setRAll(false)} title={tx('Gavetas: tu e um adversário de cada vez')} aria-label={tx('Gavetas: tu e um adversário de cada vez')}>⊟</button>}
       <div className="bwrap">
-        <div className={`table ${multi ? 'multi' : ''} ${track && pov ? `track-${pov}` : ''} ${S.some(k => s[k]?.perms?.some(p => p.attacking)) ? 'combat-on' : ''}`}>
-          {multi
+        <div className={`table ${multi && !rDrawers ? 'multi' : ''} ${track && pov ? `track-${pov}` : ''} ${S.some(k => s[k]?.perms?.some(p => p.attacking)) ? 'combat-on' : ''}`}>
+          {rDrawers ? <Side key={rFocus} k={rFocus} name={who[rFocus]} {...sp} top who={who} hit={hit.has(rFocus)} hand={oppHand(rFocus)} />
+            : multi
             ? <div className="opps" style={{ '--np': tops.length }}>{tops.map(k => <Side key={k} k={k} name={who[k]} {...sp} top compact={tops.length > 2} who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div>
             : <Side k="b" name={game.opp} {...sp} top hand={oppHand('b')} />}
           <div className="bmid">
@@ -2135,6 +2169,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
           </div>
           {(() => {
             const me = <Side k="a" name={deckName} {...sp} who={multi ? who : null} hit={hit.has('a')} hand={<Hand z={s.a} data={data} quiet={fast || pos.jump} exact={!!game.exact} hidden={hands === 'nenhuma'} />} />
+            if (rDrawers) return rMate ? <Side key={rMate} k={rMate} name={who[rMate]} {...sp} who={who} hit={hit.has(rMate)} hand={oppHand(rMate)} /> : me
             return mates.length ? <div className="mine withmate">{me}{mates.map(k => <Side key={k} k={k} name={who[k]} {...sp} compact={mates.length > 1} who={who} hit={hit.has(k)} hand={oppHand(k)} />)}</div> : me
           })()}
           <CombatLinks s={s} />

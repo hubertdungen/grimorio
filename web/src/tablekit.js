@@ -239,7 +239,7 @@ export function useGameFocus(boxRef) {
   return { compact, chrome, setChrome }
 }
 
-export function useStage(boxRef, wrapRef, ready, own = false, compact = false) {  // own: com o painel por baixo, a mesa fica com o ecrã todo (o painel vem a seguir, a rolar)
+export function useStage(boxRef, wrapRef, ready, own = false, compact = false, again = '') {  // again: mede de novo quando muda (gavetas ↔ todos à vista)  // own: com o painel por baixo, a mesa fica com o ecrã todo (o painel vem a seguir, a rolar)
   const [st, setSt] = useState({ shape: 'wide', sc: 1, left: 0 })
   useLayoutEffect(() => {
     const box = boxRef.current, wrap = wrapRef.current
@@ -278,7 +278,7 @@ export function useStage(boxRef, wrapRef, ready, own = false, compact = false) {
       last = { w, vh, fe }
       // forma pela orientação do aparelho: ao alto (telemóvel, tablet ao alto) a mesa é alta e usa a altura do ecrã toda
       // (fora do ecrã inteiro a página desce até ela); deitado cabe no espaço que sobra por baixo do cabeçalho
-      const tall = innerWidth < innerHeight, side = box.querySelector('.fp-side'), below = getComputedStyle(box).gridTemplateRows.split(' ').length > 1
+      const tall = innerWidth < innerHeight, side = box.querySelector('.fp-side'), below = getComputedStyle(box).gridTemplateColumns.split(' ').length < 2  // o painel por baixo da mesa (uma coluna só; as gavetas também são linhas)
       const total = Math.max(380, Math.floor(vh - (tall && !fe ? 0 : top) - (fe ? 4 : 10)))
       // com o painel por baixo a mesa fica com o que sobra — num ecrã baixo (telemóvel deitado) sobrava quase nada e a mesa
       // ficava minúscula: aí a mesa fica com a altura toda e o painel vem a seguir, a rolar (a caixa cresce: altura automática)
@@ -287,7 +287,8 @@ export function useStage(boxRef, wrapRef, ready, own = false, compact = false) {
       const rest = total - (side?.offsetHeight || 0) - 8, full = below && !own && matchMedia('(pointer: coarse)').matches
       box.style.height = full ? `${total + (side?.offsetHeight || 0) + 8}px` : tall && !fe ? '' : `${total}px`
       const bar = full ? box.querySelector('.fp-actbar')?.offsetHeight || 0 : 0  // a barra fixa de OK/Cancelar (telemóvel) tapa o fundo do ecrã
-      const h = below && !own && !full ? rest : total - bar
+      const drw = [...box.querySelectorAll(':scope > .fp-drawer')].reduce((n, e) => n + e.offsetHeight, 0)  // gavetas (3–4 jogadores)
+      const h = (below && !own && !full ? rest : total - bar) - drw
       const shape = tall ? 'tall' : 'wide'
       let [W, H] = STAGE[shape]
       // ao alto num ecrã de toque a mesa fica com a forma do ecrã e pelo menos 1240 de altura (o teu lado + nome, vida,
@@ -307,7 +308,7 @@ export function useStage(boxRef, wrapRef, ready, own = false, compact = false) {
       tm.forEach(clearTimeout); removeEventListener('resize', again); window.visualViewport?.removeEventListener('resize', again)
       evs.forEach(e => (e === 'orientationchange' ? window : document).removeEventListener(e, hard))
     }
-  }, [ready, compact]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, compact, again]) // eslint-disable-line react-hooks/exhaustive-deps
   return st
 }
 

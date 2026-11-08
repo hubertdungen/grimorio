@@ -164,6 +164,14 @@ function TableKeys() {
           <option value="classic">{tx('Clássica')}</option>
         </select>
         <small className="muted">{{ auto: tx('Automática: no telemóvel e no tablet, a mesa com o ecrã todo (barras e painel a pedido: ☰ e ⋯)'), compact: tx('Sempre a mesa com o ecrã todo (também no computador)'), classic: tx('Clássica: barras da app e painel lateral sempre à vista') }[p.layout]}</small></label>
+      <label className="fmt"><span>{tx('Mesas com 3–4 jogadores')}</span>
+        <select value={p.multi} onChange={e => save({ multi: e.target.value })}>
+          <option value="auto">{tx('Automático')}</option>
+          <option value="drawers">{tx('Gavetas')}</option>
+          <option value="all">{tx('Tudo à vista')}</option>
+        </select>
+        <small className="muted">{{ auto: tx('Gavetas no telemóvel e no tablet ao alto (e no telemóvel deitado); todos à vista no tablet deitado e no computador.'), drawers: tx('Gavetas: jogas como num 1 contra 1; a gaveta de cima troca de adversário e a de baixo mostra o parceiro.'), all: tx('Todos os jogadores à vista ao mesmo tempo, como antes.') }[p.multi]}</small></label>
+      <label className="chk"><input type="checkbox" checked={p.teamOrb} onChange={e => save({ teamOrb: e.target.checked })} /> {tx('Two-Headed Giant nas gavetas: uma esfera da equipa, maior, a meio da mesa (desligado: uma esfera em cada lado, como antes)')}</label>
       <label className="fmt"><span>{tx('Tamanho das cartas na mesa')}</span>
         <select value={p.cardPx} onChange={e => save({ cardPx: +e.target.value })}>
           {CARD_PX.map(n => <option key={n} value={n}>{n ? tx('{n} px (terrenos também)', { n }) : tx('Automático (cabe no ecrã)')}</option>)}
