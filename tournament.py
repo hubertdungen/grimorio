@@ -1523,9 +1523,10 @@ def to_bot(st, m, owner, note):
     m.update(bot=1, note=note)
 
 
-def table_game(con, tid, st, m, w, owner, reason="Mesa livre"):
+def table_game(con, tid, st, m, w, owner, reason="Mesa livre", snaps=None):
     """Um jogo de uma partida do torneio de mesa livre acabou (w = índice do lugar que ganhou, None = empate)."""
-    g = {"winner": sim.SIDES[w] if w is not None else "draw", "turns": None, "reason": reason, "events": [], "human": True}
+    g = {"winner": sim.SIDES[w] if w is not None else "draw", "turns": None, "reason": reason, "events": [], "human": True,
+         **({"snaps": snaps, "ft": True} if snaps else {})}  # fotografias da mesa livre: dá para rever (ft: o formato da mesa livre)
     gid = con.execute("INSERT INTO tournament_games (tid, ts, game) VALUES (?,?,?)", (tid, time.time(), zlib.compress(
         json.dumps({**g, "match": m["id"], "seats": m["seats"]}, ensure_ascii=False).encode(), 6))).lastrowid
     record(st, m, g, gid)  # sem ratings: jogos entre amigos à mesa livre não medem os decks
@@ -1552,7 +1553,7 @@ def step():
                 if r and not r["ended"]:
                     continue
                 if r:
-                    table_game(con, tid, st, m, r["w"], owner)
+                    table_game(con, tid, st, m, r["w"], owner, snaps=r.get("snaps"))
                 else:  # a mesa perdeu-se: a partida volta a esperar pelos jogadores
                     m.pop("table"); m.pop("seats", None)
                 resolve(st)

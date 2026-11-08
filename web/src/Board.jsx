@@ -12,7 +12,7 @@ import { attackStyle, attackFx } from './orbfx.js'
 import { leaveGhost } from './tablekit.js'
 import OrbEgg from './OrbEgg.jsx'
 import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
-import { snapBoard } from './fpboard.js'
+import { snapBoard, ftBoard, ftTxt } from './fpboard.js'
 import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
@@ -1980,7 +1980,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   useLayoutEffect(() => { fitRef.current?.() })
   const setHands = v => { setHandsS(v); onHands?.(v) }
   // jogos jogados por pessoas (Forge Play, mesa estrita): fotografias do estado (game.snaps), um passo por fotografia
-  const evs = useMemo(() => (game.snaps ? game.snaps.map(x => ({ k: 'snap', txt: x.txt, p: x.p })) : game.events || []), [game])  // game: Two-Headed Giant com os turnos da equipa (giantTurns)
+  const evs = useMemo(() => (game.snaps ? game.snaps.map(x => ({ k: 'snap', txt: x.ev ? ftTxt(x.ev, tx) : x.txt, p: x.p })) : game.events || []), [game])  // game: Two-Headed Giant com os turnos da equipa (giantTurns)
   const [pos, setPos] = useState({ i: 0, jump: true })
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeedS] = useState(speed0 ?? (live ? 3 : 2))
@@ -1992,7 +1992,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const start = game.startLife || 20
   const giant = game.mode === '2hg' ? game.teams : null
   const [px, setPx] = useState(() => fpPrefs().cardPx)  // tamanho das cartas escolhido (0 = automático)
-  const states = useMemo(() => (game.snaps ? [snapBoard(game.snaps[0]?.st, 0), ...game.snaps.map((x, k) => snapBoard(x.st, k + 1))]
+  const states = useMemo(() => (game.snaps ? (sb => [sb(game.snaps[0]?.st, 0), ...game.snaps.map((x, k) => sb(x.st, k + 1))])(game.ft ? ftBoard : snapBoard)  // ft: mesa livre
     : replayStates(evs, data, start, game.setup || null, !!game.exact, giant)), [evs, data, start, game.setup, game.exact, giant, game.snaps])
   const i = Math.min(pos.i, evs.length)
   const go = (n, jump = true) => setPos({ i: Math.max(0, Math.min(evs.length, n)), jump })

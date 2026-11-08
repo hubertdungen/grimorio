@@ -31,3 +31,22 @@ export function snapBoard(st, i = 0) {
   return { i, turn: st?.turn || 0, phase: st?.phase || null, first: null, sides: ['a', 'b'], a: zoneOf(me, st?.combat), b: zoneOf(opp, st?.combat),
     active: st?.active == null ? null : st.active === me.id ? 'a' : 'b', stack: [], seq: i, last: null, fx: null, over: null, exact: true }
 }
+
+// uma fotografia da mesa livre (freetable._snap) -> um estado do tabuleiro: o lugar i é o lado 'abcd'[i]
+const SK = 'abcd'
+export function ftBoard(st, i = 0) {
+  const seats = st?.seats || [], sides = seats.map((_, k) => SK[k])
+  const zone = p => ({
+    life: p.life, library: p.lib || 0, libTop: null, hand: p.hand || 0, known: [], graveyard: p.gy || [], exile: p.ex || [], command: [], cmdDmg: {}, poison: p.psn || 0, energy: 0, pctr: {},
+    emblems: [], out: !!p.out, perms: (p.bf || []).map(c => ({
+      key: String(c.id), name: c.n || '', hidden: c.n == null, faceDown: c.n == null, tapped: !!c.t, token: !!c.tok, counters: c.k || {}, damage: 0,
+      attachedTo: c.at != null ? String(c.at) : undefined, attacking: c.atk != null ? SK[c.atk] : undefined, blocking: c.blk != null ? String(c.blk) : undefined,
+    })),
+  })
+  return { i, turn: st?.turn || 0, phase: null, first: null, sides, ...Object.fromEntries(seats.map((p, k) => [SK[k], zone(p)])),
+    active: st?.active == null ? null : SK[st.active], stack: [], seq: i, last: null, fx: null, over: null, exact: true }
+}
+
+// o passo de uma fotografia da mesa livre ([turno, quem, tipo, carta]) -> texto traduzido
+const FT_K = { attach: 'anexa', attack: 'ataca', block: 'bloqueia', cast: 'lança', cmdmg: 'dano de comandante', concede: 'desiste', day: 'dia/noite', dice: 'dados', draw: 'compra', face: 'vira a carta', flip: 'transforma', gf: 'vida', life: 'vida', lookhand: 'vê a mão', mark: 'marca', move: 'mexe', mulligan: 'mulligan', newturn: 'novo turno', pass: 'passa a vez', phase: 'fase', resolve: 'resolve', result: 'fim do jogo', reveal: 'revela', revealhand: 'revela a mão', revealtop: 'revela o topo', search: 'procura no grimório', showlib: 'mostra o grimório', shuffle: 'baralha', side: 'sideboard', token: 'ficha', untapall: 'desvira tudo', tap: 'vira', counter: 'marcador', mill: 'moe', poison: 'veneno' }
+export const ftTxt = (ev, tx) => { const [t, who, k, n] = ev || []; return [`T${t}`, who, FT_K[k] ? tx(FT_K[k]) : '', n].filter(Boolean).join(' · ') }

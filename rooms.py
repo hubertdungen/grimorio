@@ -146,7 +146,7 @@ def start_livre(con, owner, rid, spec, players):
         con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
         LIVE.pop(rid, None)
         return tid
-    tid = freetable.create(con, owner, spec.get("name"), seats, first=int(spec.get("first") or 0), giant=bool(spec.get("giant")))
+    tid = freetable.create(con, owner, spec.get("name"), seats, first=int(spec.get("first") or 0), giant=bool(spec.get("giant")), keep=True)
     con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
     LIVE.pop(rid, None)
     return tid

@@ -95,7 +95,7 @@ def lists(con, tid):
     return (_find(con, tid) or {}).get("lists")
 
 
-def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=None, giant=False):  # first: quem começa (a moeda do lobby)
+def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=None, giant=False, keep=False):  # keep: guardar em «Os meus jogos» no fim  # first: quem começa (a moeda do lobby)
     # giant: Two-Headed Giant (4 lugares: 0+1 contra 2+3) — vida da equipa 30 e veneno 15 partilhados, turnos da equipa
     """seats = [{by, name, deck: {name, format, main, side, commanders}}] -> id da mesa (já com 7 cartas na mão de cada um).
     solo: um só lugar, para testar um deck (goldfish), com a vida de um adversário imaginário.
@@ -133,6 +133,8 @@ def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=
         t["seats"].append({"by": s["by"], "name": str(s.get("name") or "?")[:40], "deck": str(d.get("name") or "")[:80],
                            "format": d.get("format"), "life": 40 if cmd else 20, "life0": 40 if cmd else 20, "poison": 0, "energy": 0, "cd": {}, "mk": [],
                            "out": False, "peek": 0, "arts": sim.art_map(d)})  # a arte escolhida no deck
+    if keep:
+        t["keep"] = True
     if giant:  # 2HG: a vida da equipa começa em 30 (regra 810.9a)
         for s2 in t["seats"]:
             s2["life"] = s2["life0"] = 30
@@ -206,7 +208,7 @@ def _clean(c):
 
 
 def _save(con, t):
-    st = {k: v for k, v in t.items() if k not in ("pen", "live", "ptr")}  # a caneta e o «ao vivo» são passageiros: não se gravam
+    st = {k: v for k, v in t.items() if k not in ("pen", "live", "ptr", "snapsig")}  # a caneta e o «ao vivo» são passageiros: não se gravam
     con.execute("INSERT OR REPLACE INTO freetables VALUES (?,?,?,?)", (t["id"], t["owner"], t["ts"], json.dumps(st, ensure_ascii=False)))
 
 
@@ -242,7 +244,51 @@ def result(tid, db=None):
     t = T.get(tid) or (db and _load(db, tid))
     if not t:
         return None
-    return {"ended": "result" in t, "w": (t.get("result") or {}).get("w"), "turns": t["turn"]}
+    return {"ended": "result" in t, "w": (t.get("result") or {}).get("w"), "turns": t["turn"], "snaps": list(t.get("snaps") or []),
+            "names": [s["name"] for s in t["seats"]]}
+
+
+ON_KEEP = None  # server.py: ON_KEEP(dono, jogo) quando acaba uma mesa de uma sala (create keep=True): «Os meus jogos»
+
+
+def _kept(t):
+    """A mesa acabou: o jogo que vai para «Os meus jogos» do dono (o formato das réplicas do playnet, ft = mesa livre)."""
+    t["kept"] = True
+    sk, w = "abcd", t["result"].get("w")
+    host = next((i for i, s in enumerate(t["seats"]) if s["by"] == "host"), 0)
+    return {"names": {sk[i]: s["deck"] or s["name"] for i, s in enumerate(t["seats"])}, "players": {sk[i]: s["name"] for i, s in enumerate(t["seats"])},
+            "winner": sk[w] if w is not None else "draw", "turns": t["turn"], "snaps": list(t["snaps"]), "ft": True, "me": sk[host], "ts": time.time()}
+
+
+SNAPS = 300  # fotografias da mesa por jogo, no máximo (tira-se do meio); ponytail: vão no JSON da mesa a cada _save (~1 MB no máximo), tabela própria se pesar
+
+
+def _snap(t):
+    """Uma fotografia da mesa para a réplica (só o que todos veem: as mãos só contadas, cartas viradas sem nome)."""
+    card = lambda cid: t["cards"][str(cid)]  # noqa: E731
+    seats = []
+    for i, s in enumerate(t["seats"]):
+        z = t["zones"][i]
+        bf = []
+        for c in map(card, z["battlefield"]):
+            if c.get("sp"):
+                continue
+            x = {"id": c["id"], **({"n": c["n"]} if not c.get("d") else {})}
+            x.update({k: c[k] for k in ("t", "k", "at", "tok", "atk", "blk") if c.get(k) is not None and c.get(k) is not False and c.get(k) != {}})
+            bf.append(x)
+        seats.append({"name": s["name"], "life": s["life"], "psn": s.get("poison", 0), "lib": len(z["library"]), "hand": len(z["hand"]), "bf": bf,
+                      "gy": [card(x)["n"] for x in z["graveyard"]], "ex": [card(x)["n"] for x in z["exile"]], **({"out": True} if s.get("out") else {})})
+    st = {"turn": t["turn"], "active": t["active"], "seats": seats}
+    sig = json.dumps(st, sort_keys=True)
+    if sig == t.get("snapsig"):
+        return
+    t["snapsig"] = sig
+    e = t["log"][-1] if t["log"] else {}
+    who = t["seats"][e["s"]]["name"] if isinstance(e.get("s"), int) and 0 <= e["s"] < len(t["seats"]) else ""
+    sn = t.setdefault("snaps", [])
+    sn.append({"st": st, "ev": [t["turn"], who, e.get("k") or "", str(e.get("name") or "")]})  # o texto do passo faz-se no cliente (traduzido: fpboard.ftTxt)
+    if len(sn) > SNAPS:
+        del sn[len(sn) // 2]
 
 
 def _public(c):
@@ -934,6 +980,13 @@ def route(db, method, path, owner, body, who, since=0, seat=None):
             return 403, {"erro": str(e)}
         except ValueError as e:
             return 400, {"erro": str(e)}
+        if t["status"] in ("playing", "ended") and body.get("c") not in ("pen", "chat", "react"):
+            _snap(t)  # a réplica: uma fotografia quando a mesa muda
+        if t.get("keep") and "result" in t and t.get("snaps") and not t.get("kept") and ON_KEEP:
+            try:
+                ON_KEEP(t["owner"], _kept(t))
+            except Exception as e:  # guardar a réplica não pode parar a mesa
+                print("freetable: os meus jogos:", e, flush=True)
         t["seq"] += 1
         t["ts"] = time.time()
         COND.notify_all()
@@ -1081,13 +1134,29 @@ def selfcheck():
     apply(rt, 1, {"c": "result", "w": 1})
     assert rt["res"] == {"w": 1, "ok": ["guest:rui"]} and "result" not in rt and result(rid)["ended"] is False
     apply(rt, 0, {"c": "agree"})
-    assert rt["result"] == {"w": 1} and result(rid) == {"ended": True, "w": 1, "turns": 1}
+    assert rt["result"] == {"w": 1} and {k: result(rid)[k] for k in ("ended", "w", "turns")} == {"ended": True, "w": 1, "turns": 1}
     with db() as con:
         rid = create(con, "hubert", "R2", [{"by": "host", "name": "H", "deck": deck("A")}, {"by": "host", "name": "H", "deck": deck("B")}])
     rt = T[rid]  # os dois lados do mesmo jogador: escolhe o lugar e desistir do outro dá a vitória
     assert route(db, "GET", f"/api/freetables/{rid}", "hubert", None, "host", 0, 1)[1]["me"] == 1
     route(db, "POST", f"/api/freetables/{rid}", "hubert", {"c": "concede"}, "host", 0, 1)
     assert result(rid)["w"] == 0
+    # réplica: cada mudança pelo route deixa uma fotografia (mãos só contadas); igual = não repete
+    sn = result(rid)["snaps"]
+    assert sn and len(sn[-1]["st"]["seats"]) == 2 and isinstance(sn[-1]["st"]["seats"][0]["hand"], int) and sn[-1]["ev"][2] in ("concede", "result")
+    _snap(T[rid])
+    assert len(result(rid)["snaps"]) == len(sn) and result(rid)["names"] == ["H", "H"]
+    global ON_KEEP
+    got, k0 = [], ON_KEEP
+    ON_KEEP = lambda o, g: got.append((o, g))  # noqa: E731  — salas (keep=True): no fim vai para «Os meus jogos», uma vez
+    with db() as con:
+        kid = create(con, "hubert", "K", [{"by": "host", "name": "H", "deck": deck("A")}, {"by": "guest:rui", "name": "Rui", "deck": deck("B")}], keep=True)
+    route(db, "POST", f"/api/freetables/{kid}", "hubert", {"c": "life", "d": -3}, "host", 0)
+    route(db, "POST", f"/api/freetables/{kid}", "hubert", {"c": "concede"}, "guest:rui", 0)
+    route(db, "POST", f"/api/freetables/{kid}", "hubert", {"c": "chat", "t": "gg"}, "host", 0)
+    ON_KEEP = k0
+    assert len(got) == 1 and got[0][0] == "hubert" and got[0][1]["winner"] == "a" and got[0][1]["me"] == "a" and got[0][1]["ft"] and got[0][1]["snaps"]
+    assert not any(x[1].get("keep") for x in [(0, T[rid])])  # as do torneio (sem keep) não se guardam
     # mecânicas: energia, dano de comandante (conta e tira vida), designações únicas, dia/noite, imposto, anexar, phasing
     call("POST", "host", {"c": "energy", "d": 3})
     assert call("GET", "guest:rui")[1]["seats"][0]["energy"] == 3

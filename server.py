@@ -561,7 +561,8 @@ class H(BaseHTTPRequestHandler):
             out = []
             for i, ts, g in rows:
                 g = json.loads(zlib.decompress(g))
-                out.append({"id": i, "ts": ts, "names": g.get("names"), "players": g.get("players"), "winner": g.get("winner"), "turns": g.get("turns")})
+                out.append({"id": i, "ts": ts, "names": g.get("names"), "players": g.get("players"), "winner": g.get("winner"), "turns": g.get("turns"),
+                            **{k: g[k] for k in ("ft", "me") if k in g}})
             return self.json(out)
         mg2 = re.match(r"^/api/mygames/(\d+)$", p)
         if mg2:
@@ -1579,7 +1580,7 @@ if __name__ == "__main__":
     tournament.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma os torneios a decorrer
     ratings.init(ARGS.data_dir, busy=lambda: bool(play.S))  # retoma a Arena automática se estava ligada
     playnet.ON_END = ratings.forgeplay_end  # jogos do Forge Play acabados com vencedor contam para os ratings
-    playnet.ON_KEEP = keep_game  # jogos avulsos contra o Forge: «Os meus jogos» (réplicas)
+    playnet.ON_KEEP = freetable.ON_KEEP = keep_game  # jogos avulsos contra o Forge e das salas de mesa livre: «Os meus jogos» (réplicas)
     backup.init(ARGS.data_dir)  # pasta na nuvem (se ligada): traz o que mudou noutros aparelhos e leva o daqui
     share.adopt(ARGS.data_dir)  # a partilha que estava ligada continua com o mesmo endereço depois de reiniciar
     print(f"Grimório em http://{ARGS.host}:{ARGS.port}", flush=True)
