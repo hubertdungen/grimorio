@@ -127,7 +127,8 @@ def view(con, r, who, owner=None):
             **({"go": round(max(0.0, spec["go"] - time.time()), 1), "first": spec.get("first", 0)} if spec.get("go") else {}),
             **({"chat": (spec.get("chat") or [])[-60:]} if livre else {}),
             **({"lend": lent(con, owner, spec)} if (spec.get("type") == "livre" or spec.get("free") or spec.get("misto")) and owner and status == "open" else {}),
-            **({"link": f"/sala/{spec['link']}"} if who == "host" and spec.get("link") else {})}
+            **({"link": f"/sala/{spec['link']}"} if who == "host" and spec.get("link") else {}),
+            **({"opener": spec.get("byName"), "own": spec["by"] == who} if spec.get("by") else {})}  # a mesa de um membro da Taverna
 
 
 def seat_deck(con, owner, p):
@@ -214,6 +215,34 @@ def deck_ok(con, owner, did, friend):
     return r[0] if (body.get("friend") or None) == friend else None
 
 
+def guest_room(con, owner, guest, d):
+    """Um membro da Taverna (convidado) abre uma mesa livre ou estrita nas salas de quem aloja, com um deck seu. Fica
+    marcada como dele (spec.by): pode começá-la e cancelá-la; torneios e jogos com bots só quem aloja."""
+    import taverna
+    who = f"guest:{guest['id']}"
+    if d.get("type") != "livre":
+        return 403, {"erro": "Só quem aloja abre torneios e jogos com os bots."}
+    bad = taverna.room_ok(con, owner, who)
+    if bad:
+        return bad[0], {"erro": bad[1]}
+    p0 = (d.get("players") or [None])[0] if isinstance(d.get("players"), list) else None
+    dname = isinstance(p0, dict) and deck_ok(con, owner, p0.get("ref"), guest["id"])
+    if not dname:
+        return 400, {"erro": "Escolhe um deck teu para a mesa."}
+    giant = bool(d.get("giant"))
+    try:
+        mx = 4 if giant else max(2, min(4, int(d.get("max") or 4)))
+    except (TypeError, ValueError):
+        mx = 4
+    name = taverna.clean(d.get("name"), 80) or "Mesa livre"
+    spec = {"name": name, "type": "livre", "format": None, "casual": True, "max": mx, "strict": bool(d.get("strict")) or None,
+            **({"giant": True} if giant else {}), "by": who, "byName": guest["name"], "link": secrets.token_urlsafe(12)}
+    rid = secrets.token_hex(5)
+    players = [{"src": "meus", "ref": str(p0["ref"]), "name": dname, "by": who, "byName": guest["name"], "difficulty": "default"}]
+    con.execute("INSERT INTO rooms VALUES (?,?,?,?,?, 'open', NULL)", (rid, owner, time.time(), json.dumps(spec), json.dumps(players)))
+    return 201, {"id": rid}
+
+
 def route(con, method, path, owner, body, guest=None):
     """Dono: GET lista, POST cria {spec, players}, POST /<id>/start|cancel. Convidado: GET as abertas, /<id>/join {deck}|leave."""
     init(con)
@@ -229,9 +258,9 @@ def route(con, method, path, owner, body, guest=None):
         return 200, [view(con, r, who, owner) for r in rows(con, owner, open_only=bool(guest))]
     if method != "POST":
         return 404, {"erro": "rota desconhecida"}
-    if not rid:  # criar (só o dono)
+    if not rid:  # criar: o dono; um membro da Taverna só mesas livres ou estritas (guest_room; limites em taverna.room_ok)
         if guest:
-            return 403, {"erro": "Só quem aloja pode abrir salas."}
+            return guest_room(con, owner, guest, body if isinstance(body, dict) else {})
         d = body or {}
         spec = {k: d.get(k) for k in ("name", "type", "format", "casual", "bo", "third", "rounds", "seeding", "team", "cross", "hold", "free", "misto", "wait", "strict", "giant")}
         players = [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "name", "plays")}, "by": "host"} for p in (d.get("players") or []) if isinstance(p, dict)]
@@ -323,10 +352,11 @@ def route(con, method, path, owner, body, guest=None):
             return 409, {"erro": "Senta-te primeiro com um deck."}
         for p in mine:
             p["show"] = (not p.get("show")) if on is None else bool(on)
-    elif act == "cancel" and not guest:
+    elif act == "cancel" and (not guest or spec.get("by") == who):  # quem aloja, ou o membro que abriu esta mesa
         con.execute("UPDATE rooms SET status='cancelled' WHERE id=?", (rid,))
+        LIVE.pop(rid, None)
         return 200, {"ok": True}
-    elif act == "start" and not guest:
+    elif act == "start" and (not guest or (livre and spec.get("by") == who)):
         if not lo <= len(players) <= hi:
             return 400, {"erro": f"Este tipo de torneio leva entre {lo} e {hi} decks (há {len(players)})."}
         if livre:  # quem aloja pode começar sem esperar que estejam todos prontos

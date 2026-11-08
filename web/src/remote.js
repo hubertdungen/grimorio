@@ -22,19 +22,33 @@ export async function remoteFetch(_fetch, [input, init]) {
   if (u.origin !== location.origin || !ROOM.test(u.pathname)) return null
   let body = init?.body
   if (JOIN.test(u.pathname) && typeof body === 'string') body = await bringDeck(_fetch, body)
+  if (u.pathname === '/api/rooms' && init?.method === 'POST' && typeof body === 'string') body = await bringFirst(_fetch, body)
   return _fetch(R.base + u.pathname + u.search, auth({ ...init, body }))
 }
 
-// sentar-me com um deck meu (daqui): leva a lista para lá e entra com o id de lá
+// um deck meu (daqui) vai para lá -> o id de lá (null: não é um deck daqui)
+async function bring(_fetch, did) {
+  const r = await _fetch(`./api/decks/${encodeURIComponent(did)}`)
+  if (!r.ok) return null
+  const out = await _fetch(`${R.base}/api/guest/decks`, auth({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decks: [await r.json()] }) }))
+  const id = out.ok && (await out.json()).ids?.[did]
+  if (!id) throw new Error(tx('Não consegui levar este deck para a sala do teu amigo.'))
+  return id
+}
+
+// sentar-me com um deck meu: leva a lista para lá e entra com o id de lá
 async function bringDeck(_fetch, body) {
   const b = JSON.parse(body)
   if (!b.deck || (b.src && b.src !== 'meus')) return body  // emprestado ou do meta: já é de lá
-  const r = await _fetch(`./api/decks/${encodeURIComponent(b.deck)}`)
-  if (!r.ok) return body
-  const out = await _fetch(`${R.base}/api/guest/decks`, auth({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decks: [await r.json()] }) }))
-  const id = out.ok && (await out.json()).ids?.[b.deck]
-  if (!id) throw new Error(tx('Não consegui levar este deck para a sala do teu amigo.'))
-  return JSON.stringify({ ...b, deck: id, src: 'meus' })
+  const id = await bring(_fetch, b.deck)
+  return id ? JSON.stringify({ ...b, deck: id, src: 'meus' }) : body
+}
+
+// abrir uma mesa na Taverna de um amigo (sou membro): o meu deck do primeiro lugar vai para lá
+async function bringFirst(_fetch, body) {
+  const b = JSON.parse(body), p = b.players?.[0]
+  const id = p?.ref && await bring(_fetch, p.ref)
+  return id ? JSON.stringify({ ...b, players: [{ ...p, ref: id }] }) : body
 }
 
 // as salas de amigos onde já entraste (para voltar sem o link): [{ base, token, name, ts }]
