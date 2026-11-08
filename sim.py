@@ -148,9 +148,10 @@ def forge_names(forge_dir, cache_dir):
             if re.search(r"^AlternateMode:Split", s, re.M) and len(ns) > 1:
                 names[fold(ns[0] + " // " + ns[1])] = ns[0] + " // " + ns[1]
     os.makedirs(cache_dir, exist_ok=True)
-    with open(cache + ".tmp", "w") as f:
+    tmp = f"{cache}.{os.getpid()}-{threading.get_ident()}.tmp"  # um por pedido: dois jogos a arrancar juntos não pisam o mesmo
+    with open(tmp, "w") as f:
         json.dump({"stamp": stamp, "names": names}, f)
-    os.replace(cache + ".tmp", cache)
+    os.replace(tmp, cache)
     _names = names
     return names
 

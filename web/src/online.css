@@ -148,3 +148,4 @@
 @media (min-width: 1900px) { .view.on-view { max-width: 1560px; } }
 .lobby3d-opts { display: grid; gap: 4px; } .lobby3d-opts summary { cursor: pointer; min-height: 28px; } .lobby3d-opts .chk { align-items: flex-start; }
 .on-view .pv-bar .seg, .on-view .ml-join .seg { margin-left: 0; float: none; }
+@media (max-width: 640px) { .on-kind:not(.on) small { display: none; } .on-kind { min-height: 46px; } }

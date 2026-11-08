@@ -172,7 +172,7 @@ function NewRoom({ data, fmt, deckId, onRoom, onBack, openTable }) {
           <TypeIco k={ICO[k]} /><b>{MODES[k][0]}</b><small>{TAG[k]}</small></button>)}
       </div>)}
     </div>
-    <p className="small muted on-why">{MODES[kind][1]} {MODES[kind][2]}</p>
+    {(kind === 'livre' || kind === 'solo') && <p className="small muted on-why">{MODES[kind][1]} {MODES[kind][2]}</p>}  {/* os outros: o formulário do Torneio já explica */}
     {kind === 'livre' ? <NewFreeRoom data={data} deckId={deckId} onRoom={onRoom} /> : kind === 'solo' ? <NewSolo data={data} deckId={deckId} openTable={openTable} />
       : <Create key={kind} data={data} fmt0={fmt} deckId={deckId} room={kind === 'livretorneio' || kind === 'misto' ? 'torneio' : kind} free={kind === 'livretorneio'} misto={kind === 'misto'} onRoom={() => onRoom()} />}
   </div>

@@ -1303,6 +1303,8 @@ def selfcheck():
         assert call("POST", f"/api/rooms/{lr['id']}/start", None, G)[0] == 403
         st, sr, _ = call("POST", f"/api/rooms/{lr['id']}/start")
         assert st == 200 and sr["table"], sr
+        # pedidos em paralelo (a lista de cada um na contagem): só o primeiro abre a mesa; os outros saltam-na (rooms.due)
+        assert not rooms.claim(lr["id"]) and rooms.claim("outra-sala") and not rooms.claim("outra-sala")
         tb = f"/api/freetables/{sr['table']}"
         st, gv, _ = call("GET", tb + "?since=0", cookie=G)
         assert st == 200 and gv["me"] == 1 and gv["seats"][1]["hand"][0]["n"] == "Swamp" and all("n" not in c for c in gv["seats"][0]["hand"]), gv

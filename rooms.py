@@ -3,7 +3,7 @@
 convidados (guests.py) entram com um deck seu; o anfitrião começa e nasce um torneio normal (tournament.create),
 visível aos amigos (`friends_open`) para o verem ao vivo e apostarem.
 """
-import json, re, secrets, sqlite3, time
+import json, re, secrets, sqlite3, threading, time
 
 import freetable
 import playnet
@@ -15,6 +15,22 @@ ROOM = re.compile(r"^/api/rooms(?:/([a-f0-9]{10})(?:/(join|leave|start|cancel|re
 # aberto. Quem mexe manda; os outros lêem várias vezes por segundo. Some quando a sala começa ou é cancelada.
 LIVE = {}
 GO = 4  # segundos de contagem quando estão todos prontos (mesa livre)
+# a mesa que está a abrir: os pedidos chegam em paralelo (a lista de quem aloja e a de cada convidado, de segundo a segundo
+# na contagem) e cada um via a sala ainda «open» — abriam-se várias mesas (na estrita, um Forge de ~1 GB por cada).
+# O primeiro reclama a sala; os outros saltam-na durante CLAIM_S (até lá o primeiro já gravou «started»).
+CLAIM, CLAIM_LOCK, CLAIM_S = {}, threading.Lock(), 60
+
+
+class Busy(Exception):
+    """Esta sala já está a abrir noutro pedido."""
+
+
+def claim(rid):
+    with CLAIM_LOCK:
+        if time.time() - CLAIM.get(rid, 0) < CLAIM_S:
+            return False
+        CLAIM[rid] = time.time()
+        return True
 
 
 def init(con):
@@ -125,6 +141,16 @@ def host_name(con, owner):
 
 
 def start_livre(con, owner, rid, spec, players):
+    if not claim(rid):
+        raise Busy()
+    try:
+        return _start_livre(con, owner, rid, spec, players)
+    except BaseException:
+        CLAIM.pop(rid, None)  # não abriu: pode tentar-se outra vez
+        raise
+
+
+def _start_livre(con, owner, rid, spec, players):
     seats, me = [], host_name(con, owner)
     for p in players:
         d = seat_deck(con, owner, p)
@@ -159,6 +185,8 @@ def due(con, owner):
         if spec.get("go") and spec["go"] <= time.time():
             try:
                 start_livre(con, owner, rid, spec, json.loads(players))
+            except Busy:
+                continue
             except ValueError:
                 spec["go"] = None
                 con.execute("UPDATE rooms SET spec=? WHERE id=?", (json.dumps(spec), rid))
@@ -297,6 +325,8 @@ def route(con, method, path, owner, body, guest=None):
         if livre:  # quem aloja pode começar sem esperar que estejam todos prontos
             try:
                 return 200, {"table": start_livre(con, owner, rid, spec, players)}
+            except Busy:
+                return 409, {"erro": "A mesa já está a abrir."}
             except ValueError as e:
                 return 400, {"erro": str(e)}
         try:
