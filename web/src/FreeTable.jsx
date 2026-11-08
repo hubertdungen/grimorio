@@ -14,6 +14,7 @@ import { remoteOn } from './remote.js'
 import { lookup, isCreature, isLand, flipKind, staticPump, spellFx, powTough, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
+import { usePlaying } from './taverna.js'
 import { tx } from './i18n.js'
 import { play, playFreeLog } from './sfx.js'
 import TableChat from './TableChat.jsx'
@@ -143,6 +144,7 @@ function Help({ onClose }) {
 // a mesa e as seguintes da mesma série: a mesa acabada aponta para a do jogo seguinte (next) e passa-se para ela; quando
 // o sideboard fecha, a mesa monta-se de novo (as medidas do tabuleiro e os dados contam com ele desde o início)
 export default function FreeTable(props) {
+  usePlaying()  // a Taverna mostra «a jogar»
   const [id, setId] = useState(props.id), [k, setK] = useState(0)
   return <Table key={`${id}.${k}`} {...props} id={id} onNext={setId} onBegin={() => setK(x => x + 1)} />
 }

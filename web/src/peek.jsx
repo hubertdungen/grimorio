@@ -4,10 +4,10 @@ import { createPortal } from 'react-dom'
 import { PeekCard } from './DeckPeek.jsx'
 
 const cache = new Map()
-// p: {src: 'meus'|'meta', ref} (como nos pódios)
+// p: {src: 'meus'|'meta'|'taverna', ref} (como nos pódios; taverna: a prateleira da Taverna)
 export const loadDeck = p => {
   const k = `${p.src}:${p.ref}`
-  if (!cache.has(k)) cache.set(k, fetch(p.src === 'meus' ? `/api/decks/${p.ref}` : `/api/sim/opponents/${encodeURIComponent(p.ref)}`).then(r => (r.ok ? r.json() : null)).catch(() => null))
+  if (!cache.has(k)) cache.set(k, fetch(p.src === 'meus' ? `/api/decks/${p.ref}` : p.src === 'taverna' ? `/api/taverna/deck/${p.ref}` : `/api/sim/opponents/${encodeURIComponent(p.ref)}`).then(r => (r.ok ? r.json() : null)).catch(() => null))
   return cache.get(k)
 }
 // o cartão do rato por cima: segue o elemento, fecha ao sair

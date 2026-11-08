@@ -43,6 +43,8 @@ const ICONS = {
   mago: '<path d="M3.5 19.5h17"/><path d="M6.5 19.5 10.6 5c.4-1.4 2.2-1.6 2.9-.3l1.7 3.2-2.1 1.3 3.9 10.3"/><path class="acc" d="m11.4 12.2.65 1.3 1.45.2-1.05 1 .25 1.45-1.3-.7-1.3.7.25-1.45-1.05-1 1.45-.2z"/>',
   // amigos: duas pessoas
   amigos: '<circle cx="8.5" cy="8.2" r="3.1"/><path d="M2.8 19.5c.5-3.4 2.7-5.2 5.7-5.2s5.2 1.8 5.7 5.2"/><circle cx="16.2" cy="9.2" r="2.5"/><path d="M15.6 14.4c2.9 0 4.9 1.7 5.4 4.8"/><circle class="acc" cx="12.4" cy="3.6" r="1.1"/>',
+  // taverna: caneca com espuma e a asa, bolhas douradas
+  taverna: '<path d="M5.5 8.5h10v10.2a1.8 1.8 0 0 1-1.8 1.8H7.3a1.8 1.8 0 0 1-1.8-1.8z"/><path d="M15.5 10.5h1.7a2.3 2.3 0 0 1 2.3 2.3v1.6a2.3 2.3 0 0 1-2.3 2.3h-1.7"/><path d="M5 8.6c-.9-2.3.9-4.3 3-3.6.6-1.6 3.4-2 4.4-.4 1.7-.8 3.7.6 3.3 2.6.1.5-.1 1-.4 1.3"/><path d="M8.6 12v5.4M12.4 12v5.4"/><circle class="acc" cx="19.6" cy="4.2" r="1.1"/><circle class="acc" cx="17.4" cy="2.4" r=".7"/>',
   // meta: gráfico a subir com os pontos acesos
   meta: '<path d="M3.5 20.5h17"/><path d="M4.5 16.5 9.5 11.5l3.5 3 6.5-7.5"/><path d="M15.5 7h4v4"/><circle class="acc" cx="9.5" cy="11.5" r="1.4"/><circle class="acc" cx="13" cy="14.5" r="1.4"/>',
 }

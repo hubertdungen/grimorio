@@ -36,17 +36,20 @@ import Settings from './Settings.jsx'
 import { ApkBanner, DesktopUpdBanner } from './apkupdate.jsx'
 import { WhoPlays, ProfileChip } from './Profiles.jsx'
 import { FriendRoomModal, RemoteRoom, BringMine, VOLTA } from './FriendRoom.jsx'
+import TavernaView, { RemoteTaverna } from './Taverna.jsx'
+import { useTavernaPulse } from './taverna.js'
 import { isTouch } from './touch.js'
 import { isCompact } from './tablekit.js'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
-const FROM_ROOM = window.location.hash === '#online'  // veio pelo link de uma sala (guests.room_link): vai direto ao Online
+const FROM_TAV = window.location.hash === '#taverna'  // veio pelo link da Taverna (taverna.link_page): vai direto à Taverna
+const FROM_ROOM = window.location.hash === '#online' || FROM_TAV  // veio pelo link de uma sala (guests.room_link): vai direto ao Online
 // #levar[=<link>]: «Sala de um amigo» (o botão do Online e da página inicial, ou grimorio://join pelo launcher/APK)
 const levarOf = () => (window.location.hash.startsWith('#levar') ? decodeURIComponent(window.location.hash.slice(7)) : null)
-const GUEST_MODES = ['online', 'torneio', 'ratings']  // o que um convidado vê no Coliseu
+const GUEST_MODES = ['taverna', 'online', 'torneio', 'ratings']  // o que um convidado vê no Coliseu
 const SECTIONS = [['construir', tx('Construir')], ['biblioteca', tx('Biblioteca')], ['coliseu', tx('Coliseu')], ['regras', tx('Regras')]]
 // os modos do Coliseu e o ícone de cada um (icons.jsx)
-const COL_MODES = [['bots', 'bots', tx('Bots a testar')], ['jogar', 'forge', tx('Jogar contra o Forge')], ['torneio', 'torneio', tx('Torneio')], ['draft', 'draft', tx('Draft')], ['online', 'online', tx('Online')], ['ratings', 'ratings', tx('Ratings')]]
+const COL_MODES = [['bots', 'bots', tx('Bots a testar')], ['jogar', 'forge', tx('Jogar contra o Forge')], ['torneio', 'torneio', tx('Torneio')], ['draft', 'draft', tx('Draft')], ['taverna', 'taverna', tx('Taverna')], ['online', 'online', tx('Online')], ['ratings', 'ratings', tx('Ratings')]]
 const ZONE_L = { main: tx('deck'), side: tx('sideboard'), maybe: tx('maybeboard') }
 // Desfazer: só o conteúdo do deck (nome, notas, formato, preferências e sementes ficam de fora)
 const CONTENT = ['main', 'side', 'maybe', 'commanders', 'signature', 'prints', 'cover', 'coverImg']
@@ -113,6 +116,12 @@ function withBasicArt(d, n, q) {
 
 // o que está a decorrer agora (testes do Laboratório, torneios, Arena): uma barra fina por baixo do cabeçalho, só
 // quando há alguma coisa, e cada ficha leva ao visualizador em direto
+// o selo da Taverna: mensagens por ler (@ se te mencionaram) ou, sem nada por ler, um ponto verde com amigos ligados
+function TvBadge({ b }) {
+  if (b.unread > 0) return <b className={`tv-nbadge ${b.at ? 'at' : ''}`} aria-label={tx('{n} mensagens por ler na Taverna', { n: b.unread })}>{b.at ? '@' : ''}{b.unread > 99 ? '99+' : b.unread}</b>
+  return b.online > 0 ? <i className="tv-nonline" aria-label={tx('{n} amigos ligados na Taverna', { n: b.online })} title={tx('{n} amigos ligados na Taverna', { n: b.online })} /> : null
+}
+
 function LiveBar({ guest, go, data }) {
   const [lab] = useRun('busy'), [labDeck] = useRun('deckName'), [labJob] = useRun('job')
   const [tour, setTour] = useState([]), [arena, setArena] = useState(null), [jobs, setJobs] = useState([]), [watchJob, setWatchJob] = useState(null)
@@ -175,7 +184,7 @@ export default function App() {
   const [section, setSectionRaw] = useState(() => (FROM_ROOM || AT_TABLE ? 'coliseu' : store.get('grimorio.section') || 'construir'))
   const setSection = x => { setSectionRaw(x); store.set('grimorio.section', x) }
   const coliseuRef = useRef(null)
-  const [colMode, setColModeS] = useState(() => (FROM_ROOM || AT_TABLE ? 'online' : store.get('grimorio.colMode') || 'bots'))  // bots a testar | jogar contra o Forge | torneio | ratings
+  const [colMode, setColModeS] = useState(() => (FROM_TAV ? 'taverna' : FROM_ROOM || AT_TABLE ? 'online' : store.get('grimorio.colMode') || 'bots'))  // bots a testar | jogar contra o Forge | torneio | ratings
   const setColMode = m => { setColModeS(m); store.set('grimorio.colMode', m) }
   const [fromState, setFromState] = useState(null)
   const playFrom = st => { setFromState(st); setColMode('jogar'); setSection('coliseu') }
@@ -227,6 +236,7 @@ export default function App() {
   const [who, setWho] = useState('')  // '' | 'switch' | 'new': «Quem vai jogar?» por cima da app
   const guest = prof?.mode === 'guest'  // entrou por um convite (guests.py): só os decks dele, torneios e ratings
   const cm = guest && !GUEST_MODES.includes(colMode) ? 'online' : colMode  // o separador do Coliseu que se vê
+  const tvb = useTavernaPulse(!!prof && (prof.mode !== 'profiles' || !!prof.current))  // a Taverna: batimento (quem está ligado) e o selo das mensagens por ler
   useEffect(() => {
     fetch('/api/profiles').then(r => r.json()).then(setProf).catch(() => {})
     const lost = () => setProf(p => (p?.mode === 'profiles' ? { ...p, current: null } : p))  // um pedido respondeu 401 «profile»
@@ -455,7 +465,7 @@ export default function App() {
   const errors = issues.filter(i => i.nivel === 'erro').length
   const total = count(deck.main) + deck.commanders.length + (deck.signature ? 1 : 0)
 
-  if (remoteRoom) return <RemoteRoom data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} />
+  if (remoteRoom) return remoteRoom.kind === 'taverna' ? <RemoteTaverna data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} /> : <RemoteRoom data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} />
   const levarEl = levar != null && !guest && <FriendRoomModal data={data} link={levar} onClose={closeLevar} onRemote={r => { closeLevar(); setRemoteRoom(r) }} />
   if (tool) return <Mesa tool={tool} setTool={setTool} onHome={() => { setTool(null); setHome(true) }} onApp={() => { setTool(null); setHome(false) }} />
   if (home) return <>{levarEl}<Home friend={!guest} deck={deck} decks={decks} onTool={setTool} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }} onScan={() => { setHome(false); setSection('construir'); setScan(true) }}
@@ -465,7 +475,7 @@ export default function App() {
       <header className="top">
         <button className="brand" onClick={() => setHome(true)} title={tx('Página inicial')}><Logo /><div><b>Grimório</b><small>{tx('construtor de decks de Magic')}</small></div></button>
         <nav className="sections" aria-label={tx('Áreas')}>{SECTIONS.map(([k, l]) => (
-          <button key={k} className={section === k ? 'on' : ''} onClick={() => setSection(k)}><Icon n={k} /><span>{l}</span></button>
+          <button key={k} className={section === k ? 'on' : ''} onClick={() => setSection(k)}><Icon n={k} /><span>{l}</span>{k === 'coliseu' && <TvBadge b={tvb} />}</button>
         ))}</nav>
         {section !== 'biblioteca' && <div className="deck-pick">
           <DeckPicker decks={decks} deck={deck} data={data} onOpen={openDeck} onClose={newDeck} />
@@ -490,7 +500,7 @@ export default function App() {
           {!isCompact() && <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>}  {/* com a mesa compacta o tablet ao alto já fica bem */}
           <div className="col-bar">
             <b className="col-title"><Icon n="coliseu" /> {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
-            <span className="seg">{COL_MODES.filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, ic, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}><Icon n={ic} />{l}</button>)}</span>
+            <span className="seg">{COL_MODES.filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, ic, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}><Icon n={ic} />{l}{k === 'taverna' && <TvBadge b={tvb} />}</button>)}</span>
             <button className="fs-btn" onClick={fullscreen} title={isTouch() ? tx('Ecrã inteiro') : tx('Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
             <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>
@@ -498,6 +508,7 @@ export default function App() {
           {colMode === 'jogar' && !guest && <PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} />}
           {cm === 'torneio' && <TournamentView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
           {cm === 'draft' && !guest && <LimitedView data={data} openDeck={id => openDeck(id).then(() => { goTab('deck'); api('/api/decks').then(setDecks).catch(() => {}) })} goTournament={() => setColMode('torneio')} />}
+          {cm === 'taverna' && <TavernaView data={data} guest={guest} deckId={deck.id} onRemote={guest ? null : r => setRemoteRoom(r)} />}
           {cm === 'online' && <OnlineView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
           {cm === 'ratings' && <RatingsView data={data} fmt={fmt} />}
         </div>

@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, GameMenuBtns, DrawerChip, TeamOrb, ORB_DEATH } from './Board.jsx'
 import { ctrs, toPerm, zoneOf } from './fpboard.js'
+import { usePlaying } from './taverna.js'
 import { tx } from './i18n.js'
 import { playDiff, play } from './sfx.js'
 import { ask as confirmAsk } from './confirm.jsx'
@@ -536,6 +537,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog, src, guard
 // a janela «Jogar / Ativar …?» fica sempre dentro do ecrã (no telemóvel deitado, por cima da carta, podia sair pelo topo)
 const onScreen = el => { if (!el) return; el.style.marginTop = ''; const q = el.getBoundingClientRect(); if (q.top < 8) el.style.marginTop = `${8 - q.top}px`; else if (q.bottom > innerHeight - 8) el.style.marginTop = `${innerHeight - 8 - q.bottom}px` }
 export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, series, onEnd, cols }) {  // cols: as cores de cada deck ({a, b}), para a esfera antes de haver cartas à vista  // againLabel: o texto do botão de voltar a jogar (torneios: o jogo seguinte da partida)
+  usePlaying()  // a Taverna mostra «a jogar»
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [toast, setToast] = useState(null)
   const [rvl, setRvl] = useState(null)  // cartas reveladas: um painel com as imagens, até o fechares (ou até à escolha que vem com elas)
   const seen = useRef(0)

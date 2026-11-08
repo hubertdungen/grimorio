@@ -53,7 +53,7 @@ const modeOf = r => (r.type === 'livre' ? (r.strict ? ['⚖', tx('Mesa estrita')
     : r.type === 'jogo' ? ['🤖', MODES.jogo[0], MODES.jogo] : ['🤖', MODES.torneio[0], MODES.torneio])
 
 // ---------- o endereço público: domínio próprio (GRIMORIO_PUBLIC_URL / Definições) ou o túnel gratuito (share.py) ----------
-function useNet(on = true) {
+export function useNet(on = true) {
   const [net, setNet] = useState(null)
   const load = () => Promise.all([j('/api/friends'), j('/api/share')]).then(([f, s]) => setNet({ public: f.public, lan: f.lan, share: s })).catch(() => {})
   useEffect(() => { if (!on) return; load(); const t = setInterval(load, 4000); return () => clearInterval(t) }, [on])
@@ -179,7 +179,7 @@ function NewRoom({ data, fmt, deckId, onRoom, onBack, openTable }) {
 }
 
 // ---------- o convite de uma sala (quem aloja): o link à vista, copiar, partilhar e QR ----------
-function Invite({ r, net, share }) {
+export function Invite({ r, net, share, title, note, label }) {  // title/note/label: o texto de outros convites (a Taverna)
   const [copied, setCopied] = useState(''), [qr, setQr] = useState(false), [busy, setBusy] = useState(false)
   const url = net?.public && net.public + r.link, lan = net?.lan && net.lan + r.link, st = netState(net)
   const cp = async (u, k) => { if (await copyText(u)) { setCopied(k); setTimeout(() => setCopied(''), 1800) } }
@@ -187,15 +187,15 @@ function Invite({ r, net, share }) {
   if (!net) return null
   return (
     <div className={`on-invite ${url ? 'up' : ''}`}>
-      <b className="on-invite-h">🔗 {tx('Convidar para esta sala')}</b>
+      <b className="on-invite-h">🔗 {title || tx('Convidar para esta sala')}</b>
       {url ? <>
         <div className="on-link">
-          <input readOnly value={url} onFocus={e => e.target.select()} aria-label={tx('Link da sala')} />
+          <input readOnly value={url} onFocus={e => e.target.select()} aria-label={label || tx('Link da sala')} />
           <button type="button" className="primary" onClick={() => cp(url, 'pub')}>{copied === 'pub' ? tx('copiado ✓') : `📋 ${tx('Copiar')}`}</button>
           {native && <button type="button" onClick={() => navigator.share({ title: r.name, url }).catch(() => {})}>📤 {tx('Partilhar')}</button>}
           <button type="button" onClick={() => setQr(v => !v)} aria-pressed={qr}>QR</button>
         </div>
-        <small className="muted">{tx('Entra quem abrir o link, mesmo sem estar nos teus amigos.')}</small>
+        <small className="muted">{note || tx('Entra quem abrir o link, mesmo sem estar nos teus amigos.')}</small>
         {qr && <QR text={url} />}
       </> : <div className="on-invite-off">
         <span className="small">{st === 'opening' ? `⏳ ${tx('a abrir o túnel…')}` : tx('Para os amigos entrarem pela internet, abre este Grimório à internet: o link aparece aqui.')}</span>
@@ -208,7 +208,7 @@ function Invite({ r, net, share }) {
 
 // ---------- as salas ----------
 const OLD_H = 12
-export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount, onCreate }) {
+export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount, onCreate, noCta }) {  // noCta: sem os botões do vazio (a Taverna tem os seus)
   const [list, setList] = useState(null), [decks, setDecks] = useState([]), [pick, setPick] = useState({}), [err, setErr] = useState(''), [showOld, setShowOld] = useState(false)
   const seen = useRef({}), seats = useRef({}), [toast, setToast] = useState(null), [busy, setBusy] = useState('')  // mesa livre onde estou: quando a mesa começa, abre-se sozinha
   const load = () => j('/api/rooms').then(l => {
@@ -249,7 +249,7 @@ export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount
       {!opened.length && <div className="card on-empty">
         <b>🚪 {tx('Não há salas abertas.')}</b>
         <p className="small muted">{guest ? tx('Quando quem te convidou abrir uma sala, ela aparece aqui.') : tx('Cria uma sala e manda o link: quem o abre entra com um deck seu e a mesa começa quando estiverem todos prontos.')}</p>
-        {!guest && <div className="row-btns"><button type="button" className="primary on-big" onClick={onCreate}>＋ {tx('Criar sala')}</button><a className="on-big on-btn" href="#levar">🔗 {tx('Entrar com um link')}</a></div>}
+        {!guest && !noCta && <div className="row-btns"><button type="button" className="primary on-big" onClick={onCreate}>＋ {tx('Criar sala')}</button><a className="on-big on-btn" href="#levar">🔗 {tx('Entrar com um link')}</a></div>}
       </div>}
       {opened.map(r => <Room key={r.id} r={r} fresh={r.id === fresh} {...props} />)}
       {going.length > 0 && <><h4 className="on-sec">{tx('A decorrer')}</h4>{going.map(r => <Room key={r.id} r={r} {...props} />)}</>}

@@ -63,7 +63,11 @@ def live(con, owner, rid, who, method, body):
     if not r or r[0] != "open":
         LIVE.pop(rid, None)
         return 404, {"erro": "Essa sala não está aberta."}
-    L = LIVE.setdefault(rid, {"seq": 0, "objs": {}, "open": None})
+    return 200, live_step(LIVE.setdefault(rid, {"seq": 0, "objs": {}, "open": None}), who, method, body)
+
+
+def live_step(L, who, method, body):
+    """O canal ao vivo de uma mesa 3D (lobby da sala, mesa da Taverna): POST mexe (caixas, cartas, cursor, deck aberto), GET lê."""
     if method == "POST":
         b = body or {}
         num = lambda v, lo=-20.0, hi=20.0: max(lo, min(hi, float(v))) if isinstance(v, (int, float)) else 0.0
@@ -76,6 +80,9 @@ def live(con, owner, rid, who, method, body):
             if "hand" in o:
                 cur["hand"] = who if o.get("hand") else None
             L["objs"][i] = cur
+        if len(L["objs"]) > 400:  # a mesa da Taverna vive muito tempo: as peças mexidas há mais tempo saem
+            for k in sorted(L["objs"], key=lambda k: L["objs"][k].get("t", 0))[:len(L["objs"]) - 400]:
+                del L["objs"][k]
         if isinstance(b.get("ptr"), dict):  # o meu cursor na mesa (plano x/z) e o nome curto: os outros veem a «mãozinha»
             q = b["ptr"]
             if q.get("off"):
@@ -90,8 +97,8 @@ def live(con, owner, rid, who, method, body):
                          "by": who, "t": time.time()} if isinstance(o, dict) and o.get("key") else None
         L["seq"] += 1
     now = time.time()
-    return 200, {"seq": L["seq"], "objs": L["objs"], "open": L["open"], "me": who,
-                 "ptr": {k: {**v, "age": round(now - v["t"], 1)} for k, v in (L.get("ptr") or {}).items() if k != who and now - v["t"] < 8}}
+    return {"seq": L["seq"], "objs": L["objs"], "open": L["open"], "me": who,
+            "ptr": {k: {**v, "age": round(now - v["t"], 1)} for k, v in (L.get("ptr") or {}).items() if k != who and now - v["t"] < 8}}
 
 
 def lobby(con, owner, p, who):

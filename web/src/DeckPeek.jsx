@@ -40,7 +40,7 @@ export function PeekCard({ d, p, x, y, data }) {
 export function DeckView({ p, data, onClose, onOpen, extra }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [d, setD] = useState(null), [zoom, setZoom] = useState(null)
-  useEffect(() => { loadDeck(p).then(x => setD(x || { name: p.name, main: {} })) }, [p])
+  useEffect(() => { if (p.deck) setD(p.deck); else loadDeck(p).then(x => setD(x || { name: p.name, main: {} })) }, [p])  // p.deck: já carregado (a prateleira da Taverna)
   useEffect(() => { const k = e => { if (e.key === 'Escape') { if (zoom) setZoom(null); else onClose() } }; addEventListener('keydown', k); return () => { removeEventListener('keydown', k); hideCardPeek() } }, [onClose, zoom])
   const cover = d && coverOf(d, data), cols = d ? colorsOf(d, data) : []
   const line = (n, q) => {
@@ -57,7 +57,8 @@ export function DeckView({ p, data, onClose, onOpen, extra }) {
           {cover && <img src={img(cover, 'art_crop')} alt="" />}
           <span className="dv-t"><b>{d?.name || p.name}</b>
             {d && <small className="muted">{[FORMAT[d.format || p.format]?.name || d.format || p.format, tx('{n} cartas', { n: count(d) })].filter(Boolean).join(' · ')} {cols.length > 0 && <Mana cost={cols.map(k => `{${k}}`).join('')} />}</small>}
-            {p.src !== 'meus' && <small className="muted">🔒 {tx('só para ler (deck do meta)')}</small>}</span>
+            {p.src === 'taverna' ? <small className="muted">📚 {tx('na prateleira da Taverna · de {n}', { n: p.by || '?' })}</small>
+              : p.src !== 'meus' && <small className="muted">🔒 {tx('só para ler (deck do meta)')}</small>}</span>
           <span className="dv-btns">{p.src === 'meus' && onOpen && <button className="primary" onClick={() => { onClose(); onOpen(p.ref) }}>{tx('Abrir na Biblioteca')}</button>}
             <button onClick={onClose} aria-label={tx('Fechar')}>×</button></span>
         </header>

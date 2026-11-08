@@ -14,7 +14,8 @@ COOKIE = "grimorio_guest"
 # versão da API das salas para outro Grimório (a app de um amigo fala com estas rotas com «Authorization: Bearer <convite>»):
 # sobe quando as rotas de BEARER mudarem de forma incompatível; a app do amigo compara e, se não bater, abre a página daqui
 API = 2  # 2: a mesa estrita (playnet pelo convite)
-BEARER = re.compile(r"^/api/(guest/me|guest/decks|rooms(/[a-z0-9]{1,16}(/[a-z]{1,12})?)?|freetables/[a-z0-9]{1,16}(/[a-z]{1,12})?|playnet/[a-f0-9]{12}(/cmd|/stop)?)$")  # playnet: a mesa estrita
+BEARER = re.compile(r"^/api/(guest/me|guest/decks|rooms(/[a-z0-9]{1,16}(/[a-z]{1,12})?)?|freetables/[a-z0-9]{1,16}(/[a-z]{1,12})?|playnet/[a-f0-9]{12}(/cmd|/stop)?"
+                    r"|taverna(/[a-z]{2,10}(/[a-f0-9]{12})?)?)$")  # playnet: a mesa estrita; taverna: a Taverna de quem aloja (taverna.py)
 VOLTA = re.compile(r"https?://[A-Za-z0-9.:\[\]-]{1,120}/?")  # «← O meu Grimório»: só a origem do Grimório de quem vem
 DECK = re.compile(r"^/api/decks/([a-z0-9-]{8,40})$")
 TOUR = re.compile(r"^/api/tournaments/([a-z0-9]{12})(/.*)?$")
@@ -465,6 +466,8 @@ def handle(h, method, g, db, tournament):
         import rooms
         with db() as con:
             return h.json(*reversed(rooms.route(con, method, p, g["owner"], h.body() if method == "POST" else None, guest=g)))
+    if (p == "/api/taverna" or p.startswith("/api/taverna/")) and method in ("GET", "POST"):  # a Taverna: só ações de membro (taverna.route)
+        return h.taverna_route(method, p, g["owner"], f"guest:{g['id']}")
     if p.startswith("/api/freetables/") and method in ("GET", "POST"):  # mesa livre: só as mesas onde está sentado (freetable.route)
         return h.freetable_route(method, p, g["owner"], f"guest:{g['id']}")
     if re.fullmatch(r"/api/playnet/[a-f0-9]{12}(/cmd|/stop)?", p) and method in ("GET", "POST") and (method == "GET") != p.endswith(("/cmd", "/stop")):

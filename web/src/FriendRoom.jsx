@@ -11,6 +11,7 @@ import ForgeTable from './ForgePlay.jsx'
 import { Rooms } from './Online.jsx'
 import { useBackClose } from './backnav.js'
 import { API, setRemote, remoteOn, rooms, saveRoom, dropRoom, hostPage } from './remote.js'
+import { saveTaverna } from './taverna.js'
 import { tx } from './i18n.js'
 
 async function j(url, opts) {
@@ -19,7 +20,7 @@ async function j(url, opts) {
   return d
 }
 const post = (url, body) => j(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
-const LINK = /^https?:\/\/[^/\s]+\/(sala|convite)\/[\w-]{8,40}/
+const LINK = /^https?:\/\/[^/\s]+\/(sala|convite|taverna)\/[\w-]{8,40}/
 const hostOf = b => { try { return new URL(b).host } catch { return b } }
 
 // a sala de lá responde às salas com o convite (CORS) e tem a mesma API?
@@ -61,8 +62,9 @@ export function FriendRoomModal({ data, link = '', onClose, onRemote }) {
     try {
       // a sala aqui: os decks vão quando te sentares; a página de lá: os escolhidos vão já
       const r = await post('/api/rooms/remote', { url: u, decks: remoteOk ? [] : [...sel] })
-      const token = r.go.match(/\/convite\/([\w-]+)/)?.[1], room = { base: r.base, token, name: (peek.kind === 'sala' && info?.name) || '', ...(info?.hid && { hid: info.hid }) }
-      if (remoteOk && await probe(room)) { saveRoom(room); return onRemote(room) }
+      const tav = peek.kind === 'taverna'  // o link de uma Taverna (grimorio://join a partir da página dela): abre-se a Taverna
+      const token = r.go.match(/\/convite\/([\w-]+)/)?.[1], room = { base: r.base, token, name: ((peek.kind === 'sala' || tav) && info?.name) || '', ...(info?.hid && { hid: info.hid }), ...(tav && { kind: 'taverna' }) }
+      if (remoteOk && await probe(room)) { if (tav) saveTaverna(room); else saveRoom(room); return onRemote(room) }
       if (remoteOk && sel.size) await post('/api/rooms/remote', { url: `${r.base}/convite/${token}`, decks: [...sel] })
       window.location.href = hostPage(r.base, token)
     } catch (e) { setErr(e.message); setBusy('') }
@@ -79,7 +81,7 @@ export function FriendRoomModal({ data, link = '', onClose, onRemote }) {
             <button className="link small" onClick={() => { dropRoom(x); setSaved(rooms()) }} aria-label={tx('Esquecer')} title={tx('Esquecer')}>✕</button></span>)}</div>}
         {u && !ok && <p className="small bad-t">{tx('Isto não parece um link do Grimório (…/sala/… ou …/convite/…).')}</p>}
         {ok && !peek && !err && <p className="small muted">{tx('A ver a sala…')}</p>}
-        {peek && <p className="fr-host"><b>{peek.kind === 'sala' ? `🌍 ${info?.name || tx('Sala')}` : `🤝 ${tx('Convite para {n}', { n: info?.name || '' })}`}</b> <span className="small muted">{tx('no Grimório de')} {hostOf(peek.base)}{fmt ? ` · ${FORMAT[fmt]?.name || fmt}` : ''}</span></p>}
+        {peek && <p className="fr-host"><b>{peek.kind === 'sala' ? `🌍 ${info?.name || tx('Sala')}` : peek.kind === 'taverna' ? `🍺 ${info?.name || tx('Taverna')}` : `🤝 ${tx('Convite para {n}', { n: info?.name || '' })}`}</b> <span className="small muted">{tx('no Grimório de')} {hostOf(peek.base)}{fmt ? ` · ${FORMAT[fmt]?.name || fmt}` : ''}</span></p>}
         {peek && !remoteOk && !peek.erro && <>
           <p className="small">{tx('Este Grimório abre-se na página de lá (outra versão). Escolhe os decks que levas:')}</p>
           <div className="row-btns small"><button className="link small" onClick={() => setSel(new Set((decks || []).map(d => d.id)))}>{tx('todos')}</button><button className="link small" onClick={() => setSel(new Set())}>{tx('nenhum')}</button>

@@ -17,6 +17,7 @@ import tournament
 import artfolder
 import guests
 import rooms
+import taverna
 import freetable
 import share
 import rules
@@ -276,6 +277,12 @@ class H(BaseHTTPRequestHandler):
                 if method == "POST":
                     return guests.room_post(self, con, tok, act, self.visitor(), ARGS.data_dir)
                 return guests.room_link(self, con, tok, urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("nome", [""])[0], self.visitor(), act)
+        if p.startswith("/taverna/") and method in ("GET", "POST"):  # link da Taverna (taverna.py): entra-se como membro
+            tok, _, act = p[len("/taverna/"):].partition("/")
+            with db() as con:
+                if method == "POST":
+                    return taverna.link_post(self, con, tok, act, self.visitor())
+                return taverna.link_page(self, con, tok, urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("nome", [""])[0], self.visitor(), act)
         if p.startswith("/convite/") and method in ("GET", "POST"):  # convite: página, /info (para outra app) e /trazer (decks dela)
             tok, _, act = p[len("/convite/"):].partition("/")
             with db() as con:
@@ -322,6 +329,8 @@ class H(BaseHTTPRequestHandler):
                 return self.json({"erro": str(e)}, 400)
         if p.startswith("/api/freetables/") and method in ("GET", "POST"):  # mesa livre (freetable.py): o dono é um dos jogadores
             return self.freetable_route(method, p, self.owner(), "host")
+        if (p == "/api/taverna" or p.startswith("/api/taverna/")) and method in ("GET", "POST"):  # a Taverna dos amigos (taverna.py)
+            return self.taverna_route(method, p, self.owner(), "host")
         if p.startswith("/api/friends") and method != "HEAD":  # o dono gere os amigos
             body = self.body() if method in ("POST",) and not p.endswith("/revoke") else None
             with db() as con:
@@ -338,7 +347,7 @@ class H(BaseHTTPRequestHandler):
             d = self.body()
         except ValueError as e:
             return self.json({"erro": str(e)}, 400)
-        m = isinstance(d, dict) and re.fullmatch(r"(https?://[^/\s?#]+)/(sala|convite)/([A-Za-z0-9_-]{8,40})/?(?:\?[^#\s]*)?(?:#\S*)?", str(d.get("url") or "").strip())
+        m = isinstance(d, dict) and re.fullmatch(r"(https?://[^/\s?#]+)/(sala|convite|taverna)/([A-Za-z0-9_-]{8,40})/?(?:\?[^#\s]*)?(?:#\S*)?", str(d.get("url") or "").strip())
         if not m:
             return self.json({"erro": "Cola o link que o teu amigo te mandou (…/sala/… ou …/convite/…)."}, 400)
         base, kind, tok = m.group(1), m.group(2), m.group(3)
@@ -384,6 +393,17 @@ class H(BaseHTTPRequestHandler):
         if not str(go or "").startswith("/convite/"):
             return self.json({"erro": "Resposta estranha do outro Grimório."}, 502)
         return self.json({"go": base + go, "base": base, "decks": len(decks)})
+
+    def taverna_route(self, method, p, owner, who):
+        if self.no_profile():
+            return None
+        try:
+            body = self.body(300_000) if method == "POST" else None
+        except ValueError as e:
+            return self.json({"erro": str(e)}, 400)
+        q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        with db() as con:
+            return self.json(*reversed(taverna.route(con, method, p, owner, body, who, q)))
 
     def freetable_route(self, method, p, owner, who):
         try:
@@ -1074,7 +1094,7 @@ class H(BaseHTTPRequestHandler):
         return r and {"id": r[0], "name": r[1], "color": r[2]}
 
     # rotas que precisam de saber de quem são os dados: sem perfil escolhido respondem 401 com code "profile"
-    OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state", "/api/playnet", "/api/limited")
+    OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state", "/api/playnet", "/api/limited", "/api/taverna")
 
     def no_profile(self):
         # um convidado (cookie ou Bearer) não escolhe perfil: os dados dele vivem no espaço de quem o convidou (o .exe de um
@@ -1518,6 +1538,29 @@ def selfcheck():
         assert st == 200 and rj["go"] == f"{base}/convite/{fr['token']}?entrar=1" and rj["decks"] == 0, rj
         assert call("POST", "/api/rooms/remote", {"url": "https://exemplo.pt/outra/coisa"})[0] == 400 and call("POST", "/api/rooms/remote", ["x"])[0] == 400
         assert call("POST", "/api/rooms/remote", {"url": f"{base}/convite/{fr['token']}"}, G)[0] in (403, 404)  # convidado: não
+        # a Taverna (taverna.py): quem aloja cria; um amigo entra pelo link (browser ou app) e só faz ações de membro
+        assert call("GET", "/api/taverna", cookie=G)[1] == {"exists": False, "host": False} and call("POST", "/api/taverna", {"name": "T"}, G)[0] == 403
+        st, tv, _ = call("POST", "/api/taverna", {"name": "Taverna QA"})
+        assert st == 201 and tv["taverna"]["link"].startswith("/taverna/")
+        assert call("GET", "/api/taverna", cookie=G)[1]["member"] is False and bearer("POST", "/api/taverna/say", {"m": "x"})[0] == 403
+        try:  # um convidado deste Grimório que abre o link fica membro e vai para a Taverna
+            op.open(urllib.request.Request(base + tv["taverna"]["link"], headers={"Cookie": G}))
+            raise AssertionError("o link da Taverna devia redirecionar")
+        except urllib.error.HTTPError as e:
+            assert e.code == 302 and e.headers["Location"] == "/#taverna"
+        st, tg, ao = bearer("GET", "/api/taverna")  # a app do amigo (Bearer + CORS) vê a Taverna como membro
+        assert st == 200 and tg["member"] and ao == "http://127.0.0.1:9999" and "link" not in tg["taverna"], tg
+        assert bearer("POST", "/api/taverna/say", {"m": "olá @hubert <b>"})[0] == 201 and call("GET", "/api/taverna")[1]["at"] == 1
+        assert bearer("POST", "/api/taverna/kick", {"who": "host"})[0] == 403 and bearer("POST", "/api/taverna/link")[0] == 403
+        with urllib.request.urlopen(base + tv["taverna"]["link"] + "/info") as r:
+            assert json.loads(r.read())["kind"] == "taverna"
+        st, tj, _ = call("POST", "/api/rooms/remote", {"url": base + tv["taverna"]["link"], "decks": []})  # na app: entrar com o link
+        assert st == 200 and tj["go"].startswith(base + "/convite/"), tj
+        TJ = f"grimorio_guest={tj['go'].split('/')[-1].split('?')[0]}"
+        assert call("GET", "/api/taverna", cookie=TJ)[1]["member"] is True
+        pre = urllib.request.Request(base + "/api/taverna/say", method="OPTIONS", headers={"Origin": "http://x", "Access-Control-Request-Method": "POST"})
+        with urllib.request.urlopen(pre) as r:
+            assert r.status == 204
         assert call("POST", f"/api/friends/{fr['id']}/revoke")[0] == 200 and call("GET", "/api/guest/me", cookie=G)[1]["expired"] is True  # revogado
         assert bearer("GET", "/api/rooms")[0] == 401  # e a app do amigo deixa de entrar
         ARGS.owner = None  # o .exe de um amigo a alojar: sem dono fixo (perfis); o convidado não escolhe perfil

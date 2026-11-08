@@ -13,7 +13,9 @@ import { Hands, throttlePtr, useTick, ptrCol } from './ptrs.jsx'
 
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then(r => r.json()).catch(() => null)
 
-export default function Lobby3D({ r, data, act }) {
+// live: o canal ao vivo (a mesa da Taverna usa o dela); free: todas as caixas se abrem (a prateleira é para ver), sem
+// «deixar ver» nem a conversa da sala; meName: o nome do meu cursor quando não tenho caixa na mesa
+export default function Lobby3D({ r, data, act, live = `/api/rooms/${r.id}/live`, free = false, meName = '' }) {
   const box = useRef(null), api = useRef(null), [open, setOpen] = useState(null), [msg, setMsg] = useState(''), [text, setText] = useState(''), [ok3d, setOk3d] = useState(true)
   const [ptrs, setPtrs] = useState({}), ptrAt = useRef({}), [pv, setPv] = useState(0)  // pv: as opções dos cursores mudaram  // os cursores dos outros: {quem: {x, z (no plano da mesa), n, age}}
   const [hand, setHand] = useState([]), [big, setBig] = useState(null), [others, setOthers] = useState({}), tossed = useRef(null), chatEnd = useRef(null), me = useRef('host'), hold = useRef(0)
@@ -32,7 +34,7 @@ export default function Lobby3D({ r, data, act }) {
       try {
         api.current = m.createLobby(box.current, {
           onClick: key => clickRef.current?.(key),
-          onMove: objs => post(`/api/rooms/${r.id}/live`, { objs }),  // o que eu mexo: os outros vêem-no a deslizar até lá
+          onMove: objs => post(live, { objs }),  // o que eu mexo: os outros vêem-no a deslizar até lá
           onHand: (id, name, url) => setHand(h => [...h.filter(x => x.id !== id), { id, name, url }]),
         })
         api.current.setSeats(seatsRef.current)
@@ -40,7 +42,7 @@ export default function Lobby3D({ r, data, act }) {
       box.current._click = key => clickRef.current?.(key)  // o mesmo clique numa caixa, para os testes
     }).catch(() => setOk3d(false))
     return () => { gone = true; api.current?.dispose(); api.current = null }
-  }, [r.id])
+  }, [r.id, live])
   useEffect(() => { api.current?.setSeats(seats) }, [seats])
   // o canal ao vivo: o que os outros mexem, o deck aberto e quantas cartas cada um tem na mão
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function Lobby3D({ r, data, act }) {
       if (busy) return
       busy = true
       try {
-        const L = await fetch(`/api/rooms/${r.id}/live`).then(x => (x.ok ? x.json() : null)).catch(() => null)
+        const L = await fetch(live).then(x => (x.ok ? x.json() : null)).catch(() => null)
         if (!L || !api.current) return
         me.current = L.me
         const want = L.open?.key || null
@@ -66,7 +68,7 @@ export default function Lobby3D({ r, data, act }) {
     }
     tick(); t = setInterval(tick, 250)
     return () => clearInterval(t)
-  }, [r.id, data])
+  }, [r.id, data, live])
   // a moeda: quando a contagem começa, o servidor já tirou quem começa (r.first) — todos a veem cair do lado dessa pessoa
   useEffect(() => {
     if (r.go == null) { tossed.current = null; return }
@@ -78,8 +80,8 @@ export default function Lobby3D({ r, data, act }) {
     setMsg(tx('🪙 A moeda decidiu: começa {n}', { n: seats[r.first].name }))
   }, [r.go, r.first, r.id, seats])
   // o meu cursor no plano da mesa (~8/s, só quando mexe): cada um vê-o na sua câmara
-  const myName = useRef(''); myName.current = seats.find(s => s.mine)?.name || ''
-  const ptrSend = useMemo(() => throttlePtr(v => post(`/api/rooms/${r.id}/live`, { ptr: v })), [r.id])
+  const myName = useRef(''); myName.current = seats.find(s => s.mine)?.name || meName
+  const ptrSend = useMemo(() => throttlePtr(v => post(live, { ptr: v })), [live])
   useEffect(() => {
     const el = box.current
     if (!el || !fpPrefs().ptrShow) return
@@ -94,15 +96,15 @@ export default function Lobby3D({ r, data, act }) {
   clickRef.current = key => {
     const s = seatsRef.current.find(x => x.key === key)
     if (!s) return
-    if (s.mine) { act(r.id, 'show', { on: !s.show }); setMsg(s.show ? tx('O teu deck voltou a estar fechado.') : tx('Os outros já podem abrir e ver o teu deck.')); return }
+    if (s.mine && !free) { act(r.id, 'show', { on: !s.show }); setMsg(s.show ? tx('O teu deck voltou a estar fechado.') : tx('Os outros já podem abrir e ver o teu deck.')); return }
     if (!s.show || !s.list) { setMsg(tx('{n} ainda não deixa ver o deck.', { n: s.name })); return }
     if (open === key) { closeAll(); return }
     const list = cardsOf(s)
     api.current?.openDeck(key, list)
-    post(`/api/rooms/${r.id}/live`, { open: { key, list: list.map(c => [c.name, c.n]) } })
+    post(live, { open: { key, list: list.map(c => [c.name, c.n]) } })
     setOpen(key); setHand([]); setMsg(tx('O deck de {n} está aberto na mesa: agarra e atira as cartas, toca numa para a virar; larga-a em baixo para a ver na tua mão.', { n: s.name }))
   }
-  const closeAll = () => { api.current?.closeDeck(); setOpen(null); setHand([]); post(`/api/rooms/${r.id}/live`, { open: null }) }
+  const closeAll = () => { api.current?.closeDeck(); setOpen(null); setHand([]); post(live, { open: null }) }
   const back = c => { setHand(h => h.filter(x => x.id !== c.id)); setBig(null); api.current?.returnCard(c.id, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 1.2) }
   useEffect(() => { chatEnd.current?.scrollIntoView({ block: 'nearest' }) }, [r.chat?.length])
   const send = e => { e.preventDefault(); const m = text.trim(); if (!m) return; setText(''); act(r.id, 'chat', { m }) }
@@ -131,13 +133,13 @@ export default function Lobby3D({ r, data, act }) {
         {big && <div className="lobby3d-big" onPointerDown={() => setBig(null)}>{big.url ? <img src={big.url.replace('/small/', '/normal/')} alt={big.name} /> : <b>{big.name}</b>}</div>}
       </div>
       <div className="lobby3d-side">
-        <p className="small muted">{msg || tx('Arrasta e atira as caixas. Clica na tua para deixares (ou não) os outros verem o teu deck; clica na de outro para o abrir, se ele deixar.')}</p>
-        {mine && <button type="button" className={`small ${mine.show ? 'on' : ''}`} onClick={() => clickRef.current(mine.key)}>{mine.show ? `👁 ${tx('O teu deck está à vista')}` : `🔒 ${tx('Deixar ver o meu deck')}`}</button>}
+        <p className="small muted">{msg || (free ? tx('Arrasta e atira as caixas dos decks da prateleira. Clica numa para a abrir e espalhar as cartas na mesa, para todos.') : tx('Arrasta e atira as caixas. Clica na tua para deixares (ou não) os outros verem o teu deck; clica na de outro para o abrir, se ele deixar.'))}</p>
+        {mine && !free && <button type="button" className={`small ${mine.show ? 'on' : ''}`} onClick={() => clickRef.current(mine.key)}>{mine.show ? `👁 ${tx('O teu deck está à vista')}` : `🔒 ${tx('Deixar ver o meu deck')}`}</button>}
         <details className="lobby3d-opts"><summary className="small muted">🖱 {tx('Cursores')}</summary>
           <label className="chk small"><input type="checkbox" checked={fpPrefs().ptrSee} onChange={e => { setFpPrefs({ ptrSee: e.target.checked }); setPv(v => v + 1) }} /> {tx('Ver os cursores dos outros jogadores (mesa livre e lobby online)')}</label>
           <label className="chk small"><input type="checkbox" checked={fpPrefs().ptrShow} onChange={e => { setFpPrefs({ ptrShow: e.target.checked }); setPv(v => v + 1) }} /> {tx('Mostrar o meu cursor aos outros')}</label>
         </details>
-        <div className="lobby3d-chat" role="log" aria-label={tx('Conversa da sala')}>
+        {!free && <><div className="lobby3d-chat" role="log" aria-label={tx('Conversa da sala')}>
           {(r.chat || []).map((c, k) => <p key={k}><b>{c.w}</b> {c.m}</p>)}
           {!(r.chat || []).length && <p className="muted small">{tx('Ainda ninguém falou. Diz olá!')}</p>}
           <span ref={chatEnd} />
@@ -145,7 +147,7 @@ export default function Lobby3D({ r, data, act }) {
         <form className="lobby3d-say" onSubmit={send}>
           <input value={text} onChange={e => setText(e.target.value)} maxLength={240} placeholder={tx('Escreve à sala…')} aria-label={tx('Mensagem para a sala')} />
           <button type="submit" className="small" disabled={!text.trim()}>➤</button>
-        </form>
+        </form></>}
       </div>
     </div>
   )
