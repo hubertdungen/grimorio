@@ -972,6 +972,17 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
     const m = t?.matches.find(x => queued.current.has(x.id) && x.play && x.by === t.you)
     if (m) { queued.current.delete(m.id); setPlaying(m.play); play('tick', { amount: 1 }) }
   }, [t])
+  // partidas que acabaram desde a última leitura: brilham uns segundos (o resultado acabou de chegar)
+  const prevSt = useRef(null), freshT = useRef(0), [fresh, setFresh] = useState(() => new Set())
+  useEffect(() => {
+    if (!t) return
+    const was = prevSt.current, nw = was ? t.matches.filter(m => m.st === 'done' && was[m.id] && was[m.id] !== 'done').map(m => m.id) : []
+    prevSt.current = Object.fromEntries(t.matches.map(m => [m.id, m.st]))
+    if (!nw.length) return
+    setFresh(new Set(nw)); clearTimeout(freshT.current)
+    freshT.current = setTimeout(() => setFresh(new Set()), 4500)
+  }, [t])
+  useEffect(() => () => clearTimeout(freshT.current), [])
   if (!t) return <section className="card">{err ? <p className="bad-t">{err}</p> : <p><span className="spin-dot" /> {tx('A abrir o torneio…')}</p>}</section>
   const act = async a => { try { await post(`/api/tournaments/${tid}/${a}`); setT(await j(`/api/tournaments/${tid}`)) } catch (e) { setErr(e.message) } }
   // o meu jogo no Forge Play; sem lugar no servidor fica na fila e abre-se sozinho quando começar (efeito em cima)
@@ -1023,7 +1034,7 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
   const myGame = t.play_me && t.status === 'running' && t.me != null ? t.matches.find(m => m.st === 'ready' && m.p.includes(t.me)) : null
   const k = Math.max(...t.matches.filter(m => m.b === 'W').map(m => m.r), 1)
   const num = Object.fromEntries(t.matches.map((m, i) => [m.id, i + 1]))
-  const tools = { data, P, live: t.live && { ...t.live, ids: new Set(lives.map(x => x.L.match)) }, num, onGame: openGame, me: t.me, casual: t.casual, odds: bets.b?.match, bet: bets.b && { coins: bets.b.coins, place: bets.place, mine: new Set(bets.b.bets.filter(x => x.status === 'open').map(x => x.mid)) } }
+  const tools = { data, P, live: t.live && { ...t.live, ids: new Set(lives.map(x => x.L.match)) }, num, onGame: openGame, me: t.me, casual: t.casual, fresh, odds: bets.b?.match, bet: bets.b && { coins: bets.b.coins, place: bets.place, mine: new Set(bets.b.bets.filter(x => x.status === 'open').map(x => x.mid)) } }
   const bracket = t.type === 'elim' || t.type === 'dupla'
   // «o meu deck»: onde está, se caiu e o lugar final (tournament.py me_state)
   const ms = t.me_state, mm = ms?.match && t.matches.find(m => m.id === ms.match)
@@ -1041,14 +1052,18 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
   const meLine = !ms ? null : ms.phase === 'done' ? (ms.place[0] === 1 ? tx('Ganhaste o torneio!') : t.type === 'gauntlet' ? tx('Ficaste abaixo dos 75%: {w} de vitórias ({v}V {d}D {e}E)', { w: winPct(my), v: my?.v, d: my?.d, e: my?.e }) : tx('Ficaste em {p} lugar', { p: place(ms.place) }))
     : ms.phase === 'out' ? (ms.groups ? tx('Ficaste pela fase de grupos') : tx('Foste eliminado {w} por {o}', { w: where(mm, k), o: nameOf(ms.by) }))
       : `${bracket || (mm && t.type === 'grupos' && mm.b !== 'R') ? tx('Estás {w}', { w: where(mm, k) }) : standLine()}${mm ? ` · ${mm.b === 'P' ? tx('mesa com {o}', { o: opp }) : tx('contra {o}', { o: opp })}${mySc}${t.live?.match === mm.id ? ` — ${tx('a jogar agora')}` : ''}` : ''}`
+  const mLabel = m => (['W', 'L', 'F', '3'].includes(m.b) ? roundName(m, k) : t.type === 'gauntlet' ? tx('{k}.º adversário', { k: t.matches.indexOf(m) + 1 }) : t.type === 'rei' ? tx('Partida {r}', { r: m.r }) : m.b === 'P' ? tx('Mesa {m}', { m: m.id.split('-')[1] }) : tx('Ronda {r}', { r: m.r }))
+  const pr = progressOf(t, k, mLabel)
+  const hostView = t.you !== 'guest' && !t.you?.startsWith('guest:')
+  const bk = bracket || (t.type === 'grupos' && t.final)
   return (
-    <div className="tour-live">
-      <section className="card tl-head">
+    <div className={`lv st-${t.status}`}>
+      <section className="card lv-hero">
         <div className="tl-top">
-          <h3>🏆 {t.name}</h3>
-          <span className={`tl-status ${t.status}`}>{STATUS[t.status] || t.status}</span>
+          <h3><TypeIco k={t.type} /> {t.name}</h3>
+          <span className={`tl-status ${t.status}`}>{t.status === 'running' && <i className="lv-dot" />}{STATUS[t.status] || t.status}</span>
           {!t.casual && (t.ranked !== false ? <span className="rk rk-ok sm" title={tx('Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).')}>🏅 {tx('Ranked')}</span> : <span className="rk rk-warn sm" title={tx('Menos de 20% de decks do meta: conta só para as estrelas azuis e vermelhas e os troféus saem azuis.')}>{tx('não ranked')}</span>)}
-          {t.you !== 'guest' && !t.you?.startsWith('guest:') && <span className="tl-act">
+          {hostView && <span className="tl-act">
             {t.status === 'running' && <button onClick={() => act('pause')} title={tx('O jogo em curso acaba e fica registado')}>{tx('❚❚ Pausar')}</button>}
             {(t.status === 'paused' || t.status === 'error') && <button className="primary" onClick={() => act('resume')}>{tx('▶ Retomar')}</button>}
             {going && <button onClick={async () => (await ask('torneio', { title: tx('Cancelar o torneio? O jogo em curso pára já.'), ok: tx('Cancelar o torneio') })) && act('cancel')}>{tx('■ Cancelar')}</button>}
@@ -1056,15 +1071,32 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
           </span>}
         </div>
         <div className="tl-chips">
-          <span className="tl-chip"><TypeIco k={t.type} /> <b>{TYPES[t.type]?.[0]}</b></span>
+          <span className="tl-chip"><b>{TYPES[t.type]?.[0]}</b></span>
           <span className="tl-chip">{t.casual ? tx('casual, regras de {f}', { f: FORMAT[t.format]?.name || t.format }) : FORMAT[t.format]?.name || t.format}</span>
           <span className="tl-chip">{t.type === 'mesas' ? tx('um jogo por mesa') : `Bo${t.bo}`}</span>
           <span className="tl-chip">{tx('{n} decks', { n: P.length })}</span>
+          {t.free ? <span className="tl-chip">🃏 {tx('mesa livre')}</span> : t.misto ? <span className="tl-chip">🎮 {tx('misto: pessoas e bots')}</span> : null}
           {t.team ? <span className="tl-chip">{tx('equipas de {s}', { s: t.team })}</span> : null}
           {t.table ? <span className="tl-chip">{tableL(t.table)}</span> : null}
           {t.rounds ? <span className="tl-chip">{t.type === 'rei' ? tx('{n} partida|{n} partidas', { n: t.rounds }) : tx('{n} ronda|{n} rondas', { n: t.rounds })}</span> : null}
           <span className="tl-chip"><time dateTime={new Date(t.ts * 1000).toISOString()}>{when(t.ts)}</time></span>
         </div>
+        <div className="lv-prog" role="group" aria-label={tx('Progresso')}>
+          <div className="lv-prog-l"><b>{pr.label}</b><span className="muted">{tx('{a} de {b} partidas', { a: pr.done, b: pr.total })}{pr.eta ? ` · ${pr.eta}` : ''}</span></div>
+          <span className="lv-bar" role="progressbar" aria-valuemin={0} aria-valuemax={pr.total} aria-valuenow={pr.done}><i style={{ width: `${Math.round((100 * pr.done) / Math.max(1, pr.total))}%` }} /></span>
+        </div>
+        <StartGate t={t} onStart={() => act('start')} />
+        {myGame && <div className="lv-cta"><span>🎮 <b>{myGame.play ? tx('O teu jogo contra {o} está a decorrer', { o: nameOf(myGame.p.find(i => i !== t.me)) }) : tx('É a tua vez: jogo {g} contra {o}', { g: myGame.g.length + 1, o: nameOf(myGame.p.find(i => i !== t.me)) })}</b></span>
+          <button className="primary" disabled={!!myGame.want && !myGame.play} onClick={() => playMine(myGame.id)}>{myGame.play ? tx('▶ Voltar à mesa') : myGame.want ? `⏳ ${tx('Na fila do Forge…')}` : tx('▶ Jogar no Forge Play')}</button></div>}
+        {lives.length > 0 && <div className="lv-now">{lives.map(({ L, lm }) => (
+          <div key={lm.id} className={`lv-now-c ${L.status === 'queued' ? 'queued' : ''} ${lm.p.includes(t.me) ? 'mine' : ''}`}>
+            <div className="lv-now-h">{L.status === 'queued' ? <span>⏳ {tx('Na fila do Forge (posição {p})', { p: L.position })}</span> : <span className="lv-live"><i className="lv-dot" /> {tx('A jogar')}</span>}
+              <span className="muted">#{num[lm.id]} · {mLabel(lm)} · {tx('jogo {g}', { g: lm.g.length + 1 })}</span></div>
+            <div className="lv-now-vs">{(L.seats || lm.p).map((i, x) => <span key={i} className={`lv-now-p ${i === t.me ? 'me' : ''}`}>{x > 0 && <i className="lv-vs">vs</i>}<Thumb data={data} p={P[i]} /><b title={nameOf(i)}>{nameOf(i)}</b>{lm.p.length === 2 && t.bo > 1 && <em className="lv-sc">{lm.w[lm.p.indexOf(i)]}</em>}</span>)}</div>
+            {Object.keys(lm.sb || {}).length > 0 && <small className="muted" title={Object.entries(lm.sb).map(([i, sw]) => `${nameOf(+i)}: ${sw.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join('\n')}>{tx('⇄ com sideboard:')} {Object.keys(lm.sb).map(i => nameOf(+i)).join(', ')}</small>}
+          </div>))}</div>}
+        {!lm && !myGame && !t.free && t.status === 'running' && !(t.hold && !t.matches.some(m => m.g.length || m.job)) && t.matches.some(m => m.st === 'ready' && (m.how || 'forge') === 'forge') && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
+        {meLine && <p className={`me-line ${ms.phase}`}><Thumb data={data} p={P[t.me]} /><span><small>{tx('O meu deck · {d}', { d: P[t.me]?.name })}</small><b>{ms.phase === 'done' ? `${(t.type !== 'gauntlet' || ms.place[0] === 1) && MEDAL[ms.place[0] - 1] || '🎖'} ` : ''}{meLine}</b></span></p>}
         <div className="tl-watch">
           <Tgl on={follow} set={setFollow}>{tx('Seguir ao vivo (abre cada jogo quando acaba)')}</Tgl>
           {fl.length > 0 && <button onClick={() => openGame(fl[fl.length - 1])}>{onlyMine && t.me != null ? tx('▶ último jogo meu') : tx('▶ último jogo')}</button>}
@@ -1075,28 +1107,69 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
             {t.me != null && <Tgl on={onlyMine} set={setOnlyMine}>{tx('seguir só os meus jogos')}</Tgl>}
           </div></details>
         </div>
-        <StartGate t={t} onStart={() => act('start')} />
-        {(t.free || t.misto) && <FreeMatches t={t} openTable={openTable} nameOf={nameOf} playMine={playMine} onChange={() => j(`/api/tournaments/${tid}`).then(setT).catch(() => {})} />}
-        {myGame && <p className="tl-now me-play">🎮 {myGame.play ? tx('O teu jogo contra {o} está a decorrer', { o: nameOf(myGame.p.find(i => i !== t.me)) }) : tx('É a tua vez: jogo {g} contra {o}', { g: myGame.g.length + 1, o: nameOf(myGame.p.find(i => i !== t.me)) })} <button className="primary" disabled={!!myGame.want && !myGame.play} onClick={() => playMine(myGame.id)}>{myGame.play ? tx('▶ Voltar à mesa') : myGame.want ? `⏳ ${tx('Na fila do Forge…')}` : tx('▶ Jogar no Forge Play')}</button></p>}
-        {meLine && <p className={`me-line ${ms.phase}`}><Thumb data={data} p={P[t.me]} /><span><small>{tx('O meu deck · {d}', { d: P[t.me]?.name })}</small><b>{ms.phase === 'done' ? `${(t.type !== 'gauntlet' || ms.place[0] === 1) && MEDAL[ms.place[0] - 1] || '🎖'} ` : ''}{meLine}</b></span></p>}
-        {lives.map(({ L, lm }) => <p key={lm.id} className="tl-now"><span className="spin-dot" /> {L.status === 'queued' ? tx('Na fila do Forge (posição {p})', { p: L.position }) : tx('A jogar')}: <b>#{num[lm.id]}</b> {(L.seats || lm.p).map(nameOf).join(' vs ')} · {tx('jogo {g}', { g: lm.g.length + 1 })}{lm.p.length === 2 && t.bo > 1 ? ` · ${lm.w[0]}–${lm.w[1]}` : ''}{Object.keys(lm.sb || {}).length > 0 && <span className="muted" title={Object.entries(lm.sb).map(([i, sw]) => `${nameOf(+i)}: ${sw.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join('\n')}> · {tx('⇄ com sideboard:')} {Object.keys(lm.sb).map(i => nameOf(+i)).join(', ')}</span>}</p>)}
-        {!lm && !myGame && !t.free && t.status === 'running' && !(t.hold && !t.matches.some(m => m.g.length || m.job)) && t.matches.some(m => m.st === 'ready' && (m.how || 'forge') === 'forge') && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
         {t.error && <p className="small bad-t">{tx(t.error)}</p>}
         {err && <p className="small bad-t">{err}</p>}
       </section>
       {ms?.phase === 'out' && going && <section className="me-out" role="status"><b>{ms.groups ? tx('💀 Ficaste pela fase de grupos') : tx('💀 Foste eliminado {w}', { w: where(mm, k) })}</b><span>{ms.groups ? '' : mm?.g.length ? tx('{o} ganhou-te a partida por {s}.', { o: nameOf(ms.by), s: `${mm.w[mm.p.indexOf(ms.by)]}–${mm.w[mm.p.indexOf(t.me)]}` }) : tx('{o} ganhou-te a partida.', { o: nameOf(ms.by) })} {tx('O torneio continua sem ti — vê quem fica com o título.')}</span></section>}
-      <div className={`live-duo ${running.some(x => x.id !== tid) ? 'two' : ''}`}>
-        <BetsPanel {...bets} P={P} data={data} num={num} going={going} type={t.type} />
-        {running.some(x => x.id !== tid) && <RunningTours list={running} cur={tid} open={open} />}
+      {(t.free || t.misto) && <FreeMatches t={t} openTable={openTable} nameOf={nameOf} playMine={playMine} thumb={i => <Thumb data={data} p={P[i]} />} label={mLabel} onChange={() => j(`/api/tournaments/${tid}`).then(setT).catch(() => {})} />}
+      <div className={`lv-grid ${bk ? 'bk' : ''}`}>
+        <div className="lv-main">
+          {t.podium?.length > 0 && <Podium data={data} t={t} />}
+          {bracket ? <Bracket t={t} k={k} {...tools} />
+            : t.type === 'gauntlet' ? <Gauntlet t={t} {...tools} />
+              : t.type === 'rei' ? <><div className="tl-grid"><Hill t={t} {...tools} /><Standings t={t} {...tools} /></div><HillThread t={t} {...tools} /></>
+                : t.type === 'grupos' ? <>{t.final && <Bracket t={t} k={k} {...tools} />}<div className="tl-grid"><div className="lv-groups">{t.group_tabs.map((g, i) => <Standings key={i} t={t} rows={g} title={tx('Grupo {g}', { g: 'ABCD'[i] })} cut={2} {...tools} />)}</div><Rounds t={t} {...tools} ms={t.matches.filter(m => m.b === 'R')} /></div></>
+                  : t.type === 'equipas' ? <Teams t={t} {...tools} />
+                    : <div className="tl-grid"><Standings t={t} {...tools} /><Rounds t={t} {...tools} /></div>}
+        </div>
+        <aside className="lv-side">
+          <div className="lv-bets"><BetsPanel {...bets} P={P} data={data} num={num} going={going} type={t.type} /></div>
+          <Feed t={t} data={data} P={P} num={num} onGame={openGame} me={t.me} label={mLabel} fresh={fresh} />
+          {running.some(x => x.id !== tid) && <RunningTours list={running} cur={tid} open={open} />}
+        </aside>
       </div>
-      {t.podium?.length > 0 && <Podium data={data} t={t} />}
-      {bracket ? <Bracket t={t} k={k} {...tools} />
-        : t.type === 'gauntlet' ? <Gauntlet t={t} {...tools} />
-          : t.type === 'rei' ? <><div className="tl-grid"><Hill t={t} {...tools} /><Standings t={t} {...tools} /></div><HillThread t={t} {...tools} /></>
-            : t.type === 'grupos' ? <>{t.final && <Bracket t={t} k={k} {...tools} />}<div className="tl-grid"><div style={{ display: 'grid', gap: 12 }}>{t.group_tabs.map((g, i) => <Standings key={i} t={t} rows={g} title={tx('Grupo {g}', { g: 'ABCD'[i] })} cut={2} {...tools} />)}</div><Rounds t={t} {...tools} ms={t.matches.filter(m => m.b === 'R')} /></div></>
-              : t.type === 'equipas' ? <Teams t={t} {...tools} />
-                : <div className="tl-grid"><Standings t={t} {...tools} /><Rounds t={t} {...tools} /></div>}
     </div>
+  )
+}
+
+// o progresso do torneio: partidas jogadas de quantas, em que fase vai e, a decorrer, quanto falta (pelo ritmo até agora)
+function progressOf(t, k, mLabel) {
+  const ms = t.matches, done = ms.filter(m => m.st === 'done').length, per1 = ms.filter(m => m.r === 1).length
+  const total = Math.max(ms.length, ['suico', 'mesas'].includes(t.type) ? per1 * (t.rounds || 1) : t.type === 'rei' ? t.rounds || 0 : 0, 1)
+  const rank = m => (m.job ? 0 : m.st === 'ready' ? 1 : 2)  // o que está a jogar, depois o que está pronto, depois o resto pela ordem
+  const open = ms.filter(m => m.st !== 'done' && !m.bye).sort((a, b) => rank(a) - rank(b) || a.r - b.r || ms.indexOf(a) - ms.indexOf(b))[0]
+  const R = t.rounds || Math.max(...ms.map(m => m.r), 1)
+  const label = t.status === 'done' ? STATUS.done : t.status === 'cancelled' ? STATUS.cancelled : !open ? '—'
+    : t.type === 'rei' ? tx('Partida {a} de {b}', { a: Math.min(done + 1, total), b: total }) : t.type === 'gauntlet' ? tx('Adversário {a} de {b}', { a: Math.min(done + 1, total), b: total })
+      : ['W', 'L', 'F', '3'].includes(open.b) ? mLabel(open) : tx('Ronda {r} de {n}', { r: open.r, n: R })
+  const games = ms.reduce((a, m) => a + m.g.length, 0), start = t.start_at || t.ts, per = games >= 2 ? (Date.now() / 1000 - start) / games : 0
+  const left = t.status === 'running' && !t.free && !t.misto && per && per < 900 ? Math.round(((total - done) * (games / Math.max(done, 1)) * per) / 60) : 0
+  const eta = left ? (left < 60 ? tx('≈ {t} min', { t: Math.max(1, left) }) : tx('≈ {h} h {m} min', { h: Math.floor(left / 60), m: left % 60 })) : ''
+  return { done, total, label, eta }
+}
+
+// os resultados mais recentes (a partida acabada mais nova primeiro), cada um com os jogos para rever
+function Feed({ t, data, P, num, onGame, me, label, fresh }) {
+  const [n, setN] = useState(6)
+  const last = m => Math.max(0, ...m.g.map(x => x.id))
+  const done = t.matches.filter(m => m.st === 'done' && !m.bye && m.g.length).sort((a, b) => last(b) - last(a))
+  if (!done.length) return null
+  return (
+    <section className="card lv-feed">
+      <h4>{tx('Últimos resultados')} <span className="muted small">{done.length}</span></h4>
+      <ul>{done.slice(0, n).map(m => {
+        const tt = m.b === 'T', won = i => (tt ? (m.win === m.p[0]) === (m.p.indexOf(i) < 2) : m.win === i)
+        return (
+          <li key={m.id} className={`${me != null && m.p.includes(me) ? 'mine' : ''} ${fresh?.has(m.id) ? 'fresh' : ''}`}>
+            <span className="lv-f-h muted">#{num[m.id]} · {label(m)}</span>
+            {m.b === 'P' ? <span className="lv-f-r">{(m.pl || m.p).map((i, x) => <span key={i} className={`lv-f-p ${x === 0 && m.pl ? 'w' : ''} ${i === me ? 'me' : ''}`}><Thumb data={data} p={P[i]} /><span>{m.pl ? `${x + 1}.º ` : ''}{P[i]?.name}</span></span>)}</span>
+              : <span className="lv-f-r">{m.p.map((i, x) => <span key={i} className={`lv-f-p ${won(i) ? 'w' : m.win == null ? 'd' : ''} ${i === me ? 'me' : ''}`}><Thumb data={data} p={P[i]} /><span>{P[i]?.name}</span>{!tt && <b>{m.w[x]}</b>}{tt && x % 2 === 0 && <b>{m.w[x >> 1]}</b>}</span>)}</span>}
+            <span className="lv-f-g"><GameChips m={m} onGame={onGame} P={P} /></span>
+          </li>
+        )
+      })}</ul>
+      {done.length > n && <button className="link small" onClick={() => setN(n + 10)}>{tx('mostrar mais ({n})', { n: done.length - n })}</button>}
+    </section>
   )
 }
 
@@ -1223,7 +1296,7 @@ function SideWhy({ m, P }) {
 
 // como se joga cada partida (tournament.how): no Forge (bot contra bot), no Forge Play (pessoa contra bot) ou à mesa livre
 const HOW = { forge: ['🤖', tx('Bot contra bot: joga-se no Forge, com as regras todas')], play: ['🎮', tx('Pessoa contra bot: joga-se no Forge Play, com as regras do Forge')], mesa: ['🃏', tx('Pessoas entre si: joga-se numa mesa livre')], pvp: ['⚖', tx('Pessoas entre si na mesa estrita: o Forge faz cumprir as regras, cada um no seu ecrã')] }
-function Match({ m, data, P, live, num, onGame, label, me, casual, odds, bet }) {
+function Match({ m, data, P, live, num, onGame, label, me, casual, odds, bet, fresh }) {
   const now = live?.ids?.has(m.id), tt = m.b === 'T'  // tt: 2 contra 2 à mesma mesa (p = equipa a, equipa a, equipa b, equipa b)
   const slot = k => {
     const i = m.p[k], s = m.src?.[k]
@@ -1239,7 +1312,7 @@ function Match({ m, data, P, live, num, onGame, label, me, casual, odds, bet }) 
     )
   }
   return (
-    <div className={`tm ${m.st} ${now ? 'now' : ''} ${m.bye ? 'isbye' : ''} ${me != null && m.p.includes(me) ? 'mine' : ''}`} data-mid={m.id}>
+    <div className={`tm ${m.st} ${now ? 'now' : ''} ${m.bye ? 'isbye' : ''} ${me != null && m.p.includes(me) ? 'mine' : ''} ${fresh?.has(m.id) ? 'fresh' : ''}`} data-mid={m.id}>
       <div className="tm-h"><span>#{num[m.id]}{label ? ` · ${label}` : ''}</span>{m.how && <span className={`how-chip how-${m.how}`} title={HOW[m.how][1]}>{HOW[m.how][0]}</span>}{now && <span className="livepill">{tx('● a jogar')}</span>}{m.tb ? <span className="muted" title={tx('Empatados depois dos jogos extra: passa o melhor seed')}>{tx('desempate pelo seed')}</span> : null}{m.note && <span className="muted" title={tx(m.note)}>⚠</span>}</div>
       {(tt ? [0, 1, 2, 3] : [0, 1]).map(slot)}
       {odds?.[m.id] && bet && <BetPop m={m} odds={odds[m.id]} P={P} bet={bet} />}
@@ -1265,17 +1338,17 @@ function Bracket({ t, k, ...tools }) {
         const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect()
         const x1 = ra.right - r0.left, y1 = ra.top + ra.height / 2 - r0.top, x2 = rb.left - r0.left, y2 = rb.top + rb.height / 2 - r0.top, xm = (x1 + x2) / 2
         const src = t.matches.find(x => x.id === sid)
-        out.push({ d: `M${x1},${y1} H${xm} V${y2} H${x2}`, on: src.st === 'done' && !src.bye, key: `${sid}>${m.id}` })
+        out.push({ d: `M${x1},${y1} H${xm} V${y2} H${x2}`, on: src.st === 'done' && !src.bye, me: tools.me != null && src.win === tools.me, key: `${sid}>${m.id}` })
       }
       setPaths(out)
     }
     draw()
     addEventListener('resize', draw)
     return () => removeEventListener('resize', draw)
-  }, [t])
+  }, [t, tools.me])
   return (
     <section className="card tb" ref={ref}>
-      <svg className="tb-lines" aria-hidden="true">{paths.map(p => <path key={p.key} d={p.d} className={p.on ? 'on' : ''} />)}</svg>
+      <svg className="tb-lines" aria-hidden="true">{paths.map(p => <path key={p.key} d={p.d} className={`${p.on ? 'on' : ''} ${p.me ? 'me' : ''}`} />)}</svg>
       {secs.map(([b, title]) => {
         const ms = t.matches.filter(m => m.b === b || (b === 'W' && m.b === '3'))
         const cols = [...new Set(ms.filter(m => m.b !== '3').map(m => m.r))].sort((x, y) => x - y)
@@ -1302,40 +1375,46 @@ function Bracket({ t, k, ...tools }) {
 // rows/title: as tabelas de cada grupo (grupos + eliminação); cut = quantos passam (ficam marcados); no rei a série manda
 function Standings({ t, data, P, me, casual, rows = t.standings, title = tx('Classificação'), cut = 0 }) {
   const pods = t.type === 'mesas', rei = t.type === 'rei'
+  // forma: as últimas 5 partidas de cada deck (a mais recente à direita)
+  const formOf = i => t.matches.filter(m => m.st === 'done' && m.p.includes(i) && m.b !== 'P').sort((a, b) => a.r - b.r || t.matches.indexOf(a) - t.matches.indexOf(b)).slice(-5)
+    .map(m => (m.bye ? 'w' : m.win == null ? 'd' : (m.b === 'T' ? (m.win === m.p[0]) === (m.p.indexOf(i) < 2) : m.win === i) ? 'w' : 'l'))
+  const FL = { w: tx('vitória'), l: tx('derrota'), d: tx('empate') }
   return (
     <section className="card ts-stand">
       <h4>{title}</h4>
-      <div className="ts-scroll"><table className="lab-table ts-table"><thead><tr><th className="num">#</th><th>{tx('Deck')}</th>{rei ? <th className="num" title={tx('A série de vitórias mais longa como rei')}>{tx('Série')}</th> : <th className="num">{tx('Pts')}</th>}{pods ? <><th className="num">{tx('1.ºs lugares')}</th><th className="num">{tx('Mesas')}</th></> : <><th className="num">{tx('V-D-E')}</th><th className="num" title={tx('% de vitórias dos adversários')}>OMW%</th><th className="num" title={tx('% de jogos ganhos')}>GW%</th></>}<th className="ts-diff">{tx('Dificuldade')}</th></tr></thead>
+      <div className="ts-scroll"><table className="lab-table ts-table"><thead><tr><th className="num">#</th><th>{tx('Deck')}</th>{rei ? <th className="num" title={tx('A série de vitórias mais longa como rei')}>{tx('Série')}</th> : <th className="num">{tx('Pts')}</th>}{pods ? <><th className="num">{tx('1.ºs lugares')}</th><th className="num">{tx('Mesas')}</th></> : <><th className="num">{tx('V-D-E')}</th><th className="num" title={tx('% de vitórias dos adversários')}>OMW%</th><th className="num" title={tx('% de jogos ganhos')}>GW%</th></>}{!pods && <th className="ts-form" title={tx('As últimas 5 partidas')}>{tx('Forma')}</th>}<th className="ts-diff">{tx('Dificuldade')}</th></tr></thead>
         <tbody>{rows.map((s, k) => (
           <tr key={s.i} className={`${t.champion === s.i || k < cut ? 'champ-row' : ''} ${s.i === me ? 'me-row' : ''}`}><td className="num">{k + 1}</td><td><span className="ts-cell"><Thumb data={data} p={P[s.i]} /><span className="ts-dn">{P[s.i]?.name}{rei && t.hill?.king === s.i && <span title={tx('Rei da colina')}> 👑</span>}</span><span className="ts-tags"><OwnTag p={P[s.i]} />{s.i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[s.i]?.format} />}</span></span></td><td className="num"><b>{rei ? s.best : s.pts}</b></td>
             {pods ? <><td className="num">{s.v}</td><td className="num">{s.v + s.d + s.e}</td></> : <><td className="num">{s.v}-{s.d}-{s.e}{s.bye ? <small className="muted"> {tx('({b} isento)', { b: s.bye })}</small> : null}</td><td className="num">{s.opp.length ? pct(s.omw) : '—'}</td><td className="num">{s.gw + s.gl ? pct(s.gwp) : '—'}</td></>}
+            {!pods && <td className="ts-form"><span className="lv-form">{formOf(s.i).map((c, x) => <i key={x} className={c} title={FL[c]} />)}</span></td>}
             <td className="small muted ts-diff">{DIFF_INFO[P[s.i]?.difficulty]?.label || P[s.i]?.difficulty}</td></tr>
         ))}</tbody></table></div>
     </section>
   )
 }
 
-// ms: só estas partidas (a fase de grupos); no rei da colina cada «ronda» é uma partida
-function Rounds({ t, data, P, live, num, onGame, me, casual, odds, bet, ms = t.matches }) {
-  const rs = [...new Set(ms.map(m => m.r))].sort((a, b) => b - a)  // a ronda mais recente primeiro
-  const rei = t.type === 'rei'
-  const [rp, setRp] = useState(0), [shown, rpp, rpages] = page(rs, rp, rei ? 12 : 4)  // muitas rondas (rei da colina: uma por partida): páginas
+// as rondas: uma de cada vez, escolhida nos separadores (abre na que está a decorrer); no rei da colina cada «ronda» é uma partida
+function Rounds({ t, data, P, live, num, onGame, me, casual, odds, bet, fresh, ms = t.matches }) {
+  const rs = [...new Set(ms.map(m => m.r))].sort((a, b) => a - b)
+  const rei = t.type === 'rei', R = Math.max(t.rounds || 0, rs.length)
+  const cur = ms.filter(m => m.st !== 'done' && !m.bye).sort((a, b) => a.r - b.r)[0]?.r ?? rs.at(-1)
+  const [sel, setSel] = useState(null), r = rs.includes(sel) ? sel : cur
+  const list = ms.filter(m => m.r === r), dn = list.filter(m => m.st === 'done').length
+  const stOf = x => { const xs = ms.filter(m => m.r === x); return xs.some(m => live?.ids?.has(m.id)) ? 'now' : xs.every(m => m.st === 'done') ? 'done' : xs.some(m => m.g.length) ? 'on' : '' }
   return (
-    <section className="card">
-      <h4>{rei ? tx('Partidas') : tx('Rondas')} {t.rounds ? <span className="muted small">{tx('{a} de {b}', { a: rs.length, b: t.rounds })}</span> : null}</h4>
-      {shown.map(r => (
-        <div key={r} className="tr-round"><h5>{rei ? tx('Partida {r}', { r }) : tx('Ronda {r}', { r })}</h5>
-          <PagedMs list={ms.filter(m => m.r === r)} me={me} live={live}>{m => m.b === 'P' ? (
-            <div key={m.id} className={`tm pod ${m.st} ${live?.ids?.has(m.id) ? 'now' : ''} ${m.p.includes(me) ? 'mine' : ''}`} data-mid={m.id}>
-              <div className="tm-h"><span>{tx('Mesa {m}', { m: m.id.split('-')[1] })}</span>{live?.ids?.has(m.id) && <span className="livepill">{tx('● a jogar')}</span>}</div>
-              {(m.pl || m.p).map((i, k) => <div key={i} className={`ts ${m.pl ? (k === 0 ? 'win' : '') : ''} ${i === me ? 'me' : ''}`}><Thumb data={data} p={P[i]} /><i className="ts-seed">{m.pl ? tx('{p}.º', { p: k + 1 }) : i + 1}</i><span className="ts-n">{P[i]?.name}</span>{i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[i]?.format} />}{m.st === 'done' && <b className="ts-sc">{m.pl ? `+${k === 0 ? 3 : m.pl.length - 1 - k}` : '+1'}</b>}</div>)}
-              {odds?.[m.id] && bet && <BetPop m={m} odds={odds[m.id]} P={P} bet={bet} />}
-              {m.g.length > 0 && <div className="tm-g"><GameChips m={m} onGame={onGame} P={P} /></div>}
-            </div>
-          ) : <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} odds={odds} bet={bet} />}</PagedMs>
+    <section className="card lv-rounds">
+      <div className="lv-rh"><h4>{rei ? tx('Partidas') : tx('Rondas')}</h4>
+        <div className="lv-rtabs" role="tablist" aria-label={rei ? tx('Partidas') : tx('Rondas')}>{Array.from({ length: R }, (_, x) => x + 1).map(x => (
+          <button key={x} role="tab" aria-selected={x === r} disabled={!rs.includes(x)} className={`${x === r ? 'on' : ''} ${stOf(x)}`} onClick={() => setSel(x)} title={rei ? tx('Partida {r}', { r: x }) : tx('Ronda {r}', { r: x })}>{x}</button>))}</div></div>
+      <p className="lv-rsub"><b>{rei ? tx('Partida {r}', { r }) : tx('Ronda {r}', { r })}</b> <span className="muted small">{tx('{a} de {b} partidas jogadas', { a: dn, b: list.length })}</span></p>
+      <PagedMs key={r} list={list} me={me} live={live}>{m => m.b === 'P' ? (
+        <div key={m.id} className={`tm pod ${m.st} ${live?.ids?.has(m.id) ? 'now' : ''} ${m.p.includes(me) ? 'mine' : ''} ${fresh?.has(m.id) ? 'fresh' : ''}`} data-mid={m.id}>
+          <div className="tm-h"><span>{tx('Mesa {m}', { m: m.id.split('-')[1] })}</span>{live?.ids?.has(m.id) && <span className="livepill">{tx('● a jogar')}</span>}</div>
+          {(m.pl || m.p).map((i, k) => <div key={i} className={`ts ${m.pl ? (k === 0 ? 'win' : '') : ''} ${i === me ? 'me' : ''}`}><Thumb data={data} p={P[i]} /><i className="ts-seed">{m.pl ? tx('{p}.º', { p: k + 1 }) : i + 1}</i><span className="ts-n">{P[i]?.name}</span>{i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[i]?.format} />}{m.st === 'done' && <b className="ts-sc">{m.pl ? `+${k === 0 ? 3 : m.pl.length - 1 - k}` : '+1'}</b>}</div>)}
+          {odds?.[m.id] && bet && <BetPop m={m} odds={odds[m.id]} P={P} bet={bet} />}
+          {m.g.length > 0 && <div className="tm-g"><GameChips m={m} onGame={onGame} P={P} /></div>}
         </div>
-      ))}
-      <Pages pg={rpp} pages={rpages} set={setRp} />
+      ) : <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} odds={odds} bet={bet} fresh={fresh} />}</PagedMs>
     </section>
   )
 }
@@ -1347,6 +1426,7 @@ function Gauntlet({ t, ...tools }) {
     <section className="card">
       <h4><span className="ts-name"><Thumb data={tools.data} p={tools.P[t.ch]} /> {tx('{d} contra todos', { d: tools.P[t.ch]?.name })}</span></h4>
       <p className="small">{tx('{v}V {d}D {e}E · {w} de vitórias', { v: s.v, d: s.d, e: s.e, w: pct(s.v / Math.max(1, N - left)) })} · <span className="muted">{s.v >= need ? tx('título garantido') : s.v + left < need ? tx('já não chega aos 75%') : tx('faltam {k} vitórias para o título', { k: need - s.v })}</span></p>
+      <span className="lv-gbar" aria-hidden="true"><i className="w" style={{ width: `${(100 * s.v) / N}%` }} /><i className="d" style={{ width: `${(100 * s.e) / N}%` }} /><i className="l" style={{ width: `${(100 * s.d) / N}%` }} /><b style={{ left: `${(100 * need) / N}%` }} title={tx('o título pede 75%')} /></span>
       <div className="tr-ms">{t.matches.map((m, k) => <Match key={m.id} m={m} {...tools} label={tx('{k}.º adversário', { k: k + 1 })} />)}</div>
     </section>
   )
@@ -1368,7 +1448,7 @@ function Hill({ t, data, P }) {
 
 // o fio das partidas do rei da colina: mosaico compacto (a mais recente primeiro), com quem ganhou e a série do rei
 // depois de cada uma; a partida em curso fica com o cartão completo (apostas, «a jogar»)
-function HillThread({ t, data, P, live, num, onGame, me, casual, odds, bet }) {
+function HillThread({ t, data, P, live, num, onGame, me, casual, odds, bet, fresh }) {
   const ms = [...t.matches].sort((a, b) => a.r - b.r), streak = {}
   let s = 0
   for (const m of ms) {  // a série do rei depois de cada partida (empate: o rei fica e a série volta a 0)
@@ -1382,7 +1462,7 @@ function HillThread({ t, data, P, live, num, onGame, me, casual, odds, bet }) {
   return (
     <section className="card hill-thread">
       <h4>{tx('Partidas')} <span className="muted small">{tx('{a} de {b}', { a: done.length, b: t.rounds || t.matches.length })}</span></h4>
-      {now.map(m => <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} odds={odds} bet={bet} label={tx('Partida {r}', { r: m.r })} />)}
+      {now.map(m => <Match key={m.id} m={m} data={data} P={P} live={live} num={num} onGame={onGame} me={me} casual={casual} odds={odds} bet={bet} fresh={fresh} label={tx('Partida {r}', { r: m.r })} />)}
       <div className="ht-grid">{doneP.map(m => {
         const [k, c] = m.p, w = m.win
         const side = i => <span className={`ht-d ${w === i ? 'win' : ''} ${i === me ? 'me' : ''}`} title={P[i]?.name}><Thumb data={data} p={P[i]} /><span>{P[i]?.name}</span>{w === i && <i>👑</i>}</span>
@@ -1495,33 +1575,40 @@ function Pages({ pg, pages, set }) {
 }
 const page = (xs, pg, per) => { const pages = Math.max(1, Math.ceil(xs.length / per)), p = Math.min(pg, pages - 1); return [xs.slice(p * per, (p + 1) * per), p, pages] }
 
-const REG_K = 'grimorio.torneio.registo', REG0 = { st: '', type: '', fmt: '', cas: '', mine: false, sort: 'novo' }, PER_PAGE = 20
+const REG_K = 'grimorio.torneio.registo', REG0 = { st: '', type: '', fmt: '', cas: '', mine: false, sort: 'novo', per: '' }, PER_PAGE = 24
 const whenY = t => new Date(t * 1000).toLocaleString(LOCALE, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 const REG_SORT = { novo: [tx('Mais recentes'), (a, b) => b.ts - a.ts], velho: [tx('Mais antigos'), (a, b) => a.ts - b.ts], nome: [tx('Nome'), (a, b) => a.name.localeCompare(b.name)],
   decks: [tx('Mais decks'), (a, b) => b.n - a.n || b.ts - a.ts], jogos: [tx('Mais jogos'), (a, b) => (b.g || 0) - (a.g || 0) || b.ts - a.ts] }
+const PERIODS = { '': tx('período§Sempre'), 7: tx('Últimos 7 dias'), 30: tx('Últimos 30 dias'), 365: tx('Último ano') }
 
+// o registo: painel (estados, jogos, troféus), procura e filtros compactos, e os torneios em cartões com o pódio à vista
 function Registry({ data, list, open, reload }) {
   const del = async x => { if (!(await ask('torneio', { title: tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: x.name }), ok: tx('Apagar') }))) return; await j(`/api/tournaments/${x.id}`, { method: 'DELETE' }); reload() }
-  // filtros e ordem (guardados neste browser) e a página
+  // filtros e ordem (guardados neste browser), a procura e a página
   const [f, setFS] = useState(() => { try { return { ...REG0, ...JSON.parse(ls(REG_K) || '{}') } } catch { return REG0 } })
-  const [page, setPage] = useState(0)
+  const [page, setPage] = useState(0), [q, setQ] = useState('')
   const setF = (k, v) => { setFS(o => { const x = { ...o, [k]: v }; ls(REG_K, JSON.stringify(x)); return x }); setPage(0) }
   const stOf = x => (x.status === 'paused' || x.status === 'error' ? 'paused' : x.status)  // em pausa e parados por erro juntos
+  const ql = q.trim().toLowerCase(), since = f.per ? Date.now() / 1000 - +f.per * 86400 : 0
   const rows = list.filter(x => (!f.st || stOf(x) === f.st) && (!f.type || x.type === f.type) && (!f.fmt || x.format === f.fmt)
-    && (!f.cas || (f.cas === 'sim') === !!x.casual) && (!f.mine || x.mine)).sort((REG_SORT[f.sort] || REG_SORT.novo)[1])
+    && (!f.cas || (f.cas === 'sim') === !!x.casual) && (!f.mine || x.mine) && x.ts >= since
+    && (!ql || x.name.toLowerCase().includes(ql) || (x.podium || []).some(p => p.name?.toLowerCase().includes(ql)))).sort((REG_SORT[f.sort] || REG_SORT.novo)[1])
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE)), pg = Math.min(page, pages - 1)
   const opts = k => [...new Set(list.map(x => x[k]))].filter(Boolean)
   // painel: estado dos torneios, jogos jogados e troféus dos meus decks (lugares no pódio)
   const cnt = k => list.filter(x => stOf(x) === k).length
   const med = [1, 2, 3].map(pl => list.reduce((a, x) => a + (x.old ? 0 : (x.podium || []).filter(p => p.place === pl && p.src === 'meus' && !p.fr && !p.com).length), 0))
-  const kpi = (k, l, v, sub) => <button className={`kpi ${f.st === k ? 'on' : ''}`} onClick={() => setF('st', f.st === k ? '' : k)} title={tx('Filtrar por este estado')}><small>{l}</small><b>{v}</b>{sub && <span>{sub}</span>}</button>
+  const kpi = (k, l, v, sub) => <button className={`kpi ${f.st === k ? 'on' : ''}`} onClick={() => setF('st', f.st === k ? '' : k)} aria-pressed={f.st === k} title={tx('Filtrar por este estado')}><small>{l}</small><b>{v}</b>{sub && <span>{sub}</span>}</button>
+  const any = f.st || f.type || f.fmt || f.cas || f.mine || f.per || ql
+  const clear = () => { setQ(''); setFS(o => { const x = { ...REG0, sort: o.sort }; ls(REG_K, JSON.stringify(x)); return x }); setPage(0) }
+  const pod = x => [1, 2, 3].map(pl => (x.podium || []).filter(p => p.place === pl)).filter(g => g.length)
   return (
-    <div className="reg-grid">
-      <section className="card">
-        <h3>{tx('Registo de torneios')} <span className="muted small">{rows.length === list.length ? list.length : tx('{n} de {t}', { n: rows.length, t: list.length })}</span></h3>
+    <div className="reg-grid rg">
+      <section className="card rg-tours">
+        <div className="rg-h"><h3>{tx('Registo de torneios')} <span className="muted small">{rows.length === list.length ? list.length : tx('{n} de {t}', { n: rows.length, t: list.length })}</span></h3></div>
         {!list.length && <p className="muted">{tx('Ainda não há torneios. Cria um em «✦ Criar».')}</p>}
         {list.length > 0 && <>
-          <div className="an-kpis reg-kpis">
+          <div className="an-kpis reg-kpis rg-kpis">
             {kpi('running', tx('A decorrer'), cnt('running'))}
             {kpi('paused', tx('Em pausa'), cnt('paused'), cnt('paused') ? tx('ou parados por erro') : '')}
             {kpi('done', tx('Terminados'), cnt('done'))}
@@ -1529,31 +1616,36 @@ function Registry({ data, list, open, reload }) {
             <div className="kpi"><small>{tx('Jogos jogados')}</small><b>{list.reduce((a, x) => a + (x.g || 0), 0).toLocaleString(LOCALE)}</b></div>
             <div className="kpi" title={tx('Lugares no pódio dos meus decks (sem os de amigos e da comunidade)')}><small>{tx('Troféus meus')}</small><b>{med[0] + med[1] + med[2]}</b><span>🥇 {med[0]} · 🥈 {med[1]} · 🥉 {med[2]}</span></div>
           </div>
-          <div className="row-btns reg-filt">
+          <div className="rg-tools">
+            <input type="search" className="rg-q" value={q} onChange={e => { setQ(e.target.value); setPage(0) }} placeholder={tx('Procurar torneio ou deck do pódio…')} aria-label={tx('Procurar torneio ou deck do pódio…')} />
             <select value={f.st} onChange={e => setF('st', e.target.value)} aria-label={tx('Estado')}><option value="">{tx('Todos os estados')}</option>
               {['running', 'paused', 'done', 'cancelled'].map(k => <option key={k} value={k}>{k === 'paused' ? tx('em pausa ou parado') : STATUS[k]}</option>)}</select>
             <select value={f.type} onChange={e => setF('type', e.target.value)} aria-label={tx('Tipo de torneio')}><option value="">{tx('Todos os tipos de torneio')}</option>
               {opts('type').map(k => <option key={k} value={k}>{TYPES[k]?.[0] || k}</option>)}</select>
             <select value={f.fmt} onChange={e => setF('fmt', e.target.value)} aria-label={tx('Formato')}><option value="">{tx('Todos os formatos')}</option>
               {opts('format').map(k => <option key={k} value={k}>{FORMAT[k]?.name || k}</option>)}</select>
+            <select value={f.per} onChange={e => setF('per', e.target.value)} aria-label={tx('Período')}>{Object.entries(PERIODS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
             <select value={f.cas} onChange={e => setF('cas', e.target.value)} aria-label={tx('Casual')}><option value="">{tx('Casuais e não casuais')}</option><option value="sim">{tx('Só casuais')}</option><option value="nao">{tx('Sem os casuais')}</option></select>
             <select value={f.sort} onChange={e => setF('sort', e.target.value)} aria-label={tx('Ordenar')}>{Object.entries(REG_SORT).map(([k, [l]]) => <option key={k} value={k}>{tx('Ordenar: {o}', { o: l })}</option>)}</select>
-            <label className="chk small"><input type="checkbox" checked={f.mine} onChange={e => setF('mine', e.target.checked)} /> {tx('só com decks meus')}</label>
-            {(f.st || f.type || f.fmt || f.cas || f.mine) && <button className="link small" onClick={() => { setFS(o => { const x = { ...REG0, sort: o.sort }; ls(REG_K, JSON.stringify(x)); return x }); setPage(0) }}>{tx('limpar filtros')}</button>}
+            <Tgl on={f.mine} set={v => setF('mine', v)}>{tx('só com decks meus')}</Tgl>
+            {any && <button className="link small" onClick={clear}>{tx('limpar filtros')}</button>}
           </div>
           {!rows.length && <p className="muted small">{tx('Nenhum torneio com estes filtros.')}</p>}
         </>}
-        <ul className="lib-list tour-reg">{rows.slice(pg * PER_PAGE, (pg + 1) * PER_PAGE).map(x => (
-          <li key={x.id}>
-            <span className={`tl-status ${x.status}`}>{STATUS[x.status] || x.status}</span>
-            <span><b>{x.name}</b><br /><small className="muted"><TypeIco k={x.type} /> {TYPES[x.type]?.[0]} · {x.casual ? tx('casual, regras de {f}', { f: FORMAT[x.format]?.name || x.format }) : FORMAT[x.format]?.name || x.format}{x.table ? ` · ${tableL(x.table)}` : ''} · {x.n} decks{x.g ? ` · ${tx('{n} jogo|{n} jogos', { n: x.g })}` : ''} · <time dateTime={new Date(x.ts * 1000).toISOString()}>{whenY(x.ts)}</time></small></span>
-            {x.podium?.length ? <span className="mini-pod">{x.podium.map(p => (
-              <span key={p.i} className={`mp mp-${p.place} ${p.me ? 'me' : ''} ${p.src === 'meus' ? 'go' : ''}`} title={`${tx('{p}.º', { p: p.place })} ${p.name}${p.me ? ` (${tx('o meu deck')})` : ''}${p.src === 'meus' ? ` · ${tx('Abrir na Biblioteca')}` : ''}`}
-                {...(p.src === 'meus' ? { role: 'button', tabIndex: 0, onClick: () => showDeck(p.ref), onKeyDown: e => { if (e.key === 'Enter') showDeck(p.ref) } } : {})}><Thumb data={data} p={p} /><i>{MEDAL[p.place - 1]}</i><span>{p.name}</span></span>
-            ))}</span> : <span className="muted small">{tx('sem pódio')}</span>}
-            <span className="row-btns"><button onClick={() => open(x.id)}>{tx('Abrir')}</button><button className="link small" onClick={() => del(x)}>{tx('apagar')}</button></span>
-          </li>
-        ))}</ul>
+        <div className="rg-list">{rows.slice(pg * PER_PAGE, (pg + 1) * PER_PAGE).map(x => (
+          <article key={x.id} className={`rg-card st-${x.status} ${x.mine ? 'mine' : ''}`}>
+            <header className="rg-ch"><TypeIco k={x.type} /><span className="rg-ct"><b title={x.name}>{x.name}</b>
+              <small className="muted">{TYPES[x.type]?.[0]} · {x.casual ? tx('casual, regras de {f}', { f: FORMAT[x.format]?.name || x.format }) : FORMAT[x.format]?.name || x.format}{x.table ? ` · ${tableL(x.table)}` : ''}</small></span>
+              <span className={`tl-status ${x.status}`}>{STATUS[x.status] || x.status}</span></header>
+            {x.podium?.length ? <div className={`rg-pod ${pod(x).some(g => g.length > 1) ? 'team' : ''}`}>{pod(x).map(g => { const p = g[0]; return (
+              <span key={p.place} className={`rg-pp pl-${p.place} ${g.some(y => y.me) ? 'me' : ''} ${p.src === 'meus' ? 'go' : ''}`} title={`${tx('{p}.º', { p: p.place })} ${g.map(y => y.name).join(' + ')}${p.me ? ` (${tx('o meu deck')})` : ''}${p.src === 'meus' ? ` · ${tx('Abrir na Biblioteca')}` : ''}`}
+                {...(p.src === 'meus' ? { role: 'button', tabIndex: 0, onClick: () => showDeck(p.ref), onKeyDown: e => { if (e.key === 'Enter') showDeck(p.ref) } } : {})}>
+                <Thumb data={data} p={p} /><i>{MEDAL[p.place - 1]}</i><span>{p.name}{g.length > 1 ? ` +${g.length - 1}` : ''}</span></span>) })}</div>
+              : <p className="rg-nopod muted small">{x.status === 'running' ? `● ${tx('a decorrer')}` : tx('sem pódio')}</p>}
+            <footer className="rg-cf"><small className="muted">{tx('{n} decks', { n: x.n })}{x.g ? ` · ${tx('{n} jogo|{n} jogos', { n: x.g })}` : ''} · <time dateTime={new Date(x.ts * 1000).toISOString()}>{whenY(x.ts)}</time></small>
+              <span className="row-btns"><button className="link small" onClick={() => del(x)}>{tx('apagar')}</button><button className={x.status === 'running' ? 'primary' : ''} onClick={() => open(x.id)}>{x.status === 'running' ? tx('Ver ao vivo') : tx('Abrir')}</button></span></footer>
+          </article>
+        ))}</div>
         <Pages pg={pg} pages={pages} set={setPage} />
       </section>
       <Fame data={data} list={list} open={open} />
@@ -1624,7 +1716,8 @@ function Fame({ data, list, open }) {
   const [tro, setTro] = useState({})
   useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const has = new Set(Object.values(rows).map(kindOf))
-  const top = Object.values(rows).filter(r => who.includes(kindOf(r)))
+  const [fq, setFq] = useState(''), fql = fq.trim().toLowerCase()
+  const top = Object.values(rows).filter(r => who.includes(kindOf(r)) && (!fql || r.name?.toLowerCase().includes(fql)))
     .sort((a, b) => b.m[0] - a.m[0] || b.m[1] - a.m[1] || b.m[2] - a.m[2] || a.name.localeCompare(b.name))
   // galeria: filtros (lugar/cor e tipo de torneio) e ordem (valor, quantidade, nome) próprios
   const [gTier, setGTier] = useState(''), [gKind, setGKind] = useState(''), [gSort, setGSort] = useState('valor'), [gInfo, setGInfo] = useState(false)
@@ -1633,7 +1726,7 @@ function Fame({ data, list, open }) {
   // páginas (hall: 20 decks; galeria: 24); mudar um filtro volta à 1.ª
   const [pT, setPT] = useState(0), [pG, setPG] = useState(0)
   const whoK = who.join()
-  useEffect(() => setPT(0), [f, whoK]); useEffect(() => setPG(0), [f, whoK, gTier, gKind, gSort])
+  useEffect(() => setPT(0), [f, whoK, fql]); useEffect(() => setPG(0), [f, whoK, gTier, gKind, gSort, fql])
   const [topPg, pt, ptN] = page(top, pT, 20)
   const gal = top.map(r => { const med = r.med.filter(keepM), ok = med.filter(m => !offOf(r, m)); return { r, med, val: ok.reduce((a, m) => a + trophyValue(m), 0), n: ok.length, all: r.med.filter(m => !offOf(r, m)).reduce((a, m) => a + trophyValue(m), 0), blue: r.med.filter(m => !offOf(r, m) && m.casual).reduce((a, m) => a + trophyValue(m), 0) } })
     .filter(x => x.med.length)
@@ -1645,15 +1738,16 @@ function Fame({ data, list, open }) {
     {peek.card}
     {view && <DeckView p={view} data={data} onClose={() => setView(null)} onOpen={showDeck} extra={<DeckTrophies r={view} list={list} tro={tro} medOf={medOf} offOf={offOf} open={id => { setView(null); open(id) }} />} />}
     <section className="card fame">
-      <h3>{tx('🏛 Hall da fama')}</h3>
-      <div className="row-btns">
+      <h3>{tx('🏛 Hall da fama')} <span className="muted small">{tx('{n} deck|{n} decks', { n: top.length })}</span></h3>
+      <div className="row-btns rg-ftools">
+        <input type="search" value={fq} onChange={e => setFq(e.target.value)} placeholder={tx('Procurar deck…')} aria-label={tx('Procurar deck…')} />
         <select value={f} onChange={e => setF(e.target.value)} aria-label={tx('Formato')}><option value="">{tx('Todos os formatos')}</option>{fmts.map(k => <option key={k} value={k}>{FORMAT[k]?.name || k}</option>)}{list.some(x => x.casual && x.podium) && <option value="casual">{tx('Casuais')}</option>}</select>
         <SrcFilter on={who} set={setWho} has={has} />
       </div>
       {!top.length ? <p className="muted small">{f ? tx('Ainda ninguém subiu ao pódio neste formato.') : tx('Ainda ninguém subiu ao pódio.')}</p> : (<>
-        <table className="lab-table ts-table"><thead><tr><th>{tx('Deck')}</th><th title={tx('Torneios ganhos')}>🥇</th><th>🥈</th><th>🥉</th><th>{tx('Pódios')}</th></tr></thead>
-          <tbody>{topPg.map(r => (
-            <tr key={`${r.src}:${r.ref}`} className={kindOf(r) === 'meu' ? 'me-row' : ''}><td><button className="ts-name plain fame-deck" onClick={() => setView(r)} onMouseEnter={e => peek.on(r, e)} onMouseLeave={peek.off} title={tx('Ver o deck')}><Thumb data={data} p={r} /> {r.name} <OwnTag p={r} /></button></td>
+        <table className="lab-table ts-table rg-fame"><thead><tr><th className="num">#</th><th>{tx('Deck')}</th><th title={tx('Torneios ganhos')}>🥇</th><th>🥈</th><th>🥉</th><th>{tx('Pódios')}</th></tr></thead>
+          <tbody>{topPg.map((r, x) => (
+            <tr key={`${r.src}:${r.ref}`} className={`${kindOf(r) === 'meu' ? 'me-row' : ''} ${pt * 20 + x < 3 ? `top top-${pt * 20 + x + 1}` : ''}`}><td className="num">{pt * 20 + x + 1}</td><td><button className="plain fame-deck ts-cell" onClick={() => setView(r)} onMouseEnter={e => peek.on(r, e)} onMouseLeave={peek.off} title={tx('Ver o deck')}><Thumb data={data} p={r} /><span className="ts-dn">{r.name}</span><span className="ts-tags"><OwnTag p={r} /></span></button></td>
               <td><b>{r.m[0] || '—'}</b></td><td>{r.m[1] || '—'}</td><td>{r.m[2] || '—'}</td><td>{r.m[0] + r.m[1] + r.m[2]}</td></tr>
           ))}</tbody></table>
         <Pages pg={pt} pages={ptN} set={setPT} /></>
@@ -1705,4 +1799,4 @@ function Fame({ data, list, open }) {
 }
 
 // para o Online (Online.jsx): o formulário das salas com bots, o Ao vivo, as apostas e as etiquetas dos decks
-export { Create, Live, BetsTab, OwnCtx, TypeIco, TYPES, PlaysToggle }
+export { Create, Live, BetsTab, OwnCtx, TypeIco, TYPES, PlaysToggle, Thumb }

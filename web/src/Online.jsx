@@ -3,7 +3,7 @@
 // próprio (túnel gratuito, endereço próprio, rede de casa) e, ao lado, o «Ao vivo» e as apostas dos torneios das salas.
 // Os torneios com bots criam-se com o formulário do Torneio (Create); a mesa livre e a mesa a solo vêm de FreeRooms.jsx.
 import './online.css'
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { FORMAT } from './formats.js'
 import { IL } from './icons.jsx'
 import ForgeTable from './ForgePlay.jsx'
@@ -11,11 +11,11 @@ import FreeTable from './FreeTable.jsx'
 import Friends, { QR } from './Friends.jsx'
 import Lobby3D from './Lobby3D.jsx'  // o three.js só carrega com uma sala aberta (import dinâmico lá dentro)
 import { NewSolo, NewFreeRoom, Seats, JoinPanel, LendPanel } from './FreeRooms.jsx'
-import { Create, Live, BetsTab, OwnCtx, TypeIco, TYPES, PlaysToggle } from './Tournament.jsx'
+import { Create, Live, BetsTab, OwnCtx, TypeIco, TYPES, PlaysToggle, Thumb } from './Tournament.jsx'
 import { DIFF_INFO } from './difficulty.js'
 import { ask } from './confirm.jsx'
 import { useBackClose } from './backnav.js'
-import { tx } from './i18n.js'
+import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
 
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
@@ -155,7 +155,7 @@ export default function OnlineView({ data, fmt, deckId, guest }) {
       {view === 'criar' && !guest && <NewRoom data={data} fmt={fmt} deckId={deckId} onBack={() => setView('salas')} onRoom={id => { setFresh(id || null); setView('salas') }} openTable={setTable} />}
       {view === 'ver' && tid && <Live key={tid} data={data} tid={tid} slot={slot} running={list.filter(x => x.status === 'running')} open={open} openTable={setTable} onGone={() => { loadList(); setView('salas') }} />}
       {view === 'apostas' && <BetsTab open={open} />}
-      {view === 'salas' && <Rooms data={data} guest={guest} open={id => { loadList(); open(id) }} openTable={setTable} net={net} share={share} fresh={fresh} onCount={setNOpen} onCreate={() => setView('criar')} />}
+      {view === 'salas' && <Rooms data={data} guest={guest} open={id => { loadList(); open(id) }} openTable={setTable} net={net} share={share} fresh={fresh} onCount={setNOpen} onCreate={() => setView('criar')} tours={list} />}
     </div></OwnCtx.Provider>
   )
 }
@@ -208,7 +208,7 @@ export function Invite({ r, net, share, title, note, label }) {  // title/note/l
 
 // ---------- as salas ----------
 const OLD_H = 12
-export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount, onCreate, noCta, empty }) {  // noCta: sem os botões do vazio (a Taverna tem os seus); empty: o texto do vazio para um convidado
+export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount, onCreate, noCta, empty, tours }) {  // noCta: sem os botões do vazio (a Taverna tem os seus); empty: o texto do vazio para um convidado; tours: os torneios (o pódio das salas acabadas)
   const [list, setList] = useState(null), [decks, setDecks] = useState([]), [pick, setPick] = useState({}), [err, setErr] = useState(''), [showOld, setShowOld] = useState(false)
   const seen = useRef({}), seats = useRef({}), [toast, setToast] = useState(null), [busy, setBusy] = useState('')  // mesa livre onde estou: quando a mesa começa, abre-se sozinha
   const load = () => j('/api/rooms').then(l => {
@@ -242,6 +242,7 @@ export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount
   const live = list.filter(r => r.status !== 'cancelled'), isOld = r => r.status !== 'open' && Date.now() / 1000 - r.ts > OLD_H * 3600
   const opened = live.filter(r => r.status === 'open').sort((a, b) => (b.id === fresh) - (a.id === fresh)), going = live.filter(r => r.status !== 'open' && !isOld(r)), old = live.filter(isOld)
   const props = { data, guest, net, share, busy, act, cancel, solo, open, openTable, decks, myDecks, pick, setPick, reload }
+  const ended = r => ['done', 'cancelled'].includes(tours?.find(x => x.id === r.tid)?.status)  // o torneio da sala já acabou
   return (
     <div className="on-rooms">
       {err && <p className="small bad-t">{err}</p>}
@@ -252,9 +253,10 @@ export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount
         {!guest && !noCta && <div className="row-btns"><button type="button" className="primary on-big" onClick={onCreate}>＋ {tx('Criar sala')}</button><a className="on-big on-btn" href="#levar">🔗 {tx('Entrar com um link')}</a></div>}
       </div>}
       {opened.map(r => <Room key={r.id} r={r} fresh={r.id === fresh} {...props} />)}
-      {going.length > 0 && <><h4 className="on-sec">{tx('A decorrer')}</h4>{going.map(r => <Room key={r.id} r={r} {...props} />)}</>}
+      {[[tx('A decorrer'), going.filter(r => !ended(r))], [tx('Acabadas há pouco'), going.filter(ended)]].map(([h, rs]) => rs.length > 0 && <Fragment key={h}><h4 className="on-sec">{h} <span className="lv-count">{rs.length}</span></h4>
+        <div className="on-hist">{rs.map(r => <RoomCard key={r.id} r={r} {...props} tour={tours?.find(x => x.id === r.tid)} />)}</div></Fragment>)}
       {old.length > 0 && <button type="button" className="link small on-old" onClick={() => setShowOld(v => !v)} aria-expanded={showOld}>{showOld ? tx('▴ esconder as antigas') : tx('▾ mostrar antigas ({n}, começadas há mais de {h} h)', { n: old.length, h: OLD_H })}</button>}
-      {showOld && old.map(r => <Room key={r.id} r={r} {...props} />)}
+      {showOld && <div className="on-hist">{old.map(r => <RoomCard key={r.id} r={r} {...props} tour={tours?.find(x => x.id === r.tid)} />)}</div>}
     </div>
   )
 }
@@ -308,6 +310,29 @@ function Room({ r, fresh, data, guest, net, share, busy, act, cancel, solo, open
           : guest && <p className="small muted">{tx('Não tens decks de {f}. Cria um no Construir.', { f: fmtL })}</p>)}
       </>}
       {isOpen && <details className="on-more"><summary>ⓘ {tx('Como funciona esta sala')}</summary><p className="small muted">{why[1]} {why[2]}</p></details>}
+    </article>
+  )
+}
+
+// uma sala já começada (a decorrer ou antiga), em cartão compacto como no Registo: o modo, quem jogou, o pódio e o botão para a ver
+const whenR = t => new Date(t * 1000).toLocaleString(LOCALE, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+const MEDAL = ['🥇', '🥈', '🥉']
+function RoomCard({ r, data, guest, open, openTable, tour }) {
+  const [ico, mname] = modeOf(r), livre = r.type === 'livre', mine = r.players.some(p => p.mine)
+  const fmtL = r.casual ? (livre ? tx('qualquer formato') : tx('casual')) : FORMAT[r.format]?.name || r.format
+  const pod = [1, 2, 3].map(pl => (tour?.podium || []).find(p => p.place === pl)).filter(Boolean)
+  const st = tour ? tour.status : r.status === 'started' ? 'running' : r.status
+  const STL = { running: tx('a decorrer'), paused: tx('em pausa'), done: tx('terminado'), cancelled: tx('cancelado'), error: tx('parado (erro)') }
+  return (
+    <article className={`card on-hc st-${st} ${mine ? 'mine' : ''}`}>
+      <header className="on-hc-h"><TypeIco k={livre ? 'livre' : r.type} /><span className="on-hc-t"><b title={r.name}>{r.name}</b>
+        <small className="muted">{ico} {mname}{!livre && !r.free && !r.misto && r.type !== 'jogo' && TYPES[r.type] ? ` · ${TYPES[r.type][0]}` : ''} · {fmtL}</small></span>
+        {!livre && <span className={`tl-status ${st}`}>{STL[st] || st}</span>}</header>
+      {pod.length > 0 ? <div className="rg-pod">{pod.map(p => <span key={p.place} className={`rg-pp pl-${p.place} ${p.me ? 'me' : ''}`} title={`${p.place}.º ${p.name}`}><Thumb data={data} p={p} /><i>{MEDAL[p.place - 1]}</i><span>{p.name}</span></span>)}</div>
+        : <ul className="on-hc-pl">{r.players.slice(0, 8).map((p, k) => <li key={k} className={p.mine ? 'me' : ''}>{p.by ? `🤝 ${p.by}` : '🏠'} · {p.name}</li>)}{r.players.length > 8 && <li className="muted">+{r.players.length - 8}</li>}</ul>}
+      <footer className="rg-cf"><small className="muted">👥 {r.players.length} · <time dateTime={new Date(r.ts * 1000).toISOString()}>{whenR(r.ts)}</time></small>
+        <span className="row-btns">{livre ? (mine || !guest ? <button className={st === 'running' ? 'primary' : ''} onClick={() => openTable(r.tid)}>{tx('🃏 Ir para a mesa')}</button> : <span className="small muted">{tx('a jogar')}</span>)
+          : <button className={st === 'running' ? 'primary' : ''} onClick={() => open(r.tid)}>{r.type === 'jogo' ? tx('🎲 Ver o jogo') : tx('🏆 Ver o torneio')}</button>}</span></footer>
     </article>
   )
 }
