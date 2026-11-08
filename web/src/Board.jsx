@@ -599,6 +599,13 @@ export function FsBtn({ className = '' }) {
   }
   return <button type="button" className={`fs-mini ${className}`} onClick={go} title={`${on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')} (Shift+F)`} aria-label={on ? tx('Sair do ecrã inteiro') : tx('Ecrã inteiro')}>{on ? '🗗' : '⛶'}</button>
 }
+// mesa compacta (useGameFocus): ☰ mostra/esconde as barras da app (áreas, deck, parar o jogo); ⋯ abre a gaveta do painel
+export function GameMenuBtns({ chrome, setChrome, side, setSide, sideLabel = tx('Regras, dados, histórico e opções') }) {
+  return <>
+    <button type="button" className={`fs-mini fp-menu ${chrome ? 'on' : ''}`} onClick={() => setChrome(x => !x)} aria-pressed={chrome} title={chrome ? tx('Esconder as barras da app') : tx('Mostrar as barras da app (áreas, deck, parar o jogo)')} aria-label={chrome ? tx('Esconder as barras da app') : tx('Mostrar as barras da app (áreas, deck, parar o jogo)')}>☰</button>
+    {setSide && <button type="button" className={`fs-mini fp-more ${side ? 'on' : ''}`} onClick={() => setSide(x => !x)} aria-expanded={side} title={sideLabel} aria-label={sideLabel}>⋯</button>}
+  </>
+}
 
 // a esfera rebenta quando o jogador perde, à maneira da causa (dano = sangue, veneno = nuvem tóxica, moer = pó e folhas,
 // comandante = ouro, vitória alternativa do outro = engolida pela luz, «perdes o jogo» = implode, desistir = apaga-se,

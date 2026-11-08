@@ -7,6 +7,7 @@ import { parseList, stats } from './deck.js'
 import { landAdvice, FORMAT, CASUAL_INFO, CASUAL_META, baseLife } from './formats.js'
 import { Empty, Stars } from './ui.jsx'
 import Replay, { HANDS } from './Board.jsx'
+import { isCompact } from './tablekit.js'
 import { toForgeState } from './forgeState.js'
 import { DIFF_INFO, getBots } from './difficulty.js'
 import { planSideboard, applySwaps } from './sideboard.js'
@@ -241,7 +242,7 @@ export default function LabView({ data, deck, fmt, act, ctx, playFrom }) {
   const games = runs.flatMap(r => r.games.map(g => ({ ...g, opp: r.opp })))
   // o que se vê ao vivo: os jogos já acabados e, no fim, o que está a decorrer (o Forge vai escrevendo o registo)
   const list = liveGame ? [...played, liveGame] : played, ci = Math.min(cur, Math.max(0, list.length - 1)), shown = list[ci]
-  if (watch) return <Replay data={data} game={watch} formats={fmtsOf(watch)} onBack={() => setWatch(null)} deckName={deck.name} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })} onPlayFrom={playFrom && !watch.opps && ((st, g) => playFrom(toForgeState(st, g.decks || { a: deck }, { control: 'a', format: fmt.key })))} />
+  if (watch) return <div className={isCompact() ? 'modal rp-sheet' : 'rp-inline'}><Replay data={data} game={watch} formats={fmtsOf(watch)} onBack={() => setWatch(null)} deckName={deck.name} speed0={pause.speed} onSpeed={v => setPausePref({ ...pause, speed: v })} hands={pause.hands || 'ambas'} onHands={h => setPausePref({ ...pause, hands: h })} onPlayFrom={playFrom && !watch.opps && ((st, g) => playFrom(toForgeState(st, g.decks || { a: deck }, { control: 'a', format: fmt.key })))} /></div>
   return (
     <div className="view lab">
       {!list.length && busy && showLive && <section className="card livecard"><p className="muted"><span className="spin-dot" /> {tx('O Forge está a arrancar o jogo…')}</p></section>}

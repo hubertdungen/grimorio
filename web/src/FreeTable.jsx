@@ -5,9 +5,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { img } from './data.js'
-import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, CombatLinks, DamageFx } from './Board.jsx'
+import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, GameMenuBtns, CombatLinks, DamageFx } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
-import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop, flipFrom } from './tablekit.js'
+import { useDrag, STAGE, useOverlap, useStage, useGameFocus, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop, flipFrom } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
 import Friends from './Friends.jsx'
 import { remoteOn } from './remote.js'
@@ -356,7 +356,8 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     if (r && r.n !== rollSeen.current) { rollSeen.current = r.n; dice.roll(r.types, r.v, { seed: r.seed, thr: r.thr }) }
   }, [s?.roll?.n, !!s]) // eslint-disable-line react-hooks/exhaustive-deps
   const fitBox = useRef(null), fitTable = useRef(null), stageWrap = useRef(null), peek = usePeek(), hoverId = useRef(null), downAt = useRef({ x: 0, y: 0 })
-  const stage = useStage(fitBox, stageWrap, !!s, phone ? 62 : true)  // telemóvel: a barra das ações fica fixa em baixo
+  const { compact, chrome, setChrome } = useGameFocus(fitBox), chatTog = phone || compact  // mesa compacta: a conversa abre-se como gaveta (💬)
+  const stage = useStage(fitBox, stageWrap, !!s, phone ? 62 : true, compact)  // telemóvel: a barra das ações fica fixa em baixo
   const penLayer = useRef(null), pen = usePen({ table: fitTable, layer: penLayer, me, flip: me !== 0, send, chunks: s?.pen })
   useOverlap(fitTable)
   // cartas que vêm do cemitério/exílio (reanimar, devolver) ou da mão de outro jogador: voam do monte para o campo
@@ -711,8 +712,10 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         {T('✏️', tx('Caneta'), () => pen.setOn(v => !v), { on: pen.on, cls: pen.on ? 'on' : '', dis: false, title: tx('Desenhar na mesa (P): os outros veem o risco, que se apaga sozinho') })}
         {pen.on && <span className="ml-cols" role="radiogroup" aria-label={tx('Cor da caneta')}>{PEN_COLS.map(c => <button key={c} role="radio" aria-checked={pen.col === c} className={pen.col === c ? 'on' : ''} style={{ '--c': c }} onClick={() => pen.setCol(c)} aria-label={c} />)}</span>}
         {s.mine?.length > 1 && T('⇄', tx('Trocar de lugar'), () => setSeatSel(s.mine[(s.mine.indexOf(s.me) + 1) % s.mine.length]), { title: tx('Os dois decks são teus: joga agora o outro lado') })}
-        {phone && T('💬', tx('Conversa'), () => setChatOpen(v => !v), { on: chatOpen, cls: chatOpen ? 'on' : '', dis: false, badge: !chatOpen && unread })}
+        {chatTog && T('💬', tx('Conversa'), () => setChatOpen(v => !v), { on: chatOpen, cls: chatOpen ? 'on' : '', dis: false, badge: !chatOpen && unread })}
         {T('⋯', tx('Mais'), e => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ more: true, x: r.left, y: r.top - 8 }) }, { dis: false })}
+        {compact && T('❓', tx('Ajuda'), () => setHelp(true), { dis: false, title: tx('Como se joga aqui') })}
+        {compact && <GameMenuBtns chrome={chrome} setChrome={setChrome} />}{compact && <FsBtn />}
       </div>
     </div>
   )
@@ -730,11 +733,11 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const lg = [...ghosts.filter(g => g.k !== 'orb' && !(g.k === 'card' && handed(g))),  // e as largadas há pouco cuja jogada ainda não chegou
     ...Object.entries(dropAt.current).filter(([seat, d]) => d.end && !d.gone && Date.now() - d.end < 900 && cardKey(d.id) === d.key && !s.live?.[seat]).map(([seat, d]) => ({ seat: +seat, k: 'card', id: d.id, p: d }))]
   return (
-    <div className={`fp ml ${dice.res ? 'dice-on' : ''} ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${phone && chatOpen ? 'chat-open' : ''}`} ref={fitBox} onMouseLeave={() => { peek.hide(); clearTimeout(zWait.current.t); zWait.current = {}; if (!menu) setZoom(null) }} onMouseOver={onOver}
+    <div className={`fp ml ${dice.res ? 'dice-on' : ''} ${s.solo ? 'solo' : ''} ${pen.on ? 'ml-penon' : ''} ${chatTog && chatOpen ? 'chat-open' : ''} ${compact ? 'compact' : ''}`} ref={fitBox} onMouseLeave={() => { peek.hide(); clearTimeout(zWait.current.t); zWait.current = {}; if (!menu) setZoom(null) }} onMouseOver={onOver}
       onPointerDown={e => { downAt.current = { x: e.clientX, y: e.clientY }; peek.hide() }}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && (pen.down(e) || dice.grab(e))) e.stopPropagation() }}
       onClick={e => { const c = e.target.closest('.ml-card'); if (c) setCardPop(c.dataset.zn) }}>
-      <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
+      <div className="fp-stagebox" ref={stageWrap} style={{ height: compact ? undefined : stage.h }}>
       <FsBtn className="on-table" />
       {/* a carta em grande flutua por cima da mesa, do lado oposto ao rato: no painel tapava os botões (passar a vez, mulligan, dados, caneta) */}
       {zc && <div className={`fp-zoom ml-float ${zLeft ? 'left' : ''}`} aria-hidden="true"><img key={zc.n} className="fp-zin" src={img(zc, 'normal', false, artOf(allArts, null, zc))} alt="" /></div>}
@@ -785,7 +788,8 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       <aside className="fp-side ml-aside">
         {tools}
         {err && <p className="small bad-t ml-err">{err}</p>}
-        {(!phone || chatOpen) && <TableChat log={s.log} who={who} keyOf={keyOf} me={me} data={data} send={send} fmt={e => line(e, who)} names={names} onSeen={setSeen} />}
+        {compact && chatOpen && <div className="fp-side-bg" onClick={() => setChatOpen(false)} />}
+        {(!chatTog || chatOpen) && <TableChat log={s.log} who={who} keyOf={keyOf} me={me} data={data} send={send} fmt={e => line(e, who)} names={names} onSeen={setSeen} />}
       </aside>
       {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {menu && <div className="ml-menu-back" onClick={() => setMenu(null)} onContextMenu={e => { e.preventDefault(); setMenu(null) }}>

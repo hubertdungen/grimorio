@@ -26,6 +26,7 @@ export const fpPrefs = () => {
     persp: o.persp !== false, tilt: Number.isFinite(o.tilt) ? o.tilt : 30,
     oppFace: o.oppFace === 'far' ? 'far' : 'me',  // cartas dos adversários: viradas para mim (legíveis) ou para eles (180°, como numa mesa a sério)
     cardPx: CARD_PX.includes(o.cardPx) ? o.cardPx : 0,  // tamanho das cartas na mesa (0 = automático)
+    layout: ['compact', 'classic'].includes(o.layout) ? o.layout : 'auto',  // a mesa no ecrã todo (compacta): auto = telemóvel/tablet; classic = barras e painel sempre à vista
     mat: MATS.includes(o.mat) ? o.mat : null, mats: o.mats !== false,
     ptrSee: o.ptrSee !== false, ptrShow: o.ptrShow !== false,  // os cursores («mãozinhas») dos outros na mesa livre e no lobby; mostrar o meu  // o meu tapete; ver os tapetes dos outros (desligado: vejo o meu em todos os lados)
     orb: { t: ORB_T.includes(o.orb?.t) ? o.orb.t : 'auto', a: ORB_A.includes(o.orb?.a) ? o.orb.a : 'auto' },  // a minha esfera da vida

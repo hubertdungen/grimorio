@@ -6,7 +6,7 @@ import './fpchoice.css'
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, ORB_DEATH } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, GameMenuBtns, ORB_DEATH } from './Board.jsx'
 import { ctrs, toPerm, zoneOf } from './fpboard.js'
 import { tx } from './i18n.js'
 import { playDiff, play } from './sfx.js'
@@ -17,7 +17,7 @@ import RulesQuick from './rulesquick.jsx'
 import { obviousPay } from './mana.js'
 import { useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, pressPeek } from './deckview.js'
-import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
+import { useDrag, STAGE, useOverlap, useStage, useGameFocus, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -49,13 +49,13 @@ function endWhy(out) {
 // bloqueadores, os cliques viravam bloqueios
 const ATK_ASK = m => !!m && !/^(Priority:|Waiting for)/.test(m) && /Declare attackers|Select creatures to attack/i.test(m)
 const BLK_ASK = m => !!m && !/^(Priority:|Waiting for)/.test(m) && /Declare blockers|Select creatures to block/i.test(m)
-function promptText(msg, st, me) {
+function promptText(msg, st, me, short) {  // short: a barra da mesa compacta (o pedido de sempre em poucas palavras)
   const m = String(msg || '')
   if (!m) return ''
   if (/^Priority:/.test(m)) {
     if (st?.stack?.length) return tx('Há {n} na pilha: responde com um instantâneo ou OK para deixar resolver.', { n: st.stack.length })
     const mine = st?.active === me?.id, main = st?.phase === 'MAIN1' || st?.phase === 'MAIN2'
-    return mine && main ? tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou duplo clique), ou OK para avançar.') : tx('Tens prioridade: OK para passar.')
+    return mine && main ? (short ? tx('O teu turno: joga uma carta ou OK.') : tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou duplo clique), ou OK para avançar.')) : tx('Tens prioridade: OK para passar.')
   }
   if (/^Waiting for/.test(m)) return tx('O adversário está a pensar…')
   const sv = m.match(/Put (.+?) on the top of library or graveyard/i), sc = m.match(/Put (.+?) on (?:the )?top or bottom of (?:your )?library/i)
@@ -1133,7 +1133,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     return () => clearTimeout(t)
   }, [st?.turn, st?.active])  // eslint-disable-line react-hooks/exhaustive-deps
   const P = fpPrefs()
-  const stage = useStage(fitBox, stageWrap, !!st)
+  const { compact, chrome, setChrome } = useGameFocus(fitBox), [sideOpen, setSideOpen] = useState(false), [promptOpen, setPromptOpen] = useState(false)
+  const stage = useStage(fitBox, stageWrap, !!st, false, compact)
   // a arte escolhida em cada deck ({a: {carta: edição/imagem}, b: …}): estável entre estados para não redesenhar a mesa toda
   const artsKey = JSON.stringify(s?.arts || null), artsCtx = useMemo(() => ({ arts: JSON.parse(artsKey), k: null }), [artsKey])
   const im = (c, size) => img(c, size, false, artOf(artsCtx.arts, null, c))
@@ -1309,9 +1310,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
   }
   return (<Arts.Provider value={artsCtx}><OrbCtx.Provider value={orbCtx}>
-    <div className={`fp ${dice.res ? 'dice-on' : ''}`} ref={fitBox} onMouseLeave={() => { setZoom(null); peek.hide() }} onMouseOver={onOver} onPointerDown={peek.hide}
+    <div className={`fp ${dice.res ? 'dice-on' : ''} ${compact ? 'compact' : ''} ${compact && sideOpen ? 'side-open' : ''}`} ref={fitBox} onMouseLeave={() => { setZoom(null); peek.hide() }} onMouseOver={onOver} onPointerDown={peek.hide}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
-      <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
+      <div className="fp-stagebox" ref={stageWrap} style={{ height: compact ? undefined : stage.h }}>
       <FsBtn className="on-table" />
       <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
       <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''} ${declaring ? 'fp-declaring' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
@@ -1341,15 +1342,18 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <b>{dice.res?.items ? (intro.won ? tx('Ganhaste a moeda ao ar') : tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') })) : tx('Moeda ao ar: quem começa?')}</b>
         <small>{tx('toca para continuar')}</small></div>}
       <div className="fp-dice" ref={diceBox} /></div>
-      {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
-        <p><Syms text={promptText(pr?.msg, st, me)} />{blockBox}{atkBox}</p>
+      {(touchDev || compact) && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
+        {compact && <GameMenuBtns chrome={chrome} setChrome={setChrome} side={sideOpen} setSide={setSideOpen} />}
+        <p className={promptOpen || blockBox || atkBox ? 'open' : ''} onClick={() => setPromptOpen(x => !x)}><Syms text={promptText(pr?.msg, st, me, compact)} />{blockBox}{atkBox}</p>
         {unstick}{selPick}
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
         {clockUi}
         <FsBtn />
       </div>}
+      {compact && sideOpen && <div className="fp-side-bg" onClick={() => setSideOpen(false)} />}
       <aside className="fp-side">
+        {compact && <button type="button" className="fp-side-x" onClick={() => setSideOpen(false)} aria-label={tx('Fechar')}>✕</button>}
         <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={im(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}

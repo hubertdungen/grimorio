@@ -4045,3 +4045,102 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .mg-names { flex: 1 1 200px; min-width: 0; }
 .mg-res { font-size: 12px; padding: 1px 8px; border-radius: 99px; background: #ffffff10; }
 .mg-res.win { background: #16a34a33; color: #86efac; } .mg-res.loss { background: #dc262633; color: #fca5a5; }
+
+/* ---------- mesa compacta (useGameFocus em tablekit.js): no telemóvel e no tablet a mesa fica com o ecrã todo ----------
+   as barras da app (cabeçalho, áreas, deck, barra do Coliseu e do jogo, rodapé) saem: ☰ na barra da mesa mostra-as e a mesa
+   encolhe para caber por baixo (--chrome-h); o painel lateral vira gaveta (⋯); OK / Acabar o turno numa barra só */
+body:has(.fp.compact):not(.fp-chrome) :is(header.top, .guest-bar, .col-bar, .rodar-hint, .fp-bar, .fr-bar) { display: none !important; }
+body:has(.fp.compact) :is(footer.foot, .live-bar, .live-bar-pad) { display: none !important; }
+body:has(.fp.compact) :is(.area.coliseu, .view.fp-view) { padding: 0; margin: 0; max-width: none; }
+.fp.compact { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 0; padding: 0; min-height: 0;
+  height: max(50vh, calc(100vh - var(--chrome-h, 0px))); height: max(50svh, calc(100svh - var(--chrome-h, 0px))); }  /* com as barras à vista num ecrã baixo a mesa fica com metade e a página rola */
+.coliseu:fullscreen .fp.compact { height: max(50vh, calc(100vh - var(--chrome-h, 0px))); }
+.fp.compact .fp-stagebox { min-height: 0; }
+.fp.compact .fs-mini.on-table, .fp.compact .fp-zoom { display: none; }
+.fp.compact .fp-actbar { position: relative; left: auto; right: auto; bottom: auto; z-index: 40; display: flex; align-items: center; gap: 6px; min-width: 0;
+  padding: 5px max(8px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background: #10131ff2; border-top: 1px solid #ffffff22; box-shadow: 0 -6px 18px #0008; }
+.fp.compact .fp-actbar.mine { border-top-color: var(--gold); }
+.fp.compact .fp-actbar > p { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 13px; line-height: 1.3; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.fp.compact .fp-actbar > p.open { -webkit-line-clamp: 8; }
+.fp.compact .fp-actbar .row-btns { flex: none; gap: 6px; flex-wrap: nowrap; }
+.fp.compact .fp-actbar .row-btns button { min-height: 40px; padding: 6px 14px; white-space: nowrap; }
+.fp.compact .fp-actbar .fp-pool { flex: none; }
+.fp.compact .fs-mini.on { border-color: var(--gold); color: var(--gold); }
+/* o painel (regras, dados, histórico, opções; na mesa livre a conversa): gaveta à direita, por cima da mesa */
+.fp.compact .fp-side { position: fixed; top: 0; right: 0; bottom: 0; z-index: 80; width: min(380px, 92vw); display: flex; flex-direction: column; gap: 10px; overflow: auto; overscroll-behavior: contain;
+  padding: max(44px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) 12px; background: var(--bg); border-left: 1px solid var(--line); box-shadow: -12px 0 40px #000b;
+  transform: translateX(105%); visibility: hidden; transition: transform .22s ease-out, visibility 0s .22s; }
+.fp.compact.side-open .fp-side { transform: none; visibility: visible; transition: transform .22s ease-out; }
+.fp-side-bg { position: fixed; inset: 0; z-index: 79; background: #05040b88; }
+.fp-side-x { position: absolute; top: 6px; right: 8px; width: 36px; height: 36px; padding: 0; border-radius: 50%; }
+.fp.compact .fp-side .fp-prompt > p:first-of-type, .fp.compact .fp-side .fp-prompt > .row-btns:not(.small) { display: none; }
+/* ao alto: o lado do adversário fica com a altura do que tem (antes metade dele era vazio por cima), o teu com o resto */
+.fp.compact .fp-stage.tall .fp-table.board { grid-template-rows: minmax(auto, .5fr) auto minmax(auto, 1fr); }
+/* telemóvel ao alto: o pedido numa linha fina por cima dos botões (ao lado deles ficava «O teu…») */
+@media (max-width: 600px) {
+  .fp.compact .fp-actbar { flex-wrap: wrap; row-gap: 3px; padding-top: 3px; }
+  .fp.compact .fp-actbar > p { order: -1; flex: 1 0 100%; font-size: 12px; }
+  .fp.compact .fp-actbar .row-btns { flex: 1 1 auto; } .fp.compact .fp-actbar .row-btns button { flex: 1 1 auto; padding: 6px 10px; }
+}
+/* mesa livre compacta: as ações numa barra por baixo da mesa (rola de lado) e a conversa numa gaveta (💬) — antes a barra era
+   fixa por cima do fundo da mesa e tapava a mão */
+.fp.ml.compact { height: max(50vh, calc(100vh - var(--chrome-h, 0px))) !important; height: max(50svh, calc(100svh - var(--chrome-h, 0px))) !important; grid-template-rows: minmax(0, 1fr) auto; padding-bottom: 0; }
+.fp.ml.compact .ml-aside { display: contents; visibility: visible; transition: none; }  /* não é a gaveta do Forge Play: os botões ficam à vista, a conversa é que abre à parte */
+.fp.ml.compact .ml-tools { position: relative; left: auto; right: auto; bottom: auto; z-index: 40; display: flex; flex-wrap: nowrap; align-items: center; overflow-x: auto; overflow-y: hidden; gap: 4px; min-width: 0;
+  padding: 5px max(8px, env(safe-area-inset-right)) calc(5px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); border-radius: 0; border-width: 1px 0 0; background: #10131ff2; box-shadow: 0 -6px 18px #0008; scrollbar-width: thin; }
+.fp.ml.compact .ml-mode-l, .fp.ml.compact .ml-err { display: none; }
+.fp.ml.compact .ml-tg { flex: none; flex-basis: auto; flex-wrap: nowrap; gap: 4px; padding-right: 6px; border-right: 1px solid var(--line); }
+.fp.ml.compact .ml-tg:last-child { border-right: 0; }
+.fp.ml.compact .ml-t { flex-direction: column; gap: 1px; padding: 4px 7px; font-size: 10.5px; min-height: 44px; }
+.fp.ml.compact .ml-t i { font-size: 17px; }
+.fp.ml.compact .ml-t { justify-content: center; }
+.fp.ml.compact .ml-tg .fs-mini { min-height: 44px; }
+.fp.ml.compact .ml-tok { position: fixed; left: 8px; right: 8px; bottom: 72px; z-index: 56; padding: 8px; border-radius: 12px; background: var(--panel); border: 1px solid var(--gold); }
+.fp.ml.compact .ml-chat { position: fixed; top: 0; right: 0; bottom: 0; left: auto; width: min(380px, 92vw); height: auto; z-index: 80; border-radius: 0; box-shadow: -12px 0 40px #000b; animation: fp-in .2s ease-out;
+  padding-bottom: env(safe-area-inset-bottom); }
+/* telemóvel e ecrãs baixos (fora do jogo também): o cabeçalho e a barra do Coliseu mais finos — no telemóvel deitado as duas
+   ocupavam o ecrã quase todo (cabeçalho em 3 linhas, Coliseu em 3). O símbolo leva à página inicial; «✦» é o novo deck */
+@media (max-width: 900px), (max-height: 640px) {
+  header.top { padding: 5px 10px; gap: 6px 8px; }
+  header.top .sections { order: -1; }  /* ao alto: as áreas na 1.ª linha, o símbolo junto do deck na 2.ª (antes tinha uma linha só para ele) */
+  header.top .brand > div { display: none; }
+  header.top .new-btn > span { display: none; }
+  header.top .sections button { padding: 6px 8px; }
+  .coliseu .col-bar { flex-wrap: nowrap; gap: 6px; padding: 5px 10px; }
+  .coliseu .col-bar > .col-title, .coliseu .col-bar > .muted.small { display: none; }
+  .coliseu .col-bar .seg { flex: 1 1 auto; min-width: 0; margin: 0; float: none; overflow-x: auto; scrollbar-width: none; }
+  .coliseu .col-bar .seg button { white-space: nowrap; flex: none; }
+  .coliseu .col-bar .fs-btn > span { display: none; }
+  .coliseu .col-bar > .link { white-space: nowrap; }
+}
+@media (max-height: 640px) and (min-width: 600px) { header.top .sections { width: auto; order: 0; } }  /* deitado: tudo numa linha */
+@media (max-width: 420px) { header.top .sections button { gap: 3px; padding: 6px 4px; font-size: 13px; } }
+@media (max-width: 600px) { .coliseu .col-bar > .link { display: none; } }  /* «voltar ao deck» = Construir, no cabeçalho */
+/* réplicas abertas («Os meus jogos», Bots a testar) no telemóvel/tablet: por cima de tudo, com o ecrã todo (antes ficavam no fundo
+   de uma página comprida); .modal: o ajuste do tabuleiro (Replay, Board.jsx) mede a altura na janela */
+.rp-inline { display: contents; }
+.modal.rp-sheet { position: fixed; inset: 0; z-index: 65; max-height: none; margin: 0; border: 0; border-radius: 0; box-shadow: none; overflow-y: auto; overscroll-behavior: contain; background: var(--bg);
+  padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); }
+.modal.rp-sheet .view.board, .modal.rp-sheet .board { padding-inline: 0; margin: 0; max-width: none; }
+/* ecrã largo e baixo (telemóvel deitado): a barra passa a coluna à direita — a mesa fica com a altura toda, que é o que lhe falta */
+@media (min-aspect-ratio: 7/4) {
+  .fp.ml.compact { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); }
+  .fp.ml.compact .ml-tools { flex-direction: column; align-items: stretch; overflow-x: hidden; overflow-y: auto; width: clamp(150px, 19vw, 210px); border-width: 0 0 0 1px; box-shadow: -6px 0 18px #0008;
+    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) 6px; }
+  .fp.ml.compact .ml-tg { flex-wrap: wrap; border-right: 0; padding: 0 0 6px; border-bottom: 1px solid var(--line); }
+  .fp.ml.compact .ml-tg:last-child { border-bottom: 0; }
+  .fp.ml.compact .ml-tg > * { flex: 1 1 auto; } .fp.ml.compact .ml-dice { flex-wrap: wrap; }
+  .fp.ml.compact .ml-tok { right: auto; width: min(420px, 70vw); bottom: 12px; }
+  .fp.compact { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); }
+  .fp.compact .fp-actbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr); align-content: stretch; align-items: start; gap: 6px;
+    width: clamp(132px, 17vw, 190px); padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) 8px;
+    border-top: 0; border-left: 1px solid #ffffff22; box-shadow: -6px 0 18px #0008; overflow-y: auto; }
+  .fp.compact .fp-actbar.mine { border-left-color: var(--gold); }
+  .fp.compact .fp-actbar > * { grid-column: 1 / -1; }
+  .fp.compact .fp-actbar > .fs-mini { grid-column: auto; order: -1; min-width: 0; }
+  .fp.compact .fp-actbar > p { -webkit-line-clamp: 7; font-size: 12px; }
+  .fp.compact .fp-actbar .row-btns { flex-direction: column; align-self: end; }
+  .fp.compact .fp-actbar .row-btns button { width: 100%; padding: 6px 8px; white-space: normal; }
+  .fp.compact .fp-actbar .fp-pool { flex-wrap: wrap; }
+}
