@@ -951,27 +951,9 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 /* ---------- torneio (Tournament.jsx) ---------- */
 .tour { padding-top: 12px; } .tour > * + *, .tour-live > * + * { margin-top: 12px; }
 .tour-nav { justify-self: start; }
-.tc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 18px; }
-.tc-types { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 8px 0 4px; }
-.tc-types button { display: grid; gap: 2px; text-align: left; padding: 8px 10px; border-radius: 10px; }
-.tc-types button small { color: var(--muted); font-size: 11px; }
-.tc-types button.on { border-color: var(--gold); background: rgba(242, 184, 75, .12); box-shadow: inset 0 0 0 1px var(--gold); }
 .tc-info { min-height: 3.2em; margin: 4px 0 8px; }
-.tc-row { display: flex; flex-wrap: wrap; gap: 0 12px; } .tc-row .fmt { flex: 1 1 150px; } .tc-row input { width: 100%; }
-.tc-fill, .tc-diff { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 4px 0 8px; font-size: 13px; }
-.tc-fill input { width: 58px; } .tc-diff { margin-top: 12px; }
-.tc-stars { display: inline-flex; gap: 4px; align-items: center; }
-.tc-players { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; margin: 14px 0; }
-.tp-card { border-radius: 12px; padding: 3px; background: var(--edge); box-shadow: 0 6px 18px #0008; min-width: 0; animation: pop .25s ease-out; }
-.tp-art { position: relative; aspect-ratio: 626 / 380; border-radius: 9px 9px 0 0; overflow: hidden; background: #111; display: grid; place-items: center; color: var(--muted); font-size: 28px; }
-.tp-art img { width: 100%; height: 100%; object-fit: cover; }
-.tp-seed { position: absolute; left: 6px; top: 6px; min-width: 24px; height: 24px; padding: 0 6px; display: grid; place-items: center; border-radius: 99px; background: #000b; border: 1px solid var(--gold); color: var(--gold2); font-weight: 700; font-size: 12px; line-height: 1; font-style: normal; }
-.tp-src { position: absolute; right: 6px; bottom: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; padding: 1px 6px; border-radius: 99px; background: #000a; color: #fff; }
-.tp-body { display: grid; gap: 5px; padding: 7px 8px 8px; border-radius: 0 0 9px 9px; background: var(--panel); }
-.tp-body > b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
-.tp-body select { font-size: 12px; padding: 3px 5px; }
-.tp-body .row-btns button { padding: 2px 8px; }
-.tc-go { margin-top: 6px; }
+.tc-fill { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 4px 0 8px; font-size: 13px; }
+.tc-fill input { width: 58px; }
 .tl-head h3 { margin: 0; }
 .tl-act { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .tl-opts { margin-top: 8px; }
@@ -1056,7 +1038,6 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .fmt-tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 0 6px; border-radius: 99px; border: 1px solid #5b5394; color: #cfc8ef; background: #2a2550; white-space: nowrap; flex: none; vertical-align: middle; line-height: 16px; }
 .sc-n .fmt-tag { margin: 0 6px; }
 .me-btn.on { background: color-mix(in srgb, var(--me, #6ee7f9) 15%, transparent); border-color: var(--me, var(--cyan)); color: var(--me, var(--cyan)); }
-.tp-card.me { box-shadow: 0 0 0 2px var(--me, var(--cyan)), 0 6px 18px #0008; }
 .ts.me { box-shadow: inset 3px 0 0 var(--me, var(--cyan)); } .ts.me .ts-n { color: var(--me, var(--cyan)); }
 .ts.me.win .ts-n { color: var(--gold2); }
 .tm.mine:not(.now) { border-color: var(--me, var(--cyan)); box-shadow: 0 0 0 1px var(--me, var(--cyan)), 0 0 14px color-mix(in srgb, var(--me, #6ee7f9) 15%, transparent); }
@@ -1077,8 +1058,8 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 .fame .row-btns { margin-bottom: 8px; }
 .fame td:not(:first-child), .fame th:not(:first-child) { text-align: center; }
 @media (max-width: 1100px) { .reg-grid { grid-template-columns: minmax(0, 1fr); } }
-@media (max-width: 900px) { .tc-grid { grid-template-columns: minmax(0, 1fr); } .tl-act { margin-left: 0; } .pd-1 .pd-block { height: 100px; } .pd-2 .pd-block { height: 72px; } .pd-3 .pd-block { height: 52px; } }
-@media (prefers-reduced-motion: reduce) { .tm.now, .champ-sparks i, .ts, .tp-card, .pd-deck, .pd-block, .me-out { animation: none; } .pd-deck { opacity: 1; } .pd-block { transform: none; } }
+@media (max-width: 900px) {  .tl-act { margin-left: 0; } .pd-1 .pd-block { height: 100px; } .pd-2 .pd-block { height: 72px; } .pd-3 .pd-block { height: 52px; } }
+@media (prefers-reduced-motion: reduce) { .tm.now, .champ-sparks i, .ts, .pd-deck, .pd-block, .me-out { animation: none; } .pd-deck { opacity: 1; } .pd-block { transform: none; } }
 .tc-fill input[type=checkbox] { width: 18px; }
 .tl-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 12px; align-items: start; }
 @media (max-width: 1200px) { .tl-grid { grid-template-columns: minmax(0, 1fr); } }
@@ -1134,7 +1115,6 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
   .rt-row .rt-num.wide { display: none; }
   .rt-art { width: 56px; }
 }
-.tp-body .dbox-meta { flex-wrap: wrap; gap: 3px 8px; } .tp-body .dbox-meta .small { font-size: 11px; }
 .arena-grid .seg, .arena-grid select { justify-self: start; } .arena-grid > label > select { min-width: 150px; } .arena-grid .row-btns { align-items: center; flex-wrap: nowrap; }
 .tour .tour-nav { float: none; margin: 0; }
 .tour-reg > li { display: grid; grid-template-columns: 110px minmax(0, 2fr) minmax(0, 1.4fr) auto; } .tour-reg .tl-status { justify-self: start; } @media (max-width: 700px) {  /* telemóvel: título em cima, estado e botões numa linha, o pódio inteiro por baixo */
@@ -1364,11 +1344,6 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .toast-undo { margin-left: 12px; font-weight: 600; }
 @media (pointer: coarse) { .undo-btns button, .toast-undo { min-height: 40px; min-width: 40px; } }
 /* torneio: o conteúdo de cada caixa de participante fica dentro da caixa */
-.tp-body { grid-template-columns: minmax(0, 1fr); min-width: 0; }
-.tp-body > * { min-width: 0; max-width: 100%; }
-.tp-body .dbox-meta { flex-wrap: wrap; row-gap: 2px; }
-.tp-body select { width: 100%; text-overflow: ellipsis; }
-.tp-body .row-btns { flex-wrap: wrap; }
 
 /* apostas nos torneios (moedas virtuais) */
 .bets { display: grid; gap: 8px; }
@@ -1471,9 +1446,6 @@ label.check { display: inline-flex; align-items: center; gap: 8px; cursor: point
 .dbox.flash { animation: dflash 2.4s ease-out; }
 @keyframes dflash { 0%, 40% { box-shadow: 0 0 0 3px var(--gold2), 0 0 28px rgba(242, 184, 75, .55); } 100% { box-shadow: none; } }
 /* torneio: arrastar os decks pela imagem para mudar a ordem */
-.tc-players .tp-art { cursor: grab; touch-action: none; user-select: none; }
-.tc-players .tp-art img { pointer-events: none; -webkit-user-drag: none; }
-.tp-card.dragging { opacity: .75; transform: scale(1.03); box-shadow: 0 0 0 2px var(--gold2), 0 12px 28px #000c; cursor: grabbing; z-index: 2; position: relative; }
 /* antes do 1.º jogo de um torneio */
 .t-gate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 0; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(242, 184, 75, .45); background: rgba(242, 184, 75, .07); color: var(--gold2); }
 
@@ -1528,8 +1500,6 @@ img.card-full { transform: scale(1.4); }  /* capa com a carta inteira: só a ilu
 .cup.plat { filter: drop-shadow(0 0 3px rgba(190, 228, 255, .9)); animation: platshine 2.6s ease-in-out infinite; }
 @keyframes platshine { 0%, 100% { filter: drop-shadow(0 0 2px rgba(190, 228, 255, .7)) brightness(1); } 50% { filter: drop-shadow(0 0 6px rgba(220, 240, 255, 1)) brightness(1.35); } }
 @media (prefers-reduced-motion: reduce) { .cup.plat { animation: none; } }
-.tc-me { display: grid; gap: 4px; max-width: 520px; margin: 8px 0; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(110, 231, 249, .45); background: rgba(110, 231, 249, .06); }
-.tc-me > span { color: var(--cyan); font-weight: 600; }
 /* Análise: colunas em cascata (cada cartão logo abaixo do anterior), sem os buracos das linhas da grelha */
 .analysis { display: block; columns: 320px; column-gap: 14px; }
 .analysis > * { break-inside: avoid; margin: 0 0 14px !important; }  /* !important: ganha ao «.card + .card» (16px em cima), que só sobrevivia no topo da 1.ª coluna */
@@ -1584,10 +1554,6 @@ img.card-full { transform: scale(1.4); }  /* capa com a carta inteira: só a ilu
   .dbox-l2 .cas-st { flex-basis: 100%; }
 }
 /* cartão do deck no torneio: cores e estrelas em linhas fixas (antes as estrelas desciam conforme as cores) */
-.tp-l1, .tp-l2 { display: flex; align-items: center; gap: 6px; height: 18px; min-width: 0; white-space: nowrap; overflow: hidden; }
-.tp-l1 .mana img { width: 16px; height: 16px; }
-.tp-body .row-btns { flex-wrap: nowrap; align-items: center; gap: 4px; }
-.tp-body .row-btns .link { margin-left: auto; }
 /* procura de decks públicos: a mesma linha fixa (cores + cartas) */
 .dbox-meta { min-width: 0; }
 .gcol { display: grid; gap: 8px; } .gcol > label { display: flex; align-items: center; gap: 8px; }
@@ -1687,9 +1653,6 @@ button.fg-card { cursor: pointer; } button.fg-card:hover { border-color: var(--g
 }
 /* ícones dos tipos de torneio */
 .tc-ico { width: 1.2em; height: 1.2em; vertical-align: -.25em; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-.tc-types button { grid-template-columns: auto 1fr; column-gap: 9px; align-items: center; }
-.tc-types button .tc-ico { grid-row: span 2; width: 36px; height: 36px; padding: 5px; stroke-width: 1.9; border-radius: 9px; background: #ffffff0d; color: var(--muted); transition: color .15s, background .15s; }
-.tc-types button.on .tc-ico, .tc-types button:hover .tc-ico { color: var(--gold2); background: #f2b84b1f; }
 /* caixas de seleção: arredondadas, com visto dourado animado (em vez das do browser) */
 input[type=checkbox] { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; flex: none; margin: 0; padding: 0; display: inline-grid; place-content: center; vertical-align: -4px;
   border: 1.5px solid #8a83a6; border-radius: 6px; background: #0f0d1a; cursor: pointer; transition: background .15s, border-color .15s, box-shadow .15s; }
@@ -1741,14 +1704,12 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .px-opt h4 { margin: 0; } .px-opt p { margin: 0; } .px-opt textarea { width: 100%; font: 12px/1.4 ui-monospace, monospace; resize: vertical; }
 .curve { padding-top: 20px; box-sizing: content-box; }  /* espaço para o número da coluna mais alta (não toca no título) */
 .bp-cur, .bs-cur span { position: relative; }
-.bp-cur em, .bs-cur em { position: absolute; top: 3px; right: 3px; min-width: 18px; padding: 0 4px; border-radius: 99px; background: var(--gold); color: #1a1205; font: 800 11px/18px system-ui; text-align: center; font-style: normal; }
-.tc-types button > b, .tc-types button > small { min-width: 0; overflow-wrap: anywhere; }  /* «Mesas (multijogador)» cabia fora do botão ao lado do ícone */
+.bp-cur em, .bs-cur em { position: absolute; top: 3px; right: 3px; min-width: 18px; padding: 0 4px; border-radius: 99px; background: var(--gold); color: #1a1205; font: 800 11px/18px system-ui; text-align: center; font-style: normal; }  /* «Mesas (multijogador)» cabia fora do botão ao lado do ícone */
 /* mistura das fontes no «Preencher» */
 .tc-mix { display: flex; flex-wrap: wrap; gap: 6px 14px; flex-basis: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
 .tc-mix label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 .tc-mix input[type=range] { width: 110px; accent-color: var(--gold); } .tc-mix b { min-width: 3.2ch; text-align: right; font-variant-numeric: tabular-nums; }
-.tc-mix-meta b { color: #8cc8ff; } .tc-mix-com b { color: #c9a2ff; } .tc-mix-meu b { color: var(--gold2); }
-.tc-srcs button.on:disabled { opacity: 1; cursor: default; } .tc-srcs button.on:disabled::after { content: ' 🔒'; font-size: 10px; }  /* meta obrigatório: ligado, não apagado */
+.tc-mix-meta b { color: #8cc8ff; } .tc-mix-com b { color: #c9a2ff; } .tc-mix-meu b { color: var(--gold2); }  /* meta obrigatório: ligado, não apagado */
 .fg-dist { margin: 14px 0 4px; } .fg-row { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 /* dano de comandante (modo Commander do contador) */
 .lc-cmds { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; max-width: 92%; pointer-events: auto; }
@@ -1922,8 +1883,6 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .gp-art img { width: 100%; height: 100%; object-fit: cover; }
 .gen-peek b { font-size: 15px; } .gp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tc-fill { flex-wrap: wrap; min-width: 0; } .tc-fill > * { max-width: 100%; min-width: 0; }
-.tc-fill .tc-champ-from { max-width: 100%; }
-.tc-fill .seg.tc-srcs { float: none; margin: 0; flex-wrap: wrap; }
 @media (max-width: 600px) { .tc-mix { width: 100%; } .tc-mix label { grid-template-columns: minmax(0, 7.5em) minmax(0, 1fr) 3em; } }
 /* amigos (Definições) */
 .friends { display: grid; gap: 10px; }
@@ -1942,7 +1901,6 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 .rooms { display: grid; gap: 10px; } .rooms h3 { margin: 0; }
 .room { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
 .room.started { border-color: var(--gold); }
-.room-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; } .room-h .row-btns, .room-h > button { margin-left: auto; }
 .room-pl { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .room-pl li { padding: 3px 10px; border-radius: 99px; background: #ffffff10; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
 .room-pl li.fr { background: #3dcf7a1f; color: #c6f3d6; }
@@ -2289,14 +2247,7 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .dpick { display: inline-flex; align-items: center; gap: 4px; }
 .dpick-x { flex: none; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 12px; line-height: 1; }
 .dpick-x:hover { color: var(--text); border-color: var(--gold); }
-.room-link { display: grid; gap: 2px; } .room-link p { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; } .room-link code { font-size: 11px; overflow-wrap: anywhere; }
 /* Online: endereço público por cima das salas, e a escolha jogo avulso / torneio antes do formulário */
-.net-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 12px; margin-bottom: 10px; border-radius: 10px; border: 1px dashed var(--line); }
-.net-bar.up { border-style: solid; border-color: #4ec9a066; background: #4ec9a00f; } .net-bar code { font-size: 12px; overflow-wrap: anywhere; }
-.nr-kind { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 10px; }
-.nr-kind button { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; text-align: left; padding: 10px 12px; border-radius: 12px; }
-.nr-kind button .tc-ico { grid-row: span 2; width: 34px; height: 34px; } .nr-kind button small { color: var(--muted); font-size: 11px; }
-.nr-kind button.on { border-color: var(--gold); background: rgba(242, 184, 75, .12); box-shadow: inset 0 0 0 1px var(--gold); }
 
 /* ---------- Forge Play nativo (ForgePlay.jsx): a mesa da arena (Board.jsx Side) jogável, com arrastar e física ---------- */
 .play-modo { margin: 6px 0 4px; }
@@ -2645,7 +2596,6 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 /* 2 contra 2 à mesma mesa: traço entre as duas equipas; opções das equipas no Criar */
 .tm .ts.tt-b { margin-top: 6px; position: relative; }
 .tm .ts.tt-b::before { content: ''; position: absolute; left: 8px; right: 8px; top: -4px; border-top: 1px dashed var(--line); }
-.tc-team-opts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 /* registo: painel de estado (os estados filtram ao tocar), filtros e páginas */
 .reg-kpis { grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; margin: 6px 0 10px; }
 .reg-kpis .kpi { padding: 8px 10px; } .reg-kpis .kpi b { font-size: 20px; }
@@ -2738,14 +2688,6 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .ml-help { max-width: min(560px, 100%); } .ml-help h3 { margin: 0; } .ml-help ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; } .ml-help p { margin: 0; }
 .ml-top .ml-topc { display: grid; gap: 4px; justify-items: center; } .ml-top .ml-topc .row-btns { gap: 2px; }
 /* Online › Nova sala: os modos lado a lado, cada um diz quem joga e que regras há */
-.nr-modes button { grid-template-columns: auto minmax(0, 1fr); align-items: start; row-gap: 3px; }
-.nr-modes button .tc-ico { grid-row: span 3; } .nr-modes button small { grid-column: 2; font-size: 12px; }
-.nr-modes .nr-rules { color: var(--text); opacity: .85; }
-.nr-modes .m-livre.on { border-color: #4ade80; background: rgba(74, 222, 128, .1); box-shadow: inset 0 0 0 1px #4ade80; }
-.room-mode { font-size: 11px; padding: 1px 8px; border-radius: 99px; background: #ffffff12; } .room-mode.livre { background: #4ade8022; color: #bbf7d0; }
-.room-why { margin: 0; }
-.nr-free-f { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end; } .nr-free-f label { display: grid; gap: 4px; font-size: 13px; }
-.nr-free-f select { max-width: min(420px, 80vw); }
 @media (max-width: 900px) {  /* mesa livre ao alto: a mesa ocupa o ecrã e o painel (muitos botões e o registo) vem por baixo */
   .fp.ml { height: auto !important; grid-template-rows: auto auto; }
   .fp.ml .fp-side { flex-direction: column; }
@@ -2953,14 +2895,12 @@ body:has(.fp.ml) .live-bar, body:has(.fp.ml) .live-bar-pad { display: none; }  /
 .ml-pick .pc { animation: fp-sel 1.2s ease-in-out infinite alternate; border-radius: 6%; }
 .ml-pickmsg { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--panel); border: 1px solid var(--gold); }
 /* torneio misto: como se joga cada partida (🤖 Forge · 🎮 Forge Play · 🃏 mesa livre) e quem joga cada deck */
-.room-mode.misto { background: #a78bfa26; color: #ddd6fe; }
 .how-chip { font-size: 11px; padding: 0 7px; border-radius: 99px; background: #ffffff12; white-space: nowrap; }
 .how-chip.how-play { background: #a78bfa26; color: #ddd6fe; } .how-chip.how-mesa { background: #4ade8022; color: #bbf7d0; }
 .ml-fm-p .how-chip { margin-right: 6px; } .ml-fm-st { margin: 0; }
 .plays-btn { padding: 2px 9px; font-size: 12px; border-radius: 99px; white-space: nowrap; } .plays-btn i { font-style: normal; opacity: .55; }
 .plays-btn.dono { background: #a78bfa2e; border-color: #a78bfa88; color: #ede9fe; } .plays-btn.bot { background: #ffffff0d; }
 .room-pl li .plays-btn { padding: 1px 8px; font-size: 11px; } .room-pl li select.small { font-size: 11px; padding: 1px 4px; }
-.tc-wait select { margin-left: 4px; }
 
 /* Deck (lista, grelha e painel lateral): cada categoria abre com uma barra (▾ aberta, ▸ fechada) com o nº de cartas,
    o custo médio e uma mini-curva; no painel lateral a barra fica presa no topo enquanto a categoria passa */
