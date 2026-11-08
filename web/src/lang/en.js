@@ -3868,6 +3868,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Jogar ou usar": "Play or use",
   "anexa": "attaches",
   "ataca": "attacks",
   "baralha": "shuffles",

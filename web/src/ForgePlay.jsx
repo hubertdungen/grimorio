@@ -1208,7 +1208,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       setLift(l => (l === id && !hl.length ? null : id)); setZoom(c)
       // uma carta com uma habilidade que se usa da mão (ciclar, channel, ninjutsu, forecast, bloodrush, suspender…): o toque
       // mostra-a, com «Usar» — antes só se levantava e, se não dava para a lançar, não havia como ciclá-la sem a arrastar
-      if (hl.length) { const r = h.getBoundingClientRect(), ok = c.play || st.pfail; setAct({ hand: true, off: !ok, hint: ok ? '' : tx('Agora o Forge não deixa usá-la: falta mana para o custo, ou não é a altura (ninjutsu: com um atacante teu por bloquear).'), id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top - 8, up: true, lines: hl, name: c.name }) }
+      // no toque não há duplo clique fiável e arrastar não se adivinha: tocar mostra logo «Jogar» (ou porque não dá agora)
+      const touch = !!e.nativeEvent?.pointerType && e.nativeEvent.pointerType !== 'mouse', ok = c.play || st.pfail
+      if (hl.length || touch) { const r = h.getBoundingClientRect(); setAct({ hand: true, play: touch, off: !ok, hint: ok ? '' : touch ? whyNot(id).msg : tx('Agora o Forge não deixa usá-la: falta mana para o custo, ou não é a altura (ninjutsu: com um atacante teu por bloquear).'), id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top - 8, up: true, lines: hl, name: c.name }) }
       return
     }
     const z = e.target.closest('[data-z]')?.dataset.z
@@ -1388,7 +1390,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {act && <div className="fp-act-bg" onPointerDown={() => setAct(null)} />}
       {act && <div className={`fp-act ${act.up ? '' : 'below'}`} role="dialog" aria-label={tx('Ativar {c}', { c: act.name })} style={{ left: act.x, top: act.y }}>
-        <b>{act.dbl ? act.name : act.hand ? tx('Usar {c} da mão', { c: act.name }) : tx('Ativar {c}?', { c: act.name })}</b>
+        <b>{act.dbl || act.play ? act.name : act.hand ? tx('Usar {c} da mão', { c: act.name }) : tx('Ativar {c}?', { c: act.name })}</b>
         {act.pw?.length ? <>
           {act.pw.map((a, k) => { const m = a.d.match(/^\[?([+−-]?(?:\d+|X))\]?\s*:\s*/), cost = m?.[1]?.replace('-', '−') || '', txt = m ? a.d.slice(m[0].length) : a.d
             return <button key={k} type="button" className={`pw-ab ${/^\+/.test(cost) ? 'up' : /^[−]/.test(cost) ? 'down' : ''}`} disabled={!a.ok} onClick={() => activateAb(a.d)}
@@ -1397,12 +1399,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           {!act.pw.some(a => a.ok) && <small className="muted">{tx('Agora não: a lealdade usa-se uma vez por turno, na tua fase principal e com a pilha vazia (e um «−» precisa de lealdade que chegue).')}</small>}
         </> : <>
           {act.lines.map((l, k) => <p key={k}><Syms text={l} /></p>)}
-          {!act.lines.length && <p className="muted small">{tx('Esta carta não tem habilidades para ativar.')}</p>}
+          {!act.lines.length && !act.play && <p className="muted small">{tx('Esta carta não tem habilidades para ativar.')}</p>}
           {act.lines.length > 1 && !act.hand && <small className="muted">{tx('Com mais de uma, escolhes a seguir.')}</small>}
-          {act.hand && <small className="muted">{tx('Lançá-la também se escolhe a seguir (ou arrasta-a para a mesa).')}</small>}
+          {act.hand && act.lines.length > 0 && <small className="muted">{tx('Lançá-la também se escolhe a seguir (ou arrasta-a para a mesa).')}</small>}
         </>}
         {act.hint && <small className="fp-act-hint">{act.hint}</small>}
-        <div className="row-btns">{act.lines.length > 0 && !act.pw?.length && <button className="primary" autoFocus disabled={act.off} onClick={activate}>{act.hand ? tx('Usar') : tx('Ativar')} <kbd>⏎</kbd></button>}
+        <div className="row-btns">{act.play && <button className="primary" autoFocus disabled={act.off} onClick={() => { setLift(null); activate() }}>{act.lines.length ? tx('Jogar ou usar') : tx('Jogar')}</button>}
+          {act.lines.length > 0 && !act.pw?.length && !act.play && <button className="primary" autoFocus disabled={act.off} onClick={activate}>{act.hand ? tx('Usar') : tx('Ativar')} <kbd>⏎</kbd></button>}
           {act.dbl && <button onClick={() => { setBig(act.name); setAct(null) }}>{tx('Ver a carta')}</button>}<button onClick={() => setAct(null)}>{act.lines.length ? tx('Cancelar') : tx('Fechar')} <kbd>Esc</kbd></button></div>
       </div>}
       {reveal && <div className="fp-modal"><div className="fp-ask fp-reveal" key={`${reveal.card}`}>

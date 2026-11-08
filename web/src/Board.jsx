@@ -314,7 +314,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
       <div className="pc-ov">
         {p.damage > 0 && <b className="pc-dmg" title={tx('Dano marcado até ao fim do turno')}>{p.damage}</b>}
         {pt && <b className={`pc-pt ${pt.boosted ? 'up' : ''} ${pt.hurt ? 'down' : ''}`} onMouseEnter={e => setEx(e.currentTarget.getBoundingClientRect())} onMouseLeave={() => setEx(null)}
-          onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setEx(x => (x ? null : r)) }}>{pt.p}/{pt.t}</b>}
+          onClick={e => { if (p.sel) return; e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setEx(x => (x ? null : r)) }}>{pt.p}/{pt.t}</b>}  {/* sel: o jogo pede esta carta (alvo…) — o toque no número escolhe-a (numa carta pequena o número é quase a carta toda) */}
         {ex && pt && <PtExplain p={p} data={data} at={ex} />}
         {p.counters?.loyalty != null && <b key={`l${p.counters.loyalty}`} className={`pc-loy ${pop?.ct === 'loyalty' && !quiet ? (pop.n > 0 ? 'up' : 'down') : ''}`} title={tx('Lealdade')}>{p.counters.loyalty}</b>}
         {p.counters?.defense != null && <b key={`d${p.counters.defense}`} className={`pc-loy def ${pop?.ct === 'defense' && !quiet ? 'down' : ''}`} title={tx('Defesa (batalha)')}>⛨{p.counters.defense}</b>}
