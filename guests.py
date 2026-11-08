@@ -196,7 +196,7 @@ def invite_post(h, con, token, act):
 def _room(con, token):
     try:
         return con.execute("SELECT owner, status, json_extract(spec, '$.name'), json_extract(spec, '$.type'), json_extract(spec, '$.format'),"
-                           " json_extract(spec, '$.casual') FROM rooms WHERE json_extract(spec, '$.link')=?", (token,)).fetchone()
+                           " json_extract(spec, '$.casual'), json_extract(spec, '$.strict') FROM rooms WHERE json_extract(spec, '$.link')=?", (token,)).fetchone()
     except sqlite3.OperationalError:
         return None
 
@@ -206,7 +206,7 @@ def _page(h, body, code=200):
                          "<title>Grimório</title><body style='font:16px system-ui;padding:2em;max-width:34em;margin:auto;background:#0b0a14;color:#eee;line-height:1.45'>"
                          "<style>button,input{font:inherit;padding:.55em 1em;border-radius:10px;border:1px solid #555;background:#1d1a2e;color:#eee}"
                          "button.go,a.go{background:#f2b84b;color:#111;border:0;font-weight:700}a.go{display:inline-block;padding:.75em 1.3em;border-radius:12px;text-decoration:none;font-size:1.1em}a.alt{color:#f2b84b}.box{padding:.7em .9em;border-radius:12px;background:#1d1a2e;margin:1em 0}"
-                         "small{color:#aaa}</style>" + body).encode(), "text/html; charset=utf-8")
+                         "small{color:#aaa}input[type=file]{max-width:100%;box-sizing:border-box}</style>" + body).encode(), "text/html; charset=utf-8")
 
 
 def _go(h, tok):
@@ -297,7 +297,9 @@ def room_link(h, con, token, name, me=None, act=""):
         return h.send(302, b"", "text/plain", {"Location": "/#online"})
     name = re.sub(r"[<>&\"']", "", str(name or "")).strip()[:30]
     if not name:
-        how = ("<div class=box>🃏 <b>Mesa livre · sem regras</b><br>Só amigos, sem bots: cada um mexe nas suas cartas, como numa mesa a sério"
+        how = ("<div class=box>⚖ <b>Mesa estrita · regras do Forge</b><br>Só amigos, sem bots: o Forge faz cumprir as regras (mana, pilha,"
+               " combate, alvos) e cada um joga no seu ecrã.</div>" if r[3] == "livre" and r[6] else
+               "<div class=box>🃏 <b>Mesa livre · sem regras</b><br>Só amigos, sem bots: cada um mexe nas suas cartas, como numa mesa a sério"
                " (compras, viras, atacas, contas a vida). Ninguém valida as jogadas.</div>" if r[3] == "livre" else
                "<div class=box>🤖 <b>Com os bots do Forge</b><br>Juntas um deck teu e os bots do Forge jogam-no por ti, com as regras todas;"
                " tu vês ao vivo e podes apostar.</div>")
@@ -308,8 +310,8 @@ def room_link(h, con, token, name, me=None, act=""):
                      "<form><p>Entra com um nome para jogares nesta sala. Não precisas de ter decks: na sala podes usar um emprestado,"
                      " um do meta ou colar a tua lista.</p><input name=nome maxlength=30 required placeholder='O teu nome' style='width:100%;box-sizing:border-box'>"
                      "<p><button class=go>Entrar</button></p></form>"
-                     "<div class=box><b>Tens o Grimório no teu PC ou telemóvel?</b><br><small>Na tua app: Coliseu › 🌍 Online › 🚪 Salas ›"
-                     " «Entrar numa sala de outro Grimório» e cola este link: entras como o teu perfil, com os teus decks.</small>"
+                     "<div class=box><b>Tens o Grimório no teu PC ou telemóvel?</b><br><small>Na tua app: Coliseu › 🌍 Online ›"
+                     " «🔗 Entrar com um link» e cola este link: entras como o teu perfil, com os teus decks.</small>"
                      "<p><small>Ou traz uma cópia do teu Grimório (ficheiro <b>.grimorio</b>, em Definições › Cópias):</small><br>"
                      "<input type=file id=f accept='.grimorio'> <span id=st></span></p></div>"
                      "<script>f.onchange=async()=>{const x=f.files[0];if(!x)return;st.textContent='A ler…';"

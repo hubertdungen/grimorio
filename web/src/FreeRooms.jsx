@@ -53,36 +53,50 @@ export function NewSolo({ data, deckId, openTable }) {
   const [decks, setDecks] = useState(null), [deck, setDeck] = useState(deckId || ''), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
   useEffect(() => { j('/api/decks').then(ds => { const ok = ds.filter(d => !d.friend); setDecks(ok); setDeck(v => (ok.some(d => d.id === v) ? v : ok[0]?.id || '')) }).catch(e => setErr(e.message)) }, [])
   const go = async () => { setBusy(true); setErr(''); try { openTable((await post('/api/freetables', { deck })).id) } catch (e) { setErr(e.message); setBusy(false) } }
+  const dk = decks?.find(d => d.id === deck)
   return (
-    <section className="card nr-free">
-      <h3>🃏 {tx('Mesa livre a solo')} <span className="muted small">{tx('testa um deck teu na mesa livre: compras, jogas, viras e contas o dano a um adversário imaginário, sem ninguém à espera')}</span></h3>
-      <DeckTiles decks={decks} value={deck} onPick={setDeck} data={data} kinds={MINE} />
-      {err && <p className="small bad-t">{err}</p>}
-      <div className="row-btns"><button className="primary" onClick={go} disabled={!deck || busy}>{busy ? tx('A abrir a mesa…') : `▶ ${tx('Abrir a mesa a solo')}`}</button></div>
+    <section className="card on-form solo">
+      <div className="on-form-deck"><h4>{tx('O teu deck')}</h4><DeckTiles decks={decks} value={deck} onPick={setDeck} data={data} kinds={MINE} /></div>
+      <div className="on-form-go">
+        <p className="on-sum">🃏 <b>{tx('Mesa livre a solo')}</b>{dk ? <> · {dk.name}</> : ''}</p>
+        {err && <p className="small bad-t">{err}</p>}
+        <button className="primary on-big" onClick={go} disabled={!deck || busy}>{busy ? tx('A abrir a mesa…') : `▶ ${tx('Abrir a mesa a solo')}`}</button>
+      </div>
     </section>
   )
 }
 
+// mesa livre: nome, regras (livre ou estrita), quantos lugares (ou Two-Headed Giant) e o teu deck; o resumo e «Abrir a sala»
+const Opt = ({ on, set, b, s }) => <button type="button" role="radio" aria-checked={on} className={`on-opt ${on ? 'on' : ''}`} onClick={set}><b>{b}</b><small>{s}</small></button>
 export function NewFreeRoom({ data, deckId, onRoom }) {
   const [decks, setDecks] = useState(null), [name, setName] = useState(tx('Mesa livre')), [max, setMax] = useState(2), [strict, setStrict] = useState(false), [giant, setGiant] = useState(false), [deck, setDeck] = useState(deckId || ''), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
   useEffect(() => { j('/api/decks').then(ds => { const mine = ds.filter(d => !d.friend); setDecks(mine); setDeck(v => (mine.some(d => d.id === v) ? v : mine[0]?.id || '')) }).catch(e => setErr(e.message)) }, [])
-  const go = async () => { setBusy(true); setErr(''); try { await post('/api/rooms', { type: 'livre', name, max: giant ? 4 : max, strict, giant, players: [{ src: 'meus', ref: deck }] }); onRoom() } catch (e) { setErr(e.message) } finally { setBusy(false) } }
+  const go = async () => { setBusy(true); setErr(''); try { const r = await post('/api/rooms', { type: 'livre', name, max: giant ? 4 : max, strict, giant, players: [{ src: 'meus', ref: deck }] }); onRoom(r.id) } catch (e) { setErr(e.message) } finally { setBusy(false) } }
+  const dk = decks?.find(d => d.id === deck), n = giant ? 4 : max
   return (
-    <section className="card nr-free">
-      <h3>🃏 {tx('Nova mesa livre')} <span className="muted small">{tx('abre a sala e partilha o link: cada amigo entra com um deck seu e, quando começares, jogam todos na mesma mesa, ao vivo')}</span></h3>
-      <div className="nr-free-f">
-        <label>{tx('Nome')}<input value={name} onChange={e => setName(e.target.value)} maxLength={80} /></label>
-        <label>{tx('Mesa')}<span className="seg"><button className={!strict ? 'on' : ''} onClick={() => setStrict(false)} title={tx('Sem regras: cada um mexe nas suas cartas, 2 a 4 jogadores')}>🃏 {tx('Livre')}</button>
-          <button className={strict ? 'on' : ''} onClick={() => setStrict(true)} title={tx('O motor do Forge faz cumprir as regras, como a jogar contra o Forge, mas contra a outra pessoa (1 contra 1)')}>⚖ {tx('Estrita')}</button></span></label>
-        {<label>{tx('Jogadores')}<span className="seg">{[2, 3, 4].map(k => <button key={k} className={max === k && !giant ? 'on' : ''} onClick={() => { setMax(k); setGiant(false) }}>{k}</button>)}
-          <button className={giant ? 'on' : ''} onClick={() => { setGiant(true); setMax(4) }} title={tx('Duas equipas de dois: vida 30 e veneno partilhados, cada equipa joga o turno junta')}>2 × 2 {tx('Two-Headed Giant')}</button></span></label>}
+    <section className="card on-form">
+      <div className="on-form-set">
+        <label className="on-field"><span>{tx('Nome da sala')}</span><input value={name} onChange={e => setName(e.target.value)} maxLength={80} /></label>
+        <div className="on-field"><span>{tx('Regras')}</span>
+          <div className="on-opts" role="radiogroup" aria-label={tx('Regras')}>
+            <Opt on={!strict} set={() => setStrict(false)} b={`🃏 ${tx('Livre')}`} s={tx('Sem regras automáticas: cada um mexe nas suas cartas, como numa mesa a sério.')} />
+            <Opt on={strict} set={() => setStrict(true)} b={`⚖ ${tx('Estrita')}`} s={tx('O Forge faz cumprir as regras e cada um joga no seu ecrã.')} />
+          </div>
+          {strict && <p className="small nr-strict">⚖ {tx('Mesa estrita: com todas as regras do Forge (mana, pilha, combate, alvos), cada um no seu ecrã — 1 contra 1, todos contra todos a 3–4 ou Two-Headed Giant. Num deck de Commander o comandante entra no deck. Quem não decidir durante 5 minutos perde o jogo.')}</p>}
+        </div>
+        <div className="on-field" role="group" aria-label={tx('Jogadores')}><span>{tx('Jogadores')}</span>
+          <div className="seg on-seg">{[2, 3, 4].map(k => <button key={k} type="button" className={n === k ? 'on' : ''} aria-pressed={n === k} disabled={giant} onClick={() => setMax(k)}>{k}</button>)}</div>
+          <label className="on-switch"><input type="checkbox" role="switch" checked={giant} onChange={e => setGiant(e.target.checked)} />
+            <span><b>2 × 2 {tx('Two-Headed Giant')}</b><small>{tx('Duas equipas de dois: vida 30 e veneno partilhados, cada equipa joga o turno junta')}</small></span></label>
+        </div>
       </div>
-      {strict && <p className="small nr-strict">⚖ {tx('Mesa estrita: com todas as regras do Forge (mana, pilha, combate, alvos), cada um no seu ecrã — 1 contra 1, todos contra todos a 3–4 ou Two-Headed Giant. Num deck de Commander o comandante entra no deck. Quem não decidir durante 5 minutos perde o jogo.')}</p>}
-      <h4 className="ml-h4">{tx('O teu deck')}</h4>
-      <DeckTiles decks={decks} value={deck} onPick={setDeck} data={data} kinds={MINE} />
-      <p className="small muted">{tx('Sem bots e sem regras automáticas: o servidor só guarda a mesa e esconde as mãos e as bibliotecas. Num deck de Commander, o comandante fica na zona de comando e a vida começa em 40. Na sala podes emprestar decks a quem não tiver.')}</p>
-      {err && <p className="small bad-t">{err}</p>}
-      <div className="row-btns"><button className="primary" onClick={go} disabled={!deck || busy}>{busy ? tx('A abrir…') : `🚪 ${tx('Abrir a sala')}`}</button></div>
+      <div className="on-form-deck"><h4>{tx('O teu deck')}</h4><DeckTiles decks={decks} value={deck} onPick={setDeck} data={data} kinds={MINE} /></div>
+      <div className="on-form-go">
+        <p className="on-sum">{strict ? '⚖' : '🃏'} <b>{strict ? tx('Mesa estrita') : tx('Mesa livre')}</b> · {giant ? `2 × 2 ${tx('Two-Headed Giant')}` : tx('{n} jogadores', { n })}{dk ? <> · {dk.name}</> : ''}</p>
+        {!strict && <p className="small muted">{tx('Sem bots e sem regras automáticas: o servidor só guarda a mesa e esconde as mãos e as bibliotecas. Num deck de Commander, o comandante fica na zona de comando e a vida começa em 40. Na sala podes emprestar decks a quem não tiver.')}</p>}
+        {err && <p className="small bad-t">{err}</p>}
+        <button className="primary on-big" onClick={go} disabled={!deck || busy}>{busy ? tx('A abrir…') : `🚪 ${tx('Abrir a sala')}`}</button>
+      </div>
     </section>
   )
 }
@@ -91,13 +105,14 @@ export function NewFreeRoom({ data, deckId, onRoom }) {
 const hue = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)
 const SRC_L = { lend: tx('emprestado'), meta: tx('do meta') }
 export function Seats({ r, guest, act }) {
+  const team = k => r.giant && <em className="on-team">{tx('Equipa {n}', { n: k < 2 ? 1 : 2 })}</em>  // 2HG: 1.º+2.º contra 3.º+4.º
   return (
-    <div className="ml-seats">{r.players.map((p, k) => { const nm = p.by || tx('Anfitrião'); return (
+    <div className={`ml-seats on-seats ${r.giant ? 'giant' : ''}`}>{r.players.map((p, k) => { const nm = p.by || tx('Anfitrião'); return (
       <span key={`${p.by}|${p.ref}|${k}`} className={`ml-seat ${p.mine ? 'mine' : ''} ${p.ready ? 'ready' : ''}`}><i style={{ '--h': hue(nm) }}>{nm[0]?.toUpperCase()}</i>
-        <span><b>{nm}{p.mine ? ` (${tx('tu')})` : ''}</b><small>{p.name}{SRC_L[p.src] ? ` · ${SRC_L[p.src]}` : ''}</small></span>
-        <em className="ml-rd" title={p.ready ? tx('Pronto') : tx('Ainda não está pronto')}>{p.ready ? '✓' : '…'}</em>
+        <span><b>{nm}{p.mine ? ` (${tx('tu')})` : ''}</b><small>{p.name}{SRC_L[p.src] ? ` · ${SRC_L[p.src]}` : ''}</small>{team(k)}</span>
+        <em className="ml-rd" title={p.ready ? tx('Pronto') : tx('Ainda não está pronto')}>{p.ready ? `✓ ${tx('Pronto')}` : '…'}</em>
         {(!guest || p.mine) && r.status === 'open' && <button className="link small" onClick={() => act(r.id, 'leave', { ref: p.ref })} title={tx('Sair deste lugar')} aria-label={tx('Sair deste lugar')}>✕</button>}</span>) })}
-      {r.status === 'open' && Array.from({ length: Math.max(0, r.max - r.players.length) }).map((_, k) => <span key={`v${k}`} className="ml-seat empty"><i>?</i><span><b>{tx('lugar livre')}</b><small>{k < r.min - r.players.length ? tx('falta para começar') : tx('opcional')}</small></span></span>)}
+      {r.status === 'open' && Array.from({ length: Math.max(0, r.max - r.players.length) }).map((_, k) => <span key={`v${k}`} className="ml-seat empty"><i>?</i><span><b>{tx('lugar livre')}</b><small>{k < r.min - r.players.length ? tx('falta para começar') : tx('opcional')}</small>{team(r.players.length + k)}</span></span>)}
     </div>
   )
 }
@@ -122,7 +137,7 @@ export function LendPanel({ r, data, act }) {
 export function JoinPanel({ r, data, decks, guest, busy, onJoin, reload }) {
   const lend = (r.lend || []).map(d => ({ ...d, tag: tx('emprestado') }))
   const tabs = [(decks.length || guest) && 'meus', lend.length && 'lend', 'meta', 'colar', 'varios'].filter(Boolean)
-  const [tab, setTab] = useState(tabs[0]), [pick, setPick] = useState(null), [fmt, setFmt] = useState('modern'), [meta, setMeta] = useState(null)
+  const [tab, setTab] = useState(decks.length ? tabs[0] : lend.length ? 'lend' : 'meta'), [pick, setPick] = useState(null), [fmt, setFmt] = useState('modern'), [meta, setMeta] = useState(null)
   const [text, setText] = useState(''), [url, setUrl] = useState(''), [name, setName] = useState(''), [err, setErr] = useState(''), [work, setWork] = useState(false)
   useEffect(() => { if (tab === 'meta') { setMeta(null); j(`/api/sim/opponents?format=${fmt}`).then(l => setMeta(l.map(o => ({ id: o.id, name: o.name, format: fmt, tag: o.share ? `${Math.round(o.share * 100)}%` : tx('meta') })))).catch(() => setMeta([])) } }, [tab, fmt])
   const L = { meus: tx('🧙 Os meus'), lend: tx('🤝 Emprestados ({n})', { n: lend.length }), meta: tx('📊 Do meta'), colar: tx('📋 Colar lista ou link'), varios: tx('📚 Trazer vários decks') }
@@ -152,7 +167,7 @@ export function JoinPanel({ r, data, decks, guest, busy, onJoin, reload }) {
       </>}
       {tab === 'varios' && <div className="ml-paste"><p className="small muted">{tx('Traz a tua biblioteca: o link do teu perfil (Archidekt, Moxfield…) ou vários links de decks. Ficam guardados como decks teus e depois escolhes com qual te sentas.')}</p>
         <ProfileImport data={data} say={() => {}} onDone={() => reload?.()} /></div>}
-      {tab === 'varios' ? null : tab === 'colar' ? <div className="ml-paste">
+      {tab === 'varios' || (tab === 'meus' && !decks.length) ? null : tab === 'colar' ? <div className="ml-paste">
         <input value={url} onChange={e => setUrl(e.target.value)} placeholder={tx('Link do deck (Moxfield, Archidekt, MTGGoldfish…)')} aria-label={tx('Link do deck')} />
         <textarea rows={6} value={text} onChange={e => setText(e.target.value)} placeholder={tx('…ou cola a lista: «4 Lightning Bolt» por linha')} aria-label={tx('Lista do deck')} disabled={!!url.trim()} />
         <input value={name} onChange={e => setName(e.target.value)} placeholder={tx('Nome do deck (opcional)')} maxLength={80} aria-label={tx('Nome do deck')} />

@@ -8,14 +8,14 @@ import { tx } from './i18n.js'
 import { held } from './touch.js'
 import { img } from './data.js'
 import { lookup } from './game.js'
-import { fpPrefs } from './fpprefs.js'
+import { fpPrefs, setFpPrefs } from './fpprefs.js'
 import { Hands, throttlePtr, useTick, ptrCol } from './ptrs.jsx'
 
 const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }).then(r => r.json()).catch(() => null)
 
 export default function Lobby3D({ r, data, act }) {
   const box = useRef(null), api = useRef(null), [open, setOpen] = useState(null), [msg, setMsg] = useState(''), [text, setText] = useState(''), [ok3d, setOk3d] = useState(true)
-  const [ptrs, setPtrs] = useState({}), ptrAt = useRef({})  // os cursores dos outros: {quem: {x, z (no plano da mesa), n, age}}
+  const [ptrs, setPtrs] = useState({}), ptrAt = useRef({}), [pv, setPv] = useState(0)  // pv: as opções dos cursores mudaram  // os cursores dos outros: {quem: {x, z (no plano da mesa), n, age}}
   const [hand, setHand] = useState([]), [big, setBig] = useState(null), [others, setOthers] = useState({}), tossed = useRef(null), chatEnd = useRef(null), me = useRef('host'), hold = useRef(0)
   const seats = useMemo(() => r.players.map(p => {
     const list = p.list || null, cols = new Set()
@@ -87,7 +87,7 @@ export default function Lobby3D({ r, data, act }) {
     const out = () => ptrSend({ off: true }, 0, 0)
     el.addEventListener('pointermove', mv); el.addEventListener('pointerleave', out)
     return () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerleave', out); out() }
-  }, [r.id, ok3d, ptrSend])
+  }, [r.id, ok3d, ptrSend, pv])
   const seePtr = fpPrefs().ptrSee
   useTick(seePtr && Object.keys(ptrs).length > 0)
   const clickRef = useRef(null)
@@ -133,6 +133,10 @@ export default function Lobby3D({ r, data, act }) {
       <div className="lobby3d-side">
         <p className="small muted">{msg || tx('Arrasta e atira as caixas. Clica na tua para deixares (ou não) os outros verem o teu deck; clica na de outro para o abrir, se ele deixar.')}</p>
         {mine && <button type="button" className={`small ${mine.show ? 'on' : ''}`} onClick={() => clickRef.current(mine.key)}>{mine.show ? `👁 ${tx('O teu deck está à vista')}` : `🔒 ${tx('Deixar ver o meu deck')}`}</button>}
+        <details className="lobby3d-opts"><summary className="small muted">🖱 {tx('Cursores')}</summary>
+          <label className="chk small"><input type="checkbox" checked={fpPrefs().ptrSee} onChange={e => { setFpPrefs({ ptrSee: e.target.checked }); setPv(v => v + 1) }} /> {tx('Ver os cursores dos outros jogadores (mesa livre e lobby online)')}</label>
+          <label className="chk small"><input type="checkbox" checked={fpPrefs().ptrShow} onChange={e => { setFpPrefs({ ptrShow: e.target.checked }); setPv(v => v + 1) }} /> {tx('Mostrar o meu cursor aos outros')}</label>
+        </details>
         <div className="lobby3d-chat" role="log" aria-label={tx('Conversa da sala')}>
           {(r.chat || []).map((c, k) => <p key={k}><b>{c.w}</b> {c.m}</p>)}
           {!(r.chat || []).length && <p className="muted small">{tx('Ainda ninguém falou. Diz olá!')}</p>}

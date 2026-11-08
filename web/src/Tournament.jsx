@@ -1745,3 +1745,6 @@ function Fame({ data, list, open }) {
     </>
   )
 }
+
+// para o Online (Online.jsx): o formulário das salas com bots, o Ao vivo, as apostas e as etiquetas dos decks
+export { Create, Live, BetsTab, OwnCtx, TypeIco, TYPES, PlaysToggle }

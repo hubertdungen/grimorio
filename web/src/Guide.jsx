@@ -396,7 +396,7 @@ function guide(P) {
         [tx('＋ Emprestar um deck'), tx('o anfitrião deixa decks seus para quem se sentar sem deck.')],
         [tx('Lobby 3D'), tx('cada um tem a caixa do deck na mesa: arrasta-a e atira-a; 🔒 Deixar ver o meu deck deixa os outros abrir a tua caixa e virar as cartas.')],
         [tx('Conversa'), tx('escreve à sala ou à mesa; @ sugere cartas, # sugere regras; ☺＋ reage a uma mensagem.')],
-        [tx('🔗 Entrar numa sala de outro Grimório'), tx('cola o link de uma sala de outra pessoa e leva todos os teus decks ou só um.')],
+        [tx('🔗 Entrar com um link'), tx('cola o link de uma sala de outra pessoa e leva todos os teus decks ou só um.')],
         [tx('Amigos (Definições)'), tx('um link de convite pessoal: os decks do amigo ficam guardados aqui e ele entra nos teus torneios e salas.')],
       ],
       subs: [

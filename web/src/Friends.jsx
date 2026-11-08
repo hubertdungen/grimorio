@@ -13,7 +13,7 @@ async function j(url, opts) {
 }
 const post = (url, body) => j(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
 
-function QR({ text }) {
+export function QR({ text }) {
   const q = qrcode(0, 'M'); q.addData(text); q.make()
   return <span className="fr-qr" dangerouslySetInnerHTML={{ __html: q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }) }} />  // SVG gerado localmente, só com o link
 }

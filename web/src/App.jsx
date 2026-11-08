@@ -24,6 +24,7 @@ import LimitedView from './Limited.jsx'
 import { lockFsOrientation } from './wakelock.js'
 import PlayView from './Play.jsx'
 import TournamentView from './Tournament.jsx'
+import OnlineView from './Online.jsx'
 import RatingsView from './Ratings.jsx'
 import { loadGames } from './tests.js'
 import { gameEvidence, applySwap } from './swap.js'
@@ -497,7 +498,7 @@ export default function App() {
           {colMode === 'jogar' && !guest && <PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} />}
           {cm === 'torneio' && <TournamentView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
           {cm === 'draft' && !guest && <LimitedView data={data} openDeck={id => openDeck(id).then(() => { goTab('deck'); api('/api/decks').then(setDecks).catch(() => {}) })} goTournament={() => setColMode('torneio')} />}
-          {cm === 'online' && <TournamentView key="online" data={data} fmt={fmt} deckId={deck.id} guest={guest} online />}
+          {cm === 'online' && <OnlineView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
           {cm === 'ratings' && <RatingsView data={data} fmt={fmt} />}
         </div>
       )}

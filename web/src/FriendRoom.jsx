@@ -8,7 +8,7 @@ import { parseList, count } from './deck.js'
 import { DeckArt } from './FreeRooms.jsx'
 import FreeTable from './FreeTable.jsx'
 import ForgeTable from './ForgePlay.jsx'
-import { Rooms } from './Tournament.jsx'
+import { Rooms } from './Online.jsx'
 import { useBackClose } from './backnav.js'
 import { API, setRemote, remoteOn, rooms, saveRoom, dropRoom, hostPage } from './remote.js'
 import { tx } from './i18n.js'
@@ -90,7 +90,7 @@ export function FriendRoomModal({ data, link = '', onClose, onRemote }) {
         {peek?.erro && <p className="small bad-t">{peek.erro} <a href={u}>{tx('Abrir o link aqui')}</a></p>}
         {err && <p className="small bad-t">{err}</p>}
         <div className="row-btns">
-          <button className="primary" onClick={go} disabled={!peek || !!peek.erro || !!busy}>{busy ? tx('A entrar…') : remoteOk ? `🚪 ${tx('Entrar na sala')}` : `🚪 ${tx('Levar {n} decks e entrar', { n: sel.size })}`}</button>
+          <button className="primary" onClick={go} disabled={!peek || !!peek.erro || !!busy}>{busy ? tx('A entrar…') : !peek || remoteOk ? `🚪 ${tx('Entrar na sala')}` : `🚪 ${tx('Levar {n} decks e entrar', { n: sel.size })}`}</button>
           <button onClick={onClose}>{tx('Cancelar')}</button>
         </div>
         {remoteOk && <p className="small muted">{tx('Levas o nome do teu perfil; cada deck vai quando te sentares com ele (e atualiza-se da próxima vez).')}</p>}
@@ -112,7 +112,7 @@ export function RemoteRoom({ data, room, onClose }) {
         <button className="link small" onClick={page} title={tx('Torneios e jogos do Forge abrem-se na página de lá')}>{tx('abrir a página de lá')}</button>
       </div>
       {on && (table ? <div className="view play fp-view">{String(table).startsWith('fp:') ? <ForgeTable key={table} sid={table.slice(3)} data={data} onClose={() => setTable(null)} /> : <FreeTable key={table} id={table} data={data} onClose={() => setTable(null)} />}</div>
-        : <div className="area"><Rooms data={data} guest open={page} openTable={setTable} /></div>)}
+        : <div className="area"><div className="view on-view"><Rooms data={data} guest open={page} openTable={setTable} /></div></div>)}
     </div>
   )
 }
