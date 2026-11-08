@@ -147,7 +147,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None
     with COND:
         S[sid] = {"owner": owner, "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
                   "ended": False, "winner": None, "ts": time.time(), "names": {"a": deck.get("name"), "b": opp.get("name")},
-                  "players": {"a": str(name)[:40] or "Tu", "b": oname}, "rate": rate,
+                  "players": {"a": str(name)[:40] or "Tu", "b": oname}, "rate": rate, "chooser": chooser in ("a", "b"),  # jogo 2+ de uma série: sem moeda
                   "arts": {"a": sim.art_map(deck), "b": sim.art_map(opp)}}  # a arte escolhida de cada carta (edição, imagem própria, básicos divididos)
     threading.Thread(target=_reader, args=(sid, p), daemon=True).start()
     return sid
@@ -181,7 +181,7 @@ def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, 
         S[sid] = {"owner": seats["a"], "seats": {k: seats[k] for k in ks}, "pv": {k: blank() for k in ks}, "afk": afk, "clock": clock,
                   "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
                   "ended": False, "winner": None, "ts": time.time(), "names": {k: decks[k].get("name") for k in ks},
-                  "players": nm, "rate": None, "arts": {k: sim.art_map(decks[k]) for k in ks}}
+                  "players": nm, "rate": None, "arts": {k: sim.art_map(decks[k]) for k in ks}, "chooser": chooser in ks}
     threading.Thread(target=_reader, args=(sid, p), daemon=True).start()
     return sid
 
@@ -268,7 +268,7 @@ def poll(sid, owner, since=0, wait=20.0):
         sw = (lambda d: {"abcd"[i]: (d or {}).get(k) for i, k in enumerate(rot)} if d else d) if seat and seat != "a" else (lambda d: d)
         out = s.get("out")
         return {"seq": s["seq"], "state": v["state"], "prompt": v["prompt"], "asks": list(v["asks"].values()), "log": v["log"][-12:],
-                "ended": s["ended"], "winner": s["winner"], "names": sw(s["names"]), "crash": bool(s.get("crash")),
+                "ended": s["ended"], "winner": s["winner"], "names": sw(s["names"]), "crash": bool(s.get("crash")), "chooser": bool(s.get("chooser")),
                 "arts": sw(s.get("arts")), "out": sw(out) if isinstance(out, dict) and set(out) <= set("abcd") else out, "draw": s.get("draw", False),
                 **({"pvp": {"seat": seat, "afk": s.get("afk", AFK), "clock": s.get("clock")}} if seat else {})}
 
