@@ -27,6 +27,11 @@
 .tv-hero h2 { margin: 0; font-size: 24px; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
 .tv-edit { font-size: 16px; text-decoration: none; opacity: .7; min-width: 32px; min-height: 32px; } .tv-edit:hover { opacity: 1; }
 .tv-motto { margin: 0; color: var(--muted); font-style: italic; }
+.tv-closed-badge { margin: 2px 0 0; font-size: 13px; color: #ffcf7a; } .tv-closed-badge button { font-size: inherit; }
+.tv-closed-note { margin: 0; padding: 12px 14px; border-top: 1px solid var(--line, #ffffff14); color: var(--muted); font-size: 14px; text-align: center; }
+.tv-danger { margin-top: 14px; padding: 10px 12px; border-radius: 12px; } .tv-danger > summary { cursor: pointer; font-weight: 600; min-height: 32px; display: flex; align-items: center; }
+.tv-dz { display: grid; gap: 8px; margin-top: 10px; } .tv-dz p { margin: 0; } .tv-dz button { justify-self: start; min-height: 40px; }
+.tv-arr:disabled { opacity: .6; cursor: not-allowed; transform: none; }
 .tv-stack { margin: 2px 0 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-self: start; padding: 2px 8px 2px 2px; min-height: 36px; border: 0; border-radius: 99px; background: none; text-align: left; color: inherit; }
 .tv-stack:hover { background: #ffffff0a; } .tv-stack-c { color: var(--muted); font-size: 10px; }
 @media (min-width: 1100px) { .tv-stack { pointer-events: none; } .tv-stack-c { display: none; } }

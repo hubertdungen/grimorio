@@ -30,6 +30,36 @@ PTS = {"w": 3, "d": 1, 1: 8, 2: 5, 3: 3}  # pontos do Hall da Fama: vitória, em
 PRES = {}              # (dono, quem) -> {"t": último batimento, "p": a jogar, "s": última vez gravado na base}
 _REC = {}              # dono -> última vez que se leram as salas (resultados e anúncios), no máximo de 8 em 8 s
 SALA = re.compile(r" \((?:sala|taverna)\)$")
+CLOSED_LINK = "Quem aloja fechou esta Taverna: o link já não deixa entrar."  # = guests.TXT tv_closed
+CLOSED = "Esta Taverna está fechada: só dá para ler."
+ROOMS_PER, ROOMS_ALL = 2, 8  # mesas abertas por membro (que ainda não começaram) e no total abertas por membros
+READ_ONLY = ("ping", "read", "leave", "reopen", "delete")  # o que ainda se faz com a Taverna fechada
+
+
+def _open_rooms(con, owner, who=None):
+    """Quem abriu cada mesa aberta (ainda por começar) por um membro -> [quem], ou só quantas são de `who`."""
+    rooms.init(con)
+    by = [w for (w,) in con.execute("SELECT json_extract(spec, '$.by') FROM rooms WHERE owner=? AND status='open' AND json_extract(spec, '$.by') IS NOT NULL", (owner,))]
+    return by.count(who) if who else by
+
+
+def room_ok(con, owner, who):
+    """Um membro (não quem aloja) pode abrir uma mesa nas salas de quem aloja? -> None ou (código, erro).
+    Só membros de uma Taverna aberta, no máximo ROOMS_PER mesas abertas suas (ROOMS_ALL de todos os membros) e 4 por minuto."""
+    init(con)
+    t = row(con, owner)
+    if not t or not is_member(con, owner, who):
+        return 403, "Só os membros da Taverna abrem mesas."
+    if t["closed"]:
+        return 409, CLOSED
+    by = _open_rooms(con, owner)
+    if by.count(who) >= ROOMS_PER:
+        return 409, "Já tens 2 mesas abertas: cancela uma primeiro."  # ROOMS_PER (o texto fixo traduz-se na app)
+    if len(by) >= ROOMS_ALL:
+        return 409, "Há mesas abertas demais neste Grimório: espera que alguma comece."
+    if guests.slow(("taverna-room", owner, who), 4):
+        return 429, "Demasiadas mesas seguidas: espera um minuto."
+    return None
 
 
 def init(con):
@@ -44,6 +74,8 @@ def init(con):
     con.execute("CREATE TABLE IF NOT EXISTS taverna_results (id TEXT PRIMARY KEY, owner TEXT, ts REAL, kind TEXT, src TEXT, name TEXT,"
                 " players TEXT, win TEXT, podium TEXT, by TEXT, removed REAL)")
     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS taverna_results_src ON taverna_results (owner, src)")
+    if "closed" not in {c[1] for c in con.execute("PRAGMA table_info(taverna)")}:  # fechada por quem aloja: só de leitura
+        con.execute("ALTER TABLE taverna ADD COLUMN closed REAL")
 
 
 def clean(s, n):
@@ -53,8 +85,8 @@ def clean(s, n):
 
 
 def row(con, owner):
-    r = con.execute("SELECT name, motto, link, created, rev, srev, frev FROM taverna WHERE owner=?", (owner,)).fetchone()
-    return r and dict(zip(("name", "motto", "link", "created", "rev", "srev", "frev"), r))
+    r = con.execute("SELECT name, motto, link, created, rev, srev, frev, closed FROM taverna WHERE owner=?", (owner,)).fetchone()
+    return r and dict(zip(("name", "motto", "link", "created", "rev", "srev", "frev", "closed"), r))
 
 
 def bump(con, owner, k="rev"):
@@ -91,6 +123,9 @@ def is_member(con, owner, who):
 
 def add_member(con, owner, who):
     """Entra (ou volta, se tinha saído por si) na Taverna. Quem foi tirado por quem aloja só volta se quem aloja o puser."""
+    t = row(con, owner)
+    if not t or t["closed"]:
+        raise PermissionError(CLOSED_LINK)
     r = con.execute("SELECT removed FROM taverna_members WHERE owner=? AND who=?", (owner, who)).fetchone()
     if r and r[0] and r[0] < 0:
         raise PermissionError("Quem aloja tirou-te desta Taverna.")
@@ -332,7 +367,7 @@ def reconcile(con, owner, force=False):
         return
     _REC[owner] = now
     t = row(con, owner)
-    if not t:
+    if not t or t["closed"]:  # fechada: nada de novo (nem anúncios nem resultados)
         return
     rooms.init(con)
     mem = {m["who"] for m in members(con, owner)}
@@ -344,7 +379,8 @@ def reconcile(con, owner, force=False):
             (owner, t["created"] - 1, now - 7 * 86400)).fetchall():
         spec, players = json.loads(spec), json.loads(players)
         if rid not in said and now - ts < 86400:
-            sys_msg(con, owner, "room", "host", room=rid, rn=str(spec.get("name") or "")[:80], rt=spec.get("type"), strict=bool(spec.get("strict")))
+            opener = spec.get("by") if spec.get("by") in mem else "host"  # a mesa de um membro: anuncia-se em nome dele
+            sys_msg(con, owner, "room", opener, room=rid, rn=str(spec.get("name") or "")[:80], rt=spec.get("type"), strict=bool(spec.get("strict")))
             said.add(rid)
         src = f"room:{rid}"
         if status != "started" or not tid or src in done:
@@ -470,7 +506,8 @@ def state(con, owner, who, q):
         return {"exists": False, "host": who == "host"}
     if not is_member(con, owner, who):
         r = con.execute("SELECT removed FROM taverna_members WHERE owner=? AND who=?", (owner, who)).fetchone()
-        return {"exists": True, "member": False, "name": t["name"], "hostName": rooms.host_name(con, owner), "kicked": bool(r and r[0] and r[0] < 0)}
+        return {"exists": True, "member": False, "name": t["name"], "hostName": rooms.host_name(con, owner), "kicked": bool(r and r[0] and r[0] < 0),
+                **({"closed": t["closed"]} if t["closed"] else {})}
     touch(con, owner, who, q.get("p", [None])[0] == "1" if "p" in q else None)
     reconcile(con, owner)
     t = row(con, owner)  # o reconcile pode ter anunciado salas (rev)
@@ -491,7 +528,9 @@ def state(con, owner, who, q):
     readid = (con.execute("SELECT readid FROM taverna_members WHERE owner=? AND who=?", (owner, who)).fetchone() or [0])[0]
     pins = [view_msg(r, nm, who) for r in con.execute(f"SELECT {MSG_COLS} FROM taverna_msgs WHERE owner=? AND pin=1 AND deleted IS NULL ORDER BY id DESC LIMIT 10", (owner,))]  # noqa: S608
     out = {"exists": True, "member": True, "me": {"who": who, "name": me_name, "host": who == "host"},
-           "taverna": {"name": t["name"], "motto": t["motto"], "created": t["created"], **({"link": f"/taverna/{t['link']}"} if who == "host" else {})},
+           "taverna": {"name": t["name"], "motto": t["motto"], "created": t["created"], **({"link": f"/taverna/{t['link']}"} if who == "host" else {}),
+                       **({"closed": t["closed"]} if t["closed"] else {})},
+           "rooms": {"per": ROOMS_PER, "mine": 0 if who == "host" else _open_rooms(con, owner, who)},
            "members": mem, "msgs": msgs, "rev": t["rev"], "srev": t["srev"], "frev": t["frev"], "read": readid, "pins": pins,
            **counts(con, owner, who, readid),
            **({"more": bool(con.execute("SELECT 1 FROM taverna_msgs WHERE owner=? AND id<? AND deleted IS NULL", (owner, first)).fetchone())} if first else {}),
@@ -559,6 +598,8 @@ def route(con, method, path, owner, body, who, q=None):
         return 404, {"erro": "Ainda não há Taverna aqui."}
     if not is_member(con, owner, who):
         return 403, {"erro": "Não és membro desta Taverna."}
+    if row(con, owner)["closed"] and act not in READ_ONLY:
+        return 409, {"erro": CLOSED}
     if act == "ping":  # batimento (a app, de 25 em 25 s): -> por ler, menções, quem está ligado
         touch(con, owner, who, b.get("playing"))
         readid = (con.execute("SELECT readid FROM taverna_members WHERE owner=? AND who=?", (owner, who)).fetchone() or [0])[0]
@@ -633,6 +674,26 @@ def route(con, method, path, owner, body, who, q=None):
         con.execute("UPDATE taverna SET name=?, motto=? WHERE owner=?", (name, motto or None, owner))
         bump(con, owner)
         return 200, {"ok": True}
+    if act in ("close", "reopen"):  # fechar: fica só de leitura e o link deixa de deixar entrar; reabrir volta a como estava
+        closed = row(con, owner)["closed"]
+        if bool(closed) == (act == "close"):
+            return 200, {"ok": True}
+        if act == "reopen":
+            con.execute("UPDATE taverna SET closed=NULL WHERE owner=?", (owner,))
+        sys_msg(con, owner, act, "host")  # antes de fechar (e depois de reabrir): a última linha da conversa diz porquê
+        if act == "close":
+            con.execute("UPDATE taverna SET closed=? WHERE owner=?", (time.time(), owner))
+        return 200, {"ok": True}
+    if act == "delete":  # apagar de vez: só com o nome escrito à mão; os amigos (convites) ficam em Definições › Amigos
+        if clean(b.get("name"), NAME_MAX).casefold() != row(con, owner)["name"].strip().casefold():
+            return 400, {"erro": "Escreve o nome da Taverna para a apagar."}
+        for tb in ("taverna_msgs", "taverna_shelf", "taverna_results", "taverna_members", "taverna"):
+            con.execute(f"DELETE FROM {tb} WHERE owner=?", (owner,))  # noqa: S608 — nomes fixos
+        rooms.LIVE.pop(f"tv:{owner}", None)
+        _REC.pop(owner, None)
+        for k in [k for k in PRES if k[0] == owner]:
+            del PRES[k]
+        return 200, {"ok": True, "deleted": True}
     return 404, {"erro": "rota desconhecida"}
 
 
@@ -640,8 +701,8 @@ def route(con, method, path, owner, body, who, q=None):
 
 def by_link(con, token):
     init(con)
-    r = con.execute("SELECT owner, name FROM taverna WHERE link=?", (str(token)[:40],)).fetchone()
-    return r and {"owner": r[0], "name": r[1]}
+    r = con.execute("SELECT owner, name, closed FROM taverna WHERE link=?", (str(token)[:40],)).fetchone()
+    return r and {"owner": r[0], "name": r[1], "closed": r[2]}
 
 
 def _join_token(con, owner, tok):
@@ -653,38 +714,41 @@ def _join_token(con, owner, tok):
 def link_page(h, con, token, name, me=None, act=""):
     """GET /taverna/<link>[?nome=…]: quem aloja vai para a Taverna; um convidado deste Grimório fica membro e entra; os
     outros escolhem um nome (convidado novo, no browser) ou abrem o link na app deles (/info -> JSON para a app)."""
+    import html
     t = by_link(con, token)
     if act == "info":
-        return h.json({"api": guests.API, "kind": "taverna", "name": t["name"], "hid": guests.host_id(con)}) if t else h.json({"erro": "Este link da Taverna já não é válido."}, 404)
+        return h.json({"api": guests.API, "kind": "taverna", "name": t["name"], "hid": guests.host_id(con)}) if t and not t["closed"] \
+            else h.json({"erro": CLOSED_LINK if t else "Este link da Taverna já não é válido."}, 403 if t else 404)
+    L = guests.lang(h)
     if not t or act:
-        return guests._page(h, "<p>Este link da Taverna já não é válido. Pede outro a quem te convidou.</p>", 404)
+        return guests._page(h, f"<p>{guests.t(L, 'tv_bad')}</p>", 404, L)
     owner = t["owner"]
     go = lambda tok: h.send(302, b"", "text/plain", {"Location": "/#taverna", **({"Set-Cookie": f"{guests.COOKIE}={tok}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly"} if tok else {})})  # noqa: E731
     try:
+        if me and me.get("owner") == owner:
+            return go(None)
+        if t["closed"]:
+            raise PermissionError(CLOSED_LINK)
         g = guests.by_token(con, guests.cookie_token(h.headers))
         if g and g["owner"] == owner:  # já é convidado deste Grimório: fica membro
             add_member(con, owner, f"guest:{g['id']}")
             return go(None)
-        if me and me.get("owner") == owner:
-            return go(None)
         name = re.sub(r"[<>&\"']", "", str(name or "")).strip()[:30]
         if not name:
-            import html
             prof = me and me.get("profile")
-            mine = (f"<form method=post action='/taverna/{html.escape(token)}/perfil'><button class=go>👤 Entrar como {html.escape(prof['name'])}</button>"
-                    " <small>com os teus decks deste Grimório</small></form><p><small>ou, com outro nome:</small></p>") if prof else ""
-            return guests._page(h, f"<h2>🍺 {html.escape(t['name'])}</h2><div class=box>A Taverna é o sítio dos amigos neste Grimório: conversa, decks"
-                                   " partilhados, jogos combinados e um Hall da Fama só vosso.</div>" + ("" if prof else guests.APP_BTN) + mine +
-                                "<form><p>Entra com um nome (é assim que os outros te veem).</p><input name=nome maxlength=30 required placeholder='O teu nome'"
-                                " style='width:100%;box-sizing:border-box'><p><button class=go>Entrar na Taverna</button></p></form>"
-                                "<div class=box><b>Tens o Grimório no teu PC ou telemóvel?</b><br><small>Na tua app: Coliseu › 🍺 Taverna ›"
-                                " «🔗 Entrar com um link» e cola este link: entras como o teu perfil e os teus decks ficam contigo.</small></div>")
+            mine = (f"<form method=post action='/taverna/{html.escape(token)}/perfil'><button class=go>{guests.t(L, 'as_prof', n=prof['name'])}</button>"
+                    f" <small>{guests.t(L, 'as_prof_s')}</small></form><p><small>{guests.t(L, 'other')}</small></p>") if prof else ""
+            return guests._page(h, f"<h2>🍺 {html.escape(t['name'])}</h2><div class=box>{guests.t(L, 'tv_box')}</div>" + ("" if prof else guests.app_btn(L)) + mine +
+                                f"<form><p>{guests.t(L, 'tv_p')}</p><input name=nome maxlength=30 required placeholder='{html.escape(guests.t(L, 'name_ph'))}'"
+                                f" style='width:100%;box-sizing:border-box'><p><button class=go>{guests.t(L, 'tv_enter')}</button></p></form>"
+                                f"<div class=box><b>{guests.t(L, 'has_app')}</b><br><small>{guests.t(L, 'tv_app')}</small></div>", 200, L)
         fid, tok = secrets.token_hex(6), secrets.token_urlsafe(18)
         con.execute("INSERT INTO friends (id, owner, name, token, created, revoked) VALUES (?,?,?,?,?,NULL)", (fid, owner, f"{name} (taverna)", tok, time.time()))
         add_member(con, owner, f"guest:{fid}")
         return go(tok)
     except PermissionError as e:
-        return guests._page(h, f"<p>{e}</p>", 403)
+        k = guests.ERR_KEY.get(str(e))
+        return guests._page(h, f"<p>{guests.t(L, k) if k else html.escape(str(e))}</p>", 403, L)
 
 
 def link_post(h, con, token, act, me):
@@ -692,6 +756,8 @@ def link_post(h, con, token, act, me):
     t = by_link(con, token)
     if not t:
         return h.json({"erro": "Este link da Taverna já não é válido."}, 404)
+    if t["closed"]:
+        return h.json({"erro": CLOSED_LINK}, 403)
     owner = t["owner"]
     try:
         if act == "perfil":
@@ -804,4 +870,70 @@ def selfcheck():
     assert f["hl"]["rival"]["g"] == 4 and f["hl"]["deck"]["deck"] == "Mono-vermelho" and len(f["feed"]) == 4
     rid = f["feed"][0]["id"]
     assert call(E, "unresult", {"id": rid})[0] == 403 and call(H, "unresult", {"id": rid})[0] == 200
+    # mesas abertas por membros (rooms.guest_room): só membros, só mesa livre/estrita, com um deck seu, no máximo ROOMS_PER abertas
+    guests._HITS.clear()
+    for fid in ("aaaaaaaaaaaa", "bbbbbbbbbbbb", "cccccccccccc"):
+        con.execute("INSERT INTO decks (id, name, format, body, updated, owner) VALUES (?,?,?,?,?,?)",
+                    (f"d{fid}", f"Deck {fid[0]}", "modern", json.dumps({"name": f"Deck {fid[0]}", "main": {"Forest": 60}, "friend": fid}), time.time(), "o"))
+    gR, gE, gZ = {"id": "aaaaaaaaaaaa", "name": "Rui (sala)"}, {"id": "bbbbbbbbbbbb", "name": "Eva"}, {"id": "cccccccccccc", "name": "Zé"}
+    mk = lambda g, ref=None, **k: rooms.route(con, "POST", "/api/rooms", "o", {"type": "livre", "name": "Mesa ‮x", "players": [{"src": "meus", "ref": ref or f"d{g['id']}"}], **k}, guest=g)  # noqa: E731
+    rl = lambda g: {x["id"]: x for x in rooms.route(con, "GET", "/api/rooms", "o", None, guest=g)[1]}  # noqa: E731
+    assert mk(gZ)[0] == 403 and mk(gR, type="torneio")[0] == 403 and mk(gR, "dbbbbbbbbbbbb")[0] == 400  # não é membro; torneio; deck da Eva
+    st, r1 = mk(gR, strict=True, max=9)
+    assert st == 201, r1
+    v = rl(gR)[r1["id"]]
+    assert v["own"] and v["opener"] == "Rui (sala)" and v["max"] == 4 and v["strict"] and v["name"] == "Mesa x" and "link" not in v and v["players"][0]["mine"]
+    assert rl(gE)[r1["id"]]["own"] is False and rooms.route(con, "POST", f"/api/rooms/{r1['id']}/cancel", "o", None, guest=gE)[0] == 403
+    assert rooms.route(con, "POST", f"/api/rooms/{r1['id']}/start", "o", None, guest=gE)[0] == 403  # só quem a abriu (ou quem aloja) a começa
+    assert rooms.route(con, "POST", f"/api/rooms/{r1['id']}/join", "o", {"deck": "dbbbbbbbbbbbb"}, guest=gE)[0] == 200  # os outros sentam-se
+    assert mk(gR)[0] == 201 and mk(gR)[1] == {"erro": "Já tens 2 mesas abertas: cancela uma primeiro."} and call(R, method="GET")[1]["rooms"] == {"per": ROOMS_PER, "mine": 2}
+    assert rooms.route(con, "POST", f"/api/rooms/{r1['id']}/cancel", "o", None, guest=gR)[0] == 200 and mk(gR)[0] == 201  # a vaga volta
+    guests._HITS[("taverna-room", "o", E)] = [time.time()] * 4
+    assert mk(gE)[0] == 429  # 4 por minuto
+    reconcile(con, "o", force=True)
+    assert {m["who"] for m in call(H, method="GET")[1]["msgs"] if m["kind"] == "room"} == {R}  # anunciadas em nome de quem as abriu
+    # fechar: só de leitura, o link não deixa entrar, nada de mesas novas; reabrir; apagar só com o nome
+    lk = call(H, method="GET")[1]["taverna"]["link"].split("/")[-1]
+    assert call(R, "close")[0] == 403 and call(H, "close")[0] == 200
+    s = call(R, method="GET")[1]
+    assert s["member"] and s["taverna"]["closed"] and s["msgs"][-1]["kind"] == "close"
+    for a, bb in (("say", {"m": "x"}), ("share", {"deck": {"name": "D", "main": {"Forest": 1}}}), ("result", {"players": [R, E]}), ("live", {}), ("kick", {"who": E})):
+        assert call(R if a != "kick" else H, a, bb)[1].get("erro") == CLOSED, a
+    assert call(R, "read", {"id": 1})[0] == 200 and call(R, "ping")[0] == 200 and mk(gE)[1]["erro"] == CLOSED
+    try:
+        add_member(con, "o", "guest:cccccccccccc")
+        raise AssertionError("fechada: ninguém entra")
+    except PermissionError:
+        pass
+
+    class FakeH:  # o bastante do pedido HTTP para as páginas dos links
+        def __init__(s, path, lang="", cookie=""):
+            s.path, s.headers = path, {"Accept-Language": lang, **({"Cookie": cookie} if cookie else {})}
+
+        def send(s, code, body, ctype, hdrs=None):
+            return code, body.decode() if isinstance(body, bytes) else body, hdrs or {}
+
+        def json(s, obj, code=200):
+            return code, obj, {}
+    nf = con.execute("SELECT COUNT(*) FROM friends").fetchone()[0]
+    st, pg, _ = link_page(FakeH(f"/taverna/{lk}?nome=Ana", "en-GB,en;q=0.8"), con, lk, "Ana")
+    assert st == 403 and guests.TXT["en"]["tv_closed"] in pg and con.execute("SELECT COUNT(*) FROM friends").fetchone()[0] == nf
+    assert link_page(FakeH(f"/taverna/{lk}/info"), con, lk, "", act="info")[0] == 403 and link_post(FakeH(f"/taverna/{lk}/trazer"), con, lk, "trazer", None)[0] == 403
+    assert call(H, "reopen")[0] == 200 and call(R, "say", {"m": "voltámos"})[0] == 201 and not call(R, method="GET")[1]["taverna"].get("closed")
+    # a página do link na língua de quem a abre (Accept-Language, ?lang=), sem frases em pt nas outras
+    for al, q, L in (("pt-BR,pt;q=0.9", "", "pt"), ("en-US,en;q=0.9", "", "en"), ("fr-FR,fr;q=0.9", "", "en"), ("de;q=0.2,zh-CN;q=0.9", "", "zh"), ("pt-PT", "?lang=es", "es")):
+        st, pg, _ = link_page(FakeH(f"/taverna/{lk}{q}", al), con, lk, "")
+        assert st == 200 and f"<html lang={guests.LANGS[L][0]}>" in pg and guests.TXT[L]["tv_enter"] in pg and guests.TXT[L]["app"] in pg, (al, L)
+        assert ("grimorio.lang" in pg) == bool(q) and (L == "pt" or not guests.pt_left(pg, L)), (L, guests.pt_left(pg, L))
+    assert guests.TXT["pt"]["tv_box"] in link_page(FakeH(f"/taverna/{lk}", "pt-PT"), con, lk, "")[1]
+    st, pg, _ = link_page(FakeH("/taverna/naoexiste", "de"), con, "naoexiste", "")
+    assert st == 404 and guests.TXT["de"]["tv_bad"] in pg
+    # apagar de vez: com o nome escrito (sem contar maiúsculas); some tudo e pode abrir-se outra
+    nm0 = row(con, "o")["name"]
+    assert call(R, "delete", {"name": nm0})[0] == 403 and call(H, "delete", {"name": "outra"})[0] == 400 and row(con, "o")
+    assert call(H, "delete", {"name": f"  {nm0.upper()} "})[1] == {"ok": True, "deleted": True}
+    for tb in ("taverna", "taverna_members", "taverna_msgs", "taverna_shelf", "taverna_results"):
+        assert con.execute(f"SELECT COUNT(*) FROM {tb} WHERE owner='o'").fetchone()[0] == 0, tb  # noqa: S608
+    assert call(R, method="GET")[1] == {"exists": False, "host": False} and by_link(con, lk) is None and mk(gR)[0] == 403
+    assert call(H, b={"name": "Outra"})[0] == 201 and call(R, method="GET")[1]["member"] is False  # uma nova começa sem os membros antigos
     print("selfcheck taverna ok")

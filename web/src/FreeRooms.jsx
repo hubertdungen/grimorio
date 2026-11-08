@@ -68,9 +68,9 @@ export function NewSolo({ data, deckId, openTable }) {
 
 // mesa livre: nome, regras (livre ou estrita), quantos lugares (ou Two-Headed Giant) e o teu deck; o resumo e «Abrir a sala»
 const Opt = ({ on, set, b, s }) => <button type="button" role="radio" aria-checked={on} className={`on-opt ${on ? 'on' : ''}`} onClick={set}><b>{b}</b><small>{s}</small></button>
-export function NewFreeRoom({ data, deckId, onRoom }) {
+export function NewFreeRoom({ data, deckId, onRoom, all }) {  // all: os decks todos (um convidado no browser: os dele vêm marcados com `friend`)
   const [decks, setDecks] = useState(null), [name, setName] = useState(tx('Mesa livre')), [max, setMax] = useState(2), [strict, setStrict] = useState(false), [giant, setGiant] = useState(false), [deck, setDeck] = useState(deckId || ''), [err, setErr] = useState(''), [busy, setBusy] = useState(false)
-  useEffect(() => { j('/api/decks').then(ds => { const mine = ds.filter(d => !d.friend); setDecks(mine); setDeck(v => (mine.some(d => d.id === v) ? v : mine[0]?.id || '')) }).catch(e => setErr(e.message)) }, [])
+  useEffect(() => { j('/api/decks').then(ds => { const mine = all ? ds : ds.filter(d => !d.friend); setDecks(mine); setDeck(v => (mine.some(d => d.id === v) ? v : mine[0]?.id || '')) }).catch(e => setErr(e.message)) }, [all])
   const go = async () => { setBusy(true); setErr(''); try { const r = await post('/api/rooms', { type: 'livre', name, max: giant ? 4 : max, strict, giant, players: [{ src: 'meus', ref: deck }] }); onRoom(r.id) } catch (e) { setErr(e.message) } finally { setBusy(false) } }
   const dk = decks?.find(d => d.id === deck), n = giant ? 4 : max
   return (

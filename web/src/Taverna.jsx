@@ -156,6 +156,8 @@ function SysLine({ m, s, shelfBy, data, openDeck, goTab }) {
     kick: <>🚪 {tx('{n} já não está na Taverna.', { n: nm })}</>,
     shelf: <>📚 {tx('{n} pôs «{d}» na prateleira.', { n: nm, d: m.dn || '?' })}</>,
     room: <>{m.rt === 'livre' ? (m.strict ? '⚖' : '🃏') : '🏆'} {tx('{n} abriu a sala «{r}».', { n: nm, r: m.rn || '?' })} <button type="button" className="link small" onClick={() => goTab('jogos')}>{tx('ver')}</button></>,
+    close: <>🔒 {tx('{n} fechou a Taverna: fica só para ler.', { n: nm })}</>,
+    reopen: <>🔓 {tx('{n} voltou a abrir a Taverna.', { n: nm })}</>,
   }[m.kind]
   if (m.kind === 'res') return <ResLine m={m} />
   return <div className={`tv-sys k-${m.kind}`}><span>{line || nm}</span>
@@ -188,7 +190,7 @@ function Msg({ m, prev, s, me, shelfBy, data, openDeck, act, setReply, goTab, fr
         {call && <div className="tv-call"><b>🎲 {tx('{n} quer jogar', { n: m.name })}: {call[0]} {call[1]}{m.call.fmt ? ` · ${FORMAT[m.call.fmt]?.name || m.call.fmt}` : ''}</b>
           <span className="row-btns"><button type="button" className={inn.includes(me.who) ? 'on' : 'primary'} onClick={() => act('react', { id: m.id, e: '✋' })} aria-pressed={inn.includes(me.who)}>✋ {inn.includes(me.who) ? tx('Alinho ✓') : tx('Eu alinho')}</button>
             {inn.length > 0 && <span className="tv-inn">{inn.map(w => { const x = s.members.find(y => y.who === w); return <Ava key={w} who={w} name={x?.name || '?'} /> })}</span>}
-            {me.host && <button type="button" onClick={() => onCall(m.call)}>🚪 {tx('Abrir a sala')}</button>}</span></div>}
+            {(me.host || m.call.kind !== 'torneio') && !s.taverna.closed && <button type="button" onClick={() => onCall(m.call)}>🚪 {tx('Abrir a sala')}</button>}</span></div>}
         {m.m && <p className="tv-text"><Text m={m} me={me.name} shelfBy={shelfBy} openDeck={openDeck} /></p>}
         {(m.decks || []).length > 0 && <div className="tv-decks">{m.decks.map(id => shelfBy[id] ? <DeckCard key={id} d={shelfBy[id]} data={data} onOpen={openDeck} mini /> : <small key={id} className="muted">📚 {tx('(já saiu da prateleira)')}</small>)}</div>}
         {Object.keys(m.react || {}).filter(e => e !== '✋' || !call).length > 0 && <div className="tv-reacts">{Object.entries(m.react).filter(([e]) => e !== '✋' || !call).map(([e, ws]) => (
@@ -261,7 +263,7 @@ function Composer({ s, shelf, reply, setReply, send, mention, onPickMine, onCall
       {game && <div className="tv-game">
         <b>🎲 {tx('Propor um jogo')}</b>
         <div className="row-btns">{Object.entries(KIND).map(([k, [i, l]]) => <button key={k} type="button" onClick={async () => { setGame(false); await onCall({ kind: k }, text.trim()); setText('') }}>{i} {l}</button>)}</div>
-        <small className="muted">{tx('Fica na conversa: quem quiser carrega em «Eu alinho» e quem aloja abre a sala.')}</small>
+        <small className="muted">{tx('Fica na conversa: quem quiser carrega em «Eu alinho» e qualquer membro abre a mesa (o torneio, quem aloja).')}</small>
       </div>}
       <div className="tv-comp-row">
         <button type="button" className="tv-ib" onClick={() => setPop(p => (p?.k === '#' ? null : { k: '#', q: '', at: caret() }))} aria-label={tx('Mencionar um deck')} title={tx('Mencionar um deck')}>#</button>
@@ -313,7 +315,8 @@ function Chat({ s, msgs, more, loadOlder, shelf, shelfBy, data, act, send, openD
         })}
       </div>
       {below && <button type="button" className="tv-below" onClick={() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'smooth' }); setBelow(false) }}>↓ {tx('mensagens novas')}</button>}
-      <Composer s={s} shelf={shelf} reply={reply} setReply={setReply} send={send} mention={mention} onPickMine={onPickMine} onCall={(c, m) => send({ m, call: c })} />
+      {s.taverna.closed ? <p className="tv-closed-note" role="status">🔒 {tx('A Taverna está fechada: dá para ler a conversa, mas já não para escrever.')}</p>
+        : <Composer s={s} shelf={shelf} reply={reply} setReply={setReply} send={send} mention={mention} onPickMine={onPickMine} onCall={(c, m) => send({ m, call: c })} />}
     </section>
   )
 }
@@ -349,7 +352,7 @@ function Fame({ s, frev }) {
   if (!f) return <p className="muted">{err || tx('a carregar…')}</p>
   const top = f.table.filter(x => x.member).slice(0, 3), order = [top[1], top[0], top[2]]
   const del = async r => (await ask('amigo', { title: tx('Apagar este resultado?'), body: tx('Sai do Hall da Fama para todos.'), ok: tx('Apagar') })) && post('/api/taverna/unresult', { id: r.id }).then(load).catch(e => setErr(e.message))
-  const add = <button type="button" className="primary on-big" onClick={() => setForm(true)}>＋ {tx('Registar um resultado')}</button>
+  const add = !s.taverna.closed && <button type="button" className="primary on-big" onClick={() => setForm(true)}>＋ {tx('Registar um resultado')}</button>
   return (
     <div className="tv-fame">
       {err && <p className="small bad-t">{err}</p>}
@@ -414,7 +417,7 @@ function Shelf({ s, shelf, data, openDeck, onPickMine, onMention, reload }) {
           <button role="tab" aria-selected={view === 'lista'} className={view === 'lista' ? 'on' : ''} onClick={() => setView('lista')}>▦ {tx('Decks')} <b>{shelf.length}</b></button>
           <button role="tab" aria-selected={view === '3d'} className={view === '3d' ? 'on' : ''} onClick={() => setView('3d')}>🎲 {tx('Mesa 3D')}</button>
         </div>
-        <button type="button" className="primary on-big" onClick={onPickMine}>＋ {tx('Pôr um deck meu')}</button>
+        {!s.taverna.closed && <button type="button" className="primary on-big" onClick={onPickMine}>＋ {tx('Pôr um deck meu')}</button>}
       </div>
       {err && <p className="small bad-t">{err}</p>}
       {!shelf.length ? <div className="card tv-empty"><span className="tv-empty-i" aria-hidden="true">📚</span><b>{tx('A prateleira está vazia.')}</b>
@@ -441,22 +444,31 @@ function Games({ s, data, deckId, guest, openTable, propose, newRoom, setNewRoom
     if (remote) return  // na app de um amigo: os torneios abrem-se na página de lá (o botão da barra de cima)
     ls('grimorio.torneio', id); ls('grimorio.online.vista', 'ver'); window.dispatchEvent(new CustomEvent('grimorio:col', { detail: 'online' }))
   }
+  const host = s.me.host && !guest, per = s.rooms?.per || 2, full = !host && (s.rooms?.mine || 0) >= per
+  const table = <button type="button" className={`tv-arr ${newRoom ? 'on' : ''}`} onClick={() => setNewRoom(v => !v)} aria-expanded={!!newRoom} disabled={full}><span>🃏</span><b>{tx('Abrir uma mesa')}</b>
+    <small>{host ? tx('Livre ou com as regras do Forge, 2 a 4 jogadores. Os membros sentam-se aqui em baixo.')
+      : full ? tx('Já tens {n} mesas abertas: cancela uma para abrires outra.', { n: per })
+        : tx('Livre ou com as regras do Forge, 2 a 4 jogadores, com um deck teu. Podes ter {n} abertas de cada vez.', { n: per })}</small></button>
   return (
     <div className="tv-games">
-      {s.me.host && !guest ? <section className="card tv-arrange">
-        <header className="tv-sec-h"><h3>🎲 {tx('Combinar um jogo')}</h3></header>
-        <div className="tv-arr-opts">
-          <button type="button" className={`tv-arr ${newRoom ? 'on' : ''}`} onClick={() => setNewRoom(v => !v)} aria-expanded={!!newRoom}><span>🃏</span><b>{tx('Abrir uma mesa')}</b><small>{tx('Livre ou com as regras do Forge, 2 a 4 jogadores. Os membros sentam-se aqui em baixo.')}</small></button>
-          <button type="button" className="tv-arr" onClick={tour}><span>🏆</span><b>{tx('Torneio entre vocês')}</b><small>{tx('Abre o Online › Criar sala com o torneio de mesa livre escolhido.')}</small></button>
-        </div>
-        {newRoom && <NewFreeRoom data={data} deckId={deckId} onRoom={() => setNewRoom(false)} />}
-      </section> : <section className="card tv-arrange">
-        <header className="tv-sec-h"><h3>🎲 {tx('Combinar um jogo')}</h3></header>
-        <p className="small muted">{tx('Quem aloja a Taverna abre as salas; tu propões e os outros dizem se alinham.')}</p>
-        <div className="row-btns">{Object.entries(KIND).map(([k, [i, l]]) => <button key={k} type="button" onClick={() => propose({ kind: k })}>{i} {tx('Propor: {k}', { k: l })}</button>)}</div>
-      </section>}
+      {s.taverna.closed ? <section className="card tv-arrange"><p className="small muted">🔒 {tx('A Taverna está fechada: já não se abrem mesas nem se propõem jogos aqui.')}</p></section>
+        : host ? <section className="card tv-arrange">
+          <header className="tv-sec-h"><h3>🎲 {tx('Combinar um jogo')}</h3></header>
+          <div className="tv-arr-opts">
+            {table}
+            <button type="button" className="tv-arr" onClick={tour}><span>🏆</span><b>{tx('Torneio entre vocês')}</b><small>{tx('Abre o Online › Criar sala com o torneio de mesa livre escolhido.')}</small></button>
+          </div>
+          {newRoom && <NewFreeRoom data={data} deckId={deckId} onRoom={() => setNewRoom(false)} />}
+        </section> : <section className="card tv-arrange">
+          <header className="tv-sec-h"><h3>🎲 {tx('Combinar um jogo')}</h3></header>
+          <div className="tv-arr-opts">{table}</div>
+          {newRoom && !full && <NewFreeRoom data={data} deckId={deckId} all={!remote} onRoom={() => setNewRoom(false)} />}
+          <p className="small muted">{tx('Ou propõe na conversa e os outros dizem se alinham (os torneios abre-os quem aloja):')}</p>
+          <div className="row-btns">{Object.entries(KIND).map(([k, [i, l]]) => <button key={k} type="button" onClick={() => propose({ kind: k })}>{i} {tx('Propor: {k}', { k: l })}</button>)}</div>
+        </section>}
       <h4 className="on-sec">{tx('Salas abertas neste Grimório')}</h4>
-      <div className="on-view tv-rooms"><Rooms data={data} guest={guest || !s.me.host} open={openTour} openTable={openTable} net={net} share={share} noCta /></div>
+      <div className="on-view tv-rooms"><Rooms data={data} guest={guest || !s.me.host} open={openTour} openTable={openTable} net={net} share={share} noCta
+        empty={s.taverna.closed ? undefined : tx('Abre uma mesa aqui em cima e os outros membros sentam-se nela.')} /></div>
     </div>
   )
 }
@@ -488,7 +500,30 @@ function EditModal({ s, onClose, reload }) {
     <label className="on-field"><span>{tx('Lema (opcional)')}</span><input value={motto} onChange={e => setMotto(e.target.value)} maxLength={120} placeholder={tx('ex.: Sextas à noite, Commander e cerveja')} /></label>
     {err && <p className="small bad-t">{err}</p>}
     <div className="row-btns"><button className="primary" onClick={go} disabled={!name.trim()}>{tx('Guardar')}</button><button onClick={onClose}>{tx('Cancelar')}</button></div>
+    <CloseZone s={s} reload={reload} onDone={onClose} setErr={setErr} />
   </div></div>
+}
+
+// fechar (só de leitura; o link deixa de deixar entrar), voltar a abrir e apagar de vez (com o nome escrito)
+function CloseZone({ s, reload, onDone, setErr }) {
+  const closed = !!s.taverna.closed, [busy, setBusy] = useState('')
+  const run = async (a, b) => { setBusy(a); setErr(''); try { await post(`/api/taverna/${a}`, b); await reload(); onDone() } catch (e) { setErr(e.message) } finally { setBusy('') } }
+  const close = async () => (await ask('amigo', { title: tx('Fechar a Taverna?'), force: true, ok: tx('Fechar a Taverna'),
+    body: tx('Fica tudo para ler (a conversa, a prateleira e o Hall da Fama), mas ninguém escreve, abre mesas nem entra pelo link. Podes voltar a abri-la quando quiseres.') })) && run('close')
+  const del = async () => (await ask('amigo', { title: tx('Apagar «{n}» de vez?', { n: s.taverna.name }), force: true, ok: tx('Apagar de vez'), typed: s.taverna.name.trim().toUpperCase(),
+    body: tx('A conversa, a prateleira, o Hall da Fama e a lista de membros desaparecem e não há maneira de os recuperar. Os amigos continuam em Definições › Amigos e as salas não mudam.') })) && run('delete', { name: s.taverna.name })
+  return <details className="tv-danger danger-zone">
+    <summary>⚠ {tx('Fechar ou apagar a Taverna')}</summary>
+    <div className="tv-dz">
+      <p className="small muted">{closed ? tx('Está fechada: só para ler, e o link não deixa entrar ninguém.') : tx('Fechar: fica só para ler e o link deixa de deixar entrar. Dá para voltar atrás.')}</p>
+      {closed ? <button type="button" onClick={() => run('reopen')} disabled={!!busy}>🔓 {tx('Voltar a abrir a Taverna')}</button>
+        : <button type="button" onClick={close} disabled={!!busy}>🔒 {tx('Fechar a Taverna')}</button>}
+    </div>
+    <div className="tv-dz">
+      <p className="small muted">{tx('Apagar: some tudo, de vez. Pede que escrevas o nome da Taverna.')}</p>
+      <button type="button" className="danger" onClick={del} disabled={!!busy}>🗑 {tx('Apagar a Taverna de vez')}</button>
+    </div>
+  </details>
 }
 
 // ---------- entrar na Taverna de um amigo (outro Grimório) com o link ----------
@@ -545,7 +580,7 @@ function Welcome({ s, guest, onCreate, onJoin, onRemote }) {
     return <div className="tv-welcome card"><span className="tv-mug" aria-hidden="true"><Icon n="taverna" /></span>
       <h2>{s.exists ? s.name : tx('A Taverna')}</h2>
       <p>{!s.exists ? tx('Quem te convidou ainda não abriu uma Taverna. Quando abrir, aparece aqui.')
-        : s.kicked ? tx('Quem aloja tirou-te desta Taverna.') : tx('Esta Taverna é só para membros: pede o link a {n}.', { n: s.hostName })}</p></div>
+        : s.kicked ? tx('Quem aloja tirou-te desta Taverna.') : s.closed ? tx('Quem aloja fechou esta Taverna: o link já não deixa entrar.') : tx('Esta Taverna é só para membros: pede o link a {n}.', { n: s.hostName })}</p></div>
   }
   return (
     <div className="tv-welcome card">
@@ -658,14 +693,15 @@ export default function TavernaView({ data, guest, deckId, onRemote }) {
         <div className="tv-hero-t">
           <h2>{s.taverna.name}{s.me.host && <button type="button" className="link small tv-edit" onClick={() => setEdit(true)} aria-label={tx('Mudar o nome e o lema')} title={tx('Mudar o nome e o lema')}>✎</button>}</h2>
           {s.taverna.motto && <p className="tv-motto">{s.taverna.motto}</p>}
+          {s.taverna.closed && <p className="tv-closed-badge">🔒 {tx('Fechada · só para ler')}{s.me.host && !guest && <> · <button type="button" className="link small" onClick={() => act('reopen')}>{tx('voltar a abrir')}</button></>}</p>}
           <button type="button" className="tv-stack" onClick={() => setShowMem(v => !v)} aria-expanded={showMem} title={tx('Membros')}>
             <span className="tv-avs">{on.slice(0, 6).map(m => <Ava key={m.who} who={m.who} name={m.name} st={stOf(m)} />)}</span>
             <span className="small"><i className="tv-dot" /> {on.length > 1 ? tx('{n} ligados agora', { n: on.length }) : tx('Só tu, por agora')} <span className="muted">· {tx('{n} membros', { n: s.members.length })}</span> <span className="tv-stack-c" aria-hidden="true">{showMem ? '▴' : '▾'}</span></span>
           </button>
         </div>
         <div className="tv-hero-a">
-          {s.me.host && !guest && <button type="button" className="primary on-big" onClick={() => setInvite(true)}>＋ {tx('Convidar')}</button>}
-          <button type="button" className="on-big on-btn" onClick={() => setTab('jogos')}>🎲 {tx('Combinar jogo')}</button>
+          {s.me.host && !guest && !s.taverna.closed && <button type="button" className="primary on-big" onClick={() => setInvite(true)}>＋ {tx('Convidar')}</button>}
+          {!s.taverna.closed && <button type="button" className="on-big on-btn" onClick={() => setTab('jogos')}>🎲 {tx('Combinar jogo')}</button>}
           {!s.me.host && <button type="button" className="link small" onClick={leave}>{tx('sair da Taverna')}</button>}
         </div>
       </header>

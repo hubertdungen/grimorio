@@ -1497,6 +1497,21 @@ def selfcheck():
         lk = next(r for r in call("GET", "/api/rooms")[1] if r["id"] == ir["id"])["link"]
         _inf = call("GET", f"{lk}/info")[1]; assert {k: v for k, v in _inf.items() if k != "hid"} == {"api": guests.API, "kind": "sala", "name": "Info QA", "type": "jogo", "format": "modern", "casual": True} and _inf.get("hid"), _inf
         assert call("POST", "/api/rooms/remote", {"url": base + lk, "dry": True})[1]["info"]["format"] == "modern"
+        # as páginas dos links na língua de quem as abre (Accept-Language ou ?lang=), sem frases em pt nas outras línguas
+        os.environ["GRIMORIO_GUEST_HOSTS"] = "amigos.exemplo.pt"  # pelo endereço de convidados (quem aloja iria direto à app)
+        for path, keys in ((f"/convite/{fr['token']}", ("inv_h", "browser", "app")), (lk, ("bots", "room_p", "enter", "copy")), ("/convite/naoexiste123", ("inv_bad",)),
+                           ("/sala/naoexiste", ("room_bad",))):
+            for al, q, L in (("pt-PT,pt;q=0.9", "", "pt"), ("en-US,en;q=0.8", "", "en"), ("es-ES", "", "es"), ("de-DE", "", "de"), ("zh-CN,zh;q=0.9", "", "zh"),
+                             ("ja-JP", "", "en"), ("pt-BR", "?lang=en", "en"), ("en", "?lang=pt", "pt")):
+                try:
+                    with op.open(urllib.request.Request(base + path + q, headers={"Accept-Language": al, "Host": "amigos.exemplo.pt"})) as r:
+                        pg = r.read().decode()
+                except urllib.error.HTTPError as e:
+                    pg = e.read().decode()
+                assert f"<html lang={guests.LANGS[L][0]}>" in pg and all(guests.TXT[L][k] in pg for k in keys), (path, al, L)
+                assert L == "pt" or not guests.pt_left(pg, L), (path, L, guests.pt_left(pg, L))
+                assert ("localStorage.setItem('grimorio.lang','" + L + "')" in pg) == bool(q) and pg.count("hreflang=") == len(guests.LANGS)
+        del os.environ["GRIMORIO_GUEST_HOSTS"]
         K2 = "z" * 30
         st, it, _ = call("POST", f"/convite/{fr['token']}/trazer", {"key": K2, "decks": [{"id": "a1", "name": "Mono U", "format": "modern", "main": {"Island": 60}}]})
         assert st == 200 and it["go"] == f"/convite/{fr['token']}?entrar=1" and len(it["ids"]) == 1, it

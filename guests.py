@@ -142,12 +142,179 @@ def _volta(q):
     return f"?volta={urllib.parse.quote(v, safe='')}#online" if VOLTA.fullmatch(v) else ""  # vem de outro Grimório: às salas
 
 
-# «Abrir na app Grimório»: grimorio://join?u=<este link> (o .exe, o pacote Linux e o APK registam o esquema). Sem a app
-# nada acontece; ao fim de 1,5 s com a página ainda à vista diz para continuar no browser.
-# ponytail: não se tenta abrir a app sozinho ao carregar — o Firefox mostra uma página de erro para esquemas desconhecidos
-APP_BTN = ("<p><a class=go id=app href='#'>📲 Abrir na app Grimório</a></p><p id=noapp hidden><small>A app não abriu? Se não a tens"
-           " neste aparelho, continua no browser.</small></p><script>app.href='grimorio://join?u='+encodeURIComponent(location.origin+location.pathname);"
-           "app.onclick=()=>setTimeout(()=>{if(!document.hidden)noapp.hidden=false},1500)</script>")
+# ---------- as páginas dos links (convite, sala, Taverna) na língua de quem as abre ----------
+# ?lang=xx, senão o Accept-Language (pt-BR, pt-PT… -> pt; uma língua que não há -> en); o seletor no topo muda e a app,
+# neste browser, fica com a escolha (grimorio.lang, como em i18n.js).
+LANGS = {"pt": ("pt-PT", "Português"), "en": ("en", "English"), "es": ("es", "Español"), "de": ("de", "Deutsch"), "zh": ("zh-CN", "简体中文")}
+TXT = {
+    "pt": {
+        "app": "📲 Abrir na app Grimório", "noapp": "A app não abriu? Se não a tens neste aparelho, continua no browser.", "lang": "Língua",
+        "inv_bad": "Este convite já não é válido. Pede outro a quem te convidou.", "inv_h": "🤝 Convite para o Grimório",
+        "inv_p": "<b>{n}</b>, foste convidado para jogar neste Grimório: salas, mesas livres e torneios com os amigos de quem te convidou.",
+        "browser": "Continuar no browser",
+        "inv_box": "Na app Grimório (PC ou telemóvel) entras com os teus decks de lá. No browser, os decks ficam guardados neste Grimório; os da tua app"
+                   " trazes com «📥 Trazer os meus decks» (o ficheiro de Biblioteca › Exportar decks).",
+        "room_bad": "Esta sala já não está aberta. Pede outro link a quem te convidou.",
+        "strict": "⚖ <b>Mesa estrita · regras do Forge</b><br>Só amigos, sem bots: o Forge faz cumprir as regras (mana, pilha, combate, alvos) e cada um joga no seu ecrã.",
+        "free": "🃏 <b>Mesa livre · sem regras</b><br>Só amigos, sem bots: cada um mexe nas suas cartas, como numa mesa a sério (compras, viras, atacas, contas a vida)."
+                " Ninguém valida as jogadas.",
+        "bots": "🤖 <b>Com os bots do Forge</b><br>Juntas um deck teu e os bots do Forge jogam-no por ti, com as regras todas; tu vês ao vivo e podes apostar.",
+        "as_prof": "👤 Entrar como {n}", "as_prof_s": "com os teus decks deste Grimório", "other": "ou, com outro nome:",
+        "room_p": "Entra com um nome para jogares nesta sala. Não precisas de ter decks: na sala podes usar um emprestado, um do meta ou colar a tua lista.",
+        "name_ph": "O teu nome", "enter": "Entrar", "has_app": "Tens o Grimório no teu PC ou telemóvel?",
+        "room_app": "Na tua app: Coliseu › 🌍 Online › «🔗 Entrar com um link» e cola este link: entras como o teu perfil, com os teus decks.",
+        "copy": "Ou traz uma cópia do teu Grimório (ficheiro <b>.grimorio</b>, em Definições › Cópias):",
+        "reading": "A ler…", "failed": "Não deu.", "which": "Que perfil és tu? ", "room": "Sala",
+        "tv_bad": "Este link da Taverna já não é válido. Pede outro a quem te convidou.",
+        "tv_closed": "Quem aloja fechou esta Taverna: o link já não deixa entrar.",
+        "tv_box": "A Taverna é o sítio dos amigos neste Grimório: conversa, decks partilhados, jogos combinados e um Hall da Fama só vosso.",
+        "tv_p": "Entra com um nome (é assim que os outros te veem).", "tv_enter": "Entrar na Taverna",
+        "tv_app": "Na tua app: Coliseu › 🍺 Taverna › «🔗 Entrar com um link» e cola este link: entras como o teu perfil e os teus decks ficam contigo.",
+        "kicked": "Quem aloja tirou-te desta Taverna.", "revoked": "Este convite foi revogado por quem aloja.",
+    },
+    "en": {
+        "app": "📲 Open in the Grimório app", "noapp": "The app didn't open? If you don't have it on this device, continue in the browser.", "lang": "Language",
+        "inv_bad": "This invite is no longer valid. Ask whoever invited you for a new one.", "inv_h": "🤝 Invitation to Grimório",
+        "inv_p": "<b>{n}</b>, you've been invited to play on this Grimório: rooms, free tables and tournaments with the friends of whoever invited you.",
+        "browser": "Continue in the browser",
+        "inv_box": "In the Grimório app (PC or phone) you join with your decks from there. In the browser, your decks are kept on this Grimório; bring the"
+                   " ones from your app with “📥 Bring my decks” (the file from Library › Export decks).",
+        "room_bad": "This room is no longer open. Ask whoever invited you for a new link.",
+        "strict": "⚖ <b>Strict table · Forge rules</b><br>Friends only, no bots: Forge enforces the rules (mana, stack, combat, targets) and everyone plays on their own screen.",
+        "free": "🃏 <b>Free table · no rules</b><br>Friends only, no bots: everyone handles their own cards, like at a real table (draw, tap, attack, keep track of life)."
+                " Nobody checks the plays.",
+        "bots": "🤖 <b>With the Forge bots</b><br>You enter a deck of yours and the Forge bots play it for you, with all the rules; you watch live and can place bets.",
+        "as_prof": "👤 Join as {n}", "as_prof_s": "with your decks from this Grimório", "other": "or, with another name:",
+        "room_p": "Enter a name to play in this room. You don't need any decks: in the room you can borrow one, use one from the meta or paste your list.",
+        "name_ph": "Your name", "enter": "Join", "has_app": "Have Grimório on your PC or phone?",
+        "room_app": "In your app: Coliseum › 🌍 Online › “🔗 Join with a link” and paste this link: you join as your profile, with your decks.",
+        "copy": "Or bring a backup of your Grimório (a <b>.grimorio</b> file, from Settings › Backups):",
+        "reading": "Reading…", "failed": "That didn't work.", "which": "Which profile are you? ", "room": "Room",
+        "tv_bad": "This Tavern link is no longer valid. Ask whoever invited you for a new one.",
+        "tv_closed": "The host has closed this Tavern: the link no longer lets anyone in.",
+        "tv_box": "The Tavern is the friends' corner of this Grimório: chat, shared decks, arranged games and a Hall of Fame all your own.",
+        "tv_p": "Enter a name (it's how the others will see you).", "tv_enter": "Enter the Tavern",
+        "tv_app": "In your app: Coliseum › 🍺 Tavern › “🔗 Join with a link” and paste this link: you join as your profile and your decks stay with you.",
+        "kicked": "The host removed you from this Tavern.", "revoked": "This invite was revoked by the host.",
+    },
+    "es": {
+        "app": "📲 Abrir en la app Grimório", "noapp": "¿No se ha abierto la app? Si no la tienes en este dispositivo, sigue en el navegador.", "lang": "Idioma",
+        "inv_bad": "Esta invitación ya no es válida. Pide otra a quien te invitó.", "inv_h": "🤝 Invitación al Grimório",
+        "inv_p": "<b>{n}</b>, te han invitado a jugar en este Grimório: salas, mesas libres y torneos con los amigos de quien te invitó.",
+        "browser": "Seguir en el navegador",
+        "inv_box": "En la app Grimório (PC o móvil) entras con tus mazos de allí. En el navegador, los mazos se guardan en este Grimório; los de tu app"
+                   " los traes con «📥 Traer mis mazos» (el archivo de Biblioteca › Exportar mazos).",
+        "room_bad": "Esta sala ya no está abierta. Pide otro enlace a quien te invitó.",
+        "strict": "⚖ <b>Mesa estricta · reglas de Forge</b><br>Solo amigos, sin bots: Forge hace cumplir las reglas (maná, pila, combate, objetivos) y cada uno juega en su pantalla.",
+        "free": "🃏 <b>Mesa libre · sin reglas</b><br>Solo amigos, sin bots: cada uno mueve sus cartas, como en una mesa de verdad (robas, giras, atacas, llevas las vidas)."
+                " Nadie valida las jugadas.",
+        "bots": "🤖 <b>Con los bots de Forge</b><br>Apuntas un mazo tuyo y los bots de Forge lo juegan por ti, con todas las reglas; tú lo ves en directo y puedes apostar.",
+        "as_prof": "👤 Entrar como {n}", "as_prof_s": "con tus mazos de este Grimório", "other": "o, con otro nombre:",
+        "room_p": "Entra con un nombre para jugar en esta sala. No necesitas tener mazos: en la sala puedes usar uno prestado, uno del meta o pegar tu lista.",
+        "name_ph": "Tu nombre", "enter": "Entrar", "has_app": "¿Tienes el Grimório en tu PC o móvil?",
+        "room_app": "En tu app: Coliseo › 🌍 En línea › «🔗 Entrar con un enlace» y pega este enlace: entras con tu perfil y tus mazos.",
+        "copy": "O trae una copia de tu Grimório (archivo <b>.grimorio</b>, en Ajustes › Copias):",
+        "reading": "Leyendo…", "failed": "No ha funcionado.", "which": "¿Qué perfil eres? ", "room": "Sala",
+        "tv_bad": "Este enlace de la Taberna ya no es válido. Pide otro a quien te invitó.",
+        "tv_closed": "Quien aloja ha cerrado esta Taberna: el enlace ya no deja entrar.",
+        "tv_box": "La Taberna es el rincón de los amigos en este Grimório: charla, mazos compartidos, partidas acordadas y un Salón de la Fama solo vuestro.",
+        "tv_p": "Entra con un nombre (así te verán los demás).", "tv_enter": "Entrar en la Taberna",
+        "tv_app": "En tu app: Coliseo › 🍺 Taberna › «🔗 Entrar con un enlace» y pega este enlace: entras con tu perfil y tus mazos se quedan contigo.",
+        "kicked": "Quien aloja te ha sacado de esta Taberna.", "revoked": "Quien aloja ha revocado esta invitación.",
+    },
+    "de": {
+        "app": "📲 In der Grimório-App öffnen", "noapp": "Die App hat sich nicht geöffnet? Wenn du sie auf diesem Gerät nicht hast, mach im Browser weiter.", "lang": "Sprache",
+        "inv_bad": "Diese Einladung ist nicht mehr gültig. Bitte die Person, die dich eingeladen hat, um eine neue.", "inv_h": "🤝 Einladung zu Grimório",
+        "inv_p": "<b>{n}</b>, du wurdest eingeladen, auf diesem Grimório zu spielen: Räume, freie Tische und Turniere mit den Freunden der Person, die dich eingeladen hat.",
+        "browser": "Im Browser weiter",
+        "inv_box": "In der Grimório-App (PC oder Handy) trittst du mit deinen Decks von dort bei. Im Browser werden die Decks auf diesem Grimório gespeichert;"
+                   " die aus deiner App bringst du mit „📥 Meine Decks mitbringen“ mit (die Datei aus Bibliothek › Decks exportieren).",
+        "room_bad": "Dieser Raum ist nicht mehr offen. Bitte die Person, die dich eingeladen hat, um einen neuen Link.",
+        "strict": "⚖ <b>Strenger Tisch · Forge-Regeln</b><br>Nur Freunde, keine Bots: Forge setzt die Regeln durch (Mana, Stapel, Kampf, Ziele) und jeder spielt auf seinem eigenen Bildschirm.",
+        "free": "🃏 <b>Freier Tisch · ohne Regeln</b><br>Nur Freunde, keine Bots: Jeder bewegt seine eigenen Karten, wie an einem echten Tisch (ziehen, tappen, angreifen,"
+                " Lebenspunkte zählen). Niemand prüft die Spielzüge.",
+        "bots": "🤖 <b>Mit den Forge-Bots</b><br>Du meldest ein Deck von dir an und die Forge-Bots spielen es für dich, mit allen Regeln; du schaust live zu und kannst wetten.",
+        "as_prof": "👤 Als {n} beitreten", "as_prof_s": "mit deinen Decks von diesem Grimório", "other": "oder mit einem anderen Namen:",
+        "room_p": "Gib einen Namen ein, um in diesem Raum zu spielen. Du brauchst keine Decks: Im Raum kannst du eines leihen, eines aus dem Meta nehmen oder deine Liste einfügen.",
+        "name_ph": "Dein Name", "enter": "Beitreten", "has_app": "Hast du Grimório auf deinem PC oder Handy?",
+        "room_app": "In deiner App: Kolosseum › 🌍 Online › „🔗 Mit Link beitreten“ und diesen Link einfügen: Du trittst mit deinem Profil und deinen Decks bei.",
+        "copy": "Oder bring eine Sicherung deines Grimório mit (eine <b>.grimorio</b>-Datei, unter Einstellungen › Sicherungen):",
+        "reading": "Wird gelesen…", "failed": "Das hat nicht geklappt.", "which": "Welches Profil bist du? ", "room": "Raum",
+        "tv_bad": "Dieser Link zur Taverne ist nicht mehr gültig. Bitte die Person, die dich eingeladen hat, um einen neuen.",
+        "tv_closed": "Der Gastgeber hat diese Taverne geschlossen: Der Link lässt niemanden mehr hinein.",
+        "tv_box": "Die Taverne ist der Treffpunkt der Freunde auf diesem Grimório: Chat, geteilte Decks, verabredete Spiele und eure eigene Ruhmeshalle.",
+        "tv_p": "Gib einen Namen ein (so sehen dich die anderen).", "tv_enter": "Taverne betreten",
+        "tv_app": "In deiner App: Kolosseum › 🍺 Taverne › „🔗 Mit Link beitreten“ und diesen Link einfügen: Du trittst mit deinem Profil bei und deine Decks bleiben bei dir.",
+        "kicked": "Der Gastgeber hat dich aus dieser Taverne entfernt.", "revoked": "Diese Einladung wurde vom Gastgeber widerrufen.",
+    },
+    "zh": {
+        "app": "📲 在 Grimório 应用中打开", "noapp": "应用没有打开？如果这台设备上没有安装，请继续在浏览器中使用。", "lang": "语言",
+        "inv_bad": "此邀请已失效。请向邀请你的人再要一个。", "inv_h": "🤝 Grimório 邀请",
+        "inv_p": "<b>{n}</b>，你受邀在这个 Grimório 上游戏：和邀请你的人的朋友们一起使用房间、自由牌桌和锦标赛。",
+        "browser": "在浏览器中继续",
+        "inv_box": "在 Grimório 应用（电脑或手机）中，你会带着那里的套牌加入。在浏览器中，套牌保存在这个 Grimório 上；应用里的套牌可以用“📥 带上我的套牌”带过来（牌库 › 导出套牌 生成的文件）。",
+        "room_bad": "这个房间已不再开放。请向邀请你的人再要一个链接。",
+        "strict": "⚖ <b>严格牌桌 · Forge 规则</b><br>只有朋友，没有机器人：Forge 执行规则（法术力、堆叠、战斗、目标），每人在自己的屏幕上游戏。",
+        "free": "🃏 <b>自由牌桌 · 无规则</b><br>只有朋友，没有机器人：每人操作自己的牌，就像在真正的牌桌上（抓牌、横置、攻击、记录生命）。没有人校验操作。",
+        "bots": "🤖 <b>使用 Forge 机器人</b><br>你报名一副自己的套牌，由 Forge 机器人按完整规则替你对战；你可以实时观看并下注。",
+        "as_prof": "👤 以 {n} 的身份加入", "as_prof_s": "使用你在这个 Grimório 上的套牌", "other": "或者，用另一个名字：",
+        "room_p": "输入一个名字即可在这个房间游戏。你不需要有套牌：在房间里可以借一副、用一副环境套牌，或粘贴你的牌表。",
+        "name_ph": "你的名字", "enter": "加入", "has_app": "你的电脑或手机上装了 Grimório 吗？",
+        "room_app": "在你的应用中：竞技场 › 🌍 在线 › “🔗 通过链接加入”，粘贴此链接：你将以自己的档案和套牌加入。",
+        "copy": "或者带上你的 Grimório 备份（<b>.grimorio</b> 文件，在 设置 › 备份 中）：",
+        "reading": "读取中…", "failed": "没有成功。", "which": "你是哪个档案？", "room": "房间",
+        "tv_bad": "此酒馆链接已失效。请向邀请你的人再要一个。",
+        "tv_closed": "主人已关闭这家酒馆：链接不再允许任何人进入。",
+        "tv_box": "酒馆是这个 Grimório 上朋友们的聚集地：聊天、共享套牌、约好的对局，还有只属于你们的名人堂。",
+        "tv_p": "输入一个名字（其他人会这样看到你）。", "tv_enter": "进入酒馆",
+        "tv_app": "在你的应用中：竞技场 › 🍺 酒馆 › “🔗 通过链接加入”，粘贴此链接：你将以自己的档案加入，套牌也会跟着你。",
+        "kicked": "主人已将你移出这家酒馆。", "revoked": "此邀请已被主人撤销。",
+    },
+}
+ERR_KEY = {TXT["pt"][k]: k for k in ("kicked", "revoked", "tv_closed")}  # PermissionError (texto em pt) -> a mesma frase na língua da página
+assert all(TXT[x].keys() == TXT["pt"].keys() for x in LANGS), "guests.TXT: todas as línguas com as mesmas chaves"
+
+
+def pt_left(page, L):
+    """(selfcheck) Pedaços dos textos em pt (12+ caracteres) que ficaram numa página em L."""
+    out = []
+    for k, s in TXT["pt"].items():
+        for frag in re.split(r"<[^>]+>|\{\w+\}|[«»“”„()]", s):
+            frag = frag.strip(" ,.:;?!·›")
+            if len(frag) >= 12 and frag not in TXT[L][k] and frag in page:
+                out.append(frag)
+    return out
+
+
+def lang(h):
+    """A língua da página: ?lang=xx, senão a primeira do Accept-Language que houver aqui, senão inglês."""
+    v = (urllib.parse.parse_qs(urllib.parse.urlsplit(h.path).query).get("lang") or [""])[0].lower()
+    if v in LANGS:
+        return v
+    tags = []
+    for i, part in enumerate(str(h.headers.get("Accept-Language") or "")[:300].split(",")[:20]):
+        tag, _, prm = part.strip().partition(";")
+        try:
+            q = float(prm.strip()[2:]) if prm.strip().startswith("q=") else 1.0
+        except ValueError:
+            q = 0.0
+        tags.append((-q, i, tag.strip().lower().split("-")[0]))
+    return next((x for q, _, x in sorted(tags) if x in LANGS and q < 0), "en")
+
+
+def t(L, k, **kw):
+    """Um texto das páginas dos links na língua L (os {valores} escapados para HTML)."""
+    s = TXT.get(L, TXT["en"]).get(k) or TXT["pt"][k]
+    return s.format(**{a: html.escape(str(b)) for a, b in kw.items()}) if kw else s
+
+
+def app_btn(L):
+    """«Abrir na app Grimório»: grimorio://join?u=<este link> (o .exe, o pacote Linux e o APK registam o esquema). Sem a app
+    nada acontece; ao fim de 1,5 s com a página ainda à vista diz para continuar no browser.
+    ponytail: não se tenta abrir a app sozinho ao carregar — o Firefox mostra uma página de erro para esquemas desconhecidos"""
+    return (f"<p><a class=go id=app href='#'>{t(L, 'app')}</a></p><p id=noapp hidden><small>{t(L, 'noapp')}</small></p>"
+            "<script>app.href='grimorio://join?u='+encodeURIComponent(location.origin+location.pathname);"
+            "app.onclick=()=>setTimeout(()=>{if(!document.hidden)noapp.hidden=false},1500)</script>")
 
 
 def accept(h, con, token, query=""):
@@ -158,16 +325,14 @@ def accept(h, con, token, query=""):
     g = by_token(con, token)
     if act == "info":
         return h.json({"api": API, "kind": "convite", "name": g["name"], "hid": host_id(con)}) if g else h.json({"erro": "Este convite já não é válido."}, 404)
+    L = lang(h)
     if not g or act:
-        return _page(h, "<p>Este convite já não é válido. Pede outro a quem te convidou.</p>", 404)
+        return _page(h, f"<p>{t(L, 'inv_bad')}</p>", 404, L)
     q = urllib.parse.parse_qs(query)
     if "entrar" in q or cookie_token(h.headers) == token:
         return h.send(302, b"", "text/plain", {"Location": "/" + _volta(q), "Set-Cookie": f"{COOKIE}={token}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly"})
-    return _page(h, f"<h2>🤝 Convite para o Grimório</h2><p><b>{html.escape(g['name'])}</b>, foste convidado para jogar neste Grimório:"
-                 " salas, mesas livres e torneios com os amigos de quem te convidou.</p>" + APP_BTN +
-                 "<p><a class=alt href='?entrar=1'>Continuar no browser</a></p><div class=box><small>Na app Grimório (PC ou telemóvel) entras"
-                 " com os teus decks de lá. No browser, os decks ficam guardados neste Grimório; os da tua app trazes com «📥 Trazer os meus"
-                 " decks» (o ficheiro de Biblioteca › Exportar decks).</small></div>")
+    return _page(h, f"<h2>{t(L, 'inv_h')}</h2><p>{t(L, 'inv_p', n=g['name'])}</p>" + app_btn(L) +
+                 f"<p><a class=alt href='?entrar=1'>{t(L, 'browser')}</a></p><div class=box><small>{t(L, 'inv_box')}</small></div>", 200, L)
 
 
 def invite_post(h, con, token, act):
@@ -202,12 +367,25 @@ def _room(con, token):
         return None
 
 
-def _page(h, body, code=200):
-    return h.send(code, ("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
-                         "<title>Grimório</title><body style='font:16px system-ui;padding:2em;max-width:34em;margin:auto;background:#0b0a14;color:#eee;line-height:1.45'>"
+def _page(h, body, code=200, L=None):
+    """Uma página dos links (convite, sala, Taverna) na língua L, com o seletor de línguas no topo. Com ?lang= escolhida
+    à mão, a app neste browser fica com ela (grimorio.lang)."""
+    L = L or lang(h)
+    qs = urllib.parse.parse_qsl(urllib.parse.urlsplit(h.path).query)
+    keep = [(k, v) for k, v in qs if k == "volta"]
+    chosen = any(k == "lang" and v.lower() in LANGS for k, v in qs)
+    nav = "".join(f"<a href='?{html.escape(urllib.parse.urlencode(keep + [('lang', x)]))}' hreflang={c} lang={c}{' aria-current=true' if x == L else ''}>{n}</a>"
+                  for x, (c, n) in LANGS.items())
+    return h.send(code, (f"<!doctype html><html lang={LANGS[L][0]}><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
+                         "<title>Grimório</title><body style='font:16px system-ui;padding:1.2em 1.2em 2em;max-width:34em;margin:auto;background:#0b0a14;color:#eee;line-height:1.45'>"
                          "<style>button,input{font:inherit;padding:.55em 1em;border-radius:10px;border:1px solid #555;background:#1d1a2e;color:#eee}"
                          "button.go,a.go{background:#f2b84b;color:#111;border:0;font-weight:700}a.go{display:inline-block;padding:.75em 1.3em;border-radius:12px;text-decoration:none;font-size:1.1em}a.alt{color:#f2b84b}.box{padding:.7em .9em;border-radius:12px;background:#1d1a2e;margin:1em 0}"
-                         "small{color:#aaa}input[type=file]{max-width:100%;box-sizing:border-box}</style>" + body).encode(), "text/html; charset=utf-8")
+                         "small{color:#aaa}input[type=file]{max-width:100%;box-sizing:border-box}"
+                         ".lg{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.25em;font-size:.78em;margin:0 0 1.2em}"
+                         ".lg a{color:#bbb;text-decoration:none;padding:.25em .55em;border-radius:99px;border:1px solid #2e2a44}"
+                         ".lg a[aria-current]{color:#111;background:#f2b84b;border-color:#f2b84b;font-weight:700}</style>"
+                         f"<nav class=lg aria-label='{html.escape(t(L, 'lang'))}'>{nav}</nav>"
+                         + (f"<script>try{{localStorage.setItem('grimorio.lang','{L}')}}catch(e){{}}</script>" if chosen else "") + body).encode(), "text/html; charset=utf-8")
 
 
 def _go(h, tok):
@@ -288,8 +466,9 @@ def room_link(h, con, token, name, me=None, act=""):
     if act == "info":  # para a app de um amigo: que sala é (o formato pré-escolhe os decks a levar)
         return h.json({"api": API, "kind": "sala", "name": r[2], "type": r[3], "format": r[4], "casual": bool(r[5]), "hid": host_id(con)}) if r and r[1] == "open" \
             else h.json({"erro": "Esta sala já não está aberta."}, 404)
+    L = lang(h)
     if not r or r[1] != "open" or act:
-        return _page(h, "<p>Esta sala já não está aberta. Pede outro link a quem te convidou.</p>", 404)
+        return _page(h, f"<p>{t(L, 'room_bad')}</p>", 404, L)
     owner = r[0]
     g = by_token(con, cookie_token(h.headers))
     if g and g["owner"] == owner:  # já é convidado deste Grimório
@@ -298,28 +477,22 @@ def room_link(h, con, token, name, me=None, act=""):
         return h.send(302, b"", "text/plain", {"Location": "/#online"})
     name = re.sub(r"[<>&\"']", "", str(name or "")).strip()[:30]
     if not name:
-        how = ("<div class=box>⚖ <b>Mesa estrita · regras do Forge</b><br>Só amigos, sem bots: o Forge faz cumprir as regras (mana, pilha,"
-               " combate, alvos) e cada um joga no seu ecrã.</div>" if r[3] == "livre" and r[6] else
-               "<div class=box>🃏 <b>Mesa livre · sem regras</b><br>Só amigos, sem bots: cada um mexe nas suas cartas, como numa mesa a sério"
-               " (compras, viras, atacas, contas a vida). Ninguém valida as jogadas.</div>" if r[3] == "livre" else
-               "<div class=box>🤖 <b>Com os bots do Forge</b><br>Juntas um deck teu e os bots do Forge jogam-no por ti, com as regras todas;"
-               " tu vês ao vivo e podes apostar.</div>")
+        how = f"<div class=box>{t(L, ('strict' if r[6] else 'free') if r[3] == 'livre' else 'bots')}</div>"
         prof = me and me.get("profile")
-        mine = (f"<form method=post action='/sala/{html.escape(token)}/perfil'><button class=go>👤 Entrar como {html.escape(prof['name'])}</button>"
-                " <small>com os teus decks deste Grimório</small></form><p><small>ou, com outro nome:</small></p>") if prof else ""
-        return _page(h, f"<h2>{'🃏' if r[3] == 'livre' else '🎲'} {html.escape(r[2] or 'Sala')}</h2>{how}{'' if prof else APP_BTN}{mine}"
-                     "<form><p>Entra com um nome para jogares nesta sala. Não precisas de ter decks: na sala podes usar um emprestado,"
-                     " um do meta ou colar a tua lista.</p><input name=nome maxlength=30 required placeholder='O teu nome' style='width:100%;box-sizing:border-box'>"
-                     "<p><button class=go>Entrar</button></p></form>"
-                     "<div class=box><b>Tens o Grimório no teu PC ou telemóvel?</b><br><small>Na tua app: Coliseu › 🌍 Online ›"
-                     " «🔗 Entrar com um link» e cola este link: entras como o teu perfil, com os teus decks.</small>"
-                     "<p><small>Ou traz uma cópia do teu Grimório (ficheiro <b>.grimorio</b>, em Definições › Cópias):</small><br>"
+        mine = (f"<form method=post action='/sala/{html.escape(token)}/perfil'><button class=go>{t(L, 'as_prof', n=prof['name'])}</button>"
+                f" <small>{t(L, 'as_prof_s')}</small></form><p><small>{t(L, 'other')}</small></p>") if prof else ""
+        js = json.dumps({k: t(L, k) for k in ("reading", "failed", "which")}, ensure_ascii=False).replace("<", "\\u003c")
+        return _page(h, f"<h2>{'🃏' if r[3] == 'livre' else '🎲'} {html.escape(r[2] or t(L, 'room'))}</h2>{how}{'' if prof else app_btn(L)}{mine}"
+                     f"<form><p>{t(L, 'room_p')}</p><input name=nome maxlength=30 required placeholder='{html.escape(t(L, 'name_ph'))}' style='width:100%;box-sizing:border-box'>"
+                     f"<p><button class=go>{t(L, 'enter')}</button></p></form>"
+                     f"<div class=box><b>{t(L, 'has_app')}</b><br><small>{t(L, 'room_app')}</small>"
+                     f"<p><small>{t(L, 'copy')}</small><br>"
                      "<input type=file id=f accept='.grimorio'> <span id=st></span></p></div>"
-                     "<script>f.onchange=async()=>{const x=f.files[0];if(!x)return;st.textContent='A ler…';"
+                     f"<script>const T={js};f.onchange=async()=>{{const x=f.files[0];if(!x)return;st.textContent=T.reading;"
                      "const go=async q=>{const r=await fetch(location.pathname.replace(/\\/$/,'')+'/importar'+q,{method:'POST',body:x});const j=await r.json().catch(()=>({}));"
-                     "if(!r.ok){st.textContent=j.erro||'Não deu.';return}if(j.go){location.href=j.go;return}"
-                     "st.innerHTML='Que perfil és tu? '+j.profiles.map(p=>`<button data-p=\"${p.id}\">${p.name} (${p.decks})</button>`).join(' ');"
-                     "st.querySelectorAll('button').forEach(b=>b.onclick=()=>go('?perfil='+encodeURIComponent(b.dataset.p)))};go('')}</script>")
+                     "if(!r.ok){st.textContent=j.erro||T.failed;return}if(j.go){location.href=j.go;return}"
+                     "st.textContent=T.which;j.profiles.forEach(p=>{const b=document.createElement('button');b.textContent=`${p.name} (${p.decks})`;"
+                     "b.onclick=()=>go('?perfil='+encodeURIComponent(p.id));st.append(b,' ')})};go('')}</script>", 200, L)
     init(con)
     fid, tok = secrets.token_hex(6), secrets.token_urlsafe(18)
     con.execute("INSERT INTO friends (id, owner, name, token, created, revoked) VALUES (?,?,?,?,?,NULL)", (fid, owner, f"{name} (sala)", tok, time.time()))

@@ -208,7 +208,7 @@ export function Invite({ r, net, share, title, note, label }) {  // title/note/l
 
 // ---------- as salas ----------
 const OLD_H = 12
-export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount, onCreate, noCta }) {  // noCta: sem os botões do vazio (a Taverna tem os seus)
+export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount, onCreate, noCta, empty }) {  // noCta: sem os botões do vazio (a Taverna tem os seus); empty: o texto do vazio para um convidado
   const [list, setList] = useState(null), [decks, setDecks] = useState([]), [pick, setPick] = useState({}), [err, setErr] = useState(''), [showOld, setShowOld] = useState(false)
   const seen = useRef({}), seats = useRef({}), [toast, setToast] = useState(null), [busy, setBusy] = useState('')  // mesa livre onde estou: quando a mesa começa, abre-se sozinha
   const load = () => j('/api/rooms').then(l => {
@@ -248,7 +248,7 @@ export function Rooms({ data, guest, open, openTable, net, share, fresh, onCount
       {toast && <p className="ml-room-toast" role="status">{toast}</p>}
       {!opened.length && <div className="card on-empty">
         <b>🚪 {tx('Não há salas abertas.')}</b>
-        <p className="small muted">{guest ? tx('Quando quem te convidou abrir uma sala, ela aparece aqui.') : tx('Cria uma sala e manda o link: quem o abre entra com um deck seu e a mesa começa quando estiverem todos prontos.')}</p>
+        <p className="small muted">{guest ? (empty || tx('Quando quem te convidou abrir uma sala, ela aparece aqui.')) : tx('Cria uma sala e manda o link: quem o abre entra com um deck seu e a mesa começa quando estiverem todos prontos.')}</p>
         {!guest && !noCta && <div className="row-btns"><button type="button" className="primary on-big" onClick={onCreate}>＋ {tx('Criar sala')}</button><a className="on-big on-btn" href="#levar">🔗 {tx('Entrar com um link')}</a></div>}
       </div>}
       {opened.map(r => <Room key={r.id} r={r} fresh={r.id === fresh} {...props} />)}
@@ -275,13 +275,14 @@ function Room({ r, fresh, data, guest, net, share, busy, act, cancel, solo, open
             <span className={`on-tag mode ${livre || r.free ? 'livre' : r.misto ? 'misto' : 'bots'}`} title={why.slice(1).join(' ')}>{ico} {mname}</span>
             {!livre && !r.free && !r.misto && r.type !== 'jogo' && TYPES[r.type] && <span className="on-tag">{TYPES[r.type][0]}</span>}
             {r.giant && <span className="on-tag">2 × 2 {tx('Two-Headed Giant')}</span>}
+            {r.opener && <span className="on-tag by" title={tx('Mesa aberta por um membro da Taverna')}>🍺 {r.own ? tx('aberta por ti') : tx('aberta por {n}', { n: r.opener.replace(/ \((sala|taverna)\)$/, '') })}</span>}
             <span className="on-tag">{fmtL}</span>
             <span className={`on-tag ${isOpen && few ? 'warn' : ''}`}>👥 {n}/{r.max}{isOpen && r.min !== r.max ? ` · ${tx('mín. {m}', { m: r.min })}` : ''}</span>
           </div></div>
         <div className="on-room-act">
           {r.status === 'started' ? (livre ? (mine.length || !guest ? <button className="primary" onClick={() => openTable(r.tid)}>{tx('🃏 Ir para a mesa')}</button> : <span className="small muted">{tx('a jogar')}</span>)
             : <button className="primary" onClick={() => open(r.tid)}>{r.type === 'jogo' ? tx('🎲 Ver o jogo') : tx('🏆 Ver o torneio')}</button>)
-            : !guest && isOpen && <>
+            : (!guest || r.own) && isOpen && <>
               <button className="primary" disabled={few || !!busy} onClick={() => act(r.id, 'start')} title={few ? tx('Precisa de pelo menos {m} jogadores (há {n})', { m: r.min, n }) : undefined}>{busy === `${r.id}:start` ? tx('A abrir a mesa…') : tx('▶ Começar')}</button>
               <button className="link small" onClick={() => cancel(r)}>{tx('cancelar')}</button></>}
         </div>
@@ -318,7 +319,7 @@ function FreeLobby({ r, data, guest, busy, act, solo, mine, join }) {
     <p className={`ml-wait on-wait ${n >= r.min ? 'ready' : ''} ${r.go != null ? 'go' : ''}`} role="status"><i className="ml-pulse" />
       {r.go != null ? <b>{tx('Todos prontos! A mesa abre em {s} s…', { s: Math.ceil(r.go) })}</b>
         : n < r.min ? tx('À espera de jogadores: {n} de {m} para começar (cabem {x})', { n, m: r.min, x: r.max })
-          : all ? tx('Todos prontos.') : tx('{k} de {n} prontos. A mesa abre quando todos carregarem em «Pronto»{h}.', { k: nReady, n, h: guest ? '' : tx(' (ou começa já)') })}
+          : all ? tx('Todos prontos.') : tx('{k} de {n} prontos. A mesa abre quando todos carregarem em «Pronto»{h}.', { k: nReady, n, h: guest && !r.own ? '' : tx(' (ou começa já)') })}
       {guest && me && n < r.min && <> · {tx('estás sentado; a mesa abre-se sozinha quando houver gente que chegue e estiverem todos prontos')}</>}</p>
     <div className="on-seatrow">
       <Seats r={r} guest={guest} act={act} />
