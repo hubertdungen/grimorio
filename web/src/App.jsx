@@ -35,6 +35,7 @@ import Settings from './Settings.jsx'
 import { ApkBanner, DesktopUpdBanner } from './apkupdate.jsx'
 import { WhoPlays, ProfileChip } from './Profiles.jsx'
 import { FriendRoomModal, RemoteRoom, BringMine, VOLTA } from './FriendRoom.jsx'
+import { isTouch } from './touch.js'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
 const FROM_ROOM = window.location.hash === '#online'  // veio pelo link de uma sala (guests.room_link): vai direto ao Online
@@ -63,8 +64,8 @@ function changed(a, b) {
 }
 const UndoBtns = ({ act, hist }) => (
   <span className="undo-btns">
-    <button onClick={act.undo} disabled={!hist[0]} title={tx('Desfazer (Ctrl+Z)')}>↶ {tx('Desfazer')}</button>
-    <button onClick={act.redo} disabled={!hist[1]} title={tx('Refazer (Ctrl+Shift+Z)')}>↷ {tx('Refazer')}</button>
+    <button onClick={act.undo} disabled={!hist[0]} title={isTouch() ? undefined : tx('Desfazer (Ctrl+Z)')}>↶ {tx('Desfazer')}</button>
+    <button onClick={act.redo} disabled={!hist[1]} title={isTouch() ? undefined : tx('Refazer (Ctrl+Shift+Z)')}>↷ {tx('Refazer')}</button>
   </span>
 )
 const GROUP_L = { Outras: tx('Outras'), Desconhecidas: tx('Desconhecidas') }
@@ -488,7 +489,7 @@ export default function App() {
           <div className="col-bar">
             <b className="col-title"><Icon n="coliseu" /> {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
             <span className="seg">{COL_MODES.filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, ic, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}><Icon n={ic} />{l}</button>)}</span>
-            <button className="fs-btn" onClick={fullscreen} title={tx('Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
+            <button className="fs-btn" onClick={fullscreen} title={isTouch() ? tx('Ecrã inteiro') : tx('Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
             <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>
           <div hidden={guest || colMode !== 'bots'}>{!guest && <LabView {...{ data, deck, fmt, act, ctx, playFrom }} />}</div>

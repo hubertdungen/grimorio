@@ -5,6 +5,7 @@
 // baixo — fica na tua mão: passar o rato (ou manter premido) mostra-a em grande, um clique devolve-a à mesa.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { tx } from './i18n.js'
+import { held } from './touch.js'
 import { img } from './data.js'
 import { lookup } from './game.js'
 import { fpPrefs } from './fpprefs.js'
@@ -122,7 +123,7 @@ export default function Lobby3D({ r, data, act }) {
         {(hand.length > 0 || Object.keys(others).length > 0) && <div className="lobby3d-hand" aria-label={tx('A tua mão no lobby')}>
           {hand.map(c => <button key={c.id} type="button" className="lobby3d-hc" title={tx('Clica para devolver à mesa')}
             onMouseEnter={() => setBig(c)} onMouseLeave={() => setBig(null)} onClick={() => back(c)}
-            onPointerDown={e => { if (e.pointerType !== 'mouse') { clearTimeout(hold.current); hold.current = setTimeout(() => setBig(c), 450) } }}
+            onPointerDown={e => { if (e.pointerType !== 'mouse') { clearTimeout(hold.current); hold.current = setTimeout(() => { held(); setBig(c) }, 450) } }}
             onPointerUp={() => clearTimeout(hold.current)}>
             {c.url ? <img src={c.url} alt={c.name} /> : <span>{c.name}</span>}</button>)}
           {Object.entries(others).map(([by, n]) => <small key={by} className="muted">{tx('{p} tem {n} na mão', { p: nameOf(by), n })}</small>)}

@@ -22,6 +22,7 @@ import { Hands, throttlePtr, useTick, ptrCol } from './ptrs.jsx'
 import { useBackClose } from './backnav.js'
 import HandLook from './HandLook.jsx'
 import SideboardStep from './SideboardStep.jsx'
+import { isTouch } from './touch.js'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -110,26 +111,27 @@ function MatModal({ onClose, onMat }) {
 
 function Help({ onClose }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
-  const P = fpPrefs(), K = { t: P.tap.toUpperCase(), f: P.flip.toUpperCase() }  // as teclas escolhidas em Definições › Mesa
+  const P = fpPrefs(), K = { t: P.tap.toUpperCase(), f: P.flip.toUpperCase() }, T = isTouch()  // as teclas escolhidas em Definições › Mesa; no toque, sem teclas
   return (
     <div className="fp-modal" onClick={onClose}><div className="fp-ask ml-help" onClick={e => e.stopPropagation()}>
       <h3>🃏 {tx('Mesa livre · sem regras')}</h3>
       <p>{tx('Aqui não há bots nem regras automáticas: cada um mexe nas suas cartas, como numa mesa a sério. O que vale é o que combinarem entre vocês.')}</p>
       <ul>
-        <li><b>{tx('Comprar')}</b> — {tx('toca duas vezes na tua biblioteca (ou D). Um toque abre o menu dela: comprar 2, ver o topo, baralhar, moer, exilar o topo.')}</li>
-        <li><b>{tx('Jogar')}</b> — {tx('arrasta uma carta da mão para o teu lado da mesa (ou duplo clique).')}</li>
-        <li><b>{tx('Virar (tap)')}</b> — {tx('clica numa carta tua na mesa (ou {k} com o rato por cima).', { k: K.t })}</li>
+        <li><b>{tx('Comprar')}</b> — {T ? tx('toca duas vezes na tua biblioteca. Um toque abre o menu dela: comprar 2, ver o topo, baralhar, moer, exilar o topo.') : tx('toca duas vezes na tua biblioteca (ou D). Um toque abre o menu dela: comprar 2, ver o topo, baralhar, moer, exilar o topo.')}</li>
+        <li><b>{tx('Jogar')}</b> — {T ? tx('arrasta uma carta da mão para o teu lado da mesa (ou toca-lhe duas vezes).') : tx('arrasta uma carta da mão para o teu lado da mesa (ou duplo clique).')}</li>
+        <li><b>{tx('Virar (tap)')}</b> — {T ? tx('toca numa carta tua na mesa.') : tx('clica numa carta tua na mesa (ou {k} com o rato por cima).', { k: K.t })}</li>
         <li><b>{tx('Atacar')}</b> — {tx('arrasta a tua criatura para o lado do adversário: fica virada e a atacar.')}</li>
         <li><b>{tx('Feitiços e alvos')}</b> — {tx('arrasta um instantâneo ou feitiço para uma carta ou para a esfera de um jogador: vai para a pilha com esse alvo. Para responder, arrasta uma carta para cima do feitiço na pilha (Counterspell…). Ao «Resolver», o dano, destruir, exilar, devolver, anular, comprar e a vida fazem-se sozinhos.')}</li>
         <li><b>{tx('Bloquear')}</b> — {tx('arrasta a tua criatura para cima de um atacante. Para atacar um planeswalker ou uma batalha, larga o atacante em cima dela. Uma aura ou equipamento arrastado para fora da carta solta-se.')}</li>
-        <li><b>{tx('Cemitério, exílio, mão, biblioteca')}</b> — {tx('arrasta a carta para o monte, ou usa o menu da carta (clique direito; no telemóvel, tocar e manter).')}</li>
+        <li><b>{tx('Cemitério, exílio, mão, biblioteca')}</b> — {T ? tx('arrasta a carta para o monte, ou toca e mantém nela para abrir o menu da carta.') : tx('arrasta a carta para o monte, ou usa o menu da carta (clique direito; no telemóvel, tocar e manter).')}</li>
         <li><b>{tx('Marcadores, virar para baixo, transformar, revelar')}</b> — {tx('no menu da carta.')}</li>
         <li><b>{tx('Auras e equipamentos')}</b> — {tx('larga-os em cima da carta (ou «Prender a…» no menu): ficam presos a ela e saem soltos se ela sair.')}</li>
         <li><b>{tx('Olhar para a mão de outro')}</b> — {tx('Thoughtseize, Duress, Peek…: toca no círculo da vida dele e escolhe «Olhar para a mão». Só tu vês as cartas (os outros sabem que olhaste) e mandas a escolhida para o cemitério, o exílio ou a biblioteca.')}</li>
         <li><b>{tx('Vida, veneno, energia, dano de comandante')}</b> — {tx('toca no círculo da vida de qualquer jogador; aí também o monarca, a iniciativa e a bênção da cidade.')}</li>
         <li><b>{tx('Dados e moeda')}</b> — {tx('no painel, ou agarra um dado na mesa e atira-o: todos veem o mesmo lançamento e o mesmo resultado.')}</li>
-        <li><b>{tx('Caneta')}</b> — {tx('✏️ ou P: desenha na mesa para mostrar algo; os outros veem o risco ao vivo e ele apaga-se sozinho.')}</li>
-        <li><b>{tx('Teclas')}</b> — {tx('com o rato por cima de uma carta tua na mesa, {t} vira-a e {f} transforma-a ou vira-a para baixo. D compra{sp}, V vê o topo, S baralha, M moe, X exila o topo, P caneta, Esc fecha.', { t: K.t, f: K.f, sp: P.space ? tx('; Espaço ou Enter passa à fase seguinte e Shift+Espaço passa a vez; + e − põem e tiram marcadores +1/+1') : '' })}</li>
+        <li><b>{tx('Caneta')}</b> — {T ? tx('✏️: desenha na mesa para mostrar algo; os outros veem o risco ao vivo e ele apaga-se sozinho.') : tx('✏️ ou P: desenha na mesa para mostrar algo; os outros veem o risco ao vivo e ele apaga-se sozinho.')}</li>
+        {T ? <li><b>{tx('Tocar e manter')}</b> — {tx('numa carta abre o menu dela (o mesmo que o botão direito), com «Ver em grande»; num botão ou num símbolo, diz o que é. Dois dedos ampliam a carta em grande; desliza para baixo para a fechar.')}</li>
+        : <li><b>{tx('Teclas')}</b> — {tx('com o rato por cima de uma carta tua na mesa, {t} vira-a e {f} transforma-a ou vira-a para baixo. D compra{sp}, V vê o topo, S baralha, M moe, X exila o topo, P caneta, Esc fecha.', { t: K.t, f: K.f, sp: P.space ? tx('; Espaço ou Enter passa à fase seguinte e Shift+Espaço passa a vez; + e − põem e tiram marcadores +1/+1') : '' })}</li>}
         <li><b>{tx('Conversa')}</b> — {tx('as jogadas e as mensagens juntas; escreve @ para mostrar uma carta e # para uma regra.')}</li>
       </ul>
       <p className="muted small">{tx('Ninguém vê a tua mão nem a tua biblioteca (o servidor nem lhes manda os nomes). As cartas viradas para baixo só as vês tu.')}</p>
@@ -463,7 +465,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     if (field && from === 'field') { play('tick', { amount: 1 }); send({ c: 'attack', id: cid, seat }); return false }  // no lado de outro: atacar (a carta volta e fica virada)
     return false
   }
-  const [big, setBig] = useState(null)  // tocar e manter numa carta que não é tua: em grande (as tuas abrem o menu)
+  const [big, setBig] = useState(null)  // a carta em grande: «Ver em grande» no menu, ou tocar e manter na mão de outro
   const previewLive = m => {  // a carta que arrasto: os outros veem-na a andar (de face se a podem ver, senão o verso)
     preview(m)
     const p = m && frac(m.x, m.y)
@@ -472,7 +474,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     const own = f?.width && sd && m.x >= sd.left && m.x <= sd.right && m.y >= sd.top && m.y <= sd.bottom
     if (p) live({ k: 'card', id: m.id, ...p, ...(own && { fx: (m.x - f.left) / f.width, fy: (m.y - f.top) / f.height }) }); else if (!m) live({ k: 'end' })
   }
-  const { down, dragged } = useDrag(drop, cid => openMenu(cid, downAt.current.x, downAt.current.y), previewLive, '[data-h], .bside.bottom .pc[data-z^="k:"], .bside.bottom .pc-attc[data-z]', el => { const z = el?.dataset.z, id = z?.startsWith('k:') ? +z.slice(2) : +el?.dataset.zid, n = byId.get(id)?.c?.n; if (n) setBig(n) })
+  const { down, dragged } = useDrag(drop, cid => openMenu(cid, downAt.current.x, downAt.current.y), previewLive, '[data-h], .bside.bottom .pc[data-z^="k:"], .bside.bottom .pc-attc[data-z]', el => { const z = el?.dataset.z, id = z?.startsWith('k:') ? +z.slice(2) : +el?.dataset.zid, e = byId.get(id); if (e && !(e.z === 'hand' && e.c.o !== me)) openMenu(id, downAt.current.x, downAt.current.y); else if (e?.c?.n) setBig(e.c.n) })  // tocar e manter = o botão direito (o menu tem «Ver em grande»)
   const [handOrder, setHandOrder] = useState(null)
   const openMenu = (cid, x, y) => { const e = byId.get(cid); if (!e || (e.z === 'hand' && e.c.o !== me)) return; setMenu({ id: cid, x, y }); setZoom(byId.get(cid)?.c.n || null); peek.hide() }
 
@@ -656,7 +658,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     const ctr = (k, d) => () => send({ c: 'counter', id: cid, k, d })
     const to = [['✋ ' + tx('Para a mão'), () => mv(cid, 'hand')], ['⚰ ' + tx('Para o cemitério'), () => mv(cid, 'graveyard')], ['⌀ ' + tx('Para o exílio'), () => mv(cid, 'exile')],
       ['▤ ' + tx('Topo da biblioteca'), () => mv(cid, 'library')], ['▥ ' + tx('Fundo da biblioteca'), () => mv(cid, 'library', { bottom: true })]].filter((_, k) => !(z === 'hand' && k === 0) && !(z === 'graveyard' && k === 1) && !(z === 'exile' && k === 2))
-    const head = [[short(c.n) || tx('Carta virada para baixo'), null]]
+    const head = [[short(c.n) || tx('Carta virada para baixo'), null], ...(isTouch() && c.n ? [['🔍 ' + tx('Ver em grande'), () => setBig(c.n)]] : [])]  // no toque não há o painel ao lado
     if (z === 'battlefield') {
       const opp = others.filter(i => !seats[i].out)
       return [...head, [c.t ? tx('↺ Desvirar') : tx('↻ Virar (tap)'), () => tap(cid)],
@@ -708,7 +710,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         {dice.res?.items && s.roll && <button type="button" className="fp-dres" onClick={dice.off} title={tx('Tirar os dados da mesa')}>{who(s.roll.s)}: {dice.res.items.map(x => (x.type === 'moeda' ? (x.v === 1 ? tx('Cara') : tx('Coroa')) : x.v)).join(' + ')}{dice.res.items.length > 1 && dice.res.items.every(x => x.type !== 'moeda') ? ` = ${dice.res.items.reduce((a, x) => a + x.v, 0)}` : ''} ✕</button>}
       </div>
       <div className="ml-tg">
-        {T('✏️', tx('Caneta'), () => pen.setOn(v => !v), { on: pen.on, cls: pen.on ? 'on' : '', dis: false, title: tx('Desenhar na mesa (P): os outros veem o risco, que se apaga sozinho') })}
+        {T('✏️', tx('Caneta'), () => pen.setOn(v => !v), { on: pen.on, cls: pen.on ? 'on' : '', dis: false, title: (isTouch() ? tx('Desenhar na mesa: os outros veem o risco, que se apaga sozinho') : tx('Desenhar na mesa (P): os outros veem o risco, que se apaga sozinho')) })}
         {pen.on && <span className="ml-cols" role="radiogroup" aria-label={tx('Cor da caneta')}>{PEN_COLS.map(c => <button key={c} role="radio" aria-checked={pen.col === c} className={pen.col === c ? 'on' : ''} style={{ '--c': c }} onClick={() => pen.setCol(c)} aria-label={c} />)}</span>}
         {s.mine?.length > 1 && T('⇄', tx('Trocar de lugar'), () => setSeatSel(s.mine[(s.mine.indexOf(s.me) + 1) % s.mine.length]), { title: tx('Os dois decks são teus: joga agora o outro lado') })}
         {phone && T('💬', tx('Conversa'), () => setChatOpen(v => !v), { on: chatOpen, cls: chatOpen ? 'on' : '', dis: false, badge: !chatOpen && unread })}
@@ -768,7 +770,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
               <span className="ml-badge" title={tx('Sem bots e sem regras automáticas: cada um mexe nas suas cartas.')}>🃏 {tx('Mesa livre · sem regras')}</span>
               <span className="fp-turn">{tx('Turno {n}', { n: s.turn })} · {s.teams ? (s.teams[s.active] === s.teams[me] ? tx('vez da tua equipa') : tx('vez de {p}', { p: seats.map((_, i) => i).filter(i => s.teams[i] === s.teams[s.active]).map(who).join(' + ') }))
                 : s.active === me ? tx('a tua vez') : tx('vez de {p}', { p: who(s.active) })}{s.teams && <b className="ml-2hg" title={tx('Two-Headed Giant: vida 30 e veneno partilhados pela equipa')}> · 2HG</b>}</span>
-              {!ended && <span className="fp-phases ml-steps" role="group" aria-label={tx('Fases')}>{STEPS.map(([k, l], i) => <button key={k} type="button" className={`${s.step === i ? 'on' : ''} ${s.step === i && k === 'combat' ? 'combat' : ''}`} disabled={!myTurn} onClick={() => send({ c: 'step', to: i })} title={myTurn ? tx('Espaço ou Enter: fase seguinte · Shift+Espaço: passar a vez') : undefined}>{l}</button>)}</span>}
+              {!ended && <span className="fp-phases ml-steps" role="group" aria-label={tx('Fases')}>{STEPS.map(([k, l], i) => <button key={k} type="button" className={`${s.step === i ? 'on' : ''} ${s.step === i && k === 'combat' ? 'combat' : ''}`} disabled={!myTurn} onClick={() => send({ c: 'step', to: i })} title={myTurn ? (isTouch() ? tx('Toca para ir para esta fase') : tx('Espaço ou Enter: fase seguinte · Shift+Espaço: passar a vez')) : undefined}>{l}</button>)}</span>}
               {s.day && <DayNight v={s.day} onClick={ended ? null : () => send({ c: 'day' })} />}
               {pickAt != null && <span className="ml-pickmsg">📎 {tx('Toca na carta a que a queres prender')} <button className="ml-mini" onClick={() => setPickAt(null)}>✕</button></span>}
               {s.solo && <span className="ml-gf" title={tx('A vida de um adversário imaginário, para contares o dano que farias')}>🐟 {tx('Adversário')}
@@ -795,7 +797,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         </div></div>}
       {zone && <div className="fp-modal zone" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()}>
         <p><b>{zone.which === 'graveyard' ? tx('Cemitério de {n}', { n: who(zone.seat) }) : zone.which === 'libv' ? tx('Biblioteca de {n}', { n: who(zone.seat) }) : tx('Exílio de {n}', { n: who(zone.seat) })}</b> · {zoneCards.length} <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
-        <p className="small muted">{tx('Toca numa carta para a mudares de sítio; duplo clique põe-na na mão (com Shift: no campo).')}</p>
+        <p className="small muted">{isTouch() ? tx('Toca numa carta para a mudares de sítio; dois toques põem-na na mão.') : tx('Toca numa carta para a mudares de sítio; duplo clique põe-na na mão (com Shift: no campo).')}</p>
         <div className="fp-opts">{zoneCards.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} data={data} big onClick={e => {
           const now = Date.now(), x = downAt.current.x, y = downAt.current.y
           if (now - (libClick.current || 0) < 300 && libT.current?.id === c.id) { clearTimeout(libT.current.t); libClick.current = 0; return e?.shiftKey ? toField(c.id) : mv(c.id, 'hand') }
@@ -811,7 +813,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
           ['📣', tx('Revelar o topo a todos'), '', () => send({ c: 'revealtop' })], [(mine?.rt ? '✓ ' : '◻ ') + tx('Jogar com o topo à vista'), '', '', () => send({ c: 'revealtop', always: 1 })],
           [(mine?.ls ? '✓ ' : '◻ ') + tx('Mostrar a biblioteca aos outros'), '', '', () => send({ c: 'showlib' })]]
           .map(([i, l, k, f]) => <button key={l} type="button" role="menuitem" onClick={() => { setLibMenu(null); f() }}><span>{i} {l}</span>{k && <kbd>{k}</kbd>}</button>)}
-        <small className="muted">{tx('Duplo clique na biblioteca compra uma.')}</small>
+        <small className="muted">{isTouch() ? tx('Dois toques na biblioteca compram uma.') : tx('Duplo clique na biblioteca compra uma.')}</small>
       </div>}
       {top && <div className="fp-modal"><div className="fp-ask">
         {mine.srch ? <p><b>🔍 {tx('A tua biblioteca')}</b> <span className="muted small">{tx('só tu vês; ao fechar baralha')}</span> <input className="ml-srch" type="search" autoFocus value={srch} onChange={e => setSrch(e.target.value)} placeholder={tx('Procurar: nome, tipo ou texto (ex.: Forest, Equipment)')} aria-label={tx('Procurar na biblioteca')} /></p>

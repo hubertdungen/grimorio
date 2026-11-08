@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { img, TAG_LABEL, sf } from './data.js'
 import { tx, num } from './i18n.js'
 import { pressPeek } from './deckview.js'
+import { held as heldT } from './touch.js'
 import { pointStars, perfStars, trophyStars } from './trophyvalue.js'
 
 const sym = s => sf(`https://svgs.scryfall.io/card-symbols/${s.replace(/\//g, '')}.svg`)
@@ -181,7 +182,7 @@ export function Stars({ r, v = r?.stars, prov = r?.prov, bare = false, label = '
   return (
     <span ref={me} className={`stars${prov ? ' prov' : ''}`} role="img" aria-label={t}
       onPointerEnter={e => { if (e.pointerType === 'mouse') show() }} onPointerLeave={e => { if (e.pointerType === 'mouse') setAt(null) }}
-      onPointerDown={e => { if (e.pointerType !== 'mouse') { held.current = false; hold.current = setTimeout(() => { held.current = true; show() }, 500) } }}
+      onPointerDown={e => { if (e.pointerType !== 'mouse') { held.current = false; hold.current = setTimeout(() => { held.current = true; heldT(); show() }, 450) } }}
       onPointerUp={() => { clearTimeout(hold.current); if (held.current) setAt(null) }} onPointerCancel={() => { clearTimeout(hold.current); setAt(null) }}
       onClickCapture={e => { if (held.current) { held.current = false; e.preventDefault(); e.stopPropagation() } }} onContextMenu={e => e.preventDefault()}>
       {Array.from({ length: slots }, (_, i) => {

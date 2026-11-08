@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { tx } from './i18n.js'
+import { isTouch } from './touch.js'
 import { inPoly } from './universe.js'
 
 const CI = { W: [0.96, 0.92, 0.78], U: [0.31, 0.64, 1], B: [0.66, 0.55, 0.85], R: [1, 0.36, 0.29], G: [0.24, 0.81, 0.48] }
@@ -351,7 +352,7 @@ export default function Map3D({ data, marks, dim, links, onPick, onAdd, focus, f
         <div className="map-tip" style={{ left: Math.min(hover.x + 14, (host.current?.clientWidth || 9999) - 260), top: hover.y + 10 }}>
           <b>{hc.n}</b><small>{hc.t}</small>
           {tips?.get(hover.i) && <em>{tips.get(hover.i)}</em>}
-          <small className="map-tip-k">{tx('clique: ver · duplo clique: juntar ao deck')}</small>
+          <small className="map-tip-k">{isTouch() ? tx('toque: ver · dois toques: juntar ao deck') : tx('clique: ver · duplo clique: juntar ao deck')}</small>
         </div>
       )}
       <div className="map-legend">

@@ -18,6 +18,7 @@ import AIKeys from './AIKeys.jsx'
 import { BasicSettings } from './Basics.jsx'
 import { getBasicDefaults, setBasicDefaults } from './data.js'
 import { DIFF_INFO, getBots, setBots } from './difficulty.js'
+import { isTouch, gestures } from './touch.js'
 
 const PER_GAME = 900, RESERVE = 1000  // MB: ~0,9 GB por jogo do Forge; 1 GB fica para o sistema e o browser
 // quantos jogos cabem na RAM livre agora; os que já correm contam como livres (a memória deles é deles)
@@ -106,26 +107,36 @@ function ImgSource() {
   )
 }
 
+const Gestures = ({ rows }) => <dl className="tch-list">{rows.map(([g, d]) => <div key={g}><dt>{g}</dt><dd>{d}</dd></div>)}</dl>
+
 function TableKeys() {
   const [p, setP] = useState(fpPrefs)
   const save = v => { setP(x => ({ ...x, ...v })); setFpPrefs(v) }
   const okKey = k => /^[a-z0-9]$/.test(k) && k !== 'p'  // P é a caneta na mesa livre
+  const T = isTouch(), G = T && gestures()  // no toque: os gestos em vez das teclas (estas ficam guardadas para o teclado)
   return (
     <>
+      {T ? <>
+        <h4 className="tch-h">{tx('Controlos de toque')}</h4><Gestures rows={G.play} />
+        <h4 className="tch-h">{tx('Na mesa livre (Online)')}</h4><Gestures rows={G.free} />
+      </> : <>
       <label className="chk"><input type="checkbox" checked={p.space} onChange={e => save({ space: e.target.checked })} /> {tx('Espaço faz o mesmo que Enter (OK / passar)')}</label>
       <label className="chk"><input type="checkbox" checked={p.shiftSpace} onChange={e => save({ shiftSpace: e.target.checked })} /> {tx('Shift+Espaço acaba o turno (como Shift+Enter)')}</label>
+      </>}
       <label className="chk"><input type="checkbox" checked={p.clock} onChange={e => save({ clock: e.target.checked })} /> {tx('Relógio de torneio: a responder ao adversário, passa sozinho ao fim de uns segundos')}</label>
       {p.clock && <div className="set-clock">
         <label className="fmt"><span>{tx('Segundos para responder')}</span><input type="number" min={3} max={30} value={p.clockSec} style={{ width: 70 }} onChange={e => save({ clockSec: Math.max(3, Math.min(30, +e.target.value || 8)) })} /></label>
         <label className="fmt"><span>{tx('Stop: segundos a mais para pensar')}</span><input type="number" min={5} max={90} value={p.clockExtra} style={{ width: 70 }} onChange={e => save({ clockExtra: Math.max(5, Math.min(90, +e.target.value || 20)) })} /></label>
-        <label className="fmt"><span>{tx('Tecla de Stop')}</span><input value={p.clockKey.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (okKey(k) && k !== p.tap && k !== p.flip) save({ clockKey: k }) }} /></label>
+        {!T && <label className="fmt"><span>{tx('Tecla de Stop')}</span><input value={p.clockKey.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (okKey(k) && k !== p.tap && k !== p.flip) save({ clockKey: k }) }} /></label>}
       </div>}
+      {!T && <>
       <label className="fmt"><span>{tx('Tecla para virar a carta debaixo do rato (a outra face, ou de pernas para o ar; só no teu ecrã)')}</span>
         <input value={p.flip.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (okKey(k) && k !== p.tap) save({ flip: k }) }} /></label>
       <label className="fmt"><span>{tx('Tecla para virar (tap) a carta tua na mesa debaixo do rato — o mesmo que clicar nela')}</span>
         <input value={p.tap.toUpperCase()} maxLength={1} style={{ width: 60, textAlign: 'center' }} onChange={e => { const k = e.target.value.slice(-1).toLowerCase(); if (okKey(k) && k !== p.flip) save({ tap: k }) }} /></label>
       <p className="muted small">{tx('Na mesa livre (Online) as mesmas teclas valem, mas Espaço compra uma carta e a tecla de virar transforma a carta ou vira-a para baixo para todos. P é a caneta.')}</p>
       <p className="muted small">{tx('Na mão: um clique levanta a carta e mostra-a; para a jogar, arrasta-a para a mesa (ou duplo clique). Se a largares de volta na mão, fica no sítio onde a largaste.')}</p>
+      </>}
       <label className="chk"><input type="checkbox" checked={p.autopay} onChange={e => save({ autopay: e.target.checked })} /> {tx('Pagar a mana sozinho quando lanças uma carta, só quando há uma maneira óbvia de pagar (com escolha de cores, escolhes tu)')}</label>
       <label className="chk"><input type="checkbox" checked={p.autoresolve} onChange={e => save({ autoresolve: e.target.checked })} /> {tx('Deixar resolver sozinho o que é teu no topo da pilha (sem carregar em OK)')}</label>
       <label className="fmt"><span>{tx('Arrumação do teu lado da mesa')}</span>
@@ -317,7 +328,7 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
   }, [onClose])
   return (
     <div className="view settings set-layout">
-      <div className="set-head"><h2><Icon n="gear" /> {tx('Definições')}</h2><button type="button" className="set-close" onClick={onClose} aria-label={tx('Fechar')} title={tx('Fechar (Esc)')}><span aria-hidden="true">✕</span> {tx('Fechar')}</button></div>
+      <div className="set-head"><h2><Icon n="gear" /> {tx('Definições')}</h2><button type="button" className="set-close" onClick={onClose} aria-label={tx('Fechar')} title={isTouch() ? tx('Fechar') : tx('Fechar (Esc)')}><span aria-hidden="true">✕</span> {tx('Fechar')}</button></div>
       <SetIndex box={box} />
       <div className="set-main" ref={box}>
       {prof?.mode === 'profiles' && prof.current && <section className="card"><h3>{tx('Perfil')}</h3><ProfileManage prof={prof} onSwitch={onSwitch} onNew={onNew} /></section>}

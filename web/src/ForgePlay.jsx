@@ -17,6 +17,7 @@ import RulesQuick from './rulesquick.jsx'
 import { obviousPay } from './mana.js'
 import { useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, pressPeek } from './deckview.js'
+import { isTouch } from './touch.js'
 import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 
 async function j(url, body) {
@@ -55,7 +56,7 @@ function promptText(msg, st, me) {
   if (/^Priority:/.test(m)) {
     if (st?.stack?.length) return tx('Há {n} na pilha: responde com um instantâneo ou OK para deixar resolver.', { n: st.stack.length })
     const mine = st?.active === me?.id, main = st?.phase === 'MAIN1' || st?.phase === 'MAIN2'
-    return mine && main ? tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou duplo clique), ou OK para avançar.') : tx('Tens prioridade: OK para passar.')
+    return mine && main ? (isTouch() ? tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou toca-lhe duas vezes), ou OK para avançar.') : tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou duplo clique), ou OK para avançar.')) : tx('Tens prioridade: OK para passar.')
   }
   if (/^Waiting for/.test(m)) return tx('O adversário está a pensar…')
   const sv = m.match(/Put (.+?) on the top of library or graveyard/i), sc = m.match(/Put (.+?) on (?:the )?top or bottom of (?:your )?library/i)
@@ -1050,7 +1051,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const [, redraw] = useState(0), [matOpen, setMatOpen] = useState(false)
   // ⟳ rodar (telemóvel/tablet): a app Android roda o ecrã ela própria; no browser, ecrã inteiro + bloquear a orientação
   // (o Chrome do Android só deixa em ecrã inteiro). Sem nenhum dos dois: diz para ligar a rotação automática. Ao sair, volta ao normal.
-  const touchDev = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  const touchDev = isTouch()
   // a declarar atacantes; OK sem nenhum atacante com criaturas que podiam atacar = talvez um OK sem querer: pergunta antes
   const declaring = !theirTurn && ATK_ASK(pr?.msg)
   // um só toque conta: com a pergunta aberta (Enter no botão dela também chegava aqui) ou o mesmo pedido já respondido
@@ -1352,7 +1353,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <FsBtn />
       </div>}
       <aside className="fp-side">
-        <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={im(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
+        <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={im(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{isTouch() ? tx('Toca e mantém numa carta para a veres em grande.') : tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}
           <p><Syms text={promptText(pr?.msg, st, me)} /></p>
@@ -1360,11 +1361,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           {clockUi}
           {unstick}
           {selPick}
-          <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
+          <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={isTouch() ? undefined : k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')} />))}</span>}
           <RulesQuick />
-          <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')} {tx('Duplo clique numa carta tua na mesa abre as ações dela, em qualquer fase (também a atacar e a bloquear).')}</p>
+          <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')} {isTouch() ? tx('Toca duas vezes numa carta tua na mesa para abrir as ações dela, em qualquer fase (também a atacar e a bloquear).') : tx('Duplo clique numa carta tua na mesa abre as ações dela, em qualquer fase (também a atacar e a bloquear).')}</p>
           <div className="fp-dicebar"><span className="muted small">🎲</span>
             {[['d6', ['d6']], ['2d6', ['d6', 'd6']], ['d20', ['d20']], [tx('moeda'), ['moeda']]].map(([l, t]) => <button key={l} type="button" className="link small" onClick={() => dice.roll(t)} title={tx('Lançar na mesa')}>{l}</button>)}
             {dice.res?.items && <button type="button" className="fp-dres" onClick={dice.off} title={tx('Tirar os dados da mesa')}>{dice.res.items.map(x => (x.type === 'moeda' ? (dice.res.words?.[x.v - 1]?.n ? tx('Moeda: {n}', { n: dice.res.words[x.v - 1].n }) : x.v === 1 ? tx('Cara') : tx('Coroa')) : x.v)).join(' + ')}{dice.res.items.length > 1 && dice.res.items.every(x => x.type !== 'moeda') ? ` = ${dice.res.items.reduce((a, x) => a + x.v, 0)}` : ''} ✕</button>}</div>

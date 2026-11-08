@@ -8,8 +8,9 @@ import { KIND_LABEL } from './swap.js'
 import { tx } from './i18n.js'
 import './AddSwap.css'
 import { hlProps } from './hl.js'
+import { isTouch } from './touch.js'
 
-const coarse = () => matchMedia('(pointer: coarse)').matches
+const coarse = isTouch
 // motivos com símbolos de mana («Pede {U}{U}{U} com só 2 fontes de U») → os símbolos do Scryfall
 const Reason = ({ t }) => <SymTxt text={t} />
 

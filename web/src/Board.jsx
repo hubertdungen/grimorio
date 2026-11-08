@@ -10,6 +10,7 @@ import { useColors, sideColors, Syms, keepOnScreen } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { attackStyle, attackFx } from './orbfx.js'
 import { leaveGhost } from './tablekit.js'
+import { held, isTouch } from './touch.js'
 import OrbEgg from './OrbEgg.jsx'
 import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
 import { snapBoard, ftBoard, ftTxt } from './fpboard.js'
@@ -1626,7 +1627,7 @@ function LibTop({ k, z, data }) {
   const t = z.libTop, c = lookup(data, t.name), im = useImg(), mine = k === 'a'
   return (
     <span className={`pile libtop ${mine && t.play ? 'play' : ''}`} data-zone="library" data-zid={t.id} {...(mine ? { 'data-h': t.id, 'data-from': 'library' } : {})}
-      title={`${tx('Biblioteca')}: ${z.library} · ${tx('topo à vista: {c}', { c: short(t.name) })}${mine && t.play ? ` · ${tx('podes jogá-la daqui (arrasta ou duplo clique)')}` : ''}`}>
+      title={`${tx('Biblioteca')}: ${z.library} · ${tx('topo à vista: {c}', { c: short(t.name) })}${mine && t.play ? ` · ${(isTouch() ? tx('podes jogá-la daqui (arrasta ou toca-lhe duas vezes)') : tx('podes jogá-la daqui (arrasta ou duplo clique)'))}` : ''}`}>
       <span className="pile-c">{c ? <img src={im(c, 'small')} alt={t.name} /> : <span className="pc-back" />}</span>
       <small>▤ {z.library}</small>
     </span>
@@ -2039,7 +2040,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
     pType.current = e.pointerType
     clearTimeout(press.current?.t)
     const el = e.pointerType !== 'mouse' && e.target.closest('[data-z]')
-    if (el) press.current = { x: e.clientX, y: e.clientY, t: setTimeout(() => { setZoom({ z: el.dataset.z, pin: true }); play('zoom') }, 450) }
+    if (el) press.current = { x: e.clientX, y: e.clientY, t: setTimeout(() => { held(); setZoom({ z: el.dataset.z, pin: true }); play('zoom') }, 450) }
   }
   const unPress = e => { if (press.current && (e.type !== 'pointermove' || Math.hypot(e.clientX - press.current.x, e.clientY - press.current.y) > 10)) { clearTimeout(press.current.t); press.current = null } }
   const hoverStyle = zoom && !zoom.pin && zoom.r ? (() => {

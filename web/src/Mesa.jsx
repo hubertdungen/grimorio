@@ -7,6 +7,7 @@ import { ask } from './confirm.jsx'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
 import { needsMark } from './game.js'
+import { isTouch } from './touch.js'
 
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') } } catch { return d } }
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* sem armazenamento */ } }
@@ -41,7 +42,7 @@ function useHold(fn) {  // carregar e manter: 1 já, depois repete cada vez mais
   return { onPointerDown: start, onPointerUp: stop, onPointerLeave: stop, onPointerCancel: stop, onContextMenu: e => e.preventDefault() }
 }
 
-const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+const coarse = isTouch()
 
 function Player({ p, i, flip, onLife, onPoison, onCmd, onName, spot, pend, opps, cmdr, onTax, onPartner, mon, ini, onMon, onIni }) {  // opps: adversários (modo Commander)
   const minus = useHold(() => onLife(i, -1)), plus = useHold(() => onLife(i, 1))

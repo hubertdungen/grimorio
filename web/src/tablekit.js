@@ -5,10 +5,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { fpPrefs } from './fpprefs.js'
 import { tx } from './i18n.js'
 import { play } from './sfx.js'
+import { held as buzz } from './touch.js'  // tocar e manter: um toque no telemóvel (e o tocar e manter geral fica de fora)
 
 // camada por cima de tudo: em ecrã inteiro só o elemento em ecrã inteiro se vê (o que fosse para o body ficava invisível)
 export const onTop = () => document.fullscreenElement || document.webkitFullscreenElement || document.body
-export const buzz = (ms = 12) => { try { navigator.vibrate?.(ms) } catch { /* sem vibração */ } }  // tocar e manter: um toque no telemóvel
 let dragEnd = 0  // quando acabou o último arrastar (a carta que vem à frente espera um pouco depois de arrumares)
 
 // arrastar com física: a carta segue o ponteiro com um pouco de atraso, inclina-se com a velocidade e, se não puder

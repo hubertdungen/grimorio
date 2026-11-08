@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { ready, tx, LANG } from './i18n.js'
 import { initWake } from './wakelock.js'
+import './touch.js'
 import { remoteFetch } from './remote.js'
 import './friendroom.css'
 

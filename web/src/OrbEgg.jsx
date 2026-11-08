@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { tx, LOCALE } from './i18n.js'
+import { isTouch } from './touch.js'
 
 const HOLD = { mouse: 3500, touch: 3000 }
 const MIX = [['W', '#f5ecc8', tx('Branco')], ['U', '#3b82f6', tx('Azul')], ['B', '#8b6bb0', tx('Preto')], ['R', '#ef4444', tx('Vermelho')], ['G', '#22c55e', tx('Verde')], ['C', '#9ca3af', tx('Incolor')]]
@@ -89,7 +90,7 @@ function Card({ el, start, poison, pmax, names, onIn, onOut }) {
           <figcaption>{w ? tx('Fluido pelas cartas em campo') : tx('Fluido do estilo')}</figcaption></figure>
         <figure><Rose v={env} onHint={setHint} /><figcaption>{tx('Ambiente da mesa')}</figcaption></figure>
       </div>
-      <p className={`egg-hint ${hint ? 'on' : ''}`} aria-live="polite">{hint || tx('Passa o rato pelos gráficos e pelas barras para saberes o que é cada coisa.')}</p>
+      <p className={`egg-hint ${hint ? 'on' : ''}`} aria-live="polite">{hint || (isTouch() ? tx('Toca nos gráficos e nas barras para saberes o que é cada coisa.') : tx('Passa o rato pelos gráficos e pelas barras para saberes o que é cada coisa.'))}</p>
       {w && <ul className="egg-mix">{MIX.map(([k, c, l], i) => (w[i] > 0 ? <li key={k}><i style={{ background: c }} />{l} <b>{pct(w[i] / ps)}</b></li> : null))}
         {w[0] > 0 && w[6] > 0 && <li className="muted">{tx('do branco, {p} vem de feitiços', { p: pct(w[6]) })}</li>}</ul>}
       <p className="egg-say">{top[0] >= 0.15 ? tx('O que mais pesa agora: {f} ({p}).', { f: ENV[top[1]][0].toLowerCase(), p: pct(top[0]) }) : tx('A mesa está calma: nada pesa na esfera.')}</p>

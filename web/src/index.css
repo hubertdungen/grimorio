@@ -1230,6 +1230,17 @@ button.danger { background: #ff5b5b22; border-color: #ff6b5b; color: #ffb3a8; } 
   input[type=range] { height: 36px; } input[type=range]::-webkit-slider-thumb { width: 26px; height: 26px; margin-top: -10px; } input[type=range]::-moz-range-thumb { width: 22px; height: 22px; }
   .dpick-list button { min-height: 52px; }
 }
+/* Toque (classe .touch no <html>, de touch.js): sem teclado, sem as teclas (<kbd>); o texto do title aparece
+   ao tocar e manter (.touch-tip); nas cartas e na mesa o toque longo não seleciona texto nem abre o menu da imagem */
+html.touch kbd { display: none !important; }
+.tch-h { margin: 4px 0 6px; font-size: 14px; color: var(--gold2); }
+.tch-list { margin: 0 0 12px; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 14px; align-items: baseline; } .tch-list > div { display: contents; }
+.tch-list dt { font-weight: 700; } .tch-list dd { margin: 0; color: var(--muted); }
+@media (max-width: 520px) { .tch-list { grid-template-columns: minmax(0, 1fr); gap: 2px; } .tch-list dd { margin-bottom: 8px; } }
+html.touch .settings button.link, html.touch .set-index button { min-height: 44px; }  /* definições ao dedo: o índice e os botões pequenos */
+.touch-tip { position: fixed; z-index: 10000; max-width: min(320px, calc(100vw - 16px)); padding: 7px 11px; border-radius: 8px; background: #10131ff7; color: var(--text); border: 1px solid #ffffff2e;
+  box-shadow: 0 6px 20px #000a; font-size: 14px; line-height: 1.35; pointer-events: none; overflow-wrap: anywhere; }
+html.touch img, html.touch .fp, html.touch .board, html.touch .pc, html.touch .fp-card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
 /* Decks repetidos e semelhança no comparador */
 .dupe-g { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .dupe-g:last-child { border-bottom: 0; } .dupe-g > .primary { margin-left: auto; }
