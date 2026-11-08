@@ -755,8 +755,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (!side || target.closest('.bhud')) return null
     const kind = kindOf(byId.get(id)), P = fpPrefs(), sc = +side.closest('.fp-stage')?.dataset.sc || 1
     const rowOf = k => side.querySelector(`.brow.${k}`) || (k === 'others' ? side.querySelector('.brow.rear') : null)
-    // um terreno vai sempre para a fila dos terrenos, mesmo em Livre ou largado longe dela: só a ordem segue onde o largaste
-    if (kind === 'lands' && rowOf('lands')) {
+    // Livre: a carta fica onde a largas; só entra numa fila se a largares em cima das cartas dela (antes bastava largá-la
+    // à altura de uma fila, e as filas encostam à esquerda/direita: a carta «colava» sempre a um lado)
+    const onCards = row => {
+      const cs = [...row.querySelectorAll('.pc[data-z^="k:"]')].filter(e => e.dataset.z !== `k:${id}` && !e.closest('.bfree')).map(e => e.getBoundingClientRect())
+      return cs.some(r => x >= r.left - 6 && x <= r.right + 6 && y >= r.top - 6 && y <= r.bottom + 6)
+    }
+    // nas outras arrumações um terreno vai sempre para a fila dos terrenos, mesmo largado longe dela: só a ordem segue onde o largaste
+    if (kind === 'lands' && rowOf('lands') && (P.place !== 'free' || onCards(rowOf('lands')))) {
       const row = rowOf('lands'), keys = keysIn(row, '.pc[data-z^="k:"]', 'data-z').filter(k => k !== String(id))
       const before = beforeAt(row, keys, x, y)
       return { row: 'lands', before, box: row }
@@ -771,6 +777,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       const q = cs.length ? { top: Math.min(...cs.map(r => r.top)), bottom: Math.max(...cs.map(r => r.bottom)) } : row.getBoundingClientRect()
       const pad = cs.length ? 22 * sc : 0
       if (P.place !== 'rows' && (y < q.top - pad || y > q.bottom + pad)) continue
+      if (P.place === 'free' && !onCards(row)) continue
       const r = row.classList.contains('front') ? 'front' : row.classList.contains('lands') ? 'lands' : 'others'
       const keys = keysIn(row, '.pc[data-z^="k:"]', 'data-z').filter(k => k !== String(id))
       const before = beforeAt(row, keys, x, y)
