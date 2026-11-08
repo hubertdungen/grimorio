@@ -4093,6 +4093,11 @@ body:has(.fp.compact) :is(.area.coliseu, .view.fp-view) { padding: 0; margin: 0;
   .fp.compact .fp-actbar { flex-wrap: wrap; row-gap: 3px; padding-top: 3px; }
   .fp.compact .fp-actbar > p { order: -1; flex: 1 0 100%; font-size: 12px; }
   .fp.compact .fp-actbar .row-btns { flex: 1 1 auto; } .fp.compact .fp-actbar .row-btns button { flex: 1 1 auto; padding: 6px 10px; }
+  /* o relógio na linha do pedido, pequeno (numa linha só dele empurrava o ⛶ para uma 3.ª linha) */
+  .fp.compact .fp-actbar:has(> .fp-clock) > p { flex: 1 1 0; }
+  .fp.compact .fp-actbar > .fp-clock { order: -1; flex: 0 1 auto; max-width: 42%; min-width: 0; margin: 0; padding: 2px 4px 4px 8px; gap: 4px; font-size: 11px; }
+  .fp.compact .fp-actbar > .fp-clock > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fp.compact .fp-actbar > .fp-clock .fp-stop { min-height: 0; padding: 3px 8px; }
 }
 /* mesa livre compacta: as ações numa barra por baixo da mesa (rola de lado) e a conversa numa gaveta (💬) — antes a barra era
    fixa por cima do fundo da mesa e tapava a mão */
