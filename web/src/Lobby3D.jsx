@@ -17,6 +17,7 @@ const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Typ
 // «deixar ver» nem a conversa da sala; meName: o nome do meu cursor quando não tenho caixa na mesa
 export default function Lobby3D({ r, data, act, live = `/api/rooms/${r.id}/live`, free = false, meName = '' }) {
   const box = useRef(null), api = useRef(null), [open, setOpen] = useState(null), [msg, setMsg] = useState(''), [text, setText] = useState(''), [ok3d, setOk3d] = useState(true)
+  const [grow, setGrow] = useState(false)  // telemóvel: a mesa fica baixa (os lugares, o «Pronto» e a conversa à mão); ⤢ estica-a
   const [ptrs, setPtrs] = useState({}), ptrAt = useRef({}), [pv, setPv] = useState(0)  // pv: as opções dos cursores mudaram  // os cursores dos outros: {quem: {x, z (no plano da mesa), n, age}}
   const [hand, setHand] = useState([]), [big, setBig] = useState(null), [others, setOthers] = useState({}), tossed = useRef(null), chatEnd = useRef(null), me = useRef('host'), hold = useRef(0)
   const seats = useMemo(() => r.players.map(p => {
@@ -110,7 +111,7 @@ export default function Lobby3D({ r, data, act, live = `/api/rooms/${r.id}/live`
   const send = e => { e.preventDefault(); const m = text.trim(); if (!m) return; setText(''); act(r.id, 'chat', { m }) }
   const mine = seats.find(s => s.mine), nameOf = by => seats.find(s => s.key.startsWith(`${by}|`))?.name || by
   return (
-    <div className="lobby3d">
+    <div className={`lobby3d ${grow ? 'grow' : ''}`}>
       <div className="lobby3d-main">
         {ok3d && <div className="lobby3d-view" ref={box} aria-label={tx('Mesa do lobby com as caixas dos decks')}>
           {seePtr && api.current && <div className="ptr-box"><Hands list={Object.entries(ptrs).map(([k, g]) => {
@@ -119,6 +120,7 @@ export default function Lobby3D({ r, data, act, live = `/api/rooms/${r.id}/live`
             const q = api.current.toScreen(g.x, g.z)
             return q && { key: k, x: q.x, y: q.y, col: ptrCol(k), name: (g.n || tx('Alguém')).slice(0, 16), zone: '', age: (Date.now() - a[k].t) / 1000 }
           }).filter(Boolean)} /></div>}
+          <button type="button" className="small lobby3d-grow" onClick={() => setGrow(g => !g)} aria-pressed={grow}>{grow ? `⤡ ${tx('Mesa mais baixa')}` : `⤢ ${tx('Mesa maior')}`}</button>
           {open && <button type="button" className="small lobby3d-close" onClick={closeAll}>📦 {tx('Guardar as cartas na caixa')}</button>}
           {open && <span className="lobby3d-handzone">✋ {tx('Larga aqui uma carta para a veres na tua mão')}</span>}
         </div>}

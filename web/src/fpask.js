@@ -104,6 +104,19 @@ export function cardOfText(label, cards, oracle) {
   return best && best.hit >= 0.6 ? best.c : null
 }
 
+// «ordenar gatilhos»: a carta de cada opção. O Forge manda a carta de origem (src, o id); sem ele vai-se pelo texto, e com
+// mais de uma cópia dessa carta à vista não se sabe qual: fica a imagem sem id ({name, copy: n.º de cópias})
+export function trigCards(options, cards, oracle) {
+  const vis = (cards || []).filter(c => c?.name && !c.hidden)
+  return (options || []).map(o => {
+    if (o.src != null) { const c = vis.find(x => x.id === o.src); if (c) return c }
+    const c = cardOfText(o.label, vis, oracle)
+    if (!c) return null
+    const n = vis.filter(x => x.name === c.name).length
+    return n > 1 ? { name: c.name, copy: n } : c
+  })
+}
+
 // o pedido todo: { src, text (a habilidade), kind ('aura'|'target'|'opt'|'pick'), line (a instrução), harm (1/-1/0), v, inf }
 // pr = o pedido do Forge ({msg, card, cardName}); stk = Map(id da carta → texto da pilha) com o que esteve na pilha há pouco
 export function reqOf(pr, oracle, stk) {
@@ -151,6 +164,68 @@ export function reqOf(pr, oracle, stk) {
   return out
 }
 
+// as escolhas genéricas do Forge («Choose a color», «Choose a creature type», «Choose a number»…): a instrução em português;
+// null = não é uma destas (fica o texto do Forge ou o que o pedido diz)
+const TYPE = { creature: tx('Escolhe um tipo de criatura.'), card: tx('Escolhe um tipo de carta.'), land: tx('Escolhe um tipo de terreno.'), 'basic land': tx('Escolhe um tipo de terreno básico.'),
+  artifact: tx('Escolhe um tipo de artefacto.'), enchantment: tx('Escolhe um tipo de encantamento.'), planeswalker: tx('Escolhe um tipo de planeswalker.'), spell: tx('Escolhe um tipo de feitiço.') }
+const ASK = [
+  [/^Choose a colou?r$/i, () => tx('Escolhe uma cor.')],
+  [/^Choose a colou?r for (.+)$/i, m => tx('Escolhe uma cor para {c}.', { c: m[1] })],
+  [/^Choose a single colou?r from (.+)$/i, m => tx('Escolhe uma cor de {c}.', { c: m[1] })],
+  [/^Choose (\d+) colou?rs\b/i, m => tx('Escolhe {k} cores.', { k: m[1] })],
+  [/^Choose (\d+) or more colou?rs?$/i, m => tx('Escolhe {k} ou mais cores.', { k: m[1] })],
+  [/^Choose (\d+) to (\d+) colou?rs?$/i, m => tx('Escolhe de {a} a {b} cores.', { a: m[1], b: m[2] })],
+  [/^Choose a new colou?r word$/i, () => tx('Escolhe a nova palavra de cor.')],
+  [/^Choose a colou?r word to replace$/i, () => tx('Escolhe a palavra de cor a substituir.')],
+  [/^Choose an? (creature|card|land|basic land|artifact|enchantment|planeswalker|spell) type$/i, m => TYPE[m[1].toLowerCase()]],
+  [/^(?:Choose|Select) a number$/i, () => tx('Escolhe um número.')],
+  [/^How many\?$/i, () => tx('Quantos?')],
+  [/^Choose a value for X$/i, () => tx('Escolhe o valor de X.')],
+  [/^Choose ([A-Z]) for (.+)$/, m => tx('Escolhe o valor de {x} para {c}.', { x: m[1], c: m[2] })],
+  [/^Choose a player$/i, () => tx('Escolhe um jogador.')],
+  [/^Choose an? opponent$/i, () => tx('Escolhe um adversário.')],
+  [/^Choose a card name\.?$/i, () => tx('Diz o nome de uma carta')],
+  [/^Choose an? (.+?) card name\.?$/i, m => { const n = nounPt(`${m[1]} card`), t = !n && nounPt(m[1]); return n ? tx('Diz o nome de uma {n}.', { n: n.n }) : t ? tx('Diz o nome de uma carta de {n}.', { n: t.n }) : tx('Diz o nome de uma carta ({t}).', { t: m[1] }) }],
+  [/^.+ activated (.+) - Choose a mode$/i, m => tx('Escolhe um modo de {c}.', { c: fClean(m[1]) })],
+  [/^Choose (?:a )?mode\b.*$/i, () => tx('Escolhe um modo.')],
+  [/^Choose one\b.*$/i, () => tx('Escolhe uma opção.')],
+  [/^Choose a direction$/i, () => tx('Escolhe uma direção.')],
+  [/^Choose a pile$/i, () => tx('Escolhe um monte.')],
+  [/^Choose a source$/i, () => tx('Escolhe uma fonte.')],
+  [/^Choose a result$/i, () => tx('Escolhe um resultado.')],
+  [/^Choose a protection$/i, () => tx('Escolhe uma proteção.')],
+  [/^Choose a creature$/i, () => tx('Escolhe uma criatura.')],
+  [/^Choose a card$/i, () => tx('Escolhe uma carta.')],
+  [/^Select Mana to Produce$/i, () => tx('Escolhe a mana a produzir.')],
+  [/^Choose ability to play$/i, () => tx('Escolhe a habilidade a usar.')],
+  [/^Choose optional costs$/i, () => tx('Escolhe os custos opcionais.')],
+  [/^Choose keyword to grant$/i, () => tx('Escolhe a habilidade a dar.')],
+  [/^Select counter type\b.*$/i, () => tx('Escolhe o tipo de marcador.')],
+  [/^Select type (?:of )?counters? to (?:add or )?remove$/i, () => tx('Escolhe o tipo de marcador a tirar.')],
+  [/^Choose odd or even$|^Odd or even\??$/i, () => tx('Escolhe ímpar ou par.')],
+]
+export function askPt(msg) {
+  const m0 = String(msg || '').trim()
+  if (!m0 || m0.includes('\n')) return null
+  for (const [re, f] of ASK) { const m = re.exec(m0); if (m) return f(m) }
+  return null
+}
+// o rótulo das opções de vocabulário fixo (cores, tipos de carta, terrenos básicos, sim/não, jogar/comprar…) em português; o
+// que o Forge recebe de volta é o mesmo (o índice da opção, ou o texto original nas escolhas por texto)
+const OPT = { white: tx('Branco'), blue: tx('Azul'), black: tx('Preto'), red: tx('Vermelho'), green: tx('Verde'), colorless: tx('Incolor'), multicolor: tx('Multicor'),
+  artifact: tx('Artefacto'), creature: tx('Criatura'), enchantment: tx('Encantamento'), instant: tx('Instantâneo'), sorcery: tx('tipo de carta§Feitiço'), land: tx('Terreno'),
+  planeswalker: 'Planeswalker', battle: tx('Batalha'), kindred: tx('Tribal'), tribal: tx('Tribal'),
+  plains: tx('Planície'), island: tx('Ilha'), swamp: tx('Pântano'), mountain: tx('Montanha'), forest: tx('Floresta'),
+  yes: tx('Sim'), no: tx('Não'), ok: tx('OK'), play: tx('Jogar primeiro'), draw: tx('Comprar (ir em segundo)'),
+  heads: tx('Cara'), tails: tx('Coroa'), odd: tx('Ímpar'), odds: tx('Ímpar'), even: tx('número§Par'), evens: tx('número§Par'),
+  left: tx('Esquerda'), right: tx('Direita'), 'left (clockwise)': tx('Esquerda (sentido horário)'), 'right (anticlockwise)': tx('Direita (sentido anti-horário)'),
+  tap: tx('Virar'), untap: tx('Desvirar'), 'leave tapped': tx('Deixar virado'), increase: tx('Aumentar'), decrease: tx('Diminuir'),
+  'add counter': tx('Pôr um marcador'), 'remove counter': tx('Tirar um marcador'), 'win the flip': tx('Ganhar a moeda ao ar'), 'lose the flip': tx('Perder a moeda ao ar'),
+  top: tx('Topo da biblioteca'), bottom: tx('Fundo da biblioteca') }
+export const optPt = label => OPT[String(label ?? '').trim().toLowerCase()] ?? label
+// a cor de uma opção («White» → W), para o símbolo de mana ao lado do nome
+export const optSym = label => ({ white: 'W', blue: 'U', black: 'B', red: 'R', green: 'G', colorless: 'C' })[String(label ?? '').trim().toLowerCase()] || ''
+
 export function selfcheck(assert) {
   const O = { 'Spirit Mantle': 'Enchant creature\nEnchanted creature gets +1/+1 and has protection from creatures.', Pacifism: "Enchant creature\nEnchanted creature can't attack or block.",
     'Banishing Light': 'When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.',
@@ -176,4 +251,25 @@ export function selfcheck(assert) {
   assert.equal(cardOfText('Constellation — Whenever an enchantment you control enters, put a +1/+1 counter on Setessan Champion and draw a card. [Zone Changer: Oblivion Ring (9)]', cs, oracle)?.name, 'Setessan Champion')
   assert.equal(cardOfText('Whenever you cast an enchantment spell, you may draw a card. [Card: Oblivion Ring (9), Activator: Tu]', cs, oracle)?.name, 'Verduran Enchantress')
   assert.equal(nounPt('creature you control').n, 'criatura tua'); assert.equal(nounPt('tapped creature').n, 'criatura virada')
+  // escolhas genéricas: a instrução e as opções de vocabulário fixo em português
+  assert.equal(askPt('Choose a color'), 'Escolhe uma cor.'); assert.equal(askPt('Choose a color for Birds of Paradise'), 'Escolhe uma cor para Birds of Paradise.')
+  assert.equal(askPt('Choose a creature type'), 'Escolhe um tipo de criatura.'); assert.equal(askPt('Choose a basic land type'), 'Escolhe um tipo de terreno básico.')
+  assert.equal(askPt('Choose a card type'), 'Escolhe um tipo de carta.'); assert.equal(askPt('Choose a number'), 'Escolhe um número.'); assert.equal(askPt('Select a number'), 'Escolhe um número.')
+  assert.equal(askPt('Choose a player'), 'Escolhe um jogador.'); assert.equal(askPt('Choose a opponent'), 'Escolhe um adversário.')
+  assert.equal(askPt('Choose a value for X'), 'Escolhe o valor de X.'); assert.equal(askPt('Choose X for Walking Ballista'), 'Escolhe o valor de X para Walking Ballista.')
+  assert.equal(askPt('Choose a card name'), 'Diz o nome de uma carta'); assert.equal(askPt('Choose a nonland card name.'), 'Diz o nome de uma carta que não seja terreno.')
+  assert.equal(askPt('Choose a creature card name.'), 'Diz o nome de uma carta de criatura.')
+  assert.equal(askPt('Tu activated Cryptic Command (12) - Choose a mode'), 'Escolhe um modo de Cryptic Command.'); assert.equal(askPt('Choose one'), 'Escolhe uma opção.')
+  assert.equal(askPt('Choose 2 colors (click, then CTRL/CMD + click)'), 'Escolhe 2 cores.')
+  assert.equal(askPt('Select target creature'), null); assert.equal(askPt('Choose a color\nmais'), null)
+  assert.deepEqual(['White', 'Blue', 'black', 'Red', 'Green', 'Colorless'].map(optPt), ['Branco', 'Azul', 'Preto', 'Vermelho', 'Verde', 'Incolor'])
+  assert.deepEqual(['Artifact', 'Creature', 'Sorcery', 'Instant', 'Plains', 'Island', 'Swamp', 'Mountain', 'Forest'].map(optPt), ['Artefacto', 'Criatura', 'Feitiço', 'Instantâneo', 'Planície', 'Ilha', 'Pântano', 'Montanha', 'Floresta'])
+  assert.deepEqual(['Yes', 'No', 'Play', 'Draw', 'Odds', 'Evens', 'heads'].map(optPt), ['Sim', 'Não', 'Jogar primeiro', 'Comprar (ir em segundo)', 'Ímpar', 'Par', 'Cara'])
+  assert.equal(optPt('Goblin'), 'Goblin'); assert.equal(optPt('Grizzly Bears'), 'Grizzly Bears'); assert.equal(optSym('White'), 'W'); assert.equal(optSym('Elf'), '')
+  // gatilhos de duas cópias da mesma carta: cada opção fica com a sua cópia (src do Forge; sem ele, pela ordem)
+  const two = [{ id: 7, name: 'Setessan Champion' }, { id: 9, name: 'Setessan Champion' }, { id: 3, name: 'Verduran Enchantress' }]
+  const lbl = 'Constellation — Whenever an enchantment you control enters, put a +1/+1 counter on Setessan Champion and draw a card.'
+  assert.deepEqual(trigCards([{ label: lbl, src: 9 }, { label: lbl, src: 7 }], two, oracle).map(c => c?.id), [9, 7])
+  assert.deepEqual(trigCards([{ label: lbl }, { label: lbl }], two, oracle).map(c => [c?.id, c?.copy]), [[undefined, 2], [undefined, 2]])
+  assert.deepEqual(trigCards([{ label: lbl }, { label: 'Whenever you cast an enchantment spell, you may draw a card.' }], two, oracle).map(c => c?.id), [undefined, 3])
 }

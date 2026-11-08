@@ -3845,6 +3845,15 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .lobby3d-chat p { margin: 2px 0; font-size: 13px; } .lobby3d-chat b { color: var(--gold, #f2b84b); margin-right: 4px; }
 .lobby3d-say { display: flex; gap: 6px; } .lobby3d-say input { flex: 1; min-width: 0; }
 @media (max-width: 760px) { .lobby3d { grid-template-columns: 1fr; } .lobby3d-view { height: 260px; } }
+/* telemóvel (em pé ou deitado): a mesa 3D fica baixa para os lugares, o «Pronto» e a conversa ficarem à mão; ⤢ estica-a */
+.lobby3d-grow { display: none; position: absolute; left: 8px; top: 8px; z-index: 2; }
+@media (max-width: 760px), (max-height: 500px) {
+  .lobby3d-grow { display: inline-flex; }
+  .lobby3d-view { height: min(240px, 30vh); } .lobby3d.grow .lobby3d-view { height: 68vh; }
+  .lobby3d-chat { min-height: 64px; max-height: 24vh; }
+  .lobby3d-side > p { font-size: 12px; line-height: 1.3; margin: 0; }
+}
+@media (max-height: 500px) { .lobby3d-view { height: 44vh; } .lobby3d.grow .lobby3d-view { height: 82vh; } }
 
 /* lobby: a faixa da mão, as cartas na mão e a carta em grande */
 .lobby3d-main { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }

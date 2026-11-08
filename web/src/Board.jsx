@@ -1948,7 +1948,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
     // em ecrã inteiro (e numa janela) o tabuleiro vive numa caixa da altura do ecrã: quando a mesa não cabe ele é espremido
     // até à altura que tem de facto (clientHeight < scrollHeight). Essa é a altura máxima a sério (antes contava-se até ao
     // fundo do ecrã e a mesa passava uns 30–40 px por baixo); guarda-se até a janela/ecrã inteiro mudar
-    let cap = null
+    let cap = null, last = null  // last: a altura livre e a da mesa no último ajuste (o maior --fit que cabe pode ficar bem abaixo do livre)
     const capNow = () => { if (!narrow() && el.scrollHeight > el.clientHeight + 2) cap = el.clientHeight }
     const avail = () => {
       // dentro de uma janela (ver ao vivo, repetições do torneio) mede-se na janela; em ecrã inteiro no elemento; senão na página
@@ -1977,6 +1977,13 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
         if (g === f) break
         f = g
       }
+      // a altura dá saltos (uma fila que passa a duas quando as cartas crescem): a secante podia parar do lado de lá do salto
+      // e a mesa passava ~50 px do ecrã (telemóvel em pé). Se ainda não cabe, procura-se o maior --fit que cabe
+      if (h(f) > a + 2) {
+        let lo = 0.4, hi = f
+        for (let n = 0; n < 8; n++) { const m = (lo + hi) / 2; if (h(m) > a + 2) hi = m; else lo = m }
+        f = lo
+      }
       if (narrow()) { setM(f); return el.style.setProperty('--fit', f) }
       el.style.setProperty('--fit', Math.max(0.35, Math.min(1.9, f * adj())))
       // tamanho mínimo das cartas escolhido (.px): só vale enquanto o tabuleiro cabe no ecrã — se o mínimo o faz passar,
@@ -1990,6 +1997,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
           el.style.setProperty('--pxf', lo)
         }
       }
+      last = { a: a * adj(), h: size() }
     }
     const KM = 'grimorio.zoomMob'
     const adjM = () => { try { return Math.max(0.4, Math.min(1.6, +localStorage.getItem(KM) || 1)) } catch { return 1 } }
@@ -2010,6 +2018,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
     fitRef.current = () => {  // segurança: as filas têm altura fixa, mas se algo ainda fugir mais de 2% volta a medir (nos dois sentidos)
       if (narrow()) return  // no telemóvel o tamanho é o escolhido: nada de medir a cada jogada
       const a = avail() * adj(), h = size()
+      if (last && Math.abs(last.a - a) < 2 && Math.abs(last.h - h) < 2) return  // nada mudou desde o ajuste
       if (h - a > a * 0.02 + 3 || a - h > a * 0.05) fit()  // margem: pequenas variações não mexem nas cartas
     }
     // as imagens das cartas chegam depois da 1.ª medição e mudam a altura: o tabuleiro volta a medir quando o próprio tamanho muda

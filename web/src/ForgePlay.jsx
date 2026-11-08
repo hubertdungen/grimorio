@@ -19,7 +19,7 @@ import { obviousPay } from './mana.js'
 import { useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, pressPeek } from './deckview.js'
 import { isTouch } from './touch.js'
-import { reqOf, fClean, isTrigger, cardOfText, abilityText } from './fpask.js'
+import { reqOf, fClean, isTrigger, trigCards, abilityText, askPt, optPt, optSym } from './fpask.js'
 import { useDrag, STAGE, useOverlap, useStage, useGameFocus, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 
 async function j(url, body) {
@@ -299,7 +299,7 @@ function NameAsk({ a, data, answer, zoom, src }) {
     else if (e.key === 'Enter') { e.preventDefault(); go(hits[i]) }
   }
   return (
-    <div className="fp-ask fp-name-ask"><p>{/^Choose a card name\.?$/i.test(a.msg || '') ? tx('Diz o nome de uma carta') : a.msg}</p>
+    <div className="fp-ask fp-name-ask"><p>{askPt(a.msg) || a.msg}</p>
       <ForWhat rq={src} data={data} />
       <input type="search" autoFocus value={q} placeholder={tx('Escreve o nome de uma carta…')} onChange={e => { setQ(e.target.value); setI(0) }} onKeyDown={key} aria-activedescendant={hits.length ? `fp-nm-${i}` : undefined} />
       <div className="fp-nm" ref={list} role="listbox">{hits.map((k, j) => { const o = a.options[k], c = lookup(data, o.label); return (
@@ -464,25 +464,26 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog, src, guard
     const trig = /simultaneous abilities/i.test(a.msg || ''), first = /^Resolve first$/i.test(a.first || '') || trig
     const mineAll = (st?.players || []).flatMap(p => [...(p.battlefield || []), ...(p.hand || []), ...(p.graveyard || []), ...(p.exile || [])])
     const oracle = nm => lookup(data, nm)?.o || ''
+    const tcs = trig ? trigCards(a.options, mineAll, oracle) : []  // duas cópias da mesma carta: cada gatilho com a sua (ou sem id, se não se sabe qual)
     return (
-      <div className="fp-ask fp-order-ask"><p>{trig ? tx('Vários gatilhos ao mesmo tempo: escolhe a ordem em que resolvem.') : a.msg}</p>
+      <div className="fp-ask fp-order-ask"><p>{trig ? tx('Vários gatilhos ao mesmo tempo: escolhe a ordem em que resolvem.') : askPt(a.msg) || a.msg}</p>
         <p className="fp-order-rule">{first ? tx('Toca pela ordem: o 1.º que tocas resolve primeiro (fica no topo da pilha); o último resolve no fim.') : tx('clica pela ordem ({f} primeiro)', { f: a.first || tx('o 1.º') })}</p>
-        <div className="fp-opts">{a.options.map((o, k) => { const c = cardOf(o) || (trig && cardOfText(o.label, mineAll, oracle)) || null, on = pick.includes(k); return (
+        <div className="fp-opts">{a.options.map((o, k) => { const c = cardOf(o) || tcs[k] || null, on = pick.includes(k); return (
           <div key={k} className={`fp-opt ${on ? 'on' : ''} ${trig ? 'fp-trig' : ''}`}>
             {c ? <FCard c={c} data={data} big onClick={() => tap(k)} /> : <button type="button" className="fp-optl" onClick={() => tap(k)}><Syms text={fClean(o.label)} /></button>}
             {on && <b className="fp-ord">{pick.indexOf(k) + 1}</b>}
-            {trig && c && <small className="fp-stk-lbl"><b>{tx('Gatilho de {c}', { c: c.name })}</b> <Syms text={fClean(o.label)} /></small>}
+            {trig && c && <small className="fp-stk-lbl"><b>{c.copy ? tx('Gatilho de {c} (uma das {k} cópias)', { c: c.name, k: c.copy }) : tx('Gatilho de {c}', { c: c.name })}</b> <Syms text={fClean(o.label)} /></small>}
             {on && first && <small className="fp-ord-t">{pick.indexOf(k) === 0 ? tx('resolve primeiro') : tx('resolve em {k}.º', { k: pick.indexOf(k) + 1 })}</small>}</div>) })}</div>
         <div className="row-btns"><button className="primary" onClick={() => answer(a, pick)}>{pick.length < n ? tx('Confirmar (o resto como está)') : tx('Confirmar')}</button>
           {pick.length > 0 && <button className="link small" onClick={() => setPick([])}>{tx('recomeçar')}</button>}</div>
       </div>)
   }
   if (a.kind === 'confirm' || a.kind === 'option') return (
-    <div className="fp-ask"><p>{a.msg || a.title}</p>{a.card != null && <div className="fp-opts fp-reveal-c"><FCard c={all.find(c => c.id === a.card) || { id: a.card, name: a.cardName || '' }} data={data} big /></div>}
-      <div className="row-btns">{(a.options || []).map((o, k) => <button key={k} className={k ? '' : 'primary'} onClick={() => answer(a, [k])}>{BTN[o] || o}</button>)}</div></div>)
+    <div className="fp-ask"><p>{askPt(a.msg) || a.msg || a.title}</p>{a.card != null && <div className="fp-opts fp-reveal-c"><FCard c={all.find(c => c.id === a.card) || { id: a.card, name: a.cardName || '' }} data={data} big /></div>}
+      <div className="row-btns">{(a.options || []).map((o, k) => <button key={k} className={k ? '' : 'primary'} onClick={() => answer(a, [k])}>{BTN[o] || optPt(o)}</button>)}</div></div>)
   if (a.kind === 'input') return (
-    <div className="fp-ask"><p>{a.msg || a.title}</p>
-      {a.options ? <div className="row-btns">{a.options.map((o, k) => <button key={k} onClick={() => answer(a, o)}>{o}</button>)}</div>
+    <div className="fp-ask"><p>{askPt(a.msg) || a.msg || a.title}</p>
+      {a.options ? <div className="row-btns">{a.options.map((o, k) => <button key={k} onClick={() => answer(a, o)}>{optPt(o)}</button>)}</div>
         : <form className="row-btns" onSubmit={e => { e.preventDefault(); answer(a, txt) }}><input autoFocus type={a.numeric ? 'number' : 'text'} value={txt} onChange={e => setTxt(e.target.value)} /><button className="primary">{tx('OK')}</button></form>}</div>)
   if (NAME_ASK(a)) { escRef.current = (a.min ?? 1) === 0 ? () => answer(a, []) : null; return <NameAsk a={a} data={data} answer={answer} zoom={zoom} src={src} /> }
   const rv = rvFor(a, rvLog)
@@ -517,7 +518,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog, src, guard
   const whose = id => (st?.players || []).find(p => ['battlefield', 'hand', 'graveyard', 'exile'].some(z => (p[z] || []).some(c => c.id === id)))
   const mixed = new Set((a.options || []).filter(o => o.card != null && !o.stack).map(o => whose(o.card)?.id)).size > 1
   return (
-    <div className="fp-ask"><p>{a.ability ? tx('Como queres usar {c}?', { c: a.msg }) : src?.line || (/^Select target /.test(a.msg || '') ? `${tx('Escolhe o alvo')}: ${a.msg.slice(14)}` : a.msg)} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
+    <div className="fp-ask"><p>{a.ability ? tx('Como queres usar {c}?', { c: a.msg }) : src?.line || askPt(a.msg) || (/^Select target /.test(a.msg || '') ? `${tx('Escolhe o alvo')}: ${a.msg.slice(14)}` : a.msg)} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
       {head && <div className="fp-opts fp-reveal-c"><FCard c={head} data={data} big /></div>}
       {!head && !a.ability && <ForWhat rq={src} data={data} />}
       {rv && <RevealCards rv={{ ...rv, cards: rvCards, choose: toggle }} data={data} zoom={zoom} on={optOf} pick={pick} />}
@@ -525,7 +526,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog, src, guard
         ? <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => toggle(k)} onZoom={zoom} tag={mixed ? (whose(o.card)?.me ? tx('tua') : tx('do adversário')) : undefined} cls={mixed ? (whose(o.card)?.me ? 'own-me' : 'own-op') : ''} />{o.stack && <small className="fp-stk-lbl"><Syms text={o.label} /></small>}</div>
         : xi && /^\d+$/.test(o.label) ? (t => <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''} ${t > xi.avail ? 'short' : ''}`} title={t > xi.avail ? tx('Não chega: tens {m} de mana por usar.', { m: xi.avail }) : ''} onClick={() => toggle(k)}>
           X = {o.label} · <b>{tx('custa {m}', { m: t })}</b></button>)(xi.base + xi.n * +o.label)
-        : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={a.ability ? abilityLabel(o.label, a.msg) : o.label} /></button> })}</div>}
+        : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={a.ability ? abilityLabel(o.label, a.msg) : `${optSym(o.label) ? `{${optSym(o.label)}} ` : ''}${optPt(o.label)}`} /></button> })}</div>}
       {xi && <small className="muted">{xi.n > 1 ? tx('{c} tem {k} X no custo: cada 1 de X custa {k} de mana (X = 1 custa {t} no total).', { c: xi.name, k: xi.n, t: xi.base + xi.n }) + ' ' : ''}{tx('Tens {m} de mana por usar (terrenos por virar, reserva e fontes de mana).', { m: xi.avail })}</small>}
       <div className="row-btns">{!one && <button className="primary" disabled={pick.length < min} onClick={() => answer(a, pick)}>{tx('Confirmar ({n})', { n: pick.length })}</button>}
         {min === 0 && !one && <button onClick={() => answer(a, [])}>{tx('Nenhum')}</button>}

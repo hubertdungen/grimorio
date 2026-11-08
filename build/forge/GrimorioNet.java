@@ -612,6 +612,8 @@ public class GrimorioNet {
                 o.addProperty("label", display != null ? display.apply(x) : label(x));
                 if (x instanceof CardView) o.addProperty("card", ((CardView) x).getId());
                 if (x instanceof PlayerView) o.addProperty("player", ((PlayerView) x).getId());
+                // a carta de onde vem a habilidade (ordenar gatilhos: com duas cópias da mesma carta o texto é igual e só o id as separa)
+                if (x instanceof SpellAbilityView && ((SpellAbilityView) x).getHostCard() != null) o.addProperty("src", ((SpellAbilityView) x).getHostCard().getId());
                 if (x instanceof StackItemView && ((StackItemView) x).getSourceCard() != null) {  // a mesa mostra a carta do feitiço na pilha
                     CardView sc = ((StackItemView) x).getSourceCard();
                     o.addProperty("card", sc.getId()); o.addProperty("name", sc.getCurrentState().getName()); o.addProperty("stack", true);
