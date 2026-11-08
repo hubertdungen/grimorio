@@ -966,3 +966,4 @@ import { ptExplain } from './src/game.js'
   setTokens(null)
   console.log('selfcheck fichas ok')
 }
+{ const { selfcheck } = await import('./src/fpask.js'); selfcheck(assert); console.log('selfcheck pedidos do Forge ok') }

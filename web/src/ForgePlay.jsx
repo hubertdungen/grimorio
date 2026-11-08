@@ -18,6 +18,7 @@ import { obviousPay } from './mana.js'
 import { useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, pressPeek } from './deckview.js'
 import { isTouch } from './touch.js'
+import { reqOf, fClean, isTrigger, cardOfText, abilityText } from './fpask.js'
 import { useDrag, STAGE, useOverlap, useStage, useGameFocus, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 
 async function j(url, body) {
@@ -50,7 +51,7 @@ function endWhy(out) {
 // bloqueadores, os cliques viravam bloqueios
 const ATK_ASK = m => !!m && !/^(Priority:|Waiting for)/.test(m) && /Declare attackers|Select creatures to attack/i.test(m)
 const BLK_ASK = m => !!m && !/^(Priority:|Waiting for)/.test(m) && /Declare blockers|Select creatures to block/i.test(m)
-function promptText(msg, st, me, short) {  // short: a barra da mesa compacta (o pedido de sempre em poucas palavras)
+function promptText(msg, st, me, short, rq) {  // short: a barra da mesa compacta (o pedido de sempre em poucas palavras); rq: o pedido lido (fpask.js)
   const m = String(msg || '')
   if (!m) return ''
   if (/^Priority:/.test(m)) {
@@ -76,6 +77,8 @@ function promptText(msg, st, me, short) {  // short: a barra da mesa compacta (o
   const disc = m.match(/(?:Select|Choose) (\d+) cards?(?:\(s\))? to discard|Discard (\d+) cards?/i)
   const got = (me?.hand || []).filter(c => c.picked).length
   if (disc) return `${/^Select \d+ card\(s\) to discard/i.test(m) && st?.phase === 'CLEANUP' ? tx('Mão cheia: clica em {n} carta(s) da mão para descartar.', { n: disc[1] || disc[2] }) : tx('Descartar: clica em {n} carta(s) da mão.', { n: disc[1] || disc[2] })} ${tx('Escolhidas: {k} de {n}.', { k: got, n: disc[1] || disc[2] })}`
+  // o alvo de uma aura, de um «exile target…», um gatilho opcional…: a instrução por extenso, com a carta e o que faz
+  if (rq?.line) return rq.line
   // «Spider Umbra (4) - Spider Umbra\n\nSelect target creature»: o pedido nem sempre vem na 1.ª linha
   const hl = m.match(/^Click one of the highlighted cards\.?\s*(?:\((.+)\))?/i)
   if (hl) return hl[1] ? `${tx('Clica numa das cartas assinaladas.')} (${hl[1]})` : tx('Clica numa das cartas assinaladas.')
@@ -284,7 +287,7 @@ function nameHits(idx, q, n = 40) {  // idx: [[nome normalizado, palavras, índi
   }
   return out.sort((a, b) => a[0] - b[0] || a[1] - b[1] || (a[2] < b[2] ? -1 : 1)).slice(0, n).map(x => x[3])
 }
-function NameAsk({ a, st, data, answer, zoom }) {
+function NameAsk({ a, data, answer, zoom, src }) {
   const im = useImg()
   const [q, setQ] = useState(''), [i, setI] = useState(0), list = useRef(null)
   const [idx] = useState(() => a.options.map((o, k) => { const l = fold(o.label); return [l, l.split(/[^a-z0-9]+/).filter(Boolean), k] }))
@@ -296,7 +299,7 @@ function NameAsk({ a, st, data, answer, zoom }) {
   }
   return (
     <div className="fp-ask fp-name-ask"><p>{/^Choose a card name\.?$/i.test(a.msg || '') ? tx('Diz o nome de uma carta') : a.msg}</p>
-      <ForWhat src={sourceOf(a.msg, a.card, a.cardName, st)} data={data} />
+      <ForWhat rq={src} data={data} />
       <input type="search" autoFocus value={q} placeholder={tx('Escreve o nome de uma carta…')} onChange={e => { setQ(e.target.value); setI(0) }} onKeyDown={key} aria-activedescendant={hits.length ? `fp-nm-${i}` : undefined} />
       <div className="fp-nm" ref={list} role="listbox">{hits.map((k, j) => { const o = a.options[k], c = lookup(data, o.label); return (
         <button key={k} id={`fp-nm-${j}`} role="option" aria-selected={j === i} className={j === i ? 'on' : ''} onMouseEnter={() => { setI(j); zoom?.({ name: o.label }) }} onClick={() => go(k)}>
@@ -421,22 +424,15 @@ function WayAsk({ a, data, answer, zoom, head, escRef }) {
     </div>)
 }
 // escolhas que bloqueiam o motor: sim/não, uma opção, um número ou texto, ou escolher entre cartas/jogadores
-// para que é um pedido de escolha: a carta e o texto da habilidade — da 1.ª linha do Forge («Spider Umbra (4) - Enchant
-// creature…»), da carta que o pedido traz ou do topo da pilha (o que está a resolver). Sem nada disto: null
-function sourceOf(msg, card, cardName, st) {
-  const l0 = String(msg || '').split('\n')[0].trim(), m = /^(.+?) \((\d+)\)(?: - (.+))?$/.exec(l0)
-  if (m) return { id: +m[2], name: m[1], text: m[3] || '' }
-  if (card != null && cardName) return { id: card, name: cardName, text: '' }
-  const t = st?.stack?.[0]
-  return t?.name ? { id: t.card, name: t.name, text: t.text || '' } : null
-}
-function ForWhat({ src, data }) {
-  if (!src) return null
-  // «Spider Umbra (4) - Enchant creature…» → «Enchant creature…» (o nome já está ao lado)
-  const txt = !src.text || src.text === src.name ? '' : src.text.startsWith(src.name) ? src.text.slice(src.name.length).replace(/^\s*(\(\d+\))?\s*-?\s*/, '') : src.text
+// para que é um pedido: a carta (com a imagem), a habilidade em causa — só essa, não o texto todo da carta — e, por cima,
+// o que o pedido é (gatilho, aura a lançar, a resolver). rq = reqOf(…) (fpask.js); sem carta de origem: nada
+function ForWhat({ rq, data }) {
+  if (!rq?.src) return null
+  const { src, text } = rq
+  const role = rq.res || rq.kind === 'opt' ? tx('A resolver') : rq.kind === 'aura' ? tx('Aura a lançar') : isTrigger(text) ? tx('Gatilho de') : /^[^.]{1,60}:\s/.test(text) ? tx('Habilidade de') : tx('Pedido de')
   return (
-    <div className="fp-for"><FCard c={{ id: src.id, name: src.name }} data={data} />
-      <span><small>{tx('Para')}</small> <b>{src.name}</b>{txt && <em><Syms text={txt} /></em>}</span></div>
+    <div className={`fp-for ${rq.harm > 0 ? 'harm' : rq.harm < 0 ? 'good' : ''}`}><FCard c={{ id: src.id, name: src.name }} data={data} />
+      <span><small>{role}</small> <b>{src.name}</b>{text && <em><Syms text={text} /></em>}</span></div>
   )
 }
 const MANA_ASK = /\bmana\b/i  // «Select Mana to Produce»
@@ -453,7 +449,7 @@ function xCostOf(a, st, data) {
   const avail = (me.battlefield || []).filter(src).length + Object.values(me.mana || {}).reduce((s, k) => s + (+k || 0), 0)
   return { name: d.n || m[1], n, base: d.cmc || 0, avail }
 }
-function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rvLog: cartas reveladas há pouco (Thoughtseize: a mão toda por cima da escolha)  // payCancel: o Forge está a meio de um pagamento (cancelá-lo desfaz tudo); undo: desfazer a última ação
+function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog, src, guard }) {  // src: para que é o pedido (ForWhat); guard(id do cartão): confirma um alvo teu num efeito que prejudica  // rvLog: cartas reveladas há pouco (Thoughtseize: a mão toda por cima da escolha)  // payCancel: o Forge está a meio de um pagamento (cancelá-lo desfaz tudo); undo: desfazer a última ação
   const [pick, setPick] = useState([]), [txt, setTxt] = useState(a.initial || '')
   const escRef = useRef(null)
   useBackClose(a.kind === 'choose' && ((a.min === 0 && (a.max ?? 1) === 1) || !!payCancel || (!!undo && MANA_ASK.test(a.msg || ''))), () => escRef.current?.())  // «voltar» = Cancelar, quando dá
@@ -463,10 +459,19 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rv
   if (a.kind === 'order') {  // ordenar: clica nas cartas pela ordem; as que ficarem por clicar mantêm a ordem do Forge
     const n = (a.options || []).length
     const tap = k => setPick(p => (p.includes(k) ? p.filter(x => x !== k) : [...p, k]))
+    // gatilhos simultâneos (as opções só trazem o texto): a carta de onde vem cada um e só o texto desse gatilho
+    const trig = /simultaneous abilities/i.test(a.msg || ''), first = /^Resolve first$/i.test(a.first || '') || trig
+    const mineAll = (st?.players || []).flatMap(p => [...(p.battlefield || []), ...(p.hand || []), ...(p.graveyard || []), ...(p.exile || [])])
+    const oracle = nm => lookup(data, nm)?.o || ''
     return (
-      <div className="fp-ask"><p>{a.msg} <span className="muted small">{tx('clica pela ordem ({f} primeiro)', { f: a.first || tx('o 1.º') })}</span></p>
-        <div className="fp-opts">{a.options.map((o, k) => { const c = cardOf(o) || { id: -k, name: o.label }; return (
-          <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => tap(k)} />{pick.includes(k) && <b className="fp-ord">{pick.indexOf(k) + 1}</b>}</div>) })}</div>
+      <div className="fp-ask fp-order-ask"><p>{trig ? tx('Vários gatilhos ao mesmo tempo: escolhe a ordem em que resolvem.') : a.msg}</p>
+        <p className="fp-order-rule">{first ? tx('Toca pela ordem: o 1.º que tocas resolve primeiro (fica no topo da pilha); o último resolve no fim.') : tx('clica pela ordem ({f} primeiro)', { f: a.first || tx('o 1.º') })}</p>
+        <div className="fp-opts">{a.options.map((o, k) => { const c = cardOf(o) || (trig && cardOfText(o.label, mineAll, oracle)) || null, on = pick.includes(k); return (
+          <div key={k} className={`fp-opt ${on ? 'on' : ''} ${trig ? 'fp-trig' : ''}`}>
+            {c ? <FCard c={c} data={data} big onClick={() => tap(k)} /> : <button type="button" className="fp-optl" onClick={() => tap(k)}><Syms text={fClean(o.label)} /></button>}
+            {on && <b className="fp-ord">{pick.indexOf(k) + 1}</b>}
+            {trig && c && <small className="fp-stk-lbl"><b>{tx('Gatilho de {c}', { c: c.name })}</b> <Syms text={fClean(o.label)} /></small>}
+            {on && first && <small className="fp-ord-t">{pick.indexOf(k) === 0 ? tx('resolve primeiro') : tx('resolve em {k}.º', { k: pick.indexOf(k) + 1 })}</small>}</div>) })}</div>
         <div className="row-btns"><button className="primary" onClick={() => answer(a, pick)}>{pick.length < n ? tx('Confirmar (o resto como está)') : tx('Confirmar')}</button>
           {pick.length > 0 && <button className="link small" onClick={() => setPick([])}>{tx('recomeçar')}</button>}</div>
       </div>)
@@ -478,7 +483,7 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rv
     <div className="fp-ask"><p>{a.msg || a.title}</p>
       {a.options ? <div className="row-btns">{a.options.map((o, k) => <button key={k} onClick={() => answer(a, o)}>{o}</button>)}</div>
         : <form className="row-btns" onSubmit={e => { e.preventDefault(); answer(a, txt) }}><input autoFocus type={a.numeric ? 'number' : 'text'} value={txt} onChange={e => setTxt(e.target.value)} /><button className="primary">{tx('OK')}</button></form>}</div>)
-  if (NAME_ASK(a)) { escRef.current = (a.min ?? 1) === 0 ? () => answer(a, []) : null; return <NameAsk a={a} st={st} data={data} answer={answer} zoom={zoom} /> }
+  if (NAME_ASK(a)) { escRef.current = (a.min ?? 1) === 0 ? () => answer(a, []) : null; return <NameAsk a={a} data={data} answer={answer} zoom={zoom} src={src} /> }
   const rv = rvFor(a, rvLog)
   if (!rv && a.kind === 'choose' && (a.options || []).every(o => o.card != null)) {  // só cartas: scry, vigiar ou uma lista grande
     const m = a.msg || ''
@@ -497,19 +502,26 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rv
   const head = a.card != null && (all.find(c => c.id === a.card) || (a.cardName && { id: a.card, name: a.cardName }))  // jogar o terreno ou ciclar: a carta em grande
   // as formas de lançar/usar a carta (getAbilityToPlay): linhas iguais, com custo em símbolos (WayAsk)
   if (a.ability && a.kind === 'choose' && (a.options || []).every(o => o.card == null && o.player == null)) return <WayAsk a={a} data={data} answer={answer} zoom={zoom} head={head} escRef={escRef} />
-  const toggle = k => (one ? answer(a, [k]) : setPick(p => (p.includes(k) ? p.filter(x => x !== k) : p.length < max ? [...p, k] : p)))
+  const toggle = async k => {
+    const id = a.options[k]?.card
+    if (id != null && !pick.includes(k) && guard && !(await guard(id))) return
+    if (one) answer(a, [k]); else setPick(p => (p.includes(k) ? p.filter(x => x !== k) : p.length < max ? [...p, k] : p))
+  }
   // a carta revelada -> a opção dela (pelo id; sem id, pelo nome); se todas as opções estão nas reveladas, escolhe-se lá
   const optOf = c => (a.options || []).findIndex(o => rvSame(c, o))
   const rvCards = rv?.cards
   const inRv = !!rvCards && (a.options || []).length > 0 && (a.options || []).every(o => rvCards.some(c => rvSame(c, o)))
   const xi = xCostOf(a, st, data)
+  // cartas de mais de um jogador entre as escolhas: cada uma diz de quem é («tua» / «do adversário»)
+  const whose = id => (st?.players || []).find(p => ['battlefield', 'hand', 'graveyard', 'exile'].some(z => (p[z] || []).some(c => c.id === id)))
+  const mixed = new Set((a.options || []).filter(o => o.card != null && !o.stack).map(o => whose(o.card)?.id)).size > 1
   return (
-    <div className="fp-ask"><p>{a.ability ? tx('Como queres usar {c}?', { c: a.msg }) : /^Select target /.test(a.msg || '') ? `${tx('Escolhe o alvo')}: ${a.msg.slice(14)}` : a.msg} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
+    <div className="fp-ask"><p>{a.ability ? tx('Como queres usar {c}?', { c: a.msg }) : src?.line || (/^Select target /.test(a.msg || '') ? `${tx('Escolhe o alvo')}: ${a.msg.slice(14)}` : a.msg)} {!one && <span className="muted small">{tx('escolhe {a} a {b}', { a: min, b: max })}</span>}</p>
       {head && <div className="fp-opts fp-reveal-c"><FCard c={head} data={data} big /></div>}
-      {!head && !a.ability && <ForWhat src={sourceOf(a.msg, a.card, a.cardName, st)} data={data} />}
+      {!head && !a.ability && <ForWhat rq={src} data={data} />}
       {rv && <RevealCards rv={{ ...rv, cards: rvCards, choose: toggle }} data={data} zoom={zoom} on={optOf} pick={pick} />}
       {!inRv && <div className="fp-opts">{(a.options || []).map((o, k) => { const c = cardOf(o); return c
-        ? <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => toggle(k)} onZoom={zoom} />{o.stack && <small className="fp-stk-lbl"><Syms text={o.label} /></small>}</div>
+        ? <div key={k} className={`fp-opt ${pick.includes(k) ? 'on' : ''}`}><FCard c={c} data={data} big onClick={() => toggle(k)} onZoom={zoom} tag={mixed ? (whose(o.card)?.me ? tx('tua') : tx('do adversário')) : undefined} cls={mixed ? (whose(o.card)?.me ? 'own-me' : 'own-op') : ''} />{o.stack && <small className="fp-stk-lbl"><Syms text={o.label} /></small>}</div>
         : xi && /^\d+$/.test(o.label) ? (t => <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''} ${t > xi.avail ? 'short' : ''}`} title={t > xi.avail ? tx('Não chega: tens {m} de mana por usar.', { m: xi.avail }) : ''} onClick={() => toggle(k)}>
           X = {o.label} · <b>{tx('custa {m}', { m: t })}</b></button>)(xi.base + xi.n * +o.label)
         : <button key={k} className={`fp-optl ${pick.includes(k) ? 'on' : ''}`} onClick={() => toggle(k)}><Syms text={a.ability ? abilityLabel(o.label, a.msg) : o.label} /></button> })}</div>}
@@ -613,6 +625,24 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   }, [stuckKey])  // eslint-disable-line react-hooks/exhaustive-deps
   const blocking = theirTurn && BLK_ASK(pr?.msg)  // o Forge pede os bloqueadores (cliques = bloquear)
   const ask = s?.asks?.[0]
+  // a pilha de há pouco: o texto de cada carta que lá esteve (um gatilho opcional pergunta «usar?» já fora da pilha) e o
+  // último item que saiu (o que está a resolver: «Choose a color» do Utopia Sprawl). Antes, sem carta no pedido, a mesa
+  // mostrava o topo da pilha — outra carta, que não tinha nada a ver com a escolha
+  const [sm, setSm] = useState({ seq: null, prev: [], gone: null, mem: new Map() })
+  if (s && sm.seq !== s.seq) {
+    const now = s.state?.stack || [], key = x => `${x.card}|${x.text}`, left = sm.prev.filter(x => !now.some(y => key(y) === key(x)))
+    const mem = new Map(sm.mem); for (const x of now) if (x.card != null) { mem.delete(x.card); mem.set(x.card, x.text) }
+    while (mem.size > 60) mem.delete(mem.keys().next().value)
+    // o que saiu fica como «a resolver» até a mesa voltar a dar prioridade sem nada a mudar (o pedido de prioridade antigo
+    // ainda vem no estado em que a carta sai da pilha, antes da escolha dela chegar)
+    const calm = /^Priority:/.test(s.prompt?.msg || '') && !s.asks?.length && now.length === sm.prev.length
+    setSm({ seq: s.seq, prev: now, gone: left[0] || (calm ? null : sm.gone), mem })
+  }
+  const oracle = nm => lookup(data, nm)?.o || ''
+  const goneRq = sm.gone && { src: { id: sm.gone.card, name: sm.gone.name, text: sm.gone.text }, text: abilityText({ id: sm.gone.card, name: sm.gone.name, text: sm.gone.text }, oracle), kind: 'info', res: true, line: '', harm: 0 }
+  const OWN_PROMPT = /^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i
+  const rq0 = reqOf(pr, oracle, sm.mem), rq = rq0 || (pr?.msg && !OWN_PROMPT.test(pr.msg) && !/Pay Mana Cost/i.test(pr.msg) ? goneRq : null)
+  const askRq = ask && !ask.ability ? reqOf(ask, oracle, sm.mem) || goneRq : null
   const hoverId = useRef(null), [flipped, setFlipped] = useState(() => new Set()), [lift, setLift] = useState(null)  // carta debaixo do rato; viradas; levantada na mão
   // «voltar» do telemóvel: fecha primeiro o que está aberto por cima; com o jogo a decorrer nunca sai da mesa (avisa e fica)
   const [guard, setGuard] = useState(true)
@@ -705,6 +735,18 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     snapRef.current = snap
   }, [s?.seq, ended])  // eslint-disable-line react-hooks/exhaustive-deps
   const byId = new Map(players.flatMap(p => [...['battlefield', 'hand', 'graveyard', 'exile'].flatMap(z => (p[z] || []).map(c => [c.id, c])), ...(p.top ? [[p.top.id, p.top]] : [])]))
+  // escolher um alvo: uma carta TUA num efeito que a prejudica (exilar, destruir, devolver, dano, −N/−N, prender) ou uma do
+  // adversário num efeito que a ajuda (Rancor, Ethereal Armor…) pede uma confirmação rápida — era assim que se exilavam as
+  // próprias cartas (O-Ring a pedir o alvo com os gatilhos do Setessan Champion e da Eidolon por cima)
+  const aimOk = async id => {
+    const q = ask ? askRq : rq
+    if (!q || !['target', 'aura'].includes(q.kind) || !q.harm) return true
+    const nm = byId.get(id)?.name || '', onField = p => (p?.battlefield || []).some(c => c.id === id)
+    if (q.harm > 0 && onField(me)) return confirmAsk('alvoteu', { title: tx('Esta carta é tua — {v} mesmo assim?', { v: q.inf }), body: tx('{c} fica como alvo de {s}: {e}.', { c: nm, s: q.src.name, e: q.v }), ok: tx('Sim, escolher a minha') })
+    if (q.harm < 0 && others.some(onField)) return confirmAsk('alvoteu', { title: tx('Esta carta é do adversário — {v} mesmo assim?', { v: q.inf }), body: tx('{c} fica como alvo de {s}: {e}.', { c: nm, s: q.src.name, e: q.v }), ok: tx('Sim, escolher esta') })
+    return true
+  }
+  const pickCard = async id => { if (await aimOk(id)) send({ c: 'card', id }) }
   const lives = `${me?.life}|${opp?.life}`, prevLives = useRef(null), [lifeFx, setLifeFx] = useState(null)
   // veneno (infect, toxic, poisonous…): o ☠ ao lado da vida pulsa e sobe quando aumenta, como na arena
   const psns = `${ctrs(me?.counters).poison || 0}|${ctrs(opp?.counters).poison || 0}`, prevPsn = useRef(null), [psnFx, setPsnFx] = useState(null)
@@ -1010,12 +1052,12 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       const opts = a.options || []
       if (it.ability) { const k = opts.findIndex(o => it.ability.test(o.label || '')); if (k >= 0) { it.ability = null; answer(a, [k]); return } }
       const k = a.kind === 'choose' && it.target != null ? opts.findIndex(o => o.card === it.target) : -1
-      if (k >= 0) aimFire(() => answer(a, [k]), it)
+      if (k >= 0) aimFire(async () => { if (await aimOk(it.target)) answer(a, [k]) }, it)
       return
     }
     const m = s.prompt?.msg || ''
     if (it.player != null) { if (it.player >= 0 && !/^Priority:/.test(m) && /target/i.test(m)) aimFire(() => send({ c: 'player', i: it.player }), it); return }  // o Forge pede o alvo: esse jogador
-    if (byId.get(it.target)?.sel) aimFire(() => send({ c: 'card', id: it.target }), it)  // o Forge pede o alvo: é este
+    if (byId.get(it.target)?.sel) aimFire(() => pickCard(it.target), it)  // o Forge pede o alvo: é este
   }, [s?.seq, s?.asks?.length])  // eslint-disable-line react-hooks/exhaustive-deps
   // animações como no tabuleiro dos bots: a pilha (StackFx) com «A resolver», números de dano/marcadores nas cartas e as
   // cartas que saem do campo a desaparecer (dying) — tudo a partir da diferença entre um estado do Forge e o seguinte
@@ -1185,11 +1227,19 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.splice(Math.min(g.idx ?? 1e9, bs[g.side].perms.length), 0, { ...toPerm(g.c), dying: g.to || true })
   const hashN = t => [...String(t)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
   const sideOfP = pid => (pid === me?.id ? 'a' : 'b')
-  bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name, text: x.ability ? x.text : undefined,  // o texto do Forge: o que foi mesmo ativado
-    kind: !x.ability ? 'cast' : /^(When|Whenever|At)\b/.test(x.text || '') ? 'trigger' : 'activate',
+  bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name, text: x.text, id: x.card,  // o texto do Forge: o que foi mesmo ativado (num feitiço, «Attach to …» de uma aura)
+    kind: !x.ability ? 'cast' : isTrigger(x.text) ? 'trigger' : 'activate',
     // alvos: as linhas da pilha (StackLinks) e o «→ alvo» da legenda
     tc: (x.tc || []).map(String), tp: (x.tp || []).map(sideOfP),
     target: x.tp?.length ? sideOfP(x.tp[0]) : x.tc?.length ? byId.get(x.tc[0])?.name : undefined }))
+  // o pedido atual é de um item da pilha (cur) ou de algo que está a entrar nela / a resolver fora dela (pend)
+  const stkReq = (q => {
+    if (!q?.src) return {}
+    const it = bs.stack.find(x => x.id === q.src.id && fClean(x.text) === q.text) || (!q.text && bs.stack.find(x => x.id === q.src.id))
+    if (it) return { cur: it.uid }
+    const kind = q.kind === 'aura' ? 'cast' : isTrigger(q.text) ? 'trigger' : /^[^.]{1,60}:\s/.test(q.text) ? 'activate' : 'cast'
+    return q.res || q.kind === 'opt' ? { pend: { card: q.src.name, kind, p: 'a', how: 'res' } } : ['target', 'aura'].includes(q.kind) ? { pend: { card: q.src.name, kind, p: 'a', how: 'in' } } : {}
+  })(ask ? askRq : rq)
   const att = new Map()
   for (const p of [...bs.a.perms, ...bs.b.perms]) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
   const sel = new Set([...byId.values()].filter(c => c.sel).map(c => String(c.id)))
@@ -1201,8 +1251,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     .filter(x => { const c = byId.get(x.id); return !c || c.attachedTo != null || !zoneOfId(x.id) }).slice(0, 12)
   const selPick = selHidden.length > 0 && <div className="fp-selpick"><small>{tx('Também se escolhem (não estão à vista na mesa):')}</small><div>{selHidden.map(x => {
     const c = byId.get(x.id), nm = c && !c.hidden ? c.name : x.name, host = c?.attachedTo != null && byId.get(c.attachedTo)
-    return <div key={x.id} role="button" tabIndex={0} className="fp-selb" data-zid={x.id} onClick={() => send({ c: 'card', id: x.id })} onKeyDown={e => { if (e.key === 'Enter') send({ c: 'card', id: x.id }) }}>
-      <FCard c={{ id: x.id, name: nm || '', hidden: !nm, sel: true }} data={data} /><span><b>{nm || tx('Carta escondida')}</b>{host && <em>{tx('presa a {c}', { c: host.name })}</em>}</span></div> })}</div></div>
+    const own = players.find(p => ['battlefield', 'hand', 'graveyard', 'exile'].some(z => (p[z] || []).some(y => y.id === x.id)))  // de quem é: «tua» / «dele»
+    return <div key={x.id} role="button" tabIndex={0} className="fp-selb" data-zid={x.id} onClick={() => pickCard(x.id)} onKeyDown={e => { if (e.key === 'Enter') pickCard(x.id) }}>
+      <FCard c={{ id: x.id, name: nm || '', hidden: !nm, sel: true }} data={data} /><span><b>{nm || tx('Carta escondida')}</b>{(host || own) && <em>{[own && (own === me ? tx('tua') : tx('dele')), host && tx('presa a {c}', { c: host.name })].filter(Boolean).join(' · ')}</em>}</span></div> })}</div></div>
   // a escolher alvos (Path to Exile em resposta a um Counterspell…): a pilha em cima da mesa fica transparente e deixa passar os
   // cliques e o arrastar para as cartas por baixo, que ficam assinaladas
   const aiming = sel.size > 0 || /\btarget\b|assinaladas/i.test(pr?.msg || '')
@@ -1246,7 +1297,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       if (atts.length === 1) { clearTimeout(blkWait.current); blkWait.current = setTimeout(() => planBlock(id, atts[0].att), 280); return }
       pendBlk.current = id; return setToast({ title: tx('Agora toca no atacante que ela bloqueia'), msg: '' })
     }
-    if (!prio || c?.sel || !mine || c?.land || !lines.length || (lines.every(l => /:\s*Add\b/.test(l)) && !(oppCombat && cre))) return send({ c: 'card', id })
+    if (!prio || c?.sel || !mine || c?.land || !lines.length || (lines.every(l => /:\s*Add\b/.test(l)) && !(oppCombat && cre))) return c?.sel && !prio ? pickCard(id) : send({ c: 'card', id })
     const r = el.getBoundingClientRect(), hint = oppCombat && cre ? tx('Ainda não é a altura de bloquear: para bloquear, carrega OK até o Forge pedir os bloqueadores.') : ''
     setAct({ hint, id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top > 240 ? r.top - 8 : r.bottom + 8, up: r.top > 240, lines, name: c.name, pw: c.pw })
   }
@@ -1332,6 +1383,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
       <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''} ${declaring ? 'fp-declaring' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
+        {sel.size > 0 && !blocking && !declaring && <style>{`.fp-table .bside.bottom .pc.hlsel > .pc-ov::after { content: ${JSON.stringify(tx('tua'))}; } .fp-table .bside.top .pc.hlsel > .pc-ov::after { content: ${JSON.stringify(tx('dele'))}; }`}</style>}
         {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
         {tops.length > 1 ? <div className="opps" style={{ '--np': tops.length }}>{tops.map(p => <Side key={keyOf(p)} k={keyOf(p)} top compact name={p.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
           hand={p.hand?.length > 0 && <Hand z={{ hand: p.hand.length, known: p.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />)}</div>
@@ -1342,7 +1394,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           {st.day && <DayNight v={st.day} />}
           <span className="fp-phases">{PHASES.map(([k, l, ps]) => <i key={k} className={ps.includes(st.phase) ? (/^COMBAT/.test(st.phase || '') ? 'on combat' : 'on') : ''}>{l}</i>)}</span>
           {declaring && <span className="fp-declare" role="status">⚔ {tx('Declara os atacantes: toca nas criaturas que atacam e depois OK')}</span>}
-          <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={artsCtx.arts} who={Object.fromEntries([['a', me?.name], ...others.map(p => [keyOf(p), p.name])])} speed={1} />
+          <StackFx s={bs} rev={fxs.rev} ri={fxs.ri} data={data} arts={artsCtx.arts} who={Object.fromEntries([['a', me?.name], ...others.map(p => [keyOf(p), p.name])])} speed={1} {...stkReq} />
         </div>
         {me && (mates.length ? <div className="mine withmate">{<Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
           hand={<div className="fp-hand">{me.top?.play && <FCard key={`t${me.top.id}`} c={me.top} h={me.top.id} from="library" data={data} big cls={`play libtop-h ${lift === me.top.id ? 'lift' : ''}`} tag={`▲ ${tx('topo da biblioteca')}`} />}{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />}{mates.map(p => <Side key={keyOf(p)} k={keyOf(p)} compact name={`${p.name} 🤝`} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
@@ -1359,7 +1411,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       <div className="fp-dice" ref={diceBox} /></div>
       {(touchDev || compact) && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
         {compact && <GameMenuBtns chrome={chrome} setChrome={setChrome} side={sideOpen} setSide={setSideOpen} />}
-        <p className={promptOpen || blockBox || atkBox ? 'open' : ''} onClick={() => setPromptOpen(x => !x)}><Syms text={promptText(pr?.msg, st, me, compact)} />{blockBox}{atkBox}</p>
+        <p className={promptOpen || blockBox || atkBox ? 'open' : ''} onClick={() => setPromptOpen(x => !x)}><Syms text={promptText(pr?.msg, st, me, compact, rq)} />{blockBox}{atkBox}</p>
+        {promptOpen && <ForWhat rq={rq} data={data} />}
         {unstick}{selPick}
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
@@ -1371,8 +1424,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         {compact && <button type="button" className="fp-side-x" onClick={() => setSideOpen(false)} aria-label={tx('Fechar')}>✕</button>}
         <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={im(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{isTouch() ? tx('Toca e mantém numa carta para a veres em grande.') : tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
-          {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}
-          <p><Syms text={promptText(pr?.msg, st, me)} /></p>
+          {pr?.msg && !OWN_PROMPT.test(pr.msg) && <ForWhat rq={rq} data={data} />}
+          <p><Syms text={promptText(pr?.msg, st, me, false, rq)} /></p>
           {blockBox}{atkBox}
           {clockUi}
           {unstick}
@@ -1403,7 +1456,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <button type="button" className="fp-rv-x" aria-label={tx('Fechar')} onClick={() => setRvl(null)}>✕</button>
         <RevealCards rv={rvl} data={data} zoom={setZoom} peek={setBig} />
         <div className="row-btns"><button className="primary" onClick={() => setRvl(null)}>{tx('OK')} <kbd>⏎</kbd></button></div></div></div>}
-      {ask && <div className="fp-modal"><Ask key={ask.id} a={ask} rv={rvl} st={st} data={data} answer={answer} zoom={setZoom} payCancel={/Pay Mana Cost/i.test(pr?.msg || '') && btns.some(b => b.label === 'Cancel') ? () => send({ c: 'cancel' }) : null} undo={st.stack?.length ? null : () => send({ c: 'undo' })} /></div>}
+      {ask && <div className="fp-modal"><Ask key={ask.id} a={ask} rv={rvl} st={st} data={data} answer={answer} zoom={setZoom} src={askRq} guard={aimOk} payCancel={/Pay Mana Cost/i.test(pr?.msg || '') && btns.some(b => b.label === 'Cancel') ? () => send({ c: 'cancel' }) : null} undo={st.stack?.length ? null : () => send({ c: 'undo' })} /></div>}
       {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {act && <div className="fp-act-bg" onPointerDown={() => setAct(null)} />}
       {act && <div className={`fp-act ${act.up ? '' : 'below'}`} role="dialog" aria-label={tx('Ativar {c}', { c: act.name })} style={{ left: act.x, top: act.y }}>
