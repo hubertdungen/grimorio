@@ -13,6 +13,7 @@ import ForgeTable from './ForgePlay.jsx'
 import SideboardStep from './SideboardStep.jsx'
 import MyGames from './MyGames.jsx'
 import { lockFsOrientation } from './wakelock.js'
+import { isTouch } from './touch.js'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -29,7 +30,7 @@ const TIPS = [
   [tx('Jogar'), tx('clica na carta na mão; paga clicando nos terrenos (ou no botão Auto). Habilidades: clica na permanente.')],
   [tx('Alvos'), tx('depois de lançar, clica no alvo: uma carta ou o retrato do jogador.')],
   [tx('Combate'), tx('no teu turno clica nas criaturas que atacam e depois OK. Para bloquear, clica no atacante e depois na tua criatura.')],
-  [tx('Teclas'), tx('Espaço = OK · Ctrl+E acaba o turno · Ctrl+A ataca com tudo · Ctrl+Z desfaz · Z amplia a carta debaixo do rato · H mostra todos os atalhos.')],
+  ...(isTouch() ? [] : [[tx('Teclas'), tx('Espaço = OK · Ctrl+E acaba o turno · Ctrl+A ataca com tudo · Ctrl+Z desfaz · Z amplia a carta debaixo do rato · H mostra todos os atalhos.')]]),  // no toque não há teclado
   [tx('Imagens'), tx('chegam à medida que as cartas aparecem. Na primeira vez o Forge pergunta se descarrega o índice de imagens: aceita, fica guardado.')],
   [tx('Fim'), tx('para sozinho ao fim de 20 min sem mexeres no jogo. No fim de cada partida o Forge volta ao menu, com os dois decks nas listas do Constructed.')],
 ]

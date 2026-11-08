@@ -11,6 +11,7 @@ import { tx, num, LOCALE } from './i18n.js'
 import { TrophyStars } from './ui.jsx'
 import { Trophies, tierOf, Cup, PLACE, KIND } from './Library.jsx'
 import { perfOf, trophyValue, trophyTier, itemValue } from './trophyvalue.js'
+import { isTouch } from './touch.js'
 
 const ptsOf = x => trophyValue({ tier: x.platinum ? 'plat' : tierOf(x.place, x.champions), kind: x.type, casual: x.casual, n: x.n, m: x.m, podiums: x.podiums })  // como na Biblioteca
 
@@ -58,7 +59,7 @@ export function CurveChart({ data, deck, s }) {
   const types = Object.entries(s.types).sort((a, b) => b[1] - a[1]), tmax = Math.max(1, ...types.map(t => t[1]))
   return (
     <section className="card an-curve">
-      <h3>{tx('Curva de mana')} <span className="muted small">{tx('média {m}', { m: num(s.avgMv, 2) })}</span> <Hint t={tx('Quantas cartas há de cada custo de mana, criaturas em baixo e o resto em cima. Passa o rato numa barra para ver os números.')} /></h3>
+      <h3>{tx('Curva de mana')} <span className="muted small">{tx('média {m}', { m: num(s.avgMv, 2) })}</span> <Hint t={isTouch() ? tx('Quantas cartas há de cada custo de mana, criaturas em baixo e o resto em cima. Toca e mantém numa barra para ver os números.') : tx('Quantas cartas há de cada custo de mana, criaturas em baixo e o resto em cima. Passa o rato numa barra para ver os números.')} /></h3>
       <div className="an-legend"><span><i style={{ background: 'var(--c-crit)' }} />{tx('Criaturas')}</span><span><i style={{ background: 'var(--c-other)' }} />{tx('Outras cartas')}</span></div>
       <div className="scurve" role="img" aria-label={tx('Curva de mana')}>
         {rows.map(([a, b], k) => (

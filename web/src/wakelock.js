@@ -1,8 +1,9 @@
 // Ecrã sempre ligado (Screen Wake Lock): com a app à vista o telemóvel/tablet não apaga o ecrã (jogos ao vivo, torneios,
 // contador de vida). Por omissão ligado nos ecrãs de toque; Definições › Ecrã. O browser só o permite em HTTPS e larga-o
 // quando a página fica escondida: volta a pedir-se ao regressar.
+import { isTouch } from './touch.js'
 const K = 'grimorio.ecraLigado'
-const touch = () => { try { return matchMedia('(pointer: coarse)').matches } catch { return false } }
+const touch = isTouch
 const app = () => window.GrimorioApp?.keepScreenOn  // app Android: o ecrã fica ligado pela própria app
 export const wakeSupported = () => !!app() || ('wakeLock' in navigator && window.isSecureContext)
 export const wakeOn = () => { try { const v = localStorage.getItem(K); return v == null ? touch() : v === '1' } catch { return touch() } }

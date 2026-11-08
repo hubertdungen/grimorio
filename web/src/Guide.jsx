@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Icon, IL } from './icons.jsx'
 import { tx } from './i18n.js'
 import { fpPrefs } from './fpprefs.js'
+import { isTouch, gestures } from './touch.js'
 import './guide.css'
 
 const ICONS = new Set(['casa', 'construir', 'biblioteca', 'coliseu', 'regras', 'bots', 'forge', 'torneio', 'draft', 'online', 'ratings', 'gear', 'vida', 'scan', 'dados', 'criar', 'porta', 'registo', 'moeda', 'mago', 'amigos', 'meta'])
@@ -117,7 +118,8 @@ export default function Guide() {
             {G.walks.some(w => w.area === area.id) && <><h4>{tx('Passo a passo')}</h4><div className="g-walks">{G.walks.filter(w => w.area === area.id).map(w => <Walk key={w.id} w={w} />)}</div></>}
             {area.rows.length > 0 && <><h4>{tx('Tudo o que há aqui')}</h4><Rows rows={area.rows} /></>}
             {(area.subs || []).map(s => <div key={s.t}><h3 className="g-sub"><Glyph g={s.g} /> {s.t}{s.go && <> <button type="button" className="link small" onClick={() => goTo(s.go)}>{tx('Ir para lá')} →</button></>}</h3>{s.intro && <p className="g-intro">{s.intro}</p>}<Rows rows={s.rows} /></div>)}
-            {area.keys && <><h4>{tx('Teclas (mudam-se em Definições › Mesa)')}</h4><ul className="g-keys">{area.keys.map(([k, d]) => <li key={k}><kbd className="g-k">{k}</kbd> {d}</li>)}</ul></>}
+            {isTouch() && area.touch ? <><h4>{tx('Gestos (telemóvel e tablet)')}</h4><ul className="g-keys g-touch">{area.touch.map(([k, d]) => <li key={k}><b>{k}</b> {d}</li>)}</ul></>
+              : area.keys && <><h4>{tx('Teclas (mudam-se em Definições › Mesa)')}</h4><ul className="g-keys">{area.keys.map(([k, d]) => <li key={k}><kbd className="g-k">{k}</kbd> {d}</li>)}</ul></>}
           </section>
         )}
       </div>
@@ -145,7 +147,7 @@ function guide(P) {
         ['vida', tx('Contador de vida'), tx('para jogar com cartas a sério: vida, veneno e dano de comandante de até 6 jogadores.')],
         ['scan', tx('Ler carta'), tx('aponta a câmara a uma carta e ela entra no deck aberto.')],
         ['dados', tx('Dados'), tx('d4 a d100 e moeda, em 3D.')],
-        ['gear', tx('Definições'), tx('língua, som, teclas da mesa, esfera da vida, cópias de segurança…')],
+        ['gear', tx('Definições'), (isTouch() ? tx('língua, som, controlos da mesa, esfera da vida, cópias de segurança…') : tx('língua, som, teclas da mesa, esfera da vida, cópias de segurança…'))],
       ],
       rows: [
         [tx('Continuar «deck»'), tx('aparece quando já tens um deck aberto: volta direto a ele no Construir.')],
@@ -319,7 +321,7 @@ function guide(P) {
         [tx('Esfera da vida (clique)'), tx('quando o Forge pede um alvo, um clique escolhe esse jogador; ao atacar, devolve o ataque ao jogador.')],
         [tx('Cemitério e exílio'), tx('tocar nas pilhas abre-as; fecha-se com «fechar», tocando fora ou a deslizar para baixo.')],
         [tx('Tocar e manter (tablet/telemóvel)'), tx('mostra a carta em grande; dois dedos ampliam, duplo toque aproxima, desliza para baixo para fechar.')],
-        [tx('Passar o rato'), tx('mostra a carta em grande no painel ao lado; no P/T vês as contas (impresso, marcadores, efeitos).')],
+        ...(isTouch() ? [] : [[tx('Passar o rato'), tx('mostra a carta em grande no painel ao lado; no P/T vês as contas (impresso, marcadores, efeitos).')]]),  // no toque: a linha de cima
         [tx('Histórico do jogo'), tx('as últimas jogadas; os nomes das cartas mostram-nas.')],
         [tx('Fim do jogo'), tx('«▶ Jogar outra vez», «Jogo seguinte (sideboard)» numa série, ou Fechar.')],
       ],
@@ -331,7 +333,7 @@ function guide(P) {
       keys: [
         ['Enter', tx('OK / passar')], ...(P.space ? [[tx('Espaço'), tx('o mesmo que Enter')]] : []), ['Shift+Enter', tx('acabar o turno')], ...(P.shiftSpace ? [[tx('Shift+Espaço'), tx('acabar o turno')]] : []), ['Esc', tx('cancelar / fechar')],
         [T, tx('virar (tap) a tua carta debaixo do rato')], [F, tx('ver a outra face (só no teu ecrã)')], ['Shift+F', tx('ecrã inteiro')],
-      ] },
+      ], touch: gestures().play },
 
     { id: 'esfera', g: '🔮', t: tx('A esfera da vida'), go: { col: 'jogar' },
       intro: tx('Cada jogador tem uma esfera de vidro com um fluido lá dentro. A vida está no meio; tudo o resto conta o que se passa no jogo. É a mesma no Forge Play, na mesa livre e nas réplicas dos jogos.'),
@@ -411,7 +413,7 @@ function guide(P) {
           [tx('⋯ Mais'), tx('perspetiva, tamanho das cartas, padrão da mesa, dia/noite, «🏆 Ganhei este jogo» (os outros confirmam), desistir e sair da mesa.')],
         ] },
       ],
-      keys: [['D', tx('comprar')], ['V', tx('ver o topo')], ['S', tx('baralhar')], ['M', tx('moer 1')], ['X', tx('exilar o topo')], ['P', tx('caneta')], [T, tx('virar (tap)')], [F, tx('transformar ou virar para baixo')], ['Esc', tx('fechar menus e caneta')]] },
+      keys: [['D', tx('comprar')], ['V', tx('ver o topo')], ['S', tx('baralhar')], ['M', tx('moer 1')], ['X', tx('exilar o topo')], ['P', tx('caneta')], [T, tx('virar (tap)')], [F, tx('transformar ou virar para baixo')], ['Esc', tx('fechar menus e caneta')]], touch: gestures().free },
 
     { id: 'regras', g: 'regras', t: tx('Regras'), go: null,
       intro: tx('Dúvidas de regras e de cartas, em qualquer língua. O separador «Regras do Magic» aqui em cima é a pesquisa; este guia é o outro separador.'),
@@ -435,7 +437,7 @@ function guide(P) {
         [tx('🤖 Bots predefinidos'), tx('a dificuldade com que começam o Laboratório, os torneios e a Arena.')],
         [tx('Som'), tx('volume geral e por grupo (cartas, combate, esfera da vida, dados, fim do jogo), com ▶ Ouvir.')],
         [tx('Ecrã'), tx('não deixar o ecrã apagar-se e a orientação em ecrã inteiro (só Android).')],
-        [tx('Mesa (Forge Play)'), tx('Espaço = Enter, as teclas de virar e de ver a outra face, pagar a mana sozinho, deixar resolver sozinho, arrumação (grelha, livre, filas), tamanho das cartas, padrão da mesa e esfera da vida, cartas dos adversários e perspetiva.')],
+        [tx('Mesa (Forge Play)'), isTouch() ? tx('os gestos de toque, pagar a mana sozinho, deixar resolver sozinho, arrumação (grelha, livre, filas), tamanho das cartas, padrão da mesa e esfera da vida, cartas dos adversários e perspetiva.') : tx('Espaço = Enter, as teclas de virar e de ver a outra face, pagar a mana sozinho, deixar resolver sozinho, arrumação (grelha, livre, filas), tamanho das cartas, padrão da mesa e esfera da vida, cartas dos adversários e perspetiva.')],
         [tx('Imagens das cartas'), tx('da Scryfall ou pelo Grimório, para redes que bloqueiam a Scryfall.')],
         [tx('Estrelas dos decks'), tx('quais estrelas mostrar: amarelas, azuis, vermelhas.')],
         [tx('Cores nos jogos'), tx('a tua cor e a do adversário nos jogos e nos torneios.')],

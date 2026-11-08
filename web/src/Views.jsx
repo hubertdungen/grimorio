@@ -19,6 +19,7 @@ import { hlProps, pin } from './hl.js'
 import { parseQuery } from './nlsearch.js'
 import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
 import { useBackClose } from './backnav.js'
+import { isTouch } from './touch.js'
 import './Suggest.css'
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
@@ -1123,7 +1124,7 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
             <button className="map-hint-x" onClick={() => showHint(false)} aria-label={tx('Fechar')}>✕</button>
             <b>{tx('O que é o Universo?')}</b>
             <p>{tx('Cada ponto é uma carta. Cartas com texto e funções parecidas ficam perto umas das outras; o teu deck brilha como uma constelação.')}</p>
-            <p>{tx('Serve para descobrir cartas à volta das tuas: as sugestões pulsam ligadas à carta com que combinam. Clique para ver, duplo clique para juntar ao deck; arrasta para rodar e usa a roda para aproximar.')}</p>
+            <p>{isTouch() ? tx('Serve para descobrir cartas à volta das tuas: as sugestões pulsam ligadas à carta com que combinam. Toca para ver, dois toques para juntar ao deck; arrasta para rodar e afasta dois dedos para aproximar.') : tx('Serve para descobrir cartas à volta das tuas: as sugestões pulsam ligadas à carta com que combinam. Clique para ver, duplo clique para juntar ao deck; arrasta para rodar e usa a roda para aproximar.')}</p>
           </div>
         ) : <button className="link plain small map-hint-open" onClick={() => showHint(true)}>{tx('? O que é o Universo')}</button>)}
         <div className="seedpick">
@@ -1146,7 +1147,7 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
           ? <p className="small muted">{tx('Desempenho: dourado e maior = ganhou jogos · vermelho e menor = pesou')}{swapL.length ? ` · ${tx('seta vermelha = troca sugerida')}` : ''}</p>
           : <p className="small muted">{tx('Sem jogos deste deck no Coliseu: põe-no a jogar para ver o desempenho de cada carta.')}</p>)}
         {plan.length > 0 && <p className="small"><span className="muted">{tx('Plano:')}</span> {plan.map(x => <span key={x.label} className="plan-chip">{x.label} <b>{x.n}</b></span>)}</p>}
-        <p className="muted small">{have.length ? `${tx('{n} cartas no deck', { n: have.length })} · ${deckL.filter(l => l.kind === 'combo').length ? `${tx('linhas douradas = combos')} · ` : ''}${tx('tracejado = quem alimenta quem')}` : tx('Clica numa carta para a ver; duplo clique junta-a ao deck.')}</p>
+        <p className="muted small">{have.length ? `${tx('{n} cartas no deck', { n: have.length })} · ${deckL.filter(l => l.kind === 'combo').length ? `${tx('linhas douradas = combos')} · ` : ''}${tx('tracejado = quem alimenta quem')}` : isTouch() ? tx('Toca numa carta para a ver; dois toques juntam-na ao deck.') : tx('Clica numa carta para a ver; duplo clique junta-a ao deck.')}</p>
         </>}
       </div>
 
@@ -1205,7 +1206,7 @@ export function MapView({ data, deck, fmt, ctx, act, focus, setFocus }) {
               ))}
             </ul>
           </>
-        ) : <p className="muted small live-empty">{tx('Junta o comandante ou umas cartas (duplo clique num ponto) e as sugestões aparecem a pulsar à volta do deck.')}</p>)}
+        ) : <p className="muted small live-empty">{isTouch() ? tx('Junta o comandante ou umas cartas (dois toques num ponto) e as sugestões aparecem a pulsar à volta do deck.') : tx('Junta o comandante ou umas cartas (duplo clique num ponto) e as sugestões aparecem a pulsar à volta do deck.')}</p>)}
       </aside>
     </div>
   )
@@ -2110,7 +2111,7 @@ export function ArtPicker({ c, deck, act, onClose }) {
         <div className="ap-img"><img src={img(c, 'large', false, pid)} alt={c.n} /></div>
         <div className="ap-list">
           <h3>{tx('Arte de {c}', { c: c.n })}</h3>
-          <p className="muted small">{tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
+          <p className="muted small">{isTouch() ? tx('Toca e mantém para ver; toca para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).') : tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
           {favs.length > 0 && <div className="row-btns"><button onClick={useFavs} title={tx('Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)', { c: c.n })}>★ {tx('Assumir as preferidas das definições')}</button></div>}
           {canSplit && <div className="split-box">
             <label className="chk"><input type="checkbox" checked={splitOn} onChange={e => { setSplitOn(e.target.checked); if (!e.target.checked) act.setSplit(c.n, null) }} /> {tx('Dividir as {n} cópias por várias artes', { n: total })}</label>

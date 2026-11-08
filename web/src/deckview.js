@@ -2,6 +2,7 @@
 // categorias fechadas (▸)
 import { useSyncExternalStore } from 'react'
 import { img } from './data.js'
+import { held } from './touch.js'
 
 let peek
 // ao lado da linha; num scroll (do rato ou do browser a reajustar a página) acompanha a linha enquanto o rato lá estiver
@@ -42,7 +43,7 @@ export const pressPeek = (c, pid) => ({
     pressed = false; clearTimeout(pressT)
     if (e.pointerType !== 'touch') return
     const a = e.currentTarget
-    pressT = setTimeout(() => { pressed = true; openPeek(a, c, pid); Object.assign(peek.style, { top: `${Math.max(8, (innerHeight - 340) / 2)}px`, left: `${(innerWidth - 240) / 2}px` }) }, 450)
+    pressT = setTimeout(() => { pressed = true; held(); openPeek(a, c, pid); Object.assign(peek.style, { top: `${Math.max(8, (innerHeight - 340) / 2)}px`, left: `${(innerWidth - 240) / 2}px` }) }, 450)
   },
   onPointerUp: endPress, onPointerCancel: endPress,
   onContextMenu: e => { if (e.pointerType === 'touch' || pressed) e.preventDefault() },  // sem o menu do browser por cima

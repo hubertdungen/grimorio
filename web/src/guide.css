@@ -58,6 +58,7 @@
 .g-results section + section { margin-top: 14px; }
 kbd.g-k { display: inline-block; min-width: 1.6em; text-align: center; padding: 0 5px; border-radius: 5px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--panel2); font: 600 12px/1.6 ui-monospace, monospace; color: var(--text); }
 .g-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+.g-keys.g-touch { display: grid; gap: 6px; } .g-touch b { color: var(--text); margin-right: 4px; }
 
 @media (max-width: 900px) {
   .guide { grid-template-columns: minmax(0, 1fr); }
