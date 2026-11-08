@@ -467,7 +467,7 @@ export default function App() {
         ))}</nav>
         {section !== 'biblioteca' && <div className="deck-pick">
           <DeckPicker decks={decks} deck={deck} data={data} onOpen={openDeck} onClose={newDeck} />
-          <button className="new-btn" onClick={() => setShowWizard(true)}>✦ {tx('Novo deck')}</button>
+          <button className="new-btn" onClick={() => setShowWizard(true)} title={tx('Novo deck')}>✦ <span>{tx('Novo deck')}</span></button>
           <span className="save">{saveState}</span>
         </div>}
         <ProfileChip prof={prof} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />

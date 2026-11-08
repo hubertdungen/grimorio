@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Replay from './Board.jsx'
 import { tx, LOCALE } from './i18n.js'
+import { isCompact } from './tablekit.js'
 
 const sideOf = g => { const me = g.me || 'a'; return [me, Object.keys(g.names || {}).find(k => k !== me) || 'b'] }  // [eu, o outro]
 const j = url => fetch(url).then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
@@ -14,7 +15,7 @@ export default function MyGames({ data }) {
   if (game) {
     const [me, ot] = sideOf(game)
     return (
-      <section className="card mygames-replay">
+      <section className={`card mygames-replay ${isCompact() ? 'modal rp-sheet' : ''}`}>{/* telemóvel/tablet: a réplica por cima de tudo, com o ecrã todo */}
         <Replay data={data} game={{ ...game, winner: game.winner || 'draw', opp: game.names?.[ot] || 'Forge', g: 1 }} deckName={game.names?.[me] || tx('O teu deck')} onBack={() => setGame(null)} backLabel={tx('← Os meus jogos')} />
       </section>
     )

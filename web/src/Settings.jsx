@@ -156,6 +156,12 @@ function TableKeys() {
           <option value={4}>{tx('Automático: até 4 (criaturas e terrenos em duas linhas quando não cabem)')}</option>
           <option value={2}>{tx('Sempre 2, como antes (as cartas encostam-se)')}</option>
         </select></label>
+      <label className="fmt"><span>{tx('A mesa no ecrã')}</span>
+        <select value={p.layout} onChange={e => save({ layout: e.target.value })}>
+          <option value="auto">{tx('Automática: no telemóvel e no tablet, a mesa com o ecrã todo (barras e painel a pedido: ☰ e ⋯)')}</option>
+          <option value="compact">{tx('Sempre a mesa com o ecrã todo (também no computador)')}</option>
+          <option value="classic">{tx('Clássica: barras da app e painel lateral sempre à vista')}</option>
+        </select></label>
       <label className="fmt"><span>{tx('Tamanho das cartas na mesa')}</span>
         <select value={p.cardPx} onChange={e => save({ cardPx: +e.target.value })}>
           {CARD_PX.map(n => <option key={n} value={n}>{n ? tx('{n} px (terrenos também)', { n }) : tx('Automático (cabe no ecrã)')}</option>)}

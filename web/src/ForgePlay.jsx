@@ -6,7 +6,7 @@ import './fpchoice.css'
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, ORB_DEATH } from './Board.jsx'
+import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, GameMenuBtns, ORB_DEATH } from './Board.jsx'
 import { ctrs, toPerm, zoneOf } from './fpboard.js'
 import { tx } from './i18n.js'
 import { playDiff, play } from './sfx.js'
@@ -18,7 +18,7 @@ import { obviousPay } from './mana.js'
 import { useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, pressPeek } from './deckview.js'
 import { isTouch } from './touch.js'
-import { useDrag, STAGE, useOverlap, useStage, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
+import { useDrag, STAGE, useOverlap, useStage, useGameFocus, useFlip, spotOn, usePeek, useTableDice, useZoneFlights } from './tablekit.js'
 
 async function j(url, body) {
   const r = await fetch(url, body && { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -50,13 +50,13 @@ function endWhy(out) {
 // bloqueadores, os cliques viravam bloqueios
 const ATK_ASK = m => !!m && !/^(Priority:|Waiting for)/.test(m) && /Declare attackers|Select creatures to attack/i.test(m)
 const BLK_ASK = m => !!m && !/^(Priority:|Waiting for)/.test(m) && /Declare blockers|Select creatures to block/i.test(m)
-function promptText(msg, st, me) {
+function promptText(msg, st, me, short) {  // short: a barra da mesa compacta (o pedido de sempre em poucas palavras)
   const m = String(msg || '')
   if (!m) return ''
   if (/^Priority:/.test(m)) {
     if (st?.stack?.length) return tx('Há {n} na pilha: responde com um instantâneo ou OK para deixar resolver.', { n: st.stack.length })
     const mine = st?.active === me?.id, main = st?.phase === 'MAIN1' || st?.phase === 'MAIN2'
-    return mine && main ? (isTouch() ? tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou toca-lhe duas vezes), ou OK para avançar.') : tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou duplo clique), ou OK para avançar.')) : tx('Tens prioridade: OK para passar.')
+    return mine && main ? (short ? tx('O teu turno: joga uma carta ou OK.') : isTouch() ? tx('O teu turno: toca numa carta para a jogar (ou arrasta-a para a mesa), ou OK para avançar.') : tx('O teu turno: arrasta um terreno ou uma carta para a mesa (ou duplo clique), ou OK para avançar.')) : tx('Tens prioridade: OK para passar.')
   }
   if (/^Waiting for/.test(m)) return tx('O adversário está a pensar…')
   const sv = m.match(/Put (.+?) on the top of library or graveyard/i), sc = m.match(/Put (.+?) on (?:the )?top or bottom of (?:your )?library/i)
@@ -935,6 +935,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // uma vez por pergunta. No teu turno com a pilha vazia (estás a jogar) e nas escolhas (bloquear, alvos) não conta;
   // começar a responder (lançar, escolher) muda a pergunta e o relógio sai
   const [clock, setClock] = useState(null), clockRef = useRef(null)
+  // a mexer numa carta (levantada, menu «Jogar»/ativar aberto, a arrastá-la) o relógio para: no tablet escolher e lançar
+  // um instantâneo em resposta demorava mais do que os segundos do relógio e o jogo passava sozinho a meio
+  const holdRef = useRef(false)
+  holdRef.current = !!act || lift != null
   const clockKeyOf = x => {
     const P = fpPrefs(), p = x?.prompt, msg = p?.msg || ''
     if (!P.clock || !p || x.asks?.length || x.ended || !/^Priority:/.test(msg)) return null
@@ -957,7 +961,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       const c = clockRef.current; if (!c) return
       // fora da mesa (outro separador, janela minimizada, outra área da app) o jogo pausa: o relógio também (o que falta fica)
       const now = Date.now(), el = fitBox.current, away = document.hidden || window.__grimAway || !el?.isConnected || !el.offsetParent  // __grimAway: .exe minimizado / APK em segundo plano
-      if (away) { c.until += now - (c.now || now); c.now = now; if (!c.paused) { c.paused = true; setClock({ ...c }) } return }
+      const hold = !away && (holdRef.current || !!document.querySelector('.fp-ghost'))  // .fp-ghost: uma carta a ser arrastada
+      if (away || hold) { const why = away ? 'away' : 'hold'; c.until += now - (c.now || now); c.now = now; if (c.paused !== why) { c.paused = why; setClock({ ...c }) } return }
       c.paused = false
       if (now >= c.until) { clockRef.current = null; setClock(null); if (clockKeyOf(sNow.current) === c.k) send({ c: 'ok' }); return }
       setClock({ ...c, now: Date.now() })
@@ -1134,7 +1139,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     return () => clearTimeout(t)
   }, [st?.turn, st?.active])  // eslint-disable-line react-hooks/exhaustive-deps
   const P = fpPrefs()
-  const stage = useStage(fitBox, stageWrap, !!st)
+  const { compact, chrome, setChrome } = useGameFocus(fitBox), [sideOpen, setSideOpen] = useState(false), [promptOpen, setPromptOpen] = useState(false)
+  const stage = useStage(fitBox, stageWrap, !!st, false, compact)
   // a arte escolhida em cada deck ({a: {carta: edição/imagem}, b: …}): estável entre estados para não redesenhar a mesa toda
   const artsKey = JSON.stringify(s?.arts || null), artsCtx = useMemo(() => ({ arts: JSON.parse(artsKey), k: null }), [artsKey])
   const im = (c, size) => img(c, size, false, artOf(artsCtx.arts, null, c))
@@ -1159,7 +1165,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const clockLeft = clock ? Math.max(0, clock.until - (clock.now || Date.now())) : 0
   const clockUi = clock && <div className={`fp-clock ${clock.stopped ? 'stopped' : ''} ${clockLeft < 3000 ? 'hurry' : ''}`} role="timer">
     <i style={{ '--k': (clockLeft / clock.total).toFixed(3) }} />
-    <span>{clock.paused ? tx('Relógio em pausa: estás fora da mesa') : clock.stopped ? tx('A pensar: passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) }) : tx('Passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) })}</span>
+    <span>{clock.paused === 'hold' ? tx('Relógio em pausa: estás a escolher uma carta') : clock.paused ? tx('Relógio em pausa: estás fora da mesa') : clock.stopped ? tx('A pensar: passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) }) : tx('Passa sozinho em {n} s', { n: Math.ceil(clockLeft / 1000) })}</span>
     {!clock.stopped && <button type="button" className="fp-stop" onClick={stopClock} title={tx('Parar para pensar: mais {n} s para responder', { n: fpPrefs().clockExtra })}>⏸ {tx('Stop')} <kbd>{fpPrefs().clockKey.toUpperCase()}</kbd></button>}
   </div>
   const actP = players.find(p => p.id === st.active)
@@ -1312,9 +1318,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
   }
   return (<Arts.Provider value={artsCtx}><OrbCtx.Provider value={orbCtx}>
-    <div className={`fp ${dice.res ? 'dice-on' : ''}`} ref={fitBox} onMouseLeave={() => { setZoom(null); peek.hide() }} onMouseOver={onOver} onPointerDown={peek.hide}
+    <div className={`fp ${dice.res ? 'dice-on' : ''} ${compact ? 'compact' : ''} ${compact && sideOpen ? 'side-open' : ''}`} ref={fitBox} onMouseLeave={() => { setZoom(null); peek.hide() }} onMouseOver={onOver} onPointerDown={peek.hide}
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
-      <div className="fp-stagebox" ref={stageWrap} style={{ height: stage.h }}>
+      <div className="fp-stagebox" ref={stageWrap} style={{ height: compact ? undefined : stage.h }}>
       <FsBtn className="on-table" />
       <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
       <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''} ${declaring ? 'fp-declaring' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
@@ -1344,15 +1350,18 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <b>{dice.res?.items ? (intro.won ? tx('Ganhaste a moeda ao ar') : tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') })) : tx('Moeda ao ar: quem começa?')}</b>
         <small>{tx('toca para continuar')}</small></div>}
       <div className="fp-dice" ref={diceBox} /></div>
-      {touchDev && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
-        <p><Syms text={promptText(pr?.msg, st, me)} />{blockBox}{atkBox}</p>
+      {(touchDev || compact) && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
+        {compact && <GameMenuBtns chrome={chrome} setChrome={setChrome} side={sideOpen} setSide={setSideOpen} />}
+        <p className={promptOpen || blockBox || atkBox ? 'open' : ''} onClick={() => setPromptOpen(x => !x)}><Syms text={promptText(pr?.msg, st, me, compact)} />{blockBox}{atkBox}</p>
         {unstick}{selPick}
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
         {clockUi}
         <FsBtn />
       </div>}
+      {compact && sideOpen && <div className="fp-side-bg" onClick={() => setSideOpen(false)} />}
       <aside className="fp-side">
+        {compact && <button type="button" className="fp-side-x" onClick={() => setSideOpen(false)} aria-label={tx('Fechar')}>✕</button>}
         <div className="fp-zoom">{zc ? <img key={zc.n} className="fp-zin" src={im(zc, 'normal')} alt={zc.n} /> : <p className="muted small">{isTouch() ? tx('Toca e mantém numa carta para a veres em grande.') : tx('Passa o rato por uma carta (no tablet: toca e mantém) para a veres em grande.')}</p>}</div>
         <div className={`fp-prompt ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>
           {pr?.msg && !/^(Priority:|Waiting for)|keep your hand|coin toss|Declare (attackers|blockers)|Select creatures to (attack|block)/i.test(pr.msg) && <ForWhat src={sourceOf(pr.msg, pr.card, pr.cardName, st)} data={data} />}

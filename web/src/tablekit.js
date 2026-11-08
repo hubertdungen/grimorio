@@ -218,11 +218,49 @@ export function useOverlap(tableRef) {
   })
 }
 
-export function useStage(boxRef, wrapRef, ready, own = false) {  // own: com o painel por baixo, a mesa fica com o ecrã todo (o painel vem a seguir, a rolar)
+// mesa compacta (telemóvel e tablet; ou sempre / nunca, Definições › Mesa): a mesa fica com o ecrã todo — as barras da app
+// escondem-se (☰ mostra-as), o painel lateral vira gaveta e OK / Acabar o turno ficam numa barra só, por baixo da mesa (ou à
+// direita, num ecrã muito largo e baixo como o telemóvel deitado). --chrome-h: a altura do que fica por cima da mesa
+export const COMPACT_Q = '(pointer: coarse), (max-width: 900px), (max-height: 560px)'
+export const isCompact = () => { const l = fpPrefs().layout; return l === 'compact' || (l === 'auto' && matchMedia(COMPACT_Q).matches) }
+export function useGameFocus(boxRef) {
+  const pick = isCompact
+  const [compact, setCompact] = useState(pick), [chrome, setChrome] = useState(false)
+  useEffect(() => { const m = matchMedia(COMPACT_Q), f = () => setCompact(pick()); m.addEventListener?.('change', f); return () => m.removeEventListener?.('change', f) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const box = boxRef.current
+    document.body.classList.toggle('fp-chrome', compact && chrome)
+    if (!compact || !box) return
+    const top = () => box.style.setProperty('--chrome-h', `${Math.max(0, Math.round(box.getBoundingClientRect().top + (box.closest('.coliseu:fullscreen') ? 0 : scrollY)))}px`)
+    scrollTo(0, 0); top()
+    addEventListener('resize', top)
+    return () => { removeEventListener('resize', top); document.body.classList.remove('fp-chrome') }
+  }, [compact, chrome])  // eslint-disable-line react-hooks/exhaustive-deps
+  return { compact, chrome, setChrome }
+}
+
+export function useStage(boxRef, wrapRef, ready, own = false, compact = false) {  // own: com o painel por baixo, a mesa fica com o ecrã todo (o painel vem a seguir, a rolar)
   const [st, setSt] = useState({ shape: 'wide', sc: 1, left: 0 })
   useLayoutEffect(() => {
     const box = boxRef.current, wrap = wrapRef.current
     if (!box || !wrap) return
+    if (compact) {  // a caixa já tem o tamanho certo (a grelha da .fp.compact): a mesa estica-se para a forma dela e escala-se
+      box.style.height = ''
+      const fit = () => {
+        const w = wrap.clientWidth, h = wrap.clientHeight
+        if (!w || !h) return
+        const shape = innerWidth < innerHeight ? 'tall' : 'wide', a = h / w
+        let [W, H] = shape === 'tall' ? STAGE.tall : [1280, 740]  // deitada: 740 de altura (e não 820) — as cartas ficam ~10% maiores; o que sobrava era vazio entre os terrenos e a mão
+        if (shape === 'tall') { H = Math.min(1700, Math.max(wrap.querySelector('.opps, .withmate') ? 1240 : 1100, Math.floor(W * a))); W = Math.max(W, Math.floor(H / a)) }  // 1100: o lado do adversário já não fica com espaço vazio (as filas dele medem-se pelo conteúdo); com 3–4 jogadores 1240, como antes
+        else if (w / h > W / H) W = Math.min(2400, Math.floor(H / a))  // mais larga do que 1280×820: mais espaço nas filas, cartas do mesmo tamanho
+        else H = Math.min(1100, Math.floor(W * a))
+        const sc = Math.min(w / W, h / H)
+        setSt({ shape, sc, left: Math.max(0, (w - W * sc) / 2), h: H * sc, W, H })
+      }
+      fit()
+      const ro = new ResizeObserver(fit); ro.observe(wrap)
+      return () => ro.disconnect()
+    }
     let last = null
     const fit = force => {
       const vh = window.visualViewport?.height || innerHeight, fe = !!(document.fullscreenElement || document.webkitFullscreenElement)
@@ -260,7 +298,7 @@ export function useStage(boxRef, wrapRef, ready, own = false) {  // own: com o p
       tm.forEach(clearTimeout); removeEventListener('resize', again); window.visualViewport?.removeEventListener('resize', again)
       evs.forEach(e => (e === 'orientationchange' ? window : document).removeEventListener(e, hard))
     }
-  }, [ready]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, compact]) // eslint-disable-line react-hooks/exhaustive-deps
   return st
 }
 
