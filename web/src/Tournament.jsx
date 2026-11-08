@@ -22,6 +22,7 @@ import { usePeek } from './peek.jsx'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
 import { useBackClose } from './backnav.js'
+import './tournament.css'
 
 const TYPES = {
   elim: [tx('Eliminação simples'), 4, 16, tx('Quem perde sai. Se o número de decks não for 4, 8 ou 16, os melhores seeds passam a 1.ª ronda sem jogar (isentos). Pode haver jogo de 3.º lugar entre os vencidos das meias-finais.')],
@@ -50,6 +51,30 @@ const TYPE_ICO = {
   equipas: <><circle cx="4" cy="10.5" r="1.6" /><circle cx="8" cy="10.5" r="1.6" /><circle cx="16" cy="10.5" r="1.6" /><circle cx="20" cy="10.5" r="1.6" /><path d="M1.6 17a2.4 2.4 0 0 1 4.8 0M5.6 17a2.4 2.4 0 0 1 4.8 0M13.6 17a2.4 2.4 0 0 1 4.8 0M17.6 17a2.4 2.4 0 0 1 4.8 0" /></>,
 }
 const TypeIco = ({ k }) => <svg className="tc-ico" viewBox="0 0 24 24" aria-hidden="true">{TYPE_ICO[k]}</svg>
+// o que cada sistema faz, numa linha (o texto inteiro aparece por baixo quando se escolhe)
+const TYPE_SHORT = { elim: tx('Quem perde sai'), dupla: tx('Só sai à 2.ª derrota'), suico: tx('Rondas contra quem tem os mesmos pontos'), liga: tx('Todos contra todos, uma vez'),
+  mesas: tx('Mesas de 3–4, pontos pelo lugar'), gauntlet: tx('Um deck contra cada um dos outros'), rei: tx('Quem ganha fica; a fila desafia'), grupos: tx('Grupos e depois eliminação'), equipas: tx('Equipas de 2 ou 3 decks') }
+const TYPE_GROUPS = [[tx('Clássicos'), ['elim', 'dupla', 'suico', 'liga']], [tx('Especiais'), ['grupos', 'rei', 'gauntlet']], [tx('Multijogador e equipas'), ['mesas', 'equipas']]]
+
+// controlos do criar: escolha exclusiva (segmentos), ligar/desligar (interruptor) e números (− n +)
+function Seg({ value, opts, onChange, label, wide }) {  // opts: [valor, rótulo, título?, desligado?]
+  return <div className={`tg-seg ${wide ? 'wide' : ''}`} role="radiogroup" aria-label={label}>{opts.filter(Boolean).map(([v, l, t, off]) => (
+    <button key={v} type="button" role="radio" aria-checked={value === v} className={value === v ? 'on' : ''} title={t} disabled={off} onClick={() => onChange(v)}>{l}</button>))}</div>
+}
+function Tgl({ on, set, children, hint, title, disabled, className = '' }) {
+  return <label className={`tg-tgl ${disabled ? 'off' : ''} ${className}`} title={title}>
+    <input type="checkbox" role="switch" checked={!!on} disabled={disabled} onChange={e => set(e.target.checked)} /><i aria-hidden="true" />
+    <span>{children}{hint && <small>{hint}</small>}</span></label>
+}
+function Stepper({ value, min, max, onChange, placeholder, label }) {  // value '' = o valor por omissão (placeholder)
+  const v = value === '' || value == null ? null : +value, cur = v ?? +placeholder
+  const to = x => onChange(Math.max(min, Math.min(max, x)))
+  return <span className="tg-step" role="group" aria-label={label}>
+    <button type="button" onClick={() => to(cur - 1)} disabled={cur <= min} aria-label={tx('Menos')}>−</button>
+    <input type="number" inputMode="numeric" min={min} max={max} value={v ?? ''} placeholder={placeholder} aria-label={label} onChange={e => onChange(e.target.value === '' ? '' : +e.target.value)} />
+    <button type="button" onClick={() => to(cur + 1)} disabled={cur >= max} aria-label={tx('Mais')}>+</button></span>
+}
+const Field = ({ label, children, hint, className = '' }) => <div className={`tg-field ${className}`}><span className="tg-lab">{label}</span>{children}{hint && <small className="muted">{hint}</small>}</div>
 const STATUS = { running: tx('a decorrer'), paused: tx('em pausa'), done: tx('terminado'), cancelled: tx('cancelado'), error: tx('parado (erro)') }
 // equipas à mesma mesa (tournament.py `table`): «equipas» = 2 contra 2, cada um com a sua vida; «2hg» = Two-Headed Giant
 const tableL = v => (v === 'equipas' ? tx('2 contra 2 à mesma mesa') : v ? tx('Two-Headed Giant (vida partilhada)') : '')
@@ -269,6 +294,10 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
   const [stars, setStars] = useState({})
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  // juntar decks: ao acaso, escolhidos um a um (por fonte, com pesquisa) ou os campeões de torneios anteriores
+  const [addTab, setAddTabS] = useState(() => (['acaso', 'escolher', 'campeoes'].includes(ls('grimorio.torneio.juntar')) ? ls('grimorio.torneio.juntar') : 'acaso'))
+  const setAddTab = v => { setAddTabS(v); ls('grimorio.torneio.juntar', v) }
+  const [pickSrc, setPickSrc] = useState('meu'), [q, setQ] = useState('')
   useEffect(() => { j('/api/sim/difficulties').then(setDiffs).catch(() => {}); j('/api/decks').then(setAllMine).catch(() => {}) }, [])
   useEffect(() => { if (!mixF) setPlayers([]) }, [format, mixF])
   useEffect(() => {
@@ -402,134 +431,204 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
   // porque é que não dá para jogar eu (dito ao lado da opção: o título não se vê no telemóvel)
   const playMeWhy = room ? '' : type === 'mesas' || type === 'equipas' ? tx('Indisponível em mesas e equipas: o Forge Play é um contra um (num Two-Headed Giant são quatro à mesma mesa).')
     : F.cmd ? tx('Indisponível em Commander: o Forge Play é um contra um.') : tx('Marca um dos teus decks com ☆ «eu» na lista para o jogares tu.')
+  // a escolha de decks um a um: as fontes com quantos há, e a pesquisa por nome
+  const LISTS = { meu: mine.filter(o => kindOf(o) === 'meu'), ami: mine.filter(o => kindOf(o) === 'ami'), com: mine.filter(o => kindOf(o) === 'com'), meta }
+  const ps = LISTS[pickSrc]?.length ? pickSrc : Object.keys(LISTS).find(k => LISTS[k].length) || 'meu'
+  const ql = q.trim().toLowerCase(), picks = LISTS[ps].filter(o => !ql || o.name.toLowerCase().includes(ql))
+  const BO_L = { 1: tx('Um jogo (Bo1)'), 2: tx('Dois jogos (Bo2, pode empatar)'), 3: tx('Melhor de 3 (Bo3)'), 5: tx('Melhor de 5 (Bo5)') }
+  const mins = Math.max(1, Math.round((games * MIN_PER_GAME * (type === 'mesas' || table ? 2 : 1)) / 5) * 5)
+  const status = n < lo ? tx('Faltam {k} decks (mínimo {m}).', { k: lo - n, m: lo }) : teamBad ? tx('Com equipas de {s} o número de decks tem de ser múltiplo de {s}.', { s: team })
+    : tx('{p} partidas · ≈ {g} jogos · ≈ {t} min (um jogo de cada vez no Forge)', { p: matches, g: games, t: mins })
+  const goOff = asRoom ? busy || n > max : busy || n < lo || n > max || teamBad
+  const goBtn = cls => asRoom ? <button className={`primary ${cls}`} onClick={openRoom} disabled={goOff}>{tx('🚪 Abrir a sala')}</button>
+    : <button className={`primary ${cls}`} onClick={start} disabled={goOff}>{tx('🏆 Começar o torneio')}</button>
+  const badge = n > 0 && (casual ? <span className="rk rk-cas" title={tx('Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.')}>{tx('Casual')}</span>
+    : isRanked ? <span className="rk rk-ok" title={tx('Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).')}>🏅 {tx('Ranked')}</span>
+      : <span className="rk rk-warn">⚠ {tx('Não ranked: {m} de {n} decks do meta (precisa de {k}). Conta só para as estrelas azuis e vermelhas e os troféus saem azuis.', { m: nMeta, n, k: metaNeed })}</span>)
+  const deckBtn = (src, o) => (
+    <button key={o.id} className={`tg-pick ${has(src, o.id) ? 'on' : ''}`} onClick={() => add(src, o)} title={has(src, o.id) ? tx('Já está no torneio: carrega para o juntar outra vez') : undefined}>
+      <span className="tg-pick-n">{has(src, o.id) ? '✓' : '＋'} {o.name}</span>
+      <span className="tg-pick-m">{src === 'meus' && o.friendName ? <span className="muted">🤝 {o.friendName}</span> : null}
+        {mixF && src === 'meus' ? <span className="fmt-tag">{FORMAT[o.format]?.name || o.format}</span> : null}
+        {src === 'meta' && o.of && o.of !== mf ? <span className="fmt-tag">{FORMAT[o.of]?.name}</span> : null}
+        {src === 'meta' && o.share ? <span className="muted">{Math.round(o.share * 100)}%</span> : null}
+        {(src === 'meta' || !casual) && <Stars r={stars[rkey(src, o.id)]} />}</span>
+    </button>)
   return (
-    <section className="card tour-create">
-      <h3>{misto ? tx('Novo torneio misto') : free ? tx('Novo torneio de mesa livre') : room === 'jogo' ? tx('Novo jogo online') : room ? tx('Novo torneio online') : tx('Novo torneio')} <span className="muted small">{misto ? tx('junta os teus decks e escolhe em cada um se o jogas tu ou o bot; cada amigo entra com os seus e escolhe o mesmo. Pessoa contra bot joga-se no Forge Play, pessoas entre si numa mesa livre, bot contra bot no Forge.') : free ? tx('sem bots: junta os teus decks aqui (podes pôr vários) e partilha o link; cada amigo entra com um ou vários decks seus. Cada partida joga-se numa mesa livre entre os donos dos decks.') : room ? tx('abre a sala e partilha o link: quem entra junta um deck seu, e os lugares que juntares aqui jogam com os bots do Forge') : tx('os bots do Forge jogam tudo sozinhos no servidor — podes fechar o browser e voltar mais tarde')}</span></h3>
-      <div className="tc-grid">
-        <div className="lab-step">
-          <h4 className="step-h"><i>1</i> {tx('Regras')}</h4>
-          <label className="fmt"><span>{tx('Nome')}</span><input value={name} onChange={e => setName(e.target.value)} placeholder={suggested} /></label>
-          <label className="chk"><input type="checkbox" checked={casual} onChange={e => setCasual(e.target.checked)} /> {tx('Modo casual (não conta para os ratings)')}</label>
-          {casual && <label className="chk" title={tx('Desligado: todos os decks são do formato escolhido, só que o torneio não conta para os ratings.')}><input type="checkbox" checked={mixOn} onChange={e => setMixOn(e.target.checked)} /> {tx('Misturar formatos')}</label>}
-          {casual && <p className="small muted tc-info">{mixF ? CASUAL_INFO : tx('Casual sem misturar: decks só deste formato.')} {tx('Os torneios casuais não contam para os ratings.')}</p>}
-          <label className="fmt"><span>{mixF ? tx('Regras base (vida e tipo de jogo de todos)') : tx('Formato (todos os decks jogam este)')}</span>
-            <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(defType(f)) }}>{(() => {
-              // os formatos em que tens decks vêm primeiro, com a bolinha e quantos
-              const n = allMine.reduce((m, d) => ({ ...m, [d.format]: (m[d.format] || 0) + 1 }), {})
-              return FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited' && !(room && f.cmd && !free && !misto))
-                .map((f, k) => ({ f, k, c: n[f.key] || 0 })).sort((a, b) => (b.c > 0) - (a.c > 0) || b.c - a.c || a.k - b.k)
-                .map(({ f, c }) => <option key={f.key} value={f.key}>{c ? `● ${f.name} (${c})` : f.name}</option>)
-            })()}</select></label>
-          {!mixF && CROSS[format] && <label className="chk small" title={tx('Os decks têm de ser legais carta a carta neste formato (o servidor confirma).')}><input type="checkbox" checked={crossOn} onChange={e => { setCrossOn(e.target.checked); ls('grimorio.torneio.cross', e.target.checked ? '1' : '0') }} /> {tx('Aceitar decks legais de outros formatos ({l})', { l: CROSS[format].map(f => FORMAT[f]?.name || f).join(', ') })}</label>}
-          {misto && F.cmd && <p className="small muted tc-info">{tx('Commander só se todos jogarem eles mesmos (fica um torneio de mesa livre): com bots, o Forge Play é um contra um.')}</p>}
-          {room !== 'jogo' && <div className="tc-types">{Object.entries(TYPES).filter(([k]) => k !== 'jogo' && !(misto && k === 'mesas')).map(([k, [l, lo, hi]]) => (
-            <button key={k} className={type === k ? 'on' : ''} onClick={() => setType(k)}><TypeIco k={k} /><b>{l}</b><small>{tx('{lo}–{hi} decks', { lo, hi })}</small></button>
-          ))}</div>}
-          <p className="small muted tc-info">{info}</p>
-          <div className="tc-row">
-            <label className="fmt"><span>{tx('Partidas')}</span><select value={boOf} onChange={e => setBo(+e.target.value)} disabled={type === 'mesas'}><option value={1}>{tx('Um jogo (Bo1)')}</option>{BO2.includes(type) && <option value={2} title={tx('Dois jogos: 2-0 ganha, 1-1 é empate')}>{tx('Dois jogos (Bo2, pode empatar)')}</option>}<option value={3}>{tx('Melhor de 3 (Bo3)')}</option><option value={5}>{tx('Melhor de 5 (Bo5)')}</option></select></label>
-            {(type === 'suico' || type === 'mesas' || type === 'rei') && <label className="fmt"><span>{type === 'rei' ? tx('N.º de partidas') : tx('Rondas')}</span><input type="number" min={type === 'rei' ? Math.max(n - 1, 1) : 1} max={type === 'rei' ? 200 : roundsDef + 3} title={type === 'rei' ? tx('Pelo menos {m} (para todos os decks jogarem) e até 200', { m: Math.max(n - 1, 1) }) : undefined} value={rounds} placeholder={String(roundsDef)} onChange={e => setRounds(e.target.value)} /></label>}
-            {type === 'equipas' && <label className="fmt"><span>{tx('Decks por equipa')}</span><select value={team} onChange={e => setTeam(+e.target.value)}><option value={2}>2</option><option value={3}>3</option></select></label>}
-            {type === 'equipas' && <label className="fmt" title={team !== 2 ? tx('À mesma mesa só com equipas de 2 (o Forge joga até 4 lugares).') : tx('Tabuleiro a tabuleiro: cada deck joga um contra um com o do outro lado. À mesma mesa: os dois decks de cada equipa jogam juntos contra os dois da outra, num só jogo a quatro — com a vida de cada um, ou em Two-Headed Giant (vida partilhada, 30 por equipa; veneno da equipa, 15 = derrota; a equipa que começa não compra no 1.º turno; a equipa perde junta).')}><span>{tx('As equipas jogam')}</span>
-              <select value={table} disabled={team !== 2} onChange={e => setTop('table', e.target.value)}><option value="">{tx('Tabuleiro a tabuleiro')}</option><option value="equipas">{tx('2 contra 2 à mesma mesa')}</option><option value="2hg" disabled={!!F.cmd}>{tx('Two-Headed Giant (vida partilhada)')}</option></select></label>}
-            <label className="fmt"><span>{tx('Seeds')}</span><select value={seeding} onChange={e => setSeeding(e.target.value)}><option value="aleatorio">{tx('Sorteados ao começar')}</option><option value="ordem">{tx('Pela ordem da lista')}</option></select></label>
-          </div>
-          {type === 'elim' && <label className="chk small"><input type="checkbox" checked={third} onChange={e => setThird(e.target.checked)} /> {tx('Jogo de 3.º lugar')}</label>}
-          {type === 'equipas' && <div className="tc-team-opts">
-            <label className="chk small" title={seeding === 'ordem' ? tx('Só com as equipas sorteadas ao começar.') : tx('No sorteio, a equipa mais fraca (pelo Elo) recebe o deck mais forte que falta: equipas com força parecida.')}>
-              <input type="checkbox" checked={tops.balElo} disabled={seeding === 'ordem'} onChange={e => setTop('balElo', e.target.checked)} /> {tx('Equipas equilibradas pelo rating')}</label>
-            {mixF && <label className="chk small" title={seeding === 'ordem' ? tx('Só com as equipas sorteadas ao começar.') : tx('No sorteio, cada formato espalha-se pelas equipas (ex.: 6 de Pauper e 6 de Modern em equipas de 2 = um de cada em todas); o que não der para espalhar decide-se pelo rating.')}>
-              <input type="checkbox" checked={tops.balFmt} disabled={seeding === 'ordem'} onChange={e => setTop('balFmt', e.target.checked)} /> {tx('Espalhar os formatos pelas equipas')}</label>}
-            {mixF && !table && <label className="chk small" title={tx('Em cada partida de equipas, os tabuleiros juntam decks do mesmo formato sempre que as duas equipas os tenham.')}>
-              <input type="checkbox" checked={tops.sameFmt} onChange={e => setTop('sameFmt', e.target.checked)} /> {tx('Decks do mesmo formato frente a frente, quando dá')}</label>}
-          </div>}
-          <p className="small muted">{bo === 3 && type !== 'mesas' ? `${tx('Bo3 com sideboard inteligente entre jogos, como no Laboratório (decks com sideboard, em formatos que o têm), e aprende com as trocas que já perderam.')} ` : ''}{tx('Empates na eliminação repetem o jogo (até 2 vezes); depois passa o melhor seed. Jogos em que o Forge falha repetem-se.')}</p>
+    <section className="card tg-create">
+      <header className="tg-head">
+        <h3>{misto ? tx('Novo torneio misto') : free ? tx('Novo torneio de mesa livre') : room === 'jogo' ? tx('Novo jogo online') : room ? tx('Novo torneio online') : tx('Novo torneio')}</h3>
+        <p className="muted small">{misto ? tx('junta os teus decks e escolhe em cada um se o jogas tu ou o bot; cada amigo entra com os seus e escolhe o mesmo. Pessoa contra bot joga-se no Forge Play, pessoas entre si numa mesa livre, bot contra bot no Forge.') : free ? tx('sem bots: junta os teus decks aqui (podes pôr vários) e partilha o link; cada amigo entra com um ou vários decks seus. Cada partida joga-se numa mesa livre entre os donos dos decks.') : room ? tx('abre a sala e partilha o link: quem entra junta um deck seu, e os lugares que juntares aqui jogam com os bots do Forge') : tx('os bots do Forge jogam tudo sozinhos no servidor — podes fechar o browser e voltar mais tarde')}</p>
+      </header>
+      <div className="tg-layout">
+        <div className="tg-main">
+          {/* 1. formato e sistema */}
+          <section className="tg-sec">
+            <h4 className="step-h"><i>1</i> {room === 'jogo' ? tx('Formato e partida') : tx('Formato e sistema')}</h4>
+            <div className="tg-row">
+              <Field label={mixF ? tx('Regras base (vida e tipo de jogo de todos)') : tx('Formato (todos os decks jogam este)')} className="grow">
+                <select value={format} onChange={e => { const f = e.target.value; setFormat(f); setType(defType(f)) }}>{(() => {
+                  // os formatos em que tens decks vêm primeiro, com a bolinha e quantos
+                  const n = allMine.reduce((m, d) => ({ ...m, [d.format]: (m[d.format] || 0) + 1 }), {})
+                  return FORMATS.filter(f => f.key !== 'casual' && f.key !== 'limited' && !(room && f.cmd && !free && !misto))
+                    .map((f, k) => ({ f, k, c: n[f.key] || 0 })).sort((a, b) => (b.c > 0) - (a.c > 0) || b.c - a.c || a.k - b.k)
+                    .map(({ f, c }) => <option key={f.key} value={f.key}>{c ? `● ${f.name} (${c})` : f.name}</option>)
+                })()}</select></Field>
+              <Field label={tx('Modo')}>
+                <Seg label={tx('Modo')} value={casual ? 'c' : 'n'} onChange={v => setCasual(v === 'c')} opts={[['n', tx('Normal (ranked)')], ['c', tx('Casual'), tx('Modo casual (não conta para os ratings)')]]} /></Field>
+            </div>
+            {(casual || (!mixF && CROSS[format])) && <div className="tg-tgls">
+              {casual && <Tgl on={mixOn} set={setMixOn} hint={tx('Desligado: todos os decks são do formato escolhido, só que o torneio não conta para os ratings.')}>{tx('Misturar formatos')}</Tgl>}
+              {!mixF && CROSS[format] && <Tgl on={crossOn} set={v => { setCrossOn(v); ls('grimorio.torneio.cross', v ? '1' : '0') }} hint={tx('Os decks têm de ser legais carta a carta neste formato (o servidor confirma).')}>{tx('Aceitar decks legais de outros formatos ({l})', { l: CROSS[format].map(f => FORMAT[f]?.name || f).join(', ') })}</Tgl>}
+            </div>}
+            {casual && <p className="small muted tg-note">{mixF ? CASUAL_INFO : tx('Casual sem misturar: decks só deste formato.')} {tx('Os torneios casuais não contam para os ratings.')}</p>}
+            {misto && F.cmd && <p className="small muted tg-note">{tx('Commander só se todos jogarem eles mesmos (fica um torneio de mesa livre): com bots, o Forge Play é um contra um.')}</p>}
+            {room !== 'jogo' && <div className="tg-systems" role="radiogroup" aria-label={tx('Sistema')}>{TYPE_GROUPS.map(([g, ks]) => {
+              const ok = ks.filter(k => !(misto && k === 'mesas'))
+              return ok.length > 0 && <div key={g} className="tg-sysg"><span className="tg-lab">{g}</span><div className="tg-sys-grid">{ok.map(k => (
+                <button key={k} type="button" role="radio" aria-checked={type === k} className={`tg-sys ${type === k ? 'on' : ''}`} onClick={() => setType(k)}>
+                  <TypeIco k={k} /><b>{TYPES[k][0]}</b><small>{TYPE_SHORT[k]}</small><small className="tg-sys-n">{tx('{lo}–{hi} decks', { lo: TYPES[k][1], hi: TYPES[k][2] })}</small></button>))}</div></div>
+            })}</div>}
+            <p className="tg-how small"><TypeIco k={type} /> <span><b>{TYPES[type][0]}.</b> {info}</span></p>
+            <div className="tg-opts">
+              <Field label={tx('Partidas')} hint={type === 'mesas' ? null : BO_L[boOf]}>
+                {type === 'mesas' ? <span className="tg-fixed">{tx('um jogo por mesa')}</span>
+                  : <Seg label={tx('Partidas')} value={boOf} onChange={setBo} opts={[[1, 'Bo1', BO_L[1]], BO2.includes(type) && [2, 'Bo2', BO_L[2]], [3, 'Bo3', BO_L[3]], [5, 'Bo5', BO_L[5]]]} />}</Field>
+              {(type === 'suico' || type === 'mesas' || type === 'rei') && <Field label={type === 'rei' ? tx('N.º de partidas') : tx('Rondas')} hint={type === 'rei' ? tx('Pelo menos {m} (para todos os decks jogarem) e até 200', { m: Math.max(n - 1, 1) }) : null}>
+                <Stepper label={type === 'rei' ? tx('N.º de partidas') : tx('Rondas')} value={rounds} placeholder={String(roundsDef)} min={type === 'rei' ? Math.max(n - 1, 1) : 1} max={type === 'rei' ? 200 : roundsDef + 3} onChange={setRounds} /></Field>}
+              {type === 'equipas' && <Field label={tx('Decks por equipa')}><Seg label={tx('Decks por equipa')} value={team} onChange={setTeam} opts={[[2, '2'], [3, '3']]} /></Field>}
+              <Field label={tx('Seeds')}><Seg label={tx('Seeds')} value={seeding} onChange={setSeeding} opts={[['aleatorio', tx('Sorteados ao começar')], ['ordem', tx('Pela ordem da lista')]]} /></Field>
+              {type === 'equipas' && <Field className="full" label={tx('As equipas jogam')} hint={team !== 2 ? tx('À mesma mesa só com equipas de 2 (o Forge joga até 4 lugares).') : tx('Tabuleiro a tabuleiro: cada deck joga um contra um com o do outro lado. À mesma mesa: os dois decks de cada equipa jogam juntos contra os dois da outra, num só jogo a quatro — com a vida de cada um, ou em Two-Headed Giant (vida partilhada, 30 por equipa; veneno da equipa, 15 = derrota; a equipa que começa não compra no 1.º turno; a equipa perde junta).')}>
+                <Seg wide label={tx('As equipas jogam')} value={table} onChange={v => setTop('table', v)} opts={[['', tx('Tabuleiro a tabuleiro')], ['equipas', tx('2 contra 2 à mesma mesa'), undefined, team !== 2], ['2hg', tx('Two-Headed Giant (vida partilhada)'), undefined, team !== 2 || !!F.cmd]]} /></Field>}
+            </div>
+            {(type === 'elim' || type === 'equipas') && <div className="tg-tgls">
+              {type === 'elim' && <Tgl on={third} set={setThird}>{tx('Jogo de 3.º lugar')}</Tgl>}
+              {type === 'equipas' && <>
+                <Tgl on={tops.balElo} set={v => setTop('balElo', v)} disabled={seeding === 'ordem'} hint={seeding === 'ordem' ? tx('Só com as equipas sorteadas ao começar.') : tx('No sorteio, a equipa mais fraca (pelo Elo) recebe o deck mais forte que falta: equipas com força parecida.')}>{tx('Equipas equilibradas pelo rating')}</Tgl>
+                {mixF && <Tgl on={tops.balFmt} set={v => setTop('balFmt', v)} disabled={seeding === 'ordem'} hint={seeding === 'ordem' ? tx('Só com as equipas sorteadas ao começar.') : tx('No sorteio, cada formato espalha-se pelas equipas (ex.: 6 de Pauper e 6 de Modern em equipas de 2 = um de cada em todas); o que não der para espalhar decide-se pelo rating.')}>{tx('Espalhar os formatos pelas equipas')}</Tgl>}
+                {mixF && !table && <Tgl on={tops.sameFmt} set={v => setTop('sameFmt', v)} hint={tx('Em cada partida de equipas, os tabuleiros juntam decks do mesmo formato sempre que as duas equipas os tenham.')}>{tx('Decks do mesmo formato frente a frente, quando dá')}</Tgl>}
+              </>}
+            </div>}
+            <p className="small muted tg-note">{boOf === 3 && type !== 'mesas' ? `${tx('Bo3 com sideboard inteligente entre jogos, como no Laboratório (decks com sideboard, em formatos que o têm), e aprende com as trocas que já perderam.')} ` : ''}{tx('Empates na eliminação repetem o jogo (até 2 vezes); depois passa o melhor seed. Jogos em que o Forge falha repetem-se.')}</p>
+          </section>
+
+          {/* 2. decks */}
+          <section className="tg-sec">
+            <div className="tg-sec-h">
+              <h4 className="step-h"><i>2</i> {tx('Decks')} <span className={`tg-count ${n >= lo && n <= max && !teamBad ? 'ok' : ''}`}>{n}/{max}</span></h4>
+              <span className="tg-meter" title={tx('{lo}–{hi} decks', { lo, hi: max })} aria-hidden="true"><i style={{ width: `${Math.min(100, (100 * n) / max)}%` }} /><b style={{ left: `${(100 * lo) / max}%` }} /></span>
+              {n > 0 && <button className="link small" onClick={() => setPlayers([])}>{tx('limpar')}</button>}
+            </div>
+            {n > 0 && <div className="tg-seat-bar">
+              {players.some(x => x.src === 'meus') && <label className="tg-me" title={tx('Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.')}><span>{tx('🧙 O meu deck neste torneio')}</span>
+                <select value={players.find(x => x.me)?.ref || ''} onChange={e => setMe(e.target.value)}>
+                  <option value="">{tx('— nenhum (só ver) —')}</option>
+                  {[...new Map(players.filter(x => x.src === 'meus').map(x => [x.ref, x])).values()].map(x => <option key={x.ref} value={x.ref}>{x.name}</option>)}
+                </select></label>}
+              <label className="tg-me tg-diff"><span>{tx('Dificuldade:')}</span>
+                <select value={allDiff} onChange={e => { setAllDiff(e.target.value); setPlayers(p => p.map(x => ({ ...x, difficulty: e.target.value }))) }} aria-label={tx('Dificuldade de todos')}>{diffs.filter(d => d.id !== 'random').map(d => <option key={d.id} value={d.id}>{tx('todos: {d}', { d: dLabel(d) })}</option>)}</select></label>
+              <button className="small" onClick={randomDiffs}>{tx('🎲 uma ao acaso a cada um')}</button>
+            </div>}
+            {n > 0 ? <ol className="tg-seats">{players.map((p, k) => (
+              <li key={p.key} data-k={k} className={`tg-seat ${p.me ? 'me' : ''} ${dragK === k ? 'dragging' : ''}`} style={{ '--edge': edge(p.colors) }}>
+                <div className="tg-art" onPointerDown={e => dragStart(e, k)} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} title={tx('Arrasta para mudar a ordem')}>{data.byName.get(p.cover) ? <img src={img(data.byName.get(p.cover), 'art_crop')} alt="" loading="lazy" /> : <span>✦</span>}<i className="tg-seed" title="seed">{seeding === 'ordem' ? k + 1 : '?'}</i></div>
+                <div className="tg-sbody">
+                  <b className="tg-sname" title={p.name}>{p.name}</b>
+                  <span className="tg-smeta"><span className={`tg-src src-${p.src === 'meta' ? 'meta' : p.fr ? 'ami' : 'meu'}`}>{p.src === 'meta' ? tx('📊 Meta') : p.fr ? `🤝 ${p.fr}` : tx('🧙 Meu')}</span>
+                    {casual && p.fmt ? <span className="fmt-tag">{FORMAT[p.fmt]?.name || p.fmt}</span> : null}
+                    {p.colors ? <Mana cost={[...p.colors].map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}
+                    {stars[rkey(p.src, p.ref)] ? <Stars r={stars[rkey(p.src, p.ref)]} /> : !casual && <span className="muted">{tx('sem rating')}</span>}</span>
+                  {type === 'equipas' && seeding === 'ordem' && <small className="muted">{table ? tx('Equipa {e}', { e: Math.floor(k / team) + 1 }) : tx('Equipa {e} · tabuleiro {b}', { e: Math.floor(k / team) + 1, b: (k % team) + 1 })}</small>}
+                  {type === 'gauntlet' && k === chK && <small className="tg-chal">{tx('⚔ desafiante')}</small>}
+                  <span className="tg-sctl">
+                    {misto && <PlaysToggle plays={p.plays} onChange={v => setP(k, { plays: v })} />}
+                    <select value={p.difficulty} onChange={e => setP(k, { difficulty: e.target.value })} aria-label={tx('Dificuldade de {d}', { d: p.name })} title={DIFF_INFO[p.difficulty]?.resumo}>{diffs.filter(d => d.id !== 'random').map(d => <option key={d.id} value={d.id}>{dLabel(d)}</option>)}</select>
+                    {p.src === 'meus' && <button className={`me-btn ${p.me ? 'on' : ''}`} onClick={() => setPlayers(ps => ps.map((x, i) => ({ ...x, me: i === k ? !x.me : false })))} aria-pressed={!!p.me} title={tx('É o teu deck: segues o percurso dele no torneio')}>{p.me ? tx('★ eu') : tx('☆ eu')}</button>}
+                    {seeding === 'ordem' && <><button onClick={() => move(k, -1)} disabled={!k} aria-label={tx('Subir')}>▲</button><button onClick={() => move(k, 1)} disabled={k === n - 1} aria-label={tx('Descer')}>▼</button></>}
+                    <button className="tg-x" onClick={() => setPlayers(x => x.filter((_, i) => i !== k))} aria-label={tx('tirar')} title={tx('tirar')}>✕</button>
+                  </span>
+                </div>
+              </li>))}</ol>
+              : <p className="tg-empty muted small">{tx('Ainda sem decks. Junta-os ao acaso, escolhe-os um a um ou traz os campeões de torneios anteriores.')}</p>}
+            {n > 0 && !players.some(x => x.me) && players.some(x => x.src === 'meus') && <p className="small muted">{tx('Marca um dos teus com')} <b>{tx('☆ eu')}</b> {tx('para jogar «como se fosses tu»: fica destacado e vês até onde chegas.')}</p>}
+
+            <div className="tg-add">
+              <Seg wide label={tx('Juntar decks')} value={addTab} onChange={setAddTab} opts={[['acaso', tx('🎲 Ao acaso')], ['escolher', tx('＋ Escolher')], ['campeoes', tx('🏆 Campeões')]]} />
+              {addTab === 'acaso' && <div className="tg-pane">
+                <div className="tg-row">
+                  <Field label={tx('Preencher até')}><Stepper label={tx('Preencher até')} value={fillN} placeholder="8" min={2} max={max} onChange={v => setFillN(v === '' ? 2 : v)} /></Field>
+                  <Field label={tx('De onde')} className="grow"><div className="tg-chips" role="group" aria-label={tx('De onde')}>{Object.entries(SRC_L).map(([k, l]) => (
+                    <button key={k} type="button" className={srcsOn.includes(k) ? 'on' : ''} aria-pressed={srcsOn.includes(k)} disabled={!avail[k]}
+                      title={!avail[k] ? ({ meu: tx('Não tens decks teus neste formato.'), ami: tx('Não há decks de amigos neste formato.'), com: tx('Não tens decks da comunidade neste formato.'), meta: tx('Sem decks do meta para este formato.') }[k]) : k === 'meta' && !casual ? tx('Com o meta ligado entra pelo menos 20% (torneio ranked). Desligado dá um torneio interno, não ranked.') : undefined}
+                      onClick={() => setSrcs(v => (v.includes(k) ? (v.length > 1 ? v.filter(x => x !== k) : v) : [...v, k]))}>{l}</button>))}</div></Field>
+                </div>
+                {srcsOn.length > 1 && <Field label={tx('Mistura')}><span className="tc-mix tg-mix" role="group" aria-label={tx('Mistura')}>{srcsOn.map(k => (
+                  <label key={k} className={`tc-mix-${k}`}><span>{SRC_L[k]}</span>
+                    <input type="range" min={k === 'meta' ? META_MIN * 100 : 0} max="100" step="5" value={weights[k]} onChange={e => setMix(k, +e.target.value)} />
+                    <b>{Math.round((share[k] || 0) * 100)}%</b></label>))}</span></Field>}
+                <div className="tg-row">
+                  {!casual && <Field label={tx('Estrelas')}><span className="tg-stars"><select value={smin} onChange={e => setSmin(+e.target.value)} aria-label={tx('Mínimo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select>
+                    {tx('a')} <select value={smax} onChange={e => setSmax(+e.target.value)} aria-label={tx('Máximo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select> ★</span></Field>}
+                  <div className="tg-tgls grow">
+                    {!casual && <Tgl on={unrated} set={setUnrated}>{tx('incluir decks sem rating')}</Tgl>}
+                    <Tgl on={favOnly} set={setFavOnly} hint={tx('Só os decks que marcaste com ★ na Biblioteca')}>★ {tx('só favoritos')}</Tgl>
+                  </div>
+                </div>
+                <button className="primary tg-fill" onClick={fill} disabled={n >= Math.min(fillN, max)}>🎲 {tx('Preencher')}{n < Math.min(fillN, max) ? ` · +${Math.min(fillN, max) - n}` : ''}</button>
+              </div>}
+              {addTab === 'escolher' && <div className="tg-pane">
+                <div className="tg-row">
+                  <Seg label={tx('De onde')} value={ps} onChange={v => { setPickSrc(v); setQ('') }} opts={Object.keys(LISTS).map(k => [k, <>{SRC_L[k]} <b>{LISTS[k].length}</b></>, undefined, !LISTS[k].length])} />
+                  {ps === 'meta' && mixF && <select className="tg-mf" value={mf} onChange={e => setMetaFmt(e.target.value)} aria-label={tx('Decks do meta de')}>{CASUAL_META.map(k => <option key={k} value={k}>{tx('de {f}', { f: FORMAT[k]?.name || k })}</option>)}</select>}
+                  <input type="search" className="tg-q grow" value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar deck…')} aria-label={tx('Procurar deck…')} />
+                </div>
+                <div className="tg-picks">{picks.map(o => deckBtn(ps === 'meta' ? 'meta' : 'meus', o))}
+                  {!picks.length && <span className="muted small">{LISTS[ps].length ? tx('Nenhum deck com este nome.') : ps === 'meta' ? tx('Sem decks do meta para este formato.') : tx('Nenhum deck teu neste formato.')}</span>}</div>
+              </div>}
+              {addTab === 'campeoes' && <div className="tg-pane">
+                <Field label={tx('Campeões de')}><select value={champFrom} onChange={e => { setChampFrom(e.target.value); setChamps(false); setPods(false) }} aria-label={tx('Campeões de')} title={tx('De que torneios vêm os campeões')}>
+                  <option value="">{tx('Campeões de todos os tipos')}</option>
+                  <option value="campeoes">{tx('🏆 Campeões dos campeões (platinas)')}</option>
+                  {Object.entries(TYPES).map(([k, [l]]) => <option key={k} value={k}>{tx('Campeões: {t}', { t: l })}</option>)}
+                </select></Field>
+                <div className="tg-cards2">
+                  <button className={`tg-opt ${champs ? 'on' : ''}`} onClick={champs ? () => setChamps(false) : () => loadChampions([1])}><b>🏆 {champs ? tx('Torneio dos campeões ✓') : tx('Campeões')}</b><small>{tx('Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.')}</small></button>
+                  <button className={`tg-opt ${pods ? 'on' : ''}`} onClick={pods ? () => setPods(false) : () => loadChampions([2, 3])}><b>🥈 {pods ? tx('Liga dos pódios ✓') : tx('Pódios')}</b><small>{tx('Junta os 2.ºs e 3.ºs lugares dos torneios anteriores (com o mesmo filtro dos campeões). Troféus normais, mas valem menos pontos.')}</small></button>
+                </div>
+              </div>}
+              {err && <p className="small bad-t">{err}</p>}
+            </div>
+          </section>
         </div>
-        <div className="lab-step">
-          <h4 className="step-h"><i>2</i> {tx('Decks')} <span className="chip">{n}/{max}</span></h4>
-          <p className="small muted tc-info">{tx('Marca um dos teus com')} <b>{tx('☆ eu')}</b> {tx('para jogar «como se fosses tu»: fica destacado e vês até onde chegas.')}</p>
-          <div className="tc-fill">
-            <span>{tx('🎲 Preencher até')}</span><input type="number" min="2" max={max} value={fillN} onChange={e => setFillN(+e.target.value)} />
-            <span className="seg small tc-srcs" role="group" aria-label={tx('De onde')}>{Object.entries(SRC_L).map(([k, l]) => (
-              <button key={k} className={srcsOn.includes(k) ? 'on' : ''} aria-pressed={srcsOn.includes(k)} disabled={!avail[k]}
-                title={!avail[k] ? ({ meu: tx('Não tens decks teus neste formato.'), ami: tx('Não há decks de amigos neste formato.'), com: tx('Não tens decks da comunidade neste formato.'), meta: tx('Sem decks do meta para este formato.') }[k]) : k === 'meta' && !casual ? tx('Com o meta ligado entra pelo menos 20% (torneio ranked). Desligado dá um torneio interno, não ranked.') : undefined}
-                onClick={() => setSrcs(v => (v.includes(k) ? (v.length > 1 ? v.filter(x => x !== k) : v) : [...v, k]))}>{l}</button>))}</span>
-            {srcsOn.length > 1 && <span className="tc-mix" role="group" aria-label={tx('Mistura')}>{srcsOn.map(k => (
-              <label key={k} className={`tc-mix-${k}`}><span>{SRC_L[k]}</span>
-                <input type="range" min={k === 'meta' ? META_MIN * 100 : 0} max="100" step="5" value={weights[k]} onChange={e => setMix(k, +e.target.value)} />
-                <b>{Math.round((share[k] || 0) * 100)}%</b></label>
-            ))}</span>}
-            {!casual && <><span className="tc-stars">{tx('estrelas')} <select value={smin} onChange={e => setSmin(+e.target.value)} aria-label={tx('Mínimo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select>
-              {tx('a')} <select value={smax} onChange={e => setSmax(+e.target.value)} aria-label={tx('Máximo de estrelas')}>{STEPS.map(x => <option key={x} value={x}>{x.toLocaleString(LOCALE)}</option>)}</select></span>
-            <label className="chk small"><input type="checkbox" checked={unrated} onChange={e => setUnrated(e.target.checked)} /> {tx('incluir decks sem rating')}</label></>}
-            <label className="chk small" title={tx('Só os decks que marcaste com ★ na Biblioteca')}><input type="checkbox" checked={favOnly} onChange={e => setFavOnly(e.target.checked)} /> ★ {tx('só favoritos')}</label>
-            <button className="primary fill-btn" onClick={fill} disabled={n >= Math.min(fillN, max)}>🎲 {tx('Preencher')}</button>
-            <select className="tc-champ-from" value={champFrom} onChange={e => { setChampFrom(e.target.value); setChamps(false); setPods(false) }} aria-label={tx('Campeões de')} title={tx('De que torneios vêm os campeões')}>
-              <option value="">{tx('Campeões de todos os tipos')}</option>
-              <option value="campeoes">{tx('🏆 Campeões dos campeões (platinas)')}</option>
-              {Object.entries(TYPES).map(([k, [l]]) => <option key={k} value={k}>{tx('Campeões: {t}', { t: l })}</option>)}
-            </select>
-            <button className={pods ? 'on' : ''} onClick={pods ? () => setPods(false) : () => loadChampions([2, 3])} title={tx('Junta os 2.ºs e 3.ºs lugares dos torneios anteriores (com o mesmo filtro dos campeões). Troféus normais, mas valem menos pontos.')}>🥈 {pods ? tx('Liga dos pódios ✓') : tx('Pódios')}</button>
-            <button className={champs ? 'on' : ''} onClick={champs ? () => setChamps(false) : () => loadChampions([1])} title={tx('Junta os vencedores dos torneios anteriores (deste formato; em modo casual, de todos). O vencedor leva o troféu de platina.')}>🏆 {champs ? tx('Torneio dos campeões ✓') : tx('Campeões')}</button>
-            {n > 0 && <button className="link small" onClick={() => setPlayers([])}>{tx('limpar')}</button>}
+
+        {/* resumo e começar: ao lado (fixo ao rolar) nos ecrãs largos, no fim no telemóvel */}
+        <aside className="tg-side">
+          <h4 className="step-h"><i>3</i> {tx('Resumo')}</h4>
+          <Field label={tx('Nome')}><input value={name} onChange={e => setName(e.target.value)} placeholder={suggested} /></Field>
+          <dl className="tg-sum">
+            <dt>{tx('Sistema')}</dt><dd><TypeIco k={type} /> {TYPES[type][0]}</dd>
+            <dt>{tx('Formato')}</dt><dd>{casual ? tx('casual, regras de {f}', { f: F.name }) : F.name}</dd>
+            <dt>{tx('Partidas')}</dt><dd>{type === 'mesas' ? tx('um jogo por mesa') : `Bo${boOf}`}{['suico', 'mesas'].includes(type) ? ` · ${tx('{n} ronda|{n} rondas', { n: R })}` : type === 'rei' ? ` · ${tx('{n} partida|{n} partidas', { n: R })}` : ''}{type === 'equipas' ? ` · ${tx('equipas de {s}', { s: team })}` : ''}</dd>
+            <dt>{tx('Decks')}</dt><dd className={n < lo || n > max || teamBad ? 'bad-t' : ''}>{n} <span className="muted">({tx('{lo}–{hi} decks', { lo, hi: max })})</span></dd>
+          </dl>
+          <p className="small muted tg-status">{status}</p>
+          {badge}
+          <div className="tg-tgls col">
+            {(free || misto) && <Tgl on={strict} set={v => { setStrict(v); ls('grimorio.torneio.estrita', v ? '1' : '0') }} hint={tx('Pessoa contra pessoa joga-se com todas as regras do Forge, cada um no seu ecrã (como contra o Forge), em vez da mesa livre sem regras. Só 1 contra 1 e sem Commander.')}>⚖ {tx('Mesa estrita entre pessoas (regras do Forge)')}</Tgl>}
+            {misto && <Field label={tx('Se alguém não aparecer:')} hint={tx('Se a pessoa de uma partida não aparecer (não carregar em «Jogar» nem em «Pronto»), o bot joga a partida por ela. Quem aloja também pode dar qualquer partida ao bot.')}><select value={wait} onChange={e => { setWait(+e.target.value); ls('grimorio.torneio.espera', e.target.value) }}>
+              <option value={0}>{tx('espera sempre')}</option>{[5, 10, 15, 30].map(m => <option key={m} value={m}>{tx('o bot joga ao fim de {m} min', { m })}</option>)}</select></Field>}
+            <Tgl on={hold} set={v => { setHold(v); ls('grimorio.torneio.hold', v ? '1' : '0') }} hint={tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}>{tx('Só começar quando eu der OK')}</Tgl>
+            {!asRoom && <Tgl on={canPlayMe && playMe} disabled={!canPlayMe} set={v => { setPlayMe(v); ls('grimorio.torneio.playme', v ? '1' : '0') }} hint={canPlayMe ? tx('As partidas do teu deck esperam por ti e jogas tu, na mesa do Grimório; as outras jogam-nas os bots.') : playMeWhy}>🎮 {tx('Jogo eu os jogos do meu deck (Forge Play)')}</Tgl>}
           </div>
-          <h4>{mixF ? tx('Os meus decks') : tx('Os meus decks de {f}', { f: F.name })} <span className="muted">({mine.filter(o => kindOf(o) === 'meu').length})</span></h4>
-          <div className="opp-list">{mine.filter(o => kindOf(o) === 'meu').map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name}{mixF && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}{!mine.length && <span className="muted small">{tx('Nenhum deck teu neste formato.')}</span>}</div>
-          {mine.some(o => kindOf(o) === 'ami') && <><h4>{tx('🤝 Dos amigos')} <span className="muted">({mine.filter(o => kindOf(o) === 'ami').length})</span></h4>
-          <div className="opp-list">{mine.filter(o => kindOf(o) === 'ami').map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name} <span className="muted">· 🤝 {o.friendName}</span> {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}</div></>}
-          {mine.some(o => o.community) && <><h4>{tx('🌐 Da comunidade')} <span className="muted">({mine.filter(o => o.community).length})</span></h4>
-          <div className="opp-list">{mine.filter(o => o.community).map(o => <button key={o.id} className={`opp ${has('meus', o.id) ? 'on' : ''}`} onClick={() => add('meus', o)}>+ {o.name}{mixF && <span className="muted"> · {FORMAT[o.format]?.name || o.format}</span>} {!casual && <Stars r={stars[rkey('meus', o.id)]} />}</button>)}{!mine.length && <span className="muted small">{tx('Nenhum deck teu neste formato.')}</span>}</div></>}
-          <h4>{tx('Do meta')} {mixF ? <select className="tc-mf" value={mf} onChange={e => setMetaFmt(e.target.value)} aria-label={tx('Decks do meta de')}>{CASUAL_META.map(k => <option key={k} value={k}>{tx('de {f}', { f: FORMAT[k]?.name || k })}</option>)}</select> : null} <span className="muted">({meta.length})</span></h4>
-          <div className="opp-list">{meta.map(o => <button key={o.id} className={`opp ${has('meta', o.id) ? 'on' : ''}`} onClick={() => add('meta', o)}>+ {o.name}{o.of && o.of !== mf && <span className="muted"> · {FORMAT[o.of]?.name}</span>} {o.share ? <span className="muted">{Math.round(o.share * 100)}%</span> : null} <Stars r={stars[rkey('meta', o.id)]} /></button>)}{!meta.length && <span className="muted small">{tx('Sem decks do meta para este formato.')}</span>}</div>
-          <div className="tc-diff">
-            <span className="small">{tx('Dificuldade:')}</span>
-            <select value={allDiff} onChange={e => { setAllDiff(e.target.value); setPlayers(p => p.map(x => ({ ...x, difficulty: e.target.value }))) }} aria-label={tx('Dificuldade de todos')}>{diffs.filter(d => d.id !== 'random').map(d => <option key={d.id} value={d.id}>{tx('todos: {d}', { d: dLabel(d) })}</option>)}</select>
-            <button onClick={randomDiffs} disabled={!n}>{tx('🎲 uma ao acaso a cada um')}</button>
-          </div>
-        </div>
+          {goBtn('tg-go')}
+          {err && <p className="small bad-t">{err}</p>}
+        </aside>
       </div>
-      {players.some(x => x.src === 'meus') && <label className="fmt tc-me"><span>{tx('🧙 O meu deck neste torneio')}</span>
-        <select value={players.find(x => x.me)?.ref || ''} onChange={e => setMe(e.target.value)}>
-          <option value="">{tx('— nenhum (só ver) —')}</option>
-          {[...new Map(players.filter(x => x.src === 'meus').map(x => [x.ref, x])).values()].map(x => <option key={x.ref} value={x.ref}>{x.name}</option>)}
-        </select>
-        <small className="muted">{tx('Fica marcado a ciano na árvore, aparece em baixo (no teu lugar) nos jogos e tem o percurso seguido. A escolha fica guardada.')}</small>
-      </label>}
-      {n > 0 && <div className="tc-players">{players.map((p, k) => (
-        <div key={p.key} data-k={k} className={`tp-card ${p.me ? 'me' : ''} ${dragK === k ? 'dragging' : ''}`} style={{ '--edge': edge(p.colors) }}>
-          <div className="tp-art" onPointerDown={e => dragStart(e, k)} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} title={tx('Arrasta para mudar a ordem')}>{data.byName.get(p.cover) ? <img src={img(data.byName.get(p.cover), 'art_crop')} alt="" loading="lazy" /> : <span>✦</span>}<i className="tp-seed" title="seed">{seeding === 'ordem' ? k + 1 : '?'}</i><span className="tp-src">{p.src === 'meta' ? 'meta' : p.fr ? `🤝 ${p.fr}` : tx('meu')}{casual && p.fmt ? ` · ${FORMAT[p.fmt]?.name || p.fmt}` : ''}</span></div>
-          <div className="tp-body">
-            <b title={p.name}>{p.name}</b>
-            {type === 'equipas' && seeding === 'ordem' && <small className="muted">{table ? tx('Equipa {e}', { e: Math.floor(k / team) + 1 }) : tx('Equipa {e} · tabuleiro {b}', { e: Math.floor(k / team) + 1, b: (k % team) + 1 })}</small>}
-            {type === 'gauntlet' && k === chK && <small style={{ color: 'var(--gold2)' }}>{tx('⚔ desafiante')}</small>}
-            <span className="tp-l1">{p.colors ? <Mana cost={[...p.colors].map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}</span>
-            <span className="tp-l2">{stars[rkey(p.src, p.ref)] ? <Stars r={stars[rkey(p.src, p.ref)]} /> : !casual && <span className="muted small">{tx('sem rating')}</span>}</span>
-            {misto && <PlaysToggle plays={p.plays} onChange={v => setP(k, { plays: v })} />}
-            <select value={p.difficulty} onChange={e => setP(k, { difficulty: e.target.value })} aria-label={tx('Dificuldade de {d}', { d: p.name })} title={DIFF_INFO[p.difficulty]?.resumo}>{diffs.filter(d => d.id !== 'random').map(d => <option key={d.id} value={d.id}>{dLabel(d)}</option>)}</select>
-            <span className="row-btns">{p.src === 'meus' && <button className={`me-btn ${p.me ? 'on' : ''}`} onClick={() => setPlayers(ps => ps.map((x, i) => ({ ...x, me: i === k ? !x.me : false })))} aria-pressed={!!p.me} title={tx('É o teu deck: segues o percurso dele no torneio')}>{p.me ? tx('★ eu') : tx('☆ eu')}</button>}{seeding === 'ordem' && <><button onClick={() => move(k, -1)} disabled={!k} aria-label={tx('Subir')}>▲</button><button onClick={() => move(k, 1)} disabled={k === n - 1} aria-label={tx('Descer')}>▼</button></>}<button className="link small" onClick={() => setPlayers(x => x.filter((_, i) => i !== k))}>{tx('tirar')}</button></span>
-          </div>
-        </div>
-      ))}</div>}
-      <div className="row-btns tc-go">
-        {asRoom ? <button className="primary" onClick={openRoom} disabled={busy || n > max}>{tx('🚪 Abrir a sala')}</button>
-          : <button className="primary" onClick={start} disabled={busy || n < lo || n > max || teamBad}>{tx('🏆 Começar o torneio')}</button>}
-        {(free || misto) && <label className="chk small" title={tx('Pessoa contra pessoa joga-se com todas as regras do Forge, cada um no seu ecrã (como contra o Forge), em vez da mesa livre sem regras. Só 1 contra 1 e sem Commander.')}>
-          <input type="checkbox" checked={strict} onChange={e => { setStrict(e.target.checked); ls('grimorio.torneio.estrita', e.target.checked ? '1' : '0') }} /> ⚖ {tx('Mesa estrita entre pessoas (regras do Forge)')}</label>}
-        {misto && <label className="small tc-wait" title={tx('Se a pessoa de uma partida não aparecer (não carregar em «Jogar» nem em «Pronto»), o bot joga a partida por ela. Quem aloja também pode dar qualquer partida ao bot.')}>{tx('Se alguém não aparecer:')} <select value={wait} onChange={e => { setWait(+e.target.value); ls('grimorio.torneio.espera', e.target.value) }}>
-          <option value={0}>{tx('espera sempre')}</option>{[5, 10, 15, 30].map(m => <option key={m} value={m}>{tx('o bot joga ao fim de {m} min', { m })}</option>)}</select></label>}
-        <label className="chk small" title={tx('Sem isto, o torneio espera 10 s antes do 1.º jogo para dar tempo de apostar')}><input type="checkbox" checked={hold} onChange={e => { setHold(e.target.checked); ls('grimorio.torneio.hold', e.target.checked ? '1' : '0') }} /> {tx('Só começar quando eu der OK')}</label>
-        {!asRoom && <label className={`chk small ${canPlayMe ? '' : 'off'}`} title={canPlayMe ? tx('As partidas do teu deck esperam por ti e jogas tu, na mesa do Grimório; as outras jogam-nas os bots.') : playMeWhy}><input type="checkbox" checked={canPlayMe && playMe} disabled={!canPlayMe} onChange={e => { setPlayMe(e.target.checked); ls('grimorio.torneio.playme', e.target.checked ? '1' : '0') }} /> 🎮 {tx('Jogo eu os jogos do meu deck (Forge Play)')}
-          {!canPlayMe && <small className="why">{playMeWhy}</small>}</label>}
-        {n > 0 && (casual ? <span className="rk rk-cas" title={tx('Nos torneios casuais os troféus saem azuis e as estrelas amarelas não mexem.')}>{tx('Casual')}</span>
-          : isRanked ? <span className="rk rk-ok" title={tx('Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).')}>🏅 {tx('Ranked')}</span>
-            : <span className="rk rk-warn">⚠ {tx('Não ranked: {m} de {n} decks do meta (precisa de {k}). Conta só para as estrelas azuis e vermelhas e os troféus saem azuis.', { m: nMeta, n, k: metaNeed })}</span>)}
-        <span className="small muted">{n < lo ? tx('Faltam {k} decks (mínimo {m}).', { k: lo - n, m: lo }) : teamBad ? tx('Com equipas de {s} o número de decks tem de ser múltiplo de {s}.', { s: team }) : tx('{p} partidas · ≈ {g} jogos · ≈ {t} min (um jogo de cada vez no Forge)', { p: matches, g: games, t: Math.max(1, Math.round((games * MIN_PER_GAME * (type === 'mesas' || table ? 2 : 1)) / 5) * 5) })}</span>
-        {err && <span className="small bad-t">{err}</span>}
-      </div>
+      {/* telemóvel e tablet ao alto: o botão de começar sempre à mão */}
+      <div className="tg-bar"><span className="small"><b>{n}/{max}</b> · {n < lo ? tx('Faltam {k} decks (mínimo {m}).', { k: lo - n, m: lo }) : teamBad ? tx('Com equipas de {s} o número de decks tem de ser múltiplo de {s}.', { s: team }) : tx('≈ {t} min', { t: mins })}</span>{goBtn('')}</div>
     </section>
   )
 }
-
 // ---------- gerador: vários torneios de uma vez, cada característica fixa ou 🎲 ----------
 
 const RND = '🎲'  // valor «ao acaso» nos seletores
@@ -666,7 +765,7 @@ function Generator({ data, onCreated }) {
     <section className="card tour-gen">
       <h3>{tx('Gerador de torneios')} <span className="muted small">{tx('cria vários torneios de uma vez; em cada característica marca uma opção (fixa) ou várias (sai uma ao acaso em cada torneio)')}</span></h3>
       <div className="gen-grid">
-        <label className="fmt"><span>{tx('Quantos')}</span><input type="number" min="1" max="10" value={g.count} onChange={e => set('count', e.target.value)} /></label>
+        <Field label={tx('Quantos')}><Stepper label={tx('Quantos')} value={g.count} placeholder="3" min={1} max={10} onChange={v => set('count', v)} /></Field>
         <Multi label={tx('Modo')} value={g.ms.casual} onChange={v => setMs('casual', v)} opts={[['nao', tx('Normal (ranked)')], ['sim', tx('Casual (não conta para os ratings)')]]} />
         {(!g.ms.casual.length || g.ms.casual.includes('sim')) && <Multi label={tx('Misturar formatos (casual)')} value={g.ms.mix} onChange={v => setMs('mix', v)} opts={[['sim', tx('Sim')], ['nao', tx('Não, só um formato')]]} />}
         <Multi label={tx('Formato')} value={g.ms.format} onChange={v => setMs('format', v)} opts={GEN_FMTS.map(f => [f.key, f.name])} any={g.fmtMine ? tx('🎲 onde tenho decks') : tx('🎲 todos')} />
@@ -683,25 +782,25 @@ function Generator({ data, onCreated }) {
             <Multi label={tx('Equipas: mesmo formato frente a frente')} value={g.ms.sameFmt} onChange={v => setMs('sameFmt', v)} opts={[['sim', tx('Sim')], ['nao', tx('Não')]]} />
           </>}
         </>}
-        <span className="gen-chks">
-          {!g.ms.format.length && <label className="chk small"><input type="checkbox" checked={g.fmtMine} onChange={e => set('fmtMine', e.target.checked)} /> {tx('formato ao acaso só onde tenho decks')}</label>}
-          <label className="chk small"><input type="checkbox" checked={g.fav} onChange={e => set('fav', e.target.checked)} /> ★ {tx('dos meus, só favoritos')}</label>
-          <label className="chk small" title={tx('Só em Legacy, Vintage, Modern e Pioneer; cada deck tem de ser legal carta a carta.')}><input type="checkbox" checked={!!g.cross} onChange={e => set('cross', e.target.checked)} /> {tx('aceitar decks legais de outros formatos')}</label>
-        </span>
+      </div>
+      <div className="tg-tgls gen-tgls">
+        {!g.ms.format.length && <Tgl on={g.fmtMine} set={v => set('fmtMine', v)}>{tx('formato ao acaso só onde tenho decks')}</Tgl>}
+        <Tgl on={g.fav} set={v => set('fav', v)}>★ {tx('dos meus, só favoritos')}</Tgl>
+        <Tgl on={!!g.cross} set={v => set('cross', v)} hint={tx('Só em Legacy, Vintage, Modern e Pioneer; cada deck tem de ser legal carta a carta.')}>{tx('aceitar decks legais de outros formatos')}</Tgl>
       </div>
       <div className="tc-fill gen-mix">
         <b className="small">{tx('Que decks entram')}</b>
-        <span className="seg small tc-srcs" role="group" aria-label={tx('De onde')}>{Object.keys(SRC_L).map(k => (
-          <button key={k} className={on.includes(k) ? 'on' : ''} aria-pressed={on.includes(k)} onClick={() => set('srcs', on.includes(k) ? (on.length > 1 ? on.filter(x => x !== k) : on) : [...on, k])}>{SRC_L[k]}</button>))}</span>
+        <span className="tg-chips" role="group" aria-label={tx('De onde')}>{Object.keys(SRC_L).map(k => (
+          <button key={k} type="button" className={on.includes(k) ? 'on' : ''} aria-pressed={on.includes(k)} onClick={() => set('srcs', on.includes(k) ? (on.length > 1 ? on.filter(x => x !== k) : on) : [...on, k])}>{SRC_L[k]}</button>))}</span>
         {on.length > 1 && !g.wRnd && <span className="tc-mix">{on.map(k => (
           <label key={k} className={`tc-mix-${k}`}><span>{SRC_L[k]}</span>
             <input type="range" min="0" max="100" step="5" value={w[k] ?? 0} onChange={e => set('w', { ...w, [k]: +e.target.value })} /><b>{Math.round((100 * (w[k] ?? 0)) / wsum)}%</b></label>))}</span>}
-        {on.length > 1 && <label className="chk small"><input type="checkbox" checked={!!g.wRnd} onChange={e => set('wRnd', e.target.checked)} /> 🎲 {tx('percentagens ao acaso em cada torneio')}</label>}
+        {on.length > 1 && <Tgl on={!!g.wRnd} set={v => set('wRnd', v)}>🎲 {tx('percentagens ao acaso em cada torneio')}</Tgl>}
         <span className="small muted">{on.includes('meta') ? tx('Nos torneios normais o meta fica com pelo menos 20% (ranked).') : tx('Sem meta: torneios internos, não ranked.')}</span>
       </div>
       <p className="small muted tc-info">{tx('O formato ao acaso escolhe entre os que têm decks do meta. Commander a 4 joga em mesas. A seguir é só vê-los no Registo e no Ao vivo: o simulador reparte os jogos como está nas Definições.')}</p>
       <div className="row-btns">
-        <button onClick={generate} disabled={busy || allMine == null}>{tx('🎲 Gerar')}</button>
+        <button className={list.length ? '' : 'primary'} onClick={generate} disabled={busy || allMine == null}>{tx('🎲 Gerar')}</button>
         {good.length > 0 && <button className="primary" onClick={createAll} disabled={busy}>{tx('🏆 Criar os {k} torneios', { k: good.length })}</button>}
         {busy && <span className="small muted">{tx('a escolher os decks…')}</span>}
         {err && <span className="small bad-t">{err}</span>}
@@ -1098,10 +1197,10 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
   return (
     <div className="tour-live">
       <section className="card tl-head">
-        <div className="row-btns">
+        <div className="tl-top">
           <h3>🏆 {t.name}</h3>
           <span className={`tl-status ${t.status}`}>{STATUS[t.status] || t.status}</span>
-          <span className="muted small">{!t.casual && (t.ranked !== false ? <span className="rk rk-ok sm" title={tx('Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).')}>🏅 {tx('Ranked')}</span> : <span className="rk rk-warn sm" title={tx('Menos de 20% de decks do meta: conta só para as estrelas azuis e vermelhas e os troféus saem azuis.')}>{tx('não ranked')}</span>)} <TypeIco k={t.type} /> {TYPES[t.type]?.[0]} · {t.casual ? tx('casual, regras de {f}', { f: FORMAT[t.format]?.name || t.format }) : FORMAT[t.format]?.name || t.format} · {t.type === 'mesas' ? tx('um jogo por mesa') : `Bo${t.bo}`} · {P.length} decks{t.team ? ` · ${tx('equipas de {s}', { s: t.team })}` : ''}{t.table ? ` · ${tableL(t.table)}` : ''}{t.rounds ? ` · ${t.type === 'rei' ? tx('{n} partida|{n} partidas', { n: t.rounds }) : tx('{n} ronda|{n} rondas', { n: t.rounds })}` : ''} · {when(t.ts)}</span>
+          {!t.casual && (t.ranked !== false ? <span className="rk rk-ok sm" title={tx('Conta para as estrelas amarelas e dá troféus normais (ouro, prata e bronze).')}>🏅 {tx('Ranked')}</span> : <span className="rk rk-warn sm" title={tx('Menos de 20% de decks do meta: conta só para as estrelas azuis e vermelhas e os troféus saem azuis.')}>{tx('não ranked')}</span>)}
           {t.you !== 'guest' && !t.you?.startsWith('guest:') && <span className="tl-act">
             {t.status === 'running' && <button onClick={() => act('pause')} title={tx('O jogo em curso acaba e fica registado')}>{tx('❚❚ Pausar')}</button>}
             {(t.status === 'paused' || t.status === 'error') && <button className="primary" onClick={() => act('resume')}>{tx('▶ Retomar')}</button>}
@@ -1109,20 +1208,32 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
             <button className="link small" onClick={del}>{tx('apagar')}</button>
           </span>}
         </div>
-        <div className="row-btns tl-opts">
-          <label className="chk small"><input type="checkbox" checked={follow} onChange={e => setFollow(e.target.checked)} /> {tx('Seguir ao vivo (abre cada jogo quando acaba)')}</label>
-          {follow && <NextMode value={nextMode} onChange={setNextMode} />}
-          <label className="small">{tx('Pausa entre jogos')} <select value={pause.secs} onChange={e => setPausePref({ ...pause, secs: +e.target.value })} disabled={!pause.auto}>{[2, 3, 4, 5, 6, 8, 10].map(n => <option key={n} value={n}>{n} s</option>)}</select></label>
-          <label className="chk small"><input type="checkbox" checked={!pause.auto} onChange={e => setPausePref({ ...pause, auto: !e.target.checked })} /> {tx('não avançar sozinho')}</label>
-          {t.me != null && <label className="chk small"><input type="checkbox" checked={onlyMine} onChange={e => setOnlyMine(e.target.checked)} /> {tx('seguir só os meus jogos')}</label>}
-          {fl.length > 0 && <button className="small" onClick={() => openGame(fl[fl.length - 1])}>{onlyMine && t.me != null ? tx('▶ último jogo meu') : tx('▶ último jogo')}</button>}
+        <div className="tl-chips">
+          <span className="tl-chip"><TypeIco k={t.type} /> <b>{TYPES[t.type]?.[0]}</b></span>
+          <span className="tl-chip">{t.casual ? tx('casual, regras de {f}', { f: FORMAT[t.format]?.name || t.format }) : FORMAT[t.format]?.name || t.format}</span>
+          <span className="tl-chip">{t.type === 'mesas' ? tx('um jogo por mesa') : `Bo${t.bo}`}</span>
+          <span className="tl-chip">{tx('{n} decks', { n: P.length })}</span>
+          {t.team ? <span className="tl-chip">{tx('equipas de {s}', { s: t.team })}</span> : null}
+          {t.table ? <span className="tl-chip">{tableL(t.table)}</span> : null}
+          {t.rounds ? <span className="tl-chip">{t.type === 'rei' ? tx('{n} partida|{n} partidas', { n: t.rounds }) : tx('{n} ronda|{n} rondas', { n: t.rounds })}</span> : null}
+          <span className="tl-chip"><time dateTime={new Date(t.ts * 1000).toISOString()}>{when(t.ts)}</time></span>
+        </div>
+        <div className="tl-watch">
+          <Tgl on={follow} set={setFollow}>{tx('Seguir ao vivo (abre cada jogo quando acaba)')}</Tgl>
+          {fl.length > 0 && <button onClick={() => openGame(fl[fl.length - 1])}>{onlyMine && t.me != null ? tx('▶ último jogo meu') : tx('▶ último jogo')}</button>}
+          <details className="tl-more"><summary>⚙ {tx('Como ver os jogos')}</summary><div>
+            {follow && <NextMode value={nextMode} onChange={setNextMode} />}
+            <Field label={tx('Pausa entre jogos')}><select value={pause.secs} onChange={e => setPausePref({ ...pause, secs: +e.target.value })} disabled={!pause.auto}>{[2, 3, 4, 5, 6, 8, 10].map(n => <option key={n} value={n}>{n} s</option>)}</select></Field>
+            <Tgl on={!pause.auto} set={v => setPausePref({ ...pause, auto: !v })}>{tx('não avançar sozinho')}</Tgl>
+            {t.me != null && <Tgl on={onlyMine} set={setOnlyMine}>{tx('seguir só os meus jogos')}</Tgl>}
+          </div></details>
         </div>
         <StartGate t={t} onStart={() => act('start')} />
         {(t.free || t.misto) && <FreeMatches t={t} openTable={openTable} nameOf={nameOf} playMine={playMine} onChange={() => j(`/api/tournaments/${tid}`).then(setT).catch(() => {})} />}
         {myGame && <p className="tl-now me-play">🎮 {myGame.play ? tx('O teu jogo contra {o} está a decorrer', { o: nameOf(myGame.p.find(i => i !== t.me)) }) : tx('É a tua vez: jogo {g} contra {o}', { g: myGame.g.length + 1, o: nameOf(myGame.p.find(i => i !== t.me)) })} <button className="primary" disabled={!!myGame.want && !myGame.play} onClick={() => playMine(myGame.id)}>{myGame.play ? tx('▶ Voltar à mesa') : myGame.want ? `⏳ ${tx('Na fila do Forge…')}` : tx('▶ Jogar no Forge Play')}</button></p>}
         {meLine && <p className={`me-line ${ms.phase}`}><Thumb data={data} p={P[t.me]} /><span><small>{tx('O meu deck · {d}', { d: P[t.me]?.name })}</small><b>{ms.phase === 'done' ? `${(t.type !== 'gauntlet' || ms.place[0] === 1) && MEDAL[ms.place[0] - 1] || '🎖'} ` : ''}{meLine}</b></span></p>}
         {lives.map(({ L, lm }) => <p key={lm.id} className="tl-now"><span className="spin-dot" /> {L.status === 'queued' ? tx('Na fila do Forge (posição {p})', { p: L.position }) : tx('A jogar')}: <b>#{num[lm.id]}</b> {(L.seats || lm.p).map(nameOf).join(' vs ')} · {tx('jogo {g}', { g: lm.g.length + 1 })}{lm.p.length === 2 && t.bo > 1 ? ` · ${lm.w[0]}–${lm.w[1]}` : ''}{Object.keys(lm.sb || {}).length > 0 && <span className="muted" title={Object.entries(lm.sb).map(([i, sw]) => `${nameOf(+i)}: ${sw.map(s => `+${s.q} ${s.in} −${s.q} ${s.out}`).join(', ')}`).join('\n')}> · {tx('⇄ com sideboard:')} {Object.keys(lm.sb).map(i => nameOf(+i)).join(', ')}</span>}</p>)}
-        {!lm && !myGame && !t.free && t.status === 'running' && t.matches.some(m => m.st === 'ready' && (m.how || 'forge') === 'forge') && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
+        {!lm && !myGame && !t.free && t.status === 'running' && !(t.hold && !t.matches.some(m => m.g.length || m.job)) && t.matches.some(m => m.st === 'ready' && (m.how || 'forge') === 'forge') && <p className="tl-now muted"><span className="spin-dot" /> {tx('À espera da vez no Forge…')}</p>}
         {t.error && <p className="small bad-t">{tx(t.error)}</p>}
         {err && <p className="small bad-t">{err}</p>}
       </section>
@@ -1347,12 +1458,12 @@ function Standings({ t, data, P, me, casual, rows = t.standings, title = tx('Cla
   return (
     <section className="card ts-stand">
       <h4>{title}</h4>
-      <table className="lab-table ts-table"><thead><tr><th>#</th><th>Deck</th>{rei ? <th title={tx('A série de vitórias mais longa como rei')}>{tx('Série')}</th> : <th>{tx('Pts')}</th>}{pods ? <><th>{tx('1.ºs lugares')}</th><th>{tx('Mesas')}</th></> : <><th>{tx('V-D-E')}</th><th title={tx('% de vitórias dos adversários')}>OMW%</th><th title={tx('% de jogos ganhos')}>GW%</th></>}<th>{tx('Dificuldade')}</th></tr></thead>
+      <div className="ts-scroll"><table className="lab-table ts-table"><thead><tr><th className="num">#</th><th>{tx('Deck')}</th>{rei ? <th className="num" title={tx('A série de vitórias mais longa como rei')}>{tx('Série')}</th> : <th className="num">{tx('Pts')}</th>}{pods ? <><th className="num">{tx('1.ºs lugares')}</th><th className="num">{tx('Mesas')}</th></> : <><th className="num">{tx('V-D-E')}</th><th className="num" title={tx('% de vitórias dos adversários')}>OMW%</th><th className="num" title={tx('% de jogos ganhos')}>GW%</th></>}<th className="ts-diff">{tx('Dificuldade')}</th></tr></thead>
         <tbody>{rows.map((s, k) => (
-          <tr key={s.i} className={`${t.champion === s.i || k < cut ? 'champ-row' : ''} ${s.i === me ? 'me-row' : ''}`}><td>{k + 1}</td><td><span className="ts-name"><Thumb data={data} p={P[s.i]} /> {P[s.i]?.name}<OwnTag p={P[s.i]} />{s.i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[s.i]?.format} />}{rei && t.hill?.king === s.i && <span title={tx('Rei da colina')}> 👑</span>}</span></td><td><b>{rei ? s.best : s.pts}</b></td>
-            {pods ? <><td>{s.v}</td><td>{s.v + s.d + s.e}</td></> : <><td>{s.v}-{s.d}-{s.e}{s.bye ? <small className="muted"> {tx('({b} isento)', { b: s.bye })}</small> : null}</td><td>{s.opp.length ? pct(s.omw) : '—'}</td><td>{s.gw + s.gl ? pct(s.gwp) : '—'}</td></>}
-            <td className="small muted">{DIFF_INFO[P[s.i]?.difficulty]?.label || P[s.i]?.difficulty}</td></tr>
-        ))}</tbody></table>
+          <tr key={s.i} className={`${t.champion === s.i || k < cut ? 'champ-row' : ''} ${s.i === me ? 'me-row' : ''}`}><td className="num">{k + 1}</td><td><span className="ts-cell"><Thumb data={data} p={P[s.i]} /><span className="ts-dn">{P[s.i]?.name}{rei && t.hill?.king === s.i && <span title={tx('Rei da colina')}> 👑</span>}</span><span className="ts-tags"><OwnTag p={P[s.i]} />{s.i === me && <i className="me-tag">{tx('eu')}</i>}{casual && <Fmt f={P[s.i]?.format} />}</span></span></td><td className="num"><b>{rei ? s.best : s.pts}</b></td>
+            {pods ? <><td className="num">{s.v}</td><td className="num">{s.v + s.d + s.e}</td></> : <><td className="num">{s.v}-{s.d}-{s.e}{s.bye ? <small className="muted"> {tx('({b} isento)', { b: s.bye })}</small> : null}</td><td className="num">{s.opp.length ? pct(s.omw) : '—'}</td><td className="num">{s.gw + s.gl ? pct(s.gwp) : '—'}</td></>}
+            <td className="small muted ts-diff">{DIFF_INFO[P[s.i]?.difficulty]?.label || P[s.i]?.difficulty}</td></tr>
+        ))}</tbody></table></div>
     </section>
   )
 }
@@ -1693,7 +1804,7 @@ function Fame({ data, list, open }) {
         <SrcFilter on={who} set={setWho} has={has} />
       </div>
       {!top.length ? <p className="muted small">{f ? tx('Ainda ninguém subiu ao pódio neste formato.') : tx('Ainda ninguém subiu ao pódio.')}</p> : (<>
-        <table className="lab-table ts-table"><thead><tr><th>Deck</th><th title={tx('Torneios ganhos')}>🥇</th><th>🥈</th><th>🥉</th><th>{tx('Pódios')}</th></tr></thead>
+        <table className="lab-table ts-table"><thead><tr><th>{tx('Deck')}</th><th title={tx('Torneios ganhos')}>🥇</th><th>🥈</th><th>🥉</th><th>{tx('Pódios')}</th></tr></thead>
           <tbody>{topPg.map(r => (
             <tr key={`${r.src}:${r.ref}`} className={kindOf(r) === 'meu' ? 'me-row' : ''}><td><button className="ts-name plain fame-deck" onClick={() => setView(r)} onMouseEnter={e => peek.on(r, e)} onMouseLeave={peek.off} title={tx('Ver o deck')}><Thumb data={data} p={r} /> {r.name} <OwnTag p={r} /></button></td>
               <td><b>{r.m[0] || '—'}</b></td><td>{r.m[1] || '—'}</td><td>{r.m[2] || '—'}</td><td>{r.m[0] + r.m[1] + r.m[2]}</td></tr>
