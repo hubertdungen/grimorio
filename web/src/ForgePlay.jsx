@@ -1277,7 +1277,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     return (opp?.battlefield || []).some(x => x.loyalty != null || x.counters?.DEFENSE != null) ? { c: 'player', i: players.indexOf(opp) } : null
   }
   const activateAb = d => { if (!act) return; castNow(act.id); send({ c: 'card', id: act.id, ab: d }); setAct(null) }  // a habilidade de lealdade escolhida
-  const activate = () => { if (!act || act.off) return; castNow(act.id); send({ c: 'card', id: act.id }); setAct(null) }  // pedido explícito: o «pagar sozinho» pode pagar
+  // «Jogar» (toque): o «dá/não dá» vê-se ao vivo — o estado com as jogáveis chega ~150 ms depois do pedido do Forge e um toque
+  // logo a seguir ficava com o botão desligado e «talvez não haja alvo» quando dava
+  const actOff = a => (a?.play ? !(byId.get(a.id)?.play || st?.pfail) : !!a?.off)
+  const activate = () => { if (!act || actOff(act)) return; castNow(act.id); send({ c: 'card', id: act.id }); setAct(null) }  // pedido explícito: o «pagar sozinho» pode pagar
   // as habilidades ativadas de uma carta (custo: efeito, Equip…), pelo texto
   function abilitiesOf(c) {
     const d = c && (lookup(data, c.name))
@@ -1450,8 +1453,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           {act.lines.length > 1 && !act.hand && <small className="muted">{tx('Com mais de uma, escolhes a seguir.')}</small>}
           {act.hand && act.lines.length > 0 && <small className="muted">{tx('Lançá-la também se escolhe a seguir (ou arrasta-a para a mesa).')}</small>}
         </>}
-        {act.hint && <small className="fp-act-hint">{act.hint}</small>}
-        <div className="row-btns">{act.play && <button className="primary" autoFocus disabled={act.off} onClick={() => { setLift(null); activate() }}>{act.lines.length ? tx('Jogar ou usar') : tx('Jogar')}</button>}
+        {(act.play ? actOff(act) && whyNot(act.id).msg : act.hint) && <small className="fp-act-hint">{act.play ? whyNot(act.id).msg : act.hint}</small>}
+        <div className="row-btns">{act.play && <button className="primary" autoFocus disabled={actOff(act)} onClick={() => { setLift(null); activate() }}>{act.lines.length ? tx('Jogar ou usar') : tx('Jogar')}</button>}
           {act.lines.length > 0 && !act.pw?.length && !act.play && <button className="primary" autoFocus disabled={act.off} onClick={activate}>{act.hand ? tx('Usar') : tx('Ativar')} <kbd>⏎</kbd></button>}
           {act.dbl && <button onClick={() => { setBig(act.name); setAct(null) }}>{tx('Ver a carta')}</button>}<button onClick={() => setAct(null)}>{act.lines.length ? tx('Cancelar') : tx('Fechar')} <kbd>Esc</kbd></button></div>
       </div>}
