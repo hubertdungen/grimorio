@@ -14,6 +14,8 @@ import { held, isTouch } from './touch.js'
 import OrbEgg from './OrbEgg.jsx'
 import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
 import { snapBoard, ftBoard, ftTxt } from './fpboard.js'
+import { fClean } from './fpask.js'
+import './fpstack.css'
 import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
@@ -157,7 +159,7 @@ const KEYS = [
 ]
 // o texto da pilha que vem do motor: «Birds of Paradise (123) - Birds of Paradise deals 1 damage…» → só o efeito
 function stkText(t, name) {
-  let x = String(t || '').trim()
+  let x = fClean(t)
   if (name && x.startsWith(name)) x = x.slice(name.length).replace(/^\s*(\(\d+\))?\s*-?\s*/, '')
   // sem o texto de lembrete «(When this creature attacks…)» nem as notas do Forge «[Attacker: Voice of Victory {115}]»
   x = x.replace(/\s*\[[^\]]*\]/g, '')
@@ -166,6 +168,18 @@ function stkText(t, name) {
   if (rem && x.length < 30) x = `${x} — ${rem.trim()}`
   return x.length > 220 ? `${x.slice(0, 217)}…` : x
 }
+// o que um item da pilha vai fazer, só isso: plain = sem frases a brilhar. Uma permanente lançada (aura, criatura,
+// encantamento) só entra no campo — antes brilhava o texto todo da carta («return … to its owner's hand» de uma aura,
+// o «exile» do O-Ring, que é o gatilho dela e vem à parte quando entra)
+function stkWhat(x, c) {
+  if (x.kind !== 'cast') return { t: x.text ? stkText(x.text, x.card) : effectOf(c, x.kind) }
+  const at = fClean(x.text).match(/ - +Attach to (.+)$/)
+  if (at) return { t: tx('Aura: vai encantar {c}', { c: short(at[1]) }), plain: true }
+  if (c && !/\b(Instant|Sorcery)\b/.test(c.t)) return { t: /\bAura\b/.test(c.t) ? tx('Aura: entra presa ao que encantar') : tx('Entra no campo'), plain: true }
+  const s = x.text && stkText(x.text, x.card)
+  return { t: s && s !== short(x.card) ? s : effectOf(c, x.kind) }
+}
+const stkLabel = x => (x.kind === 'trigger' ? tx('Gatilho de {c}', { c: short(x.card) }) : x.kind === 'activate' ? tx('Habilidade de {c}', { c: short(x.card) }) : short(x.card) || tx('habilidade'))
 function hiText(t) {  // texto → pedaços com <b class> nas frases-chave (a primeira que apanha ganha)
   const hits = []
   for (const [k, re] of KEYS) for (const m of t.matchAll(re)) if (!hits.some(h => m.index < h.e && m.index + m[0].length > h.s)) hits.push({ s: m.index, e: m.index + m[0].length, k })
@@ -177,7 +191,9 @@ function hiText(t) {  // texto → pedaços com <b class> nas frases-chave (a pr
   if (i < t.length) out.push(sy(t.slice(i), 'z'))
   return out
 }
-export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
+// cur: o uid do item a que o pedido atual do Forge diz respeito (escolher o alvo de um gatilho já na pilha…); pend: o que está
+// a entrar na pilha agora ({card, kind, p, how: 'in'}) ou a resolver fora dela ({…, how: 'res'}) enquanto pede uma escolha
+export function StackFx({ s, rev, ri, data, arts, quiet, who, speed, cur, pend }) {
   const [ghost, setGhost] = useState(null), [more, setMore] = useState([]), [nudge, setNudge] = useState(false), n = s.stack.length, prevN = useRef(n), gT = useRef(null)
   // resolver: a carta brilha e a legenda mostra o efeito real o tempo de o ler (pelo tamanho do texto e pela velocidade
   // escolhida); o temporizador é só dele, por isso o evento seguinte já não o cancela (a legenda ficava lá para sempre)
@@ -214,23 +230,32 @@ export function StackFx({ s, rev, ri, data, arts, quiet, who, speed }) {
   if (!n && !ghost) return null
   const pic = (card, p, kind) => { const c = lookup(data, card); return c ? <img src={img(c, kind === 'cast' || !kind ? 'normal' : 'art_crop', false, artOf(arts, p, c))} alt={card} draggable="false" /> : <span>{short(card) || tx('habilidade')}</span> }
   const tgt = top?.target && (who[top.target] || short(top.target))
+  // a ordem à vista: cada carta com o n.º pela ordem em que resolve (1 = a de cima); o que entra agora fica à frente de todos
+  const off = pend?.how === 'in' ? 1 : 0, w = top && stkWhat(top, tc), whoOf = x => who?.[x.p] && short(who[x.p])
+  const curTag = <em className="stk-cur">{tx('o pedido atual é deste')}</em>
   return (
     <div className={`stackfx ${nudge ? 'nudge' : ''}`} aria-live="polite">
       {/* a carta a resolver também conta para a largura (senão ficava por cima da legenda); com muitas, o leque aperta */}
       <div className="stk-pile" style={{ '--n': n + (ghost ? 1 : 0), '--sg': `${n + (ghost ? 1 : 0) > 4 ? Math.max(10, Math.round(104 / (n + (ghost ? 1 : 0) - 1))) : 26}px` }}>
         {s.stack.map((x, j) => (
-          <In key={x.uid} quiet={quiet} className={`stk ${x.p || ''} ${x.kind} ${j === n - 1 ? 'top' : ''}`} style={{ '--j': j, '--r': `${tilt(x.uid)}deg` }} data-z={x.card ? `n:${x.card}` : undefined} data-si={j}>
-            {pic(x.card, x.p, x.kind)}
+          <In key={x.uid} quiet={quiet} className={`stk ${x.p || ''} ${x.kind} ${j === n - 1 ? 'top' : ''} ${cur != null && cur === x.uid ? 'cur' : ''}`} style={{ '--j': j, '--r': `${tilt(x.uid)}deg` }} data-z={x.card ? `n:${x.card}` : undefined} data-si={j}>
+            {pic(x.card, x.p, x.kind)}{n + off > 1 && <i className="stk-n">{n - j + off}</i>}
           </In>
         ))}
         {more.map((x, k) => <div key={`m${x.key}`} className={`stk resolving ${x.p || ''}`} style={{ '--j': n + k, '--d': `${x.ms}ms` }}>{pic(x.card, x.p)}</div>)}
         {ghost && <div key={`g${ghost.key}`} className={`stk resolving ${ghost.p || ''}`} style={{ '--j': n + more.length, '--d': `${ghost.ms}ms` }}>{pic(ghost.card, ghost.p)}</div>}
       {(top || ghost) && (
-        <div key={top ? `t${top.uid}` : `g${ghost.key}`} className={`stk-cap ${(top || ghost).p || ''} ${top ? '' : 'res'}`} style={{ '--spell': spellCol(lookup(data, (top || ghost).card)) }}>
+        <div key={top ? `t${top.uid}` : `g${ghost.key}`} className={`stk-cap ${(top || ghost).p || ''} ${top ? '' : 'res'} ${top && cur === top.uid ? 'cur' : ''}`} style={{ '--spell': spellCol(lookup(data, (top || ghost).card)) }}>
+          {pend && <div className={`stk-pend ${pend.p || ''}`}><small>{pend.how === 'in' ? tx('1.º · a entrar na pilha agora: fica no topo e resolve primeiro') : tx('A resolver agora (já saiu da pilha)')}</small>
+            <b>{stkLabel(pend)}</b>{curTag}</div>}
           {top ? <>
-            <small>{KIND_L[top.kind] || top.kind}{n > 1 ? ` · ${tx('{n} na pilha', { n })}` : ''}</small>
-            <b>{short(top.card) || tx('habilidade')}{tgt ? <span className="muted"> → {tgt}</span> : null}</b>
-            {(top.text || tc) && <p>{hiText(top.text ? stkText(top.text, top.card) : effectOf(tc, top.kind))}</p>}
+            <small>{off ? tx('{k}.º a resolver', { k: 1 + off }) : tx('Resolve a seguir')} · {KIND_L[top.kind] || top.kind}{whoOf(top) ? ` · ${whoOf(top)}` : ''}{n > 1 ? ` · ${tx('{n} na pilha', { n })}` : ''}</small>
+            <b>{stkLabel(top)}{tgt ? <span className="muted"> → {tgt}</span> : null}</b>
+            {w.t && <p className={w.plain ? 'plain' : ''}>{w.plain ? <Syms text={w.t} /> : hiText(w.t)}</p>}
+            {cur != null && cur === top.uid && curTag}
+            {n > 1 && <ol className="stk-list" start={2 + off} aria-label={tx('Depois, por esta ordem')}>
+              {s.stack.slice(0, -1).reverse().slice(0, 5).map(x => <li key={x.uid} className={`${x.p || ''} ${cur === x.uid ? 'cur' : ''}`}><b>{stkLabel(x)}</b>{x.target && <span className="muted"> → {who?.[x.target] || short(x.target)}</span>}{whoOf(x) && <span className="muted"> · {whoOf(x)}</span>}{cur === x.uid && curTag}</li>)}
+              {n > 6 && <li className="muted">+{n - 6}</li>}</ol>}
           </> : <>
             <small>{tx('A resolver')}</small>
             <b>{short(ghost.card)}</b>

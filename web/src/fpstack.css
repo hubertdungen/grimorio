@@ -1,0 +1,56 @@
+/* a pilha e os pedidos do Forge: a ordem à vista (n.º em cada carta, a lista na legenda), o item do pedido atual e de quem é
+   cada carta escolhível */
+
+/* n.º pela ordem em que resolve (1 = a de cima) */
+.stackfx .stk .stk-n { position: absolute; left: 4px; top: 3px; z-index: 2; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; display: grid; place-items: center;
+  font: 800 11px/1 system-ui, sans-serif; font-style: normal; color: #111; background: var(--col); box-shadow: 0 1px 4px #000c; }
+.stackfx .stk.top .stk-n { background: var(--gold2); }
+/* o item a que o pedido atual diz respeito */
+.stackfx .stk.cur { box-shadow: 0 12px 30px #000d, 0 0 0 3px var(--gold2), 0 0 22px 4px #ffd98a88; }
+.stk-cap.cur { border-left-color: var(--gold2); box-shadow: 0 12px 30px #000b, 0 0 0 1px #ffd98a88; }
+.stk-cur { display: inline-block; justify-self: start; margin-top: 2px; padding: 1px 7px; border-radius: 8px; font: 700 10.5px/1.5 system-ui, sans-serif; font-style: normal; color: #1a1300; background: var(--gold2); }
+/* o que entra na pilha agora (fica no topo) ou resolve fora dela, por cima da legenda */
+.stk-pend { display: grid; gap: 2px; margin: -2px 0 4px; padding: 5px 8px; border-radius: 8px; border: 1px dashed var(--gold2); background: #ffd98a14; }
+.stk-pend small { color: var(--gold2) !important; }
+/* uma permanente lançada: o texto sem frases a brilhar */
+.stk-cap p.plain { color: #b9bdd3; text-shadow: none; }
+/* o resto da pilha, pela ordem em que resolve */
+.stk-list { margin: 4px 0 0; padding: 4px 0 0 20px; border-top: 1px solid #ffffff1f; display: grid; gap: 2px; font-size: 11.5px; line-height: 1.3; color: #c9cee0; }
+.stk-list li::marker { color: var(--muted); font-weight: 700; }
+.stk-list li b { font-size: 11.5px; font-weight: 600; }
+.stk-list li.a b { color: var(--pa); } .stk-list li.b b { color: var(--pb); } .stk-list li.c b { color: var(--pc); } .stk-list li.d b { color: var(--pd); }
+.stk-list li.cur { color: var(--text); }
+.stk-list li .stk-cur { margin: 0 0 0 6px; }
+
+/* de quem é cada carta escolhível na mesa: «tua» / «do adversário» por cima da carta assinalada (o texto vem da mesa) */
+.fp-table .pc.hlsel > .pc-ov::after { position: absolute; left: 50%; top: -9px; translate: -50% 0; z-index: 4; padding: 1px 7px; border-radius: 8px; white-space: nowrap;
+  font: 800 10px/1.5 system-ui, sans-serif; color: #111; background: var(--pa, #6ee7f9); box-shadow: 0 1px 5px #000c; pointer-events: none; }
+.fp-table .bside.top .pc.hlsel > .pc-ov::after { background: var(--pb, #ff6b8a); }
+.fp-table .pc.tapped.hlsel > .pc-ov::after { top: -4px; }
+/* nas escolhas em lista: a etiqueta com a cor de cada lado */
+.fp-card.own-me .fp-tag { background: var(--cyan); color: #111; } .fp-card.own-op .fp-tag { background: #ff6b8a; color: #111; }
+
+/* para que é o pedido: a moldura diz se o efeito prejudica (vermelho) ou ajuda (verde) a carta que escolheres */
+.fp-for.harm { background: #ff6b5b14; border-color: #ff6b5b77; } .fp-for.harm small { color: #ff8a7a; }
+.fp-for.good { background: #3dcf7a14; border-color: #3dcf7a77; } .fp-for.good small { color: #6fdc8c; }
+.fp-actbar .fp-for { margin: 4px 0; }
+
+/* ordenar gatilhos: a regra por extenso e, em cada carta, de onde vem e o lugar em que resolve */
+.fp-order-rule { margin: -4px 0 6px; font-size: 13px; color: var(--gold2); }
+.fp-order-ask .fp-trig { display: grid; justify-items: center; align-content: start; gap: 4px; max-width: 170px; }
+.fp-order-ask .fp-stk-lbl { max-width: 170px; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.fp-order-ask .fp-stk-lbl b { color: var(--text); }
+.fp-ord-t { font-size: 11px; font-weight: 700; color: var(--gold); }
+.fp-order-ask .fp-optl { max-width: 220px; text-align: left; }
+@media (max-width: 600px) { .fp-order-ask .fp-trig { max-width: 130px; } .fp-order-ask .fp-trig .fp-card { --cw: 110px; } }
+
+/* mesa ao alto (telemóvel, 560 px de largura): ao centro, a legenda ao lado do monte saía do ecrã — o monte encosta-se à
+   esquerda e a legenda fica com o espaço que sobra (100% = a largura do monte) */
+.fp-stage.tall .fp-mid .stackfx { left: 10px; transform: none; }
+.fp-stage.tall .fp-mid .stk-cap { left: calc(100% + 18px); max-width: min(260px, calc(522px - 100%)); }
+
+/* a escolher o alvo: as cartas da pilha ficam transparentes (deixam ver e tocar no que está por baixo), mas a legenda
+   continua legível — é ela que diz de que é o pedido e o que vem a seguir */
+.fp .fp-table.fp-aiming .stackfx { opacity: 1; filter: none; }
+.fp .fp-table.fp-aiming .stackfx .stk { opacity: .28; filter: saturate(.6); }
+.fp .fp-table.fp-aiming .stackfx .stk-cap { opacity: .92; }
