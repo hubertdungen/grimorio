@@ -9,7 +9,7 @@ import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms, keepOnScreen } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { attackStyle, attackFx } from './orbfx.js'
-import { leaveGhost } from './tablekit.js'
+import { leaveGhost, isCompact } from './tablekit.js'
 import { held, isTouch } from './touch.js'
 import OrbEgg from './OrbEgg.jsx'
 import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
@@ -1890,7 +1890,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
     if (!el?.closest('.coliseu')) return
     // altura livre = do sítio onde o tabuleiro começa (com a página no topo, ou o ecrã inteiro no topo) até ao fundo do ecrã
     // telemóvel: o placar e os botões ficam no topo do ecrã e a mesa ocupa o resto da altura
-    const narrow = () => innerWidth < 901
+    const narrow = () => innerWidth < 901 && !el.classList.contains('compact')  // compacta (telemóvel/tablet): a réplica ajusta-se sempre à altura do ecrã
     const tbl = () => el.querySelector('.bwrap > .table') || el
     // a altura do que está lá dentro, também o que transborda: em ecrã inteiro o tabuleiro tem altura limitada e o
     // offsetHeight não via a mesa a sair por baixo — o ajuste achava que cabia, a barra dos turnos ficava enorme e o teu
@@ -1996,6 +1996,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const [zoom, setZoom] = useState(null)
   const [zone, setZone] = useState(null)
   const [more, setMore] = useState(false)  // telemóvel: velocidade, mãos e turno atrás do ⚙
+  const [compact] = useState(isCompact), [logOpen, setLogOpen] = useState(false)  // mesa compacta: uma barra só, a mesa com a altura toda e o registo a pedido (📜)
   const logRef = useRef(null)
   const start = game.startLife || 20
   const giant = game.mode === '2hg' ? game.teams : null
@@ -2084,7 +2085,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const sp = { formats, s: sD, data, fx, att, fast: fast || pos.jump, start, openZone, bets, bots, owns: own }
   const oppHand = k => game.exact && <Hand z={s[k]} data={data} quiet={fast || pos.jump} exact opp hidden={hands !== 'ambas'} label={mates.includes(k) ? tx('Mão do parceiro') : null} />
   return (
-    <Arts.Provider value={art}><div ref={boardRef} className={`view board ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''} ${px ? 'px' : ''}`} style={px ? { ...sideVars, ...minCardVars(px) } : sideVars}
+    <Arts.Provider value={art}><div ref={boardRef} className={`view board ${compact ? 'compact' : ''} ${live ? 'live' : ''} ${fast ? 'fast' : ''} ${pos.jump ? 'instant' : ''} ${fast || pos.jump ? 'quiet' : ''} ${px ? 'px' : ''}`} style={px ? { ...sideVars, ...minCardVars(px) } : sideVars}
       onPointerOver={onOver} onPointerLeave={() => zoom && !zoom.pin && setZoom(null)}
       onPointerDown={onPress} onPointerUp={unPress} onPointerCancel={unPress} onPointerMove={unPress} onClick={onTap} onContextMenu={e => { if (e.target.closest('[data-z]')) e.preventDefault() }}>
       <div className="rp-bar">
@@ -2102,6 +2103,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
         <button onClick={() => go(evs.length)} title={live ? tx('Ir para o momento atual') : tx('Fim')} aria-label={tx('Fim')}>⏭</button>
         <span className="rp-zoom"><button onClick={() => zoomRef.current?.(-0.1)} title={tx('Mais pequeno')}>−</button><button onClick={() => zoomRef.current?.(0)} title={tx('Ajustar ao ecrã (volta a detetar a altura)')}>⤢</button><button onClick={() => zoomRef.current?.(0.1)} title={tx('Maior')}>+</button></span>
         <button className="rp-more" onClick={() => setMore(!more)} aria-expanded={more} title={tx('Velocidade, mãos e turno')}>⚙</button>
+        {compact && <button className={`rp-logbtn ${logOpen ? 'on' : ''}`} onClick={() => setLogOpen(x => !x)} aria-expanded={logOpen} title={tx('Registo do jogo')} aria-label={tx('Registo do jogo')}>📜</button>}
         <label className="sl rp-speed"><span>{jsx(tx('Velocidade {x}'), { x: <b>{speed}×</b> })}</span><input type="range" min="0.5" max="8" step="0.5" value={speed} onChange={e => setSpeed(+e.target.value)} /></label>
         {onPlayFrom && !live && !multi && <button className="rp-x" onClick={() => { setPlaying(false); onPlayFrom(s, game) }} title={tx('Abre esta posição no Forge e jogas tu com o teu deck')}>{tx('🎮 Jogar daqui')}</button>}
         <CardPx className="rp-x" onChange={setPx} min />
@@ -2153,7 +2155,8 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
             </div>
           )}
         </div>
-        <ol className="blog" ref={logRef}>
+        {compact && logOpen && <div className="fp-side-bg" onClick={() => setLogOpen(false)} />}
+        <ol className={`blog ${logOpen ? 'open' : ''}`} ref={logRef}>
           {evs.slice(Math.max(0, i - 60), i).map((e, k) => {
             const j = Math.max(0, i - 60) + k
             if (e.tm) return null  // Two-Headed Giant: a mesma vida no parceiro

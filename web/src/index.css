@@ -4087,7 +4087,23 @@ body:has(.fp.compact) :is(.area.coliseu, .view.fp-view) { padding: 0; margin: 0;
 .fp-side-x { position: absolute; top: 6px; right: 8px; width: 36px; height: 36px; padding: 0; border-radius: 50%; }
 .fp.compact .fp-side .fp-prompt > p:first-of-type, .fp.compact .fp-side .fp-prompt > .row-btns:not(.small) { display: none; }
 /* ao alto: o lado do adversário fica com a altura do que tem (antes metade dele era vazio por cima), o teu com o resto */
-.fp.compact .fp-stage.tall .fp-table.board { grid-template-rows: minmax(auto, .5fr) auto minmax(auto, 1fr); }
+.fp.compact .fp-stage.tall .fp-table.board { grid-template-rows: auto auto minmax(auto, 1fr); }
+.fp.compact .fp-stage.tall .fp-table.board:has(> .opps, > .withmate) { grid-template-rows: minmax(auto, .5fr) auto minmax(auto, 1fr); }  /* 3–4 jogadores: como antes */
+/* os montes (biblioteca, cemitério, exílio) mais pequenos na mesa compacta: a linha deles era a mais alta por cima da mão */
+.fp.compact:not(.ml) .fp-stage .bside:not(.compact) > .bhud > .zones { zoom: .8; }
+/* deitada e baixa (.short, useStage): o adversário numa faixa — esfera e nome à esquerda, as filas ao meio, a mão e os montes
+   dele à direita — e a tua mão a espreitar do fundo (toca numa carta: a mão sobe). A mesa fica com 560 de altura, não 740 */
+.fp:not(.ml) .fp-stage.short .bside.top:not(.compact) { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 12px; align-items: center; padding-left: 26px; }
+.fp:not(.ml) .fp-stage.short .bside.top:not(.compact) > .bhud { display: contents; }
+.fp:not(.ml) .fp-stage.short .bside.top:not(.compact) > .bhud > .orb { grid-area: 1 / 1; justify-self: center; }
+.fp:not(.ml) .fp-stage.short .bside.top:not(.compact) > .bhud > .bname { grid-area: 2 / 1; align-self: start; justify-self: center; }
+.fp:not(.ml) .fp-stage.short .bside.top:not(.compact) > .bhud > .myhand { position: static; transform: none; grid-area: 1 / 3; max-width: none; }
+.fp:not(.ml) .fp-stage.short .bside.top:not(.compact) > .bhud > .zones { grid-area: 2 / 3; flex: none; zoom: .8; }
+.fp:not(.ml) .fp-stage.short .bside.top:not(.compact) > .brow.rear { grid-area: 1 / 2; }
+.fp:not(.ml) .fp-stage.short .bside.top:not(.compact) > .brow.front { grid-area: 2 / 2; }
+.fp:not(.ml) .fp-stage.short .bside.bottom:not(.compact) > .bhud.withhand > .fp-hand { translate: 0 38%; transition: translate .2s ease-out; }
+.fp:not(.ml) .fp-stage.short .bside.bottom:not(.compact) > .bhud.withhand > .fp-hand:has(.lift, .picked, .sel) { translate: 0 0; }
+@media (hover: hover) { .fp:not(.ml) .fp-stage.short .bside.bottom:not(.compact) > .bhud.withhand > .fp-hand:hover { translate: 0 0; } }
 /* telemóvel ao alto: o pedido numa linha fina por cima dos botões (ao lado deles ficava «O teu…») */
 @media (max-width: 600px) {
   .fp.compact .fp-actbar { flex-wrap: wrap; row-gap: 3px; padding-top: 3px; }
@@ -4098,6 +4114,8 @@ body:has(.fp.compact) :is(.area.coliseu, .view.fp-view) { padding: 0; margin: 0;
   .fp.compact .fp-actbar > .fp-clock { order: -1; flex: 0 1 auto; max-width: 42%; min-width: 0; margin: 0; padding: 2px 4px 4px 8px; gap: 4px; font-size: 11px; }
   .fp.compact .fp-actbar > .fp-clock > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fp.compact .fp-actbar > .fp-clock .fp-stop { min-height: 0; padding: 3px 8px; }
+  /* o pedido de sempre («O teu turno: joga uma carta ou OK.») não ocupa uma linha: o OK diz o mesmo; os outros pedidos sim */
+  .fp.compact .fp-actbar:not(:has(> .fp-clock)) > p.routine:not(.open) { display: none; }
 }
 /* mesa livre compacta: as ações numa barra por baixo da mesa (rola de lado) e a conversa numa gaveta (💬) — antes a barra era
    fixa por cima do fundo da mesa e tapava a mão */
@@ -4139,6 +4157,38 @@ body:has(.fp.compact) :is(.area.coliseu, .view.fp-view) { padding: 0; margin: 0;
 .modal.rp-sheet { position: fixed; inset: 0; z-index: 65; max-height: none; margin: 0; border: 0; border-radius: 0; box-shadow: none; overflow-y: auto; overscroll-behavior: contain; background: var(--bg);
   padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left)); }
 .modal.rp-sheet .view.board, .modal.rp-sheet .board { padding-inline: 0; margin: 0; max-width: none; }
+/* réplicas na mesa compacta (Replay, Board.jsx): uma barra só (← · ⏮ ◀ ▶ ▶ ⏭ · linha do tempo · ⚙ 📜) — velocidade, tamanho,
+   mãos e turno atrás do ⚙ —, a mesa ajustada à altura que sobra e o registo numa gaveta (📜) */
+.board.compact { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 4px; }
+.board.compact > .rp-bar { flex: none; margin: 0; flex-wrap: nowrap; }
+.board.compact > .rp-bar > :not(button):not(.livepill) { display: none; }
+.board.compact > .rp-ctrl { flex: 1 1 0; min-width: 0; margin: 0; flex-wrap: nowrap; gap: 4px; }
+.board.compact > .rp-ctrl > .rp-time { flex: 1 1 60px; min-width: 60px; }
+.board.compact > .rp-ctrl > :is(.rp-zoom, .rp-speed, .rp-x, .muted.small) { display: none; }
+.board.compact > .rp-ctrl.more { flex-wrap: wrap; }
+.board.compact > .rp-ctrl.more > :is(.rp-zoom, .rp-speed, .rp-x) { display: inline-flex; align-items: center; gap: 4px; }
+.board.compact .rp-more { display: inline-block; }
+.board.compact > .rp-ctrl > button, .board.compact > .rp-bar > button { min-height: 40px; padding: 4px 9px; }
+.board.compact > .rp-ctrl > button.primary { flex: none; white-space: nowrap; }
+.board.compact .rp-logbtn.on { border-color: var(--gold); }
+.board.compact > .bwrap { flex: 1 0 100%; min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.board.compact .blog:not(.open) { display: none; }
+.board.compact .blog.open { position: fixed; top: 0; right: 0; bottom: 0; z-index: 80; width: min(340px, 88vw); max-height: none; margin: 0; contain: none; overflow: auto; background: var(--bg);
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) 10px; box-shadow: -12px 0 40px #000b; }
+@media (max-width: 600px) {  /* telemóvel ao alto: ← e a linha do tempo numa linha, os botões na seguinte (numa só passavam do ecrã) */
+  .board.compact > .rp-ctrl { display: contents; }
+  .board.compact > .rp-bar { order: -2; } .board.compact > .rp-ctrl > .rp-time { order: -1; flex: 1 1 0; }
+  .board.compact > .rp-ctrl > button { flex: 1 1 auto; min-width: 0; padding: 4px 6px; }
+  .board.compact > .bwrap { order: 5; }
+}
+@media (orientation: landscape) and (max-height: 500px) {  /* telemóvel deitado: os controlos numa coluna à direita, a mesa com a altura toda */
+  .board.compact { display: grid; grid-template-columns: minmax(0, 1fr) 132px; grid-template-rows: auto minmax(0, 1fr); align-items: start; }
+  .board.compact > .rp-bar { grid-area: 1 / 2; } .board.compact > .rp-bar > button { width: 100%; white-space: normal; font-size: 12px; min-height: 34px; }
+  .board.compact > .rp-ctrl { grid-area: 2 / 2; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; align-content: start; max-height: calc(100vh - 60px); overflow-y: auto; }
+  .board.compact > .rp-ctrl > :is(button.primary, .rp-time, .rp-zoom, .rp-speed, .rp-x) { grid-column: 1 / -1; min-width: 0; }
+  .board.compact > .rp-ctrl > button { min-height: 34px; }
+  .board.compact > .bwrap { grid-area: 1 / 1 / 3 / 2; }
+}
 /* ecrã largo e baixo (telemóvel deitado): a barra passa a coluna à direita — a mesa fica com a altura toda, que é o que lhe falta */
 @media (min-aspect-ratio: 7/4) {
   .fp.ml.compact { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); }
@@ -4149,14 +4199,18 @@ body:has(.fp.compact) :is(.area.coliseu, .view.fp-view) { padding: 0; margin: 0;
   .fp.ml.compact .ml-tg > * { flex: 1 1 auto; } .fp.ml.compact .ml-dice { flex-wrap: wrap; }
   .fp.ml.compact .ml-tok { right: auto; width: min(420px, 70vw); bottom: 12px; }
   .fp.compact { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); }
-  .fp.compact .fp-actbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr); align-content: stretch; align-items: start; gap: 6px;
-    width: clamp(132px, 17vw, 190px); padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) 8px;
-    border-top: 0; border-left: 1px solid #ffffff22; box-shadow: -6px 0 18px #0008; overflow-y: auto; }
+  /* coluna estreita (84 px; era 143, quase vazia): ☰ ⋯ ⛶ em cima, o pedido em letra pequena (toca: abre-se inteiro por cima
+     da mesa), OK e Acabar o turno em baixo, ao alcance do polegar */
+  .fp.compact .fp-actbar { display: flex; flex-direction: column; align-items: stretch; gap: 5px; width: 84px; overflow: visible;
+    padding: max(6px, env(safe-area-inset-top)) max(6px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) 6px;
+    border-top: 0; border-left: 1px solid #ffffff22; box-shadow: -6px 0 18px #0008; }
   .fp.compact .fp-actbar.mine { border-left-color: var(--gold); }
-  .fp.compact .fp-actbar > * { grid-column: 1 / -1; }
-  .fp.compact .fp-actbar > .fs-mini { grid-column: auto; order: -1; min-width: 0; }
-  .fp.compact .fp-actbar > p { -webkit-line-clamp: 7; font-size: 12px; }
-  .fp.compact .fp-actbar .row-btns { flex-direction: column; align-self: end; }
-  .fp.compact .fp-actbar .row-btns button { width: 100%; padding: 6px 8px; white-space: normal; }
-  .fp.compact .fp-actbar .fp-pool { flex-wrap: wrap; }
+  .fp.compact .fp-actbar > .fs-mini { order: -1; flex: none; width: 100%; min-height: 34px; padding: 0; }
+  .fp.compact .fp-actbar > p { flex: 0 1 auto; -webkit-line-clamp: 6; font-size: 11px; line-height: 1.25; overflow-wrap: anywhere; }
+  .fp.compact .fp-actbar > p.open { position: absolute; right: calc(100% + 6px); top: 48px; width: min(280px, 60vw); -webkit-line-clamp: 14; padding: 8px 10px; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--gold); border-radius: 10px; box-shadow: 0 10px 30px #000b; z-index: 50; }
+  .fp.compact .fp-actbar .row-btns { margin-top: auto; flex-direction: column; gap: 5px; }
+  .fp.compact .fp-actbar .row-btns button { width: 100%; min-height: 44px; padding: 4px; white-space: normal; font-size: 13px; line-height: 1.15; }
+  .fp.compact .fp-actbar .fp-pool { flex-wrap: wrap; justify-content: center; }
+  .fp.compact .fp-actbar > .fp-clock { flex-wrap: wrap; justify-content: center; margin: 0; padding: 4px; gap: 4px; font-size: 10px; text-align: center; }
 }

@@ -36,6 +36,7 @@ import { ApkBanner, DesktopUpdBanner } from './apkupdate.jsx'
 import { WhoPlays, ProfileChip } from './Profiles.jsx'
 import { FriendRoomModal, RemoteRoom, BringMine, VOLTA } from './FriendRoom.jsx'
 import { isTouch } from './touch.js'
+import { isCompact } from './tablekit.js'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
 const FROM_ROOM = window.location.hash === '#online'  // veio pelo link de uma sala (guests.room_link): vai direto ao Online
@@ -485,7 +486,7 @@ export default function App() {
       {section === 'biblioteca' && <div className="area"><Library data={data} openDeck={id => openDeck(id).then(() => goTab('deck'))} goTab={goTab} say={say} importLinks={importLinks} focus={libFocus} /></div>}
       {section === 'coliseu' && (
         <div className="area coliseu" ref={coliseuRef}>
-          <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>
+          {!isCompact() && <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>}  {/* com a mesa compacta o tablet ao alto já fica bem */}
           <div className="col-bar">
             <b className="col-title"><Icon n="coliseu" /> {tx('Coliseu')}</b><span className="muted small">{deck.name} · {fmt.name}</span>
             <span className="seg">{COL_MODES.filter(([k]) => !guest || GUEST_MODES.includes(k)).map(([k, ic, l]) => <button key={k} className={cm === k ? 'on' : ''} onClick={() => setColMode(k)}><Icon n={ic} />{l}</button>)}</span>

@@ -249,13 +249,22 @@ export function useStage(boxRef, wrapRef, ready, own = false, compact = false) {
       const fit = () => {
         const w = wrap.clientWidth, h = wrap.clientHeight
         if (!w || !h) return
-        const shape = innerWidth < innerHeight ? 'tall' : 'wide', a = h / w
-        let [W, H] = shape === 'tall' ? STAGE.tall : [1280, 740]  // deitada: 740 de altura (e não 820) — as cartas ficam ~10% maiores; o que sobrava era vazio entre os terrenos e a mão
-        if (shape === 'tall') { H = Math.min(1700, Math.max(wrap.querySelector('.opps, .withmate') ? 1240 : 1100, Math.floor(W * a))); W = Math.max(W, Math.floor(H / a)) }  // 1100: o lado do adversário já não fica com espaço vazio (as filas dele medem-se pelo conteúdo); com 3–4 jogadores 1240, como antes
-        else if (w / h > W / H) W = Math.min(2400, Math.floor(H / a))  // mais larga do que 1280×820: mais espaço nas filas, cartas do mesmo tamanho
-        else H = Math.min(1100, Math.floor(W * a))
+        const shape = innerWidth < innerHeight ? 'tall' : 'wide', a = h / w, multi = !!wrap.querySelector('.opps, .withmate')
+        // deitada e baixa (telemóvel deitado, tablet pequeno): .short — o adversário numa faixa só (esfera e nome à esquerda,
+        // mão e montes à direita das filas) e a tua mão a espreitar do fundo; com isso a mesa tem 560 de altura e não 740
+        const short = shape === 'wide' && h < 620 && !multi && !box.classList.contains('ml')  // a mesa livre tem campos livres: fica como está
+        let W, H
+        if (shape === 'tall') {  // ao alto: a altura que o conteúdo pede (1020; 1240 com 3–4 jogadores) e a largura do ecrã
+          H = Math.min(1700, (multi ? Math.max(1240, Math.floor(560 * a)) : Math.max(1020, Math.floor(480 * a))))
+          W = Math.max(multi ? 560 : 480, Math.floor(H / a))
+        } else {  // deitada: 740 de altura (560 se baixa) e a largura que sobrar — mais espaço nas filas, cartas do mesmo tamanho
+          H = short ? 560 : 740; W = Math.floor(H / a)
+          const minW = short ? 900 : 1280
+          if (W < minW) { W = minW; H = Math.min(1100, Math.floor(W * a)) }
+          W = Math.min(2400, W)
+        }
         const sc = Math.min(w / W, h / H)
-        setSt({ shape, sc, left: Math.max(0, (w - W * sc) / 2), h: H * sc, W, H })
+        setSt({ shape, short, sc, left: Math.max(0, (w - W * sc) / 2), h: H * sc, W, H })
       }
       fit()
       const ro = new ResizeObserver(fit); ro.observe(wrap)

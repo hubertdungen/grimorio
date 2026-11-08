@@ -521,6 +521,8 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog }) {  // rv
   )
 }
 
+// a janela «Jogar / Ativar …?» fica sempre dentro do ecrã (no telemóvel deitado, por cima da carta, podia sair pelo topo)
+const onScreen = el => { if (!el) return; el.style.marginTop = ''; const q = el.getBoundingClientRect(); if (q.top < 8) el.style.marginTop = `${8 - q.top}px`; else if (q.bottom > innerHeight - 8) el.style.marginTop = `${innerHeight - 8 - q.bottom}px` }
 export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, series, onEnd, cols }) {  // cols: as cores de cada deck ({a, b}), para a esfera antes de haver cartas à vista  // againLabel: o texto do botão de voltar a jogar (torneios: o jogo seguinte da partida)
   const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [toast, setToast] = useState(null)
   const [rvl, setRvl] = useState(null)  // cartas reveladas: um painel com as imagens, até o fechares (ou até à escolha que vem com elas)
@@ -1217,7 +1219,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       // mostra-a, com «Usar» — antes só se levantava e, se não dava para a lançar, não havia como ciclá-la sem a arrastar
       // no toque não há duplo clique fiável e arrastar não se adivinha: tocar mostra logo «Jogar» (ou porque não dá agora)
       const touch = !!e.nativeEvent?.pointerType && e.nativeEvent.pointerType !== 'mouse', ok = c.play || st.pfail
-      if (hl.length || touch) { const r = h.getBoundingClientRect(); setAct({ hand: true, play: touch, off: !ok, hint: ok ? '' : touch ? whyNot(id).msg : tx('Agora o Forge não deixa usá-la: falta mana para o custo, ou não é a altura (ninjutsu: com um atacante teu por bloquear).'), id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top - 8, up: true, lines: hl, name: c.name }) }
+      // a janela fica por cima da carta levantada (sobe 20% e cresce 1,4×) e, com a mão a espreitar (.short), da mão que sobe
+      if (hl.length || touch) { const r = h.getBoundingClientRect(), peekUp = (h.closest('.fp-stage.short') ? r.height * 0.38 : 0) + r.height * 0.6; setAct({ hand: true, play: touch, off: !ok, hint: ok ? '' : touch ? whyNot(id).msg : tx('Agora o Forge não deixa usá-la: falta mana para o custo, ou não é a altura (ninjutsu: com um atacante teu por bloquear).'), id, x: Math.min(innerWidth - 280, Math.max(8, r.left + r.width / 2 - 130)), y: r.top - 8 - peekUp, up: true, lines: hl, name: c.name }) }
       return
     }
     const z = e.target.closest('[data-z]')?.dataset.z
@@ -1322,7 +1325,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       onPointerDownCapture={e => { if (e.target.closest('.fp-stagebox') && dice.grab(e)) e.stopPropagation() }}>
       <div className="fp-stagebox" ref={stageWrap} style={{ height: compact ? undefined : stage.h }}>
       <FsBtn className="on-table" />
-      <div className={`fp-stage ${stage.shape} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
+      <div className={`fp-stage ${stage.shape} ${stage.short ? 'short' : ''} ${P.persp ? 'persp' : ''} ${P.oppFace === 'far' ? 'opp-far' : ''}`} data-sc={stage.sc} style={{ width: stage.W || STAGE[stage.shape][0], height: stage.H || STAGE[stage.shape][1], transform: `translateX(${stage.left}px) scale(${stage.sc})`, '--tilt': `${P.tilt}deg`, '--tf': P.tilt / 45 }}>
       <div className={`fp-table board table ${aiming ? 'fp-aiming' : ''} ${blocking ? 'fp-blocking' : ''} ${P.cardPx ? 'px' : ''} ${st.combat?.length || /COMBAT_DECLARE_BLOCKERS/.test(st.phase || '') ? 'combat-on' : ''} ${declaring ? 'fp-declaring' : ''}`} style={cardVars(P.cardPx) || undefined} ref={fitTable} onClick={onClick} onDoubleClick={onDouble} onMouseMove={tilt} onPointerDown={down}>
         {flipped.size > 0 && <style>{[...flipped].map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ transform: rotate(180deg); }'}</style>}
         {picked.length > 0 && <style>{picked.map(k => `.fp-table .pc[data-z="k:${k}"] .pc-f`).join(',')}{'{ box-shadow: 0 0 0 3px var(--gold), 0 0 18px var(--gold) !important; animation: none !important; translate: 0 -8px; }'}</style>}
@@ -1352,7 +1355,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       <div className="fp-dice" ref={diceBox} /></div>
       {(touchDev || compact) && <div className={`fp-actbar ${pr && btns.some(b => b.on) ? 'mine' : ''}`}>  {/* telemóvel/tablet: o pedido e OK/Cancelar sempre à vista, por baixo da mesa */}
         {compact && <GameMenuBtns chrome={chrome} setChrome={setChrome} side={sideOpen} setSide={setSideOpen} />}
-        <p className={promptOpen || blockBox || atkBox ? 'open' : ''} onClick={() => setPromptOpen(x => !x)}><Syms text={promptText(pr?.msg, st, me, compact)} />{blockBox}{atkBox}</p>
+        <p className={`${promptOpen || blockBox || atkBox ? 'open' : ''} ${/^Priority:/.test(pr?.msg || '') && !st.stack?.length && !blockBox && !atkBox ? 'routine' : ''}`} onClick={() => setPromptOpen(x => !x)}><Syms text={promptText(pr?.msg, st, me, compact)} />{blockBox}{atkBox}</p>
         {unstick}{selPick}
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
         <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
@@ -1399,7 +1402,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       {ask && <div className="fp-modal"><Ask key={ask.id} a={ask} rv={rvl} st={st} data={data} answer={answer} zoom={setZoom} payCancel={/Pay Mana Cost/i.test(pr?.msg || '') && btns.some(b => b.label === 'Cancel') ? () => send({ c: 'cancel' }) : null} undo={st.stack?.length ? null : () => send({ c: 'undo' })} /></div>}
       {big && <BigCard name={big} data={data} onClose={() => setBig(null)} />}
       {act && <div className="fp-act-bg" onPointerDown={() => setAct(null)} />}
-      {act && <div className={`fp-act ${act.up ? '' : 'below'}`} role="dialog" aria-label={tx('Ativar {c}', { c: act.name })} style={{ left: act.x, top: act.y }}>
+      {act && <div className={`fp-act ${act.up ? '' : 'below'}`} role="dialog" aria-label={tx('Ativar {c}', { c: act.name })} style={{ left: act.x, top: act.y }} ref={el => onScreen(el)}>
         <b>{act.dbl || act.play ? act.name : act.hand ? tx('Usar {c} da mão', { c: act.name }) : tx('Ativar {c}?', { c: act.name })}</b>
         {act.pw?.length ? <>
           {act.pw.map((a, k) => { const m = a.d.match(/^\[?([+−-]?(?:\d+|X))\]?\s*:\s*/), cost = m?.[1]?.replace('-', '−') || '', txt = m ? a.d.slice(m[0].length) : a.d
