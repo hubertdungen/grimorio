@@ -1121,7 +1121,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const coinFace = (p, side) => ({ n: String(p?.name || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).slice(0, 2).join(' ').slice(0, 12) || '?',
     c: (document.querySelector(`.bside.${side} .orb:not(.orb-proxy)`)?.dataset.cols || '').replace(/[^WUBRGC]/g, '') })
   const toss = won => {
-    if (tossed.current) return
+    if (tossed.current || s?.chooser) return  // chooser: jogo 2+ de uma série (também nos torneios e na mesa estrita) — escolhe quem perdeu, sem moeda
     tossed.current = true
     try { const k = `grimorio.fp.toss.${sid}`; if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1') } catch { /* sem armazenamento: lança na mesma */ }
     if ((st?.turn || 0) <= 1) setIntro({ won })
