@@ -160,6 +160,10 @@ sync is for computers and single-owner servers.
 - **Search in plain words, in any language** — «legendary human creatures with +1/+1 counters», «lands that draw
   cards», «terrenos que compram cartas», «抽牌的地» or Scryfall syntax (`t:`, `o:`, `mv<=`); accents optional; 35+ card
   roles (removal, draw, mill, burn, blink, stax…) to filter by.
+- **Search for answers to what beats you** — «mill sideboard», «anti-enchantments», «good against planeswalkers»,
+  «graveyard hate», «answers to flyers» in any of the 5 languages: 15 threats (enchantments, artifacts, planeswalkers,
+  graveyard, mill, tokens, flyers, combo, control, aggro, burn, discard, lifegain, ramp, hexproof), best answers first,
+  each card showing why it matched, and it combines with colour, type, cost and format («… white instant mv<=2 in modern»).
 - **Analysis dashboard** — headline numbers, mana curve by creatures vs. the rest, colour pies (what the costs ask for
   vs. what the lands make), opening-hand odds, how the deck wins and how it loses, whether the sideboard covers what
   beat it, the cards that win or get stuck in hand in real games, and a ⓘ explanation on every number.

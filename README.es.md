@@ -168,6 +168,11 @@ en la nube es para ordenadores y servidores de un solo dueño.
 - **Búsqueda con palabras, en cualquier idioma**: «criaturas humanas legendarias con contadores +1/+1», «tierras que
   roban cartas», «terrenos que compram cartas», «抽牌的地» o la sintaxis de Scryfall (`t:`, `o:`, `mv<=`); las tildes son
   opcionales; más de 35 funciones de las cartas (eliminación, robo, mill, daño directo, blink, stax…) para filtrar.
+- **Búsqueda de respuestas a lo que te gana**: «sideboard contra mill», «anti encantamientos», «bueno contra
+  planeswalkers», «odio al cementerio», «contra voladores» en cualquiera de los 5 idiomas: 15 amenazas (encantamientos,
+  artefactos, planeswalkers, cementerio, mill, fichas, voladores, combo, control, aggro, daño directo, descarte,
+  ganar vida, ramp, hexproof), las mejores respuestas primero, cada carta con el porqué, y se combina con color, tipo,
+  coste y formato («… blancos hasta 2 en modern»).
 - **Panel de análisis**: cifras principales, curva de maná por criaturas y el resto, gráficos de colores (lo que piden
   los costes frente a lo que dan las tierras), probabilidades de la mano inicial, cómo gana y cómo pierde el mazo, si el
   banquillo cubre lo que le ganó, las cartas que ganan o se quedan en la mano en las partidas, y una ⓘ en cada número.

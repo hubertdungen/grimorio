@@ -168,6 +168,11 @@ nur ihre eigenen Daten; der Cloud-Ordner ist für Computer und Server mit einem 
 - **Suche in Worten, in jeder Sprache** – „legendäre menschliche Kreaturen mit +1/+1-Marken“, „Länder, die Karten
   ziehen“, „terrenos que compram cartas“, „抽牌的地“ oder Scryfall-Syntax (`t:`, `o:`, `mv<=`); Akzente optional; 35+
   Kartenrollen (Entfernung, Ziehen, Mill, Direktschaden, Blink, Stax…) zum Filtern.
+- **Suche nach Antworten auf das, was dich schlägt** – „Sideboard gegen Mill“, „gegen Verzauberungen“, „gut gegen
+  Planeswalker“, „Friedhofsschutz“, „gegen Flieger“ in jeder der 5 Sprachen: 15 Bedrohungen (Verzauberungen,
+  Artefakte, Planeswalker, Friedhof, Mill, Spielsteine, Flieger, Combo, Kontrolle, Aggro, Direktschaden, Abwerfen,
+  Lebensgewinn, Ramp, Fluchsicher), die besten Antworten zuerst, jede Karte mit dem Grund, kombinierbar mit Farbe,
+  Typ, Kosten und Format („… weiß bis 2 in Modern“).
 - **Analyse-Dashboard** – Kennzahlen, Manakurve nach Kreaturen und Rest, Farbdiagramme (was die Kosten verlangen vs. was
   die Länder liefern), Starthand-Wahrscheinlichkeiten, wie das Deck gewinnt und verliert, ob das Sideboard abdeckt, was
   es geschlagen hat, die Karten, die in echten Partien gewinnen oder auf der Hand liegen bleiben, und ein ⓘ an jeder Zahl.

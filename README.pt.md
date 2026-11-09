@@ -163,6 +163,11 @@ computadores e servidores de um só dono.
 - **Pesquisa por palavras, em qualquer língua** — «criaturas lendárias humano com marcadores +1/+1», «terrenos que
   compram cartas», «lands draw», «抽牌的地» ou a sintaxe do Scryfall (`t:`, `o:`, `mv<=`); com ou sem acentos; mais de
   35 funções das cartas (remoção, compra, mill, dano direto, blink, stax…) para filtrar.
+- **Pesquisa pelas respostas ao que te vence** — «sideboard contra mill», «anti encantamentos», «bom contra
+  planeswalkers», «ódio a cemitério», «contra voadores» em qualquer das 5 línguas: 15 ameaças (encantamentos,
+  artefactos, planeswalkers, cemitério, mill, fichas, voadores, combo, controlo, aggro, dano direto, descarte, ganhar
+  vida, ramp, hexproof), as melhores respostas primeiro, cada carta com o porquê, e junta-se à cor, tipo, custo e
+  formato («… brancos até 2 em modern»).
 - **Painel de análise** — números principais, curva de mana por criaturas e o resto, queijinhos de cores (o que os
   custos pedem vs. o que os terrenos dão), probabilidades da mão inicial, como o deck ganha e como perde, se o
   sideboard cobre o que o venceu, as cartas que ganham ou ficam presas na mão nos jogos, e um ⓘ a explicar cada número.
