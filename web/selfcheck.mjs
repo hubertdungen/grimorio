@@ -658,6 +658,70 @@ console.log('selfcheck universo ok')
   { const { passes } = await import('./src/data.js'), C = t => ({ t, o: '', mt: t.includes('Creature') ? 'Creature' : 'Enchantment', co: 'W', ci: 'W', tg: [], lg: 1, un: 0 }), f = { type: 'Creature', types2: ['Enchantment'] }, ctx = { bit: 0, identity: null }
     assert.ok(passes(C('Legendary Enchantment Creature — God'), f, ctx) && !passes(C('Legendary Creature — Human // Legendary Enchantment Creature'.replace('Enchantment Creature', 'Enchantment — Saga')), f, ctx)) }
   console.log('selfcheck pesquisa por frases ok') }
+{ // pesquisa «contra X» (src/hate.js): as frases nas 5 línguas dão a ameaça certa, e as cartas certas respondem-lhe
+  const { parseQuery: P } = await import('./src/nlsearch.js'), { hateMatch: H, hateScore } = await import('./src/hate.js')
+  const vs = q => P(q)?.f.vs
+  const PH = {
+    enchantment: ['anti encantamentos', 'resposta a encantamentos', 'remoção de encantamentos', 'anti-enchantments', 'enchantment removal', 'counters for enchantments', 'contra encantamientos', 'respuestas a encantamientos', 'gegen Verzauberungen', 'Verzauberungsentfernung', '反附魔', '对抗结界'],
+    artifact: ['bom contra artefactos', 'artifact hate', 'answers to artifacts', 'contra artefactos', 'gegen Artefakte', '反神器'],
+    planeswalker: ['contra planeswalkers', 'good against planeswalkers', 'bueno contra planeswalkers', 'gut gegen Planeswalker', '对抗旅法师', '针对鹏洛客'],
+    graveyard: ['ódio a cemitério', 'hate de cemitério', 'contra reanimator', 'graveyard hate', 'odio al cementerio', 'Friedhofsschutz', 'gegen den Friedhof', '坟场仇恨', '反坟墓场'],
+    mill: ['sideboard para mill', 'sideboard contra mill', 'contra o mill', 'mill sideboard', 'sideboard vs mill', 'antimill', 'sideboard gegen Mill', '对抗磨牌的备牌'],
+    tokens: ['contra tokens', 'contra fichas', 'vs tokens', 'gegen Spielsteine', '反衍生物'],
+    flyers: ['contra criaturas voadoras', 'answers to flyers', 'contra voladores', 'gegen Flieger', '对抗飞行生物'],
+    combo: ['contra combo', 'anti-combo', 'contra storm', 'gegen Kombo', '反组合技'],
+    control: ['contra controlo', 'contra contramágicas', 'anti-control', 'contra control', 'gegen Kontrolle', '反控制'],
+    aggro: ['contra aggro', 'anti-aggro', 'contra agresivos', 'gegen Aggro', '对抗快攻'],
+    burn: ['contra burn', 'contra dano direto', 'anti burn', '反直伤'], discard: ['contra descarte', 'vs discard', '反弃牌'],
+    lifegain: ['contra ganho de vida', 'anti lifegain', '反获得生命'], ramp: ['contra ramp', 'vs nonbasic lands'], hexproof: ['contra hexproof', 'anti voltron', '反辟邪'],
+  }
+  for (const [t, qs] of Object.entries(PH)) for (const q of qs) assert.deepEqual(vs(q), [t], q)
+  assert.deepEqual(vs('contra artefactos e encantamentos'), ['artifact', 'enchantment'])
+  assert.deepEqual(P('anti enchantments white instant mv<=2').f, { vs: ['enchantment'], cmcMax: 2, colors: ['W'], type: 'Instant' })
+  assert.deepEqual(P('sideboard contra mill em modern').f, { fmt: 'modern', vs: ['mill'] })
+  assert.deepEqual(P('counterspell for enchantments').f, { vs: ['enchantment'], vsCtr: true, tags: ['counter'] })
+  assert.equal(P('Lightning Bolt'), null); assert.equal(vs('criaturas voadoras'), undefined); assert.equal(vs('removal forest'), undefined)
+  assert.ok(P('criaturas voadoras').f.oracle.includes('flying'))
+  const C = (n, o, t = 'Instant', x = {}) => ({ n, o, t, cmc: 2, kw: [], tg: [], pt: '', ...x })
+  const cards = {
+    Disenchant: C('Disenchant', 'Destroy target artifact or enchantment.'), Naturalize: C('Naturalize', 'Destroy target artifact or enchantment.'),
+    'Return to Nature': C('Return to Nature', 'Choose one —\n• Destroy target artifact.\n• Destroy target enchantment.\n• Exile target card from a graveyard.'),
+    'Rest in Peace': C('Rest in Peace', 'When this enchantment enters, exile all graveyards.\nIf a card or token would be put into a graveyard from anywhere, exile it instead.', 'Enchantment'),
+    'Relic of Progenitus': C('Relic of Progenitus', '{T}: Target player exiles a card from their graveyard.\n{1}, Exile this artifact: Exile all graveyards. Draw a card.', 'Artifact', { cmc: 1 }),
+    'Leyline of the Void': C('Leyline of the Void', "If this card is in your opening hand, you may begin the game with it on the battlefield.\nIf a card would be put into an opponent's graveyard from anywhere, exile it instead.", 'Enchantment', { cmc: 4 }),
+    'Elixir of Immortality': C('Elixir of Immortality', "{2}, {T}: You gain 5 life. Shuffle this artifact and your graveyard into their owner's library.", 'Artifact', { cmc: 1 }),
+    "Gaea's Blessing": C("Gaea's Blessing", 'Target player shuffles up to three target cards from their graveyard into their library.\nDraw a card.\nWhen this card is put into your graveyard from your library, shuffle your graveyard into your library.', 'Sorcery'),
+    "Hero's Downfall": C("Hero's Downfall", 'Destroy target creature or planeswalker.', 'Instant', { cmc: 3 }), 'Lightning Bolt': C('Lightning Bolt', 'Lightning Bolt deals 3 damage to any target.', 'Instant', { cmc: 1 }),
+    Pyroclasm: C('Pyroclasm', 'Pyroclasm deals 2 damage to each creature.', 'Sorcery'), 'Wrath of God': C('Wrath of God', "Destroy all creatures. They can't be regenerated.", 'Sorcery', { cmc: 4 }),
+    'Thalia, Guardian of Thraben': C('Thalia, Guardian of Thraben', 'First strike\nNoncreature spells cost {1} more to cast.', 'Legendary Creature — Human Soldier', { pt: '2/1', kw: ['First strike'] }),
+    'Rule of Law': C('Rule of Law', "Each player can't cast more than one spell each turn.", 'Enchantment', { cmc: 3 }),
+    'Mindbreak Trap': C('Mindbreak Trap', "If an opponent cast three or more spells this turn, you may pay {0} rather than pay this spell's mana cost.\nExile any number of target spells.", 'Instant — Trap', { cmc: 4 }),
+    'Vexing Shusher': C('Vexing Shusher', "This spell can't be countered.\n{R/G}: Target spell can't be countered.", 'Creature — Goblin Shaman', { pt: '2/2' }),
+    Plummet: C('Plummet', 'Destroy target creature with flying.'), Negate: C('Negate', 'Counter target noncreature spell.'), Counterspell: C('Counterspell', 'Counter target spell.'),
+    'Sulfuric Vortex': C('Sulfuric Vortex', "At the beginning of each player's upkeep, this enchantment deals 2 damage to that player.\nIf a player would gain life, that player gains no life instead.", 'Enchantment', { cmc: 3 }),
+    'Blood Moon': C('Blood Moon', 'Nonbasic lands are Mountains.', 'Enchantment', { cmc: 3 }), 'Diabolic Edict': C('Diabolic Edict', 'Target player sacrifices a creature of their choice.'),
+    'Leyline of Sanctity': C('Leyline of Sanctity', 'If this card is in your opening hand, you may begin the game with it on the battlefield.\nYou have hexproof. (You can\'t be the target of spells or abilities your opponents control.)', 'Enchantment', { cmc: 4 }),
+    'Grizzly Bears': C('Grizzly Bears', '', 'Creature — Bear', { pt: '2/2' }), 'Flicker of Fate': C('Flicker of Fate', "Exile target creature or enchantment, then return it to the battlefield under its owner's control."),
+    'Crypt Incursion': C('Crypt Incursion', "Exile all creature cards from target player's graveyard. You gain 3 life for each card exiled this way.", 'Instant', { cmc: 3 }),
+  }
+  const yes = { enchantment: ['Disenchant', 'Naturalize', 'Return to Nature'], artifact: ['Disenchant', 'Return to Nature'], graveyard: ['Rest in Peace', 'Relic of Progenitus', 'Leyline of the Void', 'Crypt Incursion'],
+    mill: ['Elixir of Immortality', "Gaea's Blessing"], planeswalker: ["Hero's Downfall", 'Lightning Bolt'], tokens: ['Pyroclasm', 'Wrath of God'], aggro: ['Pyroclasm', 'Wrath of God'],
+    combo: ['Thalia, Guardian of Thraben', 'Rule of Law', 'Mindbreak Trap', 'Counterspell'], control: ['Vexing Shusher'], flyers: ['Plummet'], lifegain: ['Sulfuric Vortex'], ramp: ['Blood Moon'],
+    hexproof: ['Diabolic Edict', 'Wrath of God'], burn: ['Leyline of Sanctity'] }
+  const no = { enchantment: ['Grizzly Bears', 'Flicker of Fate', 'Lightning Bolt'], mill: ['Rest in Peace', 'Relic of Progenitus'], graveyard: ['Elixir of Immortality'], tokens: ['Grizzly Bears', 'Crypt Incursion'], control: ['Counterspell'], flyers: ['Lightning Bolt'] }
+  for (const [t, ns] of Object.entries(yes)) for (const n of ns) assert.ok(H(cards[n], t), `${n} contra ${t}`)
+  for (const [t, ns] of Object.entries(no)) for (const n of ns) assert.equal(H(cards[n], t), null, `${n} não é contra ${t}`)
+  // as respostas diretas primeiro: Disenchant > Counterspell contra encantamentos; Hero's Downfall > Lightning Bolt contra planeswalkers
+  assert.ok(hateScore(cards.Disenchant, ['enchantment']) > hateScore(cards.Counterspell, ['enchantment']))
+  assert.ok(hateScore(cards["Hero's Downfall"], ['planeswalker']) > hateScore(cards['Lightning Bolt'], ['planeswalker']))
+  assert.equal(H(cards.Disenchant, 'enchantment').why, 'destrói ou exila encantamentos'); assert.equal(H(cards['Rest in Peace'], 'graveyard').why, 'exila cemitérios')
+  // «counterspell for enchantments»: só a maneira de anular (Negate sim, Disenchant não)
+  assert.ok(H(cards.Negate, 'enchantment', true) && !H(cards.Disenchant, 'enchantment', true))
+  { const { prepData, search } = await import('./src/data.js')  // na pesquisa: filtra e ordena (Disenchant antes do Counterspell)
+    const d = prepData({ formats: [] }, Object.values(cards).map(c => ({ ...c, _hm: undefined, ci: '', co: '', lg: 0, un: 0, r: 'c', er: c.n === 'Counterspell' ? 1 : 100 })), [], new ArrayBuffer(0), new ArrayBuffer(0))
+    const r = search(d, '', P('anti encantamentos').f, { bit: -1, identity: null })
+    assert.equal(r.cards[0].n, 'Disenchant'); assert.ok(r.cards.some(c => c.n === 'Counterspell') && !r.cards.some(c => c.n === 'Grizzly Bears')) }
+  console.log('selfcheck pesquisa «contra X» ok') }
 { const src = readFileSync(new URL('./src/App.jsx', import.meta.url), 'utf8')  // básicos novos com arte favorita ao acaso; tirar encolhe a divisão
   const i0 = src.indexOf('function withBasicArt'), body = src.slice(i0, src.indexOf('\n}\n', i0) + 2)
   const { setBasicDefaults } = await import('./src/data.js')

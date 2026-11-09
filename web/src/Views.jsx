@@ -2,7 +2,7 @@ import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
 import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
-import { canBeCommander, landAdvice, targetsFor, maxCopies } from './formats.js'
+import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll, SymTxt } from './ui.jsx'
 import { showCardPeek, hideCardPeek, pressPeek, useFolded } from './deckview.js'
@@ -17,6 +17,7 @@ import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 import { parseQuery } from './nlsearch.js'
+import { THREATS, hateMatch } from './hate.js'
 import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
 import { useBackClose } from './backnav.js'
 import { isTouch } from './touch.js'
@@ -865,7 +866,8 @@ export function BasicBar({ data, deck, ctx, act }) {
   )
 }
 
-const NL_L = { type: tx('tipo'), sub: tx('subtipo'), tag: tx('função'), cares: tx('beneficia de'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor') }
+const NL_L = { type: tx('tipo'), sub: tx('subtipo'), tag: tx('função'), cares: tx('beneficia de'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor'), vs: tx('contra'), fmt: tx('formato') }
+
 export function SearchView({ data, deck, fmt, ctx, act }) {
   const [q, setQ] = useState('')
   const [f, setF] = useState(F0)
@@ -883,7 +885,8 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   const setList = setHit && setNames[setHit.set.code]
   const qq = setHit ? setHit.rest : dq
   const dff = useMemo(() => (setHit ? { ...df, names: setList || new Set() } : df), [df, setHit, setList])
-  const nl = useMemo(() => (raw === qq ? null : parseQuery(qq, { types: CREATURE_TYPES })), [qq, raw])
+  const [noVs, setNoVs] = useState('')  // frase em que o utilizador tirou o «contra X» (✕ no chip)
+  const nl = useMemo(() => (raw === qq ? null : parseQuery(qq, { types: CREATURE_TYPES, noVs: noVs === qq })), [qq, raw, noVs])
   const [anyFmt, setAnyFmt] = useState(false)  // mostrar também cartas que o formato do deck esconde (só para esta pesquisa)
   useEffect(() => setAnyFmt(false), [dq])
   const sctx = useMemo(() => (anyFmt ? { ...ctx, bit: -1, identity: null, allowUn: true } : ctx), [anyFmt, ctx])
@@ -893,12 +896,13 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     // Removal a bater no meio do nome é a função Remoção, não essa carta
     const qf = unaccent(qq.toLowerCase().trim()), nameHit = byName.cards.some(c => (c.f || c.l).startsWith(qf))
     if (!nl || (byName.total && nameHit && !/[:<>=]/.test(qq))) return { ...byName, nl: null }
-    const r = search(data, nl.rest, { ...dff, ...nl.f }, sctx)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
-    const out = r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...dff, ...nl.f }, sctx), nl: { ...nl, rest: '', skipped: nl.rest } }
+    const fx = nl.f.fmt ? { ...sctx, bit: data.meta.formats.indexOf(nl.f.fmt) } : sctx  // «em modern»: legais nesse formato
+    const r = search(data, nl.rest, { ...dff, ...nl.f }, fx)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
+    const out = r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...dff, ...nl.f }, fx), nl: { ...nl, rest: '', skipped: nl.rest } }
     // vários tipos sem nenhuma carta que os tenha todos («enchantment planeswalker»): um ou outro
     if (!out.total && nl.f.types2?.length) {
       const any = { ...dff, ...nl.f, type: '', types2: undefined, typesAny: [nl.f.type, ...nl.f.types2] }
-      const r2 = search(data, out.nl.rest, any, sctx)
+      const r2 = search(data, out.nl.rest, any, fx)
       if (r2.total) return { ...r2, nl: { ...out.nl, orTypes: [nl.f.type, ...nl.f.types2] } }
     }
     return out
@@ -922,10 +926,12 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       <div className={`filters-wrap ${showF ? 'open' : ''}`}><Filters f={f} set={setF} /></div>
       <div className="search-layout">
       <div>
-      {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => (g.k === 'legendary' ? <span key={k} className="chip">♛ <b>{tx('Lendárias')}</b></span> : <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.v}</b></span>))}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.orTypes && <span className="muted small">{tx('nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra', { t: res.nl.orTypes.map(t => TYPE_LABEL[t] || t).join(' + ') })}</span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
+      {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => (g.k === 'legendary' ? <span key={k} className="chip">♛ <b>{tx('Lendárias')}</b></span>
+        : g.k === 'vs' ? <span key={k} className="chip chip-vs" title={res.nl.f.vsCtr ? tx('Só contra-feitiços que apanham estes feitiços') : tx('Cartas que respondem a isto: as mais diretas primeiro')}>🛡 {NL_L.vs} <b>{THREATS[g.v].label}</b><button onClick={() => setNoVs(qq)} aria-label={tx('Retirar {t}', { t: THREATS[g.v].label })}>×</button></span>
+        : <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.k === 'fmt' ? FORMAT[g.v]?.name || g.v : g.v}</b></span>))}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.orTypes && <span className="muted small">{tx('nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra', { t: res.nl.orTypes.map(t => TYPE_LABEL[t] || t).join(' + ') })}</span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">
-        {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} />)}
+        {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} note={res.nl?.f.vs && <VsWhy c={c} nl={res.nl} />} />)}
       </div>
       {setHit && <p className="small set-hit">📦 {tx('Edição')}: <b>{setHit.set.name}</b> <span className="muted">({setHit.set.code.toUpperCase()}{setHit.set.y ? ` · ${setHit.set.y}` : ''})</span>{!setList && <span className="muted"> · {tx('a carregar as cartas da edição…')}</span>}</p>}
       {hidden > 0 && <p className="small fmt-hidden">{tx('{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}', { n: hidden, f: ctx.identity != null && ctx.bit < 0 ? tx('na identidade do comandante') : fmt.name })} <button className="link small" onClick={() => setAnyFmt(true)}>{tx('mostrar mesmo assim')}</button></p>}
@@ -936,6 +942,12 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       </div>
     </div>
   )
+}
+
+// porquê uma carta apareceu numa pesquisa «contra X» («destrói ou exila encantamentos»)
+function VsWhy({ c, nl }) {
+  const ws = [...new Set(nl.f.vs.map(t => hateMatch(c, t, nl.f.vsCtr)?.why).filter(Boolean))]
+  return ws.length > 0 && <ul className="why vs-why"><li className="tema" title={tx('Porque aparece nesta pesquisa')}>🛡 {ws.join(' · ')}</li></ul>
 }
 
 const TERM_ICO = { kw: '✦', sub: '🏷', type: '▦' }
