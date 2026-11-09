@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "Ver como": "Ver como",
   "A tua mesa está aberta: {a} contra {b}": "Tu mesa está abierta: {a} contra {b}",
   "A tua partida está à tua espera: {a} contra {b}": "Tu partida te está esperando: {a} contra {b}",
   "Acabadas há pouco": "Terminadas hace poco",

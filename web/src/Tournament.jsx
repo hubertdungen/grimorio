@@ -1582,11 +1582,18 @@ const REG_SORT = { novo: [tx('Mais recentes'), (a, b) => b.ts - a.ts], velho: [t
 const PERIODS = { '': tx('período§Sempre'), 7: tx('Últimos 7 dias'), 30: tx('Últimos 30 dias'), 365: tx('Último ano') }
 
 // o registo: painel (estados, jogos, troféus), procura e filtros compactos, e os torneios em cartões com o pódio à vista
+// os ícones da escolha grelha/lista do Registo
+const VIEW_ICO = {
+  grelha: <>{[[3, 3], [13, 3], [3, 13], [13, 13]].map(([x, y]) => <rect key={`${x}${y}`} x={x} y={y} width="8" height="8" rx="2" />)}</>,
+  lista: <>{[4, 10.5, 17].map(y => <g key={y}><rect x="3" y={y} width="4" height="3.5" rx="1" /><rect x="9" y={y} width="12" height="3.5" rx="1" /></g>)}</>,
+}
 function Registry({ data, list, open, reload }) {
   const del = async x => { if (!(await ask('torneio', { title: tx('Apagar o torneio «{t}» e todos os jogos dele?', { t: x.name }), ok: tx('Apagar') }))) return; await j(`/api/tournaments/${x.id}`, { method: 'DELETE' }); reload() }
   // filtros e ordem (guardados neste browser), a procura e a página
   const [f, setFS] = useState(() => { try { return { ...REG0, ...JSON.parse(ls(REG_K) || '{}') } } catch { return REG0 } })
   const [page, setPage] = useState(0), [q, setQ] = useState('')
+  const [vista, setVistaS] = useState(() => (ls('grimorio.registo.vista') === 'lista' ? 'lista' : 'grelha'))  // cartões ou lista (como antes)
+  const setVista = v => { setVistaS(v); ls('grimorio.registo.vista', v) }
   const setF = (k, v) => { setFS(o => { const x = { ...o, [k]: v }; ls(REG_K, JSON.stringify(x)); return x }); setPage(0) }
   const stOf = x => (x.status === 'paused' || x.status === 'error' ? 'paused' : x.status)  // em pausa e parados por erro juntos
   const ql = q.trim().toLowerCase(), since = f.per ? Date.now() / 1000 - +f.per * 86400 : 0
@@ -1617,6 +1624,9 @@ function Registry({ data, list, open, reload }) {
             <div className="kpi" title={tx('Lugares no pódio dos meus decks (sem os de amigos e da comunidade)')}><small>{tx('Troféus meus')}</small><b>{med[0] + med[1] + med[2]}</b><span>🥇 {med[0]} · 🥈 {med[1]} · 🥉 {med[2]}</span></div>
           </div>
           <div className="rg-tools">
+            <span className="rg-view" role="group" aria-label={tx('Ver como')}>{[['grelha', tx('Grelha'), VIEW_ICO.grelha], ['lista', tx('Lista'), VIEW_ICO.lista]].map(([k, l, ico]) => (
+              <button key={k} type="button" className={vista === k ? 'on' : ''} aria-pressed={vista === k} title={l} aria-label={l} onClick={() => setVista(k)}>
+                <svg viewBox="0 0 24 24" aria-hidden="true">{ico}</svg></button>))}</span>
             <input type="search" className="rg-q" value={q} onChange={e => { setQ(e.target.value); setPage(0) }} placeholder={tx('Procurar torneio ou deck do pódio…')} aria-label={tx('Procurar torneio ou deck do pódio…')} />
             <select value={f.st} onChange={e => setF('st', e.target.value)} aria-label={tx('Estado')}><option value="">{tx('Todos os estados')}</option>
               {['running', 'paused', 'done', 'cancelled'].map(k => <option key={k} value={k}>{k === 'paused' ? tx('em pausa ou parado') : STATUS[k]}</option>)}</select>
@@ -1632,7 +1642,7 @@ function Registry({ data, list, open, reload }) {
           </div>
           {!rows.length && <p className="muted small">{tx('Nenhum torneio com estes filtros.')}</p>}
         </>}
-        <div className="rg-list">{rows.slice(pg * PER_PAGE, (pg + 1) * PER_PAGE).map(x => (
+        <div className={`rg-list ${vista === 'lista' ? 'as-list' : ''}`}>{rows.slice(pg * PER_PAGE, (pg + 1) * PER_PAGE).map(x => (
           <article key={x.id} className={`rg-card st-${x.status} ${x.mine ? 'mine' : ''}`}>
             <header className="rg-ch"><TypeIco k={x.type} /><span className="rg-ct"><b title={x.name}>{x.name}</b>
               <small className="muted">{TYPES[x.type]?.[0]} · {x.casual ? tx('casual, regras de {f}', { f: FORMAT[x.format]?.name || x.format }) : FORMAT[x.format]?.name || x.format}{x.table ? ` · ${tableL(x.table)}` : ''}</small></span>

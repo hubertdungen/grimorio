@@ -3868,6 +3868,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Ver como": "View as",
   "A tua mesa está aberta: {a} contra {b}": "Your table is open: {a} vs {b}",
   "A tua partida está à tua espera: {a} contra {b}": "Your match is waiting for you: {a} vs {b}",
   "Acabadas há pouco": "Recently finished",

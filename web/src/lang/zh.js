@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Ver como": "显示方式",
   "A tua mesa está aberta: {a} contra {b}": "你的牌桌已开：{a} 对 {b}",
   "A tua partida está à tua espera: {a} contra {b}": "你的对局在等你：{a} 对 {b}",
   "Acabadas há pouco": "最近结束",
