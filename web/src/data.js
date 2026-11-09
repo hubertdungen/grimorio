@@ -4,6 +4,7 @@ import { testsBoost, wrDelta } from './tests.js'
 import { landInfo, offColorLand } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 import { deckThemes } from './synergy.js'
+import { hateMatch, hateScore } from './hate.js'
 
 // funções a mais, tiradas do texto ao carregar (os dados só trazem as 20 do build_data): moer, dano direto, reforço,
 // piscar, devolver à mão, copiar, roubar, drenar, escolher cartas, reduzir custos, desvirar, turno extra, landfall, taxar
@@ -499,6 +500,7 @@ export function passes(c, f, ctx) {
   if (f.oracle?.length) { const o = c.o.toLowerCase(); if (!f.oracle.every(w => o.includes(w))) return false }
   if (f.tags?.length && !f.tags.every(t => c.tg.includes(t))) return false
   if (f.anyText?.length) { const o = c.o.toLowerCase(); if (!f.anyText.every(g => g.some(w => o.includes(w)))) return false }  // «que beneficiem de X»
+  if (f.vs?.length && !f.vs.some(t => hateMatch(c, t, f.vsCtr))) return false  // «contra encantamentos» (hate.js)
   return true
 }
 
@@ -518,7 +520,9 @@ export function search(data, q, f, ctx, limit = 150) {
   const key = {
     pop: c => c.er ?? 1e9, name: c => c.l, cmc: c => c.cmc, price: c => c.eur ?? c.usd ?? 1e9, new: c => -(+c.y || 0),
   }[sort]
+  const vs = sort === 'pop' && f?.vs?.length ? f.vs : null  // «contra X»: as respostas mais diretas primeiro
   out.sort((a, b) => {
+    if (vs) { const d = hateScore(b, vs, f.vsCtr) - hateScore(a, vs, f.vsCtr); if (d) return d }
     if (words.length && sort === 'pop') {
       const pa = a.f.startsWith(words.join(' ')) ? 0 : 1, pb = b.f.startsWith(words.join(' ')) ? 0 : 1
       if (pa !== pb) return pa - pb

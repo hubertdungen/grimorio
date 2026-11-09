@@ -3,6 +3,8 @@
 // «criatura verde com atropelar até 3», «t:enchantment o:flying mv<=2», «抽牌的地». Devolve os filtros que percebeu
 // (tipo, funções, texto, custo, cores) e o que sobra (vai para o nome); null se não percebeu nada.
 
+import { parseThreats } from './hate.js'
+
 const strip = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const TYPES = {
   encantamento: 'Enchantment', enchantment: 'Enchantment', encantamiento: 'Enchantment', verzauberung: 'Enchantment',
@@ -29,7 +31,7 @@ const COLORS = {
 }
 // habilidades com nome (o texto em inglês a procurar), nas várias línguas
 const KW = {
-  flying: ['flying', 'voar', 'voo', 'volar', 'vuela', 'fliegend', 'flugfahigkeit'], trample: ['trample', 'atropelar', 'arrollar', 'trampelschaden'],
+  flying: ['flying', 'voar', 'voo', 'voadoras', 'voadores', 'voadora', 'voador', 'volar', 'vuela', 'voladoras', 'voladores', 'fliegend', 'flugfahigkeit'], trample: ['trample', 'atropelar', 'arrollar', 'trampelschaden'],
   deathtouch: ['deathtouch', 'toque mortifero', 'toque mortal', 'todesberuhrung'], lifelink: ['lifelink', 'vinculo com a vida', 'vinculo vital', 'lebensverknupfung'],
   haste: ['haste', 'impeto', 'prisa', 'eile'], vigilance: ['vigilance', 'vigilancia', 'wachsamkeit'],
   'double strike': ['double strike', 'golpe duplo', 'doble golpe', 'doppelschlag'], 'first strike': ['first strike', 'iniciativa', 'danar primero', 'erstschlag'],
@@ -148,6 +150,9 @@ const LAND_CYCLES = [
   [/\b(?:triomes?|tri ?lands?)\b/, ['cycling {3}']],
   [/\b(?:man ?lands?|creature ?lands?|terrenos? criatura)\b/, ['becomes a', 'creature']],
 ]
+// formato na frase: «em modern», «legal in pauper», «f:commander» (só com a preposição: «Modern Age» continua a ser a carta)
+const FMTS = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'commander', 'edh', 'oathbreaker', 'brawl', 'historic', 'timeless', 'alchemy', 'premodern', 'penny']
+const FMT_RE = new RegExp(String.raw`\s(?:(?:legal|legais|legales|legale|legal)\s+)?(?:em|no|in|en|im|para|for|fur|(?:f|format|formato):)\s*(${FMTS.join('|')})(?=\s|$)`)
 export function parseQuery(q, opts = {}) {
   let s = ' ' + strip(q).replace(/[.,;!?¿¡()]/g, ' ').replace(/\b1\s*\+\s*\/\s*1\s*\+/g, '+1/+1').replace(/\+\s*1\s*\/\s*\+\s*1/g, '+1/+1') + ' '
   const f = {}
@@ -155,6 +160,11 @@ export function parseQuery(q, opts = {}) {
   const add = (k, v) => { if (!(f[k] ||= []).includes(v)) f[k].push(v) }
   let m
   for (const [re, txt] of LAND_CYCLES) if ((m = take(re))) { f.type = 'Land'; for (const t of txt) add('oracle', t) }
+  if ((m = take(FMT_RE))) f.fmt = m[1] === 'edh' ? 'commander' : m[1]
+  // «sideboard para mill», «anti encantamentos», «graveyard hate», «反附魔»: cartas que respondem a isso (hate.js)
+  const h = parseThreats(s)
+  if (h && opts.noVs) s = `${h.s}${h.words.join(' ')} `  // o utilizador tirou o «contra»: as palavras voltam a ser tipo/função
+  else if (h) { s = h.s; f.vs = h.vs; if (h.ctr) f.vsCtr = true }
   // sintaxe do Scryfall
   while ((m = take(/\s(?:t|type):("[^"]+"|\S+)/))) { const v = m[1].replace(/"/g, ''); f.type = TYPES[v] || v[0].toUpperCase() + v.slice(1) }
   while ((m = take(/\s(?:o|oracle|kw|keyword):("[^"]+"|\S+)/))) add('oracle', m[1].replace(/"/g, ''))
@@ -225,5 +235,7 @@ export function parseQuery(q, opts = {}) {
   if (f.cmcMin != null || f.cmcMax != null) got.push({ k: 'mv', v: f.cmcMin === f.cmcMax ? `= ${f.cmcMin}` : f.cmcMin != null && f.cmcMax != null ? `${f.cmcMin}–${f.cmcMax}` : f.cmcMax != null ? `≤ ${f.cmcMax}` : `≥ ${f.cmcMin}` })
   if (f.colors) got.push({ k: 'colors', v: f.colors.join('') })
   if (f.colorless) got.push({ k: 'colors', v: 'C' })
+  for (const t of f.vs || []) got.push({ k: 'vs', v: t })
+  if (f.fmt) got.push({ k: 'fmt', v: f.fmt })
   return { f, rest, got }
 }
