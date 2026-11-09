@@ -11,8 +11,9 @@ own computer. It crosses card text, real tournament decks, EDHREC data and Comma
 *and explain why*, and it plays your deck against other decks with the open-source [Forge](https://github.com/Card-Forge/forge)
 rules engine so you can watch the games, read a report and improve the list.
 
-You can also sit at the table yourself: play against Forge on Grimório's own table, run tournaments, leagues and
-championships with a ranking, and open online rooms for your friends.
+You can also sit at the table yourself: play against Forge on Grimório's own table or against your friends with every
+rule enforced, run tournaments, leagues and championships with a ranking, and open online rooms and a Tavern for your
+friends — on a PC, a tablet or a phone.
 
 The interface is available in **English** (default), **Português**, **Español**, **Deutsch** and **简体中文**
 (Settings › Language).
@@ -23,11 +24,15 @@ The interface is available in **English** (default), **Português**, **Español*
 <tr><td width="50%"><a href="docs/img/home.jpg"><img src="docs/img/home.jpg" alt="Home"></a><br><sub>Home</sub></td><td width="50%"><a href="docs/img/build.jpg"><img src="docs/img/build.jpg" alt="Build: plain-word search in any language, deck list and suggestions"></a><br><sub>Build: plain-word search in any language, deck list and suggestions</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/suggestions.jpg"><img src="docs/img/suggestions.jpg" alt="Suggestions by role, combos and real decks"></a><br><sub>Suggestions by role, combos and real decks</sub></td><td width="50%"><a href="docs/img/analysis.jpg"><img src="docs/img/analysis.jpg" alt="Analysis: curve, colours, opening-hand odds and how the deck wins"></a><br><sub>Analysis: curve, colours, opening-hand odds and how the deck wins</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/universe.jpg"><img src="docs/img/universe.jpg" alt="Universe: the 3D map of every card"></a><br><sub>Universe: the 3D map of every card</sub></td><td width="50%"><a href="docs/img/library.jpg"><img src="docs/img/library.jpg" alt="Library with covers, stars, trophies and comparison"></a><br><sub>Library with covers, stars, trophies and comparison</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseum: watch Forge play your deck, with the live stack"></a><br><sub>Coliseum: watch Forge play your deck, with the live stack</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="Play against Forge yourself on Grimório's table"></a><br><sub>Play against Forge yourself on Grimório's table</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Tournaments: live podium, standings and deck origin tags"></a><br><sub>Tournaments: live podium, standings and deck origin tags</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Online rooms: single games or tournaments by a public link"></a><br><sub>Online rooms: single games or tournaments by a public link</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: stars per deck and the automatic Arena"></a><br><sub>Ratings: stars per deck and the automatic Arena</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="At the table: life counter, 3D dice and card scanner"></a><br><sub>At the table: life counter, 3D dice and card scanner</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft and Sealed: real packs, Forge bots and a tournament afterwards"></a><br><sub>Draft and Sealed: real packs, Forge bots and a tournament afterwards</sub></td><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Sideboard: answers to what you lose to in your tests"></a><br><sub>Sideboard: answers to what you lose to in your tests</sub></td></tr>
-<tr><td width="50%"><a href="docs/img/freetable.jpg"><img src="docs/img/freetable.jpg" alt="Free table online: perspective, dice, chat with card mentions"></a><br><sub>Free table online: perspective, dice, chat with card mentions</sub></td><td width="50%"><a href="docs/img/teams.jpg"><img src="docs/img/teams.jpg" alt="Team tournaments: same table and Two-Headed Giant"></a><br><sub>Team tournaments: same table and Two-Headed Giant</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Sideboard: answers to what you lose to in your tests"></a><br><sub>Sideboard: answers to what you lose to in your tests</sub></td><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: stars per deck and the automatic Arena"></a><br><sub>Ratings: stars per deck and the automatic Arena</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseum: watch Forge play your deck, with the live stack"></a><br><sub>Coliseum: watch Forge play your deck, with the live stack</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="Play against Forge yourself: combat with numbered blocks"></a><br><sub>Play against Forge yourself: combat with numbered blocks</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/stack.jpg"><img src="docs/img/stack.jpg" alt="Clear requests: Oblivion Ring's target, «yours» / «theirs» tags and the numbered stack"></a><br><sub>Clear requests: Oblivion Ring's target, «yours» / «theirs» tags and the numbered stack</sub></td><td width="50%"><a href="docs/img/multiplayer.jpg"><img src="docs/img/multiplayer.jpg" alt="Two-Headed Giant against Forge: player drawers and the team orb"></a><br><sub>Two-Headed Giant against Forge: player drawers and the team orb</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft and Sealed: real packs, Forge bots and a tournament afterwards"></a><br><sub>Draft and Sealed: real packs, Forge bots and a tournament afterwards</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Tournaments: podium, bracket and deck origin tags"></a><br><sub>Tournaments: podium, bracket and deck origin tags</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/live.jpg"><img src="docs/img/live.jpg" alt="Live tournament: progress, games being played and the latest results"></a><br><sub>Live tournament: progress, games being played and the latest results</sub></td><td width="50%"><a href="docs/img/history.jpg"><img src="docs/img/history.jpg" alt="Tournament history as a gallery (grid or list) and the Hall of fame"></a><br><sub>Tournament history as a gallery (grid or list) and the Hall of fame</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/teams.jpg"><img src="docs/img/teams.jpg" alt="Team tournaments: team podium and standings"></a><br><sub>Team tournaments: team podium and standings</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Online: create a room — free or strict table, 2–4 players, your deck"></a><br><sub>Online: create a room — free or strict table, 2–4 players, your deck</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/freetable.jpg"><img src="docs/img/freetable.jpg" alt="Free table online: perspective, dice, chat with card mentions"></a><br><sub>Free table online: perspective, dice, chat with card mentions</sub></td><td width="50%"><a href="docs/img/taverna.jpg"><img src="docs/img/taverna.jpg" alt="The Tavern: friends online, chat with @mentions and shared decks"></a><br><sub>The Tavern: friends online, chat with @mentions and shared decks</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/halloffame.jpg"><img src="docs/img/halloffame.jpg" alt="Tavern Hall of Fame: podium, highlights and standings between friends"></a><br><sub>Tavern Hall of Fame: podium, highlights and standings between friends</sub></td><td width="50%"><a href="docs/img/table.jpg"><img src="docs/img/table.jpg" alt="At the table: life counter, 3D dice and card scanner"></a><br><sub>At the table: life counter, 3D dice and card scanner</sub></td></tr>
+<tr><td colspan="2"><a href="docs/img/mobile.jpg"><img src="docs/img/mobile.jpg" alt="On a phone: the compact Forge Play table, the Tavern and a live tournament"></a><br><sub>On a phone: the compact Forge Play table, the Tavern and a live tournament</sub></td></tr>
 </table>
 
 ## Install
@@ -144,10 +149,14 @@ sync is for computers and single-owner servers.
 
 - **Deck building for every format** — legality, format-specific targets, mana base advice, curve, budget, brackets.
 - **Smart, explained suggestions** — text embeddings + EDHREC + real decks + combos + your own taste; live while you build.
+  They follow your deck's plan (tribes, enchantments, artifacts, counters, tokens…) and each one says which of your
+  cards it feeds, which gap it fills or which combo it completes.
 - **Start your way** — pick 3–10 cards (or a commander) and let it complete the deck, build by hand, import, or describe an idea.
 - **Import** from TappedOut, Moxfield, Archidekt, MTGGoldfish, Deckstats, MTGTop8 and Scryfall — whole profiles (as
   your decks, the community's or a friend's), custom card art and covers, sideboard and maybeboard. Search public
-  Archidekt decks with filters.
+  Archidekt decks with filters. *Export / Import decks* in the Library takes out all your decks or a selection (a
+  Grimório file with covers, art, sideboard and notes, or .txt lists) and brings in several files at once (.txt, .dek,
+  .csv, .zip or pasted lists), with a preview before anything is saved.
 - **Search in plain words, in any language** — «legendary human creatures with +1/+1 counters», «lands that draw
   cards», «terrenos que compram cartas», «抽牌的地» or Scryfall syntax (`t:`, `o:`, `mv<=`); accents optional; 35+ card
   roles (removal, draw, mill, burn, blink, stax…) to filter by.
@@ -159,43 +168,67 @@ sync is for computers and single-owner servers.
 - **Combos and synergy packages**, deck comparison (with why a similar deck rates higher: interaction, curve, lands,
   staples, goal) and duplicate detection.
 - **A steady, lively Forge Play table** — fixed size scaled to the screen (landscape on PC and tablet, portrait on
-  phones): zones never jump when cards arrive or the browser bar moves, and crowded rows overlap their cards. Cards glide
+  phones): zones never jump when cards arrive or the browser bar moves, and crowded rows split into extra lines (up to 4
+  per side) at the card size you chose. Cards glide
   between plays, dropping an aura, removal or equipment on a creature targets it, scry and surveil as two piles, library
   searches as a filterable grid, and poison ticking up on the ☠.
-- **Free table online, solo and in tournaments** — games between friends only, no bots and no automatic rules: everyone
-  handles their own cards like at a real table (drag, tap, counters, tokens, life, poison, energy, commander damage,
-  monarch, day/night), with perspective, 3D dice you grab and throw (your friend sees the same throw from their side),
-  a glowing pen that fades, and chat with @cards and #rules. Hands and libraries hidden on the server. Everyone presses
-  «Ready» before starting; friends without decks sit with a lent, meta or pasted deck; join as a profile of this
-  Grimório or of another one (a friend's app). Solo table to playtest decks, and free-table tournaments.
+- **Free table online, solo and in tournaments** — games between friends where everyone handles their own cards like at
+  a real table (drag, tap, counters, tokens and token copies of any card, notes on cards, life, poison, energy,
+  commander damage, monarch, day/night). Turn phases with an automatic untap and draw, spells with targets on a shared
+  stack (drag a Counterspell onto the spell), blocks dragged onto attackers, attacks on planeswalkers and battles, real
+  power/toughness from equipment, auras and anthems, library search and a secret look at another player's hand.
+  Perspective, 3D dice you grab and throw (your friend sees the same throw from their side), a glowing pen whose tail
+  fades, each player's cursor as a small hand in their colour, and chat with @cards and #rules. Hands and libraries
+  hidden on the server. Before the game, a 3D lobby with everyone's deck boxes and a coin toss; sideboarding between
+  games of a series; Two-Headed Giant for four. Friends without decks sit with a lent, meta or pasted deck. Solo table
+  to playtest decks, and free-table tournaments.
+- **Strict table between people** — open a room as *Strict* and Forge enforces every rule (mana, the stack, combat,
+  targets) while each player sees the table on their own screen, like in Play against Forge: 1 vs 1, 3–4 player
+  free-for-all or Two-Headed Giant, in rooms, in the Tavern and in tournaments (marked ⚖). The winner of the coin toss
+  chooses to play or draw, and whoever leaves a decision pending for 5 minutes loses the game, so tables keep moving.
 - **Mechanics in view on every table** — poison and energy, planeswalker loyalty going up and down, battles, sagas,
   double-faced and MDFC cards, flip cards, face-down cards, copies, emblems, attached auras and equipment, monarch,
   initiative, day/night, phasing, mutate and cards returning from the graveyard, all animated.
 - **Real team tournaments** — 2 vs 2 at one table or Two-Headed Giant (shared life), teams balanced by format and rating,
-  a fairer generator; Registry with a status panel, filters, sorting and pages, and the Hall of fame and trophy gallery
-  paged too. Games against Forge count towards ratings.
+  a fairer generator. Games against Forge count towards ratings.
 - **AI assistant with memory** — each deck keeps what you asked, what the AI said and what you applied, and the AI gets
   that history; it cuts exactly the excess above 60 (or 100 in Commander).
 - **Mixed tournaments** — Forge bots and people in one bracket: each deck is «played by its owner» or «by the bot»;
-  bot vs bot goes to the simulator, person vs bot to Forge Play (guests too), person vs person to the free table.
+  bot vs bot goes to the simulator, person vs bot to Forge Play (guests too), person vs person to the free table or the
+  strict table.
 - **Two-Headed Giant closer to the rules** — shared life (30), team poison losing at 15, the starting team skips its
   first draw, and replays count turns per team («Turn 9 — C», «Turn 9 — D»).
 - **Cards at the size you want** — in Settings › Table, in replays and in Forge Play: automatic or 48–128 px, with lands
   at the same size; nothing leaves a player's area — when it doesn't fit, it stacks (identical lands in one ×N pile).
-- **Sharper Forge Play** — targets under the stack (respond to a counter), «Activate?» before using an ability, auto-pay
-  only when it's obvious, Cancel everywhere, proper blocking, touch, and the phone's back button stays in the app.
+- **Clear, sharp Forge Play** — every request says in plain words what to do («Choose the creature Rancor will
+  enchant») and shows the card asking, framed red when the effect harms the chosen card and green when it helps; a
+  numbered stack (1 resolves next) shows each item's target and controller; picking your own card for a harmful effect
+  asks «This card is yours — exile it anyway?». Targets under the stack, «Activate?» before an ability, auto-pay only
+  when it's obvious, Cancel everywhere, proper blocking; drop a card on a creature or on a player's orb to target it, and
+  an attacker on a planeswalker or battle to attack it. Play from the top of your library (Courser of Kruphix, Future
+  Sight…), name cards with a search box, see revealed cards as images, and sideboard between games on a screen with
+  card images. A 3D coin with each player's face decides who starts, and from game 2 of a series the loser of the
+  previous game chooses; an optional tournament clock gives you a few seconds to respond (S for extra time). If Forge
+  fails mid-game, the game ends without counting and the match waits again; the phone's back button stays in the app.
 - **Infinite loops at once** — Heliod + Spike Feeder and the like use the rules' shortcut (∞ life) and an opponent with
   no other way to win concedes; Blood Moon shows nonbasic lands as Mountains; exiling mills say where the card came from.
 - **White stars by performance and a trophy gallery** — up to 4★ from points and 2★ from podium performance; cups in 3
   lines and a deck view with every trophy. In Build, collapsible categories and «+ Maybeboard».
-- **A livelier table** — sounds in Forge Play and on the free table (the same as in replays); in combat the table turns
-  red and each blocked attacker and its blockers share a number and colour (⚔ 1 / 🛡 1) with a line between them; playmat
-  patterns for your side (10, picked mid-game) that other players see online.
-- **Clearer Forge Play** — every choice says what it's for («For: card and ability»); play from the top of your library
-  (Courser of Kruphix, Future Sight, Oracle of Mul Daya…); Cancel on a creature's mana colour; «next game of the match»
-  in Bo3/Bo5 tournaments; if Forge fails mid-game, the game ends without counting and the match waits again.
-- **Tournaments and app** — rounds and matches are paged; the Android app tells you when a newer .apk is out; server
-  updates wait for Forge Play games and no longer break open pages.
+- **A livelier table** — damage you can read (⚔ dealt, ✕ taken, ↠ trample), hits that fly from the source to the target
+  in the attacker's style (claws, fire, lightning…) and shake the table, cards that crack and shatter, dissolve into
+  exile or get drawn into the permanent that keeps them, mana flying from the land to the spell, entrances for special
+  lands (fetch, shock, legendary, any-colour…) and keywords in action (haste, reach, deathtouch, summoning sickness).
+  Sounds with a volume for each kind; in combat the table turns red and each blocked attacker and its blockers share a
+  number and colour (⚔ 1 / 🛡 1) with a line between them; playmat patterns for your side (10, picked mid-game) that
+  other players see online.
+- **The life orb** — your life is a 3D glass orb with a particle fluid inside: its matter follows the mana on your
+  battlefield (golden light, water, swamp, lava, green, metal), its level follows your life, hits spill blood and leave
+  the attacker's colour, and poison, graveyard, exile, auras and a library running out all show in it. It breaks in a
+  way that matches how you lost. Grab it and throw it (orbs collide, and online everyone sees it move); teams and
+  Two-Headed Giant share one team orb. Rest the mouse on it to open *Inside the orb*, with charts of what weighs on it.
+  Styles, size and quality in Settings, and a classic orb for lighter devices.
+- **Updates and app** — the Windows and Linux packages update themselves, with a notice on screen; the Android app tells
+  you when a newer .apk is out; server updates wait for Forge Play games and keep open pages working.
 - **AI assistant (optional)** — keys for several providers, newest models detected automatically; it changes your deck
   directly (swaps, quantities, substitutes for any card) with one click.
 - **Coliseum (Forge AI)** — AI vs AI with real rules (Bo1/Bo3, smart sideboarding, learning), 3–4 player free-for-all
@@ -204,22 +237,40 @@ sync is for computers and single-owner servers.
   (or double-click; only what you can pay for lights up), the rest of your hand makes room as you hover over it, T taps
   the card under the mouse and F flips it over; Bo3/Bo5 series with sideboarding between games, and tournaments where
   you play your own deck's games; drag creatures to attack and block, arrange your side freely, the stack, choices, scry
-  and library searches right in the page, Enter to pass and Shift+Enter to end the turn. Works on a server and in the
+  and library searches right in the page, Enter to pass and Shift+Enter (or Shift+Space) to end the turn. On touch
+  screens a tap on a card opens «Play», and the response clock pauses while you choose. Works on a server and in the
   desktop packages (no Docker); Commander uses the classic Forge window (server with Docker).
+- **Replays of every game** — the tournament games people play (in Forge Play, at the strict table or at the free
+  table) can be watched again with ▶, and **My games** keeps your last 60 games against Forge plus the free-table games
+  of your rooms, with wins and losses from your seat. The opponent's hand stays hidden.
 - **Tournaments, leagues and championships** — single and double elimination, Swiss, league, pods, gauntlet, king of
   the hill, groups + knockout and teams; casual with or without mixed formats; a tournament generator, live bracket,
   podium and history, champions' and podium leagues, gold/silver/bronze and platinum trophies on the winning decks,
-  ranked or casual; bets with play coins (nothing to buy, no real money).
+  ranked or casual; bets with play coins (nothing to buy, no real money). Creating one takes three steps (format and
+  system, decks, summary); the live view shows the progress, what's playing now, when it's your turn, the latest results
+  with replays and your deck's path through the bracket; the history is a gallery with search, filters and a grid or
+  list view.
 - **Ratings and ranking** — 0–6 stars per deck (Elo per format, plus a separate casual rating), white stars and trophy
   count, mine / friends / community / meta filters, hall of fame and trophy gallery, fed by tests, tournaments and an
   optional automatic Arena.
-- **Online and friends** — an Online tab for single games or tournaments with a public link (a free Cloudflare tunnel
-  in one click, or your own domain): whoever opens it joins with a deck of their own, no account. Friend invites,
-  friends' decks as a source in tournaments and the Arena, and tags for where each deck comes from (meta, mine, friend,
-  community).
+- **Online and friends** — the Online tab has **＋ Create room** (with friends, with Forge bots or solo; free or strict
+  table, 2–4 players, Two-Headed Giant) and **🔗 Join with a link**. Each room has an invite block with the link, Copy,
+  Share and a QR code, and the Share panel opens Grimório to the internet with a free Cloudflare tunnel in one click (or
+  your own address). Whoever opens the link joins with a deck of their own, no account, in the browser or in their own
+  Grimório app (Windows, Linux, Android) with their own decks and settings; invite pages open in the visitor's
+  language. Any install can host, the desktop packages included. Friend invites with a link and QR, friends' decks as a
+  source in tournaments and the Arena, and tags for where each deck comes from (meta, mine, friend, community).
+- **The Tavern** — a place for your friends in Coliseum › Tavern, hosted on your own Grimório: members join with an
+  invite link or QR and see who's online or playing, in a chat with @mentions, #deck cards you can open and copy,
+  reactions, replies, pinned messages and «Propose a game». Members open free or strict tables right there and the host
+  runs tournaments among them; the Shelf holds decks to view, copy or play against, laid out on a 3D table; the Hall of
+  Fame keeps the podium, standings and recent results, counting the games played in the Tavern's rooms by itself (paper
+  games can be added by hand). The host can close it (read-only) or delete it.
 - **📖 Rules library** — keywords, rules or card names in any language (camera too): Comprehensive Rules, official
   rulings and an optional AI explanation. On any screen, a mechanic in bold shows its rule on hover and opens the Rules
-  in a window; mana symbols show up as symbols, not as {T}.
+  in a window; mana symbols show up as symbols, not as {T}. Rules also holds the interactive **Grimório guide**: every
+  area and its real toolbar explained, the table gestures with your own keys, what the life orb shows, and six
+  step-by-step walkthroughs. In Forge Play, «📖 Quick rules» answers as you type.
 - **Proxies** — a list with printings for proxy sites, a ZIP of the images, or a print-ready PDF like the print shops
   ask for: paper, margins, card size, gaps, bleed (black, a colour, or the card border extended), cut guides per card,
   watermark and double-sided. The tokens your deck makes (detected, with how many of each) and Grimório's suggestions to try out can go in too.
@@ -241,6 +292,12 @@ sync is for computers and single-owner servers.
   never adds cards the AI can't cast and never takes out a 4-of.
 - **Live tournament viewer** — jump to the next game of the same match (or wait for it), the deck you bet on sits on
   your side of the table, and the other tournaments in progress show up next to the bets, one click away.
+- **A table for phones and tablets** — in a game the table fills the screen in both orientations, with bigger cards:
+  the header and the side column go into drawers, and one bar holds the prompt, mana, OK / End turn and the clock. In
+  touch mode press-and-hold does what right-click or hover does on a computer, and Settings and the guide list the
+  touch gestures. Tables of 3–4 players use drawers: you and one opponent at full size, a chip per opponent with life,
+  hand and ⚔ when they attack you, a view that switches by itself when you're attacked or must target someone, and ⊞
+  to see everyone (on PC too, if you like).
 - **Profiles** — one install, several players, each with their own decks.
 - **Installable** as a PWA on phones and tablets; touch-friendly. On a phone the live board zooms (− / + / fit),
   the screen stays on while Grimório is open (Settings › Screen) and fullscreen stays upright. If a network blocks scryfall.io (work, school), card images come through your own server instead (automatic, or Settings › Card images); so do imported decks' own images (TappedOut, Archidekt).
@@ -314,9 +371,7 @@ this. Desktop packages: `packaging/build.py` and `.github/workflows/release.yml`
 
 - Android app (APK) — see [docs/ROADMAP.md](docs/ROADMAP.md).
 - Two editions: **Grimório Full** (with Forge Play and online play) and **Grimório Lite** (everything else, a lighter download).
-- Online games between people on Grimório's table, with tournaments for you and your friends (with or against bots).
-- Crossplay between the server, the desktop app and phones, an «open to the home network» switch in the desktop app
-  and «join a friend's Grimório».
+- An «open to the home network» switch in the desktop app.
 
 ## Credits and legal
 
