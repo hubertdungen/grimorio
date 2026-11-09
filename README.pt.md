@@ -27,6 +27,7 @@ A interface está disponível em **English** (predefinição), **Português**, *
 <tr><td width="50%"><a href="docs/img/sideboard.jpg"><img src="docs/img/sideboard.jpg" alt="Sideboard: respostas ao que te vence nos testes"></a><br><sub>Sideboard: respostas ao que te vence nos testes</sub></td><td width="50%"><a href="docs/img/ratings.jpg"><img src="docs/img/ratings.jpg" alt="Ratings: estrelas por deck e a Arena automática"></a><br><sub>Ratings: estrelas por deck e a Arena automática</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/game.jpg"><img src="docs/img/game.jpg" alt="Coliseu: vê o Forge jogar o teu deck, com a pilha ao vivo"></a><br><sub>Coliseu: vê o Forge jogar o teu deck, com a pilha ao vivo</sub></td><td width="50%"><a href="docs/img/forgeplay.jpg"><img src="docs/img/forgeplay.jpg" alt="Joga tu contra o Forge: combate com bloqueios numerados"></a><br><sub>Joga tu contra o Forge: combate com bloqueios numerados</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/stack.jpg"><img src="docs/img/stack.jpg" alt="Pedidos claros: o alvo do Oblivion Ring, «tua» / «dele» e a pilha numerada"></a><br><sub>Pedidos claros: o alvo do Oblivion Ring, «tua» / «dele» e a pilha numerada</sub></td><td width="50%"><a href="docs/img/multiplayer.jpg"><img src="docs/img/multiplayer.jpg" alt="Two-Headed Giant contra o Forge: gavetas dos jogadores e a esfera da equipa"></a><br><sub>Two-Headed Giant contra o Forge: gavetas dos jogadores e a esfera da equipa</sub></td></tr>
+<tr><td width="50%"><a href="docs/img/orb.jpg"><img src="docs/img/orb.jpg" alt="Esfera da vida: cores do deck, a levar dano, veneno e a esfera da equipa no Two-Headed Giant"></a><br><sub>Esfera da vida: cores do deck, a levar dano, veneno e a esfera da equipa no Two-Headed Giant</sub></td><td width="50%"><a href="docs/img/orbstats.jpg"><img src="docs/img/orbstats.jpg" alt="«A esfera por dentro»: o rato parado em cima abre a ficha secreta com os gráficos"></a><br><sub>«A esfera por dentro»: o rato parado em cima abre a ficha secreta com os gráficos</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/draft.jpg"><img src="docs/img/draft.jpg" alt="Draft e Selado: packs reais, bots do Forge e um torneio no fim"></a><br><sub>Draft e Selado: packs reais, bots do Forge e um torneio no fim</sub></td><td width="50%"><a href="docs/img/tournament.jpg"><img src="docs/img/tournament.jpg" alt="Torneios: pódio, quadro e a origem de cada deck"></a><br><sub>Torneios: pódio, quadro e a origem de cada deck</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/live.jpg"><img src="docs/img/live.jpg" alt="Torneio ao vivo: progresso, jogos a decorrer e os últimos resultados"></a><br><sub>Torneio ao vivo: progresso, jogos a decorrer e os últimos resultados</sub></td><td width="50%"><a href="docs/img/history.jpg"><img src="docs/img/history.jpg" alt="Registo de torneios em galeria (grelha ou lista) e o Hall da fama"></a><br><sub>Registo de torneios em galeria (grelha ou lista) e o Hall da fama</sub></td></tr>
 <tr><td width="50%"><a href="docs/img/teams.jpg"><img src="docs/img/teams.jpg" alt="Torneios de equipas: pódio e classificação por equipas"></a><br><sub>Torneios de equipas: pódio e classificação por equipas</sub></td><td width="50%"><a href="docs/img/online.jpg"><img src="docs/img/online.jpg" alt="Online: criar sala — mesa livre ou estrita, 2 a 4 jogadores, o teu deck"></a><br><sub>Online: criar sala — mesa livre ou estrita, 2 a 4 jogadores, o teu deck</sub></td></tr>
@@ -231,13 +232,14 @@ computadores e servidores de um só dono.
   enjoo de invocação). Sons com volume para cada tipo; em combate a mesa avermelha e cada atacante bloqueado e os seus
   bloqueadores têm o mesmo número e cor (⚔ 1 / 🛡 1) com uma linha entre eles; padrões de tapete para o teu lado (10,
   escolhidos a meio do jogo), que os outros jogadores veem online.
-- **A esfera da vida** — a tua vida é uma esfera de vidro em 3D com um fluido de partículas lá dentro: a matéria segue a
-  mana do teu campo de batalha (luz dourada, água, pântano, lava, verde, metal), o nível segue a tua vida, os golpes
-  derramam sangue e deixam a cor do atacante, e o veneno, o cemitério, o exílio, as auras e uma biblioteca a acabar também
-  se veem nela. Parte-se de maneira diferente conforme a forma como perdeste. Pega nela e atira-a (as esferas chocam
-  entre si e, online, todos a veem mexer); as equipas e o Two-Headed Giant partilham uma esfera da equipa. Deixa o rato
-  em cima dela para abrir *A esfera por dentro*, com gráficos do que pesa nela. Estilos, tamanho e qualidade nas
-  Definições, e uma esfera clássica para aparelhos mais leves.
+- **A esfera da vida** — a tua vida é uma esfera de vidro em 3D com um fluido de partículas lá dentro, com as cores do
+  deck e da mana do teu campo de batalha; o nível segue a tua vida, o veneno aparece ao lado, e o dano, as auras, o
+  cemitério, o exílio e uma biblioteca a acabar mudam o que está lá dentro. Reage com física: os golpes abanam-na e
+  deixam a cor do atacante, podes pegar nela e atirá-la (online todos a veem) e parte-se conforme a forma como perdeste.
+  As equipas e o Two-Headed Giant partilham uma esfera da equipa, maior. Em Definições › Mesa escolhes o estilo, a
+  animação, o tamanho e a qualidade, e os aspetos anteriores ficam como opção (esfera plana, líquido simples, partículas
+  estilizadas). Deixa o rato em cima dela uns segundos (no ecrã tátil, toca e mantém) para abrir a ficha secreta
+  *A esfera por dentro*, com gráficos do que pesa nela.
 - **Atualizações e app** — os pacotes para Windows e Linux atualizam-se sozinhos, com um aviso no ecrã; a app Android
   avisa quando há um .apk mais novo; as atualizações do servidor esperam pelos jogos do Forge Play e mantêm as páginas
   abertas a funcionar.
