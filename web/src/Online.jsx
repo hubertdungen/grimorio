@@ -17,6 +17,7 @@ import { ask } from './confirm.jsx'
 import { useBackClose } from './backnav.js'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
+import { PAv } from './avatar.jsx'
 
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
 async function j(url, opts) {
@@ -293,7 +294,7 @@ function Room({ r, fresh, data, guest, net, share, busy, act, cancel, solo, open
       {isOpen && livre && <FreeLobby {...{ r, data, guest, busy, act, solo, mine, join }} />}
       {!livre && <>
         <ul className="room-pl on-pl">{r.players.map((p, k) => (
-          <li key={k} className={p.by ? 'fr' : ''}>{p.by ? `🤝 ${p.by}` : '🏠'} · {p.name}
+          <li key={k} className={p.by ? 'fr' : ''}>{p.av ? <PAv av={p.av} name={p.by || tx('Anfitrião')} size={22} /> : p.by ? '🤝' : '🏠'}{p.by ? ` ${p.by}` : ''} · {p.name}
             {r.misto && <PlaysToggle plays={p.plays} disabled={!isOpen || (guest && !p.mine) || !!busy} onChange={v => act(r.id, 'plays', { ref: p.ref, plays: v })} />}
             {r.misto && p.plays !== 'dono' && <select className="small" value={p.difficulty} disabled={!isOpen || (guest && !p.mine)} onChange={e => act(r.id, 'plays', { ref: p.ref, difficulty: e.target.value })} aria-label={tx('Dificuldade de {d}', { d: p.name })}>{Object.entries(DIFF_INFO).filter(([id]) => id !== 'random').map(([id, d]) => <option key={id} value={id}>{d.label}</option>)}</select>}
             {(!guest || p.mine) && isOpen && <button className="link small" onClick={() => act(r.id, 'leave', { ref: p.ref })}>{tx('tirar')}</button>}</li>))}
@@ -329,7 +330,7 @@ function RoomCard({ r, data, guest, open, openTable, tour }) {
         <small className="muted">{ico} {mname}{!livre && !r.free && !r.misto && r.type !== 'jogo' && TYPES[r.type] ? ` · ${TYPES[r.type][0]}` : ''} · {fmtL}</small></span>
         {!livre && <span className={`tl-status ${st}`}>{STL[st] || st}</span>}</header>
       {pod.length > 0 ? <div className="rg-pod">{pod.map(p => <span key={p.place} className={`rg-pp pl-${p.place} ${p.me ? 'me' : ''}`} title={`${p.place}.º ${p.name}`}><Thumb data={data} p={p} /><i>{MEDAL[p.place - 1]}</i><span>{p.name}</span></span>)}</div>
-        : <ul className="on-hc-pl">{r.players.slice(0, 8).map((p, k) => <li key={k} className={p.mine ? 'me' : ''}>{p.by ? `🤝 ${p.by}` : '🏠'} · {p.name}</li>)}{r.players.length > 8 && <li className="muted">+{r.players.length - 8}</li>}</ul>}
+        : <ul className="on-hc-pl">{r.players.slice(0, 8).map((p, k) => <li key={k} className={p.mine ? 'me' : ''}>{p.av ? <PAv av={p.av} name={p.by || tx('Anfitrião')} size={18} /> : p.by ? '🤝' : '🏠'}{p.by ? ` ${p.by}` : ''} · {p.name}</li>)}{r.players.length > 8 && <li className="muted">+{r.players.length - 8}</li>}</ul>}
       <footer className="rg-cf"><small className="muted">👥 {r.players.length} · <time dateTime={new Date(r.ts * 1000).toISOString()}>{whenR(r.ts)}</time></small>
         <span className="row-btns">{livre ? (mine || !guest ? <button className={st === 'running' ? 'primary' : ''} onClick={() => openTable(r.tid)}>{tx('🃏 Ir para a mesa')}</button> : <span className="small muted">{tx('a jogar')}</span>)
           : <button className={st === 'running' ? 'primary' : ''} onClick={() => open(r.tid)}>{r.type === 'jogo' ? tx('🎲 Ver o jogo') : tx('🏆 Ver o torneio')}</button>}</span></footer>

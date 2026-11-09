@@ -302,3 +302,8 @@
 @media (prefers-reduced-motion: reduce) {
   .view.tv *, .view.tv *::before, .view.tv *::after, .tv-nbadge, .tv-nonline { animation: none !important; transition: none !important; }
 }
+
+/* ---------- imagens de perfil (avatar.jsx) ---------- */
+.tv-ava.sm { width: 20px; height: 20px; font-size: 10px; box-shadow: 0 0 0 1.5px var(--panel); vertical-align: -5px; }
+.tv-avl { text-decoration: none; color: var(--gold2); font-size: 11.5px; }
+.tv-mem-b:hover .tv-avl { text-decoration: underline; }

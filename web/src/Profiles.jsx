@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { tx, LANGS, LANG, setLang } from './i18n.js'
 import { Logo } from './ui.jsx'
+import { AvFace } from './avatar.jsx'
 
 const COLORS = ['#7c5cff', '#f2b84b', '#3dcf7a', '#ff6b5b', '#6ee7f9', '#ff8ad8', '#ff9f43', '#9a93b5']
 
@@ -15,7 +16,7 @@ async function call(path, method = 'POST', body) {
 const selectProfile = id => call(`/api/profiles/${id}/select`).then(() => window.location.reload())
 
 export function Avatar({ p, size = 28 }) {
-  return <span className="avatar" style={{ '--c': p?.color || '#7c5cff', width: size, height: size, fontSize: size * 0.46 }} aria-hidden="true">{(p?.name || '?').trim().charAt(0).toUpperCase()}</span>
+  return <span className="avatar" style={{ '--c': p?.color || '#7c5cff', width: size, height: size, fontSize: size * 0.46 }} aria-hidden="true"><AvFace av={p?.avatar} name={p?.name} local /></span>
 }
 
 /** Nome + cor: cria (sem p) ou muda o nome/cor de p. */
@@ -74,7 +75,7 @@ export function WhoPlays({ list, onClose, startNew }) {
 }
 
 /** Gerir o perfil atual (Definições e menu do chip): mudar nome/cor, trocar, novo, apagar com confirmação. */
-export function ProfileManage({ prof, onSwitch, onNew }) {
+export function ProfileManage({ prof, onSwitch, onNew, noHead }) {  // noHead: as Definições já mostram o perfil (com a imagem) por cima
   const [edit, setEdit] = useState(false)
   const [del, setDel] = useState(false)
   const [err, setErr] = useState('')
@@ -83,7 +84,7 @@ export function ProfileManage({ prof, onSwitch, onNew }) {
   if (edit) return <ProfileForm p={p} onDone={() => window.location.reload()} onCancel={() => setEdit(false)} />
   return (
     <div className="prof-manage">
-      <div className="prof-cur"><Avatar p={p} size={40} /><b>{p.name}</b></div>
+      {!noHead && <div className="prof-cur"><Avatar p={p} size={40} /><b>{p.name}</b></div>}
       <div className="row-btns">
         <button onClick={onSwitch}>⇄ {tx('Trocar de perfil')}</button>
         <button onClick={onNew}>＋ {tx('Novo perfil')}</button>
