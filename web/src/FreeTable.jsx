@@ -5,7 +5,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { img } from './data.js'
-import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, GameMenuBtns, DrawerChip, TeamOrb, CombatLinks, DamageFx } from './Board.jsx'
+import { Perm, Hud, MatPick, Arts, artOf, OrbCtx, FsBtn, GameMenuBtns, DrawerChip, TeamOrb, CombatLinks, DamageFx, effectZone } from './Board.jsx'
 import { FCard, DayNight, BigCard } from './ForgePlay.jsx'
 import { useDrag, STAGE, useOverlap, useStage, useGameFocus, useFlip, spotOn, usePeek, useTableDice, useZoneFlights, onTop, flipFrom } from './tablekit.js'
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
@@ -537,6 +537,8 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   // a pilha: os feitiços lançados (no campo de quem lança, marcados sp) pela ordem em que entraram; o de cima resolve primeiro
   const stack = seats.flatMap((v, i) => v.battlefield.filter(c => c.sp).map(c => ({ ...c, s: i }))).sort((a, b) => b.sp - a.sp)  // s: quem lançou (o lado onde está)
   const aimed = new Set(stack.map(c => c.tg?.card).filter(x => x != null)), aimedP = new Set(stack.map(c => c.tg?.seat).filter(x => x != null))
+  // um feitiço que mói, exila o cemitério ou faz descartar: o brilho vai ao monte (ou à mão) desse jogador, não à esfera
+  const aimedZ = new Map(stack.filter(c => c.tg?.seat != null && c.n).map(c => [c.tg.seat, effectZone(lookup(data, c.n)?.o)]).filter(e => e[1]))
   const tgInfo = c => {  // o alvo de um feitiço da pilha, para o spellFx
     if (c.tg?.seat != null) return { seat: c.tg.seat, who: who(c.tg.seat) }
     const t = c.tg?.card != null && byId.get(c.tg.card)
@@ -584,7 +586,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       </div>
     )
     return (<Arts.Provider key={i} value={{ arts: { [k]: v.arts }, k }}><OrbCtx.Provider value={{ mine: isMe ? k : null, seed: s?.id || '', looks: !isMe && v.orb ? { [k]: v.orb } : null }}>
-      <div className={`bside ml-side ${aimedP.has(i) ? 'ml-tgt-p' : ''} ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i} data-mat={(isMe || !P.mats ? P.mat : v.mat) || undefined}
+      <div data-aimz={aimedZ.get(i)} className={`bside ml-side ${aimedP.has(i) ? 'ml-tgt-p' : ''} ${top ? 'top' : 'bottom'} ${s.active === i ? 'act' : ''} ${compact ? 'compact' : ''} ${v.out ? 'out' : ''} p-${k}`} data-seat={i} data-mat={(isMe || !P.mats ? P.mat : v.mat) || undefined}
         onClickCapture={e => { const z = e.target.closest('[data-zone]')?.dataset.zone; if (z === 'graveyard' || z === 'exile' || (z === 'library' && v.libv)) { e.stopPropagation(); setZone({ seat: i, which: z === 'library' ? 'libv' : z }) } }}>
         {top ? <>{hud}{field}</> : <>{field}{hud}</>}
       </div></OrbCtx.Provider></Arts.Provider>

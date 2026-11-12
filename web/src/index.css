@@ -538,7 +538,7 @@ h2 .mana img { width: 20px; height: 20px; }
 @keyframes floatup { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-24px); } }
 /* zonas */
 .pile { display: grid; justify-items: center; gap: 2px; padding: 0; border: 0; background: none; font-size: 11px; color: var(--muted); }
-.pile:hover { background: none; } .pile:disabled { opacity: 1; cursor: default; }
+.pile:hover { background: none; } .pile:disabled, .pile[aria-disabled="true"] { opacity: 1; cursor: default; }  /* sem «disabled» a sério: o resumo do monte abre com o rato e o toque */
 .pile-c { width: 34px; aspect-ratio: 488/680; border-radius: 3px; overflow: hidden; display: block; box-shadow: 0 2px 5px #000a; }
 .pile-c img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .pile-c img.in { animation: enter .35s ease-out; }
@@ -3926,7 +3926,10 @@ button:hover > .ic .acc, a:hover > .ic .acc, button:hover > i > .ic .acc { opaci
 .ml-stk-t .row-btns { gap: 4px; }
 .fp-dragging .ml-stk, body:has(.fp-ghost) .ml-stk { outline: 2px dashed #ffffff40; }
 .bfree-c.ml-tgt .pc { box-shadow: 0 0 0 3px #ff5c3a, 0 0 18px #ff5c3acc; animation: mltgt 1s ease-in-out infinite; border-radius: 6px; }
-.bside.ml-tgt-p .orb { box-shadow: 0 0 0 3px #ff5c3a, 0 0 22px #ff5c3a; }
+.bside.ml-tgt-p:not([data-aimz]) .orb { box-shadow: 0 0 0 3px #ff5c3a, 0 0 22px #ff5c3a; }
+/* moer / exilar o cemitério / descartar: brilha o monte (ou a mão) de que o feitiço trata */
+.bside[data-aimz="library"] .zones [data-zone="library"], .bside[data-aimz="graveyard"] .zones [data-zone="graveyard"], .bside[data-aimz="exile"] .zones [data-zone="exile"],
+.bside[data-aimz="hand"] .myhand { box-shadow: 0 0 0 3px #ff5c3a, 0 0 18px #ff5c3acc; animation: mltgt 1s ease-in-out infinite; border-radius: 6px; }
 @keyframes mltgt { 50% { box-shadow: 0 0 0 3px #ffb08a, 0 0 26px #ff5c3a; } }
 /* mesa livre: notas nas cartas, topo da biblioteca à vista, número do menu da biblioteca */
 .ml-note { position: absolute; left: 50%; bottom: calc(100% + 2px); transform: translateX(-50%); z-index: 6; max-width: 150px; padding: 2px 7px; border-radius: 8px; font-size: 11px; line-height: 1.25;
@@ -4229,4 +4232,19 @@ body:has(.fp.compact) :is(.area.coliseu, .view.fp-view) { padding: 0; margin: 0;
   .board.compact > .fp-drawer .fp-dchip small { display: none; }
   .board.compact:has(> .fp-drawer.top) > .bwrap { grid-area: 2 / 1 / 4 / 2; }
   .board.compact:has(> .fp-drawer.top) > .rp-ctrl { grid-area: 2 / 2 / 4 / 3; }
+}
+
+/* ---------- a mão nunca fica por baixo dos montes: entre a vida/nome (--hl) e a biblioteca/cemitério/exílio (--hr),
+   medidos no Side. No computador continua a 62% ao centro quando cabe; no toque usa o espaço todo que sobra ---------- */
+.board .bside.bottom:not(.compact) > .bhud.withhand > .fp-hand, .board .bside.bottom:not(.compact) > .bhud.withhand > .myhand {
+  left: max(var(--hl, 12px), 19%); right: max(var(--hr, 12px), 19%); width: auto; max-width: none; transform: none; }
+.board .bside.bottom:not(.compact) > .bhud.withhand > .myhand { margin-inline: auto; width: fit-content; max-width: calc(100% - max(var(--hl, 12px), 19%) - max(var(--hr, 12px), 19%)); }
+.board .bside.top:not(.compact) > .bhud.withhand > .myhand { left: max(var(--hl, 12px), 24%); right: max(var(--hr, 12px), 24%); transform: none; max-width: none; pointer-events: none; }
+.board .bside.top:not(.compact) > .bhud.withhand > .myhand .hc { pointer-events: auto; }
+.board .bside.top:not(.compact) > .bhud.withhand > .myhand .fan { justify-self: stretch; width: auto; min-width: 0; margin-inline: calc(var(--ohw, 50px) * .3); box-sizing: border-box; padding-inline: 0; overflow: visible; }  /* a margem: as cartas das pontas rodam para fora */
+/* o leque do adversário encosta-se (--ov, useOverlap) quando não cabe no espaço entre o nome e os montes */
+.fp-table .bside:not(.compact) .myhand.opp .hc + .hc { margin-left: calc(var(--ohw) * -.42 + var(--ov, 0px)); }
+@media (pointer: coarse) {
+  .fp .board .bside.bottom:not(.compact) > .bhud.withhand > .fp-hand { left: var(--hl, 8px); right: var(--hr, 8px); width: auto; }
+  .fp .board .bside.top:not(.compact) > .bhud.withhand > .myhand { left: var(--hl, 8px); right: var(--hr, 8px); }
 }

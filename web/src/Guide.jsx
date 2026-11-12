@@ -319,7 +319,7 @@ function guide(P) {
         [tx('A pilha'), tx('o que foi lançado aparece em leque no meio, com o alvo e o texto; ao resolver mostra «A resolver». Ao escolher alvos, a pilha fica transparente.')],
         [tx('Pedidos do Forge'), tx('mulligan («Ficar com a mão» / «Mulligan»), moeda ao ar, vidência, procurar na biblioteca, ordenar, escolher: cada um abre a sua janela com Confirmar.')],
         [tx('Esfera da vida (clique)'), tx('quando o Forge pede um alvo, um clique escolhe esse jogador; ao atacar, devolve o ataque ao jogador.')],
-        [tx('Cemitério e exílio'), tx('tocar nas pilhas abre-as; fecha-se com «fechar», tocando fora ou a deslizar para baixo.')],
+        [tx('Cemitério e exílio'), tx('tocar num monte (biblioteca, cemitério, exílio) mostra o resumo: as últimas cartas, os tipos e o que pode voltar; «Ver tudo» abre a lista. Fecha-se tocando fora.')],
         [tx('Tocar e manter (tablet/telemóvel)'), tx('mostra a carta em grande; dois dedos ampliam, duplo toque aproxima, desliza para baixo para fechar.')],
         ...(isTouch() ? [] : [[tx('Passar o rato'), tx('mostra a carta em grande no painel ao lado; no P/T vês as contas (impresso, marcadores, efeitos).')]]),  // no toque: a linha de cima
         [tx('Histórico do jogo'), tx('as últimas jogadas; os nomes das cartas mostram-nas.')],

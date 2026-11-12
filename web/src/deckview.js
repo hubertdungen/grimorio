@@ -25,6 +25,8 @@ function openPeek(a, c, pid) {
     peek = document.body.appendChild(document.createElement('div')); peek.className = 'peek'
     peek.innerHTML = '<div class="peek-in"><img class="pf" alt=""><img class="pb" alt=""></div>'
   }
+  const host = document.fullscreenElement || document.webkitFullscreenElement || document.body  // em ecrã inteiro (a mesa, o sideboard entre jogos) a carta ia para o body e não se via
+  if (peek.parentNode !== host) host.appendChild(peek)
   peek.querySelector('.pf').src = img(c, 'normal', false, pid)
   peek.dataset.df = c.df ? '1' : ''
   peek.querySelector('.pb').src = c.df ? img(c, 'normal', true, pid) : ''

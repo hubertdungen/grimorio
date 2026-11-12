@@ -18,7 +18,7 @@ export const gestures = () => ({
     [tx('Arrastar'), tx('da mão para a mesa joga a carta; uma criatura para o lado do adversário ataca, para cima de um atacante bloqueia.')],
     [tx('Tocar e manter'), tx('numa carta mostra-a em grande; num botão ou num símbolo diz o que é.')],
     [tx('Carta em grande'), tx('dois dedos ampliam, dois toques aproximam; toca ou desliza para baixo para fechar.')],
-    [tx('Cemitério e exílio'), tx('tocar nas pilhas abre-as; fecha-se com «fechar», tocando fora ou a deslizar para baixo.')],
+    [tx('Cemitério e exílio'), tx('tocar num monte (biblioteca, cemitério, exílio) mostra o resumo: as últimas cartas, os tipos e o que pode voltar; «Ver tudo» abre a lista. Fecha-se tocando fora.')],
     [tx('Esfera da vida'), tx('quando o Forge pede um alvo, toca nela para escolher esse jogador; arrasta-a para a atirar; mantém o dedo 3 s para veres o que ela mostra.')],
     [tx('Voltar'), tx('o botão «voltar» do telemóvel fecha a janela ou a carta aberta.')],
   ],

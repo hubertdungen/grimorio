@@ -539,7 +539,12 @@ function Ask({ a, st, data, answer, zoom, payCancel, undo, rv: rvLog, src, guard
 const onScreen = el => { if (!el) return; el.style.marginTop = ''; const q = el.getBoundingClientRect(); if (q.top < 8) el.style.marginTop = `${8 - q.top}px`; else if (q.bottom > innerHeight - 8) el.style.marginTop = `${innerHeight - 8 - q.bottom}px` }
 export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, series, onEnd, cols }) {  // cols: as cores de cada deck ({a, b}), para a esfera antes de haver cartas à vista  // againLabel: o texto do botão de voltar a jogar (torneios: o jogo seguinte da partida)
   usePlaying()  // a Taverna mostra «a jogar»
-  const [s, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [toast, setToast] = useState(null)
+  const [live, setS] = useState(null), [err, setErr] = useState(''), [zoom, setZoom] = useState(null), [zone, setZone] = useState(null), [toast, setToast] = useState(null)
+  // a moeda ao ar vem primeiro: no início de um jogo novo a mesa mostra o 1.º estado (held) até a moeda cair; só então
+  // passa ao estado a sério (live) e as jogadas que a IA fez entretanto entram com as animações de sempre. Antes, quando
+  // a IA ganhava a moeda, já estava a jogar terrenos e criaturas por baixo de uma moeda que ainda nem tinha aparecido
+  const [held, setHeld] = useState(null), holdAt = useRef(0)
+  const s = held || live
   const [rvl, setRvl] = useState(null)  // cartas reveladas: um painel com as imagens, até o fechares (ou até à escolha que vem com elas)
   const seen = useRef(0)
   useEffect(() => {  // espera longa: o servidor responde quando há novidades (ou ao fim de 20 s)
@@ -564,7 +569,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useEffect(() => {  // avisos do motor (cartas reveladas, erros): aparecem uns segundos
     // cada aviso traz o n.º dele (GrimorioNet); o servidor só manda os últimos 12, por isso contá-los pelo tamanho da lista
     // deixava de ver avisos novos a meio do jogo. Ao abrir a mesa (seen = 0) conta só o último, como antes
-    const log = s?.log || [], n = log.length, last = log[n - 1]
+    const log = live?.log || [], n = log.length, last = log[n - 1]
     if (!n) return
     // «Bot has won the coin toss.» chega a quem perdeu como aviso (notifyOfValue do Forge), não como pedido: a moeda vai
     // logo ao ar (antes esperava 1,5 s pelo turno 1); o aviso em si não aparece (a moeda já o diz)
@@ -580,7 +585,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (!m) return  // o aviso do Forge sobre cartas que a IA joga mal não interessa a quem joga
     // flash = o Forge recusou o clique (sem alvos válidos, sem mana, fora de tempo): sem isto parecia que nada acontecia
     setToast(m.t === 'flash' ? { title: tx('O Forge recusou essa jogada'), msg: tx('Não há alvos válidos, falta mana ou não é a altura. Uma aura como Hardlight Containment precisa de um artefacto teu em jogo.') } : m)
-  }, [s?.log])
+  }, [live?.log])
   useEffect(() => {  // qualquer aviso some sozinho com fade (mais tempo se trouxer uma lista); um toque fecha logo
     if (!toast) return  // (antes, o mesmo aviso dado outra vez ficava preso no ecrã: o temporizador comparava com o objeto antigo)
     if (toast.out) { const b = setTimeout(() => setToast(t => (t === toast ? null : t)), 450); return () => clearTimeout(b) }
@@ -1166,32 +1171,50 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const coinFace = (p, side) => ({ n: String(p?.name || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).slice(0, 2).join(' ').slice(0, 12) || '?',
     c: (document.querySelector(`.bside.${side} .orb:not(.orb-proxy)`)?.dataset.cols || '').replace(/[^WUBRGC]/g, '') })
   const toss = won => {
-    if (tossed.current || s?.chooser) return  // chooser: jogo 2+ de uma série (também nos torneios e na mesa estrita) — escolhe quem perdeu, sem moeda
+    if (tossed.current) return  // já lançada (o aviso e o temporizador de reserva chamam as duas)
+    if (live?.chooser) { setHeld(null); return }  // chooser: jogo 2+ de uma série (também nos torneios e na mesa estrita) — escolhe quem perdeu, sem moeda
     tossed.current = true
-    try { const k = `grimorio.fp.toss.${sid}`; if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1') } catch { /* sem armazenamento: lança na mesma */ }
-    if ((st?.turn || 0) <= 1) setIntro({ won })
-    setTimeout(() => dice.roll(['moeda'], [won ? 1 : 2], { words: [coinFace(me, 'bottom'), coinFace(opp, 'top')] }), 200)
+    try { const k = `grimorio.fp.toss.${sid}`; if (sessionStorage.getItem(k)) { setHeld(null); return } sessionStorage.setItem(k, '1') } catch { /* sem armazenamento: lança na mesma */ }
+    const lst = live?.state || st  // o estado a sério (a mesa pode estar parada no 1.º, à espera da moeda)
+    const lps = lst?.players || [], lme = lps.find(p => p.me) || me, lop = lps.find(p => p !== lme) || opp
+    if ((lst?.turn || 0) <= 1) setIntro({ won }); else setHeld(null)
+    setTimeout(() => dice.roll(['moeda'], [won ? 1 : 2], { words: [coinFace(lme, 'bottom'), coinFace(lop, 'top')] }), 200)
     if (!won) {  // o aviso de quem ganhou: com a moeda de abertura, só depois de ela cair (antes aparecia com a moeda no ar)
-      const t = { title: tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') }), msg: st?.active === me?.id ? tx('Escolheu ir em segundo: começas tu.') : tx('Escolheu jogar primeiro.') }
-      if ((st?.turn || 0) <= 1) coinToast.current = t; else setTimeout(() => setToast(t), 2000)
+      const t = { title: tx('Moeda: ganhou {p}', { p: lop?.name || tx('o adversário') }), msg: lst?.active === lme?.id ? tx('Escolheu ir em segundo: começas tu.') : tx('Escolheu jogar primeiro.') }
+      if ((lst?.turn || 0) <= 1) coinToast.current = t; else setTimeout(() => setToast(t), 2000)
     }
   }
   // a moeda: «you have won the coin toss» (com a escolha Jogar/Comprar) é tua; «X has won the coin toss» é o aviso a quem
   // perdeu — antes as duas contavam como tuas e ganhavas sempre
+  // (pelo estado a sério: enquanto a moeda não cai a mesa mostra o 1.º estado, e a pergunta da moeda está no seguinte)
+  const lpr = live?.prompt, lst0 = live?.state, lme0 = lst0?.players?.find(p => p.me)
   useEffect(() => {
-    const m = pr?.msg || ''
+    const m = lpr?.msg || ''
     if (!/won the coin toss/i.test(m)) return
-    const mine = /you have won the coin toss/i.test(m) || (pr?.buttons || []).some(b => /^(Play|Draw)$/.test(b.label))
+    const mine = /you have won the coin toss/i.test(m) || (lpr?.buttons || []).some(b => /^(Play|Draw)$/.test(b.label))
     sawWin.current = true; toss(mine)
-  }, [pr?.msg])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lpr?.msg])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!st?.turn || st.turn > 1 || st.active == null || !me) return
-    if (series && (series.w?.[0] || 0) + (series.w?.[1] || 0) > 0) { tossed.current = true; return }  // jogo 2+ da série: escolhe quem perdeu
+    if (!lst0?.turn || lst0.turn > 1 || lst0.active == null || !lme0) return
+    if (series && (series.w?.[0] || 0) + (series.w?.[1] || 0) > 0) { tossed.current = true; setHeld(null); return }  // jogo 2+ da série: escolhe quem perdeu
     // só se a pergunta «ganhaste a moeda» não chegar entretanto (o estado pode chegar antes dela: saía sempre a face do outro)
     // série (também nos torneios): «lost the last game» no pedido ou no registo = escolheu quem perdeu, sem moeda
-    const t = setTimeout(() => { if (!sawWin.current && ![pr?.msg, ...(s?.log || []).map(x => x.msg)].some(x => /lost the last game/i.test(x || ''))) toss(false) }, 1500)
+    const t = setTimeout(() => { if (!sawWin.current && ![lpr?.msg, ...(live?.log || []).map(x => x.msg)].some(x => /lost the last game/i.test(x || ''))) toss(false); else if (!sawWin.current) setHeld(null) }, 1500)
     return () => clearTimeout(t)
-  }, [st?.turn, st?.active])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lst0?.turn, lst0?.active, !!lme0])  // eslint-disable-line react-hooks/exhaustive-deps
+  // a mesa parada no 1.º estado de um jogo novo até a moeda cair (ou 12 s, se a moeda nunca vier); depois apanha o jogo
+  useEffect(() => {
+    if (holdAt.current || !live?.state?.players?.length) return
+    holdAt.current = -1  // decide-se uma vez, no 1.º estado
+    let done = false
+    try { done = !!sessionStorage.getItem(`grimorio.fp.toss.${sid}`) } catch { /* sem armazenamento */ }
+    const next = series && (series.w?.[0] || 0) + (series.w?.[1] || 0) > 0
+    if (!done && !next && !live.chooser && !live.ended && (live.state.turn || 0) <= 1) { holdAt.current = Date.now(); setHeld(live) }
+  }, [live])  // eslint-disable-line react-hooks/exhaustive-deps
+  const introSeen = useRef(false)
+  useEffect(() => { if (intro) introSeen.current = true; else if (introSeen.current) setHeld(null) }, [intro])
+  useEffect(() => { if (!held) return; const t = setTimeout(() => setHeld(null), 12000); return () => clearTimeout(t) }, [held])
+  useEffect(() => { if (held && live?.ended) setHeld(null) }, [held, live?.ended])
   const P = fpPrefs()
   const { compact, chrome, setChrome } = useGameFocus(fitBox), [sideOpen, setSideOpen] = useState(false), [promptOpen, setPromptOpen] = useState(false)
   // mesas com 3–4 (Definições › Mesa › «Mesas com 3–4»): gavetas — tu e UM adversário, como num 1 contra 1; a gaveta de cima troca
@@ -1245,11 +1268,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   bs.out = s.draw ? { a: 'draw', b: 'draw' } : Object.fromEntries((s.out || []).map(x => [x.name === me?.name ? 'a' : 'b', ORB_DEATH[x.r]]).filter(e => e[1]))
   for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.splice(Math.min(g.idx ?? 1e9, bs[g.side].perms.length), 0, { ...toPerm(g.c), dying: g.to || true })
   const hashN = t => [...String(t)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
-  const sideOfP = pid => (pid === me?.id ? 'a' : 'b')
+  const sideOfP = pid => (pid === me?.id ? 'a' : (q => (q ? keyOf(q) : 'b'))(players.find(p => p.id === pid)))  // 3–4 jogadores: o lado certo (c, d)
+  // a carta-alvo fora do campo (cemitério, exílio, mão, topo da biblioteca): [lado, zona] — a linha da pilha vai a esse monte
+  const zoneOfCard = id => { for (const p of players) for (const z of ['graveyard', 'exile', 'hand']) if ((p[z] || []).some(c => c.id === id)) return [keyOf(p), z]; const t = players.find(p => p.top?.id === id); return t ? [keyOf(t), 'library'] : null }
   bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name, text: x.text, id: x.card,  // o texto do Forge: o que foi mesmo ativado (num feitiço, «Attach to …» de uma aura)
     kind: !x.ability ? 'cast' : isTrigger(x.text) ? 'trigger' : 'activate',
     // alvos: as linhas da pilha (StackLinks) e o «→ alvo» da legenda
-    tc: (x.tc || []).map(String), tp: (x.tp || []).map(sideOfP),
+    tc: (x.tc || []).map(String), tp: (x.tp || []).map(sideOfP), tcz: (x.tc || []).map(zoneOfCard),
     target: x.tp?.length ? sideOfP(x.tp[0]) : x.tc?.length ? byId.get(x.tc[0])?.name : undefined }))
   // o pedido atual é de um item da pilha (cur) ou de algo que está a entrar nela / a resolver fora dela (pend)
   const stkReq = (q => {
