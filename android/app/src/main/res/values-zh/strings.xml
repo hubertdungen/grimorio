@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Grimório</string>
+    <string name="setup_first">Grimório 在此设备上运行，无需服务器。开始前请下载卡牌数据（约 11 MB，只需一次）。</string>
+    <string name="setup_metered">你正在使用移动数据：可以现在下载，也可以等连上 Wi-Fi。</string>
+    <string name="setup_download">下载数据（约 11 MB）</string>
+    <string name="setup_downloading">正在下载卡牌数据… %1$s</string>
+    <string name="setup_resume">重试时会从中断处继续下载。</string>
+    <string name="setup_starting">正在打开 Grimório…</string>
+    <string name="setup_error">没有成功：%1$s</string>
+    <string name="retry">重试</string>
+    <string name="use_server">有 Grimório 服务器？连接到它</string>
+    <string name="use_local">仅在此设备上使用</string>
+    <string name="server_ask">你的 Grimório 服务器地址（在浏览器中打开的那个）：</string>
+    <string name="server_unreachable">无法打开服务器：%1$s</string>
+    <string name="data_updated">卡牌数据已更新。</string>
+    <string name="downloads">下载</string>
+    <string name="saved">已保存：%1$s</string>
+    <string name="save_failed">无法保存：%1$s</string>
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+: o mesmo que xml/backup.xml, para a cópia na nuvem e para passar para um telemóvel novo -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="app" />
+        <exclude domain="file" path="app.new" />
+        <exclude domain="file" path="app.old" />
+        <exclude domain="file" path="chaquopy" />
+        <exclude domain="file" path="grimorio/data" />
+        <exclude domain="file" path="grimorio/meta" />
+        <exclude domain="file" path="grimorio/cache" />
+        <exclude domain="file" path="grimorio/logs" />
+        <exclude domain="file" path="grimorio/.download" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="app" />
+        <exclude domain="file" path="app.new" />
+        <exclude domain="file" path="app.old" />
+        <exclude domain="file" path="chaquopy" />
+        <exclude domain="file" path="grimorio/.download" />
+    </device-transfer>
+</data-extraction-rules>

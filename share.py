@@ -25,6 +25,8 @@ def _asset():
 
 
 def binary(data_dir):
+    if os.environ.get("GRIMORIO_ANDROID"):  # o Android não deixa uma app correr programas descarregados
+        raise RuntimeError("A partilha pela internet não está disponível na app Android: aloja a sala num computador ou servidor com o Grimório.")
     found = shutil.which("cloudflared")
     if found:
         return found

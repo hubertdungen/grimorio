@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Grimório</string>
+    <string name="setup_first">Grimório läuft auf diesem Gerät, ganz ohne Server. Lade zum Start die Kartendaten herunter (etwa 11 MB, nur einmal).</string>
+    <string name="setup_metered">Du nutzt mobile Daten: lade jetzt herunter oder warte auf WLAN.</string>
+    <string name="setup_download">Daten herunterladen (≈ 11 MB)</string>
+    <string name="setup_downloading">Kartendaten werden heruntergeladen … %1$s</string>
+    <string name="setup_resume">Beim nächsten Versuch geht der Download dort weiter, wo er aufgehört hat.</string>
+    <string name="setup_starting">Grimório wird geöffnet …</string>
+    <string name="setup_error">Das hat nicht geklappt: %1$s</string>
+    <string name="retry">Erneut versuchen</string>
+    <string name="use_server">Hast du einen Grimório-Server? Verbinden</string>
+    <string name="use_local">Nur auf diesem Gerät verwenden</string>
+    <string name="server_ask">Adresse deines Grimório-Servers (die du im Browser öffnest):</string>
+    <string name="server_unreachable">Der Server ließ sich nicht öffnen: %1$s</string>
+    <string name="data_updated">Kartendaten aktualisiert.</string>
+    <string name="downloads">Downloads</string>
+    <string name="saved">Gespeichert: %1$s</string>
+    <string name="save_failed">Speichern fehlgeschlagen: %1$s</string>
+</resources>

@@ -368,10 +368,31 @@ export default function Settings({ prof, data, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Torneios')}</h3><TourHold /><NextMode /><p className="muted small">{tx('Ao ver um torneio ao vivo, que jogo abre quando o que estás a ver acaba.')}</p><HighlightMine /></section>
       <section className="card danger-zone"><h3>{tx('Recomeçar')}</h3><ResetStats /></section>
       <section className="card"><h3>{tx('Dados e cópias')}</h3><DataSync prof={prof} /></section>
-      <section className="card"><h3>{tx('Atualizações')}</h3><Updates /></section>
-      {window.GrimorioApp && <section className="card"><h3>{tx('App Android')}</h3><p className="muted small">{tx('Versão {v}. A app abre o teu servidor do Grimório.', { v: window.GrimorioApp.version?.() || '?' })}</p><button onClick={() => window.GrimorioApp.changeServer()}>{tx('Mudar de servidor')}</button><ApkUpdate /></section>}
+      {window.GrimorioApp?.getMode?.() !== 'local' && <section className="card"><h3>{tx('Atualizações')}</h3><Updates /></section>}  {/* a app Android atualiza-se pelo .apk (App Android, abaixo) */}
+      {window.GrimorioApp && <section className="card"><h3>{tx('App Android')}</h3><AndroidMode /><ApkUpdate /></section>}
       </div>
     </div>
+  )
+}
+
+// App Android: corre neste aparelho («local», por omissão) ou abre um servidor do Grimório («remote»); a app guarda as duas
+// coisas e muda de uma para a outra (MainActivity.setMode). As apps antigas (sem getMode) só sabiam abrir um servidor.
+function AndroidMode() {
+  const A = window.GrimorioApp, v = A.version?.() || '?', mode = A.getMode?.()
+  if (!mode) return <><p className="muted small">{tx('Versão {v}. A app abre o teu servidor do Grimório.', { v })}</p><button onClick={() => A.changeServer()}>{tx('Mudar de servidor')}</button></>
+  if (mode === 'local') return (
+    <>
+      <p className="muted small">{tx('Versão {v}. O Grimório corre neste aparelho: os teus decks e dados ficam aqui, sem servidor.', { v })}</p>
+      <p className="muted small">{tx('Também podes abrir a app num servidor do Grimório (o teu ou o de um amigo). Os dados deste aparelho ficam cá para quando voltares.')}</p>
+      <button onClick={() => A.setMode('remote', '')}>{tx('Ligar a um servidor Grimório')}</button>
+    </>
+  )
+  return (
+    <>
+      <p className="muted small">{tx('Versão {v}. A app abre o servidor do Grimório em {url}', { v, url: A.getServer?.() || '?' })}</p>
+      <p><button onClick={() => A.changeServer()}>{tx('Mudar de servidor')}</button> <button onClick={() => A.setMode('local', '')}>{tx('Usar só neste aparelho')}</button></p>
+      <p className="muted small">{tx('Só neste aparelho tens os teus próprios decks e dados, sem servidor; os jogos contra o Forge precisam de um computador ou servidor.')}</p>
+    </>
   )
 }
 

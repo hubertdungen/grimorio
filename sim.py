@@ -110,6 +110,20 @@ RUNTIME = os.environ.get("GRIMORIO_RUNTIME", "").lower() or \
     ("docker" if os.name != "nt" and shutil.which("docker") and not os.environ.get("GRIMORIO_JAVA") else "local")
 JAVA = os.environ.get("GRIMORIO_JAVA") or shutil.which("java") or "java"
 PROCS = {}  # jid -> Popen do java (runtime local), para cancelar
+# app Android (GRIMORIO_NO_FORGE): o Forge é Java de computador e não corre no telemóvel. O que precisa dele recusa com
+# este aviso (ValueError: as rotas e os torneios já mostram a mensagem) e /api/health diz forge=false ao ecrã
+NO_FORGE = bool(os.environ.get("GRIMORIO_NO_FORGE"))
+NO_FORGE_MSG = ("Isto precisa do Forge, que corre num computador ou num servidor com o Grimório (não neste aparelho). "
+                "Para o usares, liga esta app a um nas Definições.")
+
+
+class NoForge(ValueError):
+    pass
+
+
+def need_forge():
+    if NO_FORGE:
+        raise NoForge(NO_FORGE_MSG)
 
 
 def forge_dir(data_dir):
@@ -890,6 +904,7 @@ _worker = None
 
 def submit(data_dir, body):
     """Valida o pedido, cria os .dck e põe o trabalho na fila. Devolve o id."""
+    need_forge()
     fmt = str(body.get("format") or "modern").lower()
     gtype = GAME_TYPE.get(fmt, "Constructed")
     mode = str(body.get("mode") or "1v1")

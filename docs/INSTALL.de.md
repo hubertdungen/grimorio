@@ -13,6 +13,7 @@ auf dem neuesten Stand.
 - Etwa **600 MB** freien Speicherplatz.
 - Eine **Internetverbindung** beim ersten Mal (um die Kartendaten herunterzuladen) sowie für Kartenbilder und Importe.
 - Nur unter Linux: **Python 3.10 oder neuer**. Fast jedes Linux bringt es schon mit; prüfe es mit `python3 --version`.
+- **Android 7.0** oder neuer (64 oder 32 Bit) geht auch: siehe [Android](#android).
 
 ## Windows
 
@@ -56,6 +57,38 @@ mit `Grimorio.exe --browser` (aus einer Eingabeaufforderung im Ordner).
 4. Dein Browser öffnet Grimório von selbst. Das Terminal hält es am Laufen, solange du es benutzt. Ist das
    Python-Paket `pywebview` installiert (`pip install pywebview`), öffnet sich Grimório stattdessen in einem eigenen
    Fenster.
+
+## Android
+
+Die Android-App ist das ganze Grimório auf deinem Handy oder Tablet: Decks, Bibliothek, Vorschläge, Regeln, der freie
+Tisch, Freunde und Online-Räume laufen auf dem Gerät, und deine Daten bleiben in der App. Kein Server, kein Konto und
+keine Cloud nötig.
+
+1. Öffne auf dem Handy die [Releases-Seite](https://github.com/hubertdungen/grimorio/releases) und lade unter **Assets** der neuesten Version
+   **`Grimorio-<Version>-android.apk`** herunter (etwa 55 MB).
+2. Öffne die heruntergeladene Datei. Beim ersten Mal fragt Android, ob dein Browser (oder Dateimanager) Apps
+   installieren darf: erlaube es und tippe auf **Installieren**.
+3. Öffne **Grimório**. Beim ersten Mal lädt es die Kartendaten herunter (etwa 11 MB, nur einmal): im WLAN von selbst,
+   mit mobilen Daten fragt es vorher. Bricht die Verbindung ab, macht **Erneut versuchen** dort weiter, wo es aufgehört hat.
+4. Danach funktioniert es wie am Computer: lege dein Profil an und wähle die Sprache unter **Einstellungen › Sprache**.
+
+Es braucht Android 7.0 oder neuer und etwa 200 MB freien Speicher. Updates: **Einstellungen › Android-App** zeigt an,
+wenn es eine neue Version gibt; lade sie herunter und installiere sie über die alte (deine Daten bleiben).
+
+**Was einen Computer braucht.** Forge, die Spiel-Engine der Bots, ist ein Computerprogramm und läuft nicht auf Handys:
+*Gegen Forge spielen*, *Draft*, strenge Tische, Turniere mit Bots, die Arena und Testläufe im Labor brauchen Grimório
+auf einem Computer oder Server. Wo sie auftauchen, erklärt die App das und bietet an, sich mit einem zu verbinden;
+Berichte und Ratings von einem anderen Gerät werden weiter angezeigt.
+
+**Dein eigener Server (optional).** Läuft Grimório bei dir auf einem Computer (`Grimorio.exe --host 0.0.0.0` oder
+`./grimorio --host 0.0.0.0` zu Hause) oder auf einem Server, kann die App stattdessen ihn öffnen: **Einstellungen ›
+Android-App › Mit einem Grimório-Server verbinden** (oder *Hast du einen Grimório-Server? Verbinden* auf dem ersten
+Bildschirm) und gib seine Adresse ein, z. B. `http://192.168.1.10:8107`. Dann läuft alles dort, Forge inklusive.
+**Nur auf diesem Gerät verwenden** schaltet zurück; die Decks auf dem Handy sind noch da. Hast du eine ältere Version
+der App mit einem Server benutzt, öffnet sie nach dem Update weiter diesen Server.
+
+Deine Daten liegen im privaten Speicher der App: Deinstallieren löscht sie, exportiere also vorher eine Sicherung
+(**Einstellungen › Daten & Sicherungen › Alles exportieren**).
 
 ## Der erste Start
 
