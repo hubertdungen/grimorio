@@ -5,6 +5,7 @@ visível aos amigos (`friends_open`) para o verem ao vivo e apostarem.
 """
 import json, re, secrets, sqlite3, threading, time
 
+import avatars
 import freetable
 import playnet
 import sim
@@ -117,11 +118,12 @@ def view(con, r, who, owner=None):
     spec, players = json.loads(spec), json.loads(players)
     lo, hi = span(spec)
     livre = spec.get("type") == "livre" and status == "open"
+    av = avatars.many(con, owner) if owner else {}  # a imagem de perfil de quem está sentado (avatars.py)
     return {"id": rid, "ts": ts, "status": status, "tid": tid, "name": spec.get("name"), "type": spec.get("type"),
             "format": spec.get("format"), "casual": bool(spec.get("casual")), "bo": spec.get("bo"), "min": lo, "max": hi, "free": bool(spec.get("free")),
             "misto": bool(spec.get("misto")), **({"wait": spec.get("wait") or 0} if spec.get("misto") else {}), **({"strict": True} if spec.get("strict") else {}), **({"giant": True} if spec.get("giant") else {}),
             "players": [{"name": p.get("name"), "by": p.get("byName"), "mine": p.get("by") == who, "ref": p.get("ref"), "src": p.get("src"),
-                         "host": p.get("by") == "host", "ready": bool(p.get("ready")), "show": bool(p.get("show")),
+                         "host": p.get("by") == "host", "ready": bool(p.get("ready")), "show": bool(p.get("show")), **({"av": av[p["by"]]} if av.get(p.get("by")) else {}),
                          **(lobby(con, owner, p, who) if livre else {}),
                          **({"plays": p.get("plays") or "bot", "difficulty": p.get("difficulty") or "default"} if spec.get("misto") else {})} for p in players],
             **({"go": round(max(0.0, spec["go"] - time.time()), 1), "first": spec.get("first", 0)} if spec.get("go") else {}),
@@ -174,8 +176,9 @@ def _start_livre(con, owner, rid, spec, players):
         first = 0 if giant else int(spec.get("first") or 0) % len(seats)
         order = seats[first:] + seats[:first]  # a 2–3: a ordem a partir de quem ganhou a moeda (o Forge volta a decidir quem começa); 2HG: as equipas pela ordem
         ks = "abcd"[:len(order)]
+        av = avatars.many(con, owner)
         sid = playnet.start_pvp(tournament.DATA, {k: key(x["by"]) for k, x in zip(ks, order)}, {k: flat(x["deck"]) for k, x in zip(ks, order)},
-                                {k: x["name"] for k, x in zip(ks, order)}, mode="2hg" if giant else "ffa")
+                                {k: x["name"] for k, x in zip(ks, order)}, mode="2hg" if giant else "ffa", avs={k: av.get(x["by"]) for k, x in zip(ks, order)})
         tid = "fp:" + sid
         con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
         LIVE.pop(rid, None)

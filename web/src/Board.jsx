@@ -9,6 +9,7 @@ import { tokenCard } from './tokens.js'
 import { useColors, sideColors, Syms, keepOnScreen } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { attackStyle, attackFx } from './orbfx.js'
+import { PAv } from './avatar.jsx'
 import { leaveGhost, isCompact } from './tablekit.js'
 import { held, isTouch } from './touch.js'
 import OrbEgg from './OrbEgg.jsx'
@@ -627,11 +628,11 @@ export function FsBtn({ className = '' }) {
 }
 // mesas com 3–4 em gavetas (Forge Play, mesa livre): a ficha de cada jogador que não está à vista — vida, mão, cartas na mesa,
 // quem joga (▶), quem te ataca (⚔, a vermelho) e quem tem alguma coisa a escolher agora (a pulsar). Tocar mostra-o na mesa
-export function DrawerChip({ name, life, poison, hand, perms, out, on, turn, atk, attn, onClick, mine }) {
+export function DrawerChip({ name, life, poison, hand, perms, out, on, turn, atk, attn, onClick, mine, av }) {  // av: a imagem de perfil (avatar.jsx)
   const seen = el => { const p = el?.parentElement; if (on && p && (el.offsetLeft < p.scrollLeft || el.offsetLeft + el.offsetWidth > p.scrollLeft + p.clientWidth)) p.scrollLeft = el.offsetLeft - 8 }  // a ficha escolhida fica à vista
   return <button type="button" ref={seen} className={`fp-dchip ${on ? 'on' : ''} ${turn ? 'turn' : ''} ${atk ? 'atk' : ''} ${attn ? 'attn' : ''} ${out ? 'out' : ''} ${mine ? 'mine' : ''}`} onClick={onClick} aria-pressed={on}
     title={[name, tx('vida {n}', { n: life }), tx('{n} na mão', { n: hand }), atk ? tx('está a atacar-te') : '', turn ? tx('é a vez dele') : ''].filter(Boolean).join(' · ')}>
-    <i className="fp-dlife">{life}</i><b>{name}</b><small>✋{hand} ▦{perms}{poison ? ` ☠${poison}` : ''}</small>{atk && <em className="fp-datk">⚔</em>}{turn && <em className="fp-dturn">▶</em>}
+    <i className="fp-dlife">{life}</i>{av && <PAv av={av} name={name} size={18} />}<b>{name}</b><small>✋{hand} ▦{perms}{poison ? ` ☠${poison}` : ''}</small>{atk && <em className="fp-datk">⚔</em>}{turn && <em className="fp-dturn">▶</em>}
   </button>
 }
 // equipas / Two-Headed Giant: uma esfera maior partilhada a meio da mesa (Definições › Mesa) — a vida da equipa (no 2HG é uma só,
@@ -1688,14 +1689,14 @@ function LibTop({ k, z, data }) {
 
 // de onde vem o deck de cada lugar: meta, meu, de um amigo ou da comunidade (ao lado da etiqueta do bot)
 const OWN = { meta: ['📊', tx('Meta'), tx('Deck do meta (torneios reais)')], meu: ['🧙', tx('Meu'), tx('Um deck teu')], ami: ['🤝', tx('Amigo'), tx('Deck de um amigo')], com: ['🌐', tx('Comunidade'), tx('Deck da comunidade (de outra pessoa)')] }
-export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, bet, bot, own, openLib }) {  // openLib: clicar na biblioteca (mesa livre: comprar)  // bet: as minhas apostas neste deck (torneios)  // hand: a mão fica nesta linha, ao centro (em baixo a nossa, em cima a do adversário)
+export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, bet, bot, own, openLib, av }) {  // av: a imagem de perfil de quem joga este lado (avatar.jsx)  // openLib: clicar na biblioteca (mesa livre: comprar)  // bet: as minhas apostas neste deck (torneios)  // hand: a mão fica nesta linha, ao centro (em baixo a nossa, em cima a do adversário)
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg(), oc = useContext(OrbCtx)
   return (
     <div className={`bhud ${hand ? 'withhand' : ''}`}>
       <Orb env={orbEnv(k, s, data)} life={z.life} d={fx.life?.p === k ? fx.life.d : 0} hit={fx.player?.p === k} step={s.i} fast={fast} start={start} poison={z.poison} psnHit={fx.player?.p === k && fx.player?.psn} pmax={s.giant ? 15 : 10} dmg={s.dmg?.pl?.[k] || 0} look={orbLook(k, z, data, oc, name)} side={k}
         dead={s.out?.[k] || (z.life <= 0 ? 'dmg' : (z.poison || 0) >= (s.giant ? 15 : 10) ? 'psn' : Object.values(z.cmdDmg || {}).some(n => n >= 21) ? 'cmd' : z.out || s.lost === k ? (z.library === 0 ? 'mill' : 'lose') : null)} />
       <div className="bname">
-        <b title={name}>{name}</b>
+        <b title={name}>{av && <PAv av={av} name={name} size={20} cls="bname-av" />}{name}</b>
         <span className="chips">
           {fmt && <span className="fmt-tag">{fmt}</span>}
           {bot && <span className="fmt-tag bot" title={bot.title}>🤖 {bot.label}</span>}
@@ -1735,7 +1736,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
   )
 }
 
-export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order, owns, free, mat }) {  // free: cartas pousadas à mão fora das filas (Forge Play: {key: {x, y}}, o centro em fração do lado)  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
+export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, hand, compact, who, hit, formats, bets, bots, place, order, owns, free, mat, av }) {  // free: cartas pousadas à mão fora das filas (Forge Play: {key: {x, y}}, o centro em fração do lado)  // hand: a mão vai ao centro da faixa dos terrenos; place/order: arrumação à mão (Forge Play: {key: 'front'|'lands'|'others'} e {key: posição})
   const z = s[k]  // compact: um de 3–4 jogadores (cartas mais pequenas); hit: está a ser atacado
   const all = s.sides.flatMap(x => s[x].perms)
   const pairs = combatPairs(all)  // bloqueios: cada atacante bloqueado com um número e uma cor, os bloqueadores com os mesmos
@@ -1754,7 +1755,7 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
       {others.length > 0 && <Row perms={others} data={data} fx={fx} att={att} cls="others" groupable={p => p.token} quiet={fast} />}
     </div>
   )
-  const hud = <Hud k={k} z={z} name={name} fmt={formats?.[k]} s={s} data={data} fx={fx} fast={fast} start={start} openZone={openZone} top={top} hand={hand} bet={bets?.[k]} bot={bots?.[k]} own={owns?.[k]} />
+  const hud = <Hud k={k} z={z} name={name} fmt={formats?.[k]} s={s} data={data} fx={fx} fast={fast} start={start} openZone={openZone} top={top} hand={hand} bet={bets?.[k]} bot={bots?.[k]} own={owns?.[k]} av={av} />
   const { arts } = useContext(Arts), art = useMemo(() => ({ arts, k }), [arts, k])
   useEffect(() => { const t = Date.now(); for (const p of z.perms) seenAt.set(p.key, t) })
   // alinhamento das filas (Definições › Mesa), igual nos dois lados do ecrã: os terrenos alinham-se no espaço à esquerda

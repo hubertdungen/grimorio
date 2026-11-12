@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ask, ConfirmSettings } from './confirm.jsx'
 import { tx, num, LOCALE } from './i18n.js'
 import { LangPick, ProfileManage } from './Profiles.jsx'
+import { MyAvatar } from './avatar.jsx'
 import { getStarLayers, setStarLayers, useColors, setColors, COLORS0 } from './ui.jsx'
 import { getSettings, setEnabled, setVolume, play, setGroupVolume, SOUND_GROUPS } from './sfx.js'
 import { NextMode, HighlightMine } from './Tournament.jsx'
@@ -302,13 +303,13 @@ export function SyncHint() {
 }
 
 // índice à esquerda (ou barra no topo, no telemóvel): salta para cada secção; o filtro esconde as que não batem
-function SetIndex({ box }) {
+function SetIndex({ box, dep }) {  // dep: secções que aparecem depois (o Perfil, quando os perfis chegam)
   const [secs, setSecs] = useState([]), [q, setQ] = useState('')
   useEffect(() => {
     const all = [...(box.current?.querySelectorAll('section.card') || [])]
     all.forEach((s, k) => { s.id ||= `set-${k}` })
     setSecs(all.map(s => ({ id: s.id, t: s.querySelector('h3')?.textContent || '' })))
-  }, [box])
+  }, [box, dep])
   useEffect(() => {
     const n = q.trim().toLowerCase()
     for (const s of box.current?.querySelectorAll('section.card') || []) s.hidden = !!n && !s.textContent.toLowerCase().includes(n)
@@ -336,7 +337,7 @@ function SetIndex({ box }) {
   )
 }
 
-export default function Settings({ prof, onClose, onSwitch, onNew }) {
+export default function Settings({ prof, data, onClose, onSwitch, onNew }) {
   const box = useRef(null)
   useEffect(() => {  // Esc fecha (fora de caixas de texto e sem uma janela aberta por cima)
     const k = e => { if (e.key === 'Escape' && !/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) && !document.querySelector('.ask-bg')) onClose() }
@@ -345,9 +346,11 @@ export default function Settings({ prof, onClose, onSwitch, onNew }) {
   return (
     <div className="view settings set-layout">
       <div className="set-head"><h2><Icon n="gear" /> {tx('Definições')}</h2><button type="button" className="set-close" onClick={onClose} aria-label={tx('Fechar')} title={isTouch() ? tx('Fechar') : tx('Fechar (Esc)')}><span aria-hidden="true">✕</span> {tx('Fechar')}</button></div>
-      <SetIndex box={box} />
+      <SetIndex box={box} dep={!!prof} />
       <div className="set-main" ref={box}>
-      {prof?.mode === 'profiles' && prof.current && <section className="card"><h3>{tx('Perfil')}</h3><ProfileManage prof={prof} onSwitch={onSwitch} onNew={onNew} /></section>}
+      {prof && prof.mode !== 'guest' && (prof.mode !== 'profiles' || prof.current) && <section className="card"><h3>{tx('Perfil')}</h3>
+        <MyAvatar key={prof.current?.id || ''} name={prof.current?.name || ''} data={data} />
+        {prof.mode === 'profiles' && <ProfileManage prof={prof} onSwitch={onSwitch} onNew={onNew} noHead />}</section>}
       <section className="card"><h3>{tx('Língua')}</h3><LangPick />
         <p className="muted small">{tx('Os nomes e os textos das cartas ficam em inglês (dados do Scryfall).')} {tx('A escolha fica guardada neste browser.')}</p></section>
       <section className="card"><h3>{tx('Jogos do Forge ao mesmo tempo')}</h3><ForgeGames /></section>

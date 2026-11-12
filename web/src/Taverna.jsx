@@ -5,7 +5,7 @@
 // Três maneiras de lá estar: quem aloja (aqui), um amigo no browser (convidado, guests.py) e um amigo com o Grimório
 // dele (RemoteTaverna: os pedidos /api/taverna, /api/rooms… vão para lá com o convite, remote.js; os decks são os dele).
 import './taverna.css'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { tx, LOCALE } from './i18n.js'
 import { FORMAT } from './formats.js'
 import { colorsOf } from './data.js'
@@ -23,6 +23,7 @@ import { ask } from './confirm.jsx'
 import { useBackClose } from './backnav.js'
 import { setRemote, remoteOn, API, hostPage } from './remote.js'
 import { setBadge, pieces, tavernas, saveTaverna, dropTaverna, playing } from './taverna.js'
+import { AvFace, AvatarEdit } from './avatar.jsx'
 
 async function j(url, opts) {
   const r = await fetch(url, opts), d = await r.json().catch(() => ({}))
@@ -59,14 +60,16 @@ function dayLabel(ts) {
 }
 
 // ---------- pessoas ----------
-export function Ava({ who, name, st, big }) {
-  const ini = ([...String(name || '?').trim()][0] || '?').toUpperCase()
-  return <span className={`tv-ava ${big ? 'big' : ''}`} style={{ '--h': hue(who) }} data-st={st || undefined} aria-hidden="true">{ini}</span>
+// as imagens de perfil de quem é (ou foi) membro: {who: imagem} (taverna.avs); sem imagem fica a inicial (avatar.jsx)
+const AvCtx = createContext({})
+export function Ava({ who, name, st, big, sm, av }) {
+  const avs = useContext(AvCtx)
+  return <span className={`tv-ava ${big ? 'big' : ''} ${sm ? 'sm' : ''}`} style={{ '--h': hue(who) }} data-st={st || undefined} aria-hidden="true"><AvFace av={av !== undefined ? av : avs[who]} name={name} /></span>
 }
 const stOf = m => (m?.playing ? 'jogo' : m?.online ? 'on' : 'off')
 const stLabel = m => (m.playing ? tx('a jogar') : m.online ? tx('ligado') : tx('visto {t}', { t: ago(m.seen) }))
 
-function Members({ s, onMention, onKick }) {
+function Members({ s, onMention, onKick, onAvatar, onUnav }) {
   const list = [...s.members].sort((a, b) => (b.playing - a.playing) || (b.online - a.online) || (b.host - a.host) || a.name.localeCompare(b.name))
   const on = list.filter(m => m.online).length
   return (
@@ -74,11 +77,12 @@ function Members({ s, onMention, onKick }) {
       <header className="tv-sec-h"><h3>{tx('Membros')}</h3><span className="tv-online"><i />{tx('{n} ligados', { n: on })}</span></header>
       <ul>{list.map(m => (
         <li key={m.who} className={`tv-mem ${stOf(m)}`}>
-          <button type="button" className="tv-mem-b" onClick={() => onMention(m)} title={m.who === s.me.who ? tx('Tu') : tx('Mencionar {n}', { n: m.name })} disabled={m.who === s.me.who}>
-            <Ava who={m.who} name={m.name} st={stOf(m)} />
+          <button type="button" className="tv-mem-b" onClick={() => (m.who === s.me.who ? onAvatar() : onMention(m))} title={m.who === s.me.who ? tx('Mudar a minha imagem de perfil') : tx('Mencionar {n}', { n: m.name })}>
+            <Ava who={m.who} name={m.name} st={stOf(m)} av={m.avatar || null} />
             <span className="tv-mem-t"><b>{m.name}{m.who === s.me.who && <small> · {tx('tu')}</small>}</b>
-              <small>{m.host && <em className="tv-host">{tx('anfitrião')}</em>}{stLabel(m)}</small></span>
+              <small>{m.host && <em className="tv-host">{tx('anfitrião')}</em>}{m.who === s.me.who ? <u className="tv-avl">🖼 {m.avatar ? tx('mudar a imagem') : tx('pôr uma imagem')}</u> : stLabel(m)}</small></span>
           </button>
+          {s.me.host && !m.host && m.avatar && <button type="button" className="link small tv-kick tv-unav" onClick={() => onUnav(m)} aria-label={tx('Tirar a imagem de perfil de {n}', { n: m.name })} title={tx('Tirar a imagem de perfil')}>🚫</button>}
           {s.me.host && !m.host && <button type="button" className="link small tv-kick" onClick={() => onKick(m)} aria-label={tx('Tirar {n} da Taverna', { n: m.name })} title={tx('Tirar da Taverna')}>✕</button>}
         </li>))}</ul>
     </section>
@@ -390,7 +394,7 @@ function Fame({ s, frev }) {
           <h3>{tx('Últimos resultados')}</h3>
           <ul>{f.feed.map(r => <li key={r.id}>
             <span className="tv-feed-i" aria-hidden="true">{RES_ICO[r.kind] || '🏆'}</span>
-            <span className="tv-feed-t">{r.kind === 'torneio' && r.podium ? <><b>{r.name}</b> · {r.podium.map(p => <span key={p.who + p.place} className={`tv-place p${p.place}`}>{['', '🥇', '🥈', '🥉'][p.place]} {p.name}</span>)}</>
+            <span className="tv-feed-t">{r.kind === 'torneio' && r.podium ? <><b>{r.name}</b> · {r.podium.map(p => <span key={p.who + p.place} className={`tv-place p${p.place}`}>{['', '🥇', '🥈', '🥉'][p.place]} <Ava who={p.who} name={p.name} sm /> {p.name}</span>)}</>
               : <><span>{r.win.length ? <b>{tx('{w} ganhou', { w: r.players.filter(p => r.win.includes(p.who)).map(p => p.name).join(' + ') })}</b> : <b>{tx('Empate')}</b>}{r.name && <span className="muted"> · {r.name}</span>}</span>
                 <span className="tv-vs">{r.players.map(p => p.name + (p.deck ? ` (${p.deck})` : '')).join(' vs ')}</span></>}
               <small className="muted">{ago(r.ts)}{r.kind === 'manual' ? ` · ${tx('registado à mão')}` : ''}</small></span>
@@ -485,7 +489,7 @@ function InviteModal({ s, onClose, reload }) {
     <p className="row-btns small"><button type="button" className="link small" onClick={fresh}>↻ {tx('fazer um link novo')}</button><span className="muted">{tx('(o antigo deixa de entrar)')}</span></p>
     {s.friends?.length > 0 && <><h4>🤝 {tx('Amigos que já tens')}</h4>
       <p className="small muted">{tx('Já têm um convite teu: entram na Taverna com um toque, sem precisarem do link.')}</p>
-      <div className="tv-pick">{s.friends.map(f => <button key={f.id} type="button" onClick={() => add(f)} disabled={busy === f.id}><Ava who={`guest:${f.id}`} name={f.name} /> ＋ {f.name}</button>)}</div></>}
+      <div className="tv-pick">{s.friends.map(f => <button key={f.id} type="button" onClick={() => add(f)} disabled={busy === f.id}><Ava who={`guest:${f.id}`} name={f.name} av={f.avatar || null} /> ＋ {f.name}</button>)}</div></>}
     {err && <p className="small bad-t">{err}</p>}
   </div></div>
 }
@@ -621,6 +625,7 @@ export default function TavernaView({ data, guest, deckId, onRemote }) {
     if (window.innerWidth < 640) requestAnimationFrame(() => document.querySelector('.tv-tabs')?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
   }
   const [more, setMore] = useState(false), [shelf, setShelf] = useState([]), [deck, setDeck] = useState(null), [pickMine, setPickMine] = useState(false), [mention, setMention] = useState(null)
+  const [avEdit, setAvEdit] = useState(false)
   const [invite, setInvite] = useState(false), [edit, setEdit] = useState(false), [join, setJoin] = useState(false), [newRoom, setNewRoom] = useState(false), [showMem, setShowMem] = useState(false)
   const [table, setTableS] = useState(() => { try { return sessionStorage.getItem('grimorio.mesalivre') } catch { return null } })
   const setTable = t => { setTableS(t); try { if (t) sessionStorage.setItem('grimorio.mesalivre', t); else sessionStorage.removeItem('grimorio.mesalivre') } catch { /* sem armazenamento */ } }
@@ -674,6 +679,7 @@ export default function TavernaView({ data, guest, deckId, onRemote }) {
   }
   const create = async name => { const d = await post('/api/taverna', { name, tpl: tx('Taverna de {n}') }); rev.current = 0; setS(d); load() }
   const kick = async m => (await ask('amigo', { title: tx('Tirar {n} da Taverna?', { n: m.name }), body: tx('Deixa de ver a Taverna e o link já não o deixa voltar (podes voltar a pô-lo em «Convidar»). Os decks e os resultados dele ficam.'), ok: tx('Tirar') })) && act('kick', { who: m.who })
+  const unav = async m => (await ask('amigo', { title: tx('Tirar a imagem de perfil de {n}?', { n: m.name }), body: tx('Volta a aparecer a inicial. {n} pode pôr outra.', { n: m.name }), ok: tx('Tirar') })) && act('unavatar', { who: m.who })
   const leave = async () => (await ask('amigo', { title: tx('Sair da Taverna?'), body: tx('Podes voltar pelo link.'), ok: tx('Sair') })) && act('leave')
   const doMention = x => { setMention({ ...x, n: Date.now() }); setTab('conversa') }
   const fromCall = c => { if (c.kind === 'torneio') { ls('grimorio.online.vista', 'criar'); ls('grimorio.online.tipo', 'livretorneio'); window.dispatchEvent(new CustomEvent('grimorio:col', { detail: 'online' })); return } setNewRoom(true); setTab('jogos') }
@@ -686,7 +692,8 @@ export default function TavernaView({ data, guest, deckId, onRemote }) {
   </div>
   const on = s.members.filter(m => m.online)
   const unread = tab !== 'conversa' ? s.unread : 0
-  return (
+  const mine = s.members.find(m => m.who === s.me.who)
+  return (<AvCtx.Provider value={s.avs || {}}>
     <div className="view tv">
       <header className="tv-hero">
         <span className="tv-mug sm" aria-hidden="true"><Icon n="taverna" /></span>
@@ -721,15 +728,17 @@ export default function TavernaView({ data, guest, deckId, onRemote }) {
             {tab === 'fama' && <Fame s={s} frev={s.frev} />}
           </div>
         </main>
-        <aside className={`tv-side ${showMem ? 'open' : ''}`}><Members s={s} onMention={m => { setShowMem(false); doMention({ name: m.name }) }} onKick={kick} /></aside>
+        <aside className={`tv-side ${showMem ? 'open' : ''}`}><Members s={s} onMention={m => { setShowMem(false); doMention({ name: m.name }) }} onKick={kick} onAvatar={() => setAvEdit(true)} onUnav={unav} /></aside>
       </div>
       {deck && <ShelfDeck d={deck} data={data} guest={guest} onClose={() => setDeck(null)} onTook={loadShelf} />}
       {pickMine && <PickMine data={data} onClose={() => setPickMine(false)} onPick={async d => { try { const r = await share(d); if (tab === 'conversa' && !r.updated) doMention({ deck: { ...d, id: r.id } }) } catch (e) { setErr(e.message); setPickMine(false) } }} />}
       {invite && <InviteModal s={s} onClose={() => setInvite(false)} reload={load} />}
       {edit && <EditModal s={s} onClose={() => setEdit(false)} reload={load} />}
       {join && <JoinTaverna onClose={() => setJoin(false)} onRemote={r => { setJoin(false); onRemote(r) }} />}
+      {avEdit && <AvatarEdit cur={mine?.avatar || null} name={s.me.name} who={s.me.who} path={s.me.host ? '/api/avatar' : '/api/guest/avatar'} data={data}
+        onClose={() => setAvEdit(false)} onSaved={() => load()} />}
     </div>
-  )
+  </AvCtx.Provider>)
 }
 
 // ---------- a Taverna de um amigo, aqui (no Grimório de quem aloja, com os teus ecrãs e os teus decks) ----------

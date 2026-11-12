@@ -9,7 +9,8 @@ export const API = 2  // = guests.API no servidor
 let R = null  // { base, token }
 export const remoteOn = () => !!R
 export const setRemote = r => { R = r }
-const ROOM = /^\/api\/(rooms|freetables|playnet|guest\/me|taverna)(\/|$)/  // playnet: a mesa estrita; taverna: a Taverna de um amigo
+export const remoteBase = () => R?.base || ''  // as imagens de perfil de lá (avatar.jsx) vêm de lá
+const ROOM = /^\/api\/(rooms|freetables|playnet|guest\/me|guest\/avatar|taverna)(\/|$)/  // playnet: a mesa estrita; taverna: a Taverna de um amigo
 const JOIN = /^\/api\/rooms\/[a-z0-9]+\/join$/
 
 const auth = (init = {}) => { const h = new Headers(init.headers); h.set('Authorization', `Bearer ${R.token}`); return { ...init, headers: h, credentials: 'omit' } }

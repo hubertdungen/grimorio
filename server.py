@@ -21,6 +21,7 @@ import taverna
 import freetable
 import share
 import rules
+import avatars
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(HERE, "web", "dist")
@@ -313,6 +314,8 @@ class H(BaseHTTPRequestHandler):
 
     def _route(self, method, inner):
         p = self.path.split("?")[0]
+        if p.startswith("/avatars/") and method == "GET":  # imagens de perfil: nomes ao acaso, para todos (avatars.serve)
+            return avatars.serve(self, p[len("/avatars/"):])
         if p.startswith("/sala/") and method in ("GET", "POST"):  # link de uma sala: quem aloja, um perfil deste Grimório, outra app ou um convidado novo
             tok, _, act = p[len("/sala/"):].partition("/")
             with db() as con:
@@ -373,6 +376,8 @@ class H(BaseHTTPRequestHandler):
             return self.freetable_route(method, p, self.owner(), "host")
         if (p == "/api/taverna" or p.startswith("/api/taverna/")) and method in ("GET", "POST"):  # a Taverna dos amigos (taverna.py)
             return self.taverna_route(method, p, self.owner(), "host")
+        if p == "/api/avatar" and method in ("GET", "POST"):  # a minha imagem de perfil (quem aloja / o perfil escolhido)
+            return None if self.no_profile() else self.avatar_route(method, avatars.owner_key(self.owner()))
         if p.startswith("/api/friends") and method != "HEAD":  # o dono gere os amigos
             body = self.body() if method in ("POST",) and not p.endswith("/revoke") else None
             with db() as con:
@@ -424,7 +429,10 @@ class H(BaseHTTPRequestHandler):
                 json.dump(keys, f)
             os.chmod(kf, 0o600)
         name = ((self.profile() or {}).get("name") if self.mode() == "profiles" else owner) or owner
-        body = json.dumps({"name": name, "key": keys[owner], "decks": [{k: x.get(k) for k in (*guests.DECK_KEYS, "id")} for x in decks]}).encode()
+        with db() as con:
+            av = avatars.export(con, avatars.owner_key(owner))  # a minha imagem vai também: lá fica uma cópia, validada
+        body = json.dumps({"name": name, "key": keys[owner], "decks": [{k: x.get(k) for k in (*guests.DECK_KEYS, "id")} for x in decks],
+                           **({"avatar": av} if av else {})}).encode()
         try:
             with urllib.request.urlopen(urllib.request.Request(f"{base}/{kind}/{tok}/trazer", body, {"Content-Type": "application/json"}, method="POST"), timeout=25) as r:
                 go = json.loads(r.read()).get("go")
@@ -435,6 +443,14 @@ class H(BaseHTTPRequestHandler):
         if not str(go or "").startswith("/convite/"):
             return self.json({"erro": "Resposta estranha do outro Grimório."}, 502)
         return self.json({"go": base + go, "base": base, "decks": len(decks)})
+
+    def avatar_route(self, method, key):
+        try:
+            body = self.body(200_000) if method == "POST" else None
+        except ValueError:
+            return self.json({"erro": "A imagem tem de ter até 100 KB."}, 413)
+        with db() as con:
+            return self.json(*reversed(avatars.route(con, method, key, body)))
 
     def taverna_route(self, method, p, owner, who):
         if self.no_profile():
@@ -1136,7 +1152,7 @@ class H(BaseHTTPRequestHandler):
         return r and {"id": r[0], "name": r[1], "color": r[2]}
 
     # rotas que precisam de saber de quem são os dados: sem perfil escolhido respondem 401 com code "profile"
-    OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state", "/api/playnet", "/api/limited", "/api/taverna")
+    OWNED = ("/api/decks", "/api/sim/runs", "/api/sim/record", "/api/tournaments", "/api/ratings", "/api/arena", "/api/play/start", "/api/play/from-state", "/api/playnet", "/api/limited", "/api/taverna", "/api/avatar")
 
     def no_profile(self):
         # um convidado (cookie ou Bearer) não escolhe perfil: os dados dele vivem no espaço de quem o convidou (o .exe de um
@@ -1153,10 +1169,15 @@ class H(BaseHTTPRequestHandler):
         mode, path = self.mode(), self.path.split("?")[0]
         if method == "GET" and path == "/api/profiles":
             if mode != "profiles":
-                return self.json({"mode": mode, "current": {"id": None, "name": self.owner(), "color": None}, "list": []})
+                with db() as con:
+                    av = avatars.get(con, avatars.owner_key(self.owner()))
+                return self.json({"mode": mode, "current": {"id": None, "name": self.owner(), "color": None, **({"avatar": av} if av else {})}, "list": []})
             with db() as con:
                 rows = con.execute("SELECT id, name, color FROM profiles ORDER BY created").fetchall()
-            return self.json({"mode": mode, "current": self.profile(), "list": [{"id": i, "name": n, "color": c} for i, n, c in rows]})
+                av = {i: avatars.get(con, avatars.owner_key(i)) for i, _, _ in rows}  # a imagem de cada perfil (avatars.py)
+            cur = self.profile()
+            return self.json({"mode": mode, "current": cur and {**cur, "avatar": av.get(cur["id"])},
+                              "list": [{"id": i, "name": n, "color": c, **({"avatar": av[i]} if av.get(i) else {})} for i, n, c in rows]})
         if mode != "profiles":
             return self.json({"erro": "Os perfis só existem sem login nem dono fixo."}, 400)
         m = re.match(r"^/api/profiles(?:/([a-z0-9]{1,32})(/select)?)?$", path)
@@ -1186,6 +1207,7 @@ class H(BaseHTTPRequestHandler):
                 return self.json({"id": pid, "name": name, "color": color})
             con.execute("UPDATE decks SET deleted=? WHERE owner=? AND deleted IS NULL", (time.time(), pid))
             con.execute("DELETE FROM profiles WHERE id=?", (pid,))
+            avatars.clear(con, avatars.owner_key(pid))  # e a imagem de perfil dele
         cur = self.profile()
         return self.send(200, b'{"ok": true}', headers=None if cur else cookie("", 0))
 
@@ -1215,6 +1237,8 @@ def selfcheck():
     global ARGS, APP_TOKEN
     tmp = tempfile.mkdtemp(prefix="grim-prof-")
     ARGS = argparse.Namespace(data_dir=tmp, owner=None, port=0)
+    avatars.selfcheck()  # a validação das imagens de perfil (bytes, limites); aqui em baixo, pelas rotas
+    avatars.DIR = os.path.join(tmp, "avatars")
     srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{srv.server_address[1]}"
@@ -1623,10 +1647,51 @@ def selfcheck():
         assert bearer("POST", "/api/taverna/kick", {"who": "host"})[0] == 403 and bearer("POST", "/api/taverna/link")[0] == 403
         with urllib.request.urlopen(base + tv["taverna"]["link"] + "/info") as r:
             assert json.loads(r.read())["kind"] == "taverna"
+        # imagens de perfil (avatars.py): validadas aqui, servidas com o tipo certo, nos membros, lugares e mesas
+        b64 = lambda b: __import__("base64").b64encode(b).decode()  # noqa: E731
+        assert call("POST", "/api/avatar", {"img": b64(b"<svg xmlns='http://www.w3.org/2000/svg' onload='alert(1)'/>")})[0] == 415  # SVG: nunca
+        assert call("POST", "/api/avatar", {"img": b64(b"GIF89a" + b"\0" * 64)})[0] == 415 and call("POST", "/api/avatar", {"img": 5})[0] == 400
+        assert call("POST", "/api/avatar", {"img": b64(b"\xff\xd8\xff" + b"\0" * 120_000)})[0] == 413  # grande demais
+        assert call("POST", "/api/avatar", {"img": "A" * 300_000})[0] == 413  # nem chega a ler-se
+        st, av, _ = call("POST", "/api/avatar", {"img": b64(avatars.test_png(96, 96))})
+        assert st == 200 and av["avatar"].startswith("/avatars/") and call("GET", "/api/avatar")[1] == av, av
+        assert call("GET", "/api/profiles")[1]["current"]["avatar"] == av["avatar"]
+        with urllib.request.urlopen(base + av["avatar"]) as r:
+            assert r.headers["Content-Type"] == "image/png" and r.headers["X-Content-Type-Options"] == "nosniff" and "sandbox" in r.headers["Content-Security-Policy"]
+            assert r.read()[:4] == b"\x89PNG" and "immutable" in r.headers["Cache-Control"]
+            et = r.headers["ETag"]
+        try:
+            urllib.request.urlopen(urllib.request.Request(base + av["avatar"], headers={"If-None-Match": et}))
+            raise AssertionError("devia ser 304")
+        except urllib.error.HTTPError as e:
+            assert e.code == 304
+        for bad in ("/avatars/..%2Fgrimorio.db", "/avatars/" + "a" * 24 + ".svg", "/avatars/grimorio.db"):
+            try:
+                urllib.request.urlopen(base + bad)
+                raise AssertionError(bad)
+            except urllib.error.HTTPError as e:
+                assert e.code == 404, bad
+        assert bearer("POST", "/api/avatar", {"clear": True})[0] == 403  # a app do amigo não mexe na imagem de quem aloja
+        st, ga, _ = bearer("POST", "/api/guest/avatar", {"card": "Llanowar Elves", "id": "6a0b230b-d391-4998-a3f7-7b158a0ec2cd"})
+        assert st == 200 and ga["avatar"]["card"] == "Llanowar Elves" and call("GET", "/api/guest/avatar", cookie=G)[1] == ga
+        mem = {m["who"]: m for m in call("GET", "/api/taverna")[1]["members"]}
+        assert mem["host"]["avatar"] == av["avatar"] and mem[f"guest:{fr['id']}"]["avatar"] == ga["avatar"], mem
+        assert call("GET", "/api/taverna/fame", cookie=G)[1]["avs"][f"guest:{fr['id']}"] == ga["avatar"]
+        assert call("POST", "/api/taverna/unavatar", {"who": "host"})[0] == 404 and bearer("POST", "/api/taverna/unavatar", {"who": f"guest:{fr['id']}"})[0] == 403
+        assert call("POST", "/api/taverna/unavatar", {"who": f"guest:{fr['id']}"}, G2)[0] == 403  # quem não é membro: não
+        st, ar, _ = call("POST", "/api/rooms", {"name": "Livre Av", "type": "livre", "max": 2, "players": [{"src": "meus", "ref": hs[2]}]})
+        st, rv, _ = call("POST", f"/api/rooms/{ar['id']}/join", {"deck": dk["id"]}, G)
+        assert st == 200 and [p.get("av") for p in rv["players"]] == [av["avatar"], ga["avatar"]], rv
+        st, sr, _ = call("POST", f"/api/rooms/{ar['id']}/start")
+        st, gv, _ = call("GET", f"/api/freetables/{sr['table']}?since=0", cookie=G)
+        assert st == 200 and [x.get("av") for x in gv["seats"]] == [av["avatar"], ga["avatar"]], gv["seats"]
+        assert call("POST", "/api/taverna/unavatar", {"who": f"guest:{fr['id']}"})[0] == 200 and call("GET", "/api/guest/avatar", cookie=G)[1] == {"avatar": None}
         st, tj, _ = call("POST", "/api/rooms/remote", {"url": base + tv["taverna"]["link"], "decks": []})  # na app: entrar com o link
         assert st == 200 and tj["go"].startswith(base + "/convite/"), tj
         TJ = f"grimorio_guest={tj['go'].split('/')[-1].split('?')[0]}"
         assert call("GET", "/api/taverna", cookie=TJ)[1]["member"] is True
+        tja = call("GET", "/api/guest/avatar", cookie=TJ)[1]["avatar"]  # a app leva a imagem dela: aqui fica uma cópia
+        assert tja and tja.startswith("/avatars/") and tja != av["avatar"], tja
         pre = urllib.request.Request(base + "/api/taverna/say", method="OPTIONS", headers={"Origin": "http://x", "Access-Control-Request-Method": "POST"})
         with urllib.request.urlopen(pre) as r:
             assert r.status == 204
@@ -1688,6 +1753,7 @@ if __name__ == "__main__":
                     help="dono fixo dos decks quando não há login; sem ele, cada um escolhe um perfil no browser")
     ARGS = ap.parse_args()
     os.makedirs(ARGS.data_dir, exist_ok=True)
+    avatars.DIR = os.path.join(ARGS.data_dir, "avatars")  # imagens de perfil (avatars.py)
     play.init(ARGS.data_dir)
     with db() as con:
         backfill_created(con)

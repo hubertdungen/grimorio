@@ -10,9 +10,10 @@ Privacidade (aqui, não no browser): cada jogador recebe só o que pode ver. Mã
 costas de cartas), cartas viradas para baixo só as vê quem as controla, as reveladas veem-se. Os ids das cartas são
 aleatórios e mudam quando a carta entra na biblioteca (não dá para seguir uma carta baralhada).
 """
-import json, random, re, secrets, threading, time
+import json, random, re, secrets, sqlite3, threading, time
 from collections import Counter
 
+import avatars
 import sim
 
 T = {}                       # id -> mesa (em memória; a SQLite guarda a cópia)
@@ -112,6 +113,10 @@ def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=
     t = {"id": secrets.token_hex(6), "owner": owner, "name": str(name or "Mesa livre")[:80], "seq": 1, "ts": time.time(),
          "status": "playing", "turn": 1, "active": first if 0 <= first < len(seats) else 0, "seats": [], "cards": {}, "zones": [], "log": [], "roll": None,
          "lists": {}, **({"solo": True, "gf": 20} if solo else {}), **({"teams": [0, 0, 1, 1]} if giant else {})}
+    try:
+        av = avatars.many(con, owner)  # a imagem de perfil de cada um, como estava ao abrir a mesa
+    except sqlite3.Error:
+        av = {}
     for i, s in enumerate(seats):
         d = s["deck"] or {}
         cmdrs = [str(c) for c in (d.get("commanders") or []) if c][:2]
@@ -132,7 +137,7 @@ def create(con, owner, name, seats, solo=False, first=0, side=0, prev=None, was=
         t["zones"].append({k: [] for k in ZONES})
         t["seats"].append({"by": s["by"], "name": str(s.get("name") or "?")[:40], "deck": str(d.get("name") or "")[:80],
                            "format": d.get("format"), "life": 40 if cmd else 20, "life0": 40 if cmd else 20, "poison": 0, "energy": 0, "cd": {}, "mk": [],
-                           "out": False, "peek": 0, "arts": sim.art_map(d)})  # a arte escolhida no deck
+                           "out": False, "peek": 0, "arts": sim.art_map(d), **({"av": av[s["by"]]} if av.get(s["by"]) else {})})  # a arte escolhida no deck
     if keep:
         t["keep"] = True
     if giant:  # 2HG: a vida da equipa começa em 30 (regra 810.9a)
@@ -329,7 +334,7 @@ def view(t, me):
     for i, s in enumerate(t["seats"]):
         z = t["zones"][i]
         v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {}, "mat": s.get("mat"), "orb": s.get("orb"),
-             "mk": s.get("mk") or [], "me": i == me, "library": len(z["library"]), "arts": s.get("arts") or {},
+             "mk": s.get("mk") or [], "me": i == me, **({"av": s["av"]} if s.get("av") else {}), "library": len(z["library"]), "arts": s.get("arts") or {},
              "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
         if s.get("look") is not None:  # público: todos sabem quem está a olhar para a mão de quem (as cartas não)
             v["look"] = s["look"]

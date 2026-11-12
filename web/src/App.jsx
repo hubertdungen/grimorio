@@ -242,8 +242,10 @@ export default function App() {
   useEffect(() => {
     fetch('/api/profiles').then(r => r.json()).then(setProf).catch(() => {})
     const lost = () => setProf(p => (p?.mode === 'profiles' ? { ...p, current: null } : p))  // um pedido respondeu 401 «profile»
+    const av = () => fetch('/api/profiles').then(r => r.json()).then(setProf).catch(() => {})  // mudou a imagem de perfil (avatar.jsx)
     window.addEventListener('grimorio:profile', lost)
-    return () => window.removeEventListener('grimorio:profile', lost)
+    window.addEventListener('grimorio:avatar', av)
+    return () => { window.removeEventListener('grimorio:profile', lost); window.removeEventListener('grimorio:avatar', av) }
   }, [])
   const [settings, setSettings] = useState(() => window.location.hash === '#definicoes')
   useEffect(() => {
@@ -458,7 +460,7 @@ export default function App() {
   }
 
   if (prof?.mode === 'profiles' && (!prof.current || who)) return <WhoPlays list={prof.list} startNew={who === 'new'} onClose={prof.current ? () => setWho('') : null} />
-  if (settings && !guest) return <Settings prof={prof} onClose={closeSettings} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />
+  if (settings && !guest) return <Settings prof={prof} data={data} onClose={closeSettings} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />
   if (err) return <div className="boot"><Logo size={64} /><p>{tx('Não consegui carregar os dados: {err}', { err })}</p><p className="muted">{tx('Os dados são gerados por')} <code>build/build.sh</code>.</p></div>
   if (!data) return <div className="boot"><Logo size={64} /><div className="spinner" /><p>{tx('A abrir o grimório…')} <span className="muted">{tx('(34 mil cartas, ~10 MB)')}</span></p></div>
 
