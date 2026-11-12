@@ -12,6 +12,7 @@ Everything it needs, Java and the Forge engine included, comes in the download, 
 - About **600 MB** of free disk space.
 - An **internet connection** the first time (to download the card data) and for card images and imports.
 - Linux only: **Python 3.10 or newer**. Almost every Linux already has it; check with `python3 --version`.
+- **Android 7.0** or newer (64-bit or 32-bit) also works: see [Android](#android).
 
 ## Windows
 
@@ -52,6 +53,37 @@ play, and press **OK** when you want to close Grimório. To use the browser on p
 
 4. Your browser opens Grimório by itself. The terminal keeps it running while you use it. If the Python package
    `pywebview` is installed (`pip install pywebview`), Grimório opens in its own window instead of the browser.
+
+## Android
+
+The Android app is the whole Grimório on your phone or tablet: decks, library, suggestions, rules, the free table,
+friends and online rooms run on the device, and your data stays in the app. No server, no account and no cloud needed.
+
+1. On the phone, open the [Releases page](https://github.com/hubertdungen/grimorio/releases) and, under **Assets** of the newest version, download
+   **`Grimorio-<version>-android.apk`** (about 55 MB).
+2. Open the downloaded file. The first time, Android asks you to allow installing apps from your browser (or file
+   manager): allow it, then tap **Install**.
+3. Open **Grimório**. The first time it downloads the card data (about 11 MB, only once): on Wi-Fi it starts by
+   itself, on mobile data it asks first. If the connection drops, **Try again** continues where it stopped.
+4. Then it works as on a computer: create your profile and pick the language in **Settings › Language**.
+
+It needs Android 7.0 or newer and about 200 MB of free space. Updates: **Settings › Android app** says when there is a
+newer version; download it and install it over the old one (your data stays).
+
+**What needs a computer.** Forge, the game engine for the bots, is a desktop program and doesn't run on phones: *Play
+against Forge*, *Draft*, strict tables, tournaments with bots, the Arena and running the Lab need Grimório on a
+computer or a server. Where they appear, the app says so and offers to connect to one; reports and ratings that come
+from another device are shown.
+
+**Your own server (optional).** If you run Grimório on a computer (`Grimorio.exe --host 0.0.0.0` or
+`./grimorio --host 0.0.0.0` at home) or on a server, the app can open it instead: **Settings › Android app › Connect
+to a Grimório server** (or *Have a Grimório server? Connect to it* on the first screen), and type its address, e.g.
+`http://192.168.1.10:8107`. Then everything runs there, Forge included. **Use only on this device** switches back; the
+phone's own decks are still there. If you used an older version of the app with a server, it keeps opening that
+server after the update.
+
+Your data is in the app's private storage: uninstalling the app deletes it, so export a backup first (**Settings ›
+Data & backups › Export everything**).
 
 ## The first start
 

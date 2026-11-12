@@ -132,6 +132,7 @@ def _kill(s):
 def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None, chooser=None):
     """deck/opp = {name, main, side, commanders}; devolve o id da sessão. Um jogo de cada vez por dono. rate: para os
     ratings quando acabar (ratings.from_forgeplay), ou None (não conta)."""
+    sim.need_forge()
     _cleanup()
     for d in (deck, opp):
         if not isinstance(d, dict) or not isinstance(d.get("main"), dict) or not d["main"]:
@@ -157,6 +158,7 @@ def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, 
     """Mesa estrita: 2 a 4 pessoas no mesmo jogo do Forge, cada uma com o seu ecrã (o GrimorioNet com vários humanos).
     seats = {"a": chave, "b": chave[, "c", "d"]} (o dono ou «<dono>~guest:<id>»); decks/names com as mesmas letras.
     mode (3–4 lugares): "ffa" todos contra todos ou "2hg" Two-Headed Giant (a+b contra c+d, só a 4). Devolve o id."""
+    sim.need_forge()
     _cleanup()
     ks = [k for k in "abcd" if k in seats]
     if ks != list("abcd"[:len(ks)]) or not 2 <= len(ks) <= 4:

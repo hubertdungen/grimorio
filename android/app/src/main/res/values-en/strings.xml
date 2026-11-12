@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Grimório</string>
+    <string name="setup_first">Grimório runs on this device, no server needed. To start, download the card data (about 11 MB, only this once).</string>
+    <string name="setup_metered">You are on mobile data: download now or wait for Wi-Fi.</string>
+    <string name="setup_download">Download the data (≈ 11 MB)</string>
+    <string name="setup_downloading">Downloading the card data… %1$s</string>
+    <string name="setup_resume">When you try again, the download continues where it stopped.</string>
+    <string name="setup_starting">Opening Grimório…</string>
+    <string name="setup_error">That didn\'t work: %1$s</string>
+    <string name="retry">Try again</string>
+    <string name="use_server">Have a Grimório server? Connect to it</string>
+    <string name="use_local">Use only on this device</string>
+    <string name="server_ask">Address of your Grimório server (the one you open in the browser):</string>
+    <string name="server_unreachable">Could not open the server: %1$s</string>
+    <string name="data_updated">Card data updated.</string>
+    <string name="downloads">Downloads</string>
+    <string name="saved">Saved: %1$s</string>
+    <string name="save_failed">Could not save: %1$s</string>
+</resources>

@@ -1,2 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources><string name="app_name">Grimório</string></resources>
+<!-- português (por omissão); as outras línguas em values-<língua>/strings.xml -->
+<resources>
+    <string name="app_name">Grimório</string>
+    <string name="setup_first">O Grimório corre neste aparelho, sem precisar de servidor. Para começar, descarrega os dados das cartas (cerca de 11 MB, só desta vez).</string>
+    <string name="setup_metered">Estás a usar dados móveis: podes descarregar já ou esperar pelo Wi-Fi.</string>
+    <string name="setup_download">Descarregar os dados (≈ 11 MB)</string>
+    <string name="setup_downloading">A descarregar os dados das cartas… %1$s</string>
+    <string name="setup_resume">Ao tentar outra vez, a transferência continua onde parou.</string>
+    <string name="setup_starting">A abrir o Grimório…</string>
+    <string name="setup_error">Não deu: %1$s</string>
+    <string name="retry">Tentar outra vez</string>
+    <string name="use_server">Tens um servidor do Grimório? Ligar a ele</string>
+    <string name="use_local">Usar só neste aparelho</string>
+    <string name="server_ask">Endereço do teu servidor do Grimório (o que abres no browser):</string>
+    <string name="server_unreachable">Não consegui abrir o servidor: %1$s</string>
+    <string name="data_updated">Dados das cartas atualizados.</string>
+    <string name="downloads">Transferências</string>
+    <string name="saved">Guardado: %1$s</string>
+    <string name="save_failed">Não consegui guardar: %1$s</string>
+</resources>

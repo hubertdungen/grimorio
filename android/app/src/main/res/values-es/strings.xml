@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Grimório</string>
+    <string name="setup_first">Grimório funciona en este dispositivo, sin servidor. Para empezar, descarga los datos de las cartas (unos 11 MB, solo esta vez).</string>
+    <string name="setup_metered">Estás usando datos móviles: puedes descargar ya o esperar al Wi-Fi.</string>
+    <string name="setup_download">Descargar los datos (≈ 11 MB)</string>
+    <string name="setup_downloading">Descargando los datos de las cartas… %1$s</string>
+    <string name="setup_resume">Al intentarlo de nuevo, la descarga sigue donde se quedó.</string>
+    <string name="setup_starting">Abriendo Grimório…</string>
+    <string name="setup_error">No ha funcionado: %1$s</string>
+    <string name="retry">Intentar de nuevo</string>
+    <string name="use_server">¿Tienes un servidor de Grimório? Conéctate</string>
+    <string name="use_local">Usar solo en este dispositivo</string>
+    <string name="server_ask">Dirección de tu servidor de Grimório (la que abres en el navegador):</string>
+    <string name="server_unreachable">No he podido abrir el servidor: %1$s</string>
+    <string name="data_updated">Datos de las cartas actualizados.</string>
+    <string name="downloads">Descargas</string>
+    <string name="saved">Guardado: %1$s</string>
+    <string name="save_failed">No he podido guardar: %1$s</string>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- cópia automática do Android (Android 6–11): os teus decks e definições (grimorio.db) sim; o que se volta a descarregar
+     ou vem na app (dados das cartas, cache de imagens, o código, o Python) não, para caber no limite de 25 MB -->
+<full-backup-content>
+    <exclude domain="file" path="app" />
+    <exclude domain="file" path="app.new" />
+    <exclude domain="file" path="app.old" />
+    <exclude domain="file" path="chaquopy" />
+    <exclude domain="file" path="grimorio/data" />
+    <exclude domain="file" path="grimorio/meta" />
+    <exclude domain="file" path="grimorio/cache" />
+    <exclude domain="file" path="grimorio/logs" />
+    <exclude domain="file" path="grimorio/.download" />
+</full-backup-content>

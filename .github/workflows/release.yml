@@ -122,6 +122,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      # the APK carries the whole Grimório (server.py & co + web/dist, android/app/build.gradle › grimorioAppZip) and
+      # runs it on the phone with the Python that Chaquopy embeds (no pip, no .pyc: no Python needed on this runner)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: cd web && npm ci && npx vite build
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -137,14 +145,25 @@ jobs:
           V="${GITHUB_REF_NAME#v}"; [[ "$GITHUB_REF_TYPE" == tag ]] || V="0.0.0-${GITHUB_SHA::7}"
           export GRIMORIO_VERSION="$V"
           if [ -n "$ANDROID_KEYSTORE_B64" ]; then echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/k.jks"; export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/k.jks"; else echo "::warning::sem ANDROID_KEYSTORE_B64: APK assinado com a chave de debug"; fi
-          gradle -p android assembleRelease --no-daemon --stacktrace
+          # the .apk for the GitHub release and the .aab (same signing key) for Google Play
+          gradle -p android assembleRelease bundleRelease --no-daemon --stacktrace
+          # the local server is really inside: its code + web app, the bootstrap and the Python runtime
+          unzip -l android/app/build/outputs/apk/release/app-release.apk > apk.txt
+          for f in assets/grimorio-app.zip assets/chaquopy/app.imy lib/arm64-v8a/libpython3.11.so; do grep -q " $f\$" apk.txt || { echo "::error::$f missing in the APK"; exit 1; }; done
+          unzip -p android/app/build/outputs/apk/release/app-release.apk assets/grimorio-app.zip > app.zip && unzip -l app.zip | grep -q " server.py$" && unzip -l app.zip | grep -q " web/dist/index.html$"
           mkdir -p dist && cp android/app/build/outputs/apk/release/app-release.apk "dist/Grimorio-$V-android.apk"
           (cd dist && sha256sum "Grimorio-$V-android.apk" > "Grimorio-$V-android.apk.sha256")
+          mkdir -p play && cp android/app/build/outputs/bundle/release/app-release.aab "play/Grimorio-$V-android.aab"
       - uses: actions/upload-artifact@v4
         with:
           name: package-android
           path: dist/*.*
           retention-days: 7
+      - uses: actions/upload-artifact@v4  # for the Play Console (not attached to the GitHub release: phones can't install it)
+        with:
+          name: play-bundle
+          path: play/*.aab
+          retention-days: 30
 
   release:
     name: Attach to the release
@@ -163,4 +182,4 @@ jobs:
           gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "Grimório ${GITHUB_REF_NAME#v}" --generate-notes
           # only the release files (the common artifact also lands here as folders)
-          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber $(find assets -maxdepth 1 -type f)
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber $(find assets -maxdepth 1 -type f ! -name '*.aab')

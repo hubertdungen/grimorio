@@ -40,6 +40,7 @@ import TavernaView, { RemoteTaverna } from './Taverna.jsx'
 import { useTavernaPulse } from './taverna.js'
 import { isTouch } from './touch.js'
 import { isCompact } from './tablekit.js'
+import { useForge, NeedsForge } from './forge.jsx'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
 const FROM_TAV = window.location.hash === '#taverna'  // veio pelo link da Taverna (taverna.link_page): vai direto à Taverna
@@ -236,6 +237,7 @@ export default function App() {
   const [who, setWho] = useState('')  // '' | 'switch' | 'new': «Quem vai jogar?» por cima da app
   const guest = prof?.mode === 'guest'  // entrou por um convite (guests.py): só os decks dele, torneios e ratings
   const cm = guest && !GUEST_MODES.includes(colMode) ? 'online' : colMode  // o separador do Coliseu que se vê
+  const forge = useForge()  // false na app Android a correr só no telemóvel: o que precisa do Forge diz para onde ir
   const tvb = useTavernaPulse(!!prof && (prof.mode !== 'profiles' || !!prof.current))  // a Taverna: batimento (quem está ligado) e o selo das mensagens por ler
   useEffect(() => {
     fetch('/api/profiles').then(r => r.json()).then(setProf).catch(() => {})
@@ -504,13 +506,14 @@ export default function App() {
             <button className="fs-btn" onClick={fullscreen} title={isTouch() ? tx('Ecrã inteiro') : tx('Ecrã inteiro — Shift+F (sair: este botão, Shift+F ou Esc)')}>⛶<span> {tx('Ecrã inteiro')}</span></button>
             <button className="link small" onClick={() => goTab('deck')}>{tx('voltar ao deck')}</button>
           </div>
-          <div hidden={guest || colMode !== 'bots'}>{!guest && <LabView {...{ data, deck, fmt, act, ctx, playFrom }} />}</div>
-          {colMode === 'jogar' && !guest && <PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} />}
+          <div hidden={guest || colMode !== 'bots'}>{!guest && <>{!forge && <NeedsForge compact />}<LabView {...{ data, deck, fmt, act, ctx, playFrom }} /></>}</div>
+          {colMode === 'jogar' && !guest && (forge ? <PlayView data={data} deck={deck} fmt={fmt} fromState={fromState} /> : <NeedsForge />)}
           {cm === 'torneio' && <TournamentView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
-          {cm === 'draft' && !guest && <LimitedView data={data} openDeck={id => openDeck(id).then(() => { goTab('deck'); api('/api/decks').then(setDecks).catch(() => {}) })} goTournament={() => setColMode('torneio')} />}
+          {cm === 'draft' && !guest && !forge && <NeedsForge />}
+          {cm === 'draft' && !guest && forge && <LimitedView data={data} openDeck={id => openDeck(id).then(() => { goTab('deck'); api('/api/decks').then(setDecks).catch(() => {}) })} goTournament={() => setColMode('torneio')} />}
           {cm === 'taverna' && <TavernaView data={data} guest={guest} deckId={deck.id} onRemote={guest ? null : r => setRemoteRoom(r)} />}
           {cm === 'online' && <OnlineView data={data} fmt={fmt} deckId={deck.id} guest={guest} />}
-          {cm === 'ratings' && <RatingsView data={data} fmt={fmt} />}
+          {cm === 'ratings' && <>{!forge && <NeedsForge compact />}<RatingsView data={data} fmt={fmt} /></>}
         </div>
       )}
 
@@ -523,7 +526,7 @@ export default function App() {
           {tab === 'sugestoes' && <SuggestView {...{ data, deck, fmt, ctx, act, setDeck, sugTag, setSugTag }} />}
           {tab === 'universo' && <MapView {...{ data, deck, fmt, ctx, act, focus, setFocus }} />}
           {tab === 'combos' && <CombosView {...{ data, deck, ctx, act }} />}
-          {tab === 'teste' && <><div className="to-coliseu"><span className="muted small">{tx('Para ver os jogos em grande:')}</span> <button onClick={() => setSection('coliseu')}>⛶ {tx('Abrir no Coliseu')}</button></div><LabView {...{ data, deck, fmt, act, ctx, playFrom }} /></>}
+          {tab === 'teste' && <><div className="to-coliseu"><span className="muted small">{tx('Para ver os jogos em grande:')}</span> <button onClick={() => setSection('coliseu')}>⛶ {tx('Abrir no Coliseu')}</button></div>{!forge && <NeedsForge compact />}<LabView {...{ data, deck, fmt, act, ctx, playFrom }} /></>}
           {tab === 'draft' && <DraftView {...{ data, setDeck, act }} />}
           {tab === 'analise' && <AnalysisView {...{ data, deck, fmt, ctx, act, issues }} />}
           {tab === 'deck' && (

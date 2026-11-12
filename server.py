@@ -199,8 +199,30 @@ def update_state(raw=False):
             "err": st.get("err"), "checked": st.get("checked"), "url": st.get("url")}
 
 
+APP_TOKEN = os.environ.get("GRIMORIO_APP_TOKEN") or ""
+
+
+def app_cookie(raw):
+    c = http.cookies.SimpleCookie()
+    try:
+        c.load(raw or "")
+    except http.cookies.CookieError:
+        return ""
+    return c["grimorio_app"].value if "grimorio_app" in c else ""
+
+
 class H(BaseHTTPRequestHandler):
     server_version = "Grimorio/1.0"
+
+    def parse_request(self):
+        """App Android: o servidor da app ouve em 127.0.0.1 do telemóvel, onde outras apps também chegam; só responde a quem
+        traz o cookie que a própria app pôs na WebView (GRIMORIO_APP_TOKEN, MainActivity)."""
+        if not super().parse_request():
+            return False
+        if APP_TOKEN and not secrets.compare_digest(app_cookie(self.headers.get("Cookie")), APP_TOKEN):
+            self.send_error(403)
+            return False
+        return True
 
     def handle_one_request(self):
         _REQ.cons = []
@@ -548,7 +570,7 @@ class H(BaseHTTPRequestHandler):
                 return self.json({"erro": msg}, 502)
         if p == "/api/health":
             ok = os.path.isfile(os.path.join(ARGS.data_dir, "data", "meta.json"))
-            return self.json({"ok": ok}, 200 if ok else 503)
+            return self.json({"ok": ok, "forge": not sim.NO_FORGE}, 200 if ok else 503)  # forge=false: app Android (sim.need_forge)
         if p == "/api/arts/proxy":  # imagem de uma pasta na net, para o browser a comprimir antes de a guardar (artfolder.py)
             if not self.owner():
                 return self.json({"erro": "sem utilizador"}, 401)
@@ -1190,7 +1212,7 @@ class H(BaseHTTPRequestHandler):
 def selfcheck():
     """Perfis: `python3 -c "import server; server.selfcheck()"` (servidor numa pasta temporária, porta livre)."""
     import tempfile, threading
-    global ARGS
+    global ARGS, APP_TOKEN
     tmp = tempfile.mkdtemp(prefix="grim-prof-")
     ARGS = argparse.Namespace(data_dir=tmp, owner=None, port=0)
     srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
@@ -1234,6 +1256,18 @@ def selfcheck():
         assert call("GET", "/api/profiles")[1] == {"mode": "fixed", "current": {"id": None, "name": "hubert", "color": None}, "list": []}
         assert call("GET", "/api/decks")[0] == 200 and call("POST", "/api/profiles", {"name": "X"})[0] == 400
         assert call("GET", "/api/me", user="eva")[1] == {"user": "eva"} and call("GET", "/api/profiles", user="eva")[1]["mode"] == "login"
+        APP_TOKEN = "t0k3n"  # app Android: o servidor só responde à WebView da app (cookie grimorio_app)
+        try:
+            for c, want in (("", 403), ("grimorio_app=outro", 403), ("grimorio_profile=x; grimorio_app=t0k3n", 200)):
+                try:
+                    with urllib.request.urlopen(urllib.request.Request(base + "/api/me", headers={"Cookie": c} if c else {})) as r:
+                        got = r.status
+                except urllib.error.HTTPError as e:
+                    got = e.code
+                assert got == want, (c, got)
+        finally:
+            APP_TOKEN = ""
+        assert call("GET", "/api/health")[1]["forge"] is True
         print("selfcheck perfis ok")
         # amigos e convidados (guests.py): o convidado só vê o que é dele e nunca chega às rotas do dono
         tournament.DATA, tournament.DB = tmp, os.path.join(tmp, "grimorio.db")

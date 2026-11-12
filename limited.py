@@ -160,6 +160,7 @@ def _reader(data_dir, eid, p):
 
 def start(data_dir, owner, kind, codes, human=True, players=8):
     """kind = draft (3 packs, 8 lugares) | sealed (6 packs por lugar, 2–16 lugares); codes = um set por pack."""
+    sim.need_forge()
     _cleanup()
     if kind not in ("draft", "sealed"):
         raise ValueError("Modo desconhecido: draft ou selado.")

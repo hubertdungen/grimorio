@@ -13,6 +13,7 @@ Grimório mantém-se atualizado sozinho.
 - Cerca de **600 MB** de espaço livre em disco.
 - **Ligação à internet** da primeira vez (para descarregar os dados das cartas) e para as imagens das cartas e as importações.
 - Só no Linux: **Python 3.10 ou mais recente**. Quase todas as distribuições Linux já o têm; confirma com `python3 --version`.
+- **Android 7.0** ou mais recente (64 ou 32 bits) também serve: vê [Android](#android).
 
 ## Windows
 
@@ -57,6 +58,38 @@ em **OK** quando quiseres fechar o Grimório. Para usares o navegador de propós
 
 4. O navegador abre o Grimório sozinho. O terminal mantém-no a funcionar enquanto o usas. Se tiveres o pacote de
    Python `pywebview` instalado (`pip install pywebview`), o Grimório abre-se na sua própria janela em vez do navegador.
+
+## Android
+
+A app Android é o Grimório inteiro no teu telemóvel ou tablet: decks, biblioteca, sugestões, regras, a mesa livre, os
+amigos e as salas online correm no aparelho, e os teus dados ficam na app. Não precisas de servidor, de conta nem de
+nuvem.
+
+1. No telemóvel, abre a [página de Releases](https://github.com/hubertdungen/grimorio/releases) e, em **Assets** da versão mais recente, descarrega
+   **`Grimorio-<versão>-android.apk`** (cerca de 55 MB).
+2. Abre o ficheiro descarregado. Da primeira vez, o Android pede para autorizares a instalação de apps a partir do
+   navegador (ou do gestor de ficheiros): autoriza e toca em **Instalar**.
+3. Abre o **Grimório**. Da primeira vez descarrega os dados das cartas (cerca de 11 MB, só desta vez): no Wi-Fi começa
+   sozinho, em dados móveis pergunta antes. Se a ligação cair, **Tentar outra vez** continua onde parou.
+4. A partir daí funciona como no computador: cria o teu perfil e escolhe a língua em **Definições › Língua**.
+
+Precisa do Android 7.0 ou mais recente e de cerca de 200 MB livres. Atualizações: **Definições › App Android** avisa
+quando há uma versão nova; descarrega-a e instala-a por cima da antiga (os dados ficam).
+
+**O que precisa de um computador.** O Forge, o motor de jogo dos bots, é um programa de computador e não corre em
+telemóveis: *Jogar contra o Forge*, o *Draft*, as mesas estritas, os torneios com bots, a Arena e correr testes no
+Laboratório precisam do Grimório num computador ou num servidor. Onde aparecem, a app explica-o e oferece-se para ligar
+a um; os relatórios e ratings que vêm de outro aparelho continuam a ver-se.
+
+**O teu servidor (opcional).** Se tens o Grimório num computador (`Grimorio.exe --host 0.0.0.0` ou
+`./grimorio --host 0.0.0.0` em casa) ou num servidor, a app pode abri-lo em vez disto: **Definições › App Android ›
+Ligar a um servidor Grimório** (ou *Tens um servidor do Grimório? Ligar a ele* no primeiro ecrã) e escreve o endereço,
+por exemplo `http://192.168.1.10:8107`. Aí tudo corre lá, incluindo o Forge. **Usar só neste aparelho** volta atrás;
+os decks do telemóvel continuam lá. Se usavas uma versão antiga da app com um servidor, depois de atualizar ela
+continua a abrir esse servidor.
+
+Os teus dados ficam no armazenamento privado da app: desinstalar a app apaga-os, por isso exporta antes uma cópia
+(**Definições › Dados e cópias › Exportar tudo**).
 
 ## O primeiro arranque
 

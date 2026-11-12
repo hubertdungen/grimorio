@@ -1,60 +1,84 @@
 # Roadmap notes
 
-## Android app — feasibility
+## Android app
 
-**Today.** The web app is already an installable PWA: on Android, open a Grimório that runs on a PC or server (for
-example `Grimorio.exe --host 0.0.0.0` on the home Wi-Fi, or a server behind HTTPS) and use *Install app*. It needs that
-computer to be on, because the decks, the card data and the Forge games live there.
+**Local first.** The APK is the whole Grimório on the phone. It embeds CPython with [Chaquopy](https://chaquo.com/chaquopy/)
+(MIT) and runs the same `server.py` as the desktop packages on `http://127.0.0.1:<port>` inside the app; the WebView
+shows it. Nothing else is needed: no server, no account, no cloud.
 
-**An APK** can wrap the same front end:
+- **Why this and not a client-only rewrite** (the old plan: Capacitor + IndexedDB, 2–3 months): the server is stdlib-only
+  Python, so it runs on Android unchanged — decks, profiles, imports (no CORS problem: the requests leave from the
+  phone's Python), EDHREC/17lands/MTGTop8, rules, AI keys, friends, the free table, rooms, the Taverna, backups. One
+  code base, the same database file (`grimorio.db`) as the desktop, so `.grimorio` backups and cloud-folder sync are the
+  same files.
+- **What is inside the APK:** `assets/grimorio-app.zip` (the `*.py` files and `web/dist`, built by the Gradle task
+  `grimorioAppZip`), the Chaquopy runtime (Python 3.11 — the last one Chaquopy builds for 32-bit ARM too — for
+  `arm64-v8a`, `armeabi-v7a`, `x86_64`) and the bootstrap `android/app/src/main/python/grimorio_android.py`.
+- **First start:** the app unpacks `grimorio-app.zip` to its private `files/app` (again after each update), downloads the
+  card data like the desktop launcher (`grimorio-data.zip` of the matching release, checked against its `.sha256`,
+  resumable with HTTP Range; it starts by itself on Wi-Fi and asks first on mobile data) into `files/grimorio`, then
+  starts the server (`LocalServer.java`). Port: 8107 or the next free one, remembered, because the WebView's storage
+  (language, open deck…) belongs to `http://127.0.0.1:<port>`. Leaving the app (back out) stops the server and the process.
+- **Only the app talks to it:** other apps on the phone can reach `127.0.0.1` too, so the server (with
+  `GRIMORIO_APP_TOKEN`) answers only requests carrying the `grimorio_app` cookie that the app puts in its WebView.
+- **Forge does not run on Android** (desktop Java, ~1 GB per game). The bootstrap sets `GRIMORIO_NO_FORGE`: everything
+  that starts a Forge game (`sim.submit`, `playnet.start`/`start_pvp`, `limited.start`) refuses with a clear message
+  (`sim.NoForge`, a `ValueError`, so routes and tournaments show it), `/api/health` answers `{"forge": false}`, and the
+  web app (`web/src/forge.jsx`) replaces *Play against Forge* and *Draft* with «Needs a computer or server running
+  Grimório» and puts a strip above the Lab and Ratings (their reports may come from another device). Free table,
+  deck building, library, rules, friends, online rooms and the Taverna (as host for yourself or as a guest of a
+  friend's Grimório) work on the phone. «Share over the internet» (cloudflared) is not available on Android.
+- **Remote mode (optional):** the app can open a Grimório server instead (your PC with `--host 0.0.0.0`, a server
+  behind HTTPS): then everything, Forge included, runs there. Apps updated from the old WebView-only APK that had a
+  server address saved start in remote mode; new installs start local.
 
-| Option | What it is | Fits when |
-|---|---|---|
-| TWA (Trusted Web Activity, e.g. Bubblewrap) | a Chrome window on a fixed HTTPS origin, verified with Digital Asset Links | Grimório is published on one public HTTPS address; not for a LAN `http://` PC |
-| Capacitor | `web/dist` packed inside the APK, native plugins (files, HTTP without CORS) | the app should work offline and talk to any Grimório server the user chooses |
+**Native ↔ web contract (`window.GrimorioApp`, `MainActivity.Bridge`):**
 
-Capacitor is the one that matches the goal (offline deck building).
-
-**Offline deck building needs a client-only mode** in the front end:
-
-- card data stored on the phone: `cards.json`, `emb.bin`, `pos.bin`, `combos.json`, `tokens.json` (≈ 9 MB compressed,
-  ≈ 38 MB unpacked), downloaded once from the release like the desktop packages do, kept in the app's files or
-  IndexedDB; the suggestion maths already runs in the browser;
-- decks, profiles and settings in IndexedDB instead of `/api/decks`, with optional sync to a server later;
-- what the server does today needs a replacement or stays online-only: site imports (`deck_import.py`, CORS-blocked in
-  a browser — Capacitor's native HTTP can do them), the EDHREC / 17lands / MTGTop8 proxies and caches, the optional AI
-  assistant.
-
-**Coliseum on Android: through a computer.** Forge's game engine here is the desktop Java build (Java 17, `sim` mode
-plus the GrimorioSim launcher, ~1 GB of RAM per game); it can't run inside an Android app. The APK would connect to a
-PC or server running Grimório (enter its address or scan a QR code shown on the PC), send the decks to its `/api/sim/*`
-and show the live board and reports as the web app does now. Tournaments, ratings and the Arena stay on that computer.
-
-**Effort (one developer, part-time):**
-
-| Step | Estimate |
+| Call | Does |
 |---|---|
-| Capacitor shell, icons, build/signing in CI, server address setting | 1–2 weeks |
-| Client-only data + deck storage (IndexedDB), offline suggestions, sync design | 4–6 weeks |
-| Imports through native HTTP; online-only fallbacks for the rest | 1–2 weeks |
-| Coliseum against a remote Grimório (pairing, CORS/cookies or token auth, live view) | 1–2 weeks |
-| **Total** | **about 2–3 months** |
+| `getMode()` | `"local"` (Grimório on this device) or `"remote"` (a server) |
+| `getServer()` | the saved server address (`""` if none); kept when switching to local |
+| `setMode("local")` | switch to this device (starts the local server, downloads the card data if missing) |
+| `setMode("remote", url)` | switch to the server at `url` (saved; `""` opens the address dialog, prefilled with the saved one) |
+| `changeServer()` | the address dialog (it also has «Use only on this device») |
+| `version()`, `saveFile(name, mime, b64)`, `keepScreenOn(on)`, `orientation(o)` | as before |
+
+The mode switches only when the call comes from the page of the current Grimório (local or the saved server), not
+from a site opened through a link. Apps older than this one have no `getMode`: treat them as remote-only. A first-run
+wizard or a `GET /api/storage` (`{mode: "local"|"remote", remote_url, sync}`) on the web side should, inside the app
+(`window.GrimorioApp?.setMode`), switch with `setMode` rather than storing a remote URL itself: the app owns which
+Grimório the WebView shows. «Only on this device» is a complete choice; nothing asks to connect anything unless a
+Forge feature is opened.
+
+**Build:** `cd web && npm ci && npx vite build`, then `gradle -p android assembleRelease` (Gradle 8.9, JDK 17, Android
+SDK 34). No Python is needed on the build machine (no pip, `.pyc` compiled on the phone). CI: `.github/workflows/release.yml`
+job `android` builds the web app first and checks that the APK carries `grimorio-app.zip` with `server.py` and
+`web/dist`, the bootstrap and `libpython3.11.so`.
+
+**Google Play:** the same job also builds `app-release.aab` (`bundleRelease`, signed with the same key; CI artifact
+`play-bundle`, not attached to the GitHub release). `targetSdk 36` (Play's level for new apps and updates;
+`compileSdk 36` on AGP 8.7 with `android.suppressUnsupportedCompileSdk`): the app pads itself out of the system bars on
+Android 15+ (edge-to-edge) and handles Back through `OnBackInvokedCallback` (Android 16 no longer calls
+`onBackPressed`). `versionCode = major·1 000 000 + minor·1 000 + patch` grows with every release and is above the old
+scheme (`1.13.85` was 11385). For Play App Signing, keep the current key as the app signing key (upload it with the
+Play Console's PEPK tool) so that APKs from GitHub and installs from Play update each other; the data download from
+GitHub at first start and the cleartext `http://` to `127.0.0.1` and LAN servers are declared in the Data safety form
+as «app functionality», no data collected.
+
+**Possible next steps:** an Android cloud folder through the Storage Access Framework (the server sees only app-private
+storage today: sync works through a folder another app keeps in step inside `Android/media`, or by export/import);
+splitting the APK per ABI to make it smaller; a QR code on the desktop to connect the app to it.
 
 ## Backups and sync on Android
 
-The desktop and server editions already export/import `.grimorio` files and sync through a cloud folder
-(`backup.py`: each device writes only `grimorio-<device>.grimorio` there and merges the others'). The APK reuses the same
-files, so phones join the same folder as the computers:
+The app runs `backup.py` itself (same database, same `.grimorio` files), so on the phone: **Settings › Data & backups ›
+Export everything** saves a `.grimorio` file to *Downloads*, and importing one works through the file picker. Android's
+own backup keeps `grimorio.db` (decks, profiles, games) but not the card data, which is downloaded again.
 
-- **Folder sync apps:** Syncthing-Fork (no account, direct device-to-device), or Dropbox / OneDrive / Nextcloud apps (or
-  a folder-sync app such as FolderSync) pointed at the shared `Grimorio` folder. The APK reads and writes there through
-  the Android Storage Access Framework (the user picks the folder once).
-- **Same merge rules** as `backup.merge`: decks newest-wins with «(conflito)» copies, union of tests, tournaments, bets
-  and rating games, ratings rebuilt from the games. Ported to JS (IndexedDB) or run on the phone's SQLite via a
-  Capacitor plugin.
-- **Manual backup** stays the fallback: share/receive a `.grimorio` file.
-
-Estimate: 1–2 weeks on top of the «client-only data» step above.
+Still to do: a cloud folder on Android. The server only sees the app's private storage, so syncing with the computers'
+`Grimorio` folder (Syncthing-Fork, Dropbox / OneDrive / Nextcloud apps, FolderSync) needs the Storage Access Framework
+(the user picks the folder once) and a small native bridge that copies `grimorio-<device>.grimorio` in and out; the
+merge rules stay those of `backup.merge`.
 
 ## Desktop packages
 

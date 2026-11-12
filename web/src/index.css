@@ -4230,3 +4230,7 @@ body:has(.fp.compact) :is(.area.coliseu, .view.fp-view) { padding: 0; margin: 0;
   .board.compact:has(> .fp-drawer.top) > .bwrap { grid-area: 2 / 1 / 4 / 2; }
   .board.compact:has(> .fp-drawer.top) > .rp-ctrl { grid-area: 2 / 2 / 4 / 3; }
 }
+
+/* sem Forge (app Android só no telemóvel): o aviso no Coliseu e no Laboratório (forge.jsx) */
+.needs-forge { border-left: 3px solid var(--gold); }
+p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 10px; }

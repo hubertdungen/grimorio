@@ -1,18 +1,26 @@
-// A app Android do Grimório: uma janela (WebView) para o teu servidor do Grimório, com câmara, fotos e transferências.
-plugins { id 'com.android.application' }
+// A app Android do Grimório: o servidor do Grimório (server.py, Python pelo Chaquopy) a correr no próprio telemóvel e a
+// WebView a mostrá-lo; opcionalmente liga a um servidor do Grimório. Câmara, fotos e transferências.
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
 
 def ver = System.getenv('GRIMORIO_VERSION') ?: '0.0.0'
 def p = ver.tokenize('.-').findAll { it.isInteger() }.collect { it as int } + [0, 0, 0]
 
 android {
     namespace 'com.hubertdungen.grimorio'
-    compileSdk 34
+    compileSdk 36
     defaultConfig {
         applicationId 'com.hubertdungen.grimorio'
         minSdk 24
-        targetSdk 34
+        targetSdk 36  // o que a Google Play pede às apps e atualizações novas (Android 16)
         versionName ver
-        versionCode Math.max(1, p[0] * 10000 + p[1] * 100 + p[2])  // 1.10.0 -> 11000; builds de teste (0.0.0) -> 1
+        // 1.13.86 -> 1013086 (patch até 999); sobe sempre, e acima do esquema antigo (1.13.85 era 11385).
+        // Builds de teste (0.0.0) -> 1
+        versionCode Math.max(1, p[0] * 1000000 + p[1] * 1000 + p[2])
+        // telemóveis de 64 bits, os de 32 bits (tablets baratos) e x86_64 (emuladores, Chromebooks)
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
     signingConfigs {
         release {
@@ -31,3 +39,27 @@ android {
 }
 
 dependencies { implementation 'androidx.core:core:1.13.1' }
+
+chaquopy {
+    defaultConfig {
+        version '3.11'  // a 3.12+ do Chaquopy já não tem armeabi-v7a (telemóveis e tablets de 32 bits)
+        // o servidor só usa a biblioteca padrão: sem pip e sem compilar .pyc aqui (o Python faz o __pycache__ no telemóvel),
+        // por isso a máquina que compila não precisa de ter Python
+        pyc { src false }
+    }
+}
+
+// O Grimório que corre no telemóvel: server.py & co + web/dist (sem as cópias .gz) num zip dentro do APK
+// (assets/grimorio-app.zip); a app desembrulha-o para <files>/app quando é instalada ou atualizada (LocalServer.java).
+def repo = rootProject.projectDir.parentFile
+def appZip = tasks.register('grimorioAppZip', Zip) {
+    from(repo) { include '*.py' }
+    from(new File(repo, 'web/dist')) { into 'web/dist'; exclude '**/*.gz' }
+    archiveFileName = 'grimorio-app.zip'
+    destinationDirectory = layout.buildDirectory.dir('grimorio-assets')
+    doFirst {
+        if (!new File(repo, 'web/dist/index.html').isFile()) throw new GradleException('Compila primeiro a app web: cd web && npm ci && npx vite build')
+    }
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('grimorio-assets'))
+tasks.named('preBuild') { dependsOn appZip }

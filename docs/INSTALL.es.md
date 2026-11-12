@@ -15,6 +15,7 @@ después se actualiza solo.
   las importaciones.
 - Solo en Linux: **Python 3.10 o posterior**. Casi todas las distribuciones Linux ya lo traen; compruébalo con
   `python3 --version`.
+- **Android 7.0** o posterior (64 o 32 bits) también sirve: mira [Android](#android).
 
 ## Windows
 
@@ -55,6 +56,38 @@ uses y pulsa **OK** cuando quieras cerrarlo.
    ```
 
 4. Tu navegador abre Grimório solo. La terminal sigue en marcha mientras lo uses.
+
+## Android
+
+La app de Android es Grimório entero en tu móvil o tableta: mazos, biblioteca, sugerencias, reglas, la mesa libre, los
+amigos y las salas online funcionan en el dispositivo, y tus datos se quedan en la app. No hace falta servidor, cuenta
+ni nube.
+
+1. En el móvil, abre la [página de Releases](https://github.com/hubertdungen/grimorio/releases) y, en **Assets** de la versión más reciente, descarga
+   **`Grimorio-<versión>-android.apk`** (unos 55 MB).
+2. Abre el archivo descargado. La primera vez, Android pide permiso para instalar apps desde el navegador (o el gestor
+   de archivos): permítelo y toca **Instalar**.
+3. Abre **Grimório**. La primera vez descarga los datos de las cartas (unos 11 MB, solo esa vez): con Wi-Fi empieza
+   solo, con datos móviles pregunta antes. Si se corta la conexión, **Intentar de nuevo** sigue donde se quedó.
+4. Desde ahí funciona como en el ordenador: crea tu perfil y elige el idioma en **Ajustes › Idioma**.
+
+Necesita Android 7.0 o posterior y unos 200 MB libres. Actualizaciones: **Ajustes › App de Android** avisa cuando hay una
+versión nueva; descárgala e instálala encima de la anterior (los datos se quedan).
+
+**Lo que necesita un ordenador.** Forge, el motor de juego de los bots, es un programa de ordenador y no funciona en
+móviles: *Jugar contra Forge*, el *Draft*, las mesas estrictas, los torneos con bots, la Arena y lanzar pruebas en el
+Laboratorio necesitan Grimório en un ordenador o un servidor. Donde aparecen, la app lo explica y ofrece conectarse a
+uno; los informes y ratings que vienen de otro dispositivo se siguen viendo.
+
+**Tu propio servidor (opcional).** Si tienes Grimório en un ordenador (`Grimorio.exe --host 0.0.0.0` o
+`./grimorio --host 0.0.0.0` en casa) o en un servidor, la app puede abrirlo en su lugar: **Ajustes › App de Android ›
+Conectar a un servidor de Grimório** (o *¿Tienes un servidor de Grimório? Conéctate* en la primera pantalla) y escribe
+su dirección, por ejemplo `http://192.168.1.10:8107`. Entonces todo funciona allí, Forge incluido. **Usar solo en este
+dispositivo** vuelve atrás; los mazos del móvil siguen ahí. Si usabas una versión antigua de la app con un servidor,
+tras actualizar sigue abriendo ese servidor.
+
+Tus datos están en el almacenamiento privado de la app: desinstalarla los borra, así que exporta antes una copia
+(**Ajustes › Datos y copias › Exportar todo**).
 
 ## El primer arranque
 
