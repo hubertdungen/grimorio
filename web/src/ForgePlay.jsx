@@ -959,7 +959,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (/^Priority:/.test(pr?.msg || '') && !st.stack?.length) send({ c: 'ok' })
   }
   sNow.current = s
-  const castNow = id => { lastCast.current = { id, t: Date.now() } }
+  // lançar/ativar já é responder: o relógio desta pergunta sai logo. Antes só saía com o estado seguinte do Forge e, se
+  // faltavam 1–2 s, dava OK por ti enquanto o Forge já pedia o alvo — o feitiço era cancelado
+  const castNow = id => { lastCast.current = { id, t: Date.now() }; if (clockRef.current) { clockRef.current = null; setClock(null) } }
   const autoAct = x => {  // o que a mesa faz sozinha neste estado: {k (uma vez só), c, ms} ou nada
     const p = x?.prompt, b0 = (p?.buttons || []).filter(b => b.label)[0], P = fpPrefs(), lc = lastCast.current, msg = p?.msg || ''
     if (!p || x.asks?.length || x.ended) return null
