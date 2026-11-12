@@ -23,3 +23,10 @@
 .sbs-chat { position: sticky; top: 0; display: flex; height: min(78vh, 720px); }
 .sbs-chat .ml-chat { min-height: 0; }
 @media (max-width: 900px) { .sbs-phase { grid-template-columns: minmax(0, 1fr); } .sbs-chat { position: static; height: 360px; } }
+/* ver a carta em grande: a lupa (o rato por cima mostra-a; no toque fica sempre à vista) */
+.sbs-card:focus-visible { outline: 2px solid var(--gold2); outline-offset: 1px; }
+.sbs-zoom { position: absolute; left: 3px; top: 3px; display: grid; place-items: center; width: 26px; height: 26px; min-height: 0; padding: 0; border: 0; border-radius: 50%;
+  background: #000b; font-size: 13px; line-height: 1; opacity: 0; transition: opacity .15s; cursor: zoom-in; }
+.sbs-card:hover .sbs-zoom, .sbs-card:focus-within .sbs-zoom, html.touch .sbs-zoom { opacity: 1; }
+html.touch .sbs-card { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+@media (prefers-reduced-motion: reduce) { .sbs-zoom { transition: none; } }

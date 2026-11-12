@@ -214,7 +214,7 @@ export function useOverlap(tableRef) {
       if (tight()) while (k > 0.45 && tight()) { k -= 0.05; set(k) }
       else while (k < 1) { const n = Math.min(1, k + 0.05); set(n); if (tight()) { set(k); break } k = n }  // cresce de uma vez até ao maior que cabe
     }
-    for (const row of root.querySelectorAll('.brow.front, .brow.lands, .brow.others, .fp-hand')) overlap(row)
+    for (const row of root.querySelectorAll('.brow.front, .brow.lands, .brow.others, .fp-hand, .bside.top:not(.compact) .myhand.opp .fan')) overlap(row)
   })
 }
 

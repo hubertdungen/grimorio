@@ -17,6 +17,7 @@ import { fpPrefs, setFpPrefs, CARD_PX, MATS, ORB_T, ORB_A } from './fpprefs.js'
 import { snapBoard, ftBoard, ftTxt } from './fpboard.js'
 import { fClean } from './fpask.js'
 import './fpstack.css'
+import './pilepeek.css'
 import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
@@ -941,16 +942,126 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
   )
 }
 
-function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet, zone }) {  // zone: data-zone (a mesa livre larga cartas nos montes)  // est: jogo antigo, contagem deduzida
+function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet, zone, who, openLabel }) {  // zone: data-zone (a mesa livre larga cartas nos montes)  // est: jogo antigo, contagem deduzida
   const top = cards?.length ? cards[cards.length - 1] : null
   const c = top && lookup(data, top), im = useImg()
   const n = count ?? cards?.length ?? 0
-  return (
-    <button className={`pile ${n ? '' : 'empty'}`} data-zone={zone} onClick={onOpen} title={`${label}: ${n}${est ? ` ${tx('(estimativa: o Forge não regista as compras)')}` : ''}`} disabled={!onOpen}>
+  // o resumo do monte: rato por cima (com demora) ou toque; a biblioteca com ação própria (mesa livre: o menu/comprar) só no toque longo
+  const pk = usePilePeek(zone !== 'library' || !onOpen, true)
+  return (<>
+    <button ref={pk.ref} {...pk.on} className={`pile ${n ? '' : 'empty'}`} data-zone={zone} onClick={e => { pk.close(); onOpen?.(e) }} title={pk.open ? undefined : `${label}: ${n}${est ? ` ${tx('(estimativa: o Forge não regista as compras)')}` : ''}`} aria-disabled={!onOpen || undefined} data-peek="1">
       <span className="pile-c">{back || !c ? <span className={n ? 'pc-back' : 'pile-0'} /> : <In as="img" key={`${n}`} quiet={quiet} src={im(c, 'small')} alt={top} />}</span>
       <small>{icon} {n == null ? '?' : `${est ? '≈' : ''}${n}`}</small>
     </button>
+    {pk.open && <PilePeek pk={pk} zone={zone} label={label} icon={icon} who={who} n={n} est={est} cards={back ? null : cards} data={data} onOpen={onOpen && (() => pk.reopen())} openLabel={openLabel} />}
+  </>)
+}
+
+// ---------- o resumo de um monte (biblioteca, cemitério, exílio): rato por cima com demora (computador) ou toque
+// (telemóvel/tablet). Quantas, a de cima (se for pública), as últimas em leque (passar/manter em cima = em grande), os
+// tipos, o delírio, o que pode voltar do cemitério e «Ver tudo». O mesmo para os dois lados: só mostra o que é público ----------
+let peekShut = null, lastPtr = 'mouse', peekBypass = null
+if (globalThis.document) {
+  addEventListener('pointerdown', e => { lastPtr = e.pointerType || 'mouse' }, true)
+  // o toque num monte abre o resumo (antes de quem estiver por baixo tratar o clique: a mesa livre abre a lista em captura)
+  addEventListener('click', e => {
+    const el = e.target.closest?.('[data-peek]')
+    if (!el || e.defaultPrevented || lastPtr === 'mouse' || !el._peek) return
+    if (peekBypass === el) { peekBypass = null; return }  // «Ver tudo»: o clique segue para o monte como sempre
+    e.preventDefault(); e.stopPropagation(); el._peek()
+  }, true)
+}
+function usePilePeek(tapOk, ctx) {
+  const ref = useRef(null), [open, setOpen] = useState(null), t = useRef(0)  // open: 'hover' (rato) | 'tap' (toque/clique)
+  useEffect(() => { const el = ref.current; if (el) el._peek = tapOk ? () => setOpen(o => (o ? null : 'tap')) : null })
+  useEffect(() => {
+    if (!open) return
+    if (peekShut) peekShut(); const shut = () => setOpen(null); peekShut = shut  // um de cada vez
+    const down = e => { if (!e.target.closest?.('.pilepk') && !ref.current?.contains(e.target)) setOpen(null) }
+    const key = e => { if (e.key === 'Escape') setOpen(null) }
+    addEventListener('pointerdown', down, true); addEventListener('keydown', key, true)
+    return () => { if (peekShut === shut) peekShut = null; removeEventListener('pointerdown', down, true); removeEventListener('keydown', key, true) }
+  }, [open])
+  useEffect(() => () => clearTimeout(t.current), [])
+  const enter = e => { if (e.pointerType !== 'mouse') return; clearTimeout(t.current); t.current = setTimeout(() => setOpen(o => o || 'hover'), 420) }
+  const leave = e => { if (e.pointerType !== 'mouse') return; clearTimeout(t.current); t.current = setTimeout(() => setOpen(o => (o === 'hover' ? null : o)), 240) }
+  return {
+    ref, t, open, close: () => { clearTimeout(t.current); setOpen(null) }, enter, leave,
+    reopen: () => { const el = ref.current; setOpen(null); if (el) { peekBypass = el; el.click(); peekBypass = null } },  // «Ver tudo»: o mesmo clique de sempre no monte
+    on: { onPointerEnter: enter, onPointerLeave: leave, ...(ctx && { onContextMenu: e => { e.preventDefault(); held(); clearTimeout(t.current); setOpen('tap') } }) },
+  }
+}
+// tipos que contam para o delírio; o que pode voltar do cemitério (palavras-chave e «pode lançar/devolver ESTA do cemitério»)
+const DELI = ['Artifact', 'Battle', 'Creature', 'Enchantment', 'Instant', 'Kindred', 'Land', 'Planeswalker', 'Sorcery']
+const PK_T = n => [['Creature', tx('{n} criatura|{n} criaturas', { n })], ['Instant', tx('{n} instantâneo|{n} instantâneos', { n })], ['Sorcery', tx('{n} feitiço|{n} feitiços', { n })], ['Land', tx('{n} terreno|{n} terrenos', { n })],
+  ['Artifact', tx('{n} artefacto|{n} artefactos', { n })], ['Enchantment', tx('{n} encantamento|{n} encantamentos', { n })], ['Planeswalker', tx('{n} planeswalker|{n} planeswalkers', { n })], ['Battle', tx('{n} batalha|{n} batalhas', { n })]]
+const BACK_KW = ['Flashback', 'Escape', 'Unearth', 'Embalm', 'Eternalize', 'Disturb', 'Jump-start', 'Retrace', 'Aftermath', 'Encore', 'Scavenge', 'Dredge', 'Harmonize', 'Mayhem', 'Blitz', 'Craft']
+function backWay(c) {  // como volta do cemitério (a palavra-chave) ou null
+  if (!c) return null
+  const kw = (c.kw || []).find(k => BACK_KW.includes(k)) || BACK_KW.find(k => new RegExp(`(^|\\n)${reEsc(k)}\\b`).test(c.o || ''))
+  if (kw) return kw
+  const nm = short(c.n), first = nm.split(',')[0]
+  return new RegExp(`\\b(cast|return|play|put) (this card|${reEsc(nm)}|${reEsc(first)})\\b[^.]{0,40}\\bfrom your graveyard`, 'i').test(c.o || '') ? tx('volta sozinha') : null
+}
+function PilePeek({ pk, zone, label, icon, who, n, est, cards, data, onOpen, openLabel, libTop }) {
+  const im = useImg(), box = useRef(null), [focus, setFocus] = useState(null), [pos, setPos] = useState(null)
+  const list = cards || [], last = list.slice(-8), shown = focus || (libTop ? libTop.name : list.at(-1)), sc = shown && lookup(data, shown)
+  const sheet = typeof matchMedia === 'function' && (matchMedia('(max-width: 640px)').matches || (pk.open === 'tap' && matchMedia('(max-height: 480px)').matches))
+  useLayoutEffect(() => {  // ao lado do monte, dentro do ecrã (por cima no teu lado, por baixo no do adversário)
+    if (sheet) return
+    const a = pk.ref.current?.getBoundingClientRect(), b = box.current
+    if (!a || !b) return
+    const w = b.offsetWidth, h = b.offsetHeight, above = a.top - h - 10 >= 8 || a.top > innerHeight / 2
+    setPos({ left: Math.max(8, Math.min(innerWidth - w - 8, a.left + a.width / 2 - w / 2)), top: above ? Math.max(8, a.top - h - 10) : Math.min(innerHeight - h - 8, a.bottom + 10) })
+  }, [sheet, focus, n])  // eslint-disable-line react-hooks/exhaustive-deps
+  const known = list.filter(x => x && x !== '?'), cs = known.map(x => lookup(data, x)).filter(Boolean)
+  const types = PK_T(0).map(([t], i) => { const k = cs.filter(c => new RegExp(`\\b${t}\\b`).test(c.t || '')).length; return [t, k && PK_T(k)[i][1]] }).filter(x => x[1])
+  const deli = new Set(cs.flatMap(c => DELI.filter(t => new RegExp(`\\b${t === 'Kindred' ? '(Kindred|Tribal)' : t}\\b`).test(c.t || '')))).size
+  const back = zone === 'graveyard' ? [...new Map(cs.map(c => [c.n, backWay(c)]).filter(x => x[1])).entries()] : []
+  const hid = list.length - known.length
+  const title = zone === 'library' ? tx('Biblioteca') : label
+  const body = (
+    <div ref={box} className={`pilepk ${sheet ? 'sheet' : 'pop'} z-${zone}`} role="dialog" aria-label={`${title}${who ? ` · ${who}` : ''}`}
+      style={sheet ? undefined : pos ? { left: pos.left, top: pos.top } : { visibility: 'hidden', left: 0, top: 0 }}
+      onPointerEnter={e => { if (e.pointerType === 'mouse') clearTimeout(pk.t?.current) }} onPointerLeave={pk.open === 'hover' ? pk.leave : undefined}
+      onPointerDown={e => e.stopPropagation()}>
+      {sheet && <i className="pilepk-grab" aria-hidden="true" />}
+      <header>
+        <span className="pilepk-ic" aria-hidden="true">{icon}</span>
+        <span className="pilepk-h"><b>{title}</b>{who && <small>{who}</small>}</span>
+        <b className="pilepk-n">{est ? '≈' : ''}{n ?? '?'}</b>
+        <button className="pilepk-x" onClick={pk.close} aria-label={tx('Fechar')}>×</button>
+      </header>
+      <div className="pilepk-main">
+        <div className="pilepk-big">{sc ? <img src={im(sc, 'normal')} alt={shown} draggable="false" /> : <span className={n ? 'pc-back' : 'pile-0'} />}
+          {zone === 'library' && <small>{libTop ? tx('topo à vista') : n ? tx('o topo está escondido') : tx('vazia')}</small>}</div>
+        <div className="pilepk-info">
+          {zone === 'library' && <>
+            {n != null && n <= 10 && n > 0 && <p className="pilepk-warn">⚠ {tx('Só resta {n} carta: comprar de uma biblioteca vazia perde o jogo.|Só restam {n} cartas: comprar de uma biblioteca vazia perde o jogo.', { n })}</p>}
+            {n === 0 && <p className="pilepk-warn">⚠ {tx('Biblioteca vazia: perde ao comprar.')}</p>}
+            {libTop ? <p className="muted">{tx('topo à vista: {c}', { c: short(libTop.name) })}</p> : n > 0 && <p className="muted">{tx('A ordem é secreta: o topo só se vê quando um efeito o revela.')}</p>}
+            {est && <p className="muted">{tx('(estimativa: o Forge não regista as compras)')}</p>}
+          </>}
+          {zone !== 'library' && !list.length && <p className="muted">{zone === 'graveyard' ? tx('Cemitério vazio.') : tx('Nada no exílio.')}</p>}
+          {types.length > 0 && <ul className="pilepk-types">{types.map(([t, l]) => <li key={t}>{l}</li>)}</ul>}
+          {zone === 'graveyard' && list.length > 0 && <p className={`pilepk-deli ${deli >= 4 ? 'on' : ''}`} title={tx('Delírio: quatro ou mais tipos de carta no cemitério')}>{tx('Delírio')}: <b>{deli}</b>{deli >= 4 ? ' ✓' : '/4'}{list.length >= 7 && <> · {tx('Limiar')} ✓</>}</p>}
+          {back.length > 0 && <div className="pilepk-back"><small>{tx('Podem voltar do cemitério')}</small>
+            {back.slice(0, 5).map(([nm, w]) => <button key={nm} className="pilepk-chip" onPointerEnter={() => setFocus(nm)} onClick={() => setFocus(nm)}>{short(nm)} <i>{w}</i></button>)}</div>}
+          {hid > 0 && <p className="muted small">{tx('{n} virada para baixo|{n} viradas para baixo', { n: hid })}</p>}
+        </div>
+      </div>
+      {last.length > 1 && <div className="pilepk-fan" onPointerLeave={() => setFocus(null)}>{last.map((nm, j) => {
+        const c = nm && nm !== '?' && lookup(data, nm)
+        return <button key={j} className={`pilepk-c ${focus === nm ? 'on' : ''}`} style={{ '--r': `${(j - (last.length - 1) / 2) * 4}deg` }} title={c ? short(nm) : undefined}
+          onPointerEnter={() => c && setFocus(nm)} onClick={() => c && setFocus(f => (f === nm ? null : nm))} onContextMenu={e => { e.preventDefault(); if (c) { held(); setFocus(nm) } }}>
+          {c ? <img src={im(c, 'small')} alt={nm} draggable="false" /> : <span className="pc-back" />}</button>
+      })}</div>}
+      {last.length > 1 && <small className="pilepk-hint muted">{list.length > last.length ? tx('as últimas {n} de {m}', { n: last.length, m: list.length }) : tx('da mais antiga à mais recente')}</small>}
+      {onOpen && <div className="row-btns pilepk-act"><button className="primary small" onClick={onOpen}>{openLabel || tx('Ver tudo')}</button></div>}
+    </div>
   )
+  const host = document.fullscreenElement || document.webkitFullscreenElement || document.body
+  return createPortal(sheet ? <div className="pilepk-bg" onPointerDown={e => { if (e.target === e.currentTarget) pk.close() }}>{body}</div> : body, host)
 }
 
 // ---------- bloqueios à vista: o par (atacante ⚔ n, bloqueadores 🛡 n) com a mesma cor e uma linha entre eles ----------
@@ -974,9 +1085,29 @@ export function spellCol(c) {
 // ---------- a pilha aponta para os alvos: uma linha tracejada a correr, na cor do feitiço, de cada carta da pilha até cada
 // alvo (permanente, jogador ou outro feitiço na pilha), com um anel a pulsar no alvo ----------
 // s.stack[j] = {card, tc: [chave da carta], tp: ['a'|'b'], target: nome} — sem chaves (réplicas), procura-se pelo nome
+// tcz: [[lado, zona] | null] ao lado de tc — a carta-alvo fora do campo (no cemitério, no exílio, na mão…): a linha vai a esse monte
+// A zona de que um efeito trata, quando o alvo é um jogador: moer e exilar do topo → a biblioteca dele (de onde as cartas
+// saem); exilar/baralhar o cemitério → o cemitério; descartar, revelar ou ver a mão → a mão. Dano e vida ficam no jogador
+// (a esfera). O texto é o do Forge (o que está mesmo na pilha) ou, sem ele (réplicas), o texto da carta
+const ZONE_FX = [
+  ['library', /\bmills?\b|\btop [^.]{0,40}\bof (target (player|opponent)'s|their|his or her|that player's|each opponent's) library|\bsearch(es)? (target (player|opponent)'s|their) library|\blibrary\b[^.]{0,30}\binto (their|his or her) graveyard/i],
+  ['graveyard', /\b(exiles?|shuffles?|puts?)\b[^.]{0,40}\b(target (player|opponent)'s|their|his or her|that player's|each opponent's) graveyard\b|\bgraveyard\b[^.]{0,30}\b(into|on the bottom of) (their|his or her|its owner's) library/i],
+  ['hand', /\bdiscards?\b|\breveals? (their|his or her) hand\b|\blook at (target (player|opponent)'s|their|his or her) hand\b/i],
+]
+export function effectZone(text) {
+  const t = String(text || '')
+  return t ? ZONE_FX.find(([, re]) => re.test(t))?.[0] || null : null
+}
+// o sítio da zona de um lado da mesa (null se esse lado não está à vista: gaveta fechada)
+function zoneAt(root, k, zone) {
+  const side = root.querySelector(`.bside.p-${k}`)
+  if (!side) return null
+  if (zone === 'hand') return side.querySelector('.fp-hand, .myhand .fan, .myhand, .bhand')
+  return side.querySelector(`.zones [data-zone="${zone}"]`) || side.querySelector(`[data-zone="${zone}"]`)
+}
 export function StackLinks({ s, data }) {
   const ref = useRef(null), [ls, setLs] = useState([])
-  const items = s.stack || [], sig = items.map((x, j) => `${j}:${x.card}>${(x.tc || []).join('.')}|${(x.tp || []).join('.')}|${x.tc || x.tp ? '' : x.target || ''}`).join(',')
+  const items = s.stack || [], sig = items.map((x, j) => `${j}:${x.card}>${(x.tc || []).join('.')}|${(x.tp || []).join('.')}|${x.tc || x.tp ? '' : x.target || ''}|${(x.tcz || []).join('.')}|${x.text || ''}`).join(',')
   useLayoutEffect(() => {
     const root = ref.current?.parentElement
     if (!root || !items.some(x => x.tc?.length || x.tp?.length || x.target)) { setLs([]); return }
@@ -989,10 +1120,12 @@ export function StackLinks({ s, data }) {
         items.forEach((x, j) => {
           const from = pt(root.querySelector(`.stk[data-si="${j}"]`)?.getBoundingClientRect())
           if (!from) return
-          const col = spellCol(lookup(data, x.card))
-          const tos = [...(x.tc || []).map(k => root.querySelector(`.pc[data-z="k:${k}"]`) || root.querySelector(`.stk[data-si]:not([data-si="${j}"])`)),
-            ...(x.tp || []).map(k => root.querySelector(`.bside.p-${k} .orb`)),
-            ...(!x.tc?.length && !x.tp?.length && x.target ? [/^[a-d]$/.test(x.target) ? root.querySelector(`.bside.p-${x.target} .orb`) : byName(x.target)] : [])]
+          const card = lookup(data, x.card), col = spellCol(card)
+          const zn = effectZone(x.text) || (x.text ? null : effectZone(card?.o))  // a zona de que o efeito trata (moer → biblioteca…)
+          const pl = k => (zn && zoneAt(root, k, zn)) || root.querySelector(`.bside.p-${k} .orb`)
+          const tos = [...(x.tc || []).map((k, i) => root.querySelector(`.pc[data-z="k:${k}"]`) || root.querySelector(`.fp-hand [data-h="${k}"]`) || (x.tcz?.[i] && zoneAt(root, ...x.tcz[i])) || root.querySelector(`.stk[data-si]:not([data-si="${j}"])`)),
+            ...(x.tp || []).map(pl),
+            ...(!x.tc?.length && !x.tp?.length && x.target ? [/^[a-d]$/.test(x.target) ? pl(x.target) : byName(x.target)] : [])]
           tos.forEach((e, i) => { const to = pt((e?._proxy || e)?.getBoundingClientRect()); if (to) out.push({ k: `${j}-${i}`, col, xy: [...from, ...to], top: j === items.length - 1 }) })
         })
         setLs(out)
@@ -1676,15 +1809,17 @@ export function ZoneFx({ s, data, quiet }) {
 
 // a biblioteca com o topo à vista (Courser of Kruphix, Future Sight, Vizier of the Menagerie…, Forge Play): a carta de cima
 // virada para cima; a minha, se dá para a jogar, brilha e agarra-se/duplo clique como as da mão (data-h, data-from)
-function LibTop({ k, z, data }) {
+function LibTop({ k, z, data, who }) {
   const t = z.libTop, c = lookup(data, t.name), im = useImg(), mine = k === 'a'
-  return (
-    <span className={`pile libtop ${mine && t.play ? 'play' : ''}`} data-zone="library" data-zid={t.id} {...(mine ? { 'data-h': t.id, 'data-from': 'library' } : {})}
-      title={`${tx('Biblioteca')}: ${z.library} · ${tx('topo à vista: {c}', { c: short(t.name) })}${mine && t.play ? ` · ${(isTouch() ? tx('podes jogá-la daqui (arrasta ou toca-lhe duas vezes)') : tx('podes jogá-la daqui (arrasta ou duplo clique)'))}` : ''}`}>
+  const pk = usePilePeek(!(mine && t.play), false)  // a minha jogável: o toque é para a jogar (dois toques/arrastar)
+  return (<>
+    <span ref={pk.ref} {...pk.on} data-peek="1" className={`pile libtop ${mine && t.play ? 'play' : ''}`} data-zone="library" data-zid={t.id} {...(mine ? { 'data-h': t.id, 'data-from': 'library' } : {})}
+      title={pk.open ? undefined : `${tx('Biblioteca')}: ${z.library} · ${tx('topo à vista: {c}', { c: short(t.name) })}${mine && t.play ? ` · ${(isTouch() ? tx('podes jogá-la daqui (arrasta ou toca-lhe duas vezes)') : tx('podes jogá-la daqui (arrasta ou duplo clique)'))}` : ''}`}>
       <span className="pile-c">{c ? <img src={im(c, 'small')} alt={t.name} /> : <span className="pc-back" />}</span>
       <small>▤ {z.library}</small>
     </span>
-  )
+    {pk.open && <PilePeek pk={pk} zone="library" icon="▤" who={who} n={z.library} data={data} libTop={t} />}
+  </>)
 }
 
 // de onde vem o deck de cada lugar: meta, meu, de um amigo ou da comunidade (ao lado da etiqueta do bot)
@@ -1727,10 +1862,10 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
             </div>
           )
         })}
-        {z.libTop ? <LibTop k={k} z={z} data={data} /> : <Pile label={tx('Biblioteca')} icon="▤" count={z.library} back est={!s.exact} data={data} zone="library" onOpen={openLib && (() => openLib(k))} />}
+        {z.libTop ? <LibTop k={k} z={z} data={data} who={name} /> : <Pile label={tx('Biblioteca')} icon="▤" count={z.library} back est={!s.exact} data={data} zone="library" who={name} openLabel={tx('Abrir a biblioteca')} onOpen={openLib && (() => openLib(k))} />}
         {(k !== 'a' || top) && !s.exact && <div className="bhand" title={`${tx('{n} carta na mão|{n} cartas na mão', { n: z.hand })}${s.exact ? '' : ` ${tx('(estimativa)')}`}`}>{Array.from({ length: Math.min(8, z.hand) }).map((_, j) => <span key={j} className="back" />)}<small>✋ {s.exact ? '' : '≈'}{z.hand}</small></div>}
-        <Pile label={tx('Cemitério')} icon="⚰" cards={z.graveyard} data={data} quiet={fast} onOpen={() => openZone(k, 'graveyard')} zone="graveyard" />
-        <Pile label={tx('Exílio')} icon="⌀" cards={z.exile} data={data} quiet={fast} onOpen={() => openZone(k, 'exile')} zone="exile" />
+        <Pile label={tx('Cemitério')} icon="⚰" cards={z.graveyard} data={data} quiet={fast} onOpen={() => openZone(k, 'graveyard')} zone="graveyard" who={name} />
+        <Pile label={tx('Exílio')} icon="⌀" cards={z.exile} data={data} quiet={fast} onOpen={() => openZone(k, 'exile')} zone="exile" who={name} />
       </div>
     </div>
   )
@@ -1769,6 +1904,29 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
     const ro = new ResizeObserver(fit); ro.observe(rear); ro.observe(lands); fit()
     return () => { ro.disconnect(); el.style.removeProperty('--oth') }
   }, [align])
+  // a mão em camada fica ENTRE a vida/nome (à esquerda) e os montes (à direita): --hl / --hr = o espaço que cada lado
+  // ocupa (em px da mesa, sem a escala). Antes a mão ia de ponta a ponta no telemóvel/tablet e os montes ficavam por cima dela
+  const hasHand = !!hand
+  useLayoutEffect(() => {
+    const el = sideRef.current, hud = el?.querySelector(':scope > .bhud')
+    if (!hasHand || !hud) return
+    let raf = 0
+    const fit = () => {
+      raf = 0
+      const r = el.getBoundingClientRect(), sc = r.width / (el.offsetWidth || r.width) || 1
+      if (!r.width) return
+      const zones = hud.querySelector(':scope > .zones'), zs = zones && [...zones.children].map(k => k.getBoundingClientRect()).filter(q => q.width)
+      const left = [hud.querySelector(':scope > .orb'), ...hud.querySelectorAll(':scope > .bname > b, :scope > .bname > .chips > *')].map(k => k?.getBoundingClientRect()).filter(q => q?.width)
+      const hr = zs?.length ? Math.max(0, r.right - Math.min(...zs.map(q => q.left))) / sc + 8 : 0
+      const hl = left.length ? Math.max(0, Math.max(...left.map(q => q.right)) - r.left) / sc + 8 : 0
+      el.style.setProperty('--hl', `${Math.round(hl)}px`); el.style.setProperty('--hr', `${Math.round(hr)}px`)
+    }
+    const ask = () => { if (!raf) raf = requestAnimationFrame(fit) }
+    const ro = new ResizeObserver(ask); ro.observe(el); ro.observe(hud)
+    for (const k of hud.querySelectorAll(':scope > .zones, :scope > .bname, :scope > .orb')) ro.observe(k)
+    fit()
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); el.style.removeProperty('--hl'); el.style.removeProperty('--hr') }
+  }, [hasHand, z.libTop?.id, z.command.length])
   return (
     <Arts.Provider value={art}><div ref={sideRef} data-align={align === 'left' ? undefined : align} className={`bside ${top ? 'top' : 'bottom'} ${z.perms.filter(p => p.attacking).length === 1 ? 'lone-atk' : ''} ${s.active === k ? 'act' : ''} ${compact ? 'compact' : ''} ${z.out ? 'out' : ''} ${hit ? 'hit' : ''} p-${k}`} data-mat={mat || undefined}>
       {top ? <>{hud}{back}{front}</> : <>{front}{back}{hud}</>}
