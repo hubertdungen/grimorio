@@ -654,6 +654,16 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const rq0 = reqOf(pr, oracle, sm.mem), rq = rq0 || (pr?.msg && !OWN_PROMPT.test(pr.msg) && !/Pay Mana Cost/i.test(pr.msg) ? goneRq : null)
   const askRq = ask && !ask.ability ? reqOf(ask, oracle, sm.mem) || goneRq : null
   const hoverId = useRef(null), [flipped, setFlipped] = useState(() => new Set()), [lift, setLift] = useState(null)  // carta debaixo do rato; viradas; levantada na mão
+  // a carta levantada cresce (1,4×) a partir do sítio dela: a da ponta saía do ecrã no telemóvel — puxa-se para dentro
+  useLayoutEffect(() => {
+    const el = lift != null && document.querySelector(`.fp-hand [data-h="${lift}"]`)
+    if (!el) return
+    el.style.removeProperty('--lx')
+    const r = el.getBoundingClientRect(), sc = r.width / (el.offsetWidth || r.width) || 1, grow = r.width * 0.2
+    const dx = r.left - grow < 6 ? 6 - (r.left - grow) : r.right + grow > innerWidth - 6 ? innerWidth - 6 - (r.right + grow) : 0
+    if (dx) el.style.setProperty('--lx', `${(dx / sc).toFixed(1)}px`)
+    return () => el.style.removeProperty('--lx')
+  }, [lift])
   // «voltar» do telemóvel: fecha primeiro o que está aberto por cima; com o jogo a decorrer nunca sai da mesa (avisa e fica)
   const [guard, setGuard] = useState(true)
   useBackClose(guard && !s?.ended, () => { setGuard(false); setTimeout(() => setGuard(true), 0); setToast({ title: tx('O jogo continua'), msg: tx('Para sair, usa «Parar o jogo» ou desiste no painel.') }) })

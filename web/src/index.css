@@ -2710,7 +2710,7 @@ body:has(.modal-bg) .live-bar { display: none; }  /* janelas por cima: a barra �
 .fp-hand .fp-card:hover .fp-cin { transform: perspective(520px) translateY(-14%) rotateX(calc(var(--ty) * -12deg)) rotateY(calc(var(--tx) * 14deg)) scale(1.32); box-shadow: 0 14px 30px #000a; }
 .fp-hand .fp-card:hover .fp-cin::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background: radial-gradient(circle at calc(50% + var(--tx) * 100%) calc(50% + var(--ty) * 100%), #ffffff40, transparent 55%); }
-.fp-hand .fp-card.lift .fp-cin { transform: translateY(-20%) scale(1.4); box-shadow: 0 0 0 2px var(--gold), 0 18px 36px #000c; }
+.fp-hand .fp-card.lift .fp-cin { transform: translateY(-20%) scale(1.4); box-shadow: 0 0 0 2px var(--gold), 0 18px 36px #000c; translate: var(--lx, 0px) 0; }  /* --lx: dentro do ecrã (ForgePlay) */
 .fp-hand .fp-card.play .fp-cin { box-shadow: 0 0 0 2px #4ade80, 0 0 14px #4ade8099; }
 .fp-hand .fp-card.sel .fp-cin { box-shadow: 0 0 0 3px var(--cyan), 0 0 16px var(--cyan); animation: fp-sel 1.2s ease-in-out infinite alternate; }
 /* escolhida (descartar 2, sacrificar…): sobe e fica com moldura dourada até confirmares (OK) ou a desmarcares */
