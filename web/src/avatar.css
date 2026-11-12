@@ -1,0 +1,38 @@
+/* Imagens de perfil (avatar.jsx): o círculo com a imagem ou a inicial, e a janela para escolher */
+.av-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.pav { --h: 200; position: relative; flex: none; display: inline-grid; place-items: center; border-radius: 50%; font-weight: 700; line-height: 1; vertical-align: middle;
+  color: #fff; background: radial-gradient(circle at 30% 25%, hsl(var(--h) 70% 62%), hsl(var(--h) 55% 34%)); box-shadow: 0 0 0 2px #ffffff1f, 0 1px 4px #0007; text-shadow: 0 1px 2px #0006; }
+.avatar { position: relative; }  /* o círculo dos perfis (Profiles.jsx): a imagem por cima da cor */
+.tv-ava .av-img, .avatar .av-img { z-index: 0; }
+
+.av-modal { width: min(460px, 100%); padding: 18px 20px; display: grid; gap: 12px; align-content: start; }
+.av-head { display: flex; align-items: center; gap: 12px; } .av-head h3 { margin: 0 0 2px; }
+.av-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.av-tabs button { flex: 1 1 140px; min-height: 44px; border-radius: 10px; }
+.av-tabs button.on { border-color: var(--gold, #f2b84b); color: var(--gold2, #ffd27a); background: #f2b84b14; }
+.av-up { display: grid; justify-items: center; gap: 10px; text-align: center; }
+.av-file { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.av-crop { display: grid; justify-items: center; gap: 8px; }
+.av-crop-c { border-radius: 50%; touch-action: none; cursor: grab; background: #0006; box-shadow: 0 0 0 3px #f2b84b55, 0 8px 30px #000a; max-width: 100%; }
+.av-crop-c:active { cursor: grabbing; }
+.av-zoom { display: flex; align-items: center; gap: 8px; width: min(260px, 100%); } .av-zoom input { flex: 1; min-height: 32px; }
+.av-cards { display: grid; gap: 8px; } .av-cards input { width: 100%; box-sizing: border-box; min-height: 42px; }
+.av-card-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 300px; overflow-y: auto; }
+.av-card-list button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 4px 8px 4px 4px; min-height: 48px; text-align: left; border-radius: 10px; border: 1px solid transparent; background: none; }
+.av-card-list button.on { background: #ffffff10; } .av-card-list button.sel { border-color: var(--gold, #f2b84b); background: #f2b84b14; }
+.av-card-list img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: none; background: #0005; }
+.av-card-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.av-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .av-sp { flex: 1; }
+.av-mine { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.av-mine-b { position: relative; padding: 0; border: 0; background: none; border-radius: 50%; min-height: 0; }
+.av-mine-b i { position: absolute; right: -2px; bottom: -2px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px;
+  background: var(--panel2, #1d1a2e); border: 1px solid var(--line, #2e2a44); }
+.av-mine-t { display: grid; gap: 2px; min-width: 0; flex: 1 1 160px; } .av-mine-t b { overflow-wrap: anywhere; }
+@media (max-width: 520px) { .av-modal { padding: 14px; } .av-btns button { flex: 1 1 auto; } .av-sp { display: none; } }
+.ml-seat i { position: relative; }
+.room-pl .pav, .on-hc-pl .pav { margin-right: 2px; vertical-align: -5px; }
+.lv-fm-who .pav { vertical-align: -4px; }
+.bname-av { margin-right: 6px; vertical-align: -4px; }
+.fp-dchip .pav { margin-right: 2px; }
+.tp-own-av { position: absolute; right: -3px; bottom: -3px; box-shadow: 0 0 0 1.5px #000c; }
+.fmt-tag.own .pav { vertical-align: -4px; }

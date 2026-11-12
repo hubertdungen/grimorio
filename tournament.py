@@ -34,6 +34,7 @@ rating casual, casual=True, e também os torneios sem decks meta: só azul e ver
 """
 import itertools, json, math, os, random, re, sqlite3, sys, threading, time, uuid, zlib
 from collections import Counter
+import avatars
 import freetable
 import limited
 import playnet
@@ -867,6 +868,21 @@ def public(row):
             "podium": st.get("podium") or (podium(st) if over(st) else None)}
 
 
+def people_avs(con, owner, st):
+    """As imagens de perfil das pessoas por detrás dos decks (avatars.py): {índice do jogador: imagem}. Nas salas (by) de
+    todos, quem aloja incluído; nos outros torneios só os decks de amigos (o deck guarda de quem é)."""
+    av = avatars.many(con, owner)
+    out = {}
+    for i, p in enumerate((st.get("players") or []) if av else []):
+        w = p.get("by")
+        if not w and p.get("fr") and p.get("src") == "meus":
+            r = con.execute("SELECT json_extract(body, '$.friend') FROM decks WHERE id=? AND owner=?", (str(p.get("ref")), owner)).fetchone()
+            w = r and r[0] and f"guest:{r[0]}"
+        if w and av.get(w):
+            out[str(i)] = av[w]
+    return out
+
+
 def similarity(a, b):
     """Semelhança entre duas listas (0–1): soma dos mínimos / soma dos máximos das quantidades de cada carta, o
     comandante conta como uma cópia (o mesmo que web/src/DeckCompare.jsx)."""
@@ -1016,7 +1032,7 @@ def route(method, path, owner, body=None, bettor=None):
         if not row:
             return 404, {"erro": "Esse torneio não existe."}
         if method == "GET" and len(parts) == 1:
-            return 200, {**public(row), "you": "host" if bettor == owner else bettor}
+            return 200, {**public(row), "you": "host" if bettor == owner else bettor, **({"pav": pav} if (pav := people_avs(con, owner, json.loads(row[8]))) else {})}
         if method == "GET" and len(parts) == 3 and parts[1] == "games" and parts[2].isdigit():
             r = con.execute("SELECT game FROM tournament_games WHERE id=? AND tid=?", (int(parts[2]), tid)).fetchone()
             if not r:
@@ -1431,7 +1447,12 @@ def start_pvp(st, m, owner):
     flat = lambda d: {**d, "main": {**(d.get("main") or {}), **{c: 1 for c in d.get("commanders") or []}}, "commanders": []}  # noqa: E731
     decks = {s: flat({**st["decks"][i], "name": P[i]["name"], **(hsb.get(f"{m['id']}:{by(i)}") or {})}) for s, i in (("a", a), ("b", b))}
     names = {s: (P[i].get("fr") or ("Anfitrião" if by(i) == "host" else "Convidado"))[:40] for s, i in (("a", a), ("b", b))}
-    sid = playnet.start_pvp(DATA, {"a": key(a), "b": key(b)}, decks, names, chooser=chooser(m, [a, b]))
+    try:  # a imagem de perfil das duas pessoas (avatars.py), na etiqueta da esfera
+        with sqlite3.connect(DB, timeout=15) as c:
+            av = avatars.many(c, owner)
+    except sqlite3.Error:
+        av = {}
+    sid = playnet.start_pvp(DATA, {"a": key(a), "b": key(b)}, decks, names, chooser=chooser(m, [a, b]), avs={s: av.get(by(i)) for s, i in (("a", a), ("b", b))})
     m.update(play=sid, seats=[a, b], by="host", pvp=True, table="fp:" + sid)
     m.pop("want", None)
 

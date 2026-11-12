@@ -8,6 +8,7 @@ import { Mana } from './ui.jsx'
 import ProfileImport from './ProfileImport.jsx'
 import { tx } from './i18n.js'
 import { BringMine } from './FriendRoom.jsx'
+import { AvFace, PAv } from './avatar.jsx'
 
 async function j(url, opts) {
   const r = await fetch(url, opts)
@@ -108,7 +109,7 @@ export function Seats({ r, guest, act }) {
   const team = k => r.giant && <em className="on-team">{tx('Equipa {n}', { n: k < 2 ? 1 : 2 })}</em>  // 2HG: 1.º+2.º contra 3.º+4.º
   return (
     <div className={`ml-seats on-seats ${r.giant ? 'giant' : ''}`}>{r.players.map((p, k) => { const nm = p.by || tx('Anfitrião'); return (
-      <span key={`${p.by}|${p.ref}|${k}`} className={`ml-seat ${p.mine ? 'mine' : ''} ${p.ready ? 'ready' : ''}`}><i style={{ '--h': hue(nm) }}>{nm[0]?.toUpperCase()}</i>
+      <span key={`${p.by}|${p.ref}|${k}`} className={`ml-seat ${p.mine ? 'mine' : ''} ${p.ready ? 'ready' : ''}`}><i style={{ '--h': hue(nm) }}><AvFace av={p.av} name={nm} /></i>
         <span><b>{nm}{p.mine ? ` (${tx('tu')})` : ''}</b><small>{p.name}{SRC_L[p.src] ? ` · ${SRC_L[p.src]}` : ''}</small>{team(k)}</span>
         <em className="ml-rd" title={p.ready ? tx('Pronto') : tx('Ainda não está pronto')}>{p.ready ? `✓ ${tx('Pronto')}` : '…'}</em>
         {(!guest || p.mine) && r.status === 'open' && <button className="link small" onClick={() => act(r.id, 'leave', { ref: p.ref })} title={tx('Sair deste lugar')} aria-label={tx('Sair deste lugar')}>✕</button>}</span>) })}
@@ -230,7 +231,7 @@ export function FreeMatches({ t, openTable, nameOf, onChange, playMine, thumb, l
             <div className="lv-fm-sides">{m.p.map((i, k) => {
               const o = fp ? human(i) : owner(i), rd = o && (ready.includes(o) || !!m.table)
               return <Fragment key={i}>{k > 0 && <i className="lv-vs lv-fm-vs">vs</i>}<div className={`lv-fm-side ${o === t.you ? 'me' : ''}`}>
-                {thumb?.(i)}<span className="lv-fm-who"><b title={nameOf(i)}>{nameOf(i)}</b><small className="muted">{fp && !human(i) ? `🤖 ${tx('bot')}` : who(i)}</small></span>
+                {thumb?.(i)}<span className="lv-fm-who"><b title={nameOf(i)}>{nameOf(i)}</b><small className="muted">{fp && !human(i) ? `🤖 ${tx('bot')}` : <>{t.pav?.[i] && <PAv av={t.pav[i]} name={who(i)} who={owner(i)} size={18} />} {who(i)}</>}</small></span>
                 {!fp && o && <em className={`lv-rd ${rd ? 'ok' : ''}`} title={rd ? tx('Pronto') : tx('À espera de {p}', { p: nm(o) })}>{rd ? '✓' : '…'}</em>}</div></Fragment>
             })}</div>
             <p className="small lv-fm-st">{fp ? (m.play ? `▶ ${tx('A jogar no Forge Play: {p}', { p: nm(m.by) })}` : m.want ? `⏳ ${tx('Na fila do Forge: abre quando houver lugar no servidor (cada jogo do Forge Play ocupa ~1 GB).')}` : `… ${tx('À espera de {p}', { p: nm(owners[0]) })}`)
