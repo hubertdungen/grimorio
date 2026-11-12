@@ -93,6 +93,14 @@ def base_life(fmt, n):
 # prefixo dos contentores: o arranque do trabalhador mata as sobras com este prefixo; um servidor de testes usa outro
 # (GRIMORIO_SIM_PREFIX) para não matar os jogos do servidor a sério
 PREFIX = os.environ.get("GRIMORIO_SIM_PREFIX", "grimorio-sim-")
+# quem é este servidor (server.py: a partir da pasta de dados): cada contentor leva a etiqueta grimorio.instance e o
+# arranque do trabalhador só mata os seus. Antes matava todos os com o prefixo — um servidor de testes (com uma cópia da
+# base de dados e a Arena ligada) cortava os jogos do servidor a sério que corria na mesma máquina
+INSTANCE = ""
+
+
+def label():
+    return ["--label", f"grimorio.instance={INSTANCE}"] if INSTANCE else []
 
 # Onde corre o Forge: «docker» (servidor Linux: contentor eclipse-temurin com -m 3g, os forge-ext/ai e cardsfolder
 # montados por cima do res do Forge) ou «local» (Java 17 do sistema ou o JRE dos pacotes, GRIMORIO_JAVA; sem Docker).
@@ -1018,7 +1026,9 @@ def cancel(jid):
 def docker_kill_all():
     if RUNTIME != "docker":
         return
-    ids = subprocess.run(["docker", "ps", "-q", "--filter", f"name={PREFIX}"],
+    if not INSTANCE:  # sem saber quem é, não mata nada (podia ser de outro servidor)
+        return
+    ids = subprocess.run(["docker", "ps", "-q", "--filter", f"name={PREFIX}", "--filter", f"label=grimorio.instance={INSTANCE}"],
                          capture_output=True, text=True).stdout.split()
     if ids:
         subprocess.run(["docker", "kill", *ids], capture_output=True)
@@ -1204,7 +1214,7 @@ def run_forge(jid, a):
                                    *(["-cp", os.pathsep.join([ext, os.path.join(a["forge"], FORGE_JAR)]), "GrimorioSim"]
                                      if use_ext else ["-jar", os.path.join(a["forge"], FORGE_JAR)])],
                           os.path.join(a["dir"], "decks"), use_ext)
-    cmd = ["docker", "run", "--rm", "--name", name, "-m", "3g", "--cpus", "2",
+    cmd = ["docker", "run", "--rm", "--name", name, *label(), "-m", "3g", "--cpus", "2",
            "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home",
            "-v", f"{a['forge']}:/forge:ro", "-v", f"{a['dir']}:/run", "-w", "/forge"]
     if use_ext and os.path.isdir(os.path.join(ext, "ai")):

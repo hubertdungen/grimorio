@@ -1719,6 +1719,7 @@ if __name__ == "__main__":
                     help="dono fixo dos decks quando não há login; sem ele, cada um escolhe um perfil no browser")
     ARGS = ap.parse_args()
     os.makedirs(ARGS.data_dir, exist_ok=True)
+    sim.INSTANCE = hashlib.sha1(os.path.realpath(ARGS.data_dir).encode()).hexdigest()[:12]  # os contentores deste servidor (sim.label)
     avatars.DIR = os.path.join(ARGS.data_dir, "avatars")  # imagens de perfil (avatars.py)
     play.init(ARGS.data_dir)
     with db() as con:
