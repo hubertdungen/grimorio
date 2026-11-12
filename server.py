@@ -11,6 +11,7 @@ import play
 import playnet
 import limited
 import backup
+import devsync
 import ratings
 import sim
 import tournament
@@ -291,6 +292,8 @@ class H(BaseHTTPRequestHandler):
 
     def _route(self, method, inner):
         p = self.path.split("?")[0]
+        if devsync.route(self, method, p, ARGS.data_dir, db):  # outro aparelho do dono (pelo código ou pelo token dele: devsync.py)
+            return None
         if p.startswith("/sala/") and method in ("GET", "POST"):  # link de uma sala: quem aloja, um perfil deste Grimório, outra app ou um convidado novo
             tok, _, act = p[len("/sala/"):].partition("/")
             with db() as con:
@@ -452,6 +455,8 @@ class H(BaseHTTPRequestHandler):
             return self.profiles_route("GET")
         if p in ("/api/backup/export", "/api/sync"):  # cópias e sincronização por pasta (backup.py)
             return backup.http(self, "GET", p, ARGS.data_dir)
+        if p.startswith(("/api/storage", "/api/devices")):  # onde ficam os dados: só aqui, pasta na nuvem ou o meu servidor (devsync.py)
+            return devsync.http(self, "GET", self.path, ARGS.data_dir, db)
         if self.no_profile():
             return
         if p == "/play/ws":  # jogar contra o Forge: websocket do noVNC -> VNC do contentor (play.py)
@@ -575,7 +580,9 @@ class H(BaseHTTPRequestHandler):
         if p in ("/api/decks", "/api/decks/trash"):
             trash = p.endswith("trash")
             with db() as con:
-                con.execute("DELETE FROM decks WHERE deleted IS NOT NULL AND deleted < ?", (time.time() - 30 * 86400,))
+                for did, own, dl in con.execute("SELECT id, owner, deleted FROM decks WHERE deleted IS NOT NULL AND deleted < ?", (time.time() - 30 * 86400,)).fetchall():
+                    backup.tomb(con, "deck", did, own, ts=dl)  # o lixo esvazia: a marca impede que um aparelho antigo o traga de volta
+                    con.execute("DELETE FROM decks WHERE id=?", (did,))
                 rows = con.execute("SELECT id, name, format, updated, body, deleted FROM decks WHERE owner=? AND deleted IS "
                                    + ("NOT NULL" if trash else "NULL") + " ORDER BY updated DESC", (self.owner(),)).fetchall()
             out = []
@@ -857,6 +864,8 @@ class H(BaseHTTPRequestHandler):
             return self.profiles_route("POST")
         if self.path.startswith(("/api/backup/", "/api/sync")):
             return backup.http(self, "POST", self.path, ARGS.data_dir)
+        if self.path.startswith(("/api/storage", "/api/devices")):
+            return devsync.http(self, "POST", self.path, ARGS.data_dir, db)
         if self.no_profile():
             return
         if self.path.startswith("/api/tournaments"):
@@ -1163,6 +1172,7 @@ class H(BaseHTTPRequestHandler):
                 con.execute("UPDATE profiles SET name=?, color=? WHERE id=?", (name, color, pid))
                 return self.json({"id": pid, "name": name, "color": color})
             con.execute("UPDATE decks SET deleted=? WHERE owner=? AND deleted IS NULL", (time.time(), pid))
+            backup.tomb(con, "profile", pid, pid, data=backup.row_of(con, "profiles", pid))  # nos outros aparelhos também sai (repõe-se em Dados)
             con.execute("DELETE FROM profiles WHERE id=?", (pid,))
         cur = self.profile()
         return self.send(200, b'{"ok": true}', headers=None if cur else cookie("", 0))
@@ -1170,6 +1180,8 @@ class H(BaseHTTPRequestHandler):
     def _delete(self):
         if self.path.startswith("/api/profiles"):
             return self.profiles_route("DELETE")
+        if self.path.startswith("/api/devices/"):
+            return devsync.http(self, "DELETE", self.path, ARGS.data_dir, db)
         if self.no_profile():
             return
         if self.path.startswith("/api/tournaments/"):
@@ -1177,6 +1189,8 @@ class H(BaseHTTPRequestHandler):
         mr = re.match(r"^/api/sim/runs/([a-f0-9-]{8,40})$", self.path)
         if mr:
             with db() as con:
+                if con.execute("SELECT 1 FROM sim_runs WHERE id=? AND owner=?", (mr.group(1), self.owner())).fetchone():
+                    backup.tomb(con, "sim_run", mr.group(1), self.owner(), data=backup.row_of(con, "sim_runs", mr.group(1)))
                 con.execute("DELETE FROM sim_runs WHERE id=? AND owner=?", (mr.group(1), self.owner()))
             return self.json({"ok": True})
         did = self.path.rsplit("/", 1)[1]
@@ -1206,6 +1220,7 @@ def selfcheck():
         except urllib.error.HTTPError as e:
             return e.code, json.loads(e.read() or b"null"), ""
     ck = lambda sc: sc.split(";")[0]  # noqa: E731
+    procs = []  # outros Grimórios abertos pelo selfcheck (o «portátil» do servidor pessoal)
     try:
         st, j, _ = call("GET", "/api/profiles")
         assert st == 200 and j == {"mode": "profiles", "current": None, "list": []}, j
@@ -1607,7 +1622,155 @@ def selfcheck():
         assert call("GET", "/api/decks")[0] == 401  # sem perfil e sem convite: continua a pedir o perfil
         ARGS.owner = "hubert"
         print("selfcheck convidados ok")
+        # ---- o meu servidor Grimório (devsync.py): este servidor é o «servidor» (dono fixo hubert) e um segundo Grimório
+        # noutro processo é o «portátil» (perfis), ligado por código; os dois juntam-se pela API, com donos diferentes ----
+        import subprocess, sys as _sys, socket as _so
+        with _so.socket() as s_:
+            s_.bind(("127.0.0.1", 0))
+            lport = s_.getsockname()[1]
+        LD = os.path.join(tmp, "portatil")
+        os.makedirs(LD)
+        lap = subprocess.Popen([_sys.executable, os.path.join(HERE, "server.py"), "--host", "127.0.0.1", "--port", str(lport), "--data-dir", LD],
+                               env={**os.environ, "GRIMORIO_OWNER": ""}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        procs.append(lap)
+        LB = f"http://127.0.0.1:{lport}"
+
+        def lcall(method, path, body=None, cookie=""):
+            req = urllib.request.Request(LB + path, json.dumps(body).encode() if body is not None else None,
+                                         {"Content-Type": "application/json", **({"Cookie": cookie} if cookie else {})}, method=method)
+            try:
+                with urllib.request.urlopen(req, timeout=120) as r:
+                    return r.status, json.loads(r.read() or b"null"), r.headers.get("Set-Cookie") or ""
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read() or b"null"), ""
+        for _ in range(100):
+            try:
+                urllib.request.urlopen(LB + "/api/profiles", timeout=2)
+                break
+            except OSError:
+                time.sleep(0.1)
+        st, _, sc = lcall("POST", "/api/profiles", {"name": "Ana"})
+        LC = ck(sc)
+        st, ls, _ = lcall("GET", "/api/storage", cookie=LC)
+        assert ls["mode"] == "local" and ls["fresh"] and not ls["chosen"] and ls["can"]["server"] and ls["remote_url"] is None, ls
+        assert lcall("POST", "/api/decks", {"name": "Do portátil", "format": "modern", "main": {"Forest": 60}}, LC)[0] == 201
+        sdeck = call("POST", "/api/decks", {"name": "Do servidor", "format": "modern", "main": {"Island": 60}})[1]
+        assert call("POST", "/api/decks", {"name": "Da Eva", "main": {"Swamp": 60}}, user="eva")[0] == 201  # outro dono (login) no servidor
+        # emparelhar: código errado, link inválido, código bom (uma vez só)
+        st, bad, _ = lcall("POST", "/api/storage/pair", {"link": f"{base}/ligar/AAAA-BBBB"}, LC)
+        assert st == 403 and bad["code"] == "code", (st, bad)
+        assert lcall("POST", "/api/storage/pair", {"link": "isto não é um link"}, LC)[1]["code"] == "link"
+        st, cd, _ = call("POST", "/api/devices/code", {})
+        assert st == 201 and re.fullmatch(r"[A-Z2-9]{4}-[A-Z2-9]{4}", cd["code"]), cd
+        with urllib.request.urlopen(f"{base}/ligar/{cd['code']}/info") as r:
+            assert json.loads(r.read())["valid"] is True
+        with urllib.request.urlopen(f"{base}/ligar/{cd['code']}") as r:
+            assert cd["code"] in r.read().decode()
+        assert lcall("POST", "/api/storage/pair", {"url": base, "code": cd["code"].lower().replace("-", "")}, LC)[0] == 200  # endereço + código
+        assert lcall("POST", "/api/storage/pair", {"link": f"{base}/ligar/{cd['code']}"}, LC)[1]["code"] == "code"  # já foi usado
+        st, ls, _ = lcall("POST", "/api/storage/now", {}, LC)
+        assert ls["mode"] == "server" and ls["server"]["state"] == "ok" and ls["chosen"] and ls["sync"]["kind"] == "server", ls
+        dv = call("GET", "/api/devices")[1]["devices"]
+        assert len(dv) == 1 and not dv[0]["revoked"] and call("GET", "/api/devices", user="eva")[1]["devices"] == []  # a Eva não o vê
+        # juntaram-se: o portátil vê os decks do hubert (não os da Eva nem os dos amigos), o servidor os do portátil como hubert
+        lnames = {d["name"] for d in lcall("GET", "/api/decks", cookie=LC)[1]}
+        assert {"Do servidor", "Do portátil"} <= lnames and "Da Eva" not in lnames and "Deck do Rui" not in lnames, lnames
+        assert "Do portátil" in {d["name"] for d in call("GET", "/api/decks")[1]} and "Do portátil" not in {d["name"] for d in call("GET", "/api/decks", user="eva")[1]}
+        ldb = sqlite3.connect(os.path.join(LD, "grimorio.db"))
+        assert not ldb.execute("SELECT 1 FROM sqlite_master WHERE name='friends'").fetchone() or not ldb.execute("SELECT 1 FROM friends").fetchone()
+        assert not ldb.execute("SELECT 1 FROM decks WHERE owner != 'local'").fetchone()  # tudo é do perfil que se ligou
+        ldb.close()
+        # nada mudou: a volta seguinte é só um «hello» (não manda cópias)
+        import devsync as _dv
+        cfg_ = json.load(open(os.path.join(LD, "storage.json")))["server"]
+        req = urllib.request.Request(base + "/api/device/hello", headers={"Authorization": f"Bearer {cfg_['token']}"})
+        with urllib.request.urlopen(req) as r:
+            hello = json.loads(r.read())
+        assert hello["fp"] == cfg_["fp_pull"] and backup.fingerprint(LD, "local") == cfg_["fp_push"] and hello["owner"] == "hubert", (hello, cfg_)
+        # conflito: o mesmo deck muda nos dois antes de se juntarem -> as duas versões ficam, nos dois lados, e resolve-se
+        sid = sdeck["id"]
+        assert call("PUT", f"/api/decks/{sid}", {"name": "Do servidor", "format": "modern", "main": {"Island": 58, "Opt": 2}})[0] == 200
+        time.sleep(0.02)
+        assert lcall("PUT", f"/api/decks/{sid}", {"name": "Do servidor", "format": "modern", "main": {"Island": 56, "Brainstorm": 4}}, LC)[0] == 200
+        ls = lcall("POST", "/api/storage/now", {}, LC)[1]
+        assert ls["server"]["state"] == "ok", ls
+        sc_, lc_ = call("GET", "/api/storage/conflicts")[1]["conflicts"], lcall("GET", "/api/storage/conflicts", cookie=LC)[1]["conflicts"]
+        assert len(sc_) == 1 and [c["id"] for c in sc_] == [c["id"] for c in lc_] and sc_[0]["orig"] == sid, (sc_, lc_)
+        assert call("GET", "/api/storage/conflicts", user="eva")[1]["conflicts"] == []
+        assert call("POST", f"/api/storage/conflicts/{sc_[0]['id']}", {"keep": "other"})[0] == 200
+        lcall("POST", "/api/storage/now", {}, LC)
+        assert lcall("GET", "/api/storage/conflicts", cookie=LC)[1]["conflicts"] == []
+        l_main = [json.loads(b) for b in [json.dumps(lcall("GET", f"/api/decks/{sid}", cookie=LC)[1])]][0]["main"]
+        s_main = call("GET", f"/api/decks/{sid}")[1]["main"]
+        assert l_main == s_main and len(l_main) == 2, (l_main, s_main)  # os dois ficaram com a mesma versão
+        # apagados: uma sessão de testes apagada no servidor desaparece no portátil e repõe-se dos dois lados
+        run = lcall("POST", "/api/sim/runs", {"deck_id": sid, "label": "QA", "runs": []}, LC)[1]["id"]
+        lcall("POST", "/api/storage/now", {}, LC)
+        assert any(r["id"] == run for r in call("GET", f"/api/sim/runs?deck_id={sid}")[1])
+        assert call("DELETE", f"/api/sim/runs/{run}")[0] == 200
+        lcall("POST", "/api/storage/now", {}, LC)
+        assert not any(r["id"] == run for r in lcall("GET", f"/api/sim/runs?deck_id={sid}", cookie=LC)[1])
+        dl = call("GET", "/api/storage/deleted")[1]["deleted"]
+        assert [d["id"] for d in dl] == [run] and call("POST", f"/api/storage/deleted/sim_run/{run}")[0] == 200
+        lcall("POST", "/api/storage/now", {}, LC)
+        assert any(r["id"] == run for r in lcall("GET", f"/api/sim/runs?deck_id={sid}", cookie=LC)[1])
+        # o lixo dos decks também viaja (apagar no portátil -> no lixo do servidor)
+        pid_ = next(d["id"] for d in lcall("GET", "/api/decks", cookie=LC)[1] if d["name"] == "Do portátil")
+        lcall("DELETE", f"/api/decks/{pid_}", cookie=LC)
+        lcall("POST", "/api/storage/now", {}, LC)
+        assert pid_ in {d["id"] for d in call("GET", "/api/decks/trash")[1]}
+        # o token do aparelho só abre /api/device/*; uma cópia de uma versão incompatível é recusada com a versão
+        tok = json.load(open(os.path.join(LD, "storage.json")))["server"]["token"]
+        req = urllib.request.Request(base + "/api/decks", headers={"Authorization": f"Bearer {tok}"})
+        try:
+            urllib.request.urlopen(req)
+            raise AssertionError("o token do aparelho abriu os decks")
+        except urllib.error.HTTPError as e:
+            assert e.code in (401, 403)
+        snap = os.path.join(tmp, "nova.grimorio")
+        backup.snapshot(LD, snap, owner="local", scrub=True)
+        with zipfile.ZipFile(snap) as zi, zipfile.ZipFile(snap + "2", "w") as zo:
+            for n in zi.namelist():
+                zo.writestr(n, json.dumps({**json.loads(zi.read(n)), "needs": backup.LEVEL + 1, "version": "99.0.0"}) if n == "manifest.json" else zi.read(n))
+        data_ = open(snap + "2", "rb").read()
+        req = urllib.request.Request(base + "/api/device/sync", data_, {"Authorization": f"Bearer {tok}", "Content-Type": "application/octet-stream"}, method="POST")
+        try:
+            urllib.request.urlopen(req)
+            raise AssertionError("juntou uma cópia incompatível")
+        except urllib.error.HTTPError as e:
+            j = json.loads(e.read())
+            assert e.code == 409 and j["code"] == "newer" and j["version"] == "99.0.0", j
+        assert _dv.compat({"needs": backup.LEVEL + 1, "version": "99.0.0"}) == ("device", "99.0.0")
+        _needs, backup.NEEDS = backup.NEEDS, backup.LEVEL + 1  # um aparelho mais novo que escreve o que este servidor não sabe juntar
+        try:
+            assert _dv.compat({"level": backup.LEVEL, "needs": 1}) == ("server", backup.app_version())
+        finally:
+            backup.NEEDS = _needs
+        assert _dv.compat({"level": backup.LEVEL, "needs": backup.NEEDS}) is None
+        # http:// pela internet: avisa (a rede de casa, a meshnet e https não)
+        assert _dv.insecure("http://exemplo.pt:8107") and not _dv.insecure("https://exemplo.pt") and not _dv.insecure("http://192.168.1.5:8107")
+        assert not _dv.insecure("http://100.101.5.6:8107") and not _dv.insecure("http://nas:8107") and not _dv.insecure("http://nas.local")
+        assert lcall("POST", "/api/storage/pair", {"url": "http://exemplo.invalid:8107", "code": "ABCD-EFGH"}, LC)[1]["code"] == "http"
+        # revogar no servidor: o portátil deixa de entrar e diz porquê; os dados dele ficam
+        assert call("POST", f"/api/devices/{dv[0]['id']}/revoke")[0] == 200
+        ls = lcall("POST", "/api/storage/now", {}, LC)[1]
+        assert ls["server"]["state"] == "revoked" and "Do servidor" in {d["name"] for d in lcall("GET", "/api/decks", cookie=LC)[1]}, ls
+        try:
+            urllib.request.urlopen(urllib.request.Request(base + "/api/device/hello", headers={"Authorization": f"Bearer {tok}"}))
+            raise AssertionError("token revogado ainda entra")
+        except urllib.error.HTTPError as e:
+            assert e.code == 401
+        # «Só neste aparelho»: deixa de sincronizar e mantém tudo
+        n_before = len(lcall("GET", "/api/decks", cookie=LC)[1])
+        ls = lcall("POST", "/api/storage", {"mode": "local"}, LC)[1]
+        assert ls["mode"] == "local" and ls["server"] is None and len(lcall("GET", "/api/decks", cookie=LC)[1]) == n_before
+        assert lcall("POST", "/api/storage", {"mode": "remote"}, LC)[1]["code"] == "unpaired"
+        assert call("GET", "/api/storage", user="eva")[1]["can"]["server"] is False and call("POST", "/api/storage/pair", {"link": "x"}, user="eva")[0] == 403
+        print("selfcheck servidor pessoal ok")
     finally:
+        for p_ in procs:
+            p_.terminate()
+            p_.wait(10)
         srv.shutdown()
         import shutil
         shutil.rmtree(tmp, ignore_errors=True)
@@ -1662,6 +1825,7 @@ if __name__ == "__main__":
     playnet.ON_END = ratings.forgeplay_end  # jogos do Forge Play acabados com vencedor contam para os ratings
     playnet.ON_KEEP = freetable.ON_KEEP = keep_game  # jogos avulsos contra o Forge e das salas de mesa livre: «Os meus jogos» (réplicas)
     backup.init(ARGS.data_dir)  # pasta na nuvem (se ligada): traz o que mudou noutros aparelhos e leva o daqui
+    devsync.init(ARGS.data_dir)  # o meu servidor Grimório (se ligado): sincroniza de CHECK em CHECK segundos, sem rede espera
     share.adopt(ARGS.data_dir)  # a partilha que estava ligada continua com o mesmo endereço depois de reiniciar
     print(f"Grimório em http://{ARGS.host}:{ARGS.port}", flush=True)
     ThreadingHTTPServer((ARGS.host, ARGS.port), H).serve_forever()

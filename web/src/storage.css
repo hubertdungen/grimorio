@@ -1,0 +1,94 @@
+/* Onde ficam os dados (Storage.jsx): assistente da primeira vez e Definições › Dados */
+.sto-cards { display: grid; gap: 10px; }
+.sto-card { display: grid; grid-template-columns: auto auto 1fr; align-items: start; gap: 12px; text-align: left; padding: 14px 16px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--panel2); color: var(--text); width: 100%; }
+.sto-card:hover:not(:disabled) { border-color: #4a4272; background: #29234a; }
+.sto-card.on { border-color: var(--gold); background: linear-gradient(180deg, #2a2340, #221c38); box-shadow: 0 0 0 1px var(--gold) inset; }
+.sto-card:disabled { opacity: .45; cursor: not-allowed; }
+.sto-radio { width: 18px; height: 18px; margin-top: 3px; border-radius: 50%; border: 2px solid var(--muted); display: grid; place-items: center; flex: none; }
+.sto-card.on .sto-radio { border-color: var(--gold); }
+.sto-card.on .sto-radio::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+.sto-ic { font-size: 24px; line-height: 1; width: 30px; text-align: center; }
+.sto-txt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.sto-txt b { font-size: 15px; }
+.sto-txt small { flex-basis: 100%; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.sto-tag { font-size: 11px; padding: 1px 8px; border-radius: 99px; background: #3dcf7a22; color: var(--ok); border: 1px solid #3dcf7a55; white-space: nowrap; }
+.sto-tag.cur { background: #f2b84b1c; color: var(--gold2); border-color: #f2b84b55; }
+.sto-panel { display: grid; gap: 8px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: #ffffff06; animation: sto-in .18s ease-out; }
+.sto-panel p { margin: 0; }
+@keyframes sto-in { from { opacity: 0; transform: translateY(-4px); } }
+.sto-field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.sto-field input { width: 100%; box-sizing: border-box; font-size: 15px; color: var(--text); min-height: 38px; }
+.sto-two { display: grid; grid-template-columns: 1fr 150px; gap: 8px; }
+.sto-code input { font-family: ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.sto-pill { padding: 2px 10px; border-radius: 99px; font-size: 13px; margin: 2px 4px 2px 0; }
+.sto-what summary { cursor: pointer; color: var(--gold2); font-size: 14px; }
+.sto-what p { margin: 6px 0 0; }
+.sto-sub { display: grid; gap: 6px; }
+.sto-sub label { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; }
+.sto-sub label.on { border-color: #f2b84b88; background: #f2b84b0d; }
+.sto-sub input { margin-top: 3px; accent-color: var(--gold); }
+.sto-sub small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.4; margin-top: 2px; }
+.sto-warn { padding: 10px 12px; border-radius: 10px; border: 1px solid #ff6b5b77; background: #ff6b5b12; }
+.sto-warn p { margin: 4px 0 8px; }
+.sto-foot { display: flex; justify-content: flex-end; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+.sto-foot .primary { min-height: 40px; padding: 8px 18px; font-size: 15px; }
+.sto-picker { display: grid; gap: 12px; }
+.sto-wiz { position: fixed; inset: 0; z-index: 70; overflow-y: auto; display: grid; place-items: center; padding: 24px 16px;
+  background: radial-gradient(900px 500px at 70% -10%, #2a1d52 0%, rgba(11, 10, 20, .96) 60%), rgba(11, 10, 20, .96); }
+.sto-wiz-box { width: min(640px, 100%); display: grid; gap: 12px; }
+.sto-wiz-box h2 { margin: 0; font-size: 26px; background: linear-gradient(90deg, var(--gold2), var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sto-wiz-box > p { margin: 0; line-height: 1.5; }
+.sto-done { display: grid; gap: 10px; }
+.sto-big { font-size: 20px; margin: 0; color: var(--ok); }
+.sto-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.sto-line.bad { color: var(--bad); }
+.sto-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--muted); }
+.sto-dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.sto-dot.warn { background: var(--warn); }
+.sto-dot.bad { background: var(--bad); }
+.sto-dot.busy { background: var(--cyan); animation: sto-pulse 1s ease-in-out infinite; }
+@keyframes sto-pulse { 50% { opacity: .3; } }
+.sto-chip { font-size: 11px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.sto-place { display: grid; gap: 10px; }
+.sto-place h4 { margin: 8px 0 0; }
+.sto-remote { padding: 10px 12px; border-radius: 10px; border: 1px solid #6ee7f955; background: #6ee7f90d; display: grid; gap: 8px; justify-items: start; }
+.sto-remote p { margin: 0; }
+.sto-link { display: grid; gap: 8px; justify-items: start; }
+.sto-link p { margin: 0; }
+.sto-code-box { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: #ffffff06; width: 100%; box-sizing: border-box; }
+.sto-code-box > div:first-child { flex: 1 1 240px; display: grid; gap: 4px; min-width: 0; }
+.sto-code-box .row-btns { flex-wrap: nowrap; }
+.sto-code-box .row-btns input { flex: 1; min-width: 0; }
+.sto-code-box .fr-qr { flex-basis: auto; width: 150px; }
+.sto-codetxt { font: 700 28px/1.2 ui-monospace, monospace; letter-spacing: .12em; color: var(--gold2); }
+.sto-devs, .sto-del ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; }
+.sto-devs li, .sto-del li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; background: #ffffff06; overflow-wrap: anywhere; }
+.sto-conf { display: grid; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid #f2b84b66; background: #f2b84b0a; }
+.sto-conf h4, .sto-conf p { margin: 0; }
+.sto-n { display: inline-block; min-width: 18px; padding: 0 6px; border-radius: 99px; background: var(--gold); color: #1b1405; font-size: 11px; text-align: center; }
+.sto-conf-row { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line); }
+.sto-vs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sto-vs > div { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: #ffffff08; min-width: 0; overflow-wrap: anywhere; }
+.sto-vs small { color: var(--muted); }
+.sto-diff span { margin-right: 8px; white-space: nowrap; }
+.sto-del summary { cursor: pointer; }
+.sto-del p { margin: 6px 0; }
+@media (max-width: 560px) {
+  .sto-card { padding: 12px; gap: 10px; }
+  .sto-ic { font-size: 20px; width: 24px; }
+  .sto-two { grid-template-columns: 1fr; }
+  .sto-wiz { place-items: start center; padding: 16px; }
+  .sto-wiz-box h2 { font-size: 22px; }
+  .sto-vs { grid-template-columns: 1fr; }
+  .sto-code-box .fr-qr { width: 130px; }
+  .sto-foot .primary { flex: 1; }
+}
+@media (pointer: coarse) { .sto-card { min-height: 64px; } .sto-sub label { min-height: 44px; } }
+.sto-noserver { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 65; width: min(560px, calc(100% - 32px)); box-sizing: border-box;
+  margin: 0; padding: 10px 36px 10px 14px; border-radius: 12px; border: 1px solid #f2b84b77; background: #221c38f2; font-size: 14px; box-shadow: 0 12px 40px #000a; }
+.sto-noserver button { position: absolute; right: 10px; top: 8px; }
+.sto-line { flex-wrap: nowrap; align-items: baseline; }
+.sto-line .sto-t { flex: 1; min-width: 0; }
+.sto-line .sto-dot { position: relative; top: -1px; }
+.sto-line .sto-chip { flex: none; }
