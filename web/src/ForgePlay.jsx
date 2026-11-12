@@ -1425,14 +1425,15 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     const q = el.getBoundingClientRect()
     el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
   }
-  const oppSide = (p, small) => <Side key={keyOf(p)} k={keyOf(p)} top compact={small} name={p.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
+  const avOf = k => s?.avs?.[k] || null  // a imagem de perfil de quem joga cada lado (mesa estrita; playnet roda-as como os nomes)
+  const oppSide = (p, small) => <Side key={keyOf(p)} k={keyOf(p)} top compact={small} name={p.name} av={avOf(keyOf(p))} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
     hand={p.hand?.length > 0 && <Hand z={{ hand: p.hand.length, known: p.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />
-  const mateSide = (p, small) => <Side key={keyOf(p)} k={keyOf(p)} compact={small} name={`${p.name} 🤝`} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
+  const mateSide = (p, small) => <Side key={keyOf(p)} k={keyOf(p)} compact={small} name={`${p.name} 🤝`} av={avOf(keyOf(p))} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
     hand={p.hand?.length > 0 && <Hand z={{ hand: p.hand.length, known: p.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />
-  const mySide = me && <Side k="a" name={me.name} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
+  const mySide = me && <Side k="a" name={me.name} av={avOf('a')} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
     hand={<div className="fp-hand">{me.top?.play && <FCard key={`t${me.top.id}`} c={me.top} h={me.top.id} from="library" data={data} big cls={`play libtop-h ${lift === me.top.id ? 'lift' : ''}`} tag={`▲ ${tx('topo da biblioteca')}`} />}{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />
   const teamOrb = drawers && mates.length > 0 && P.teamOrb  // Two-Headed Giant nas gavetas: a esfera da equipa a meio da mesa, no lugar das duas pequenas
-  const chip = (p, on, pick, mine) => <DrawerChip key={p.id} name={p.name} life={p.life} poison={p.counters?.POISON} hand={p.hand?.length || 0} perms={p.battlefield?.length || 0} out={p.life <= 0 || p.out} on={on} turn={st.active === p.id} atk={!mine && atkBy.has(p.id)} attn={selOf(p)} onClick={pick} mine={mine} />
+  const chip = (p, on, pick, mine) => <DrawerChip key={p.id} name={p.name} av={avOf(keyOf(p))} life={p.life} poison={p.counters?.POISON} hand={p.hand?.length || 0} perms={p.battlefield?.length || 0} out={p.life <= 0 || p.out} on={on} turn={st.active === p.id} atk={!mine && atkBy.has(p.id)} attn={selOf(p)} onClick={pick} mine={mine} />
   const drawerTop = drawers && <div className="fp-drawer top" role="group" aria-label={tx('Adversários')}>
     {tops.map((p, j) => chip(p, p === focusP, () => setDFocus(j)))}
     {wideNow && <button type="button" className="fs-mini fp-dall" onClick={() => setAllView(true)} title={tx('Ver todos os jogadores ao mesmo tempo')} aria-label={tx('Ver todos os jogadores ao mesmo tempo')}>⊞</button>}</div>

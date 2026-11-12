@@ -153,7 +153,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None
     return sid
 
 
-def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, mode=None):
+def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, mode=None, avs=None):
     """Mesa estrita: 2 a 4 pessoas no mesmo jogo do Forge, cada uma com o seu ecrã (o GrimorioNet com vários humanos).
     seats = {"a": chave, "b": chave[, "c", "d"]} (o dono ou «<dono>~guest:<id>»); decks/names com as mesmas letras.
     mode (3–4 lugares): "ffa" todos contra todos ou "2hg" Two-Headed Giant (a+b contra c+d, só a 4). Devolve o id."""
@@ -181,7 +181,8 @@ def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, 
         S[sid] = {"owner": seats["a"], "seats": {k: seats[k] for k in ks}, "pv": {k: blank() for k in ks}, "afk": afk, "clock": clock,
                   "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
                   "ended": False, "winner": None, "ts": time.time(), "names": {k: decks[k].get("name") for k in ks},
-                  "players": nm, "rate": None, "arts": {k: sim.art_map(decks[k]) for k in ks}, "chooser": chooser in ks}
+                  "players": nm, "rate": None, "arts": {k: sim.art_map(decks[k]) for k in ks}, "chooser": chooser in ks,
+                  **({"avs": {k: (avs or {}).get(k) for k in ks}} if any((avs or {}).values()) else {})}  # imagens de perfil (avatars.py)
     threading.Thread(target=_reader, args=(sid, p), daemon=True).start()
     return sid
 
@@ -269,7 +270,7 @@ def poll(sid, owner, since=0, wait=20.0):
         out = s.get("out")
         return {"seq": s["seq"], "state": v["state"], "prompt": v["prompt"], "asks": list(v["asks"].values()), "log": v["log"][-12:],
                 "ended": s["ended"], "winner": s["winner"], "names": sw(s["names"]), "crash": bool(s.get("crash")), "chooser": bool(s.get("chooser")),
-                "arts": sw(s.get("arts")), "out": sw(out) if isinstance(out, dict) and set(out) <= set("abcd") else out, "draw": s.get("draw", False),
+                "arts": sw(s.get("arts")), **({"avs": sw(s["avs"])} if s.get("avs") else {}), "out": sw(out) if isinstance(out, dict) and set(out) <= set("abcd") else out, "draw": s.get("draw", False),
                 **({"pvp": {"seat": seat, "afk": s.get("afk", AFK), "clock": s.get("clock")}} if seat else {})}
 
 
@@ -406,7 +407,8 @@ def selfcheck():
     with COND:
         S["t5"] = {"owner": "h", "seats": {"a": "h", "b": "h~guest:ana"}, "pv": {"a": blank(), "b": blank()}, "afk": 300, "p": p, "container": None,
                    "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [], "ended": False, "winner": None, "ts": time.time(),
-                   "names": {"a": "Deck H", "b": "Deck A"}, "players": {"a": "Hubert", "b": "Ana"}, "arts": {"a": {"x": 1}, "b": {}}}
+                   "names": {"a": "Deck H", "b": "Deck A"}, "players": {"a": "Hubert", "b": "Ana"}, "arts": {"a": {"x": 1}, "b": {}},
+                   "avs": {"a": "/avatars/h.webp", "b": None}}
     threading.Thread(target=_reader, args=("t5", p), daemon=True).start()
     ra = poll("t5", "h", 0, 3)
     while len(ra["asks"]) < 1:
@@ -414,6 +416,7 @@ def selfcheck():
     rb = poll("t5", "h~guest:ana", 0, 1)
     assert ra["pvp"]["seat"] == "a" and rb["pvp"]["seat"] == "b" and not rb["asks"] and rb["state"]["waitme"], rb
     assert rb["names"] == {"a": "Deck A", "b": "Deck H"} and rb["arts"] == {"a": {}, "b": {"x": 1}}, rb
+    assert rb["avs"] == {"a": None, "b": "/avatars/h.webp"} and ra["avs"]["a"] == "/avatars/h.webp"  # as imagens de perfil rodam com os lugares
     try:
         poll("t5", "outro", 0, 0)
         raise AssertionError("quem não está sentado não vê a mesa estrita")

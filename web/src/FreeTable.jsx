@@ -525,7 +525,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const fSeat = pick.current.seat != null && others.includes(pick.current.seat) && (pick.current.atk === atkKey || !atkMe.length) ? pick.current.seat : atkMe.find(i => ftTops.includes(i)) ?? ftTops[0] ?? others[0]
   const choose = i => { pick.current = { seat: i, atk: atkKey }; reDraw(x => x + 1) }
   const ftChip = (i, mine) => { const v = seats[i]; return <DrawerChip key={i} name={v.name} life={v.life} poison={v.p} hand={v.hand.length} perms={v.battlefield.length} out={v.out} on={mine ? (i === me ? !ftMates.includes(fSeat) : fSeat === i) : fSeat === i}
-    turn={s.active === i} atk={!mine && atkMe.includes(i)} mine={mine} onClick={() => choose(i === me ? ftTops[0] : i)} /> }
+    turn={s.active === i} atk={!mine && atkMe.includes(i)} mine={mine} av={v.av} onClick={() => choose(i === me ? ftTops[0] : i)} /> }
   const ftTeamOrb = ftDrawers && ftMates.length > 0 && fpPrefs().teamOrb
   const fx = { hl: new Set(), par: 0, pops: new Map(), life: lifeFx, player: null }
   const hs = { active: keyOf(s.active), exact: true, i: s.seq, sides: [] }
@@ -569,7 +569,7 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     const hand = isMe
       ? <div className="fp-hand mine">{handOf(v).map(c => <FCard key={c.id} c={{ id: c.id, name: c.n }} h={c.id} data={data} big cls={`${c.r ? 'ml-rev' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>
       : <div className="fp-hand opp" title={tx('{n} carta na mão|{n} cartas na mão', { n: v.hand.length })}>{v.hand.map(c => <FCard key={c.id} c={{ id: c.id, name: c.n, hidden: !c.n }} data={data} cls={c.n ? 'ml-rev' : ''} />)}</div>
-    const hud = <Hud k={k} z={zOf(v)} name={`${v.name}${v.out ? ' 🏳' : ''}${s.teams && !isMe && s.teams[i] === s.teams[me] ? ` 🤝 ${tx('parceiro')}` : ''}`} fmt={FORMAT[v.format]?.name || null} s={hs} data={data} fx={{ ...fx, player: psnFx?.p === k ? { p: k, psn: true } : null }} fast={false} start={v.life > 20 ? 40 : 20}
+    const hud = <Hud k={k} z={zOf(v)} av={v.av} name={`${v.name}${v.out ? ' 🏳' : ''}${s.teams && !isMe && s.teams[i] === s.teams[me] ? ` 🤝 ${tx('parceiro')}` : ''}`} fmt={FORMAT[v.format]?.name || null} s={hs} data={data} fx={{ ...fx, player: psnFx?.p === k ? { p: k, psn: true } : null }} fast={false} start={v.life > 20 ? 40 : 20}
       openZone={() => {}} top={top} hand={<>{cmd}{hand}</>} openLib={isMe ? onLib : v.libv ? () => setZone({ seat: i, which: 'libv' }) : null} />
     const field = (
       <div className={`ml-field ${top ? 'mirror' : ''}`} data-seat={i}>

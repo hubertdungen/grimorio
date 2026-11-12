@@ -17,6 +17,7 @@ publicar tem limite por minuto (guests.slow).
 """
 import json, re, secrets, time, urllib.parse
 
+import avatars
 import guests
 import rooms
 
@@ -109,8 +110,15 @@ def members(con, owner):
                        " WHERE m.owner=? AND m.removed IS NULL AND f.revoked IS NULL ORDER BY m.joined", (owner,)).fetchall()
     t = row(con, owner)
     hs = con.execute("SELECT seen FROM taverna_members WHERE owner=? AND who='host'", (owner,)).fetchone()
-    return [{"who": "host", "name": rooms.host_name(con, owner), "host": True, "joined": t and t["created"], "seen": hs and hs[0]}] + \
-        [{"who": w, "name": SALA.sub("", n or "?"), "host": False, "joined": j, "seen": s} for w, n, j, s in rows]
+    av = avatars.many(con, owner)
+    return [{"who": "host", "name": rooms.host_name(con, owner), "host": True, "joined": t and t["created"], "seen": hs and hs[0], **({"avatar": av["host"]} if av.get("host") else {})}] + \
+        [{"who": w, "name": SALA.sub("", n or "?"), "host": False, "joined": j, "seen": s, **({"avatar": av[w]} if av.get(w) else {})} for w, n, j, s in rows]
+
+
+def avs(con, owner):
+    """As imagens de perfil de quem alguma vez foi membro (a conversa e o Hall da Fama mostram também quem já saiu)."""
+    nm = names(con, owner)
+    return {w: a for w, a in avatars.many(con, owner).items() if w in nm}
 
 
 def is_member(con, owner, who):
@@ -494,7 +502,7 @@ def fame(con, owner, me):
           **({"deck": {"who": gd[0][0], "name": nm.get(gd[0][0]) or "?", "deck": gd[0][1], "n": gd[1]}} if gd and gd[1] >= 2 else {}),
           **({"rival": {"a": rv[0][0], "b": rv[0][1], "an": nm.get(rv[0][0]) or "?", "bn": nm.get(rv[0][1]) or "?", "aw": rv[1][rv[0][0]], "bw": rv[1][rv[0][1]], "g": rv[1]["g"]}}
              if rv and rv[1]["g"] >= 2 else {})}
-    return {"table": table, "hl": hl, "feed": rs[:30], "pts": PTS | {"t1": PTS[1], "t2": PTS[2], "t3": PTS[3]}, "n": len(rs)}
+    return {"table": table, "hl": hl, "feed": rs[:30], "pts": PTS | {"t1": PTS[1], "t2": PTS[2], "t3": PTS[3]}, "n": len(rs), "avs": avs(con, owner)}
 
 
 # ---------- a vista ----------
@@ -531,13 +539,14 @@ def state(con, owner, who, q):
            "taverna": {"name": t["name"], "motto": t["motto"], "created": t["created"], **({"link": f"/taverna/{t['link']}"} if who == "host" else {}),
                        **({"closed": t["closed"]} if t["closed"] else {})},
            "rooms": {"per": ROOMS_PER, "mine": 0 if who == "host" else _open_rooms(con, owner, who)},
-           "members": mem, "msgs": msgs, "rev": t["rev"], "srev": t["srev"], "frev": t["frev"], "read": readid, "pins": pins,
+           "members": mem, "avs": avs(con, owner), "msgs": msgs, "rev": t["rev"], "srev": t["srev"], "frev": t["frev"], "read": readid, "pins": pins,
            **counts(con, owner, who, readid),
            **({"more": bool(con.execute("SELECT 1 FROM taverna_msgs WHERE owner=? AND id<? AND deleted IS NULL", (owner, first)).fetchone())} if first else {}),
            **({"more": len(rs) == 50} if before else {})}
     if who == "host":  # os amigos que já tens e ainda não estão na Taverna (para os pôr com um toque)
         inn = {m["who"] for m in mem}
-        out["friends"] = [{"id": i, "name": SALA.sub("", n)} for i, n in con.execute("SELECT id, name FROM friends WHERE owner=? AND revoked IS NULL ORDER BY created DESC LIMIT 40", (owner,))
+        fav = avatars.many(con, owner)
+        out["friends"] = [{"id": i, "name": SALA.sub("", n), **({"avatar": fav[f"guest:{i}"]} if fav.get(f"guest:{i}") else {})} for i, n in con.execute("SELECT id, name FROM friends WHERE owner=? AND revoked IS NULL ORDER BY created DESC LIMIT 40", (owner,))
                           if f"guest:{i}" not in inn]
     return out
 
@@ -664,6 +673,13 @@ def route(con, method, path, owner, body, who, q=None):
         con.execute("DELETE FROM taverna_members WHERE owner=? AND who=? AND removed IS NOT NULL", (owner, f"guest:{fid}"))  # tirado ou saiu: volta
         add_member(con, owner, f"guest:{fid}")
         return 200, {"ok": True}
+    if act == "unavatar":  # tirar a imagem de perfil de um membro (uma imagem que não devia estar ali)
+        w = str(b.get("who") or "")
+        if not w.startswith("guest:") or not is_member(con, owner, w):
+            return 404, {"erro": "Essa pessoa não está na Taverna."}
+        avatars.clear(con, avatars.guest_key(w[6:]))
+        bump(con, owner)
+        return 200, {"ok": True}
     if act == "link":  # um link novo: o antigo deixa de entrar (quem já é membro fica)
         con.execute("UPDATE taverna SET link=? WHERE owner=?", (secrets.token_urlsafe(12), owner))
         return 200, {"link": f"/taverna/{row(con, owner)['link']}"}
@@ -774,7 +790,7 @@ def link_post(h, con, token, act, me):
             if guests.slow(("taverna-link", token)):
                 return h.json({"erro": "Demasiados pedidos: espera um minuto."}, 429)
             decks = d.get("decks") if isinstance(d.get("decks"), list) else []
-            return h.json({"go": f"/convite/{_join_token(con, owner, guests.link_friend(con, owner, 'app:' + key, d.get('name'), decks))}?entrar=1"})
+            return h.json({"go": f"/convite/{_join_token(con, owner, guests.link_friend(con, owner, 'app:' + key, d.get('name'), decks, d.get('avatar')))}?entrar=1"})
     except PermissionError as e:
         return h.json({"erro": str(e)}, 403)
     except ValueError as e:

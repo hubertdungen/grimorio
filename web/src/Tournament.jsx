@@ -21,6 +21,7 @@ import { usePeek } from './peek.jsx'
 import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
 import { useBackClose } from './backnav.js'
+import { PAv } from './avatar.jsx'
 import './tournament.css'
 
 const TYPES = {
@@ -883,8 +884,10 @@ const Fmt = ({ f }) => (f ? <span className="fmt-tag">{FORMAT[f]?.name || f}</sp
 const roundName = (m, k) => (m.b === 'W' ? (m.r === k ? tx('Final') : m.r === k - 1 ? tx('Meias-finais') : m.r === k - 2 ? tx('Quartos de final') : tx('Ronda {r}', { r: m.r }))
   : m.b === 'L' ? tx('Vencidos · ronda {r}', { r: m.r }) : m.b === '3' ? tx('3.º lugar') : m.r === 1 ? tx('Grande final') : tx('2.ª final'))
 
+// as imagens de perfil das pessoas por detrás dos decks (tournament.people_avs: {índice: imagem}) vão em cada jogador e no pódio
+const withAv = x => (x?.pav ? { ...x, players: (x.players || []).map((p, i) => (x.pav[i] ? { ...p, av: x.pav[i] } : p)), podium: x.podium?.map(p => (x.pav[p.i] ? { ...p, av: x.pav[p.i] } : p)) } : x)
 function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
-  const [t, setT] = useState(null)
+  const [t, setT0] = useState(null), setT = x => setT0(withAv(x))
   const deckOwn = useContext(OwnCtx)  // id do deck -> meu / ami / com (a etiqueta de cada lugar no tabuleiro)
   const [err, setErr] = useState('')
   const [watch, setWatch] = useState(null)  // {gid, game, deckName, score}
@@ -1269,14 +1272,16 @@ function BetsPanel({ b, won, place, P, data, num, going, type }) {
 const OwnCtx = createContext({})
 const OWN_I = { meta: ['📊', tx('Meta')], meu: ['🧙', tx('Meu')], ami: ['🤝', tx('Amigo')], com: ['🌐', tx('Comunidade')] }
 const ownOf = (p, own) => (!p ? null : p.src === 'meta' ? 'meta' : own[p.ref] || (p.com ? 'com' : p.fr || own._guest ? 'ami' : 'meu'))
-function OwnTag({ p }) {  // a etiqueta por extenso, onde há espaço (classificação, pódio)
+const avName = p => p?.fr || (p?.by === 'host' ? tx('Anfitrião') : '')
+function OwnTag({ p }) {  // a etiqueta por extenso, onde há espaço (classificação, pódio); com a imagem de perfil de quem é o deck, o nome dele
   const k = ownOf(p, useContext(OwnCtx))
-  return k ? <span className={`fmt-tag own own-${k}`}>{OWN_I[k][0]} {OWN_I[k][1]}</span> : null
+  return k ? <span className={`fmt-tag own own-${k}`}>{p.av ? <><PAv av={p.av} name={avName(p)} who={p.by} size={16} /> {avName(p) || OWN_I[k][1]}</> : <>{OWN_I[k][0]} {OWN_I[k][1]}</>}</span> : null
 }
 function Thumb({ data, p }) {
   const c = p && data.byName.get(p.cover), k = ownOf(p, useContext(OwnCtx))
   return <span className={`tp-thumb ${p?.src === 'meus' && !p.com ? 'mine' : ''}`} style={{ '--edge': edge(p?.colors || '') }}>{c ? <img src={img(c, 'art_crop')} alt="" loading="lazy" /> : null}
-    {k && <i className={`tp-own own-${k}`} title={OWN_I[k][1]} aria-label={OWN_I[k][1]}>{OWN_I[k][0]}</i>}</span>
+    {p?.av ? <PAv av={p.av} name={avName(p)} who={p.by} size={18} cls="tp-own-av" title={avName(p) || OWN_I[k]?.[1]} />
+      : k && <i className={`tp-own own-${k}`} title={OWN_I[k][1]} aria-label={OWN_I[k][1]}>{OWN_I[k][0]}</i>}</span>
 }
 
 function GameChips({ m, onGame, P }) {

@@ -14,7 +14,7 @@ COOKIE = "grimorio_guest"
 # versão da API das salas para outro Grimório (a app de um amigo fala com estas rotas com «Authorization: Bearer <convite>»):
 # sobe quando as rotas de BEARER mudarem de forma incompatível; a app do amigo compara e, se não bater, abre a página daqui
 API = 2  # 2: a mesa estrita (playnet pelo convite)
-BEARER = re.compile(r"^/api/(guest/me|guest/decks|rooms(/[a-z0-9]{1,16}(/[a-z]{1,12})?)?|freetables/[a-z0-9]{1,16}(/[a-z]{1,12})?|playnet/[a-f0-9]{12}(/cmd|/stop)?"
+BEARER = re.compile(r"^/api/(guest/me|guest/decks|guest/avatar|rooms(/[a-z0-9]{1,16}(/[a-z]{1,12})?)?|freetables/[a-z0-9]{1,16}(/[a-z]{1,12})?|playnet/[a-f0-9]{12}(/cmd|/stop)?"
                     r"|taverna(/[a-z]{2,10}(/[a-f0-9]{12})?)?)$")  # playnet: a mesa estrita; taverna: a Taverna de quem aloja (taverna.py)
 VOLTA = re.compile(r"https?://[A-Za-z0-9.:\[\]-]{1,120}/?")  # «← O meu Grimório»: só a origem do Grimório de quem vem
 DECK = re.compile(r"^/api/decks/([a-z0-9-]{8,40})$")
@@ -130,6 +130,9 @@ def owner_route(con, method, path, owner, body, port, tunnel=None, host="0.0.0.0
         return (200, {"ok": True}) if n else (404, {"erro": "não existe"})
     if method == "DELETE" and fid:
         n = con.execute("DELETE FROM friends WHERE id=? AND owner=?", (fid, owner)).rowcount
+        if n:  # a imagem de perfil dele sai com ele
+            import avatars
+            avatars.clear(con, avatars.guest_key(fid))
         return (200, {"ok": True}) if n else (404, {"erro": "não existe"})
     return 404, {"erro": "rota desconhecida"}
 
@@ -356,6 +359,9 @@ def invite_post(h, con, token, act):
         con.execute("UPDATE friends SET ext=? WHERE id=? AND ext IS NULL AND NOT EXISTS (SELECT 1 FROM friends WHERE owner=? AND ext=?)",
                     (ext, g["id"], g["owner"], ext))
     ids = put_decks(con, g["owner"], g["id"], g["name"], ext, d.get("decks") or [])
+    if isinstance(d.get("avatar"), dict):  # a imagem de perfil da app do amigo (avatars.put valida-a)
+        import avatars
+        avatars.put(con, avatars.guest_key(g["id"]), d["avatar"], limit=False)
     return h.json({"go": f"/convite/{token}?entrar=1", "ids": ids})
 
 
@@ -438,7 +444,7 @@ def put_decks(con, owner, fid, name, key, decks):
     return out
 
 
-def link_friend(con, owner, ext, name, decks):
+def link_friend(con, owner, ext, name, decks, avatar=None):
     """Amigo ligado a um perfil (deste Grimório, de outro, ou de uma cópia): reconhece-o pela chave `ext` (guarda-se o
     hash), põe-lhe o nome e os decks em dia (os mesmos decks de origem atualizam-se, não se duplicam) -> token do convite."""
     init(con)
@@ -454,6 +460,11 @@ def link_friend(con, owner, ext, name, decks):
         fid, tok = secrets.token_hex(6), secrets.token_urlsafe(18)
         con.execute("INSERT INTO friends (id, owner, name, token, created, revoked, ext) VALUES (?,?,?,?,?,NULL,?)", (fid, owner, name, tok, time.time(), key))
     put_decks(con, owner, fid, name, key, decks)
+    import avatars
+    if ext.startswith("local:"):  # um perfil deste Grimório: a imagem dele (o mesmo ficheiro)
+        avatars.copy(con, avatars.owner_key(ext[6:]), avatars.guest_key(fid))
+    elif isinstance(avatar, dict) and not avatar.get("clear"):  # a imagem que a app do amigo traz: validada como as outras
+        avatars.put(con, avatars.guest_key(fid), avatar, limit=False)
     return tok
 
 
@@ -519,7 +530,7 @@ def room_post(h, con, token, act, me, data_dir):
                 return h.json({"erro": "Pedido inválido."}, 400)
             if slow(("sala", token)):
                 return h.json({"erro": "Demasiados pedidos: espera um minuto."}, 429)
-            return h.json({"go": f"/convite/{link_friend(con, owner, 'app:' + key, d.get('name'), d['decks'])}?entrar=1"})
+            return h.json({"go": f"/convite/{link_friend(con, owner, 'app:' + key, d.get('name'), d['decks'], d.get('avatar'))}?entrar=1"})
         if act == "importar":  # cópia .grimorio: escolhe-se um perfil lá dentro e entram o nome e os decks dele
             return _import(h, con, owner, data_dir)
     except PermissionError as e:
@@ -592,6 +603,7 @@ def own(con, g, did):
 
 def handle(h, method, g, db, tournament):
     """Pedido de um convidado: só a lista fechada; tudo o resto 403."""
+    import avatars
     p = h.path.split("?")[0]
     deny = lambda: h.json({"erro": "Os convidados não podem fazer isto."}, 403)  # noqa: E731
     if p == "/api/guest/leave" and method == "POST":
@@ -611,8 +623,12 @@ def handle(h, method, g, db, tournament):
         with db() as con:
             ids = put_decks(con, g["owner"], g["id"], g["name"], f"g:{g['id']}", d["decks"])
         return h.json({"ids": ids, "n": len(ids)})
+    if p == "/api/guest/avatar" and method in ("GET", "POST"):  # a imagem de perfil do convidado, guardada aqui (avatars.py)
+        return h.avatar_route(method, avatars.guest_key(g["id"]))
     if p == "/api/profiles" and method == "GET":
-        return h.json({"mode": "guest", "current": {"id": None, "name": g["name"], "color": None}, "list": []})
+        with db() as con:
+            av = avatars.get(con, avatars.guest_key(g["id"]))
+        return h.json({"mode": "guest", "current": {"id": None, "name": g["name"], "color": None, **({"avatar": av} if av else {})}, "list": []})
     if p == "/api/decks" and method == "GET":
         return h._get()  # a lista filtra pelo convidado (H._as_guest)
     if p == "/api/decks" and method == "POST":
