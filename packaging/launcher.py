@@ -323,9 +323,69 @@ def log_to_file():
     sys.stdout = sys.stderr = open(f, "a", encoding="utf-8", buffering=1)
 
 
-def window(url, d):
+def remote_url(d):
+    """«Abrir o meu servidor» (Definições › Dados, devsync.py): o endereço do servidor se a janela o deve abrir, senão None."""
+    s = (jread(os.path.join(d, "storage.json")) or {}).get("server") or {}
+    u = str(s.get("url") or "")
+    return u if s.get("on") and s.get("open") and u.lower().startswith(("http://", "https://")) else None
+
+
+def reachable(url):
+    """O servidor responde (qualquer resposta HTTP serve: pode estar atrás de um login)?"""
+    try:
+        with urllib.request.urlopen(url.rstrip("/") + "/api/health", timeout=4):
+            return True
+    except urllib.error.HTTPError:
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def start_url(local, d, jh="", force_local=False):
+    """O que a janela abre: o servidor (modo «abrir o meu servidor», se responder) ou o Grimório local (com
+    #sem-servidor se o servidor não respondeu: a app avisa e usa os dados deste computador)."""
+    r = None if force_local else remote_url(d)
+    if r and not jh:
+        if reachable(r):
+            return r.rstrip("/") + "/"
+        return f"{local}/#sem-servidor"
+    return f"{local}/{jh}"
+
+
+class Bridge:
+    """window.pywebview.api na janela (também quando mostra o servidor): a app troca entre o servidor e este computador."""
+    def __init__(self, local, d):
+        self.local, self.d, self.w = local, d, None
+
+    def storage(self):
+        r = remote_url(self.d)
+        return {"mode": "remote" if r else "local", "local": self.local, "remote": r}
+
+    def _set(self, mode):
+        req = urllib.request.Request(self.local + "/api/storage", json.dumps({"mode": mode}).encode(), {"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return json.loads(r.read())
+
+    def use_local(self):
+        """Volta ao Grimório deste computador (os dados daqui estão intactos; a ligação ao servidor continua a sincronizar)."""
+        try:
+            self._set("server")
+        except (OSError, ValueError):
+            pass
+        if self.w:
+            self.w.load_url(self.local + "/")
+        return True
+
+    def use_remote(self):
+        r = remote_url(self.d)
+        if r and self.w:
+            self.w.load_url(r.rstrip("/") + "/")
+        return bool(r)
+
+
+def window(url, d, api=None):
     """Grimório in its own window (pywebview: Edge WebView2 on Windows). Blocks until the window is closed; False if
-    there is no window toolkit here (then the caller opens the browser)."""
+    there is no window toolkit here (then the caller opens the browser). api = Bridge (window.pywebview.api)."""
     try:
         import webview
     except Exception:
@@ -333,7 +393,10 @@ def window(url, d):
     try:
         webview.settings["ALLOW_DOWNLOADS"] = True  # exports, proxy PDFs, backups
         webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
-        w = webview.create_window("Grimório", url, width=1440, height=900, min_size=(960, 640), text_select=True, background_color="#0b0a14")
+        w = webview.create_window("Grimório", url, width=1440, height=900, min_size=(960, 640), text_select=True, background_color="#0b0a14",
+                                  **({"js_api": api} if api else {}))
+        if api:
+            api.w = w
 
         def away(on):  # minimizada: a página sabe (o relógio de torneio do Forge Play pausa fora da mesa)
             try:
@@ -364,12 +427,15 @@ def stop_box(url):
 
 
 def join_hash(link):
-    """grimorio://join?u=<link do amigo> -> '#levar=<link>' (a app abre «Sala de um amigo» com ele); '' se não for isso."""
+    """grimorio://join?u=<link do amigo> -> '#levar=<link>' (a app abre «Sala de um amigo» com ele); grimorio://ligar?u=<link
+    do servidor> -> '#ligar=<link>' (a app abre «Ligar ao meu servidor» com ele); '' se não for isso."""
     import urllib.parse
     if not link or not str(link).lower().startswith("grimorio://"):
         return ""
-    u = (urllib.parse.parse_qs(urllib.parse.urlsplit(link).query).get("u") or [""])[0]
-    return "#levar=" + urllib.parse.quote(u, safe="") if u.lower().startswith(("http://", "https://")) and len(u) < 600 else ""
+    sp = urllib.parse.urlsplit(link)
+    u = (urllib.parse.parse_qs(sp.query).get("u") or [""])[0]
+    tag = "#ligar=" if (sp.netloc or sp.path.strip("/")).lower() == "ligar" else "#levar="
+    return tag + urllib.parse.quote(u, safe="") if u.lower().startswith(("http://", "https://")) and len(u) < 600 else ""
 
 
 def register_scheme():
@@ -416,6 +482,7 @@ def main():
     ap.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to open it to phones/tablets on your network")
     ap.add_argument("--no-browser", action="store_true", help="do not open a window or the browser (server only)")
     ap.add_argument("--browser", action="store_true", help="open in the browser instead of Grimório's own window")
+    ap.add_argument("--local", action="store_true", help="open this computer's Grimório even if Settings › Data says to open your server")
     ap.add_argument("link", nargs="?", help=argparse.SUPPRESS)  # grimorio://join?u=… (register_scheme)
     log_to_file()  # the Windows app has no console: what it says goes to <data>/logs/grimorio.log
     args = ap.parse_args()
@@ -433,8 +500,9 @@ def main():
     register_scheme()
     if not args.port and last and running(last):  # already open: just show it again (o link de um amigo abre outra janela nele)
         say(f"Grimório is already running: http://127.0.0.1:{last}")
-        if not args.no_browser and not (not args.browser and window(f"http://127.0.0.1:{last}/{jh}", d)):
-            webbrowser.open(f"http://127.0.0.1:{last}/{jh}")
+        loc = f"http://127.0.0.1:{last}"
+        if not args.no_browser and not (not args.browser and window(start_url(loc, d, jh, args.local), d, Bridge(loc, d))):
+            webbrowser.open(start_url(loc, d, jh, args.local))
         return
     port = args.port or next((p for p in ([last] if last else []) + list(PORTS) if free(args.host, p)), None)
     if not port:
@@ -474,8 +542,8 @@ def main():
             say("The server did not start; see the log above.")
         elif args.no_browser:
             server.join()
-        elif args.browser or not window(f"{url}/{jh}", d):  # no window (Linux without pywebview, Windows without WebView2): the browser
-            webbrowser.open(f"{url}/{jh}")
+        elif args.browser or not window(start_url(url, d, jh, args.local), d, Bridge(url, d)):  # no window (Linux without pywebview, Windows without WebView2): the browser
+            webbrowser.open(start_url(url, d, jh, args.local))
             if not stop_box(url):  # Windows app without a console: a small dialog is the way to stop it
                 server.join()
     except KeyboardInterrupt:
@@ -499,6 +567,14 @@ def selfcheck():
     import tempfile
     assert join_hash("grimorio://join?u=https%3A%2F%2Fa-b.trycloudflare.com%2Fconvite%2Fabc") == "#levar=https%3A%2F%2Fa-b.trycloudflare.com%2Fconvite%2Fabc"
     assert join_hash("grimorio://join?u=javascript:alert(1)") == "" and join_hash(None) == "" and join_hash("--x") == ""
+    assert join_hash("grimorio://ligar?u=http%3A%2F%2F192.168.1.5%3A8107%2Fligar%2FABCD-EFGH") == "#ligar=http%3A%2F%2F192.168.1.5%3A8107%2Fligar%2FABCD-EFGH"
+    with tempfile.TemporaryDirectory() as d:  # «abrir o meu servidor»: a janela abre o servidor; sem resposta, o local com aviso
+        assert remote_url(d) is None and start_url("http://127.0.0.1:1", d) == "http://127.0.0.1:1/"
+        jwrite(os.path.join(d, "storage.json"), {"server": {"url": "http://127.0.0.1:9", "on": True, "open": True}})
+        assert remote_url(d) == "http://127.0.0.1:9" and start_url("http://127.0.0.1:1", d) == "http://127.0.0.1:1/#sem-servidor"
+        assert start_url("http://127.0.0.1:1", d, "#levar=x") == "http://127.0.0.1:1/#levar=x"  # o link de um amigo abre aqui
+        jwrite(os.path.join(d, "storage.json"), {"server": {"url": "javascript:alert(1)", "on": True, "open": True}})
+        assert remote_url(d) is None
     assert vkey("1.10.0") > vkey("1.9.3") > vkey("1.9") and vkey("dev") == () and vkey("0.0.0-abc1234") == (0, 0, 0)
     with tempfile.TemporaryDirectory() as d:
         ex = ("Grimorio", "Grimorio.exe") if os.name == "nt" else ("grimorio", "app", "launcher.py")

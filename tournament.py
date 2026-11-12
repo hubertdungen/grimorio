@@ -1133,6 +1133,8 @@ def route(method, path, owner, body=None, bettor=None):
         if method == "DELETE" and len(parts) == 1:  # só este torneio, pelo id
             settle(con, tid, json.loads(row[8]), cancelled=True)
             stop(con, tid, row[8])
+            import backup  # marca de apagado: os outros aparelhos também o apagam (e repõe-se em Definições › Dados durante 30 dias)
+            backup.tomb(con, "tournament", tid, owner, data=backup.deleted_tournament(con, tid))
             con.execute("DELETE FROM tournament_games WHERE tid=?", (tid,))
             con.execute("DELETE FROM tournaments WHERE id=? AND owner=?", (tid, owner))
             return 200, {"ok": True}

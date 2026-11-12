@@ -21,12 +21,36 @@ Regras da junção (nunca apaga dados):
 - ratings: os jogos (rating_games) juntam-se pelo conteúdo e os ratings refazem-se a partir deles (rebuild_ratings),
   respeitando os recomeços (ratings_kv reset:<chave>).
 Modo login (vários utilizadores atrás de um proxy): cada um exporta e junta só o que é seu; sem substituir nem pasta.
+
+Versões: o manifest leva `level` (o que quem escreveu sabe juntar), `needs` (o nível mínimo para juntar esta cópia sem
+perder nada) e `version` (a versão da app). Quem recebe uma cópia com `needs` acima do seu LEVEL recusa-a com uma frase
+clara («atualiza este aparelho para a versão X»); cópias antigas passam por migrate() (colunas e tabelas que faltam).
+
+Apagados (tombstones, nível 2): apagar de vez (lixo dos decks com mais de 30 dias, torneios, sessões de testes, perfis)
+deixa uma marca (kind, id, dono, hora) que viaja com a sincronização e apaga a linha nos outros aparelhos — um aparelho
+antigo nunca ressuscita o que já se apagou. Uma alteração feita DEPOIS de apagar ganha (como nos decks). Os dados apagados
+ficam 30 dias na marca (só neste aparelho) para se poderem repor; repor marca `revived` e a linha volta a viajar.
+
+O que é desta instalação e não viaja: amigos e convites, salas, mesas livres, a Taverna, «Os meus jogos», aparelhos ligados
+e os decks que os amigos trouxeram (`friend`). As cópias para sincronizar (scrub) saem sem isso e sem páginas livres
+(VACUUM: nada do que se tirou fica no ficheiro).
 """
-import atexit, json, os, re, socket, sqlite3, sys, tempfile, threading, time, uuid, zipfile
+import atexit, json, os, re, socket, sqlite3, sys, tempfile, threading, time, uuid, zipfile, zlib
 
 import ratings
 
-FORMAT = 1
+FORMAT = 1  # o contentor (zip + manifest + grimorio.db): só sobe se o próprio ficheiro mudar de forma
+LEVEL = 2   # o que esta versão sabe juntar: 1 = decks, torneios, ratings…; 2 = + apagados (tombstones)
+NEEDS = 1   # o nível mínimo para juntar o que esta versão escreve (sobe só com mudanças que um aparelho antigo estragaria)
+KEEP_BACKUPS = {"import": 5, "sync": 3}  # cópias da base antes de juntar (as mais recentes ficam)
+HOST_LOCAL = ("friends", "rooms", "freetables", "taverna", "taverna_members", "taverna_msgs", "taverna_shelf", "taverna_results",
+              "my_games", "host_meta", "devices", "device_codes", "avatars")
+TOMB = ("CREATE TABLE IF NOT EXISTS tombstones (kind TEXT, id TEXT, owner TEXT, ts REAL, revived REAL, data BLOB,"
+        " PRIMARY KEY (kind, id))")
+# o que se apaga de vez: tabela e a hora da última alteração da linha (uma alteração depois de apagar ganha)
+KINDS = {"deck": ("decks", "max(coalesce(updated, 0), coalesce(deleted, 0))"), "sim_run": ("sim_runs", "coalesce(ts, 0)"),
+         "tournament": ("tournaments", "coalesce(ts, 0)"), "profile": ("profiles", "coalesce(created, 0)")}
+UNDO_DAYS = 30
 COVER = re.compile(r"^[a-z0-9-]{8,40}\.(?:jpg|png|webp|gif)$")
 TICK = 60  # segundos entre verificações da pasta
 LOCK = threading.RLock()
@@ -40,16 +64,18 @@ def db_path(data_dir):
 # ---------- fotografia (zip) ----------
 
 def _filter_owner(con, owner):
-    """Deixa só os dados de `owner` numa cópia da base (exportação no modo login)."""
+    """Deixa só os dados de `owner` numa cópia da base (exportação no modo login, sincronização com um servidor)."""
     mine = [r[0] for r in con.execute("SELECT id FROM decks WHERE owner=?", (owner,))]
     keys = [f"deck:{i}" for i in mine]
     q = ",".join("?" * len(keys)) or "''"
+    rk = ",".join("?" * len(keys)) or "''"
     for sql, a in (("DELETE FROM decks WHERE owner IS NOT ?", (owner,)), ("DELETE FROM sim_runs WHERE owner IS NOT ?", (owner,)),
                    (f"DELETE FROM sim_games WHERE deck_id NOT IN ({','.join('?' * len(mine)) or chr(39) * 2})", mine),
                    ("DELETE FROM tournaments WHERE owner IS NOT ?", (owner,)),
                    ("DELETE FROM tournament_games WHERE tid NOT IN (SELECT id FROM tournaments)", ()),
                    ("DELETE FROM bets WHERE owner IS NOT ?", (owner,)), ("DELETE FROM wallets WHERE owner IS NOT ?", (owner,)),
-                   ("DELETE FROM profiles", ()), ("DELETE FROM ratings_kv", ()),
+                   ("DELETE FROM profiles", ()), ("DELETE FROM tombstones WHERE owner IS NOT ? OR kind='profile'", (owner,)),
+                   (f"DELETE FROM ratings_kv WHERE substr(k, 7) NOT IN ({rk}) OR k NOT LIKE 'reset:%'", keys),  # recomeços dos decks dele
                    (f"DELETE FROM rating_games WHERE a_key NOT IN ({q}) AND b_key NOT IN ({q})", keys * 2),
                    (f"DELETE FROM ratings WHERE key NOT IN ({q})", keys)):
         try:
@@ -59,22 +85,104 @@ def _filter_owner(con, owner):
     return set(mine)
 
 
-def snapshot(data_dir, dest, owner=None, device=""):
-    """Escreve o .grimorio em `dest` (atómico). owner = só os dados dele (modo login). Devolve o manifest."""
+def _scrub(con):
+    """Tira o que é desta instalação (HOST_LOCAL, decks dos amigos) e os dados guardados para repor (ficam só aqui)."""
+    for t in HOST_LOCAL:
+        con.execute(f"DROP TABLE IF EXISTS {t}")
+    con.execute("DELETE FROM decks WHERE json_extract(body, '$.friend') IS NOT NULL")
+    if _has(con, "main", "tombstones"):
+        con.execute("UPDATE tombstones SET data=NULL")
+
+
+def _sync_copy(data_dir, tmpdb, owner, skip):
+    """A base para sincronizar: as tabelas de SYNC_TABLES com só as linhas que viajam (do dono, sem decks de amigos, sem os
+    torneios em `skip` que o outro lado já tem iguais ou mais avançados, marcas sem os dados para repor). Uma leitura só
+    (consistente) da base viva. -> (ids dos decks, progresso dos torneios)."""
+    dst = sqlite3.connect(tmpdb)
+    try:
+        dst.execute("ATTACH DATABASE ? AS s", (db_path(data_dir),))
+        with LOCK:
+            dst.execute("BEGIN")
+            have = {}
+            if _has(dst, "s", "tournaments"):
+                n = dict(dst.execute("SELECT tid, COUNT(*) FROM s.tournament_games GROUP BY tid"))
+                have = {t: [int(st in ("done", "cancelled", "error")), n.get(t, 0)]
+                        for t, st in dst.execute("SELECT id, status FROM s.tournaments WHERE ? IS NULL OR owner=?", (owner, owner))}
+            gone = {t for t, p in have.items() if skip and t in skip and isinstance(skip[t], (list, tuple)) and list(skip[t]) >= p}
+            dst.execute("CREATE TEMP TABLE gone (id TEXT PRIMARY KEY)")
+            dst.executemany("INSERT INTO gone VALUES (?)", [(t,) for t in gone])
+            o = "(? IS NULL OR owner=?)"
+            keys = "(SELECT 'deck:' || id FROM main.decks)"
+            plan = {"decks": (f"{o} AND json_extract(body, '$.friend') IS NULL", 2),
+                    "sim_runs": (o, 2), "sim_games": ("deck_id IN (SELECT id FROM main.decks)", 0),
+                    "profiles": ("? IS NULL", 1), "tournaments": (f"{o} AND id NOT IN (SELECT id FROM temp.gone)", 2),
+                    "tournament_games": ("tid IN (SELECT id FROM main.tournaments)", 0), "wallets": (o, 2), "bets": (o, 2),
+                    "ratings": (f"? IS NULL OR key IN {keys}", 1), "rating_games": (f"? IS NULL OR a_key IN {keys} OR b_key IN {keys}", 1),
+                    "ratings_kv": (f"? IS NULL OR (k LIKE 'reset:%' AND substr(k, 7) IN {keys})", 1), "tombstones": (o, 2)}
+            for t in SYNC_TABLES:
+                if not _has(dst, "s", t):
+                    continue
+                sql = dst.execute("SELECT sql FROM s.sqlite_master WHERE type='table' AND name=?", (t,)).fetchone()[0]
+                dst.execute(re.sub(r'^CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?\w+"?', f"CREATE TABLE main.{t}", sql, count=1))
+                where, na = plan[t]
+                dst.execute(f"INSERT INTO main.{t} SELECT * FROM s.{t} WHERE {where}", (owner,) * na)
+            if _has(dst, "main", "tombstones"):
+                dst.execute("UPDATE main.tombstones SET data=NULL")
+            dst.commit()
+        mine = {r[0] for r in dst.execute("SELECT id FROM main.decks")}
+        dst.execute("DETACH DATABASE s")
+        return mine, have
+    finally:
+        dst.close()
+
+
+def progress(con, owner=None):
+    """{id do torneio: [acabado, nº de jogos]} — o que cada lado já tem (a junção fica com o mais avançado)."""
+    if not _has(con, "main", "tournaments"):
+        return {}
+    n = dict(con.execute("SELECT tid, COUNT(*) FROM tournament_games GROUP BY tid"))
+    return {t: [int(st in ("done", "cancelled", "error")), n.get(t, 0)]
+            for t, st in con.execute("SELECT id, status FROM tournaments WHERE ? IS NULL OR owner=?", (owner, owner))}
+
+
+def app_version():
+    return os.environ.get("GRIMORIO_VERSION") or "dev"
+
+
+def snapshot(data_dir, dest, owner=None, device="", scrub=False, skip=None, extra=None):
+    """Escreve o .grimorio em `dest` (atómico). owner = só os dados dele (modo login, servidor). scrub = para sincronizar
+    (sem o que é só desta instalação). skip = {id do torneio: [acabado, jogos]} que o outro lado já tem pelo menos assim
+    (não vão: a junção ficava com os dele de qualquer forma — é o que torna a sincronização com um servidor um delta).
+    extra = mais campos no manifest. Devolve o manifest."""
     fd, tmpdb = tempfile.mkstemp(prefix="snap-", suffix=".db", dir=data_dir)
     os.close(fd)
     try:
-        src, dst = sqlite3.connect(db_path(data_dir), timeout=30), sqlite3.connect(tmpdb)
-        with LOCK:
-            src.backup(dst)
-        src.close()
-        mine = _filter_owner(dst, owner) if owner else None
+        if scrub:  # para sincronizar: só as linhas que viajam, copiadas para uma base nova (não se copia nem limpa a base toda)
+            mine, have = _sync_copy(data_dir, tmpdb, owner, skip)
+            skip = None
+            dst = sqlite3.connect(tmpdb)
+        else:
+            src, dst = sqlite3.connect(db_path(data_dir), timeout=30), sqlite3.connect(tmpdb)
+            with LOCK:
+                src.backup(dst)
+            src.close()
+            mine = _filter_owner(dst, owner) if owner else None
+            have = progress(dst)
+        if skip:
+            gone = [t for t, p in have.items() if t in skip and list(skip[t]) >= p]
+            for i in range(0, len(gone), 500):
+                part = gone[i:i + 500]
+                q = ",".join("?" * len(part))
+                dst.execute(f"DELETE FROM tournament_games WHERE tid IN ({q})", part)
+                dst.execute(f"DELETE FROM tournaments WHERE id IN ({q})", part)
         dst.commit()
+        if (owner or skip) and not scrub:
+            dst.execute("VACUUM")  # sem páginas livres: o que se tirou (dados de outros, convites) não fica no ficheiro
         counts = {t: dst.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("decks", "tournaments", "rating_games")
                   if dst.execute("SELECT 1 FROM sqlite_master WHERE name=?", (t,)).fetchone()}
         dst.close()
-        man = {"app": "grimorio", "format": FORMAT, "created": time.time(), "device": device, "scope": "owner" if owner else "all",
-               "counts": counts}
+        man = {"app": "grimorio", "format": FORMAT, "level": LEVEL, "needs": NEEDS, "version": app_version(), "created": time.time(),
+               "device": device, "scope": "owner" if owner else "all", "owner": owner, "counts": counts, "have": have, **(extra or {})}
         tmpzip = os.path.join(os.path.dirname(dest) or ".", f".{os.path.basename(dest)}.tmp")
         with zipfile.ZipFile(tmpzip, "w", zipfile.ZIP_DEFLATED) as z:
             z.writestr("manifest.json", json.dumps(man, ensure_ascii=False, indent=1))
@@ -97,6 +205,35 @@ def snapshot(data_dir, dest, owner=None, device=""):
         os.remove(tmpdb)
 
 
+class TooNew(ValueError):
+    """A cópia vem de uma versão mais nova que escreve o que esta não sabe juntar: atualizar este aparelho."""
+    def __init__(self, version):
+        self.version = version or "?"
+        super().__init__(f"Estes dados vêm do Grimório {self.version}, mais novo e com coisas que este aparelho ainda não sabe juntar:"
+                         f" atualiza este aparelho para a versão {self.version} ou mais recente.")
+
+
+def check_manifest(man):
+    """Recusa (TooNew / ValueError) o que esta versão não sabe juntar sem perder nada."""
+    if not isinstance(man, dict) or man.get("app") != "grimorio":
+        raise ValueError("Este ficheiro não é uma cópia do Grimório.")
+    try:
+        fmt, needs = int(man.get("format", 0)), int(man.get("needs", 1))
+    except (TypeError, ValueError):
+        raise ValueError("Este ficheiro não é uma cópia do Grimório (ou está incompleto).")
+    if fmt > FORMAT or needs > LEVEL:
+        raise TooNew(str(man.get("version") or ""))
+
+
+def migrate(con, schema="main"):
+    """Cópias de versões antigas: as colunas e tabelas que a junção espera (nunca se perde uma linha por faltarem)."""
+    cols = _cols(con, schema, "decks")
+    for c, ddl in (("owner", "owner TEXT DEFAULT 'local'"), ("deleted", "deleted REAL")):
+        if c not in cols:
+            con.execute(f"ALTER TABLE {schema}.decks ADD COLUMN {ddl}")
+    con.execute(TOMB.replace("EXISTS tombstones", f"EXISTS {schema}.tombstones"))
+
+
 def open_zip(path, data_dir):
     """Valida um .grimorio e extrai a base para um temporário -> (manifest, caminho da base, zip aberto)."""
     if not zipfile.is_zipfile(path):
@@ -104,19 +241,21 @@ def open_zip(path, data_dir):
     z = zipfile.ZipFile(path)
     try:
         man = json.loads(z.read("manifest.json"))
-        if man.get("app") != "grimorio" or int(man.get("format", 0)) > FORMAT:
-            raise ValueError("Esta cópia é de uma versão mais nova do Grimório: atualiza primeiro.")
+        check_manifest(man)
         fd, tmpdb = tempfile.mkstemp(prefix="imp-", suffix=".db", dir=data_dir)
         with os.fdopen(fd, "wb") as f:
             f.write(z.read("grimorio.db"))
         c = sqlite3.connect(tmpdb)
         ok = c.execute("PRAGMA quick_check").fetchone()[0] == "ok" and c.execute("SELECT 1 FROM sqlite_master WHERE name='decks'").fetchone()
+        if ok:
+            migrate(c)
+            c.commit()
         c.close()
         if not ok:
             os.remove(tmpdb)
             raise ValueError("A base de dados dentro da cópia está estragada.")
         return man, tmpdb, z
-    except (KeyError, json.JSONDecodeError, zipfile.BadZipFile, sqlite3.DatabaseError):
+    except (KeyError, json.JSONDecodeError, zipfile.BadZipFile, sqlite3.DatabaseError, OSError):
         z.close()
         raise ValueError("Este ficheiro não é uma cópia do Grimório (ou está incompleto).")
     except ValueError:
@@ -156,20 +295,61 @@ def _covers(z, data_dir, owner_ids=None, overwrite=False):
     return n
 
 
-def import_file(data_dir, path, mode="merge", owner=None, since=None, keep=True):
-    """Junta (merge) ou substitui (replace) a base com a cópia em `path`. keep = guardar a base atual antes.
-    since = hora da última junção com quem fez a cópia (sync); por omissão a da própria cópia (sem conflitos:
-    ganha o mais recente). Devolve as contagens."""
+def safety_copy(data_dir, tag="import", min_age=0):
+    """Cópia da base antes de juntar: grimorio.db.before-<tag>-<hora>, ficam as KEEP_BACKUPS[tag] mais recentes.
+    min_age: não faz outra se a última desta etiqueta tiver menos de min_age segundos (a sincronização junta muitas vezes).
+    Devolve o caminho (ou None se não fez)."""
+    pre = f"grimorio.db.before-{tag}-"
+    old = sorted(f for f in os.listdir(data_dir) if f.startswith(pre) and not f.endswith((".tmp", "-journal")))
+    if min_age and old and time.time() - os.path.getmtime(os.path.join(data_dir, old[-1])) < min_age:
+        return None
+    dest = os.path.join(data_dir, pre + time.strftime("%Y%m%d-%H%M%S"))
+    if os.path.exists(dest):
+        dest += f"-{uuid.uuid4().hex[:4]}"
+    live, b = sqlite3.connect(db_path(data_dir), timeout=30), sqlite3.connect(dest + ".tmp")
+    try:
+        live.backup(b)
+    finally:
+        b.close()
+        live.close()
+    os.replace(dest + ".tmp", dest)
+    for f in sorted(f for f in os.listdir(data_dir) if f.startswith(pre) and not f.endswith((".tmp", "-journal")))[:-KEEP_BACKUPS.get(tag, 3)]:
+        try:
+            os.remove(os.path.join(data_dir, f))
+        except OSError:
+            pass
+    return dest
+
+
+def reown(con, frm, to, schema="main"):
+    """Os dados de `frm` passam a ser de `to` (o dono no servidor e o perfil no aparelho têm nomes diferentes)."""
+    if frm == to or frm is None or to is None:
+        return
+    for t in ("decks", "sim_runs", "tournaments", "bets", "wallets", "ratings", "tombstones"):
+        if _has(con, schema, t):
+            con.execute(f"UPDATE OR REPLACE {schema}.{t} SET owner=? WHERE owner=?", (to, frm))
+
+
+def import_file(data_dir, path, mode="merge", owner=None, since=None, keep=True, as_owner=None):
+    """Junta (merge) ou substitui (replace) a base com a cópia em `path`. keep = guardar a base atual antes (True: sempre;
+    um número: só se a última cópia «sync» tiver mais de tantos segundos). since = hora da última junção com quem fez a cópia
+    (sync); por omissão a da própria cópia (sem conflitos: ganha o mais recente). as_owner = os dados do dono da cópia
+    (manifest.owner) passam a ser deste dono antes de juntar (servidor ↔ aparelho). Devolve as contagens."""
     if mode == "replace" and owner:
         raise ValueError("Com login só dá para juntar (substituir apagava os dados dos outros).")
     man, tmpdb, z = open_zip(path, data_dir)
     try:
+        if as_owner is not None:
+            t = sqlite3.connect(tmpdb)
+            reown(t, man.get("owner"), as_owner)
+            t.commit()
+            t.close()
         with LOCK:
+            if keep is True:
+                safety_copy(data_dir, "import")
+            elif keep:
+                safety_copy(data_dir, "sync", min_age=keep)
             live = sqlite3.connect(db_path(data_dir), timeout=30)
-            if keep:
-                b = sqlite3.connect(db_path(data_dir) + f".before-import-{time.strftime('%Y%m%d-%H%M%S')}")
-                live.backup(b)
-                b.close()
             if mode == "replace":
                 src = sqlite3.connect(tmpdb)
                 src.backup(live)
@@ -182,7 +362,7 @@ def import_file(data_dir, path, mode="merge", owner=None, since=None, keep=True)
                 st["arts"] = _arts(z, data_dir)
             live.commit()
             live.close()
-        return {**st, "from": {k: man.get(k) for k in ("created", "device", "counts")}}
+        return {**st, "from": {k: man.get(k) for k in ("created", "device", "counts", "version", "level")}}
     finally:
         z.close()
         os.remove(tmpdb)
@@ -226,21 +406,84 @@ def _copy(con, row):
 BET_KEY = ("owner", "tid", "kind", "mid", "pick", "ts")  # os ids inteiros colidem entre aparelhos: compara-se o conteúdo
 
 
+SYNC_TABLES = ("decks", "sim_runs", "sim_games", "profiles", "tournaments", "tournament_games", "wallets", "bets", "ratings",
+               "rating_games", "ratings_kv", "tombstones")
+
+
+def tomb(con, kind, rid, owner, ts=None, data=None):
+    """Marca uma linha apagada de vez (KINDS). data = o que se apagou (JSON), para repor durante UNDO_DAYS."""
+    con.execute(TOMB)
+    blob = zlib.compress(json.dumps(data, ensure_ascii=False, default=str).encode(), 6) if data is not None else None
+    con.execute("INSERT INTO tombstones (kind, id, owner, ts, revived, data) VALUES (?,?,?,?,NULL,?) ON CONFLICT(kind, id) DO UPDATE SET"
+                " ts=max(coalesce(ts, 0), excluded.ts), owner=excluded.owner, data=coalesce(excluded.data, data)",
+                (kind, str(rid), owner, ts or time.time(), blob))
+    con.execute("UPDATE tombstones SET data=NULL WHERE data IS NOT NULL AND ts < ?", (time.time() - UNDO_DAYS * 86400,))
+
+
+def _dead(con, owner=None):
+    """{(kind, id): (hora, dono)} das marcas em vigor (apagado depois da última reposição)."""
+    if not _has(con, "main", "tombstones"):
+        return {}
+    return {(k, i): (ts, o) for k, i, ts, o in con.execute("SELECT kind, id, ts, owner FROM main.tombstones WHERE ts > coalesce(revived, 0)"
+                                                           " AND (? IS NULL OR owner=?)", (owner, owner))}
+
+
+def apply_tombs(con, owner=None):
+    """Apaga as linhas locais com uma marca em vigor que não mudaram depois de apagadas. Devolve quantas."""
+    n = 0
+    for (kind, rid), (ts, own) in _dead(con, owner).items():
+        if kind not in KINDS:
+            continue  # um tipo que esta versão não conhece: a marca fica (viaja) mas não se aplica
+        table, chg = KINDS[kind]
+        if not _has(con, "main", table):
+            continue
+        row = con.execute(f"SELECT {chg}, {'id' if kind == 'profile' else 'owner'} FROM main.{table} WHERE id=?", (rid,)).fetchone()
+        if not row or row[0] > ts or row[1] != own:
+            continue
+        if kind == "tournament":
+            con.execute("DELETE FROM main.tournament_games WHERE tid=?", (rid,))
+            if _has(con, "main", "bets"):
+                con.execute("DELETE FROM main.bets WHERE tid=?", (rid,))
+        n += con.execute(f"DELETE FROM main.{table} WHERE id=?", (rid,)).rowcount
+    return n
+
+
 def merge(con, src_path, since=0.0, owner=None):
-    """Junta a base em src_path na base de `con` (regras no topo do ficheiro). owner = só linhas desse dono."""
-    st = {"decks_new": 0, "decks_updated": 0, "conflicts": [], "tournaments": 0, "games": 0, "rating_games": 0}
+    """Junta a base em src_path na base de `con` (regras no topo do ficheiro). owner = só linhas desse dono (e nunca toca
+    nas linhas de outro dono com o mesmo id)."""
+    st = {"decks_new": 0, "decks_updated": 0, "conflicts": [], "tournaments": 0, "games": 0, "rating_games": 0, "deleted": 0}
     con.execute("ATTACH DATABASE ? AS r", (src_path,))
     try:
         mine = (lambda o: owner is None or o == owner)
-        # decks
-        for row in con.execute("SELECT id, name, format, body, updated, owner, deleted FROM r.decks").fetchall():
-            if not mine(row[5]):
+        for t in SYNC_TABLES:  # uma tabela que este aparelho ainda não criou: cria-se igual à da cópia (nada se perde)
+            if _has(con, "r", t) and not _has(con, "main", t):
+                sql = con.execute("SELECT sql FROM r.sqlite_master WHERE type='table' AND name=?", (t,)).fetchone()[0]
+                con.execute(re.sub(r'^CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?\w+"?', f"CREATE TABLE main.{t}", sql, count=1))
+        migrate(con)
+        # apagados: as marcas juntam-se primeiro (a mais recente de cada lado), para não entrar o que um lado já apagou
+        if _has(con, "r", "tombstones"):
+            for kind, rid, own, ts, rev in con.execute("SELECT kind, id, owner, ts, revived FROM r.tombstones").fetchall():
+                if mine(own) and kind and rid:
+                    con.execute("INSERT INTO main.tombstones (kind, id, owner, ts, revived) VALUES (?,?,?,?,?) ON CONFLICT(kind, id) DO UPDATE SET"
+                                " ts=max(coalesce(ts, 0), coalesce(excluded.ts, 0)), revived=nullif(max(coalesce(revived, 0), coalesce(excluded.revived, 0)), 0)"
+                                " WHERE owner IS excluded.owner", (kind, rid, own, ts or 0, rev))
+        dead = _dead(con, owner)
+
+        def gone(kind, rid, own, t):
+            d = dead.get((kind, rid))
+            return bool(d) and d[1] == own and (t or 0) <= d[0]
+        # decks (os dos amigos são desta instalação: não entram)
+        for row in con.execute("SELECT id, name, format, body, updated, owner, deleted FROM r.decks"
+                               " WHERE json_extract(body, '$.friend') IS NULL").fetchall():
+            if not mine(row[5]) or gone("deck", row[0], row[5], max(row[4] or 0, row[6] or 0)):
                 continue
             loc = con.execute("SELECT id, name, format, body, updated, owner, deleted FROM main.decks WHERE id=?", (row[0],)).fetchone()
             if not loc:
                 con.execute("INSERT INTO main.decks (id, name, format, body, updated, owner, deleted) VALUES (?,?,?,?,?,?,?)", row)
                 st["decks_new"] += 1
                 continue
+            if loc[5] != row[5] or json.loads(loc[3] or "{}").get("friend"):
+                continue  # o mesmo id com outro dono (ou um deck de amigo daqui): nunca se mexe
             if _body(loc[3]) == _body(row[3]) and bool(loc[6]) == bool(row[6]):
                 continue
             lc, rc = max(loc[4] or 0, loc[6] or 0), max(row[4] or 0, row[6] or 0)
@@ -255,7 +498,8 @@ def merge(con, src_path, since=0.0, owner=None):
                 st["decks_updated"] += 1
         # perfis, sessões e jogos do Laboratório
         if owner is None and _has(con, "r", "profiles"):
-            con.execute("INSERT OR IGNORE INTO main.profiles SELECT * FROM r.profiles")
+            c = ",".join(x for x in _cols(con, "main", "profiles") if x in _cols(con, "r", "profiles"))
+            con.execute(f"INSERT OR IGNORE INTO main.profiles ({c}) SELECT {c} FROM r.profiles")
         if _has(con, "r", "sim_runs"):
             c = ",".join(x for x in _cols(con, "main", "sim_runs") if x in _cols(con, "r", "sim_runs"))
             con.execute(f"INSERT OR IGNORE INTO main.sim_runs ({c}) SELECT {c} FROM r.sim_runs WHERE ? IS NULL OR owner=?", (owner, owner))
@@ -267,13 +511,14 @@ def merge(con, src_path, since=0.0, owner=None):
             def prog(schema, tid, status):
                 return (status in ("done", "cancelled", "error"),
                         con.execute(f"SELECT COUNT(*) FROM {schema}.tournament_games WHERE tid=?", (tid,)).fetchone()[0])
-            tc = _cols(con, "main", "tournaments")
+            rcols = set(_cols(con, "r", "tournaments"))
+            tc = [c for c in _cols(con, "main", "tournaments") if c in rcols]
             for row in con.execute(f"SELECT {','.join(tc)} FROM r.tournaments").fetchall():
                 t = dict(zip(tc, row))
-                if not mine(t["owner"]):
+                if not mine(t.get("owner")) or gone("tournament", t["id"], t.get("owner"), t.get("ts")):
                     continue
-                loc = con.execute("SELECT status FROM main.tournaments WHERE id=?", (t["id"],)).fetchone()
-                if loc and prog("main", t["id"], loc[0]) >= prog("r", t["id"], t["status"]):
+                loc = con.execute("SELECT status, owner FROM main.tournaments WHERE id=?", (t["id"],)).fetchone()
+                if loc and (loc[1] != t.get("owner") or prog("main", t["id"], loc[0]) >= prog("r", t["id"], t["status"])):
                     continue
                 state, remap = json.loads(t["state"]), {}
                 con.execute("DELETE FROM main.tournament_games WHERE tid=?", (t["id"],))
@@ -291,32 +536,43 @@ def merge(con, src_path, since=0.0, owner=None):
                 if t["status"] in ("running", "paused"):  # só um aparelho joga cada torneio
                     t["status"] = "paused"
                 t["state"] = json.dumps(state, ensure_ascii=False)
-                con.execute(f"INSERT OR REPLACE INTO main.tournaments ({','.join(tc)}) VALUES ({','.join('?' * len(tc))})", [t[c] for c in tc])
+                if loc:
+                    con.execute(f"UPDATE main.tournaments SET {','.join(c + '=?' for c in tc)} WHERE id=?", [t[c] for c in tc] + [t["id"]])
+                else:
+                    con.execute(f"INSERT INTO main.tournaments ({','.join(tc)}) VALUES ({','.join('?' * len(tc))})", [t[c] for c in tc])
                 if _has(con, "r", "bets") and _has(con, "main", "bets"):
                     con.execute("DELETE FROM main.bets WHERE tid=?", (t["id"],))
-                    _union(con, "bets", BET_KEY, "tid=?", (t["id"],))
+                    _union(con, "bets", BET_KEY, "tid=? AND (? IS NULL OR owner=?)", (t["id"], owner, owner))
                 st["tournaments"] += 1
             if _has(con, "r", "bets") and _has(con, "main", "bets"):  # apostas de torneios que não mudaram de versão
-                _union(con, "bets", BET_KEY, "? IS NULL OR owner=?", (owner, owner))
+                _union(con, "bets", BET_KEY, "(? IS NULL OR owner=?) AND tid IN (SELECT id FROM main.tournaments WHERE ? IS NULL OR owner=?)",
+                       (owner, owner, owner, owner))
         if _has(con, "r", "wallets") and _has(con, "main", "wallets"):
             for own, coins, sub in con.execute("SELECT owner, coins, subsidy FROM r.wallets").fetchall():
                 if mine(own):
                     con.execute("INSERT INTO main.wallets VALUES (?,?,?) ON CONFLICT(owner) DO UPDATE SET coins=max(coins, excluded.coins),"
                                 " subsidy=max(coalesce(subsidy, ''), coalesce(excluded.subsidy, ''))", (own, coins, sub))
-        # ratings: jogos pelo conteúdo, linhas que faltam (nomes) e depois refazer tudo
+        # ratings: jogos pelo conteúdo, linhas que faltam (nomes) e depois refazer tudo. Com dono: só o que toca nos decks dele
         if _has(con, "r", "rating_games") and _has(con, "main", "rating_games"):
-            st["rating_games"] = _union(con, "rating_games", ("round_id", "ts", "a_key", "b_key", "winner"))
+            keys = "(SELECT 'deck:' || id FROM main.decks WHERE owner=?)"
+            st["rating_games"] = _union(con, "rating_games", ("round_id", "ts", "a_key", "b_key", "winner"),
+                                        f"? IS NULL OR a_key IN {keys} OR b_key IN {keys}", (owner, owner, owner))
             n = 0
             if _has(con, "r", "ratings"):
-                n = con.execute("INSERT OR IGNORE INTO main.ratings SELECT * FROM r.ratings").rowcount
+                c = ",".join(x for x in _cols(con, "main", "ratings") if x in _cols(con, "r", "ratings"))
+                n = con.execute(f"INSERT OR IGNORE INTO main.ratings ({c}) SELECT {c} FROM r.ratings WHERE ? IS NULL OR key IN {keys}",
+                                (owner, owner)).rowcount
             if _has(con, "r", "ratings_kv"):
                 for k, v in con.execute("SELECT k, v FROM r.ratings_kv WHERE k LIKE 'reset:%' OR k='arena_played'").fetchall():
+                    if owner is not None and not con.execute("SELECT 1 FROM main.decks WHERE 'reset:deck:' || id = ? AND owner=?", (k, owner)).fetchone():
+                        continue
                     old = con.execute("SELECT v FROM main.ratings_kv WHERE k=?", (k,)).fetchone()
                     if not old or json.loads(v) > json.loads(old[0]):
                         con.execute("INSERT OR REPLACE INTO main.ratings_kv VALUES (?,?)", (k, v))
                         n += 1
             if st["rating_games"] or n:
                 rebuild_ratings(con)
+        st["deleted"] = apply_tombs(con, owner)  # sessões, perfis e o que cá estava e o outro lado apagou
         con.commit()
     except BaseException:
         con.rollback()
@@ -372,6 +628,142 @@ def rebuild_ratings(con):
         con.execute("INSERT INTO ratings VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (k, f, kind, own or "", name, elo, g, wi, lo, dr, ro, rw, rl, now))
 
 
+# ---------- conflitos e apagados (Definições › Dados) ----------
+
+CONFLICT_SUFFIX = " (conflito)"
+
+
+def _cards(d):
+    """{carta: n} do deck (sideboard com «SB: », comandantes com n=1)."""
+    out = {n: q for n, q in (d.get("main") or {}).items() if isinstance(q, int)}
+    out.update({f"SB: {n}": q for n, q in (d.get("side") or {}).items() if isinstance(q, int)})
+    out.update({f"★ {n}": 1 for n in d.get("commanders") or [] if isinstance(n, str)})
+    return out
+
+
+def _diff(a, b):
+    """O que muda de a para b: [[carta, +n/-n]] (as maiores diferenças primeiro, até 12)."""
+    ca, cb = _cards(a), _cards(b)
+    out = [[n, cb.get(n, 0) - ca.get(n, 0)] for n in set(ca) | set(cb) if cb.get(n, 0) != ca.get(n, 0)]
+    return sorted(out, key=lambda x: (-abs(x[1]), x[0]))[:12]
+
+
+def _side(d, upd, deleted=None):
+    return {"name": d.get("name"), "format": d.get("format"), "updated": upd, "deleted": deleted,
+            "cards": sum(q for q in (d.get("main") or {}).values() if isinstance(q, int)) + len(d.get("commanders") or [])}
+
+
+def conflicts(con, owner):
+    """As cópias «(conflito)» por resolver do dono: [{id, at, mine: a versão que ficou, other: a do conflito, diff}]."""
+    out = []
+    for cid, body, upd in con.execute("SELECT id, body, updated FROM decks WHERE owner IS ? AND deleted IS NULL"
+                                      " AND json_extract(body, '$.conflict_of') IS NOT NULL ORDER BY updated DESC", (owner,)).fetchall():
+        c = json.loads(body)
+        o = con.execute("SELECT body, updated, deleted FROM decks WHERE id=? AND owner IS ?", (c["conflict_of"], owner)).fetchone()
+        od = json.loads(o[0]) if o else {}
+        out.append({"id": cid, "orig": c["conflict_of"], "other": _side(c, upd), "mine": _side(od, o[1], o[2]) if o else None,
+                    "diff": _diff(od, c)})
+    return out
+
+
+def resolve(con, owner, cid, keep):
+    """keep: 'mine' (fica a versão atual; a cópia vai para o lixo), 'other' (a versão do conflito passa para o deck original
+    e a cópia vai para o lixo) ou 'both' (a cópia fica como um deck à parte, sem a marca). Tudo são alterações normais (com
+    hora): viajam para os outros aparelhos e não criam conflitos novos."""
+    r = con.execute("SELECT body FROM decks WHERE id=? AND owner IS ? AND deleted IS NULL", (cid, owner)).fetchone()
+    c = json.loads(r[0]) if r else {}
+    if not c.get("conflict_of") or keep not in ("mine", "other", "both"):
+        raise ValueError("Esse conflito já não existe.")
+    now = time.time()
+    if keep == "both":
+        c.pop("conflict_of", None)
+        nm = str(c.get("name") or "")
+        c["name"] = (nm[:-len(CONFLICT_SUFFIX)] if nm.endswith(CONFLICT_SUFFIX) else nm) + " (2)"
+        c["updated"] = now
+        con.execute("UPDATE decks SET name=?, body=?, updated=? WHERE id=?", (c["name"][:200], json.dumps(c, ensure_ascii=False), now, cid))
+        return {"ok": True, "id": cid}
+    if keep == "other":
+        oid = c.pop("conflict_of")
+        o = con.execute("SELECT body, owner FROM decks WHERE id=?", (oid,)).fetchone()
+        if o and o[1] != owner:
+            raise ValueError("Esse conflito já não existe.")
+        old = json.loads(o[0]) if o else {}
+        nm = str(c.get("name") or "")
+        c.update(id=oid, name=nm[:-len(CONFLICT_SUFFIX)] if nm.endswith(CONFLICT_SUFFIX) else nm, updated=now)
+        for k in ("created", "rated"):  # a data de criação e a lista dos ratings são do deck original
+            if k in old:
+                c[k] = old[k]
+        con.execute("INSERT OR REPLACE INTO decks (id, name, format, body, updated, owner, deleted) VALUES (?,?,?,?,?,?,NULL)",
+                    (oid, c["name"][:200], str(c.get("format") or "")[:40], json.dumps(c, ensure_ascii=False), now, owner))
+    con.execute("UPDATE decks SET deleted=? WHERE id=?", (now, cid))
+    return {"ok": True}
+
+
+def deleted(con, owner):
+    """Apagados de vez nos últimos UNDO_DAYS dias que ainda se podem repor (torneios, sessões de testes, perfis)."""
+    if not _has(con, "main", "tombstones"):
+        return []
+    out = []
+    for kind, rid, ts, data in con.execute("SELECT kind, id, ts, data FROM tombstones WHERE data IS NOT NULL AND ts > coalesce(revived, 0)"
+                                           " AND owner IS ? AND ts > ? ORDER BY ts DESC LIMIT 60", (owner, time.time() - UNDO_DAYS * 86400)):
+        try:
+            d = json.loads(zlib.decompress(data))
+        except (zlib.error, ValueError):
+            continue
+        row = d.get("row") or {}
+        out.append({"kind": kind, "id": rid, "at": ts, "name": row.get("name") or row.get("label") or rid,
+                    "games": len(d.get("games") or [])})
+    return out
+
+
+def restore(con, owner, kind, rid):
+    """Repõe um apagado (deleted()): a linha volta e a marca fica «reposta» (revived), para viajar também."""
+    r = con.execute("SELECT data FROM tombstones WHERE kind=? AND id=? AND owner IS ? AND data IS NOT NULL", (kind, rid, owner)).fetchone() \
+        if _has(con, "main", "tombstones") else None
+    if not r or kind not in KINDS:
+        raise ValueError("Já não dá para repor isto.")
+    d = json.loads(zlib.decompress(r[0]))
+    row, table = d.get("row") or {}, KINDS[kind][0]
+    cols = [c for c in _cols(con, "main", table) if c in row]
+    if kind == "tournament" and row.get("status") not in ("done", "cancelled", "error"):
+        row["status"] = "cancelled"  # as apostas já foram devolvidas ao apagar: volta como cancelado (para rever)
+    if con.execute(f"SELECT 1 FROM {table} WHERE id=?", (rid,)).fetchone():
+        raise ValueError("Já existe outra vez.")
+    if kind == "tournament":
+        import base64
+        st, remap = json.loads(row.get("state") or "{}"), {}
+        for gid, ts, game in d.get("games") or []:
+            free = not con.execute("SELECT 1 FROM tournament_games WHERE id=?", (gid,)).fetchone()
+            new = con.execute("INSERT INTO tournament_games (id, tid, ts, game) VALUES (?,?,?,?)", (gid if free else None, rid, ts, base64.b64decode(game))).lastrowid
+            if new != gid:
+                remap[gid] = new
+        for m in st.get("matches", []):
+            for g in m.get("g", []):
+                if g.get("id") in remap:
+                    g["id"] = remap[g["id"]]
+        row["state"] = json.dumps(st, ensure_ascii=False)
+    con.execute(f"INSERT INTO {table} ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})", [row[c] for c in cols])
+    con.execute("UPDATE tombstones SET revived=?, data=NULL WHERE kind=? AND id=?", (time.time(), kind, rid))
+    return {"ok": True}
+
+
+def deleted_tournament(con, tid):
+    """O que se guarda de um torneio apagado (para repor): a linha e os jogos."""
+    import base64
+    tc = _cols(con, "main", "tournaments")
+    r = con.execute(f"SELECT {','.join(tc)} FROM tournaments WHERE id=?", (tid,)).fetchone()
+    if not r:
+        return None
+    return {"row": dict(zip(tc, r)), "games": [[i, ts, base64.b64encode(g).decode()] for i, ts, g in
+                                              con.execute("SELECT id, ts, game FROM tournament_games WHERE tid=? ORDER BY id", (tid,))]}
+
+
+def row_of(con, table, rid):
+    c = _cols(con, "main", table)
+    r = con.execute(f"SELECT {','.join(c)} FROM {table} WHERE id=?", (rid,)).fetchone()
+    return {"row": dict(zip(c, r))} if r else None
+
+
 # ---------- sincronização por pasta ----------
 
 def _cfg_path(data_dir):
@@ -397,15 +789,19 @@ def save(data_dir, c):
     os.replace(tmp, _cfg_path(data_dir))
 
 
-def fingerprint(data_dir):
-    """Muda quando algo que vale a pena levar muda (decks, torneios, jogos, apostas, testes, perfis)."""
+def fingerprint(data_dir, owner=None):
+    """Muda quando algo que vale a pena levar muda (decks, torneios, jogos, apostas, testes, perfis, apagados).
+    owner = só o que é desse dono (sincronização com um servidor)."""
     con = sqlite3.connect(db_path(data_dir), timeout=30)
     out = []
-    for q in ("SELECT COUNT(*), max(updated), max(deleted) FROM decks", "SELECT COUNT(*), group_concat(status) FROM tournaments",
-              "SELECT max(id) FROM tournament_games", "SELECT COUNT(*), max(id) FROM rating_games", "SELECT COUNT(*), sum(stake), group_concat(status) FROM bets",
-              "SELECT sum(coins) FROM wallets", "SELECT COUNT(*) FROM sim_runs", "SELECT COUNT(*) FROM sim_games", "SELECT COUNT(*), group_concat(name) FROM profiles"):
+    w = "WHERE owner IS ?" if owner is not None else "WHERE ? IS NULL"
+    for q in (f"SELECT COUNT(*), max(updated), max(deleted) FROM decks {w}", f"SELECT COUNT(*), group_concat(status) FROM tournaments {w}",
+              f"SELECT max(id), COUNT(*) FROM tournament_games WHERE tid IN (SELECT id FROM tournaments {w})", "SELECT COUNT(*), max(id) FROM rating_games WHERE ?1 IS ?1",
+              f"SELECT COUNT(*), sum(stake), group_concat(status) FROM bets {w}", f"SELECT sum(coins) FROM wallets {w}", f"SELECT COUNT(*) FROM sim_runs {w}",
+              "SELECT COUNT(*) FROM sim_games WHERE ?1 IS ?1", "SELECT COUNT(*), group_concat(name) FROM profiles WHERE ?1 IS NULL",
+              f"SELECT COUNT(*), max(ts), max(revived) FROM tombstones {w}"):
         try:
-            out.append(con.execute(q).fetchone())
+            out.append(con.execute(q, (owner,)).fetchone())
         except sqlite3.OperationalError:
             out.append(None)
     con.close()
@@ -427,7 +823,7 @@ def tick(data_dir, force=False):
             c["error"] = "A pasta não existe (ou o disco da nuvem não está ligado)."
             save(data_dir, c)
             return c
-        c["error"] = None
+        c["error"] = c["newer"] = None
         mine = f"grimorio-{c['device']}.grimorio"
         for f in sorted(os.listdir(folder)):
             if not (f.startswith("grimorio-") and f.endswith(".grimorio")) or f == mine:
@@ -438,12 +834,11 @@ def tick(data_dir, force=False):
                 continue
             dev = f[len("grimorio-"):-len(".grimorio")]
             try:
-                # cópia de segurança única antes de cada junção (a última fica em grimorio.db.before-sync)
-                live, b = sqlite3.connect(db_path(data_dir), timeout=30), sqlite3.connect(db_path(data_dir) + ".before-sync")
-                live.backup(b)
-                b.close()
-                live.close()
-                st = import_file(data_dir, p, "merge", since=c["since"].get(dev, 0), keep=False)
+                # cópia de segurança antes de juntar (grimorio.db.before-sync-<hora>: no máximo uma por hora, ficam as 3 últimas)
+                st = import_file(data_dir, p, "merge", since=c["since"].get(dev, 0), keep=3600)
+            except TooNew as e:  # outro aparelho já tem uma versão mais nova: o ficheiro dele fica à espera desta atualizar
+                c["error"], c["newer"] = str(e), e.version
+                continue
             except ValueError as e:  # a app de sync ainda está a descarregar: tenta na próxima volta
                 c["error"] = f"{f}: {e}"
                 continue
@@ -453,7 +848,7 @@ def tick(data_dir, force=False):
         fp = fingerprint(data_dir)
         if force or fp != c.get("fp") or not os.path.exists(os.path.join(folder, mine)):
             try:
-                snapshot(data_dir, os.path.join(folder, mine), device=c["device"])
+                snapshot(data_dir, os.path.join(folder, mine), device=c["device"], scrub=True)
                 c["fp"], c["last_push"] = fp, time.time()
             except OSError as e:  # p.ex. a app de sync tem o ficheiro aberto (Windows): tenta na próxima volta
                 c["error"] = f"Não consegui escrever na pasta: {e}"
@@ -499,7 +894,7 @@ def status(data_dir):
     c = load(data_dir)
     folder = folder_of(c)
     files = sorted(f for f in os.listdir(folder) if f.startswith("grimorio-") and f.endswith(".grimorio")) if folder and os.path.isdir(folder) else []
-    return {**{k: c.get(k) for k in ("on", "folder", "device", "last_push", "last_pull", "conflicts", "error")},
+    return {**{k: c.get(k) for k in ("on", "folder", "device", "last_push", "last_pull", "conflicts", "error", "newer")},
             "devices": [f[len("grimorio-"):-len(".grimorio")] for f in files], "candidates": candidates()}
 
 
@@ -667,6 +1062,136 @@ def selfcheck():
             raise AssertionError("aceitou um ficheiro estragado")
         except ValueError:
             pass
+        # ---- versões: uma cópia que pede um nível acima do nosso é recusada com a versão a instalar; uma antiga migra ----
+        def man_edit(src, dst, **kv):
+            with zipfile.ZipFile(src) as zi, zipfile.ZipFile(dst, "w") as zo:
+                for n in zi.namelist():
+                    zo.writestr(n, json.dumps({**json.loads(zi.read(n)), **kv}) if n == "manifest.json" else zi.read(n))
+        man_edit(os.path.join(tmp, "b2.grimorio"), os.path.join(tmp, "new.grimorio"), needs=LEVEL + 1, version="9.9.0")
+        s0 = snap(sqlite3.connect(db_path(A)))
+        try:
+            import_file(A, os.path.join(tmp, "new.grimorio"), keep=False)
+            raise AssertionError("juntou uma cópia de uma versão incompatível")
+        except TooNew as e:
+            assert e.version == "9.9.0" and "9.9.0" in str(e)
+        assert snap(sqlite3.connect(db_path(A))) == s0  # nada mudou
+        man_edit(os.path.join(tmp, "b2.grimorio"), os.path.join(tmp, "newok.grimorio"), level=LEVEL + 5, version="9.9.0")  # mais nova mas compatível
+        import_file(A, os.path.join(tmp, "newok.grimorio"), since=250, keep=False)
+        O = os.path.join(tmp, "old")  # uma cópia de uma versão muito antiga (decks sem dono nem lixo, sem marcas)
+        os.makedirs(O)
+        co = sqlite3.connect(db_path(O))
+        co.execute("CREATE TABLE decks (id TEXT PRIMARY KEY, name TEXT, format TEXT, body TEXT NOT NULL, updated REAL NOT NULL)")
+        co.execute("INSERT INTO decks VALUES ('velho', 'Velho', 'modern', ?, 50)", (json.dumps({"main": {"Plains": 60}}),))
+        co.commit()
+        co.close()
+        with zipfile.ZipFile(os.path.join(tmp, "old.grimorio"), "w") as z:
+            z.writestr("manifest.json", json.dumps({"app": "grimorio", "format": 1, "created": 60}))
+            z.write(db_path(O), "grimorio.db")
+        assert import_file(A, os.path.join(tmp, "old.grimorio"), keep=False)["decks_new"] == 1
+        ca = sqlite3.connect(db_path(A))
+        assert ca.execute("SELECT owner, deleted FROM decks WHERE id='velho'").fetchone() == ("local", None)
+        # ---- apagados: a marca viaja, apaga do outro lado e um aparelho antigo não ressuscita nada ----
+        cb = sqlite3.connect(db_path(B))
+        cb.execute("INSERT INTO sim_runs VALUES ('run1', 'x', 'eu', 120, 'teste', '', '{}')")
+        cb.commit()
+        snapshot(B, os.path.join(tmp, "b3.grimorio"), device="b")
+        import_file(A, os.path.join(tmp, "b3.grimorio"), since=250, keep=False)
+        ca = sqlite3.connect(db_path(A))
+        assert ca.execute("SELECT 1 FROM sim_runs WHERE id='run1'").fetchone()
+        tomb(ca, "sim_run", "run1", "eu", data=row_of(ca, "sim_runs", "run1"))  # o A apaga a sessão de vez
+        ca.execute("DELETE FROM sim_runs WHERE id='run1'")
+        tomb(ca, "deck", "y", "eu", ts=400)  # e o lixo esvaziou-se do deck Y (apagado às 400)
+        ca.execute("DELETE FROM decks WHERE id='y'")
+        ca.commit()
+        import_file(A, os.path.join(tmp, "b3.grimorio"), since=250, keep=False)  # o B (antigo) ainda tem os dois
+        ca = sqlite3.connect(db_path(A))
+        assert not ca.execute("SELECT 1 FROM sim_runs WHERE id='run1'").fetchone() and not ca.execute("SELECT 1 FROM decks WHERE id='y'").fetchone()
+        snapshot(A, os.path.join(tmp, "a3.grimorio"), device="a")
+        st = import_file(B, os.path.join(tmp, "a3.grimorio"), since=250, keep=False)
+        cb = sqlite3.connect(db_path(B))
+        assert st["deleted"] == 2 and not cb.execute("SELECT 1 FROM sim_runs WHERE id='run1'").fetchone() and not cb.execute("SELECT 1 FROM decks WHERE id='y'").fetchone()
+        assert [d["kind"] for d in deleted(ca, "eu")] == ["sim_run"] and deleted(cb, "eu") == []  # o que se repõe fica só onde se apagou
+        restore(ca, "eu", "sim_run", "run1")  # repor: volta aqui e, pela marca «reposta», também no B
+        ca.commit()
+        snapshot(A, os.path.join(tmp, "a4.grimorio"), device="a")
+        import_file(B, os.path.join(tmp, "a4.grimorio"), since=250, keep=False)
+        assert sqlite3.connect(db_path(B)).execute("SELECT 1 FROM sim_runs WHERE id='run1'").fetchone()
+        # ---- conflitos: a lista e as três escolhas ----
+        ca = sqlite3.connect(db_path(A))
+        cf = conflicts(ca, "eu")
+        assert [c["other"]["name"] for c in cf] == ["W (conflito)"] and cf[0]["orig"] == "w" and ["Swamp", 1] in cf[0]["diff"], cf
+        resolve(ca, "eu", cf[0]["id"], "other")  # fica a versão do conflito (Swamp 3) no deck original
+        assert json.loads(ca.execute("SELECT body FROM decks WHERE id='w'").fetchone()[0])["main"] == {"Swamp": 3} and conflicts(ca, "eu") == []
+        for k, nm in (("x", "X"), ("z", "Z")):
+            ca.execute("UPDATE decks SET deleted=NULL WHERE id=?", (k,))
+            _copy(ca, (k, nm, "modern", json.dumps({"main": {"Mountain": 1}}), 999, "eu"))
+        cx, cz = (next(c["id"] for c in conflicts(ca, "eu") if c["orig"] == k) for k in ("x", "z"))
+        resolve(ca, "eu", cx, "mine")
+        resolve(ca, "eu", cz, "both")
+        assert ca.execute("SELECT deleted IS NOT NULL FROM decks WHERE id=?", (cx,)).fetchone() == (1,)
+        assert ca.execute("SELECT name FROM decks WHERE id=?", (cz,)).fetchone() == ("Z (2)",) and conflicts(ca, "eu") == []
+        try:
+            resolve(ca, "outro", cz, "mine")
+            raise AssertionError("resolveu o conflito de outro dono")
+        except ValueError:
+            pass
+        ca.commit()
+        # ---- donos: juntar com dono nunca toca nas linhas de outro dono (mesmo com o mesmo id) ----
+        E = os.path.join(tmp, "e")
+        os.makedirs(E)
+        ce = sqlite3.connect(db_path(E))
+        for s in DDL:
+            ce.execute(s)
+        ce.execute("INSERT INTO decks VALUES ('x', 'Roubado', 'modern', ?, 9999, 'eva', NULL)", (json.dumps({"main": {"Swamp": 60}}),))
+        ce.execute("INSERT INTO decks VALUES ('eva1', 'Da Eva', 'modern', ?, 9999, 'eva', NULL)", (json.dumps({"main": {"Swamp": 60}}),))
+        ce.execute("INSERT INTO decks VALUES ('eu9', 'Meu', 'modern', ?, 9999, 'eu', NULL)", (json.dumps({"main": {"Swamp": 60}}),))
+        ce.commit()
+        ce.close()
+        snapshot(E, os.path.join(tmp, "e.grimorio"), device="e")
+        bx = ca.execute("SELECT name, body, owner FROM decks WHERE id='x'").fetchone()
+        st = import_file(A, os.path.join(tmp, "e.grimorio"), owner="eu", keep=False)
+        ca = sqlite3.connect(db_path(A))
+        assert ca.execute("SELECT name, body, owner FROM decks WHERE id='x'").fetchone() == bx and st["decks_new"] == 1
+        assert not ca.execute("SELECT 1 FROM decks WHERE id='eva1'").fetchone() and ca.execute("SELECT owner FROM decks WHERE id='eu9'").fetchone() == ("eu",)
+        # o mesmo com troca de dono (servidor ↔ aparelho): o «eva» da cópia passa a «eu» aqui; o resto não entra
+        snapshot(E, os.path.join(tmp, "e2.grimorio"), owner="eva", device="e")
+        st = import_file(A, os.path.join(tmp, "e2.grimorio"), owner="eu", keep=False, as_owner="eu")
+        ca = sqlite3.connect(db_path(A))
+        assert ca.execute("SELECT owner FROM decks WHERE id='eva1'").fetchone() == ("eu",) and not ca.execute("SELECT 1 FROM decks WHERE owner='eva'").fetchone()
+        # ---- o que é desta instalação não viaja (convites, salas, Taverna, decks de amigos) e não fica no ficheiro ----
+        ca.execute("CREATE TABLE IF NOT EXISTS friends (id TEXT PRIMARY KEY, owner TEXT, name TEXT, token TEXT UNIQUE, created REAL, revoked REAL)")
+        ca.execute("INSERT INTO friends VALUES ('f1', 'eu', 'Rui', 'SEGREDO-DO-CONVITE-123', 1, NULL)")
+        ca.execute("CREATE TABLE IF NOT EXISTS taverna (owner TEXT PRIMARY KEY, name TEXT)")
+        ca.execute("INSERT INTO taverna VALUES ('eu', 'Taverna')")
+        ca.execute("INSERT INTO decks VALUES ('amigo1', 'Do Rui', 'modern', ?, 10, 'eu', NULL)", (json.dumps({"main": {}, "friend": "f1"}),))
+        ca.commit()
+        snapshot(A, os.path.join(tmp, "scrub.grimorio"), device="a", scrub=True)
+        with zipfile.ZipFile(os.path.join(tmp, "scrub.grimorio")) as z:
+            raw = z.read("grimorio.db")
+        assert b"SEGREDO-DO-CONVITE" not in raw and b"Do Rui" not in raw, "dados desta instalação na cópia para sincronizar"
+        man, tdb, z = open_zip(os.path.join(tmp, "scrub.grimorio"), A)
+        z.close()
+        t = sqlite3.connect(tdb)
+        assert not _has(t, "main", "friends") and not _has(t, "main", "taverna") and t.execute("SELECT COUNT(*) FROM decks").fetchone()[0] > 0
+        t.close()
+        os.remove(tdb)
+        snapshot(A, os.path.join(tmp, "full.grimorio"), device="a")  # e mesmo sem scrub, a junção nunca traz um deck de amigo
+        assert not import_file(B, os.path.join(tmp, "full.grimorio"), since=250, keep=False)["decks_new"] or \
+            not sqlite3.connect(db_path(B)).execute("SELECT 1 FROM decks WHERE id='amigo1'").fetchone()
+        # ---- delta: os torneios que o outro lado já tem iguais ou mais avançados não vão ----
+        assert progress(ca)["t1"][1] == 1
+        snapshot(A, os.path.join(tmp, "skip.grimorio"), device="a", skip={"t1": [0, 5]})
+        man, tdb, z = open_zip(os.path.join(tmp, "skip.grimorio"), A)
+        z.close()
+        t = sqlite3.connect(tdb)
+        assert not t.execute("SELECT 1 FROM tournaments WHERE id='t1'").fetchone() and man["have"]["t1"] == [0, 1] and man["level"] == LEVEL
+        t.close()
+        os.remove(tdb)
+        # ---- cópias antes de juntar: rodam (ficam as últimas N) ----
+        for _ in range(KEEP_BACKUPS["import"] + 2):
+            safety_copy(A, "import")
+        assert len([f for f in os.listdir(A) if f.startswith("grimorio.db.before-import-")]) == KEEP_BACKUPS["import"]
+        assert safety_copy(A, "sync", min_age=3600) and safety_copy(A, "sync", min_age=3600) is None  # no máximo uma por hora
         print("selfcheck sincronização ok")
     finally:
         import shutil

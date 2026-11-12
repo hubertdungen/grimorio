@@ -41,6 +41,7 @@ import { useTavernaPulse } from './taverna.js'
 import { isTouch } from './touch.js'
 import { isCompact } from './tablekit.js'
 import { useForge, NeedsForge } from './forge.jsx'
+import { StorageWizard } from './Storage.jsx'
 
 const TABS = [['pesquisa', tx('Pesquisa')], ['sugestoes', tx('Sugestões')], ['universo', tx('Universo')], ['combos', tx('Combos')], ['analise', tx('Análise')], ['teste', tx('Teste')], ['draft', tx('Draft')]]
 const FROM_TAV = window.location.hash === '#taverna'  // veio pelo link da Taverna (taverna.link_page): vai direto à Taverna
@@ -263,6 +264,18 @@ export default function App() {
   const closeLevar = () => { setLevar(null); if (window.location.hash.startsWith('#levar')) history.replaceState(null, '', window.location.pathname) }
 
   // undo = o aviso leva «Desfazer» (mudanças ao deck)
+  // onde ficam os dados (Storage.jsx): o assistente abre uma vez numa instalação nova, com #ligar=<link> (grimorio://ligar pelo
+  // launcher/APK) e #sem-servidor quando a janela devia abrir o servidor e ele não respondeu
+  const [stoWiz, setStoWiz] = useState(null), [noServer, setNoServer] = useState(() => window.location.hash === '#sem-servidor')
+  const profOk = !!prof && !guest && prof.mode !== 'login' && (prof.mode !== 'profiles' || !!prof.current)
+  useEffect(() => {
+    if (!profOk) return
+    const h = window.location.hash, link = h.startsWith('#ligar=') ? decodeURIComponent(h.slice(7)) : ''
+    if (link || h === '#sem-servidor') history.replaceState(null, '', window.location.pathname)
+    fetch('/api/storage').then(r => (r.ok ? r.json() : null)).then(st => {
+      if (st && st.can?.server && (link || (!st.chosen && st.fresh))) setStoWiz({ st, link })
+    }).catch(() => {})
+  }, [profOk])
   const say = useCallback((msg, undo = false) => { setToast({ msg, undo }); clearTimeout(say.t); say.t = setTimeout(() => setToast(null), undo ? 4500 : 2600) }, [])
   const setDeck = useCallback(fn => { dirty.current = true; setDeckRaw(fn) }, [])
 
@@ -460,6 +473,7 @@ export default function App() {
   }
 
   if (prof?.mode === 'profiles' && (!prof.current || who)) return <WhoPlays list={prof.list} startNew={who === 'new'} onClose={prof.current ? () => setWho('') : null} />
+  if (stoWiz) return <StorageWizard st={stoWiz.st} initialLink={stoWiz.link} onClose={() => setStoWiz(null)} />
   if (settings && !guest) return <Settings prof={prof} data={data} onClose={closeSettings} onSwitch={() => setWho('switch')} onNew={() => setWho('new')} />
   if (err) return <div className="boot"><Logo size={64} /><p>{tx('Não consegui carregar os dados: {err}', { err })}</p><p className="muted">{tx('Os dados são gerados por')} <code>build/build.sh</code>.</p></div>
   if (!data) return <div className="boot"><Logo size={64} /><div className="spinner" /><p>{tx('A abrir o grimório…')} <span className="muted">{tx('(34 mil cartas, ~10 MB)')}</span></p></div>
@@ -577,6 +591,7 @@ export default function App() {
       <LiveBar guest={guest} data={data} go={m => { setColMode(m); setSection('coliseu') }} />
       {!guest && <ApkBanner />}
       {!guest && <DesktopUpdBanner />}
+      {noServer && <p className="sto-noserver" role="alert">🖧 {tx('O teu servidor não respondeu: abriu-se o Grimório deste computador, com os dados daqui. Juntam-se quando a ligação voltar.')} <button className="link plain" onClick={() => setNoServer(false)} aria-label={tx('Fechar')}>✕</button></p>}
     </div>
   )
 }
