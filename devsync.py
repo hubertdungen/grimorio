@@ -561,7 +561,7 @@ def storage_status(data_dir, con, login=False, owner=None):
                 "error": f.get("error")}
     else:
         sync = {"kind": None, "state": "off", "last_ok": None, "error": None}
-    return {"mode": mode, "chosen": bool(cfg.get("chosen")), "fresh": fresh, "can": {"folder": not login, "server": not login},
+    return {"mode": mode, "chosen": bool(cfg.get("chosen")), "fresh": fresh, "can": {"folder": not login and not os.environ.get("GRIMORIO_ANDROID"), "server": not login},
             "remote_url": s["url"] if mode == "remote" else None, "server": public(s), "folder": f, "sync": sync,
             "owner": owner, "version": backup.app_version(), "level": backup.LEVEL, "needs": backup.NEEDS, "api": API}
 
