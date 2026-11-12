@@ -170,11 +170,16 @@ export function useOverlap(tableRef) {
     const overlap = row => {
       const kids = kidsOf(row), n = kids.length, cur = parseFloat(row.style.getPropertyValue('--ov')) || 0
       if (n < 2) { row.style.removeProperty('--ov'); return true }
+      // a margem das cartas da mão desliza (transition): medida a meio do deslize, a conta saía errada e a mão ficava a
+      // oscilar entre encostada e larga — no telemóvel as cartas saíam pelos dois lados do ecrã. Mede-se quando assentar
+      const sliding = row.getAnimations?.({ subtree: true }).filter(a => /^margin/.test(a.transitionProperty || '') && a.playState === 'running')
+      if (sliding?.length) { if (!row._ovWait) { row._ovWait = true; Promise.all(sliding.map(a => a.finished.catch(() => {}))).then(() => { row._ovWait = false; if (row.isConnected) overlap(row) }) } return true }
       const two = row.dataset.lines === '2', b = two ? kids.findIndex(k => k.previousElementSibling?.classList.contains('brk')) : -1
       const lines = b > 0 ? [kids.slice(0, b), kids.slice(b)] : [kids]
       // as outras permanentes (artefactos, encantamentos, planeswalkers) medem-se pelo conteúdo: o espaço delas é até 60%
       // da faixa de trás (medir a largura delas próprias encolhia-as de vez e o planeswalker ficava tapado pela saga)
-      const room = (row.matches('.brow.rear > .brow.others') ? row.parentElement.clientWidth * 0.6 : row.clientWidth) - 4
+      const pad = row.matches('.fp-hand') ? (q => parseFloat(q.paddingLeft) + parseFloat(q.paddingRight) + 6)(getComputedStyle(row)) : 0  // a mão: dentro do padding, com folga
+      const room = (row.matches('.brow.rear > .brow.others') ? row.parentElement.clientWidth * 0.6 : row.clientWidth) - 4 - pad
       let ov = 0, fits = true
       const gap = parseFloat(getComputedStyle(row).columnGap) || 0
       for (const ks of lines) {
