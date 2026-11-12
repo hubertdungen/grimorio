@@ -1190,6 +1190,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const lpr = live?.prompt, lst0 = live?.state, lme0 = lst0?.players?.find(p => p.me)
   useEffect(() => {
     const m = lpr?.msg || ''
+    // a IA ganhou a moeda: o aviso «won the coin toss» muitas vezes nem chega, mas a pergunta do mulligan diz «Bot is
+    // going first.» — a moeda vai logo ao ar, antes de a IA jogar (antes só ia ao turno 1, já com a IA a jogar terrenos)
+    const first = !sawWin.current && m.match(/^\s*(.+?) is going first\b/i)
+    if (first && first[1].trim() !== lme0?.name && !/^you$/i.test(first[1].trim())) {
+      const next = series && (series.w?.[0] || 0) + (series.w?.[1] || 0) > 0
+      if (!next && ![m, ...(live?.log || []).map(x => x.msg)].some(x => /lost the last game/i.test(x || ''))) { sawWin.current = true; toss(false) }
+      return
+    }
     if (!/won the coin toss/i.test(m)) return
     const mine = /you have won the coin toss/i.test(m) || (lpr?.buttons || []).some(b => /^(Play|Draw)$/.test(b.label))
     sawWin.current = true; toss(mine)
