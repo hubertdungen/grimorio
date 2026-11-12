@@ -1,4 +1,4 @@
 plugins {
-    id 'com.android.application' version '8.7.3' apply false  // 8.7: a mais nova para o Gradle 8.9 da CI
+    id 'com.android.application' version '8.5.2' apply false
     id 'com.chaquo.python' version '16.1.0' apply false  // Python 3 dentro da app (MIT): o server.py corre no telemóvel
 }

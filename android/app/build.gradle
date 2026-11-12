@@ -10,11 +10,11 @@ def p = ver.tokenize('.-').findAll { it.isInteger() }.collect { it as int } + [0
 
 android {
     namespace 'com.hubertdungen.grimorio'
-    compileSdk 36
+    compileSdk 34
     defaultConfig {
         applicationId 'com.hubertdungen.grimorio'
         minSdk 24
-        targetSdk 36  // o que a Google Play pede às apps e atualizações novas (Android 16)
+        targetSdk 34
         versionName ver
         // 1.13.86 -> 1013086 (patch até 999); sobe sempre, e acima do esquema antigo (1.13.85 era 11385).
         // Builds de teste (0.0.0) -> 1

@@ -55,19 +55,13 @@ SDK 34). No Python is needed on the build machine (no pip, `.pyc` compiled on th
 job `android` builds the web app first and checks that the APK carries `grimorio-app.zip` with `server.py` and
 `web/dist`, the bootstrap and `libpython3.11.so`.
 
-**Google Play:** the same job also builds `app-release.aab` (`bundleRelease`, signed with the same key; CI artifact
-`play-bundle`, not attached to the GitHub release). `targetSdk 36` (Play's level for new apps and updates;
-`compileSdk 36` on AGP 8.7 with `android.suppressUnsupportedCompileSdk`): the app pads itself out of the system bars on
-Android 15+ (edge-to-edge) and handles Back through `OnBackInvokedCallback` (Android 16 no longer calls
-`onBackPressed`). `versionCode = major·1 000 000 + minor·1 000 + patch` grows with every release and is above the old
-scheme (`1.13.85` was 11385). For Play App Signing, keep the current key as the app signing key (upload it with the
-Play Console's PEPK tool) so that APKs from GitHub and installs from Play update each other; the data download from
-GitHub at first start and the cleartext `http://` to `127.0.0.1` and LAN servers are declared in the Data safety form
-as «app functionality», no data collected.
+**Version code:** `major·1 000 000 + minor·1 000 + patch` (`1.13.86` → 1013086): it grows with every release, also
+past patch 99, and is above the old scheme (`1.13.85` was 11385), so updates install over older APKs.
 
 **Possible next steps:** an Android cloud folder through the Storage Access Framework (the server sees only app-private
 storage today: sync works through a folder another app keeps in step inside `Android/media`, or by export/import);
-splitting the APK per ABI to make it smaller; a QR code on the desktop to connect the app to it.
+splitting the APK per ABI to make it smaller; Google Play (an `.aab` from `bundleRelease`, `targetSdk` 35+ with
+edge-to-edge insets and `OnBackInvokedCallback`); a QR code on the desktop to connect the app to it.
 
 ## Backups and sync on Android
 

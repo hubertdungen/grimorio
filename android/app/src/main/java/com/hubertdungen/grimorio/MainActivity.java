@@ -83,19 +83,6 @@ public class MainActivity extends Activity {
         root.addView(setup = buildSetup());
         root.setBackgroundColor(0xFF0D0F18);
         setContentView(root);
-        if (android.os.Build.VERSION.SDK_INT >= 35) {
-            // Android 15+ desenha a app por baixo das barras do sistema (targetSdk 35+): a página fica entre elas e acima
-            // do teclado, como antes
-            root.setOnApplyWindowInsetsListener((v, ins) -> {
-                android.graphics.Insets b = ins.getInsets(android.view.WindowInsets.Type.systemBars()
-                    | android.view.WindowInsets.Type.displayCutout() | android.view.WindowInsets.Type.ime());
-                if (fullView != null) v.setPadding(0, 0, 0, 0);  // vídeo em ecrã inteiro
-                else v.setPadding(b.left, b.top, b.right, b.bottom);
-                return android.view.WindowInsets.CONSUMED;
-            });
-        }
-        if (android.os.Build.VERSION.SDK_INT >= 33)  // Android 16 (targetSdk 36) já não chama o onBackPressed
-            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -163,10 +150,10 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onShowCustomView(View v, CustomViewCallback cb) { fullView = v; root.addView(v); web.setVisibility(View.GONE); immersive(true); root.requestApplyInsets(); }
+            public void onShowCustomView(View v, CustomViewCallback cb) { fullView = v; root.addView(v); web.setVisibility(View.GONE); immersive(true); }
 
             @Override
-            public void onHideCustomView() { if (fullView != null) root.removeView(fullView); fullView = null; web.setVisibility(View.VISIBLE); immersive(false); root.requestApplyInsets(); }
+            public void onHideCustomView() { if (fullView != null) root.removeView(fullView); fullView = null; web.setVisibility(View.VISIBLE); immersive(false); }
         });
 
         web.setDownloadListener((url, ua, disp, mime, len) -> {  // proxies (ZIP/PDF), cópias .grimorio
@@ -512,12 +499,10 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    public void onBackPressed() { back(); }  // Android 12 e anteriores
-
-    private void back() {
+    public void onBackPressed() {
         if (fullView != null) { chrome.onHideCustomView(); return; }
         if (setup.getVisibility() != View.VISIBLE && web.canGoBack()) web.goBack();
-        else finish();
+        else super.onBackPressed();
     }
 
     @Override
