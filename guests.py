@@ -418,9 +418,15 @@ _HITS = {}
 
 
 def slow(key, n=12, per=60):
-    """Limite simples por chave (convite, sala): n pedidos por minuto.
-    ponytail: em memória e sem limpeza (uma chave por convite); passar para a DB se um dia houver milhares."""
+    """Limite simples por chave (convite, sala, IP): n pedidos por minuto. Em memória; as chaves paradas saem quando há
+    muitas (as de IP vêm do X-Forwarded-For, que quem pede escolhe: sem isto, cada pedido inventado ficava para sempre)."""
     now = time.time()
+    if len(_HITS) > 5000:  # a janela mais longa é de 1 h (taverna-took)
+        for k in [k for k, v in _HITS.items() if not v or now - v[-1] > 3600]:
+            del _HITS[k]
+        if len(_HITS) > 50000:  # uma enxurrada de chaves inventadas: as de IP (pair:) saem já
+            for k in [k for k in _HITS if isinstance(k, str) and k.startswith("pair:")]:
+                del _HITS[k]
     q = [t for t in _HITS.get(key, []) if now - t < per]
     _HITS[key] = q + [now]
     return len(q) >= n

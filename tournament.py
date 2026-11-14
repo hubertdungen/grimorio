@@ -611,7 +611,8 @@ def lost_with(con, tid, owner, st, i, j):
     me, op = st["players"][i], st["players"][j]
     key = lambda p: (p["src"], p["ref"])  # noqa: E731
     out = set()
-    for s in [st] + [json.loads(x) for (x,) in con.execute("SELECT state FROM tournaments WHERE owner=? AND id!=?", (owner, tid))]:
+    for s in [st] + [json.loads(x) for (x,) in con.execute("SELECT state FROM tournaments WHERE owner=? AND id!=? AND instr(state, ?) > 0",
+                                                           (owner, tid, me["ref"] if isinstance(me.get("ref"), str) else ""))]:  # só os torneios onde este deck jogou
         P = s["players"]
         for m in s["matches"]:
             for x in m["g"]:
@@ -1006,6 +1007,9 @@ def route(method, path, owner, body=None, bettor=None):
             return 400, {"erro": str(e)}
     with db() as con:
         if method == "GET" and not parts:
+            # ?status=running: só os que estão a decorrer (a barra do topo pergunta de 15 em 15 s e não precisa do registo inteiro)
+            m = re.fullmatch(r"status=(running|paused|done|cancelled)", path.partition("?")[2])
+            only = m and m.group(1)
             rows = con.execute("SELECT id, ts, name, type, format, status, champion, n, json_extract(state, '$.casual'),"
                                " json_extract(state, '$.podium'), json_extract(state, '$.me'), json_extract(state, '$.champions'),"
                                " COALESCE(json_extract(state, '$.ranked'), json_extract(state, '$.casual') IS NULL AND EXISTS (SELECT 1 FROM json_each(state, '$.players') WHERE json_extract(value, '$.src') = 'meta')),"
@@ -1013,8 +1017,8 @@ def route(method, path, owner, body=None, bettor=None):
                                " (SELECT COUNT(*) FROM tournament_games WHERE tid=tournaments.id),"  # jogos jogados (painel do Registo)
                                " EXISTS (SELECT 1 FROM json_each(state, '$.players') WHERE json_extract(value, '$.src') = 'meus'"
                                "  AND json_extract(value, '$.fr') IS NULL AND json_extract(value, '$.com') IS NULL),"  # tem decks meus
-                               " json_extract(state, '$.table') FROM tournaments WHERE owner=? ORDER BY ts DESC",
-                               (owner,)).fetchall()
+                               " json_extract(state, '$.table') FROM tournaments WHERE owner=?" + (" AND status=?" if only else "") + " ORDER BY ts DESC",
+                               (owner, *([only] if only else []))).fetchall()
             cut = trophy_cut(con, owner)
             out = [{**dict(zip(("id", "ts", "name", "type", "format", "status", "champion", "n", "casual", "podium", "me", "champions", "ranked", "m", "podiums", "friends", "g", "mine", "table"), r)),
                     **({"old": True} if r[1] < cut else {})} for r in rows]  # old: de antes de repor os troféus

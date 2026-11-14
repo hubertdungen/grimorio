@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Erro interno do servidor.": "Interner Serverfehler.",
+  "A imagem não chegou inteira; tenta outra vez.": "Das Bild kam nicht vollständig an; versuch es noch einmal.",
   "Ligar a um computador ou servidor": "Mit einem Computer oder Server verbinden",
   "Os jogos com o Forge precisam de um computador ou servidor com o Grimório; aqui vês o que já foi jogado.": "Spiele mit Forge brauchen einen Computer oder Server mit Grimório; hier siehst du, was schon gespielt wurde.",
   "Precisa de um computador ou servidor com o Grimório": "Braucht einen Computer oder Server mit Grimório",

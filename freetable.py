@@ -213,11 +213,24 @@ def _clean(c):
 
 
 def _save(con, t):
-    st = {k: v for k, v in t.items() if k not in ("pen", "live", "ptr", "snapsig")}  # a caneta e o «ao vivo» são passageiros: não se gravam
+    st = {k: v for k, v in t.items() if k not in ("pen", "live", "ptr", "snapsig", "polled")}  # a caneta e o «ao vivo» são passageiros: não se gravam
     con.execute("INSERT OR REPLACE INTO freetables VALUES (?,?,?,?)", (t["id"], t["owner"], t["ts"], json.dumps(st, ensure_ascii=False)))
 
 
+IDLE = 12 * 3600  # uma mesa parada há mais tempo sai da memória (está toda na SQLite: volta inteira se alguém lhe pegar)
+
+
+def _evict():
+    """As mesas ficavam em T para sempre (cada uma com os decks e o registo, dezenas de KB): um servidor ligado semanas
+    juntava todas as mesas dos torneios. Cada jogada grava-se (_save); só a caneta, o cursor e o «ao vivo» são passageiros."""
+    now = time.time()
+    with COND:
+        for k in [k for k, t in T.items() if now - (t.get("ts") or 0) > IDLE and not t.get("polled", 0) > now - 60]:
+            del T[k]
+
+
 def _load(db, tid):
+    _evict()
     with COND:
         if tid in T:
             return T[tid]
@@ -938,6 +951,7 @@ def route(db, method, path, owner, body, who, since=0, seat=None):
     if method == "GET":
         end = time.time() + 25
         with COND:
+            t["polled"] = time.time()  # alguém está a ver a mesa: não sai da memória (_evict)
             while True:
                 if _tick(t):  # o tempo do sideboard acabou: as cartas dão-se agora
                     with db() as con:
@@ -1338,6 +1352,16 @@ def selfcheck():
         assert lists(con, g2)["0"]["main"] == good["main"] and lists(con, "nada") is None
         g5 = create(con, "hubert", "S5", seats3, side=3, prev="nada", was=lists(con, g2))
     assert route(db, "GET", f"/api/freetables/{g5}", "hubert", None, "host", 0)[1]["side"]["mine"]["0"]["deck"] == good
+    # memória: uma mesa parada há mais de IDLE sai de T e volta da SQLite igual; uma que alguém está a ver fica
+    T[g5].pop("polled", None)
+    T[g5]["ts"] = T[g4]["ts"] = time.time() - IDLE - 1
+    T[g4]["polled"] = time.time()
+    was5 = route(db, "GET", f"/api/freetables/{g5}", "hubert", None, "host", 0)[1]  # o pedido marca g5 como vista
+    T[g5].pop("polled", None); T[g5]["ts"] = time.time() - IDLE - 1  # noqa: E702
+    _evict()
+    assert g5 not in T and g4 in T
+    now5 = route(db, "GET", f"/api/freetables/{g5}", "hubert", None, "host", 0)[1]
+    assert (now5["seq"], now5["seats"], now5["status"]) == (was5["seq"], was5["seats"], was5["status"]) and g5 in T
     print("selfcheck mesa livre ok")
 
 

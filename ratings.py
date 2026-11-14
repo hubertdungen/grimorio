@@ -472,7 +472,7 @@ def deck_record(con, did, owner):
         games.append(("lab", opp or "?", "w" if w == "a" else "d" if w == "draw" else "l", sm.get("a"),
                       [v for k, v in sm.items() if k in "bcd"]))
     with contextlib.suppress(sqlite3.OperationalError):  # sem a tabela dos torneios
-        for tid, st in con.execute("SELECT id, state FROM tournaments WHERE owner=?", (owner,)).fetchall():
+        for tid, st in con.execute("SELECT id, state FROM tournaments WHERE owner=? AND instr(state, ?) > 0", (owner, did)).fetchall():  # só onde o deck aparece
             ps = json.loads(st).get("players") or []
             me = {i for i, p in enumerate(ps) if p.get("src") == "meus" and str(p.get("ref")) == did}
             if not me:

@@ -130,12 +130,14 @@ function LiveBar({ guest, go, data }) {
   useEffect(() => {
     let off = false
     const tick = () => {
-      fetch('/api/tournaments').then(r => (r.ok ? r.json() : [])).then(l => { if (!off) setTour((Array.isArray(l) ? l : []).filter(t => t.status === 'running')) }).catch(() => {})
+      if (document.hidden) return  // separador escondido: nada de perguntar ao servidor (volta ao ficar à vista)
+      fetch('/api/tournaments?status=running').then(r => (r.ok ? r.json() : [])).then(l => { if (!off) setTour((Array.isArray(l) ? l : []).filter(t => t.status === 'running')) }).catch(() => {})
       if (!guest) fetch('/api/arena').then(r => (r.ok ? r.json() : null)).then(a => { if (!off) setArena(a?.on && a.cur?.a ? a.cur : null) }).catch(() => {})
       if (!guest) fetch('/api/sim/active').then(r => (r.ok ? r.json() : [])).then(l => { if (!off) setJobs(Array.isArray(l) ? l : []) }).catch(() => {})  // testes noutro separador/dispositivo
     }
     tick(); const t = setInterval(tick, 15000)
-    return () => { off = true; clearInterval(t) }
+    document.addEventListener('visibilitychange', tick)
+    return () => { off = true; clearInterval(t); document.removeEventListener('visibilitychange', tick) }
   }, [guest])
   const [full, setFull] = useState(false)  // em ecrã inteiro (Coliseu, jogo) a barra sai do caminho
   useEffect(() => {

@@ -57,7 +57,7 @@ const modeOf = r => (r.type === 'livre' ? (r.strict ? ['⚖', tx('Mesa estrita')
 export function useNet(on = true) {
   const [net, setNet] = useState(null)
   const load = () => Promise.all([j('/api/friends'), j('/api/share')]).then(([f, s]) => setNet({ public: f.public, lan: f.lan, share: s })).catch(() => {})
-  useEffect(() => { if (!on) return; load(); const t = setInterval(load, 4000); return () => clearInterval(t) }, [on])
+  useEffect(() => { if (!on) return; load(); const t = setInterval(() => document.hidden || load(), 4000); return () => clearInterval(t) }, [on])
   const share = async a => { try { await post(`/api/share/${a}`) } catch { /* o estado mostra o erro */ } finally { load() } }
   return [net, share]
 }
@@ -125,7 +125,7 @@ export default function OnlineView({ data, fmt, deckId, guest }) {
   const setTable = t => { setTableS(t); try { if (t) sessionStorage.setItem('grimorio.mesalivre', t); else sessionStorage.removeItem('grimorio.mesalivre') } catch { /* sem armazenamento */ } }
   useEffect(() => {  // no Ao vivo: os outros torneios a decorrer ao lado das apostas
     if (view !== 'ver') return
-    const t = setInterval(loadList, 15000)
+    const t = setInterval(() => document.hidden || loadList(), 15000)  // escondido: não pergunta
     return () => clearInterval(t)
   }, [view])
   const [own, setOwn] = useState({})  // de quem é cada deck (as etiquetas do Ao vivo); um convidado vê os dele como «meus»

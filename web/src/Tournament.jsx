@@ -149,7 +149,7 @@ export default function TournamentView({ data, fmt, deckId, guest }) {
   const setTable = t => { setTableS(t); try { if (t) sessionStorage.setItem('grimorio.mesalivre', t); else sessionStorage.removeItem('grimorio.mesalivre') } catch { /* sem armazenamento */ } }
   useEffect(() => {  // no Ao vivo: os outros torneios a decorrer ao lado das apostas
     if (view !== 'ver') return
-    const t = setInterval(loadList, 15000)
+    const t = setInterval(() => document.hidden || loadList(), 15000)  // escondido: não pergunta
     return () => clearInterval(t)
   }, [view])
   const [own, setOwn] = useState({})

@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Erro interno do servidor.": "服务器内部错误。",
+  "A imagem não chegou inteira; tenta outra vez.": "图片未完整上传，请重试。",
   "Ligar a um computador ou servidor": "连接到电脑或服务器",
   "Os jogos com o Forge precisam de um computador ou servidor com o Grimório; aqui vês o que já foi jogado.": "使用 Forge 的对局需要运行 Grimório 的电脑或服务器；这里可以查看已经打过的对局。",
   "Precisa de um computador ou servidor com o Grimório": "需要运行 Grimório 的电脑或服务器",

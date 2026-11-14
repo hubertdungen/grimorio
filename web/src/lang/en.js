@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Erro interno do servidor.": "Internal server error.",
+  "A imagem não chegou inteira; tenta outra vez.": "The image didn't arrive in full; try again.",
   "Ligar a um computador ou servidor": "Connect to a computer or server",
   "Os jogos com o Forge precisam de um computador ou servidor com o Grimório; aqui vês o que já foi jogado.": "Games with Forge need a computer or server running Grimório; here you see what has already been played.",
   "Precisa de um computador ou servidor com o Grimório": "Needs a computer or server running Grimório",

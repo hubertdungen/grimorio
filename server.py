@@ -3,7 +3,7 @@
 Serve a app React compilada (web/dist), os dados gerados por build/build.sh
 (já comprimidos em .gz) e guarda os decks numa SQLite fora do exFAT.
 """
-import argparse, functools, hashlib, http.cookies, json, os, re, secrets, sqlite3, threading, time, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, contextlib, functools, gzip, hashlib, http.cookies, json, os, re, secrets, sqlite3, tempfile, threading, time, traceback, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
@@ -39,6 +39,22 @@ EXT_PATH = re.compile(r"^/ext/(static\.tappedout\.net|storage\.googleapis\.com)/
 SF_PATH = re.compile(r"^/sf/(cards|svgs|backs)/([A-Za-z0-9][A-Za-z0-9/_.-]{0,200}\.(?:jpg|png|svg))$")
 SIM_OPP = re.compile(r"^/api/sim/opponents/([a-z0-9-]{1,130})$")
 SIM_JOB = re.compile(r"^/api/sim/jobs/([0-9a-f]{12})$")
+
+
+def write_atomic(path, data, mode=0o644):
+    """Grava `data` (bytes) de uma vez: quem lê ao mesmo tempo vê o ficheiro antigo ou o novo, nunca meio, um corte a meio
+    não deixa um ficheiro estragado na cache, e dois pedidos a gravar o mesmo ficheiro não se pisam (nome temporário único)."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.remove(tmp)
+        raise
 
 
 def keep_game(owner, g):
@@ -120,7 +136,8 @@ def deck_games(con, did, owner, limit=40):
         if len(out) >= limit:
             break
     seat = {}  # id do jogo -> (lado do deck, vida inicial)
-    for (st,) in con.execute("SELECT state FROM tournaments WHERE owner=? ORDER BY ts DESC", (owner,)):
+    # instr: só se leem os torneios onde o id do deck aparece (ler os ~100 estados inteiros custava ~0,2 s a cada pedido)
+    for (st,) in con.execute("SELECT state FROM tournaments WHERE owner=? AND instr(state, ?) > 0 ORDER BY ts DESC", (owner, did)):
         st = json.loads(st)
         mine = {i for i, p in enumerate(st.get("players") or []) if p.get("src") == "meus" and p.get("ref") == did}
         if not mine:
@@ -173,10 +190,7 @@ def scryfall_tokens(data_dir, names):
             cache[n] = {"ts": now, "t": toks}
         time.sleep(0.1)  # a Scryfall pede 50–100 ms entre pedidos
     if todo:
-        os.makedirs(os.path.dirname(cf), exist_ok=True)
-        with open(cf + ".tmp", "w", encoding="utf-8") as f:
-            json.dump(cache, f)
-        os.replace(cf + ".tmp", cf)
+        write_atomic(cf, json.dumps(cache).encode())
     out = {}
     for n in names:
         for t in cache.get(n, {}).get("t", []):
@@ -202,6 +216,7 @@ def update_state(raw=False):
 
 
 APP_TOKEN = os.environ.get("GRIMORIO_APP_TOKEN") or ""
+IMG_MAX = 8_000_000  # uma imagem de carta pela cache (/sf/, /ext/): as da Scryfall têm até ~2 MB (png)
 
 
 def app_cookie(raw):
@@ -227,7 +242,7 @@ class H(BaseHTTPRequestHandler):
         return True
 
     def handle_one_request(self):
-        _REQ.cons = []
+        _REQ.cons, self._sent = [], False
         try:
             super().handle_one_request()
         finally:
@@ -237,6 +252,7 @@ class H(BaseHTTPRequestHandler):
         pass
 
     def send(self, code, body=b"", ctype="application/json", headers=None):
+        self._sent = True
         for c in getattr(_REQ, "cons", None) or []:  # grava o que o pedido mudou antes de responder (ver _REQ)
             try:
                 c.commit()
@@ -245,6 +261,7 @@ class H(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")  # uma imagem carregada (capa, arte) nunca se lê como página
         for k, v in (headers or {}).items():
             self.send_header(k, v)
         if self._cors:  # a app de um amigo (outra origem) a falar com as salas, autenticada pelo convite (guests.BEARER)
@@ -255,7 +272,12 @@ class H(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def json(self, obj, code=200):
-        self.send(code, json.dumps(obj, ensure_ascii=False).encode())
+        body, hd = json.dumps(obj, ensure_ascii=False).encode(), None
+        # comprimido para quem aceita: a lista de decks, os torneios, os jogos de um deck e a mesa livre (cada resposta da
+        # espera longa) iam por inteiro, dezenas a centenas de KB, pelo túnel e pelos dados móveis
+        if len(body) > 1400 and "gzip" in (self.headers.get("Accept-Encoding") or ""):
+            body, hd = gzip.compress(body, 5), {"Content-Encoding": "gzip", "Vary": "Accept-Encoding"}
+        self.send(code, body, headers=hd)
 
     def scryfall_img(self, host, path, url=None, sub="sf"):
         """Uma imagem de cards/svgs/backs.scryfall.io (ou `url`, com `sub` = ext), guardada em <dados>/cache/<sub> (as
@@ -266,14 +288,12 @@ class H(BaseHTTPRequestHandler):
             try:
                 req = urllib.request.Request(url or f"https://{host}.scryfall.io/{path}", headers={"User-Agent": "Grimorio/1.0 (uso pessoal)"})
                 with urllib.request.urlopen(req, timeout=20) as r:
-                    body = r.read()
+                    body = r.read(IMG_MAX + 1)
             except Exception:
                 return self.send(502, b"scryfall indisponivel", "text/plain")
-            os.makedirs(os.path.dirname(f), exist_ok=True)
-            tmp = f + ".tmp"
-            with open(tmp, "wb") as out:
-                out.write(body)
-            os.replace(tmp, f)
+            if len(body) > IMG_MAX:  # /ext/ chega a qualquer pasta pública do Google Storage: nada de ficheiros enormes no disco
+                return self.send(502, b"imagem grande demais", "text/plain")
+            write_atomic(f, body)
         return self.file(f, "public, max-age=2592000, immutable")
 
     def file(self, path, cache):
@@ -305,6 +325,7 @@ class H(BaseHTTPRequestHandler):
     # entrada única: convite, convidado (lista fechada em guests.py) ou dono
     _as_guest = None
     _cors = None
+    _sent = False
 
     def guest(self):
         tok = guests.cookie_token(self.headers)
@@ -428,9 +449,7 @@ class H(BaseHTTPRequestHandler):
             keys = {}
         if owner not in keys:
             keys[owner] = secrets.token_urlsafe(32)
-            with open(kf, "w") as f:
-                json.dump(keys, f)
-            os.chmod(kf, 0o600)
+            write_atomic(kf, json.dumps(keys).encode(), 0o600)  # a chave nunca fica legível por outros, nem por um instante
         name = ((self.profile() or {}).get("name") if self.mode() == "profiles" else owner) or owner
         with db() as con:
             av = avatars.export(con, avatars.owner_key(owner))  # a minha imagem vai também: lá fica uma cópia, validada
@@ -475,17 +494,34 @@ class H(BaseHTTPRequestHandler):
             return self.json({"erro": "pedido inválido"}, 400)
         return self.json(*reversed(freetable.route(db, method, p, owner, body, who, since, seat)))
 
+    def _safe(self, method, inner):
+        """Um erro por apanhar numa rota respondia com a ligação cortada (o browser só via «Failed to fetch»): desfaz o que o
+        pedido ia gravar e responde em JSON — 400 para um corpo que não é JSON, 500 para o resto (com o erro no registo)."""
+        try:
+            return self._route(method, inner)
+        except (BrokenPipeError, ConnectionResetError):
+            raise
+        except Exception as e:
+            for c in getattr(_REQ, "cons", None) or []:
+                with contextlib.suppress(sqlite3.Error):
+                    c.rollback()
+            bad = isinstance(e, ValueError)  # corpo que não é JSON (json.JSONDecodeError) ou um número inválido
+            if not bad:
+                traceback.print_exc()
+            if not self._sent:
+                self.json({"erro": "pedido inválido" if bad else "Erro interno do servidor."}, 400 if bad else 500)
+
     def do_GET(self):
-        return self._route("GET", self._get)
+        return self._safe("GET", self._get)
 
     def do_POST(self):
-        return self._route("POST", self._post)
+        return self._safe("POST", self._post)
 
     def do_PUT(self):
-        return self._route("PUT", self._put)
+        return self._safe("PUT", self._put)
 
     def do_DELETE(self):
-        return self._route("DELETE", self._delete)
+        return self._safe("DELETE", self._delete)
 
     def _get(self):
         p = self.path.split("?")[0]
@@ -612,7 +648,7 @@ class H(BaseHTTPRequestHandler):
             name = os.path.basename(p)
             return self.file(os.path.join(ARGS.data_dir, "data", name), "no-cache")
         if p.startswith("/api/tournaments"):  # torneios (tournament.py)
-            return self.json(*reversed(tournament.route("GET", p, self.owner())))
+            return self.json(*reversed(tournament.route("GET", self.path, self.owner())))
         if p.startswith(("/api/ratings", "/api/arena")):  # ratings dos decks e Arena automática (ratings.py)
             return self.json(*reversed(ratings.route("GET", self.path, self.owner())))
         if p in ("/api/decks", "/api/decks/trash"):
@@ -696,8 +732,7 @@ class H(BaseHTTPRequestHandler):
                 with urllib.request.urlopen(req, timeout=20) as r:
                     body = r.read(10_000_000)
                 json.loads(body)
-                with open(path, "wb") as f:
-                    f.write(body)
+                write_atomic(path, body)
             except Exception:
                 if not os.path.isfile(path):
                     return self.json([], 200)
@@ -721,8 +756,7 @@ class H(BaseHTTPRequestHandler):
         except urllib.error.HTTPError as e:
             out = json.dumps({"decks": 0, "cards": [], "erro": e.code}).encode()
             if e.code == 404:  # carta sem página: guardar o vazio para não voltar a perguntar
-                with open(path, "wb") as f:
-                    f.write(out)
+                write_atomic(path, out)
             return self.send(200, out)
         except Exception as e:  # sem rede: as sugestões seguem sem este sinal
             return self.json({"decks": 0, "cards": [], "erro": str(e)[:100]})
@@ -736,12 +770,13 @@ class H(BaseHTTPRequestHandler):
                               round(cv.get("lift") or 0, 3), round(cv.get("synergy") or 0, 3)])
         decks = max((c[2] for c in cards), default=0) if kind == "commanders" else 0
         out = json.dumps({"decks": d.get("num_decks_avg") or decks, "cards": cards}, ensure_ascii=False).encode()
-        with open(path, "wb") as f:
-            f.write(out)
+        write_atomic(path, out)
         return self.send(200, out)
 
     def body(self, limit=2_000_000):
         n = int(self.headers.get("Content-Length") or 0)
+        if n < 0:  # read(-1) esperava pelo fim da ligação
+            raise ValueError("pedido inválido")
         if n > limit:
             raise ValueError("deck grande demais")
         return json.loads(self.rfile.read(n) or b"{}")
@@ -945,9 +980,7 @@ class H(BaseHTTPRequestHandler):
             p = os.path.join(ARGS.data_dir, "update.json")
             st = update_state(raw=True)
             st["auto"] = auto
-            with open(p + ".tmp", "w", encoding="utf-8") as f:
-                json.dump(st, f)
-            os.replace(p + ".tmp", p)
+            write_atomic(p, json.dumps(st).encode())
             return self.json(update_state())
         if self.path in ("/api/ia/config", "/api/ia/ask"):
             try:
@@ -1032,10 +1065,10 @@ class H(BaseHTTPRequestHandler):
             data = self.rfile.read(n)
             name = f"{hashlib.sha1(data).hexdigest()[:20]}.{ext}"
             adir = os.path.join(ARGS.data_dir, "arts")
-            os.makedirs(adir, exist_ok=True)
+            if len(data) != n:  # a ligação caiu a meio: não guardar meia imagem com o nome da inteira
+                return self.json({"erro": "A imagem não chegou inteira; tenta outra vez."}, 400)
             if not os.path.exists(os.path.join(adir, name)):
-                with open(os.path.join(adir, name), "wb") as f:
-                    f.write(data)
+                write_atomic(os.path.join(adir, name), data)
             return self.json({"url": f"arts/{name}"}, 201)
         m = re.match(r"^/api/decks/([a-z0-9-]{8,40})/cover$", self.path)
         if m:  # capa própria: imagem no corpo (jpg/png/webp/gif até 6 MB) ou {"url": "https://…"}; {"url": null} tira-a
@@ -1051,6 +1084,8 @@ class H(BaseHTTPRequestHandler):
                 if not 0 < n <= 6_000_000:
                     return self.json({"erro": "A imagem tem de ter até 6 MB."}, 400)
                 img = self.rfile.read(n)
+                if len(img) != n:
+                    return self.json({"erro": "A imagem não chegou inteira; tenta outra vez."}, 400)
             else:
                 try:
                     url = str(self.body().get("url") or "").strip()
@@ -1062,9 +1097,7 @@ class H(BaseHTTPRequestHandler):
                 if old.startswith(did + "."):
                     os.remove(os.path.join(cdir, old))
             if ext:
-                os.makedirs(cdir, exist_ok=True)
-                with open(os.path.join(cdir, f"{did}.{ext}"), "wb") as f:
-                    f.write(img)
+                write_atomic(os.path.join(cdir, f"{did}.{ext}"), img)
                 d["coverImg"] = f"covers/{did}.{ext}?v={int(time.time())}"
             else:
                 d["coverImg"] = url or None
@@ -1247,7 +1280,7 @@ class H(BaseHTTPRequestHandler):
 
 def selfcheck():
     """Perfis: `python3 -c "import server; server.selfcheck()"` (servidor numa pasta temporária, porta livre)."""
-    import tempfile, threading
+    import io, tempfile, threading
     global ARGS, APP_TOKEN
     tmp = tempfile.mkdtemp(prefix="grim-prof-")
     ARGS = argparse.Namespace(data_dir=tmp, owner=None, port=0)
@@ -1307,6 +1340,41 @@ def selfcheck():
         finally:
             APP_TOKEN = ""
         assert call("GET", "/api/health")[1]["forge"] is True
+        # robustez: um corpo que não é JSON responde 400 em JSON (antes a ligação caía sem resposta); um erro por apanhar
+        # responde 500 e não grava nada a meio; o JSON grande vai comprimido a quem o aceita; nosniff em tudo
+        raw = lambda m, p, data=b"", hd=None: urllib.request.urlopen(urllib.request.Request(base + p, data or None, {"Content-Type": "application/json", **(hd or {})}, method=m))  # noqa: E731
+        for p_ in ("/api/rooms", "/api/friends", "/api/share/start"):
+            try:
+                raw("POST", p_, b"isto nao e json")
+                raise AssertionError(p_)
+            except urllib.error.HTTPError as e:
+                assert e.code == 400 and json.loads(e.read())["erro"] == "pedido inválido", p_
+        def boom(*_):  # uma rota que grava e depois rebenta: o send() do 500 gravava a meia escrita
+            db().execute("INSERT INTO profiles VALUES ('boom','x','#000000',0)")
+            raise RuntimeError("boom")
+        rules_route, rules.route = rules.route, boom
+        try:
+            with contextlib.redirect_stderr(io.StringIO()) as err:
+                try:
+                    raw("GET", "/api/rules")
+                finally:
+                    assert "boom" in err.getvalue()  # o erro fica no registo
+            raise AssertionError("boom")
+        except urllib.error.HTTPError as e:
+            assert e.code == 500 and json.loads(e.read())["erro"] == "Erro interno do servidor."
+        finally:
+            rules.route = rules_route
+        with db() as con:
+            assert not con.execute("SELECT 1 FROM profiles WHERE id='boom'").fetchone()  # desfeito
+        for i in range(30):
+            call("POST", "/api/decks", {"name": f"Deck {i}", "main": {"Forest": 20, "Llanowar Elves": 4}})
+        with raw("GET", "/api/decks", hd={"Accept-Encoding": "gzip"}) as r:
+            assert r.headers["Content-Encoding"] == "gzip" and r.headers["X-Content-Type-Options"] == "nosniff"
+            assert len(json.loads(gzip.decompress(r.read()))) >= 30
+        guests._HITS.update({f"pair:10.0.{i // 256}.{i % 256}": [time.time() - 7200] for i in range(5001)})  # IPs inventados
+        assert not guests.slow("x") and len(guests._HITS) < 100  # as chaves paradas saem
+        with raw("GET", "/api/decks") as r:  # sem Accept-Encoding: como antes
+            assert not r.headers.get("Content-Encoding") and len(json.loads(r.read())) >= 30
         print("selfcheck perfis ok")
         # amigos e convidados (guests.py): o convidado só vê o que é dele e nunca chega às rotas do dono
         tournament.DATA, tournament.DB = tmp, os.path.join(tmp, "grimorio.db")
@@ -1342,6 +1410,9 @@ def selfcheck():
         st, sr, _ = call("POST", f"/api/rooms/{room['id']}/start")
         assert st == 200 and sr["tid"], sr
         assert [t["id"] for t in call("GET", "/api/tournaments", cookie=G)[1]] == [sr["tid"]]  # o amigo vê o torneio da sala
+        st_ = {t["id"]: t["status"] for t in call("GET", "/api/tournaments")[1]}[sr["tid"]]  # ?status=: a barra do topo só pede os a decorrer
+        assert [t["id"] for t in call("GET", f"/api/tournaments?status={st_}")[1]] == [sr["tid"]]
+        assert call("GET", "/api/tournaments?status=" + ("done" if st_ != "done" else "running"))[1] == []
         # sala de jogo avulso com link: quem não está nos amigos pede o nome e entra como convidado
         st, jr, _ = call("POST", "/api/rooms", {"name": "Jogo QA", "type": "jogo", "format": "modern", "casual": True, "players": [{"src": "meus", "ref": hs[0]}]})
         assert st == 201, jr
