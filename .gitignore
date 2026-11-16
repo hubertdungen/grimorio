@@ -33,3 +33,11 @@ android/.gradle/
 android/build/
 android/app/build/
 android/local.properties
+
+# secrets and local env
+.env*
+secrets/
+*.keystore
+*.jks
+*.key
+*.pem
