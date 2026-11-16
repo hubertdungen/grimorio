@@ -1,7 +1,8 @@
 // Assistente de deck novo: formato → comandante (Commander e afins: pode ser só ele) e/ou 3 a 10 cartas → personalização → completar.
 // As escolhas ficam guardadas neste browser até o deck ser criado (fechar sem querer não as perde); «Limpar» recomeça.
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { search, img, fmtBit, passes, STYLES, LEVELS } from './data.js'
+import { search, img, fmtBit, passes, STYLES, LEVELS, CREATURE_TYPES, COLORS, TAG_LABEL } from './data.js'
+import { likeTheme, likeCards } from './nlsearch.js'
 import { FORMATS, FORMAT, canBeCommander } from './formats.js'
 import { emptyDeck } from './deck.js'
 import { PrefsPanel, IASettings } from './Views.jsx'
@@ -23,13 +24,16 @@ function pairOk(a, b) {
     [/\bPartner\b/, /Friends forever/].some(re => re.test(a.o) && re.test(b.o))
 }
 
-const START = [['cartas', tx('Escolher 3–10 cartas'), '▦'], ['manual', tx('Construir à mão'), '✎'], ['importar', tx('Importar e melhorar'), '⇩'], ['ia', tx('Descrever a ideia (IA)'), '✦']]
+const START = [['gosto', tx('Gosto de…'), '♥'], ['cartas', tx('Escolher 3–10 cartas'), '▦'], ['manual', tx('Construir à mão'), '✎'], ['importar', tx('Importar e melhorar'), '⇩'], ['ia', tx('Descrever a ideia (IA)'), '✦']]
 
 export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImport }) {
   useBackClose(true, onCancel)  // «voltar» do telemóvel fecha esta janela
   const [S0] = useState(load), cards = ns => (ns || []).map(n => data.byName.get(n)).filter(Boolean)
   const [start, setStart] = useState(S0.start || 'cartas')
   const [idea, setIdea] = useState(S0.idea || '')
+  const [like, setLike] = useState(S0.like || '')
+  const [likeOff, setLikeOff] = useState(S0.likeOff || [])  // chips desligados («k:v», «c:U», «g:tag»)
+  const [likeStar, setLikeStar] = useState(S0.likeStar || [])  // temas essenciais ★
   const [busy, setBusy] = useState(false)
   const [aiErr, setAiErr] = useState('')
   const [aiSum, setAiSum] = useState(null)
@@ -43,10 +47,10 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const [q, setQ] = useState(S0.q || '')
   const [cq, setCq] = useState('')
   const dq = useDeferredValue(q), dcq = useDeferredValue(cq)
-  const [restored, setRestored] = useState(() => !!(S0.picks?.length || S0.cmds?.length || S0.idea || S0.name))
-  useEffect(() => { save({ start, idea, format, name, picks: picks.map(c => c.n), cmds: cmds.map(c => c.n), prefs, q }) }, [start, idea, format, name, picks, cmds, prefs, q])
-  const clear = () => { save(null); setStart('cartas'); setIdea(''); setName(''); setPicks([]); setCmds([]); setPrefs({}); setQ(''); setCq(''); setAiSum(null); setRestored(false) }
-  const dirty = picks.length || cmds.length || idea || name || q
+  const [restored, setRestored] = useState(() => !!(S0.like || S0.picks?.length || S0.cmds?.length || S0.idea || S0.name))
+  useEffect(() => { save({ start, idea, like, likeOff, likeStar, format, name, picks: picks.map(c => c.n), cmds: cmds.map(c => c.n), prefs, q }) }, [start, idea, like, likeOff, likeStar, format, name, picks, cmds, prefs, q])
+  const clear = () => { save(null); setStart('cartas'); setIdea(''); setLike(''); setLikeOff([]); setLikeStar([]); setName(''); setPicks([]); setCmds([]); setPrefs({}); setQ(''); setCq(''); setAiSum(null); setRestored(false) }
+  const dirty = like || picks.length || cmds.length || idea || name || q
   const cmd = cmds[0] || null
   const setCmd = c => setCmds(c ? [c] : [])
   const fmt = FORMAT[format]
@@ -63,6 +67,21 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const has = c => picks.some(p => p.i === c.i) || cmds.some(x => x.i === c.i)
   const maxPicks = start === 'ia' ? 30 : 10
   const toggle = c => setPicks(p => (p.some(x => x.i === c.i) ? p.filter(x => x.i !== c.i) : p.length >= maxPicks ? p : [...p, c]))
+
+  // «Gosto de…»: o texto vira temas, cores e funções (chips que se desligam); a pré-visualização segue os chips ligados
+  const dlike = useDeferredValue(like)
+  const theme = useMemo(() => likeTheme(data, dlike, { types: CREATURE_TYPES }), [data, dlike])
+  const key = { t: t => `t:${t.k}:${t.v}`, c: x => `c:${x.k}`, g: x => `g:${x.k}` }
+  const on = k => !likeOff.includes(k)
+  const flip = (list, set, k) => set(list.includes(k) ? list.filter(x => x !== k) : [...list, k])
+  const sel = useMemo(() => {
+    const terms = theme.terms.filter(t => on(key.t(t)))
+    return { terms, star: terms.filter(t => likeStar.includes(key.t(t))), colors: theme.colors.filter(x => on(key.c(x))).map(x => x.k), tags: theme.tags.filter(x => on(key.g(x))).map(x => x.k) }
+  }, [theme, likeOff, likeStar]) // eslint-disable-line react-hooks/exhaustive-deps
+  const preview = useMemo(() => (start === 'gosto' ? likeCards(data, sel, ctx, 12) : []), [data, sel, ctx, start])
+  const likeAny = theme.terms.length + theme.colors.length + theme.tags.length > 0
+  const chipTap = (k, star) => (star ? (!on(k) ? flip(likeOff, setLikeOff, k) : likeStar.includes(k) ? (flip(likeStar, setLikeStar, k), flip(likeOff, setLikeOff, k)) : flip(likeStar, setLikeStar, k)) : flip(likeOff, setLikeOff, k))
+  const eff = start === 'gosto' && !picks.length ? preview.slice(0, 8) : picks
 
   // IA: gera a base do deck a partir da ideia; cada carta é validada (existe, legal, cores) antes de entrar.
   const generate = async () => {
@@ -94,33 +113,34 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
 
   // Comandantes que cobrem as cores das cartas escolhidas, pela semelhança de texto + popularidade.
   const cmdSugs = useMemo(() => {
-    if (!fmt.cmd || cmds.length || !picks.length) return []
-    const ci = [...new Set(picks.flatMap(c => [...c.ci]))].join('')
+    if (!fmt.cmd || cmds.length || !eff.length) return []
+    const ci = [...new Set(eff.flatMap(c => [...c.ci]))].join('')
     const D = data.D, E = data.emb, cen = new Float32Array(D)
-    for (const c of picks) for (let k = 0; k < D; k++) cen[k] += E[c.i * D + k]
+    for (const c of eff) for (let k = 0; k < D; k++) cen[k] += E[c.i * D + k]
     const out = []
     for (const c of data.cards) {
       if (!canBeCommander(c, fmt) || !subset(ci, c.ci) || (ctx.bit >= 0 && !(c.lg & (1 << ctx.bit)))) continue
       let d = 0
       for (let k = 0; k < D; k++) d += cen[k] * E[c.i * D + k]
-      out.push({ c, s: d / 127 / picks.length + (c.er ? 0.15 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000)) : 0) - 0.02 * (c.ci.length - ci.length) })
+      out.push({ c, s: d / 127 / eff.length + (c.er ? 0.15 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000)) : 0) - 0.02 * (c.ci.length - ci.length) })
     }
     return out.sort((a, b) => b.s - a.s).slice(0, 6).map(x => x.c)
-  }, [data, fmt, cmds.length, picks, ctx.bit])
+  }, [data, fmt, cmds.length, eff, ctx.bit])
 
   // Commander e afins: basta o comandante (o resto vem do EDHREC e da sinergia); construído: 3 cartas no mínimo
-  const ready = fmt.cmd ? cmds.length > 0 : picks.length >= 3
+  const ready = fmt.cmd ? cmds.length > 0 : eff.length >= 3
   const create = auto => {
     const d = emptyDeck(format)
     d.name = name.trim() || tx('{name} — novo', { name: cmd ? cmds.map(c => c.n.split(',')[0]).join(' & ') : fmt.name })
     d.commanders = cmds.map(c => c.n)
     save(null)
-    for (const c of picks) {
+    for (const c of eff) {
       if (cmds.some(x => x.i === c.i)) continue
-      const base = picks.length <= 5 ? 4 : picks.length <= 8 ? 3 : 2 // muitas cartas iniciais: menos cópias, sobra espaço
+      const base = eff.length <= 5 ? 4 : eff.length <= 8 ? 3 : 2 // muitas cartas iniciais: menos cópias, sobra espaço
       d.main[c.n] = fmt.copies === 1 || /\bBasic\b/.test(c.t) ? 1 : Math.min(base, c.cmc >= 5 ? 2 : 4)
     }
-    d.seeds = picks.map(c => c.n)
+    d.seeds = eff.map(c => c.n)
+    if (start === 'gosto') d.seedTerms = [...sel.terms].sort((a, b) => likeStar.includes(key.t(b)) - likeStar.includes(key.t(a))).map(t => ({ k: t.k, v: t.v }))
     d.prefs = prefs
     onCreate(d, auto)
   }
@@ -143,6 +163,26 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         <h4>{tx('Como queres começar?')}</h4>
         {/* no telemóvel as quatro opções não cabem numa linha: quebram em vez de ficarem cortadas à esquerda */}
         <div className="seg" style={{ flexWrap: 'wrap', float: 'none', marginLeft: 0 }}>{START.map(([k, l, ic]) => <button key={k} className={start === k ? 'on' : ''} onClick={() => setStart(k)}><i>{ic}</i><span>{l}</span></button>)}</div>
+
+        {start === 'gosto' && (
+          <div className="wz-like">
+            <label className="fmt"><span>{tx('Gosto de:')}</span>
+              <input className="big" value={like} onChange={e => setLike(e.target.value)} placeholder={tx('ninjas, dragões, roubar cartas, azul e preto…')} autoFocus />
+            </label>
+            {like.trim() && !likeAny && <p className="small muted">{tx('Não percebi nenhum tema: tenta um tipo de criatura (ninjas), uma habilidade (voar), uma função (ramp) ou cores.')}</p>}
+            {[[tx('Temas'), theme.terms, key.t, t => `${t.k === 'kw' ? '✦' : '🏷'} ${t.v}`, true], [tx('Cores'), theme.colors, key.c, x => COLORS[x.k], false], [tx('Funções'), theme.tags, key.g, x => TAG_LABEL[x.k], false]]
+              .filter(r => r[1].length).map(([h, list, kf, lab, star]) => (
+                <div key={h} className="wz-likerow"><span className="muted small">{h}</span>
+                  <div className="chips">{list.map(x => { const k = kf(x), st = likeStar.includes(k); return <button key={k} className={`chip like${on(k) ? ' on' : ''}`} onClick={() => chipTap(k, star)} title={star ? tx('Toca outra vez para tornar este tema essencial ★') : undefined}>{st && '★ '}{lab(x)}</button> })}</div>
+                </div>))}
+            {preview.length > 0 && <>
+              <h4>{tx('Cartas deste gosto')} <span className="muted">{tx('toca para as juntar às cartas de partida')}</span></h4>
+              <div className="wz-res">{preview.map(c => <button key={c.i} className={has(c) ? 'on' : ''} onClick={() => toggle(c)} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" />{has(c) && <span>✓</span>}</button>)}</div>
+            </>}
+            <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />
+            <button onClick={() => { save(null); const d = emptyDeck(format); d.name = name.trim() || tx('{name} — novo', { name: fmt.name }); d.prefs = prefs; d.seedTerms = sel.terms.map(t => ({ k: t.k, v: t.v })); onCreate(d, false, 'pesquisa') }} disabled={!sel.terms.length}>✎ {tx('Só os temas, construo eu')}</button>
+          </div>
+        )}
 
         {start === 'importar' && (
           <div className="wz-imp">
@@ -174,7 +214,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
           </div>
         )}
 
-        {(start === 'cartas' || start === 'ia') && <>
+        {(start === 'cartas' || start === 'ia' || start === 'gosto') && <>
         {fmt.cmd && <>
           <h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')} <span className="muted">{cmds.length ? (partnerOf ? tx('aceita um par: escolhe o segundo se quiseres') : '') : tx('escolhe-o aqui, ou ♛ numa das cartas de partida')}</span></h4>
           <div className="wz-cmd">
@@ -206,20 +246,20 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
           </>
         )}
 
-        <input className="big" value={q} onChange={e => setQ(e.target.value)} placeholder={tx(ctx.bit >= 0 ? 'Procurar cartas legais em {fmt}' : 'Procurar cartas', { fmt: fmt.name }) + (ctx.identity != null ? tx(' na identidade {id}', { id: ctx.identity || tx('incolor') }) : '') + '…'} />
+        {start !== 'gosto' && <><input className="big" value={q} onChange={e => setQ(e.target.value)} placeholder={tx(ctx.bit >= 0 ? 'Procurar cartas legais em {fmt}' : 'Procurar cartas', { fmt: fmt.name }) + (ctx.identity != null ? tx(' na identidade {id}', { id: ctx.identity || tx('incolor') }) : '') + '…'} />
         <div className="wz-res">{res.map(c => (
           <button key={c.i} className={has(c) ? 'on' : ''} onClick={() => toggle(c)} title={c.n} disabled={!has(c) && picks.length >= maxPicks}>
             <img src={img(c, 'normal')} alt={c.n} loading="lazy" />{has(c) && <span>✓</span>}
           </button>
-        ))}</div>
+        ))}</div></>}
 
-        <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />
+        {start !== 'gosto' && <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />}
         </>}
 
-        {(start === 'cartas' || start === 'ia') && <div className="row-btns wz-foot">
-          <button className="primary" onClick={() => create(true)} disabled={!ready}>{fmt.cmd && !picks.length && cmd ? tx('✦ Construir o deck à volta do comandante') : tx('✦ Criar e completar o deck')}</button>
-          <button onClick={() => create(false)} disabled={!picks.length && !cmd}>{tx('Criar só com estas')}</button>
-          <span className="muted small">{!ready ? (fmt.cmd ? tx('Escolhe o comandante (pesquisa acima, ♛ numa carta ou uma sugestão).') : tx('Falta {n} carta.|Faltam {n} cartas.', { n: 3 - picks.length })) : cmd ? <>{cmds.length > 1 ? tx('Comandantes') : tx('Comandante')}: <b>{cmds.map(c => c.n).join(' + ')}</b> <Mana cost={cmds.map(c => c.mc).join('')} /></> : fmt.side > 0 ? tx('No fim também é proposto um sideboard de 15.') : ''}</span>
+        {(start === 'cartas' || start === 'ia' || start === 'gosto') && <div className="row-btns wz-foot">
+          <button className="primary" onClick={() => create(true)} disabled={!ready}>{fmt.cmd && !picks.length && cmd ? tx('✦ Construir o deck à volta do comandante') : start === 'gosto' ? tx('✦ Criar deck inicial') : tx('✦ Criar e completar o deck')}</button>
+          <button onClick={() => create(false)} disabled={!eff.length && !cmd}>{tx('Criar só com estas')}</button>
+          <span className="muted small">{!ready ? (fmt.cmd ? tx('Escolhe o comandante (pesquisa acima, ♛ numa carta ou uma sugestão).') : tx('Falta {n} carta.|Faltam {n} cartas.', { n: 3 - eff.length })) : cmd ? <>{cmds.length > 1 ? tx('Comandantes') : tx('Comandante')}: <b>{cmds.map(c => c.n).join(' + ')}</b> <Mana cost={cmds.map(c => c.mc).join('')} /></> : fmt.side > 0 ? tx('No fim também é proposto um sideboard de 15.') : ''}</span>
         </div>}
       </div>
     </div>

@@ -4,6 +4,7 @@
 // (tipo, funções, texto, custo, cores) e o que sobra (vai para o nome); null se não percebeu nada.
 
 import { parseThreats } from './hate.js'
+import { termsOf, termMatch, passes, TAG_LABEL } from './data.js'
 
 const strip = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const TYPES = {
@@ -238,4 +239,62 @@ export function parseQuery(q, opts = {}) {
   for (const t of f.vs || []) got.push({ k: 'vs', v: t })
   if (f.fmt) got.push({ k: 'fmt', v: f.fmt })
   return { f, rest, got }
+}
+
+// «Gosto de…» (assistente de deck novo): texto livre → temas (subtipos/habilidades das próprias cartas), cores e funções.
+// Os temas relacionados saem das cartas que já têm o tema (o que aparece nelas ≥2× mais do que no resto), sem dicionário.
+// ponytail: lift por frequência, sem sinónimos; dicionário só se faltar cobertura
+const SUB_L = { dragao: 'Dragon', drache: 'Dragon', dragon: 'Dragon', elfo: 'Elf', elfe: 'Elf', zumbi: 'Zombie', zombi: 'Zombie', vampiro: 'Vampire', vampir: 'Vampire', anjo: 'Angel', angel: 'Angel', engel: 'Angel',
+  demonio: 'Demon', demonico: 'Demon', gato: 'Cat', katze: 'Cat', guerreiro: 'Warrior', guerrero: 'Warrior', mago: 'Wizard', esqueleto: 'Skeleton', fantasma: 'Spirit', espirito: 'Spirit', lobisomem: 'Werewolf', besta: 'Beast', bestia: 'Beast',
+  hidra: 'Hydra', pirata: 'Pirate', ladrao: 'Rogue', ladino: 'Rogue', pícaro: 'Rogue', picaro: 'Rogue', clerigo: 'Cleric', druida: 'Druid', cavaleiro: 'Knight', caballero: 'Knight', ritter: 'Knight', soldado: 'Soldier', soldat: 'Soldier',
+  rato: 'Rat', ratte: 'Rat', goblin: 'Goblin', gigante: 'Giant', riese: 'Giant', fenix: 'Phoenix', fada: 'Faerie', fae: 'Faerie', sereia: 'Merfolk', lobo: 'Wolf', wolf: 'Wolf', dinossauro: 'Dinosaur', dinosaurio: 'Dinosaur', aranha: 'Spider', arana: 'Spider', serpente: 'Snake', cobra: 'Snake', robo: 'Robot', construto: 'Construct' }
+export function likeTheme(data, text, { types } = {}) {
+  const out = { terms: [], colors: [], tags: [] }
+  const p = parseQuery(text || '', { types })
+  const all = termsOf(data), N = data.cards.length
+  const byKey = new Map(all.map(t => [`${t.k}:${t.v.toLowerCase()}`, t]))
+  // pt/es/de → subtipo inglês (o parseQuery só sabe os nomes ingleses)
+  const found = [], hit = (k, v) => { const t = byKey.get(`${k}:${String(v).toLowerCase()}`); if (t && !found.includes(t)) found.push(t); return !!t }
+  if (p?.f.sub) hit('sub', p.f.sub)
+  for (const o of p?.f.oracle || []) hit('kw', o)
+  for (const w of (p ? p.rest : strip(text || '')).split(/\s+/)) {
+    if (w.length < 3) continue
+    for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ves$/, 'f'), SUB_L[w.replace(/(oes|aes|es|s)$/, m => (m === 'oes' || m === 'aes' ? 'ao' : ''))]]) if (x) if (hit('sub', x) || hit('kw', x)) break
+  }
+  const explicit = p?.f.colors || []
+  const tags = (p?.f.tags || []).filter(t => TAG_LABEL[t])
+  if (!found.length && !explicit.length && !tags.length) return out
+  const M = found.length ? data.cards.filter(c => !c.un && found.some(t => termMatch(c, t))) : []
+  const big = M.length >= 3
+  const colors = explicit.length ? explicit.map(k => ({ k, share: 1 })) : big
+    ? 'WUBRG'.split('').map(k => ({ k, share: M.filter(c => c.ci.includes(k)).length / M.length })).filter(x => x.share >= 0.25).sort((a, b) => b.share - a.share).slice(0, 3) : []
+  const rel = [], relTags = [], cnt = new Map()
+  if (big) {
+    const lift = (n, tot) => (n / M.length) / (tot / N)
+    for (const t of all) if (t.k !== 'type' && !found.includes(t)) { const n = M.filter(c => termMatch(c, t)).length; if (n >= 3 && lift(n, t.n) >= 3 && n / M.length >= 0.08) rel.push({ ...t, share: n / M.length }) }
+    for (const c of M) for (const g of c.tg) cnt.set(g, (cnt.get(g) || 0) + 1)
+    const tagTot = new Map(); for (const c of data.cards) for (const g of c.tg) tagTot.set(g, (tagTot.get(g) || 0) + 1)
+    for (const [g, n] of cnt) if (TAG_LABEL[g] && g !== 'creature' && g !== 'wincon' && n >= 3 && lift(n, tagTot.get(g)) >= 1.5 && n / M.length >= 0.08) relTags.push({ k: g, share: n / M.length })
+  }
+  const by = (a, b) => b.share - a.share
+  out.terms = [...found.map(t => ({ k: t.k, v: t.v, n: t.n, u: 1 })), ...rel.sort(by).slice(0, 6 - found.length).map(t => ({ k: t.k, v: t.v, n: t.n }))].slice(0, 6)
+  out.colors = colors
+  out.tags = [...tags.map(k => ({ k, share: 1 })), ...relTags.filter(x => !tags.includes(x.k)).sort(by)].slice(0, 5)
+  return out
+}
+
+// Cartas de pré-visualização: com ★ têm de ter todos os temas ★; senão qualquer tema. Cores ligadas = identidade dentro delas.
+// Ordem: temas pedidos (peso 100) > relacionados e funções (desempate) > mais jogadas (er mais baixo).
+export function likeCards(data, { terms = [], star = [], colors = [], tags = [] }, ctx, n = 12) {
+  const must = terms.filter(t => star.some(s => s.k === t.k && s.v === t.v)), ci = colors.join('')
+  const out = []
+  for (const c of data.cards) {
+    const th = terms.reduce((a, t) => a + (termMatch(c, t) ? (t.u ? 100 : 1) : 0), 0), tg = tags.filter(t => c.tg.includes(t)).length
+    if (terms.length ? !terms.some(t => termMatch(c, t)) : tags.length && !tg) continue
+    if (must.some(t => !termMatch(c, t))) continue
+    if (colors.length && ![...c.ci].every(k => ci.includes(k))) continue
+    if (c.mt === 'Land' || !passes(c, null, ctx)) continue
+    out.push({ c, s: th + tg })
+  }
+  return out.sort((a, b) => b.s - a.s || (a.c.er || 1e9) - (b.c.er || 1e9)).slice(0, n).map(x => x.c)
 }
