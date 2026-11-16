@@ -420,3 +420,6 @@ Coast LLC.*
 
 [GPL-3.0](LICENSE): puedes usarlo, estudiarlo, modificarlo y compartirlo libremente; los cambios que distribuyas deben
 seguir siendo abiertos bajo la misma licencia.
+
+
+<p align="center"><a href="https://dlforge.dungenlabs.com"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></a><br><a href="https://dlforge.dungenlabs.com">DL Forge</a></p>
