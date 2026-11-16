@@ -4264,3 +4264,9 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 }
 @keyframes fgd{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
 @media (prefers-reduced-motion:reduce){.forge-link:hover .fgm *{animation:none}}
+
+/* assistente: «Gosto de…» — chips que se ligam/desligam */
+.wz-like { display: grid; gap: 10px; }
+.wz-likerow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.chip.like { padding: 4px 11px; border-color: var(--line); background: none; color: var(--muted); cursor: pointer; text-decoration: line-through; }
+.chip.like.on { border-color: var(--gold); background: var(--panel2); color: var(--text); text-decoration: none; }
