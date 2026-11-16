@@ -4,7 +4,7 @@
 // (tipo, funções, texto, custo, cores) e o que sobra (vai para o nome); null se não percebeu nada.
 
 import { parseThreats } from './hate.js'
-import { termsOf, termMatch, passes, TAG_LABEL } from './data.js'
+import { termsOf, termMatch, subsOf, passes, TAG_LABEL } from './data.js'
 
 const strip = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const TYPES = {
@@ -32,7 +32,7 @@ const COLORS = {
 }
 // habilidades com nome (o texto em inglês a procurar), nas várias línguas
 const KW = {
-  flying: ['flying', 'voar', 'voo', 'voadoras', 'voadores', 'voadora', 'voador', 'volar', 'vuela', 'voladoras', 'voladores', 'fliegend', 'flugfahigkeit'], trample: ['trample', 'atropelar', 'arrollar', 'trampelschaden'],
+  flying: ['flying', 'voar', 'voo', 'voadoras', 'voadores', 'voadora', 'voador', 'volar', 'vuela', 'voladoras', 'voladores', 'fliegend', 'fliegen', 'flugfahigkeit'], trample: ['trample', 'atropelar', 'arrollar', 'trampelschaden'],
   deathtouch: ['deathtouch', 'toque mortifero', 'toque mortal', 'todesberuhrung'], lifelink: ['lifelink', 'vinculo com a vida', 'vinculo vital', 'lebensverknupfung'],
   haste: ['haste', 'impeto', 'prisa', 'eile'], vigilance: ['vigilance', 'vigilancia', 'wachsamkeit'],
   'double strike': ['double strike', 'golpe duplo', 'doble golpe', 'doppelschlag'], 'first strike': ['first strike', 'iniciativa', 'danar primero', 'erstschlag'],
@@ -63,7 +63,7 @@ const CONCEPTS = {
   graveyard: ['graveyard', 'cemiterio', 'cementerio', 'friedhof'], mill: ['mill', 'moer', 'moler', 'mahlen', 'triturar'],
   burn: ['direct damage', 'burn', 'dano direto', 'dano directo', 'direktschaden'], pump: ['anthem', 'pump', 'buff', 'reforco', 'potenciar', 'verstarkung'],
   blink: ['blink', 'flicker', 'piscar', 'parpadeo'], bounce: ['bounce', 'devolver a mao', 'devolver a la mano', 'auf die hand'],
-  copy: ['copy', 'copiar', 'kopieren'], steal: ['steal', 'gain control', 'roubar', 'ganhar controlo', 'ganhar controle', 'robar el control', 'kontrolle'],
+  copy: ['copy', 'copiar', 'kopieren'], steal: ['steal', 'gain control', 'stealing', 'stehlen', 'roubar', 'ganhar controlo', 'ganhar controle', 'robar el control', 'kontrolle'],
   drain: ['drain', 'drenar', 'perder vida', 'lose life', 'entziehen'], selection: ['scry', 'surveil', 'videncia', 'adivinar', 'hellsicht', 'uberwachen'],
   cost: ['cost reduction', 'reduzir custos', 'reducir coste', 'kostensenkung'], untap: ['untap', 'desvirar', 'enderezar', 'enttappen'],
   extraturn: ['extra turn', 'turno extra', 'turno adicional', 'zusatzlicher zug'], landfall: ['landfall'], stax: ['stax', 'taxar', 'travar'],
@@ -76,7 +76,7 @@ const ZH = [
   ['消灭', { tag: 'removal' }], ['清场', { tag: 'wipe' }], ['反击', { tag: 'counter' }], ['反制', { tag: 'counter' }], ['衍生物', { tag: 'tokens' }],
   ['获得生命', { tag: 'lifegain' }], ['搜寻', { tag: 'tutor' }], ['复活', { tag: 'reanimate' }], ['牺牲', { tag: 'sacrifice' }], ['弃牌', { tag: 'discard' }],
   ['坟墓场', { tag: 'graveyard' }], ['磨牌', { tag: 'mill' }], ['直伤', { tag: 'burn' }], ['闪烁', { tag: 'blink' }], ['弹回', { tag: 'bounce' }],
-  ['复制', { tag: 'copy' }], ['夺取', { tag: 'steal' }], ['占卜', { tag: 'selection' }], ['额外回合', { tag: 'extraturn' }], ['指示物', { tag: 'counters' }],
+  ['复制', { tag: 'copy' }], ['偷牌', { tag: 'steal' }], ['夺取', { tag: 'steal' }], ['偷', { tag: 'steal' }], ['占卜', { tag: 'selection' }], ['额外回合', { tag: 'extraturn' }], ['指示物', { tag: 'counters' }],
   ['飞行', { kw: 'flying' }], ['践踏', { kw: 'trample' }], ['死触', { kw: 'deathtouch' }], ['系命', { kw: 'lifelink' }], ['敏捷', { kw: 'haste' }],
   ['警戒', { kw: 'vigilance' }], ['连击', { kw: 'double strike' }], ['先攻', { kw: 'first strike' }], ['延势', { kw: 'reach' }], ['辟邪', { kw: 'hexproof' }],
   ['不灭', { kw: 'indestructible' }], ['闪现', { kw: 'flash' }], ['威慑', { kw: 'menace' }],
@@ -93,7 +93,7 @@ const SUBS = {
   guerreiro: 'Warrior', guerrero: 'Warrior', krieger: 'Warrior', soldado: 'Soldier', soldat: 'Soldier', soldaten: 'Soldier', cavaleiro: 'Knight', caballero: 'Knight', ritter: 'Knight',
   clerigo: 'Cleric', kleriker: 'Cleric', ladino: 'Rogue', picaro: 'Rogue', schurke: 'Rogue', espirito: 'Spirit', espiritu: 'Spirit', geist: 'Spirit', geister: 'Spirit',
   besta: 'Beast', bestia: 'Beast', bestie: 'Beast', gato: 'Cat', katze: 'Cat', rato: 'Rat', ratazana: 'Rat', rata: 'Rat', ratte: 'Rat', ave: 'Bird', passaro: 'Bird', pajaro: 'Bird', vogel: 'Bird',
-  fada: 'Faerie', hada: 'Faerie', fee: 'Faerie', tritao: 'Merfolk', triton: 'Merfolk', meervolk: 'Merfolk', esqueleto: 'Skeleton', skelett: 'Skeleton',
+  fantasma: 'Spirit', fenix: 'Phoenix', sereia: 'Merfolk', ladrao: 'Rogue', cobra: 'Serpent', robo: 'Robot', construto: 'Construct', demonico: 'Demon', fada: 'Faerie', hada: 'Faerie', fee: 'Faerie', tritao: 'Merfolk', triton: 'Merfolk', meervolk: 'Merfolk', esqueleto: 'Skeleton', skelett: 'Skeleton',
   dinossauro: 'Dinosaur', dinosaurio: 'Dinosaur', dinosaurier: 'Dinosaur', pirata: 'Pirate', pirat: 'Pirate', xama: 'Shaman', chaman: 'Shaman', schamane: 'Shaman',
   druida: 'Druid', druide: 'Druid', monge: 'Monk', monje: 'Monk', monch: 'Monk', barbaro: 'Barbarian', barbar: 'Barbarian', assassino: 'Assassin', asesino: 'Assassin', assassine: 'Assassin',
   artifice: 'Artificer', lobisomem: 'Werewolf', werwolf: 'Werewolf', lobo: 'Wolf', wolf: 'Wolf', serpente: 'Serpent', serpiente: 'Serpent', schlange: 'Serpent',
@@ -101,7 +101,7 @@ const SUBS = {
   aranha: 'Spider', arana: 'Spider', spinne: 'Spider', inseto: 'Insect', insecto: 'Insect', insekt: 'Insect', fungo: 'Fungus', hongo: 'Fungus', pilz: 'Fungus', planta: 'Plant', pflanze: 'Plant',
   cavalo: 'Horse', caballo: 'Horse', pferd: 'Horse', coelho: 'Rabbit', conejo: 'Rabbit', hase: 'Rabbit', rana: 'Frog', sapo: 'Frog', frosch: 'Frog', raposa: 'Fox', zorro: 'Fox', fuchs: 'Fox',
 }
-const ZH_SUBS = [['人类', 'Human'], ['精灵', 'Elf'], ['天使', 'Angel'], ['恶魔', 'Demon'], ['灵俑', 'Zombie'], ['吸血鬼', 'Vampire'], ['鬼怪', 'Goblin'], ['法师', 'Wizard'],
+const ZH_SUBS = [['忍者', 'Ninja'], ['人类', 'Human'], ['精灵', 'Elf'], ['天使', 'Angel'], ['恶魔', 'Demon'], ['灵俑', 'Zombie'], ['吸血鬼', 'Vampire'], ['鬼怪', 'Goblin'], ['法师', 'Wizard'],
   ['战士', 'Warrior'], ['士兵', 'Soldier'], ['骑士', 'Knight'], ['僧侣', 'Cleric'], ['浪客', 'Rogue'], ['精怪', 'Spirit'], ['野兽', 'Beast'], ['猫', 'Cat'], ['鼠', 'Rat'], ['龙', 'Dragon']]
 // «que beneficiem de X» / «that benefit from X» / «care about X»: cartas cujo texto fala de X (qualquer das palavras)
 // marcadores (e não «counter target spell» / «can't be countered»)
@@ -244,10 +244,8 @@ export function parseQuery(q, opts = {}) {
 // «Gosto de…» (assistente de deck novo): texto livre → temas (subtipos/habilidades das próprias cartas), cores e funções.
 // Os temas relacionados saem das cartas que já têm o tema (o que aparece nelas ≥2× mais do que no resto), sem dicionário.
 // ponytail: lift por frequência, sem sinónimos; dicionário só se faltar cobertura
-const SUB_L = { dragao: 'Dragon', drache: 'Dragon', dragon: 'Dragon', elfo: 'Elf', elfe: 'Elf', zumbi: 'Zombie', zombi: 'Zombie', vampiro: 'Vampire', vampir: 'Vampire', anjo: 'Angel', angel: 'Angel', engel: 'Angel',
-  demonio: 'Demon', demonico: 'Demon', gato: 'Cat', katze: 'Cat', guerreiro: 'Warrior', guerrero: 'Warrior', mago: 'Wizard', esqueleto: 'Skeleton', fantasma: 'Spirit', espirito: 'Spirit', lobisomem: 'Werewolf', besta: 'Beast', bestia: 'Beast',
-  hidra: 'Hydra', pirata: 'Pirate', ladrao: 'Rogue', ladino: 'Rogue', pícaro: 'Rogue', picaro: 'Rogue', clerigo: 'Cleric', druida: 'Druid', cavaleiro: 'Knight', caballero: 'Knight', ritter: 'Knight', soldado: 'Soldier', soldat: 'Soldier',
-  rato: 'Rat', ratte: 'Rat', goblin: 'Goblin', gigante: 'Giant', riese: 'Giant', fenix: 'Phoenix', fada: 'Faerie', fae: 'Faerie', sereia: 'Merfolk', lobo: 'Wolf', wolf: 'Wolf', dinossauro: 'Dinosaur', dinosaurio: 'Dinosaur', aranha: 'Spider', arana: 'Spider', serpente: 'Snake', cobra: 'Snake', robo: 'Robot', construto: 'Construct' }
+let TT = null
+const tagTotOf = data => { if (TT?.d !== data) { const m = new Map(); for (const c of data.cards) for (const g of c.tg) m.set(g, (m.get(g) || 0) + 1); TT = { d: data, m } } return TT.m }
 export function likeTheme(data, text, { types } = {}) {
   const out = { terms: [], colors: [], tags: [] }
   const p = parseQuery(text || '', { types })
@@ -259,7 +257,7 @@ export function likeTheme(data, text, { types } = {}) {
   for (const o of p?.f.oracle || []) hit('kw', o)
   for (const w of (p ? p.rest : strip(text || '')).split(/\s+/)) {
     if (w.length < 3) continue
-    for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ves$/, 'f'), SUB_L[w.replace(/(oes|aes|es|s)$/, m => (m === 'oes' || m === 'aes' ? 'ao' : ''))]]) if (x) if (hit('sub', x) || hit('kw', x)) break
+    for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ves$/, 'f'), subOf(w, types), subOf(w.replace(/(oes|aes)$/, 'ao'), types)]) if (x) if (hit('sub', x) || hit('kw', x)) break
   }
   const explicit = p?.f.colors || []
   const tags = (p?.f.tags || []).filter(t => TAG_LABEL[t])
@@ -271,9 +269,10 @@ export function likeTheme(data, text, { types } = {}) {
   const rel = [], relTags = [], cnt = new Map()
   if (big) {
     const lift = (n, tot) => (n / M.length) / (tot / N)
-    for (const t of all) if (t.k !== 'type' && !found.includes(t)) { const n = M.filter(c => termMatch(c, t)).length; if (n >= 3 && lift(n, t.n) >= 3 && n / M.length >= 0.08) rel.push({ ...t, share: n / M.length }) }
-    for (const c of M) for (const g of c.tg) cnt.set(g, (cnt.get(g) || 0) + 1)
-    const tagTot = new Map(); for (const c of data.cards) for (const g of c.tg) tagTot.set(g, (tagTot.get(g) || 0) + 1)
+    const tc = new Map()
+    for (const c of M) { for (const k of c.kw || []) tc.set('kw:' + k, (tc.get('kw:' + k) || 0) + 1); for (const x of subsOf(c)) tc.set('sub:' + x, (tc.get('sub:' + x) || 0) + 1); for (const g of c.tg) cnt.set(g, (cnt.get(g) || 0) + 1) }
+    for (const t of all) if (t.k !== 'type' && !found.includes(t)) { const n = tc.get(`${t.k}:${t.v}`) || 0; if (n >= 3 && lift(n, t.n) >= 3 && n / M.length >= 0.08) rel.push({ ...t, share: n / M.length }) }
+    const tagTot = tagTotOf(data)
     for (const [g, n] of cnt) if (TAG_LABEL[g] && g !== 'creature' && g !== 'wincon' && n >= 3 && lift(n, tagTot.get(g)) >= 1.5 && n / M.length >= 0.08) relTags.push({ k: g, share: n / M.length })
   }
   const by = (a, b) => b.share - a.share
