@@ -140,7 +140,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
       d.main[c.n] = fmt.copies === 1 || /\bBasic\b/.test(c.t) ? 1 : Math.min(base, c.cmc >= 5 ? 2 : 4)
     }
     d.seeds = eff.map(c => c.n)
-    if (start === 'gosto') d.seedTerms = [...sel.terms].sort((a, b) => likeStar.includes(key.t(b)) - likeStar.includes(key.t(a))).map(t => ({ k: t.k, v: t.v }))
+    if (start === 'gosto') d.seedTerms = sel.terms.filter(t => t.u || likeStar.includes(key.t(t))).sort((a, b) => likeStar.includes(key.t(b)) - likeStar.includes(key.t(a))).map(t => ({ k: t.k, v: t.v }))
     d.prefs = prefs
     onCreate(d, auto)
   }
@@ -174,6 +174,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
               .filter(r => r[1].length).map(([h, list, kf, lab, star]) => (
                 <div key={h} className="wz-likerow"><span className="muted small">{h}</span>
                   <div className="chips">{list.map(x => { const k = kf(x), st = likeStar.includes(k); return <button key={k} className={`chip like${on(k) ? ' on' : ''}`} onClick={() => chipTap(k, star)} title={star ? tx('Toca outra vez para tornar este tema essencial ★') : undefined}>{st && '★ '}{lab(x)}</button> })}</div>
+                  {star && <p className="small muted">{tx('Toca outra vez para tornar este tema essencial ★')}</p>}
                 </div>))}
             {preview.length > 0 && <>
               <h4>{tx('Cartas deste gosto')} <span className="muted">{tx('toca para as juntar às cartas de partida')}</span></h4>
