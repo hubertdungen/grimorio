@@ -4270,3 +4270,15 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .wz-likerow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .chip.like { padding: 4px 11px; border-color: var(--line); background: none; color: var(--muted); cursor: pointer; text-decoration: line-through; }
 .chip.like.on { border-color: var(--gold); background: var(--panel2); color: var(--text); text-decoration: none; }
+
+/* «Gosto de…»: paleta com todos os chips de MTG (cores, tipos, subtemas, habilidades e funções) */
+.wz-likeallbtn { justify-self: start; }
+.wz-chipbox { display: grid; gap: 8px; padding: 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel2); min-width: 0; }
+.wz-chiptabs { flex-wrap: wrap; float: none; margin-left: 0; }
+.wz-chiptabs button { white-space: nowrap; }
+.wz-chipgroup { display: grid; gap: 4px; min-width: 0; }
+.wz-chiplist { max-height: 210px; overflow-y: auto; align-content: start; padding-right: 4px; }
+.wz-chipbox .chip:disabled { opacity: .35; text-decoration: line-through; cursor: not-allowed; }
+@media (max-width: 700px) { .wz-chiplist { max-height: 180px; } .wz-chiptabs button { padding: 4px 8px; font-size: .85em; } }
+.wz-chipbox .chip.like { text-decoration: none; color: var(--text); }
+.wz-chipbox .chip.like:disabled { text-decoration: line-through; }
