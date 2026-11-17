@@ -153,6 +153,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const eff = start === 'gosto' && !picks.length ? preview.slice(0, 8) : picks
   // Comandantes que servem os chips do «Gosto de…» (temas, funções e cores), antes de haver um escolhido.
   const cmdLike = useMemo(() => (fmt.cmd && !cmds.length && likeAny ? likeCommanders(data, sel, { fmt, bit: ctx.bit, n: 8 }) : []), [data, fmt, cmds.length, likeAny, sel, ctx.bit])
+  // Com a pesquisa vazia, o seletor de cima também segue o gosto (em vez dos mais populares em geral).
+  const cmdShown = useMemo(() => (start === 'gosto' && !dcq && !partnerOf && fmt.cmd && !cmds.length && likeAny ? likeCommanders(data, sel, { fmt, bit: ctx.bit, n: 18 }) : cmdRes), [start, dcq, partnerOf, fmt, cmds.length, likeAny, data, sel, ctx.bit, cmdRes])
 
   // IA: gera a base do deck a partir da ideia; cada carta é validada (existe, legal, cores) antes de entrar.
   const generate = async () => {
@@ -320,8 +322,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
             {cmds.map(c => <div key={c.i} className="wz-pick cmd"><img src={img(c, 'normal')} alt={c.n} /><span className="wz-badge">♛ {cmds.length > 1 ? tx('par') : tx('comandante')}</span><button onClick={() => setCmds(x => x.filter(y => y.i !== c.i))} aria-label={tx('Retirar')}>×</button></div>)}
             {cmds.length < (partnerOf ? 2 : 1) && <div className="wz-cmdq">
               <input className="big" value={cq} onChange={e => setCq(e.target.value)} placeholder={partnerOf ? tx('Procurar o par de {name}…', { name: partnerOf.n.split(',')[0] }) : tx(fmt.cmd === 'oathbreaker' ? 'Procurar planeswalker legal em {fmt}…' : 'Procurar comandante legal em {fmt}…', { fmt: fmt.name })} />
-              <div className="wz-res cmds">{cmdRes.map(c => <button key={c.i} onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(y => y.i !== c.i)); setCq('') }} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" /></button>)}
-                {!cmdRes.length && <span className="muted small">{dcq ? tx('Nenhum com esse nome.') : partnerOf ? tx('Sem pares legais neste formato.') : ''}</span>}</div>
+              <div className="wz-res cmds">{cmdShown.map(c => <button key={c.i} onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(y => y.i !== c.i)); setCq('') }} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" /></button>)}
+                {!cmdShown.length && <span className="muted small">{dcq ? tx('Nenhum com esse nome.') : partnerOf ? tx('Sem pares legais neste formato.') : ''}</span>}</div>
             </div>}
           </div>
         </>}
