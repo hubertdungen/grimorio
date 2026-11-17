@@ -295,4 +295,4 @@ by Wizards. Portions of the materials used are property of Wizards of the Coast.
 [GPL-3.0](LICENSE)——可以自由使用、研究、修改和分享；你发布的修改版本必须以同一许可证继续开源。
 
 
-<p align="center"><a href="https://dlforge.dungenlabs.com"><img src="docs/branding/dlforge-logo.svg#gh-light-mode-only" alt="DL Forge" width="120"><img src="docs/branding/dlforge-logo-negative.svg#gh-dark-mode-only" alt="DL Forge" width="120"></a></p>
+<p align="center"><a href="https://dlforge.dungenlabs.com"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/branding/dlforge-logo-negative.svg"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></picture></a></p>
