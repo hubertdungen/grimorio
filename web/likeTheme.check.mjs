@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import { prepData, CREATURE_TYPES } from './src/data.js'
-import { likeTheme, likeCards } from './src/nlsearch.js'
+import { likeTheme, likeCards, likeCommanders, chipUniverse } from './src/nlsearch.js'
+import { FORMAT } from './src/formats.js'
 const dir = `${process.env.GRIMORIO_DATA_DIR || `${os.homedir()}/.local/share/grimorio`}/data`
 if (!fs.existsSync(`${dir}/cards.json`)) { console.log('likeTheme: sem dados locais, saltado'); process.exit(0) }
 const j = f => JSON.parse(fs.readFileSync(`${dir}/${f}`))
@@ -26,4 +27,21 @@ const t0 = performance.now(); for (const q of ['humanos', 'soldados', 'wizards']
 assert.deepEqual(likeTheme(data, 'xyzzy', { types }), { terms: [], colors: [], tags: [] })
 const cs = likeCards(data, { ...n, terms: n.terms.slice(0, 1), star: n.terms.slice(0, 1), colors: n.colors.map(x => x.k) }, { bit: -1, identity: null, allowUn: false })
 assert.equal(cs.length, 12); assert.ok(cs.every(c => /Ninja/.test(c.t)))
+// Paleta completa: todos os chips dos dados reais (cores, tipos, subtipos, habilidades e funções).
+const u = chipUniverse(data)
+assert.equal(u.colors.length, 6, JSON.stringify(u.colors))
+assert.ok(u.types.some(x => x.v === 'Creature'))
+assert.ok(u.themes.length > 300 && u.themes.some(x => x.v === 'Ninja'), 'temas: ' + u.themes.length)
+assert.ok(u.keywords.length > 300 && u.keywords.some(x => x.v === 'Flying') && u.keywords.some(x => x.v === 'Ninjutsu'), 'habilidades: ' + u.keywords.length)
+assert.ok(u.tags.some(x => x.v === 'ramp') && u.tags.some(x => x.v === 'steal'))
+// Comandantes do gosto: legais, lendários, dentro das cores e com Ninja (Yuriko e afins).
+const cbit = data.meta.formats.indexOf('commander')
+const csel = { ...n, colors: n.colors.map(x => x.k) }
+const cmds = likeCommanders(data, csel, { fmt: FORMAT.commander, bit: cbit, n: 8 })
+assert.ok(cmds.length > 0 && cmds.every(c => /Legendary/.test(c.t) && /Creature/.test(c.t)), cmds.map(c => c.n).join(','))
+assert.ok(cmds.some(c => /Ninja/.test(c.t)), cmds.map(c => c.n).join(','))
+const red = likeCommanders(data, { terms: [], colors: ['R'], tags: [] }, { fmt: FORMAT.commander, bit: cbit, n: 8 })
+assert.ok(red.length > 0 && red.every(c => [...c.ci].every(k => k === 'R')), red.map(c => c.n + ':' + c.ci).join(','))
+assert.deepEqual(likeCommanders(data, { terms: [], colors: [], tags: [] }, { fmt: FORMAT.commander, bit: cbit }), [])
+console.log('chips', u.colors.length, u.types.length, u.themes.length, u.keywords.length, u.tags.length, '| comandantes', cmds.map(c => c.n.split(',')[0]).join(', '))
 console.log('likeTheme ok', n.terms.map(t => t.v).join(','), n.colors.map(x => x.k).join(''), n.tags.map(x => x.k).join(','))

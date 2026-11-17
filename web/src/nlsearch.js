@@ -5,6 +5,7 @@
 
 import { parseThreats } from './hate.js'
 import { termsOf, termMatch, subsOf, passes, TAG_LABEL } from './data.js'
+import { canBeCommander } from './formats.js'
 
 const strip = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const TYPES = {
@@ -246,6 +247,53 @@ export function parseQuery(q, opts = {}) {
 // ponytail: lift por frequência, sem sinónimos; dicionário só se faltar cobertura
 let TT = null
 const tagTotOf = data => { if (TT?.d !== data) { const m = new Map(); for (const c of data.cards) for (const g of c.tg) m.set(g, (m.get(g) || 0) + 1); TT = { d: data, m } } return TT.m }
+// Todos os chips que existem em MTG a partir dos dados reais: cores, tipos, subtipos (temas), habilidades e funções.
+// É a paleta do «Gosto de…»; fica em cache porque são centenas e não mudam enquanto a app estiver aberta.
+let CU = null
+export function chipUniverse(data) {
+  if (CU?.d === data) return CU.u
+  const all = termsOf(data), rank = (a, b) => b.n - a.n
+  const colors = [], cc = new Map([['W', 0], ['U', 0], ['B', 0], ['R', 0], ['G', 0], ['C', 0]])
+  for (const c of data.cards) {
+    if (c.un) continue
+    if (!c.ci) cc.set('C', cc.get('C') + 1)
+    for (const k of c.ci) if (cc.has(k)) cc.set(k, cc.get(k) + 1)
+  }
+  for (const [v, n] of cc) colors.push({ v, n })
+  const tagTot = tagTotOf(data)
+  const tags = Object.keys(TAG_LABEL).map(v => ({ v, n: tagTot.get(v) || 0 })).filter(x => x.n).sort(rank)
+  const u = {
+    colors,
+    types: all.filter(t => t.k === 'type').sort(rank),
+    themes: all.filter(t => t.k === 'sub').sort(rank),
+    keywords: all.filter(t => t.k === 'kw').sort(rank),
+    tags,
+  }
+  CU = { d: data, u }
+  return u
+}
+
+// Comandantes que servem o gosto: têm os temas/funções pedidos, cabem nas cores escolhidas e são legais no formato.
+// Sem temas nem funções (só cores), devolve os mais jogados dessas cores.
+export function likeCommanders(data, { terms = [], colors = [], tags = [] }, { fmt, bit = -1, n = 8 } = {}) {
+  if (!fmt?.cmd) return []
+  const cs = colors.filter(k => k !== 'C'), wantColorless = colors.includes('C'), any = terms.length || tags.length
+  if (!any && !colors.length) return []
+  const out = []
+  for (const c of data.cards) {
+    if (!canBeCommander(c, fmt)) continue
+    if (bit >= 0 && !(c.lg & (1 << bit))) continue
+    if (cs.length && ![...c.ci].every(k => cs.includes(k))) continue
+    if (wantColorless && c.ci) continue
+    let s = 0
+    for (const t of terms) if (termMatch(c, t)) s += t.u ? 3 : 1
+    for (const g of tags) if (c.tg.includes(g)) s += 1.2
+    if (!s && any) continue
+    if (c.er) s += Math.max(0, 1 - Math.log(c.er) / Math.log(40000))
+    out.push({ c, s })
+  }
+  return out.sort((a, b) => b.s - a.s || a.c.n.localeCompare(b.c.n)).slice(0, n).map(x => x.c)
+}
 export function likeTheme(data, text, { types } = {}) {
   const out = { terms: [], colors: [], tags: [] }
   const p = parseQuery(text || '', { types })
