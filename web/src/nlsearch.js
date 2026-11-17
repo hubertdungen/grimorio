@@ -283,7 +283,7 @@ export function likeCommanders(data, { terms = [], colors = [], tags = [] }, { f
   for (const c of data.cards) {
     if (!canBeCommander(c, fmt)) continue
     if (bit >= 0 && !(c.lg & (1 << bit))) continue
-    if (cs.length && ![...c.ci].every(k => cs.includes(k))) continue
+    if (cs.length && (!c.ci || ![...c.ci].every(k => cs.includes(k)))) continue
     if (wantColorless && c.ci) continue
     let s = 0
     for (const t of terms) if (termMatch(c, t)) s += t.u ? 3 : 1

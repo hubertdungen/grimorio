@@ -45,3 +45,5 @@ assert.ok(red.length > 0 && red.every(c => [...c.ci].every(k => k === 'R')), red
 assert.deepEqual(likeCommanders(data, { terms: [], colors: [], tags: [] }, { fmt: FORMAT.commander, bit: cbit }), [])
 console.log('chips', u.colors.length, u.types.length, u.themes.length, u.keywords.length, u.tags.length, '| comandantes', cmds.map(c => c.n.split(',')[0]).join(', '))
 console.log('likeTheme ok', n.terms.map(t => t.v).join(','), n.colors.map(x => x.k).join(''), n.tags.map(x => x.k).join(','))
+// Com cores pedidas, nem incolores nem fora da identidade.
+assert.ok(likeCommanders(data, { terms: [], colors: ['W', 'B'], tags: [] }, { fmt: FORMAT.commander, bit: cbit, n: 18 }).every(c => c.ci && [...c.ci].every(k => 'WB'.includes(k))))
