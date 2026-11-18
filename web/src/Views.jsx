@@ -16,7 +16,7 @@ import { prepareSwaps, cutPlan, landPlan } from './swap.js'
 import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
-import { parseQuery } from './nlsearch.js'
+import { parseQuery, likeTheme } from './nlsearch.js'
 import { THREATS, hateMatch } from './hate.js'
 import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
 import { useBackClose } from './backnav.js'
@@ -950,15 +950,17 @@ function VsWhy({ c, nl }) {
   return ws.length > 0 && <ul className="why vs-why"><li className="tema" title={tx('Porque aparece nesta pesquisa')}>🛡 {ws.join(' · ')}</li></ul>
 }
 
-const TERM_ICO = { kw: '✦', sub: '🏷', type: '▦' }
-const TERM_L = { kw: tx('habilidade'), sub: tx('subtipo'), type: tx('tipo') }
+const TERM_ICO = { kw: '✦', sub: '🏷', type: '▦', rar: '◆', mv: '◎' }
+const TERM_L = { kw: tx('habilidade'), sub: tx('subtipo'), type: tx('tipo'), rar: tx('Raridade'), mv: 'MV' }
 function SeedPicker({ data, ctx, act }) {
   const [q, setQ] = useState('')
   const hits = useMemo(() => (q.length < 2 ? [] : search(data, q, null, { ...ctx, identity: null }, 8).cards), [data, q, ctx])
   const terms = useMemo(() => {  // keywords, subtipos e tipos que começam pelo que se escreveu («rats» → Rat)
     const n = q.trim().toLowerCase(), base = n.replace(/(es|s)$/, '')
     if (n.length < 2) return []
-    return termsOf(data).filter(t => { const v = t.v.toLowerCase(); return v.startsWith(n) || v === base || v.startsWith(base) }).slice(0, 6)
+    const pre = termsOf(data).filter(t => { const v = t.v.toLowerCase(); return v.startsWith(n) || v === base || v.startsWith(base) })
+    const like = likeTheme(data, q, { types: CREATURE_TYPES }).terms.filter(t => t.u).map(t => termsOf(data).find(x => x.k === t.k && x.v === t.v)).filter(Boolean)  // frases: «ninjas dragões»
+    return [...new Set([...like, ...pre])].slice(0, 8)
   }, [data, q])
   return (
     <div className="seedpick">

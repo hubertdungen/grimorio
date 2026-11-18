@@ -47,3 +47,10 @@ console.log('chips', u.colors.length, u.types.length, u.themes.length, u.keyword
 console.log('likeTheme ok', n.terms.map(t => t.v).join(','), n.colors.map(x => x.k).join(''), n.tags.map(x => x.k).join(','))
 // Com cores pedidas, nem incolores nem fora da identidade.
 assert.ok(likeCommanders(data, { terms: [], colors: ['W', 'B'], tags: [] }, { fmt: FORMAT.commander, bit: cbit, n: 18 }).every(c => c.ci && [...c.ci].every(k => 'WB'.includes(k))))
+// Raridade e MV na paleta; não contam para escolher comandantes.
+{
+  const u = chipUniverse(data)
+  assert.ok(u.rarities.length === 4 && u.mvs.length >= 7, JSON.stringify([u.rarities, u.mvs.length]))
+  const cmd = likeCommanders(data, { terms: [{ k: 'rar', v: 'm' }], colors: ['B'], tags: [] }, { fmt: FORMAT.commander, bit: -1, n: 5 })
+  assert.ok(cmd.length === 5 && cmd.every(c => !c.ci.includes('R')), 'rar não filtra comandantes')
+}

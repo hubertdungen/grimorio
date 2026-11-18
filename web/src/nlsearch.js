@@ -268,6 +268,8 @@ export function chipUniverse(data) {
     themes: all.filter(t => t.k === 'sub').sort(rank),
     keywords: all.filter(t => t.k === 'kw').sort(rank),
     tags,
+    rarities: ['c', 'u', 'r', 'm'].map(v => ({ v, n: data.cards.filter(c => !c.un && c.r === v).length })).filter(x => x.n),
+    mvs: ['0', '1', '2', '3', '4', '5', '6', '7+'].map(v => ({ v, n: data.cards.filter(c => !c.un && termMatch(c, { k: 'mv', v })).length })).filter(x => x.n),
   }
   CU = { d: data, u }
   return u
@@ -286,9 +288,9 @@ export function likeCommanders(data, { terms = [], colors = [], tags = [] }, { f
     if (cs.length && (!c.ci || ![...c.ci].every(k => cs.includes(k)))) continue
     if (wantColorless && c.ci) continue
     let s = 0
-    for (const t of terms) if (termMatch(c, t)) s += t.u ? 3 : 1
+    for (const t of terms) if (t.k !== 'rar' && t.k !== 'mv' && termMatch(c, t)) s += t.u ? 3 : 1
     for (const g of tags) if (c.tg.includes(g)) s += 1.2
-    if (!s && any) continue
+    if (!s && any && (terms.some(t => t.k !== 'rar' && t.k !== 'mv') || tags.length)) continue
     if (c.er) s += Math.max(0, 1 - Math.log(c.er) / Math.log(40000))
     out.push({ c, s })
   }

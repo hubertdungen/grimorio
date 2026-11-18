@@ -92,7 +92,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     const auto = new Set([...theme.terms.map(key.t), ...theme.colors.map(key.c), ...theme.tags.map(key.g)])
     for (const k of likePick) {
       if (auto.has(k)) continue
-      const m = /^t:(kw|sub|type):(.+)$/.exec(k)
+      const m = /^t:(kw|sub|type|rar|mv):(.+)$/.exec(k)
       if (m) addT({ k: m[1], v: m[2], u: 1 })
       else if (k.startsWith('c:')) colors.push(k.slice(2))
       else if (k.startsWith('g:')) tags.push(k.slice(2))
@@ -115,6 +115,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     { id: 'types', label: tx('Tipos'), items: universe.types.map(x => ({ key: `t:type:${x.v}`, label: TYPE_LABEL[x.v] || x.v, v: x.v, n: x.n })) },
     { id: 'themes', label: tx('Temas'), items: universe.themes.map(x => ({ key: `t:sub:${x.v}`, label: x.v, v: x.v, n: x.n })) },
     { id: 'keywords', label: tx('Habilidades'), items: universe.keywords.map(x => ({ key: `t:kw:${x.v}`, label: x.v, v: x.v, n: x.n })) },
+    { id: 'rar', label: tx('Raridade'), items: universe.rarities.map(x => ({ key: `t:rar:${x.v}`, label: { c: tx('Comum'), u: tx('Incomum'), r: tx('Rara'), m: tx('Mítica') }[x.v], v: x.v, n: x.n })) },
+    { id: 'mv', label: 'MV', items: universe.mvs.map(x => ({ key: `t:mv:${x.v}`, label: `MV ${x.v}`, v: x.v, n: x.n })) },
     { id: 'tags', label: tx('Funções'), items: universe.tags.map(x => ({ key: `g:${x.v}`, label: TAG_LABEL[x.v], v: x.v, n: x.n })) },
   ], [universe])
   const chipByKey = useMemo(() => new Map(chipGroups.flatMap(g => g.items.map(x => [x.key, x]))), [chipGroups])
