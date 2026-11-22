@@ -6,6 +6,7 @@ import { tx, num, LOCALE } from './i18n.js'
 import { deckThemes } from './synergy.js'
 import { hateMatch, hateScore } from './hate.js'
 import { setVocab, setOriginals, flavorHit, norm } from './vocab.js'
+import { archScore, archRank } from './archetypes.js'
 
 // funções a mais, tiradas do texto ao carregar (os dados só trazem as 20 do build_data): moer, dano direto, reforço,
 // piscar, devolver à mão, copiar, roubar, drenar, escolher cartas, reduzir custos, desvirar, turno extra, landfall, taxar
@@ -393,7 +394,7 @@ export function prepData(meta, cards, combos, emb, pos) {
     for (const part of c.n.split(' // ')) { if (!byLower.has(part.toLowerCase())) byLower.set(part.toLowerCase(), c) }
   })
   const combosByCard = cards.map(() => [])
-  combos.forEach((cb, k) => { for (const i of cb[1]) combosByCard[i].push(k) })
+  combos.forEach((cb, k) => { for (const i of cb[1]) { combosByCard[i].push(k); cards[i].cx = 1 } })  // cx: peça de algum combo (estratégia Combo)
   return { meta, cards, combos, combosByCard, emb: new Int8Array(emb), pos: new Float32Array(pos), byName, byLower, D: meta.dim }
 }
 
@@ -511,6 +512,7 @@ export function passes(c, f, ctx) {
   if (f.noLands && c.mt === 'Land') return false
   if (f.oracle?.length) { const o = c.o.toLowerCase(); if (!f.oracle.every(w => o.includes(w))) return false }
   if (f.tags?.length && !f.tags.every(t => c.tg.includes(t))) return false
+  if (f.arch?.length && !f.arch.every(k => archScore(c, k) >= 1)) return false  // estratégia («control», «aristocrats»: archetypes.js)
   if (f.anyText?.length) { const o = c.o.toLowerCase(); if (!f.anyText.every(g => g.some(w => o.includes(w)))) return false }  // «que beneficiem de X»
   if (f.vs?.length && !f.vs.some(t => hateMatch(c, t, f.vsCtr))) return false  // «contra encantamentos» (hate.js)
   return true
@@ -534,8 +536,10 @@ export function search(data, q, f, ctx, limit = 150) {
     pop: c => c.er ?? 1e9, name: c => c.l, cmc: c => c.cmc, price: c => c.eur ?? c.usd ?? 1e9, new: c => -(+c.y || 0),
   }[sort]
   const vs = sort === 'pop' && f?.vs?.length ? f.vs : null  // «contra X»: as respostas mais diretas primeiro
+  const ar = sort === 'pop' && f?.arch?.length ? f.arch : null  // estratégia: as que mais a servem primeiro
   out.sort((a, b) => {
     if (vs) { const d = hateScore(b, vs, f.vsCtr) - hateScore(a, vs, f.vsCtr); if (d) return d }
+    if (ar) { const d = archRank(b, ar) - archRank(a, ar); if (d) return d }
     if (words.length && sort === 'pop') {
       const w = words.join(' '), pa = (fl.get(a.i)?.f || a.f).startsWith(w) ? 0 : 1, pb = (fl.get(b.i)?.f || b.f).startsWith(w) ? 0 : 1
       if (pa !== pb) return pa - pb

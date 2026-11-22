@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { search, recommend, img, fmtBit, passes, STYLES, LEVELS, CREATURE_TYPES, COLORS, TAG_LABEL, TYPE_LABEL, termMatch } from './data.js'
 import { likeTheme, likeCards, likeCommanders, chipUniverse, parseQuery } from './nlsearch.js'
+import { ARCH, ARCH_OF_TAG } from './archetypes.js'
 import { FORMATS, FORMAT, canBeCommander, pairOk } from './formats.js'
 import { emptyDeck } from './deck.js'
 import { PrefsPanel, IASettings } from './Views.jsx'
@@ -192,24 +193,26 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   // «Gosto de…»: o texto vira temas, cores e funções (chips que se desligam); a pré-visualização segue os chips ligados
   const dlike = useDeferredValue(like)
   const theme = useMemo(() => likeTheme(data, dlike, { types: CREATURE_TYPES }), [data, dlike])
-  const key = { t: t => `t:${t.k}:${t.v}`, c: x => `c:${x.k}`, g: x => `g:${x.k}` }
+  const key = { t: t => `t:${t.k}:${t.v}`, c: x => `c:${x.k}`, g: x => `g:${x.k}`, a: x => `a:${x.k}` }
   const on = k => !likeOff.includes(k)
   const flip = (list, set, k) => set(list.includes(k) ? list.filter(x => x !== k) : [...list, k])
   // Detetados no texto + escolhidos na paleta completa, sem repetir. Com comandante, as cores ficam na identidade dele.
   const sel = useMemo(() => {
-    const terms = [], seen = new Set(), colors = [], tags = []
+    const terms = [], seen = new Set(), colors = [], tags = [], arch = []
     const addT = t => { const k = key.t(t); if (!seen.has(k)) { seen.add(k); terms.push(t) } }
     for (const t of theme.terms) if (on(key.t(t))) addT(t)
     for (const x of theme.colors) if (on(key.c(x))) colors.push(x.k)
     for (const x of theme.tags) if (on(key.g(x))) tags.push(x.k)
+    for (const x of theme.arch) if (on(key.a(x))) arch.push(x.k)
     // o que o texto já detetou manda: o mesmo chip escolhido à mão não conta duas vezes nem ignora o desligar
-    const auto = new Set([...theme.terms.map(key.t), ...theme.colors.map(key.c), ...theme.tags.map(key.g)])
+    const auto = new Set([...theme.terms.map(key.t), ...theme.colors.map(key.c), ...theme.tags.map(key.g), ...theme.arch.map(key.a)])
     for (const k of likePick) {
       if (auto.has(k)) continue
       const m = /^t:(kw|sub|type|rar|mv|set):(.+)$/.exec(k)
       if (m) addT({ k: m[1], v: m[2], u: 1 })
       else if (k.startsWith('c:')) colors.push(k.slice(2))
       else if (k.startsWith('g:')) tags.push(k.slice(2))
+      else if (k.startsWith('a:') && ARCH[k.slice(2)]) arch.push(k.slice(2))
     }
     const ci = cmds.map(c => c.ci).join(''), cols = [...new Set(colors)]
     return {
@@ -217,6 +220,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
       star: terms.filter(t => likeStar.includes(key.t(t))),
       colors: ci ? cols.filter(k => (k === 'C' ? !ci : ci.includes(k))) : cols,
       tags: [...new Set(tags)],
+      arch: [...new Set(arch)],
     }
   }, [theme, likeOff, likeStar, likePick, cmds]) // eslint-disable-line react-hooks/exhaustive-deps
   // as cartas com um nome alternativo escrito («megatron», «mothra») primeiro, depois as dos chips
@@ -227,7 +231,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   }, [data, sel, ctx, start, theme])
   const sets = sel.terms.filter(t => t.k === 'set')
   const flOf = c => theme.cards.find(x => x.c === c)?.fl || sets.map(t => flavorOf(c, t.v)).find(Boolean)
-  const likeAny = theme.terms.length + theme.colors.length + theme.tags.length + theme.cards.length + likePick.length > 0
+  const likeAny = theme.terms.length + theme.colors.length + theme.tags.length + theme.arch.length + theme.cards.length + likePick.length > 0
   const chipTap = (k, star) => (star ? (!on(k) ? flip(likeOff, setLikeOff, k) : likeStar.includes(k) ? (flip(likeStar, setLikeStar, k), flip(likeOff, setLikeOff, k)) : flip(likeStar, setLikeStar, k)) : flip(likeOff, setLikeOff, k))
   // Paleta com todos os chips de MTG (cores, tipos, subtipos, habilidades e funções), em cache nos dados reais.
   const universe = useMemo(() => chipUniverse(data), [data])
@@ -235,6 +239,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     { id: 'colors', label: tx('Cores'), items: universe.colors.map(x => ({ key: `c:${x.v}`, label: x.v === 'C' ? tx('Incolor') : COLORS[x.v], v: x.v, n: x.n })) },
     { id: 'types', label: tx('Tipos'), items: universe.types.map(x => ({ key: `t:type:${x.v}`, label: TYPE_LABEL[x.v] || x.v, v: x.v, n: x.n })) },
     { id: 'themes', label: tx('Temas'), items: universe.themes.map(x => ({ key: `t:sub:${x.v}`, label: x.v, v: x.v, n: x.n })) },
+    { id: 'archs', label: tx('Estratégias'), items: universe.archs.map(x => ({ key: `a:${x.v}`, label: `♟ ${ARCH[x.v].l}`, v: x.v })) },
     { id: 'sets', label: tx('Sets e universos'), items: universe.sets.map(x => ({ key: `t:set:${x.v}`, label: `🎬 ${setLabel(x.v)}`, v: x.v, n: x.n })) },
     { id: 'keywords', label: tx('Habilidades'), items: universe.keywords.map(x => ({ key: `t:kw:${x.v}`, label: x.v, v: x.v, n: x.n })) },
     { id: 'rar', label: tx('Raridade'), items: universe.rarities.map(x => ({ key: `t:rar:${x.v}`, label: { c: tx('Comum'), u: tx('Incomum'), r: tx('Rara'), m: tx('Mítica') }[x.v], v: x.v, n: x.n })) },
@@ -243,7 +248,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   ], [universe])
   const chipByKey = useMemo(() => new Map(chipGroups.flatMap(g => g.items.map(x => [x.key, x]))), [chipGroups])
   const chipTotal = chipGroups.reduce((a, g) => a + g.items.length, 0)
-  const detected = useMemo(() => new Set([...theme.terms.map(key.t), ...theme.colors.map(key.c), ...theme.tags.map(key.g)]), [theme]) // eslint-disable-line react-hooks/exhaustive-deps
+  const detected = useMemo(() => new Set([...theme.terms.map(key.t), ...theme.colors.map(key.c), ...theme.tags.map(key.g), ...theme.arch.map(key.a)]), [theme]) // eslint-disable-line react-hooks/exhaustive-deps
   const chipOn = k => (detected.has(k) ? on(k) : likePick.includes(k))
   const chipSet = k => {
     if (detected.has(k)) return chipTap(k, k.startsWith('t:'))
@@ -263,7 +268,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
       if (!p) continue
       if (p.f.sub) s.add(`t:sub:${p.f.sub}`)
       for (const k of p.f.oracle || []) s.add(`t:kw:${k}`)
-      for (const g of p.f.tags || []) s.add(`g:${g}`)
+      for (const g of p.f.tags || []) { s.add(`g:${g}`); if (ARCH_OF_TAG[g]) s.add(`a:${ARCH_OF_TAG[g]}`) }
+      for (const a of p.f.arch || []) s.add(`a:${a}`)
       for (const c of p.f.colors || []) s.add(`c:${c}`)
     }
     for (const h of findSets(q).hits) s.add(`t:set:${h.v}`)  // «senhor dos anéis», «decepticons», «LTR»
@@ -392,10 +398,10 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         {start === 'gosto' && (
           <div className="wz-like">
             <label className="fmt"><span>{tx('Gosto de:')}</span>
-              <input className="big" value={like} onChange={e => setLike(e.target.value)} placeholder={tx('ninjas, dragões, roubar cartas, azul e preto…')} autoFocus />
+              <input className="big" value={like} onChange={e => setLike(e.target.value)} placeholder={tx('ninjas, dragões, controlo, azul e preto…')} autoFocus />
             </label>
-            {like.trim() && !likeAny && <p className="small muted">{tx('Não percebi nenhum tema: tenta um tipo de criatura (ninjas), uma habilidade (voar), uma função (ramp), cores ou um universo (Transformers, O Senhor dos Anéis).')}</p>}
-            {[[tx('Temas'), theme.terms, key.t, t => (t.k === 'set' ? `🎬 ${setLabel(t.v)}` : `${t.k === 'kw' ? '✦' : '🏷'} ${t.v}`), true], [tx('Cores'), theme.colors, key.c, x => COLORS[x.k], false], [tx('Funções'), theme.tags, key.g, x => TAG_LABEL[x.k], false]]
+            {like.trim() && !likeAny && <p className="small muted">{tx('Não percebi nenhum tema: tenta um tipo de criatura (ninjas), uma habilidade (voar), uma estratégia (controlo, burn, aristocratas, stax), uma função (comprar cartas), cores ou um universo (Transformers, O Senhor dos Anéis).')}</p>}
+            {[[tx('Temas'), theme.terms, key.t, t => (t.k === 'set' ? `🎬 ${setLabel(t.v)}` : `${t.k === 'kw' ? '✦' : '🏷'} ${t.v}`), true], [tx('Estratégias'), theme.arch, key.a, x => `♟ ${ARCH[x.k].l}`, false], [tx('Cores'), theme.colors, key.c, x => COLORS[x.k], false], [tx('Funções'), theme.tags, key.g, x => TAG_LABEL[x.k], false]]
               .filter(r => r[1].length).map(([h, list, kf, lab, star]) => (
                 <div key={h} className="wz-likerow"><span className="muted small">{h}</span>
                   <div className="chips">{list.map(x => { const k = kf(x), st = likeStar.includes(k), off = h === tx('Cores') && chipColorOff(k); return <button key={k} className={`chip like${on(k) && !off ? ' on' : ''}`} onClick={() => chipTap(k, star)} disabled={off} title={off ? tx('Fora da identidade de cor do comandante') : star ? tx('Toca outra vez para tornar este tema essencial ★') : undefined}>{st && !off && '★ '}{lab(x)}</button> })}</div>

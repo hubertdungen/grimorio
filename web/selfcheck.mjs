@@ -1320,3 +1320,42 @@ import { ptExplain } from './src/game.js'
   setVocab(null, cards)
   console.log('selfcheck edições, universos e nomes alternativos ok')
 }
+
+// Estratégias (src/archetypes.js): «control», «burn», «limpar a mesa», «stax», «aristocratas», «voltron» nas várias línguas
+// viram o chip certo, as cartas que as servem vêm primeiro e as cores ficam livres. Texto e funções das cartas a sério.
+{ const { prepData, search, CREATURE_TYPES } = await import('./src/data.js')
+  const { likeTheme, likeCards, likeCommanders, parseQuery, chipUniverse } = await import('./src/nlsearch.js')
+  const { FORMAT } = await import('./src/formats.js')
+  const mk = (n, t, o, x = {}) => ({ n, t, o, mc: '', cmc: 2, ci: 'W', co: 'W', lg: 1 << 6, rs: 0, r: 'r', tg: [], kw: [], er: 100, un: 0, pt: '', ...x })
+  const cards = [mk('Counterspell', 'Instant', 'Counter target spell.', { ci: 'U', tg: ['counter'], er: 5 }),
+    mk('Wrath of God', 'Sorcery', "Destroy all creatures. They can't be regenerated.", { cmc: 4, tg: ['wipe'], er: 20 }),
+    mk('Lightning Bolt', 'Instant', 'Lightning Bolt deals 3 damage to any target.', { cmc: 1, ci: 'R', tg: ['removal'], er: 30 }),
+    mk('Grizzly Bears', 'Creature — Bear', '', { ci: 'G', pt: '2/2', er: 1 }),
+    mk('Thalia, Guardian of Thraben', 'Legendary Creature — Human Soldier', 'First strike\nNoncreature spells cost {1} more to cast.', { pt: '2/1', kw: ['First strike'], er: 40 }),
+    mk('Blood Artist', 'Creature — Vampire', 'Whenever Blood Artist or another creature dies, target player loses 1 life and you gain 1 life.', { ci: 'B', pt: '0/1', tg: ['lifegain'], er: 50 }),
+    mk('Viscera Seer', 'Creature — Vampire Wizard', 'Sacrifice a creature: Scry 1.', { cmc: 1, ci: 'B', pt: '1/1', tg: ['sacrifice'], er: 60 }),
+    mk('Sword of Fire and Ice', 'Artifact — Equipment', 'Equipped creature gets +2/+2 and has protection from red and from blue.\nEquip {2}', { cmc: 3, ci: '', tg: ['protection'], er: 70 }),
+    mk('Teysa Karlov', 'Legendary Creature — Human Advisor', 'If a creature dying causes a triggered ability of a permanent you control to trigger, that ability triggers an additional time.\nWhenever a creature you control dies, each opponent loses 1 life.', { cmc: 4, ci: 'WB', pt: '2/4', er: 80 })]
+  const data = prepData({ formats: F }, cards, [], new ArrayBuffer(0), new ArrayBuffer(0)), T = { types: CREATURE_TYPES }
+  const ctx = { bit: -1, identity: null, allowUn: false }
+  const top = (k, n = 3) => likeCards(data, { arch: [k] }, ctx, n).map(c => c.n)
+  for (const [qs, k, first] of [[['control', 'controlo', 'Kontrolle', 'control other decks', 'controlar', '控制'], 'control', 'Counterspell'],
+    [['burn', 'queimar', 'dano direto', 'quemar', '直伤'], 'burn', 'Lightning Bolt'], [['wipe', 'limpar a mesa', 'wipe everything', 'destruction', 'destruir tudo', 'wrath', '清场'], 'wipe', 'Wrath of God'],
+    [['stax', 'impedir', 'prison', 'prisão'], 'stax', 'Thalia, Guardian of Thraben'], [['aristocrats', 'aristocratas', 'Aristokraten', 'sacrificar'], 'aristocrats', 'Blood Artist'], [['voltron', 'equipamentos e auras'], 'voltron', 'Sword of Fire and Ice']]) {
+    for (const q of qs) { const th = likeTheme(data, q, T); assert.deepEqual(th.arch.map(x => x.k), [k], q); assert.deepEqual(th.colors, [], `${q}: as cores ficam livres`) }
+    assert.equal(top(k)[0], first, k)
+    assert.ok(!top(k, 9).includes('Grizzly Bears'), `${k}: a Grizzly Bears não serve`)
+  }
+  assert.ok(top('control').includes('Wrath of God'), 'controlo também limpa a mesa')
+  assert.ok(top('aristocrats').includes('Viscera Seer'))
+  assert.deepEqual(likeTheme(data, 'stealing cards', T).arch.map(x => x.k), ['steal'], 'a função com o mesmo nome é a estratégia')
+  // pesquisa geral: «control» é estratégia; as funções continuam funções («removal forest», «robar el control»)
+  assert.deepEqual(parseQuery('control').f, { arch: ['control'] })
+  assert.deepEqual(parseQuery('Kontrolle übernehmen').f, { tags: ['steal'] })
+  assert.deepEqual(search(data, '', parseQuery('wipe everything').f, ctx).cards.map(c => c.n), ['Wrath of God'])
+  assert.equal(search(data, '', { arch: ['control'] }, ctx).cards[0].n, 'Counterspell', 'as que mais servem primeiro')
+  // comandantes: o texto serve a estratégia
+  assert.deepEqual(likeCommanders(data, { arch: ['aristocrats'] }, { fmt: FORMAT.commander, bit: -1 }).map(c => c.n), ['Teysa Karlov'])
+  assert.ok(chipUniverse(data).archs.some(x => x.v === 'control'), 'a paleta tem as estratégias')
+  console.log('selfcheck estratégias ok')
+}

@@ -7,6 +7,7 @@ import { parseThreats } from './hate.js'
 import { termsOf, termMatch, subsOf, passes, TAG_LABEL } from './data.js'
 import { canBeCommander } from './formats.js'
 import { VOC, findSets, setGroup, norm } from './vocab.js'
+import { ARCH, ARCH_OF_TAG, ARCH_OF_KW, archScore, archRank } from './archetypes.js'
 
 const strip = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const TYPES = {
@@ -69,7 +70,7 @@ const CONCEPTS = {
   graveyard: ['graveyard', 'cemiterio', 'cementerio', 'friedhof'], mill: ['mill', 'moer', 'moler', 'mahlen', 'triturar'],
   burn: ['direct damage', 'burn', 'dano direto', 'dano directo', 'direktschaden'], pump: ['anthem', 'pump', 'buff', 'reforco', 'potenciar', 'verstarkung'],
   blink: ['blink', 'flicker', 'piscar', 'parpadeo'], bounce: ['bounce', 'devolver a mao', 'devolver a la mano', 'auf die hand'],
-  copy: ['copy', 'copiar', 'kopieren'], steal: ['steal', 'gain control', 'stealing', 'stehlen', 'roubar', 'ganhar controlo', 'ganhar controle', 'robar el control', 'kontrolle'],
+  copy: ['copy', 'copiar', 'kopieren'], steal: ['steal', 'gain control', 'stealing', 'stehlen', 'roubar', 'ganhar controlo', 'ganhar controle', 'robar el control', 'kontrolle ubernehmen'],
   drain: ['drain', 'drenar', 'perder vida', 'lose life', 'entziehen'], selection: ['scry', 'surveil', 'videncia', 'adivinar', 'hellsicht', 'uberwachen'],
   cost: ['cost reduction', 'reduzir custos', 'reducir coste', 'kostensenkung'], untap: ['untap', 'desvirar', 'enderezar', 'enttappen'],
   extraturn: ['extra turn', 'turno extra', 'turno adicional', 'zusatzlicher zug'], landfall: ['landfall'], stax: ['stax', 'taxar', 'travar'],
@@ -168,6 +169,7 @@ const LAND_CYCLES = [
 ]
 // formato na frase: «em modern», «legal in pauper», «f:commander» (só com a preposição: «Modern Age» continua a ser a carta)
 const FMTS = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'commander', 'edh', 'oathbreaker', 'brawl', 'historic', 'timeless', 'alchemy', 'premodern', 'penny']
+let PHRASES = null
 const FMT_RE = new RegExp(String.raw`\s(?:(?:legal|legais|legales|legale|legal)\s+)?(?:em|no|in|en|im|para|for|fur|(?:f|format|formato):)\s*(${FMTS.join('|')})(?=\s|$)`)
 export function parseQuery(q, opts = {}) {
   let s = ' ' + strip(q).replace(/[.,;!?¿¡()]/g, ' ').replace(/\b1\s*\+\s*\/\s*1\s*\+/g, '+1/+1').replace(/\+\s*1\s*\/\s*\+\s*1/g, '+1/+1') + ' '
@@ -210,7 +212,8 @@ export function parseQuery(q, opts = {}) {
     if (!base) break
     s = s.replace(m[0], ' '); add('cares', base)
   }
-  // chinês por bocados
+  // chinês por bocados (as estratégias primeiro: «鹏洛客流» antes do tipo «鹏洛客»)
+  if (CJK.test(s)) for (const [k, a] of Object.entries(ARCH)) for (const w of a.zh) if (s.includes(w)) { s = s.replaceAll(w, ' '); add('arch', k) }
   if (CJK.test(s)) for (const [w, x] of ZH) if (s.includes(w)) {
     s = s.replaceAll(w, ' ')
     if (x.tag) add('tags', x.tag)
@@ -221,9 +224,9 @@ export function parseQuery(q, opts = {}) {
     if (x.legendary) f.legendary = true
   }
   if (CJK.test(s)) for (const [w, t] of zhSubs()) if (s.includes(w)) { s = s.replaceAll(w, ' '); f.sub ||= t }
-  // funções e habilidades por frases (as compridas primeiro, para «robar el control» não ser «robar»)
-  const phrases = [...Object.entries(CONCEPTS).flatMap(([t, ws]) => ws.map(w => [w, 'tags', t])), ...Object.entries(KW).flatMap(([k, ws]) => ws.map(w => [w, 'oracle', k]))]
-    .sort((a, b) => b[0].length - a[0].length)
+  // funções, habilidades e estratégias por frases (as compridas primeiro, para «robar el control» não ser «robar»)
+  const phrases = PHRASES ||= [...Object.entries(CONCEPTS).flatMap(([t, ws]) => ws.map(w => [w, 'tags', t])), ...Object.entries(KW).flatMap(([k, ws]) => ws.map(w => [w, 'oracle', k])),
+    ...Object.entries(ARCH).flatMap(([k, a]) => a.w.map(w => [strip(w), 'arch', k]))].sort((a, b) => b[0].length - a[0].length)
   for (const [w, k, v] of phrases) {
     const re = new RegExp(`(^|\\s)${w.replace(/[+/]/g, c => `\\${c}`)}s?(?=\\s|$)`)
     if (re.test(s)) { s = s.replace(re, ' '); add(k, v) }
@@ -247,6 +250,7 @@ export function parseQuery(q, opts = {}) {
   if (f.sub) got.push({ k: 'sub', v: f.sub })
   for (const c of f.cares || []) got.push({ k: 'cares', v: CARES[c].join(' / ') })
   for (const t of f.tags || []) got.push({ k: 'tag', v: t })
+  for (const a of f.arch || []) got.push({ k: 'arch', v: a })
   for (const o of f.oracle || []) got.push({ k: 'oracle', v: o })
   if (f.cmcMin != null || f.cmcMax != null) got.push({ k: 'mv', v: f.cmcMin === f.cmcMax ? `= ${f.cmcMin}` : f.cmcMin != null && f.cmcMax != null ? `${f.cmcMin}–${f.cmcMax}` : f.cmcMax != null ? `≤ ${f.cmcMax}` : `≥ ${f.cmcMin}` })
   if (f.colors) got.push({ k: 'colors', v: f.colors.join('') })
@@ -290,6 +294,7 @@ export function chipUniverse(data) {
     themes: all.filter(t => t.k === 'sub').sort(rank),
     keywords: all.filter(t => t.k === 'kw').sort(rank),
     tags,
+    archs: Object.keys(ARCH).map(v => ({ v })),  // estratégias (archetypes.js), pela ordem de lá
     sets,
     rarities: ['c', 'u', 'r', 'm'].map(v => ({ v, n: data.cards.filter(c => !c.un && c.r === v).length })).filter(x => x.n),
     mvs: ['0', '1', '2', '3', '4', '5', '6', '7+'].map(v => ({ v, n: data.cards.filter(c => !c.un && termMatch(c, { k: 'mv', v })).length })).filter(x => x.n),
@@ -300,9 +305,9 @@ export function chipUniverse(data) {
 
 // Comandantes que servem o gosto: têm os temas/funções pedidos, cabem nas cores escolhidas e são legais no formato.
 // Sem temas nem funções (só cores), devolve os mais jogados dessas cores.
-export function likeCommanders(data, { terms = [], colors = [], tags = [] }, { fmt, bit = -1, n = 8, need = '' } = {}) {
+export function likeCommanders(data, { terms = [], colors = [], tags = [], arch = [] }, { fmt, bit = -1, n = 8, need = '' } = {}) {
   if (!fmt?.cmd) return []
-  const cs = colors.filter(k => k !== 'C'), wantColorless = colors.includes('C'), any = terms.length || tags.length
+  const cs = colors.filter(k => k !== 'C'), wantColorless = colors.includes('C'), any = terms.length || tags.length || arch.length
   if (!any && !colors.length && !need) return []
   const out = []
   for (const c of data.cards) {
@@ -314,14 +319,15 @@ export function likeCommanders(data, { terms = [], colors = [], tags = [] }, { f
     let s = 0
     for (const t of terms) if (t.k !== 'rar' && t.k !== 'mv' && termMatch(c, t)) s += t.u ? 3 : 1
     for (const g of tags) if (c.tg.includes(g)) s += 1.2
-    if (!s && any && (terms.some(t => t.k !== 'rar' && t.k !== 'mv') || tags.length)) continue
+    for (const k of arch) if (archScore(c, k) >= 1) s += 1.5 * Math.min(2, archScore(c, k))  // o texto do comandante serve a estratégia
+    if (!s && any && (terms.some(t => t.k !== 'rar' && t.k !== 'mv') || tags.length || arch.length)) continue
     if (c.er) s += Math.max(0, 1 - Math.log(c.er) / Math.log(40000))
     out.push({ c, s })
   }
   return out.sort((a, b) => b.s - a.s || a.c.n.localeCompare(b.c.n)).slice(0, n).map(x => x.c)
 }
 export function likeTheme(data, text, { types } = {}) {
-  const out = { terms: [], colors: [], tags: [], cards: [] }
+  const out = { terms: [], colors: [], tags: [], arch: [], cards: [] }
   // edições e universos («transformers», «senhor dos anéis», «LTR», «指环王») viram chips de edição; uma palavra que
   // também é um tipo fica para o resto («assassins» = o tipo Assassin e o Assassin's Creed; «hobbits» = Halfling e LTR)
   const fs = findSets(text || '')
@@ -332,7 +338,7 @@ export function likeTheme(data, text, { types } = {}) {
   // pt/es/de → subtipo inglês (o parseQuery só sabe os nomes ingleses)
   const found = [], hit = (k, v) => { const t = byKey.get(`${k}:${String(v).toLowerCase()}`); if (t && !found.includes(t)) found.push(t); return !!t }
   if (p?.f.sub) hit('sub', p.f.sub)
-  for (const o of p?.f.oracle || []) hit('kw', o)
+  for (const o of p?.f.oracle || []) if (!ARCH_OF_KW[o]) hit('kw', o)
   const plain = ` ${strip(left)} `
   for (const t of all) if (t.k === 'kw' && t.v.includes(' ') && plain.includes(` ${t.v.toLowerCase()} `)) hit('kw', t.v)  // «first strike», «living weapon»
   for (const w of (p ? p.rest : strip(left)).split(/\s+/)) {
@@ -349,7 +355,10 @@ export function likeTheme(data, text, { types } = {}) {
   }
   out.cards = out.cards.sort((a, b) => (a.c.er || 1e9) - (b.c.er || 1e9)).slice(0, 8)
   const explicit = p?.f.colors || []
-  const tags = (p?.f.tags || []).filter(t => TAG_LABEL[t])
+  // estratégias: as escritas («control», «aristocratas») e as funções/habilidades que têm uma com o mesmo nome («burn», «storm»)
+  const arch = [...new Set([...(p?.f.arch || []), ...(p?.f.tags || []).map(t => ARCH_OF_TAG[t]), ...(p?.f.oracle || []).map(o => ARCH_OF_KW[o])].filter(Boolean))]
+  out.arch = arch.map(k => ({ k, share: 1 }))
+  const tags = (p?.f.tags || []).filter(t => TAG_LABEL[t] && !ARCH_OF_TAG[t])
   if (!found.length && !explicit.length && !tags.length) return out
   const M = found.length ? data.cards.filter(c => !c.un && found.some(t => termMatch(c, t))) : []
   const big = M.length >= 3
@@ -375,16 +384,17 @@ export function likeTheme(data, text, { types } = {}) {
 
 // Cartas de pré-visualização: com ★ têm de ter todos os temas ★; senão qualquer tema. Cores ligadas = identidade dentro delas.
 // Ordem: temas pedidos (peso 100) > relacionados e funções (desempate) > mais jogadas (er mais baixo).
-export function likeCards(data, { terms = [], star = [], colors = [], tags = [] }, ctx, n = 12) {
+// Estratégias: entram as cartas que as servem (archScore ≥ 1), como mais um tema; pesam 10 por estratégia.
+export function likeCards(data, { terms = [], star = [], colors = [], tags = [], arch = [] }, ctx, n = 12) {
   const must = terms.filter(t => star.some(s => s.k === t.k && s.v === t.v)), ci = colors.join('')
   const out = []
   for (const c of data.cards) {
-    const th = terms.reduce((a, t) => a + (termMatch(c, t) ? (t.u ? 100 : 1) : 0), 0), tg = tags.filter(t => c.tg.includes(t)).length
-    if (terms.length ? !terms.some(t => termMatch(c, t)) : tags.length && !tg) continue
+    if (c.mt === 'Land' || (colors.length && ![...c.ci].every(k => ci.includes(k))) || !passes(c, null, ctx)) continue
     if (must.some(t => !termMatch(c, t))) continue
-    if (colors.length && ![...c.ci].every(k => ci.includes(k))) continue
-    if (c.mt === 'Land' || !passes(c, null, ctx)) continue
-    out.push({ c, s: th + tg })
+    const th = terms.reduce((a, t) => a + (termMatch(c, t) ? (t.u ? 100 : 1) : 0), 0), tg = tags.filter(t => c.tg.includes(t)).length
+    const ar = arch.some(k => archScore(c, k) >= 1) ? archRank(c, arch) : 0
+    if (terms.length || arch.length ? !ar && !terms.some(t => termMatch(c, t)) : tags.length && !tg) continue
+    out.push({ c, s: th + tg + 10 * ar })
   }
   return out.sort((a, b) => b.s - a.s || (a.c.er || 1e9) - (b.c.er || 1e9)).slice(0, n).map(x => x.c)
 }

@@ -20,11 +20,11 @@ assert.ok(has(likeTheme(data, 'dragons', { types }), 'sub', 'Dragon'))
 assert.ok(has(likeTheme(data, 'elves e azul', { types }), 'sub', 'Elf'))
 assert.ok(has(likeTheme(data, '忍者', { types }), 'sub', 'Ninja'))
 const nd = likeTheme(data, 'ninjas drachen', { types }); assert.ok(has(nd, 'sub', 'Ninja') && has(nd, 'sub', 'Dragon'), JSON.stringify(nd.terms))
-assert.ok(likeTheme(data, 'stealing cards', { types }).tags.some(x => x.k === 'steal'))
-assert.ok(likeTheme(data, 'Karten stehlen', { types }).tags.some(x => x.k === 'steal'))
-assert.ok(likeTheme(data, '偷牌', { types }).tags.some(x => x.k === 'steal'))
+assert.ok(likeTheme(data, 'stealing cards', { types }).arch.some(x => x.k === 'steal'))  // a função Roubar vale a estratégia
+assert.ok(likeTheme(data, 'Karten stehlen', { types }).arch.some(x => x.k === 'steal'))  // a função Roubar vale a estratégia
+assert.ok(likeTheme(data, '偷牌', { types }).arch.some(x => x.k === 'steal'))  // a função Roubar vale a estratégia
 const t0 = performance.now(); for (const q of ['humanos', 'soldados', 'wizards']) assert.ok(likeTheme(data, q, { types }).terms.length); assert.ok(performance.now() - t0 < 1500, 'lento: ' + (performance.now() - t0))
-assert.deepEqual(likeTheme(data, 'xyzzy', { types }), { terms: [], colors: [], tags: [] })
+assert.deepEqual(likeTheme(data, 'xyzzy', { types }), { terms: [], colors: [], tags: [], arch: [], cards: [] })
 const cs = likeCards(data, { ...n, terms: n.terms.slice(0, 1), star: n.terms.slice(0, 1), colors: n.colors.map(x => x.k) }, { bit: -1, identity: null, allowUn: false })
 assert.equal(cs.length, 12); assert.ok(cs.every(c => /Ninja/.test(c.t)))
 // Paleta completa: todos os chips dos dados reais (cores, tipos, subtipos, habilidades e funções).
@@ -53,4 +53,16 @@ assert.ok(likeCommanders(data, { terms: [], colors: ['W', 'B'], tags: [] }, { fm
   assert.ok(u.rarities.length === 4 && u.mvs.length >= 7, JSON.stringify([u.rarities, u.mvs.length]))
   const cmd = likeCommanders(data, { terms: [{ k: 'rar', v: 'm' }], colors: ['B'], tags: [] }, { fmt: FORMAT.commander, bit: -1, n: 5 })
   assert.ok(cmd.length === 5 && cmd.every(c => !c.ci.includes('R')), 'rar não filtra comandantes')
+}
+// Estratégias com os dados reais: o chip certo e as cartas de sempre lá em cima
+{
+  const ctx = { bit: cbit, identity: null, allowUn: false }
+  for (const [q, k, card] of [['control', 'control', 'Counterspell'], ['controlo', 'control', 'Counterspell'], ['Kontrolle', 'control', 'Counterspell'], ['burn', 'burn', 'Lightning Bolt'], ['queimar', 'burn', 'Lightning Bolt'],
+    ['wipe', 'wipe', 'Wrath of God'], ['limpar a mesa', 'wipe', 'Wrath of God'], ['stax', 'stax', 'Thalia, Guardian of Thraben'], ['aristocrats', 'aristocrats', 'Blood Artist'], ['voltron', 'voltron', 'Lightning Greaves']]) {
+    const th = likeTheme(data, q, { types })
+    assert.deepEqual(th.arch.map(x => x.k), [k], q)
+    const cs = likeCards(data, { arch: [k] }, ctx, 12).map(c => c.n)
+    assert.ok(cs.includes(card), `${q}: ${cs.join(', ')}`)
+  }
+  console.log('estratégias ok')
 }
