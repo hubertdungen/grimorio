@@ -312,7 +312,8 @@ function NameAsk({ a, data, answer, zoom, src }) {
 }
 
 // carta em grande para o toque (tocar e manter numa carta, Forge Play e mesa livre): ecrã escurecido com a carta ao centro;
-// dois dedos ampliam (até 3×), duplo toque amplia/volta, arrastar para baixo ou um toque fecha; Esc no teclado
+// dois dedos ampliam (até 3×), duplo toque amplia/volta, arrastar para baixo ou um toque fecha; Esc no teclado. O clique que
+// fecha não passa para quem está por baixo (o fundo do «criar novo deck» fechava o assistente)
 export function BigCard({ name, data, onClose }) {
   const im = useImg()
   const card = name && (lookup(data, name))
@@ -341,7 +342,7 @@ export function BigCard({ name, data, onClose }) {
     x.dy = 0; draw()
   }
   return (
-    <div className="fp-big" role="dialog" aria-label={card.n} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+    <div className="fp-big" role="dialog" aria-label={card.n} onClick={e => e.stopPropagation()} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
       <img ref={ref} src={im(card, 'large')} alt={card.n} draggable="false" />
       <small>{tx('Dois dedos ampliam · arrasta para baixo para fechar')}</small>
     </div>)
