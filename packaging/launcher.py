@@ -51,6 +51,30 @@ def ca_bundle():
             return
 
 
+def os_trust():
+    """Windows: verify HTTPS with the system's own certificate store (truststore, as pip does) instead of only Python's
+    list. Antivirus HTTPS scanning (Avast, Kaspersky, ESET…) and company proxies add their own root certificate to
+    Windows; without this the first download failed with CERTIFICATE_VERIFY_FAILED and the app closed. Still verified."""
+    if os.name != "nt":
+        return
+    try:
+        import truststore
+        truststore.inject_into_ssl()
+    except Exception as e:  # not bundled (running from source): Python's own list, as before
+        say(f"(system certificates not used: {e})")
+
+
+def alert(text):
+    """Windows app without a console: an error box, so a failure is never silent."""
+    if os.name == "nt" and getattr(sys, "frozen", False):
+        try:
+            import ctypes
+            close_splash()
+            ctypes.windll.user32.MessageBoxW(0, text, "Grimório", 0x10)
+        except Exception:
+            pass
+
+
 def data_dir():
     if os.environ.get("GRIMORIO_DATA_DIR"):
         return os.environ["GRIMORIO_DATA_DIR"]
@@ -149,6 +173,9 @@ def install_data(d, ver):
         say("Card data ready.")
     except Exception as e:
         if not have:
+            alert(f"Could not download the card data / Não consegui descarregar os dados das cartas:\n\n{e}\n\n"
+                  "Check your internet connection (or the antivirus HTTPS scanning) and start Grimório again.\n"
+                  "Vê a ligação à internet (ou a análise de HTTPS do antivírus) e volta a abrir o Grimório.")
             raise SystemExit(f"\nCould not download the card data: {e}\nCheck your internet connection and start Grimório again.")
         say(f"Could not update the card data ({e}); using the data you already have.")
     finally:
@@ -536,6 +563,7 @@ def main():
     args = ap.parse_args()
     utf8_files()
     ca_bundle()
+    os_trust()
     unblock_self()  # antes da janela (pythonnet/.NET recusa DLLs com a marca da Web)
     d, ver = data_dir(), version()
     os.makedirs(d, exist_ok=True)
@@ -592,9 +620,8 @@ def main():
         close_splash()
         if not ready:
             say("The server did not start; see the log above.")
-            if os.name == "nt" and getattr(sys, "frozen", False):  # sem consola: dizê-lo numa caixa, com o registo
-                import ctypes
-                ctypes.windll.user32.MessageBoxW(0, "Grimório could not start.\nO Grimório não conseguiu arrancar.\n\n" + os.path.join(d, "logs", "grimorio.log"), "Grimório", 0x10)
+            alert(  # sem consola: dizê-lo numa caixa, com o registo
+                "Grimório could not start.\nO Grimório não conseguiu arrancar.\n\n" + os.path.join(d, "logs", "grimorio.log"))
         elif args.no_browser:
             server.join()
         elif args.browser or not window(start_url(url, d, jh, args.local), d, Bridge(url, d)):  # no window (Linux without pywebview, Windows without WebView2): the browser
