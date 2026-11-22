@@ -2474,7 +2474,7 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .dt-name:focus-within { border-color: var(--gold); }
 .dt-name span { color: var(--muted); }
 .dt-name .deck-name { flex: 1; min-width: 0; margin: 0; padding: 8px 0; border: none; background: none; }
-.deck-tab .deck-mobile .deck > .deck-name { display: none; }
+.deck-tab .deck-mobile .deck > .dp-name { display: none; }
 /* linhas da lista: a arte só aparece no separador Deck (no painel lateral o espaço é curto) */
 .row-art { display: none; }
 .row-main { display: contents; }
@@ -4546,6 +4546,25 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 @keyframes badglow { 50% { box-shadow: 0 0 0 2px var(--bad), 0 0 26px 6px color-mix(in srgb, var(--bad) 35%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .dg-tile[data-bad] { animation: none; } }
 
+/* ✨ Epificar nomes (Epic.jsx): botão ao lado do nome do deck e a janela com as sugestões por deck */
+.dp-name { display: flex; align-items: center; gap: 4px; } .dp-name .deck-name { flex: 1; min-width: 0; }
+.ep-btn { flex: none; padding: 6px 9px; line-height: 1; border-radius: var(--r); }
+.modal.epic { width: min(820px, 100%); padding: 18px 20px; display: grid; gap: 10px; align-content: start; }
+.modal.epic h3 { margin: 0; padding-right: 30px; } .modal.epic > p { margin: 0; }
+.ep-opts { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.ep-rows { display: grid; gap: 10px; }
+.ep-row { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel2); min-width: 0; }
+.ep-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; } .ep-head b { overflow-wrap: anywhere; }
+.ep-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ep-chip { padding: 5px 11px; border-radius: 99px; border: 1px solid var(--line); background: var(--bg2); font-size: 13px; text-align: left; max-width: 100%; overflow-wrap: anywhere; }
+.ep-chip:hover { border-color: var(--gold); } .ep-chip.on { border-color: var(--gold); background: rgba(242, 184, 75, .16); color: var(--gold2); } .ep-chip.ai { border-style: dashed; }
+.ep-edit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .ep-edit > input { flex: 1 1 240px; min-width: 0; }
+.ep-row .warn { margin: 0; color: #ffb3a8; }
+.ep-desc { display: grid; gap: 6px; padding: 8px 10px; border-left: 3px solid var(--gold); border-radius: 8px; background: var(--bg2); font-size: 13px; }
+.ep-desc p { margin: 0; white-space: pre-wrap; } .ep-desc .row { gap: 10px; align-items: center; flex-wrap: wrap; }
+.ep-foot { position: sticky; bottom: -18px; margin: 0 -20px -18px; padding: 10px 20px 14px; display: grid; gap: 8px; background: var(--panel); border-top: 1px solid var(--line); }
+.ep-prev { margin: 0; padding-left: 18px; max-height: 120px; overflow-y: auto; font-size: 13px; } .ep-prev s { color: var(--muted); }
+@media (max-width: 600px) { .modal.epic { padding: 14px 12px; } .ep-foot { margin: 0 -12px -14px; padding: 10px 12px 12px; bottom: -14px; } }
 /* ⇩ tirar do comando (comandante na grelha e no painel) */
 select.demote { flex: none; width: 34px; min-width: 0; height: 28px; padding: 0; font-size: 15px; line-height: 1; text-align: center; text-align-last: center;
   border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); background-image: none; color: var(--text); cursor: pointer; }

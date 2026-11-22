@@ -2,7 +2,7 @@
 // (pedido nos custos vs. produzido pelos terrenos), probabilidades da mão inicial e as cartas mais caras.
 // Cores do Magic fixas por cor (nunca pela posição); ordem W R U G B C para o vermelho não encostar ao verde.
 import { useEffect, useMemo, useState } from 'react'
-import { COLORS, TYPE_LABEL, img, pidOf, deckPlan, sf } from './data.js'
+import { COLORS, TYPE_LABEL, img, pidOf, deckPlan, sf, deckIdentity } from './data.js'
 import { landInfo } from './mana.js'
 import { wrDelta } from './tests.js'
 import { WIN_LABEL } from './swap.js'
@@ -130,20 +130,6 @@ export function landProd(data, deck) {
     for (const k of cols) out[k] += q / cols.length
   }
   return out
-}
-// identidade do deck (a dos comandantes, ou a das cartas) e o nome da combinação: Azorius, Esper, Abzan…, «5 cores»
-const CNAME = { W: 'Mono-branco', U: 'Mono-azul', B: 'Mono-preto', R: 'Mono-vermelho', G: 'Mono-verde', WU: 'Azorius', UB: 'Dimir', BR: 'Rakdos', RG: 'Gruul', WG: 'Selesnya',
-  WB: 'Orzhov', UR: 'Izzet', BG: 'Golgari', WR: 'Boros', UG: 'Simic', WUB: 'Esper', UBR: 'Grixis', BRG: 'Jund', WRG: 'Naya', WUG: 'Bant', WBG: 'Abzan', WUR: 'Jeskai',
-  UBG: 'Sultai', WBR: 'Mardu', URG: 'Temur' }
-// quatro cores: os nomes dos Nephilim (Guildpact), os que se usam na comunidade
-const NEPH = { UBRG: 'Glint-Eye', WBRG: 'Dune-Brood', WURG: 'Ink-Treader', WUBG: 'Witch-Maw', WUBR: 'Yore-Tiller' }
-export function deckIdentity(data, deck) {
-  const cmd = deck.commanders.map(n => data.byName.get(n)?.ci || '').join(''), all = new Set()
-  for (const n of [...deck.commanders, ...Object.keys(deck.main || {})]) for (const k of data.byName.get(n)?.ci || '') all.add(k)
-  const ci = [...'WUBRG'].filter(k => (cmd ? cmd.includes(k) : all.has(k))).join('')
-  const miss = [...'WUBRG'].find(k => !ci.includes(k))
-  const name = !ci ? tx('Incolor') : ci.length === 5 ? tx('5 cores') : ci.length === 4 ? `${NEPH[ci]} · ${tx('4 cores (sem {c})', { c: (COLORS[miss] || miss).toLowerCase() })}` : tx(CNAME[ci] || ci)
-  return { ci, name }
 }
 
 export function ColorDonuts({ data, deck, s }) {

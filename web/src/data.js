@@ -1102,6 +1102,33 @@ export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, rec
 }
 
 // Combos completos e a uma carta de distância, considerando o que se tem.
+// o tipo de criatura dominante (≥ 25% das criaturas, pelo menos 6); os changelings contam para todos
+export function deckTribe(cards) {
+  const cre = cards.filter(c => /Creature/.test(c.t)), n = new Map()
+  for (const c of cre) {
+    if (/Changeling/.test(c.o || '')) continue
+    for (const t of new Set((c.t.split(' // ')[0].split(' — ')[1] || '').split(' ').filter(Boolean))) n.set(t, (n.get(t) || 0) + 1)
+  }
+  const ch = cre.filter(c => /Changeling/.test(c.o || '')).length
+  const [t, k] = [...n].sort((a, b) => b[1] - a[1])[0] || []
+  return t && k + ch >= Math.max(6, cre.length / 4) ? t : null
+}
+
+// identidade do deck (a dos comandantes, ou a das cartas) e o nome da combinação: Azorius, Esper, Abzan…, «5 cores»
+export const CNAME = { W: 'Mono-branco', U: 'Mono-azul', B: 'Mono-preto', R: 'Mono-vermelho', G: 'Mono-verde', WU: 'Azorius', UB: 'Dimir', BR: 'Rakdos', RG: 'Gruul', WG: 'Selesnya',
+  WB: 'Orzhov', UR: 'Izzet', BG: 'Golgari', WR: 'Boros', UG: 'Simic', WUB: 'Esper', UBR: 'Grixis', BRG: 'Jund', WRG: 'Naya', WUG: 'Bant', WBG: 'Abzan', WUR: 'Jeskai',
+  UBG: 'Sultai', WBR: 'Mardu', URG: 'Temur' }
+// quatro cores: os nomes dos Nephilim (Guildpact), os que se usam na comunidade
+export const NEPH = { UBRG: 'Glint-Eye', WBRG: 'Dune-Brood', WURG: 'Ink-Treader', WUBG: 'Witch-Maw', WUBR: 'Yore-Tiller' }
+export function deckIdentity(data, deck) {
+  const cmd = deck.commanders.map(n => data.byName.get(n)?.ci || '').join(''), all = new Set()
+  for (const n of [...deck.commanders, ...Object.keys(deck.main || {})]) for (const k of data.byName.get(n)?.ci || '') all.add(k)
+  const ci = [...'WUBRG'].filter(k => (cmd ? cmd.includes(k) : all.has(k))).join('')
+  const miss = [...'WUBRG'].find(k => !ci.includes(k))
+  const name = !ci ? tx('Incolor') : ci.length === 5 ? tx('5 cores') : ci.length === 4 ? `${NEPH[ci]} · ${tx('4 cores (sem {c})', { c: (COLORS[miss] || miss).toLowerCase() })}` : tx(CNAME[ci] || ci)
+  return { ci, name }
+}
+
 export function deckCombos(data, have, ctx) {
   const haveSet = new Set(have)
   const touched = new Set()

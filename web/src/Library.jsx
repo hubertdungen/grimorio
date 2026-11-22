@@ -1,5 +1,5 @@
 // Biblioteca: os meus decks (abrir, duplicar, testar), o lixo (restaurar) e decks do meta para guardar como meus.
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FORMATS, FORMAT, validate } from './formats.js'
 import { Empty, Mana, Stars } from './ui.jsx'
@@ -15,6 +15,8 @@ import { SyncHint } from './Settings.jsx'
 import { useBackClose } from './backnav.js'
 import DeckIO from './DeckIO.jsx'
 import ProxyDialog from './Proxies.jsx'
+import { addNotes } from './epic.js'
+const EpicDialog = lazy(() => import('./Epic.jsx'))
 
 const META_FMTS = ['commander', 'duel', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'premodern']
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
@@ -190,7 +192,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
 
 const when = t => new Date(t * 1000).toLocaleDateString(LOCALE, { day: '2-digit', month: 'short' })
 
-export default function Library({ data, openDeck, goTab, say, importLinks = '', focus = null }) {
+export default function Library({ data, openDeck, goTab, say, importLinks = '', focus = null, cur = null, patchCur = null }) {
   const [mine, setMine] = useState([])
   const [trash, setTrash] = useState([])
   const [me, setMe] = useState('')
@@ -204,6 +206,21 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false), [px, setPx] = useState(null)  // px = decks inteiros para os proxies
   const proxiesSel = async () => { try { setPx(await Promise.all(sel.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : Promise.reject(new Error())))))) } catch { say(tx('Não consegui ler os teus decks.')) } }
   const toggleSel = id => setSel(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]))
+  // ✨ Epificar nomes (Epic.jsx): os decks inteiros; o que está aberto no construtor vai pelo setDeck da app (gravação automática)
+  const [ep, setEp] = useState(null)
+  const epicSel = async () => { try { setEp(await Promise.all(sel.map(id => (cur?.id === id ? cur : fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : Promise.reject(new Error()))))))) } catch { say(tx('Não consegui ler os teus decks.')) } }
+  const applyEpic = async list => {
+    for (const ch of list) {
+      const patch = d => ({ ...d, ...(ch.name ? { name: ch.name } : {}), ...(ch.notes ? { notes: addNotes(d.notes, ch.notes) } : {}) })
+      if (cur?.id === ch.id && patchCur) { patchCur(patch); continue }
+      const full = await (await fetch(`/api/decks/${ch.id}`)).json()
+      const r = await fetch(`/api/decks/${ch.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch(full)) })
+      if (!r.ok) { say(tx('Não consegui guardar «{name}».', { name: full.name })); return }
+    }
+    const ren = list.filter(c => c.name)
+    setMine(m => m.map(x => { const c = ren.find(y => y.id === x.id); return c ? { ...x, name: c.name } : x }))
+    say(ren.length ? tx('{n} deck renomeado|{n} decks renomeados', { n: ren.length }) : tx('Descrição guardada nas notas.'))
+  }
   // alterações em massa aos selecionados: o mesmo GET+PUT de um deck, campo posto a um valor (não alternado)
   const bulk = async (patch, msg) => {
     const ids = sel.filter(id => mine.some(d => d.id === id && Object.keys(patch).some(k => !!d[k] !== patch[k])))
@@ -350,6 +367,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <button onClick={proxiesSel} title={tx('Lista com edições, ZIP com as imagens ou folha para imprimir')}>🖨 {tx('Proxies ({n} deck)|Proxies ({n} decks)', { n: sel.length })}</button>
           {sel.length === 1 && <button onClick={() => { try { localStorage.setItem('grimorio.fichas', JSON.stringify({ ...JSON.parse(localStorage.getItem('grimorio.fichas') || '{}'), deck: sel[0] })) } catch { /* sem armazenamento */ } window.dispatchEvent(new CustomEvent('grimorio:go', { detail: { tool: 'fichas' } })) }}
             title={tx('As fichas deste deck em cartas a sério no ecrã, para jogar à mesa')}>🃏 {tx('Tokens do deck')}</button>}
+          <button onClick={epicSel} title={tx('Nomes épicos para os decks selecionados (e uma descrição pela IA)')}>✨ {tx('Epificar nomes')}</button>
           <span className="cmp-mass">
             <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}>🌐 {tx('Comunidade')}</button>
             <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}>🧙 {tx('Meus')}</button>
@@ -363,6 +381,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <button className="link small" onClick={() => setSel([])}>{tx('limpar')}</button>
         </div>}
         {px && <ProxyDialog data={data} decks={px} onClose={() => setPx(null)} />}
+        {ep && <Suspense fallback={null}><EpicDialog data={data} decks={ep} taken={mine.filter(d => !sel.includes(d.id)).map(d => d.name)} onApply={applyEpic} onClose={() => setEp(null)} /></Suspense>}
         {bulkLand && <BasicArtPicker title={tx('Arte dos terrenos básicos em {n} decks', { n: sel.length })} applyLabel={tx('Aplicar a {n} decks', { n: sel.length })} onClose={() => setBulkLand(false)} onApply={landsSel} />}
         {bulkDel && <div className="modal-bg" onClick={() => setBulkDel(false)}><div className="modal" onClick={e => e.stopPropagation()}>
           <h3>{tx('Apagar {n} decks?', { n: sel.length })}</h3>
