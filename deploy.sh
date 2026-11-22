@@ -9,7 +9,7 @@ APP="${GRIMORIO_DATA_DIR:-$HOME/.local/share/grimorio}/app"
 rm -rf "$APP.new" && mkdir -p "$APP.new/web"
 cp "$SRC"/*.py "$APP.new/"
 cp -r "$SRC/web/dist" "$APP.new/web/dist"
-find "$APP.new/web/dist" -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.html' \) -exec gzip -k9 {} \;
+find "$APP.new/web/dist" -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.html' -o -name '*.wasm' -o -name '*.onnx' \) -exec gzip -k9 {} \;
 rm -rf "$APP.old"; [[ -d "$APP" ]] && mv "$APP" "$APP.old"
 mv "$APP.new" "$APP" && rm -rf "$APP.old"
 # reinicia o servidor: GRIMORIO_RESTART (comando) ou ~/scripts/grimorio-server.sh, se existir

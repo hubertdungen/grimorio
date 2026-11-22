@@ -35,5 +35,6 @@ export default defineConfig({
   plugins: [react(), ocrAssets(), version()],
   define: { 'import.meta.env.BUILD': JSON.stringify(BUILD) },
   base: './',
+  worker: { format: 'es' },  // o ampliador (upscale.worker.js) carrega o ONNX Runtime por import
   server: { proxy: { '/api': 'http://127.0.0.1:8107', '/data': 'http://127.0.0.1:8107' } },
 })

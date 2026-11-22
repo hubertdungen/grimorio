@@ -382,7 +382,7 @@ this. Desktop packages: `packaging/build.py` and `.github/workflows/release.yml`
 ## Credits and legal
 
 Card data and images: [Scryfall](https://scryfall.com) · combos: [Commander Spellbook](https://commanderspellbook.com)
-· meta: [EDHREC](https://edhrec.com) and [MTGTop8](https://www.mtgtop8.com) · rules engine: [Forge](https://github.com/Card-Forge/forge) (GPL-3.0).
+· meta: [EDHREC](https://edhrec.com) and [MTGTop8](https://www.mtgtop8.com) · rules engine: [Forge](https://github.com/Card-Forge/forge) (GPL-3.0) · image upscaling: [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) `realesr-general-x4v3` (BSD-3-Clause, `web/src/models/`) on [ONNX Runtime Web](https://onnxruntime.ai) (MIT).
 
 Grimório is unofficial Fan Content permitted under the Wizards of the Coast Fan Content Policy. Not approved/endorsed
 by Wizards. Portions of the materials used are property of Wizards of the Coast. © Wizards of the Coast LLC.

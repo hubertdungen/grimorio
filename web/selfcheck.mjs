@@ -1320,3 +1320,5 @@ import { ptExplain } from './src/game.js'
   setVocab(null, cards)
   console.log('selfcheck edições, universos e nomes alternativos ok')
 }
+{ const { selfcheck } = await import('./src/alterart.js'); selfcheck(assert); console.log('selfcheck alter art (pedido e caixas da arte) ok') }
+{ const { selfcheck } = await import('./src/upscale.js'); selfcheck(assert); console.log('selfcheck ampliar (ladrilhos) ok') }

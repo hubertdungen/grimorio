@@ -118,7 +118,8 @@ def public_config(data_dir):
     p = PROVIDERS.get(act)
     return {"provider": act, "model": c["models"].get(act) or (p or {}).get("model", ""), "hasKey": bool(c["keys"].get(act)),
             "providers": [{"id": k, **{x: v[x] for x in ("label", "model") if x in v}, "nokey": bool(v.get("nokey")), "keyUrl": v.get("keyUrl", ""),
-                           "hasKey": bool(c["keys"].get(k)), "chosen": c["models"].get(k, "")} for k, v in PROVIDERS.items()]}
+                           "hasKey": bool(c["keys"].get(k)), "chosen": c["models"].get(k, "")} for k, v in PROVIDERS.items()],
+            "imgLocal": c.get("imgLocal") or {"url": "", "kind": "a1111"}}  # gerador de imagens no PC (imagegen.py); o endereço não é segredo
 
 
 def save(data_dir, body):
@@ -141,6 +142,11 @@ def save(data_dir, body):
     for k, v in (body.get("models") or {}).items():
         if k in PROVIDERS:
             c["models"][k] = str(v or "")[:120]
+    if isinstance(body.get("imgLocal"), dict):  # {url: "http://192.168.1.50:7860", kind: "a1111"|"comfy"}; url "" desliga
+        url = str(body["imgLocal"].get("url") or "").strip().rstrip("/")[:300]
+        if url and not re.fullmatch(r"https?://[\w.\-\[\]:]+(/[\w.\-/~%]*)?", url):
+            raise ValueError("O endereço do gerador local tem de ser http://máquina:porta")
+        c["imgLocal"] = {"url": url, "kind": "comfy" if body["imgLocal"].get("kind") == "comfy" else "a1111"}
     _write(data_dir, c)
     return public_config(data_dir)
 
@@ -284,5 +290,11 @@ if __name__ == "__main__":  # verificação sem rede
     assert _json_from_text('```json\n{"resumo": "ok", "adicionar": []}\n```')["resumo"] == "ok"
     p = _user_prompt({"mode": "reorganizar", "question": "mais ramp", "context": {"lista": "1 Sol Ring", "comandante": "Atraxa"}})
     assert "agrupa" in p and "Sol Ring" in p and "Atraxa" in p
+    assert save(tmp, {"imgLocal": {"url": "http://192.168.1.50:7860/", "kind": "comfy"}})["imgLocal"] == {"url": "http://192.168.1.50:7860", "kind": "comfy"}
+    try:
+        save(tmp, {"imgLocal": {"url": "file:///etc/passwd"}})
+        raise AssertionError("url local")
+    except ValueError:
+        pass
     assert "NOVO" in _user_prompt({"mode": "gerar", "question": "elfos"})
     print("selfcheck ok")

@@ -1,5 +1,5 @@
 import { matchArts, shrink } from './artmatch.js'
-import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
 import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, subsOf } from './formats.js'
@@ -23,6 +23,10 @@ import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLo
 import { useBackClose } from './backnav.js'
 import { isTouch } from './touch.js'
 import './Suggest.css'
+import { alterHistory } from './alterart.js'
+// ✨ alter art e ⤢ ampliar: só se carregam ao abrir (o ampliador traz o ONNX Runtime e o modelo, ainda mais tarde)
+const AlterArt = lazy(() => import('./AlterArt.jsx'))
+const UpscaleArt = lazy(() => import('./AlterArt.jsx').then(m => ({ default: m.UpscaleArt })))
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -2078,7 +2082,7 @@ function ArtFolder({ deck, act }) {
 
 function OwnArt({ c, deck, act }) {
   const [link, setLink] = useState(''), [many, setMany] = useState(''), [err, setErr] = useState('')
-  const own = deck.art?.[c.n]
+  const own = deck.art?.[c.n], mine = alterHistory(c.n)
   const up = async f => {
     setErr('')
     try { const r = await fetch('/api/arts', { method: 'POST', headers: { 'Content-Type': f.type }, body: f }); const j = await r.json(); if (!r.ok) throw new Error(j.erro); act.setArt(c.n, j.url) } catch (e) { setErr(e.message) }
@@ -2103,6 +2107,8 @@ function OwnArt({ c, deck, act }) {
         <label className="dbox-up">⬆ {tx('Carregar imagem')}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => { const f = e.target.files?.[0]; if (f) up(f) }} /></label>
       </form>
       {own && <button className="link small" onClick={() => act.setArt(c.n, null)}>{tx('tirar a imagem própria')}</button>}
+      {own && <Suspense fallback={null}><UpscaleArt src={own} onSaved={url => act.setArt(c.n, url)} /></Suspense>}
+      {mine.length > 0 && <div className="alter-thumbs"><span className="small muted">{tx('As tuas alter arts')}</span>{mine.map(u => <button key={u} className={`alter-thumb ${u === own ? 'on' : ''}`} onClick={() => act.setArt(c.n, u)}><img src={u} alt="" loading="lazy" /></button>)}</div>}
       {err && <p className="small bad-t">{err}</p>}
       <details className="ownart-many"><summary className="small">{tx('Uma pasta de imagens (para o deck todo)')}</summary><ArtFolder deck={deck} act={act} /></details>
       <details className="ownart-many"><summary className="small">{tx('Vários links de uma vez (para o deck todo)')}</summary>
@@ -2114,10 +2120,10 @@ function OwnArt({ c, deck, act }) {
   )
 }
 
-export function ArtPicker({ c, deck, act, onClose }) {
+export function ArtPicker({ c, deck, data, act, onClose }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [preview, setPreview] = useState(null)
-  const [hoverPid, setHoverPid] = useState(null)
+  const [hoverPid, setHoverPid] = useState(null), [alter, setAlter] = useState(false)
   const pid = hoverPid || preview || pidOf(deck, c.n)
   const onPreview = (id, hover) => (hover ? setHoverPid(id) : (setPreview(id), setHoverPid(null)))
   // terrenos básicos: as cópias podem ser divididas por várias artes (deck.split); clicar numa edição junta-a à divisão
@@ -2149,6 +2155,8 @@ export function ArtPicker({ c, deck, act, onClose }) {
         <div className="ap-list">
           <h3>{tx('Arte de {c}', { c: c.n })}</h3>
           <p className="muted small">{isTouch() ? tx('Toca e mantém para ver; toca para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).') : tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
+          <div className="row-btns"><button onClick={() => setAlter(true)} title={tx('Uma ilustração nova para esta carta, gerada por IA a partir do texto dela')}>✨ {tx('Criar alter art')}</button></div>
+          {alter && <Suspense fallback={null}><AlterArt c={c} deck={deck} data={data} act={act2} onClose={() => setAlter(false)} /></Suspense>}
           {favs.length > 0 && <div className="row-btns"><button onClick={useFavs} title={tx('Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)', { c: c.n })}>★ {tx('Assumir as preferidas das definições')}</button></div>}
           {canSplit && <div className="split-box">
             <label className="chk"><input type="checkbox" checked={splitOn} onChange={e => { setSplitOn(e.target.checked); if (!e.target.checked) act.setSplit(c.n, null) }} /> {tx('Dividir as {n} cópias por várias artes', { n: total })}</label>

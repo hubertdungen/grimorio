@@ -7,6 +7,7 @@ import argparse, contextlib, functools, gzip, hashlib, http.cookies, json, os, r
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
+import imagegen
 import play
 import playnet
 import limited
@@ -28,7 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(HERE, "web", "dist")
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css",
          ".svg": "image/svg+xml", ".json": "application/json", ".bin": "application/octet-stream",
-         ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json"}
+         ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json", ".wasm": "application/wasm"}
 DECK_ID = re.compile(r"^[a-z0-9-]{8,40}$")
 META_PATH = re.compile(r"^/api/meta/(standard|pioneer|modern|legacy|vintage|pauper|premodern)$")
 L17_PATH = re.compile(r"^/api/l17/(expansions|ratings/[A-Z0-9]{2,6})$")
@@ -566,6 +567,8 @@ class H(BaseHTTPRequestHandler):
             return self.json(*reversed(rules.route(self.path, ARGS.data_dir)))
         if p == "/api/ia/config":
             return self.json(ia.public_config(ARGS.data_dir))
+        if p == "/api/ia/image":  # alter arts: fornecedores de imagens, se têm chave e o preço por imagem (imagegen.py)
+            return self.json(imagegen.config(ARGS.data_dir))
         if p == "/api/ia/models":  # modelos mais recentes do fornecedor (pela chave guardada)
             try:
                 return self.json(ia.models(ARGS.data_dir, urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("provider", [""])[0]))
@@ -992,6 +995,15 @@ class H(BaseHTTPRequestHandler):
                 return self.json({"erro": str(e)}, 400)
             except RuntimeError as e:
                 return self.json({"erro": str(e)}, 502)
+        if self.path == "/api/ia/image":  # alter art: gerar 1-4 imagens com a chave guardada (imagegen.generate)
+            if not self.owner():
+                return self.json({"erro": "sem utilizador"}, 401)
+            try:
+                return self.json(imagegen.generate(ARGS.data_dir, self.body(60_000_000)))
+            except ValueError as e:
+                return self.json({"erro": str(e)}, 400)
+            except RuntimeError as e:
+                return self.json({"erro": str(e)}, 502)
         if self.path == "/api/sim/runs":  # guardar uma sessão de testes no deck
             try:
                 d = self.body(20_000_000)
@@ -1284,6 +1296,7 @@ def selfcheck():
     global ARGS, APP_TOKEN
     tmp = tempfile.mkdtemp(prefix="grim-prof-")
     ARGS = argparse.Namespace(data_dir=tmp, owner=None, port=0)
+    imagegen.selfcheck()  # alter arts: OpenAI, Gemini, A1111 e ComfyUI falsos (sem rede, sem chaves reais)
     avatars.selfcheck()  # a validação das imagens de perfil (bytes, limites); aqui em baixo, pelas rotas
     avatars.DIR = os.path.join(tmp, "avatars")
     srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
@@ -1328,6 +1341,15 @@ def selfcheck():
         assert call("GET", "/api/profiles")[1] == {"mode": "fixed", "current": {"id": None, "name": "hubert", "color": None}, "list": []}
         assert call("GET", "/api/decks")[0] == 200 and call("POST", "/api/profiles", {"name": "X"})[0] == 400
         assert call("GET", "/api/me", user="eva")[1] == {"user": "eva"} and call("GET", "/api/profiles", user="eva")[1]["mode"] == "login"
+        os.environ["GRIMORIO_IMG_MOCK"] = "1"  # alter art pela rota, com o fornecedor de teste
+        st, ic = call("GET", "/api/ia/image")[:2]
+        assert st == 200 and "mock" in [x["id"] for x in ic["providers"]] and ic["local"]["url"] == "", ic
+        st, ig = call("POST", "/api/ia/image", {"provider": "mock", "prompt": "Original art for Llanowar Elves", "n": 3, "size": "1536x1024"})[:2]
+        assert st == 200 and len(ig["images"]) == 3 and ig["images"][0].startswith("data:image/png;base64,") and ig["cost"] == 0, ig.keys()
+        assert call("POST", "/api/ia/image", {"provider": "mock", "prompt": "#erro"})[:2] == (502, {"erro": imagegen.SAFETY})
+        assert call("POST", "/api/ia/image", {"provider": "openai", "prompt": "x"})[0] == 400  # sem chave: nem tenta a rede
+        del os.environ["GRIMORIO_IMG_MOCK"]
+        assert call("POST", "/api/ia/image", {"provider": "mock", "prompt": "x"})[0] == 400
         APP_TOKEN = "t0k3n"  # app Android: o servidor só responde à WebView da app (cookie grimorio_app)
         try:
             for c, want in (("", 403), ("grimorio_app=outro", 403), ("grimorio_profile=x; grimorio_app=t0k3n", 200)):
