@@ -21,6 +21,14 @@ export function setWake(on) {
   if (app()) return window.GrimorioApp.keepScreenOn(on)
   if (on) grab(); else { lock?.release().catch(() => {}); lock = null }
 }
+// ecrã ligado só enquanto se mostra uma coisa (a ficha em grande para o outro lado da mesa), mesmo com a preferência
+// desligada; devolve como largar (volta ao que a preferência diz)
+export function holdScreen() {
+  if (app()) { window.GrimorioApp.keepScreenOn(true); return () => window.GrimorioApp.keepScreenOn(wakeOn()) }
+  let l = null, gone = false
+  if ('wakeLock' in navigator && window.isSecureContext) navigator.wakeLock.request('screen').then(x => { if (gone) x.release().catch(() => {}); else l = x }).catch(() => {})
+  return () => { gone = true; l?.release().catch(() => {}) }
+}
 let started = false
 export function initWake() {
   if (started) return

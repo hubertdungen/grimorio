@@ -342,6 +342,8 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           <b>{tx('{n} deck selecionado|{n} decks selecionados', { n: sel.length })}</b>
           <button className="primary" disabled={sel.length < 2 || sel.length > 4} title={tx('escolhe 2 a 4 para comparar')} onClick={() => setCmp(true)}>⇄ {tx('Comparar')}</button>
           <button onClick={proxiesSel} title={tx('Lista com edições, ZIP com as imagens ou folha para imprimir')}>🖨 {tx('Proxies ({n} deck)|Proxies ({n} decks)', { n: sel.length })}</button>
+          {sel.length === 1 && <button onClick={() => { try { localStorage.setItem('grimorio.fichas', JSON.stringify({ ...JSON.parse(localStorage.getItem('grimorio.fichas') || '{}'), deck: sel[0] })) } catch { /* sem armazenamento */ } window.dispatchEvent(new CustomEvent('grimorio:go', { detail: { tool: 'fichas' } })) }}
+            title={tx('As fichas deste deck em cartas a sério no ecrã, para jogar à mesa')}>🃏 {tx('Tokens do deck')}</button>}
           <span className="cmp-mass">
             <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}>🌐 {tx('Comunidade')}</button>
             <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}>🧙 {tx('Meus')}</button>

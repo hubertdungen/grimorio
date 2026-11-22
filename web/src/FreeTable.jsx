@@ -11,7 +11,7 @@ import { useDrag, STAGE, useOverlap, useStage, useGameFocus, useFlip, spotOn, us
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
 import Friends from './Friends.jsx'
 import { remoteOn } from './remote.js'
-import { lookup, isCreature, isLand, flipKind, staticPump, spellFx, powTough, protoPt, CT, CT_ICON } from './game.js'
+import { lookup, isCreature, isLand, flipKind, staticPump, spellFx, powTough, protoPt, CT, CT_ICON, meldIndex } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
 import { usePlaying } from './taverna.js'
@@ -104,6 +104,8 @@ function line(e, who) {
     case 'ring': return tx('O Anel tenta {T} ({v}.ª vez)', { T, v: e.v })
     case 'pctr': return tx('{T}: {v} marcadores {ct}', { T, v: e.v, ct: CT[e.ct] || e.ct })
     case 'emblem': return e.on ? tx('{T} recebe um emblema: {c}', { T, c }) : tx('{T} perde o emblema {c}', { T, c })
+    case 'meld': return tx('{P} funde {c} e {a} em {r}', { P, c, a: short(e.with), r: short(e.into) })
+    case 'solved': return e.on ? tx('{P}: caso resolvido — {c}', { P, c }) : tx('{P}: {c} deixa de estar resolvido', { P, c })
     case 'dungeon': return e.name ? tx('{T}: masmorra {c}, sala {r}', { T, c, r: e.r }) : tx('{T}: masmorra completada', { T })
     default: return e.k
   }
@@ -546,7 +548,8 @@ function Table({ id, data, onClose, onNext, onBegin }) {
     monarch: v.mk?.includes('monarch'), initiative: v.mk?.includes('initiative'), blessing: v.mk?.includes('blessing') })
   const handOf = v => (handOrder ? [...v.hand].sort((a, b) => { const i = handOrder.indexOf(String(a.id)), k = handOrder.indexOf(String(b.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : v.hand)
   const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, blocking: c.blk != null ? String(c.blk) : undefined, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, atkKey: c.atc != null ? String(c.atc) : undefined, atkName: c.atc != null ? byId.get(c.atc)?.c?.n : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph,
-    goaded: !!c.gd, doors: c.dr && c.n ? c.dr.map(i => c.n.split(' // ')[i]).filter(Boolean) : undefined, proto: !!c.pr, pt: c.pr ? protoPt(lookup(data, c.n)) || undefined : undefined, prot: c.pv != null ? who(c.pv) : undefined })
+    goaded: !!c.gd, doors: c.dr && c.n ? c.dr.map(i => c.n.split(' // ')[i]).filter(Boolean) : undefined, proto: !!c.pr, pt: c.pr ? protoPt(lookup(data, c.n)) || undefined : undefined, prot: c.pv != null ? who(c.pv) : undefined,
+    ...(c.mr && c.n && { name: c.mr }), solved: !!c.sv, exh: c.xh ? 1 : 0, eot: !!c.eo })  // mr: fundida (meld) — mostra-se a carta resultado
   const onField = new Set(seats.flatMap(v => v.battlefield.map(c => c.id)))
   // a pilha: os feitiços lançados (no campo de quem lança, marcados sp) pela ordem em que entraram; o de cima resolve primeiro
   const stack = seats.flatMap((v, i) => v.battlefield.filter(c => c.sp).map(c => ({ ...c, s: i }))).sort((a, b) => b.sp - a.sp)  // s: quem lançou (o lado onde está)
@@ -689,13 +692,18 @@ function Table({ id, data, onClose, onNext, onBegin }) {
       return [[tx('Marcadores'), null], ...[...new Set([...MORE_CT, ...Object.keys(c?.k || {}).filter(k => k !== '+1/+1' && k !== 'loyalty')])].map(k => [`${CT_ICON[k] || ''} ${CT[k] || k} ${c?.k?.[k] || 0}`, null, [['−', () => send({ c: 'counter', id: cid, k, d: -1 })], ['＋', () => send({ c: 'counter', id: cid, k, d: 1 })]]]),
         ['◆ ' + tx('Marcador com outro nome…'), () => { const k = window.prompt(tx('Nome do marcador:')); if (k?.trim()) send({ c: 'counter', id: cid, k: k.trim(), d: 1 }) }]]
     }
+    // meld: as duas metades no teu campo -> «Fundir» (fica a principal com a imagem da fundida); ao sair do campo vão as duas
+    const meldMenu = c => {
+      const bf = seats[me].battlefield, m = !c.mr && bf.some(x => x.id === c.id) && meldIndex(data).of.get(c.n), o = m && bf.find(x => x.n === m.with && x.id !== c.id && !x.sp && !x.mr)
+      return o ? [['⚭ ' + tx('Fundir com {c} em {r}', { c: short(m.with), r: short(m.into) }), () => send({ c: 'meld', id: c.id, with: o.id, into: m.into })]] : []
+    }
     const e = byId.get(menu.id)
     if (!e) return []
     const { c, z } = e, cid = c.id, cd = lookup(data, c.n), owner = c.o === me
     const ctr = (k, d) => () => send({ c: 'counter', id: cid, k, d })
     const to = [['✋ ' + tx('Para a mão'), () => mv(cid, 'hand')], ['⚰ ' + tx('Para o cemitério'), () => mv(cid, 'graveyard')], ['⌀ ' + tx('Para o exílio'), () => mv(cid, 'exile')],
       ['▤ ' + tx('Topo da biblioteca'), () => mv(cid, 'library')], ['▥ ' + tx('Fundo da biblioteca'), () => mv(cid, 'library', { bottom: true })]].filter((_, k) => !(z === 'hand' && k === 0) && !(z === 'graveyard' && k === 1) && !(z === 'exile' && k === 2))
-    const head = [[short(c.n) || tx('Carta virada para baixo'), null], ...(isTouch() && c.n ? [['🔍 ' + tx('Ver em grande'), () => setBig(c.n)]] : [])]  // no toque não há o painel ao lado
+    const head = [[short(c.mr || c.n) || tx('Carta virada para baixo'), null], ...(isTouch() && c.n ? [['🔍 ' + tx('Ver em grande'), () => setBig(c.mr || c.n)]] : [])]  // no toque não há o painel ao lado
     if (z === 'battlefield') {
       const opp = others.filter(i => !seats[i].out)
       return [...head, [c.t ? tx('↺ Desvirar') : tx('↻ Virar (tap)'), () => tap(cid)],
@@ -710,6 +718,10 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         ...(cd && /\bRoom\b/.test(cd.t) ? cd.n.split(' // ').map((f, j) => [`${c.dr?.includes(j) ? '🔒 ' + tx('Fechar a porta') : '🚪 ' + tx('Abrir a porta')}: ${f}`, () => send({ c: 'door', id: cid, i: j })]) : []),
         ...(protoPt(cd) ? [[(c.pr ? '✓ ' : '⚙ ') + tx('Lançada como protótipo ({pt})', { pt: protoPt(cd) }), () => send({ c: 'proto', id: cid })]] : []),
         ...(cd && /\bBattle\b/.test(cd.t.split(' // ')[0]) ? seats.map((_, j) => j).filter(j => !seats[j].out).map(j => [`🛡 ${tx('Protegida por {p}', { p: who(j) })}${c.pv === j ? ' ✓' : ''}`, () => send({ c: 'protector', id: cid, seat: j })]) : []),
+        ...(cd && /\bCase\b/.test(cd.t.split(' // ')[0]) ? [[(c.sv ? '✓ ' : '🔎 ') + tx('Caso resolvido'), () => send({ c: 'solved', id: cid })]] : []),
+        ...(cd && /\bExhaust\b|\bpower-up\b/i.test(cd.o) ? [[(c.xh ? '✓ ' : '⌁ ') + tx('Habilidade de esgotar (exhaust) já usada'), () => send({ c: 'exhaust', id: cid })]] : []),
+        [(c.eo ? '✓ ' : '⌛ ') + tx('Sai no fim do turno (mobilize, unearth, warp…)'), () => send({ c: 'eot', id: cid })],
+        ...meldMenu(c),
         ...(c.n ? [['⧉ ' + tx('Criar uma ficha cópia'), () => send({ c: 'token', name: short(c.n), x: Math.min(0.95, (c.x ?? 0.5) + 0.06), y: c.y ?? 0.5 })]] : []),
         ['📝 ' + (c.nt ? tx('Mudar a nota') : tx('Pôr uma nota')), () => { const v = window.prompt(tx('Nota nesta carta (todos a veem; vazia apaga):'), c.nt || ''); if (v != null) send({ c: 'note', id: cid, txt: v }) }],
         ...(owner || c.d ? [[c.d ? tx('🂠 Virar para cima') : tx('🂠 Virar para baixo'), () => send({ c: 'face', id: cid })]] : []),

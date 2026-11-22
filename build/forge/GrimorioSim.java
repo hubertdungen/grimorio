@@ -1174,7 +1174,7 @@ public class GrimorioSim {
         // mecânicas que o registo do Forge não diz: dia/noite, velocidade, marcadores de jogador (energia, experiência,
         // rad, bilhetes…), o estado das cartas no campo (virada para baixo, nível de Classe, Caso resolvido, portas de
         // Sala abertas, portador do Anel, fora de fase) e, por jogador, masmorra/sala, emblemas e vezes que o Anel tentou.
-        // Linhas: D|day · S|lugar|n · P|lugar|tipo|n · X|id|estado|nome · V|lugar|masmorra|sala · E|lugar|nome~texto^… · R|lugar|n · M|lugar|monarch,initiative,blessing,
+        // Linhas: D|day · S|lugar|n · P|lugar|tipo|n · X|id|estado|nome · Y|lugar|nome~plot/warp/foretell/suspend/may^… · V|lugar|masmorra|sala · E|lugar|nome~texto^… · R|lugar|n · M|lugar|monarch,initiative,blessing,
         @Subscribe
         public void day(GameEventDayTimeChanged e) { emit("D|" + (e.daytime() ? "day" : "night")); }
 
@@ -1204,6 +1204,10 @@ public class GrimorioSim {
                     if (c.isRingBearer()) b.append("ring,");
                     if (c.isRoom()) b.append("doors=").append(clean(String.join("+", c.getUnlockedRoomNames()))).append(',');
                     if (c.isPhasedOut()) b.append("ph,");
+                    int ex = 0;  // exhaust/power-up já usadas; sai no fim do turno (mobilize, unearth, warp, dash…)
+                    for (SpellAbility sa : new ArrayList<>(c.getSpellAbilities())) if ((sa.isExhaust() || sa.isPowerUp()) && sa.getActivationsThisGame() > 0) ex++;
+                    if (ex > 0) b.append("exh=").append(ex).append(',');
+                    if (c.hasSVar("EndOfTurnLeavePlay")) b.append("eot,");
                 } catch (Exception x) { continue; }
                 String s = b.toString();
                 if (!s.equals(cst.getOrDefault(c.getId(), ""))) { cst.put(c.getId(), s); emit("X|" + c.getId() + "|" + s + "|" + name(c.getView())); }
@@ -1218,6 +1222,14 @@ public class GrimorioSim {
                         else if (c.getCurrentRoom() != null && !c.getCurrentRoom().isEmpty()) dn.append(clean(c.getName())).append('|').append(clean(c.getCurrentRoom()));
                     } catch (Exception x) { /* carta de efeito sem texto */ }
                 }
+                StringBuilder xw = new StringBuilder();  // no exílio e ainda se pode lançar: plot, warp, foretell, ou um efeito deixa (airbend…)
+                for (Card c : p.getCardsIn(ZoneType.Exile)) {
+                    try {
+                        String w = c.isPlotted() ? "plot" : c.isWarped() ? "warp" : c.isForetold() ? "foretell" : c.hasSuspend() ? "suspend" : !c.getMayPlay().isEmpty() ? "may" : null;
+                        if (w != null) xw.append(xw.length() > 0 ? "^" : "").append(clean(c.getName())).append('~').append(w);
+                    } catch (Exception x) { /* sem estado */ }
+                }
+                put(k, "Y", xw.toString());
                 put(k, "V", dn.toString());
                 put(k, "E", em.toString());
                 put(k, "R", String.valueOf(p.getNumRingTemptedYou()));

@@ -208,8 +208,8 @@ def _tick(t):
 
 def _clean(c):
     """Estado de mesa a zeros (a carta entrou numa zona nova)."""
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "at", "ph", "sp", "tg", "blk", "nt"):
-        c.pop(k, None)  # (cm = comandante e cc = vezes lançado da zona de comando ficam)
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "at", "ph", "sp", "tg", "blk", "nt", "gd", "dr", "pr", "pv", "sv", "xh", "eo", "ml", "mr", "mh"):
+        c.pop(k, None)  # (cm = comandante e cc = vezes lançado da zona de comando ficam; incitada, portas, protótipo… são do campo)
 
 
 def _save(con, t):
@@ -289,10 +289,10 @@ def _snap(t):
         z = t["zones"][i]
         bf = []
         for c in map(card, z["battlefield"]):
-            if c.get("sp"):
+            if c.get("sp") or c.get("mh"):
                 continue
             x = {"id": c["id"], **({"n": c["n"]} if not c.get("d") else {})}
-            x.update({k: c[k] for k in ("t", "k", "at", "tok", "atk", "blk", "f", "ph", "gd", "dr", "pr", "pv") if c.get(k) is not None and c.get(k) is not False and c.get(k) not in ({}, [])})
+            x.update({k: c[k] for k in ("t", "k", "at", "tok", "atk", "blk", "f", "ph", "gd", "dr", "pr", "pv", "sv", "xh", "eo", "mr") if c.get(k) is not None and c.get(k) is not False and c.get(k) not in ({}, [])})
             bf.append(x)
         seats.append({"name": s["name"], "life": s["life"], "psn": s.get("poison", 0), "lib": len(z["library"]), "hand": len(z["hand"]), "bf": bf,
                       "gy": [card(x)["n"] for x in z["graveyard"]], "ex": [card(x)["n"] for x in z["exile"]], **({"out": True} if s.get("out") else {}),
@@ -336,7 +336,7 @@ def _card(t, cid, me):
     out = {"id": c["id"], "o": c["o"]}
     if _sees(t, c, me):
         out["n"] = c["n"]
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "tok", "at", "ph", "cm", "cc", "sp", "tg", "blk", "nt", "gd", "dr", "pr", "pv"):
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "tok", "at", "ph", "cm", "cc", "sp", "tg", "blk", "nt", "gd", "dr", "pr", "pv", "sv", "xh", "eo", "mr"):
         v = c.get(k)
         if v is not None and v is not False and v != {} and v != []:  # 0 conta (atacar ou ser protegida pelo lugar 0)
             out[k] = v
@@ -351,7 +351,7 @@ def view(t, me):
         v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {}, "mat": s.get("mat"), "orb": s.get("orb"),
              "speed": s.get("speed", 0), "pc": s.get("pc") or {}, "em": s.get("em") or [], "dg": s.get("dg"), "ring": s.get("ring", 0),
              "mk": s.get("mk") or [], "me": i == me, **({"av": s["av"]} if s.get("av") else {}), "library": len(z["library"]), "arts": s.get("arts") or {},
-             "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
+             "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k] if not t["cards"][str(c)].get("mh")] for k in ("graveyard", "exile", "command", "battlefield")}}
         if s.get("look") is not None:  # público: todos sabem quem está a olhar para a mão de quem (as cartas não)
             v["look"] = s["look"]
         if s.get("rt") and z["library"]:
@@ -496,7 +496,7 @@ def apply(t, me, d):
     card = None
     if "id" in d:
         card = t["cards"].get(str(d.get("id")))
-        if not card:
+        if not card or card.get("mh"):
             raise ValueError("Essa carta já não está lá.")
         # nas zonas escondidas (mão, biblioteca) só mexe o dono; nas públicas qualquer um (é entre amigos)
         # a exceção: quem está a olhar para a mão de outro (Thoughtseize, Duress, Kitesail Freebooter…) tira de lá a
@@ -565,10 +565,15 @@ def apply(t, me, d):
                 t["cards"].pop(str(c["id"]))
                 _log(t, me, "move", name=c["n"], fr=src, to=to, tok=True, w=c["o"])
                 return
+            mate = t["cards"].get(str(c.get("ml"))) if c.get("ml") is not None else None  # fundida (meld): a outra metade vai também
             _clean(c)
             _put(t, c, c["o"], to, bool(d.get("bottom")))
             if to == "library":
                 _rekey(t, c)
+            if mate:
+                _take(t, mate); _clean(mate); _put(t, mate, mate["o"], to, bool(d.get("bottom")))
+                if to == "library":
+                    _rekey(t, mate)
                 ps = t["seats"][c["o"]]
                 if ps["peek"] and not d.get("bottom"):  # posta no topo enquanto espreitas: continua à vista
                     ps["peek"] += 1
@@ -578,7 +583,7 @@ def apply(t, me, d):
         if host:
             c["at"] = host["id"]
             _log(t, me, "attach", name=None if c.get("d") else c["n"], to=None if host.get("d") else host["n"])
-    elif c0 in ("tap", "flip", "face", "attack", "counter", "phase", "attach", "goad", "door", "proto", "protector"):
+    elif c0 in ("tap", "flip", "face", "attack", "counter", "phase", "attach", "goad", "door", "proto", "protector", "solved", "exhaust", "eot", "meld"):
         c = need()
         if c["z"] != "battlefield":
             raise ValueError("A carta tem de estar no campo.")
@@ -605,6 +610,21 @@ def apply(t, me, d):
             _log(t, me, "door", name=c["n"], i=i, on=i in dr)
         elif c0 == "proto":  # lançada como protótipo: o P/R (e o custo) mais pequeno impresso na carta
             c["pr"] = not c.get("pr")
+        elif c0 in ("solved", "exhaust", "eot"):  # Caso resolvido; exhaust já usada; sai no fim do turno (mobilize, unearth, warp…)
+            k = {"solved": "sv", "exhaust": "xh", "eot": "eo"}[c0]
+            c[k] = not c.get(k)
+            if c0 == "solved":
+                _log(t, me, "solved", name=c["n"], on=c[k])
+        elif c0 == "meld":  # as duas metades no mesmo campo: fica a principal (com a fundida à vista), a outra esconde-se até saírem
+            o = t["cards"].get(str(d.get("with")))
+            into = str(d.get("into") or "").strip()[:150]
+            if not o or o["id"] == c["id"] or o["z"] != "battlefield" or o["s"] != c["s"] or o.get("mh") or c.get("ml") or o.get("ml") or not into or c.get("tok") or o.get("tok"):
+                raise ValueError("Para fundir, as duas metades têm de estar no mesmo campo.")
+            c.update(ml=o["id"], mr=into)
+            o["mh"] = c["id"]
+            for k in ("atk", "atc", "blk", "at"):
+                o.pop(k, None)
+            _log(t, me, "meld", name=c["n"], into=into, **{"with": o["n"]})
         elif c0 == "protector":  # batalha: o adversário que a protege (Siege)
             c["pv"] = _num(d.get("seat"), 0, len(t["seats"]) - 1, c["s"])
         elif c0 == "phase":  # phasing: fica na mesa mas não conta
@@ -1149,6 +1169,20 @@ def selfcheck():
     assert tk["gd"] and tk["dr"] == [1] and tk["pr"] and tk["pv"] == 0 and tk["k"] == {"Bounty": 2}
     call("POST", "guest:rui", {"c": "door", "id": tok["id"], "i": 1})
     assert "dr" not in next(c for c in call("GET", "host")[1]["seats"][1]["battlefield"] if c["id"] == tok["id"])
+    # meld: as duas metades no campo -> uma só (a fundida), a outra escondida; ao sair vão as duas; Caso, exhaust, fim do turno
+    h0, h1 = t["zones"][1]["hand"][:2]
+    for h in (h0, h1):
+        call("POST", "guest:rui", {"c": "move", "id": h, "to": "battlefield", "x": 0.4, "y": 0.4})
+    assert call("POST", "guest:rui", {"c": "meld", "id": h0, "with": tok["id"], "into": "X"})[0] == 400  # fichas não se fundem
+    for cmd in ({"c": "meld", "with": h1, "into": "Brisela, Voice of Nightmares"}, {"c": "solved"}, {"c": "exhaust"}, {"c": "eot"}):
+        assert call("POST", "guest:rui", {**cmd, "id": h0})[0] == 200, cmd
+    bf = call("GET", "host")[1]["seats"][1]["battlefield"]
+    m0 = next(c for c in bf if c["id"] == h0)
+    assert h1 not in [c["id"] for c in bf] and (m0["mr"], m0["sv"], m0["xh"], m0["eo"]) == ("Brisela, Voice of Nightmares", True, True, True), m0
+    assert call("POST", "guest:rui", {"c": "tap", "id": h1})[0] == 400  # a metade escondida não se mexe sozinha
+    assert t["snaps"][-1]["st"]["seats"][1]["bf"][-1].get("mr") or any(x.get("mr") for x in t["snaps"][-1]["st"]["seats"][1]["bf"])
+    call("POST", "guest:rui", {"c": "move", "id": h0, "to": "exile"})
+    assert t["zones"][1]["exile"][-2:] == [h0, h1] and not any(k in t["cards"][str(x)] for x in (h0, h1) for k in ("ml", "mr", "mh", "sv", "xh", "eo"))
     for cmd in ({"c": "speed", "d": 1}, {"c": "speed", "d": 9}, {"c": "ring"}, {"c": "pctr", "k": "Experience", "d": 3}, {"c": "pctr", "k": "rad", "d": 1},
                 {"c": "pctr", "k": "rad", "d": -1}, {"c": "emblem", "name": "Gideon of the Trials Emblem", "text": "You can't lose."}, {"c": "emblem", "text": "Creatures get +1/+1."},
                 {"c": "emblem", "del": 0}, {"c": "dungeon", "name": "Tomb of Annihilation", "room": 2}):

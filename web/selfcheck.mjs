@@ -1157,3 +1157,49 @@ import { ptExplain } from './src/game.js'
   setTokens(null)
   console.log('selfcheck mecânicas novas ok')
 }
+
+// meld (as duas metades -> a fundida, nas réplicas sai do exílio com as duas), exhaust/fim do turno, o exílio que ainda se
+// lança (Forge Play e réplicas), a mesa livre fundida, e a ferramenta Tokens (fichas do deck, pesquisa, a mesa)
+{
+  const { meldIndex, replayStates: rs } = await import('./src/game.js'), { toPerm, zoneOf, ftBoard } = await import('./src/fpboard.js')
+  const M = [
+    { n: 'Gisela, the Broken Blade', t: 'Legendary Creature — Angel Horror', o: 'Flying, first strike, lifelink\nAt the beginning of your end step, if you both own and control Gisela and a creature named Bruna, the Fading Light, exile them, then meld them into Brisela, Voice of Nightmares.', pt: '4/3', kw: [] },
+    { n: 'Bruna, the Fading Light', t: 'Legendary Creature — Angel Horror', o: 'Flying, vigilance\n(Melds with Gisela, the Broken Blade.)', pt: '5/7', kw: [] },
+    { n: 'Brisela, Voice of Nightmares', t: 'Legendary Creature — Eldrazi Angel', o: 'Flying, first strike, vigilance, lifelink', pt: '9/10', kw: [] },
+    { n: 'Hanweir Garrison', t: 'Creature — Human Soldier', o: 'Whenever this creature attacks, create two 1/1 red Human creature tokens that are tapped and attacking.\n(Melds with Hanweir Battlements.)', pt: '2/3', kw: [] },
+    { n: 'Hanweir Battlements', t: 'Land', o: '{3}{R}{R}, {T}: If you both own and control this land and a creature named Hanweir Garrison, exile them, then meld them into Hanweir, the Writhing Township.', pt: '', kw: [] },
+  ]
+  const gm = { byName: new Map(M.map(c => [c.n, c])), byLower: new Map(M.map(c => [c.n.toLowerCase(), c])) }, mi = meldIndex(gm)
+  assert.deepEqual(mi.parts.get('Brisela, Voice of Nightmares'), ['Gisela, the Broken Blade', 'Bruna, the Fading Light'])
+  assert.deepEqual([mi.of.get('Bruna, the Fading Light'), mi.of.get('Hanweir Battlements')?.into], [{ with: 'Gisela, the Broken Blade', into: 'Brisela, Voice of Nightmares' }, 'Hanweir, the Writhing Township'])
+  assert.equal(meldIndex(gm), mi, 'o índice faz-se uma vez por base de cartas')
+  const Z = (id, card, from, to, fp = 'a', tp = 'a') => ({ id, card, from, to, fp, tp })
+  const E = [{ t: 0, k: 'mulligan', p: 'a', n: 7, card: 'kept' }, { t: 1, k: 'turn', p: 'a' },
+    { t: 1, k: 'resolve', p: 'a', card: 'Gisela', zn: [Z(1, 'Gisela, the Broken Blade', 'stack', 'battlefield'), Z(2, 'Bruna, the Fading Light', 'stack', 'battlefield')] },
+    { t: 1, k: 'trigger', p: 'a', card: 'Gisela', zn: [Z(1, 'Gisela, the Broken Blade', 'battlefield', 'exile'), Z(2, 'Bruna, the Fading Light', 'battlefield', 'exile'), Z(1, 'Brisela, Voice of Nightmares', 'exile', 'battlefield')] },
+    { t: 1, k: 'state', p: 'a', card: 'Brisela, Voice of Nightmares', id: 1, st: { exh: 1, eot: 1 }, x: 1 },
+    { t: 1, k: 'exways', p: 'a', list: [{ n: 'Aloe Alchemist', w: 'plot' }], x: 1 }]
+  const s = rs(E, gm, 20, null, true).at(-1)
+  assert.deepEqual([s.a.perms.filter(p => !p.dying).map(p => p.name), s.a.exile], [['Brisela, Voice of Nightmares'], []], 'fundida: as metades saem do exílio')
+  assert.deepEqual([s.a.perms.find(p => p.fid === 1).exh, s.a.perms.find(p => p.fid === 1).eot, s.a.exWay], [1, true, { 'Aloe Alchemist': 'plot' }])
+  const fp = toPerm({ id: 3, name: 'Afterburner Expert', exh: 1, eot: true }), z = zoneOf({ exile: [{ id: 4, name: 'Aloe Alchemist', exw: 'plot' }, { id: 5, name: 'Rift Bolt', counters: { TIME: 2 } }, { id: 6, name: 'Shock' }] })
+  assert.deepEqual([fp.exh, fp.eot, z.exWay], [1, true, { 'Aloe Alchemist': 'plot', 'Rift Bolt': 'suspend' }])
+  const ft = ftBoard({ seats: [{ name: 'A', life: 20, bf: [{ id: 9, n: 'Gisela, the Broken Blade', mr: 'Brisela, Voice of Nightmares', sv: true, xh: true, eo: true }] }] })
+  assert.deepEqual((p => [p.name, p.solved, p.exh, p.eot])(ft.a.perms[0]), ['Brisela, Voice of Nightmares', true, 1, true])
+  const { setTokens, deckTokens, searchTokens, tokTable, tokenById } = await import('./src/tokens.js')
+  setTokens({ tokens: { t1: ['Treasure', '', '', 'Token Artifact — Treasure', '{T}, Sacrifice this token: Add one mana of any color.', [], 0, 'tsnc', ''], t2: ['Treasure', '', '', 'Token Artifact — Treasure', '{T}, Sacrifice this token: Add one mana of any color.', [], 0, 'tlci', ''],
+    z: ['Zombie', '2/2', 'B', 'Token Creature — Zombie', '', [], 0, 'tm21', ''], e: ['Gideon of the Trials Emblem', '', '', 'Emblem — Gideon', '', [], 0, 'tm19', ''] },
+  byName: { treasure: ['t1', 't2'], zombie: ['z'] }, byCard: { 'Smothering Tithe': ['t1'], 'Dockside Extortionist': ['t2'], 'Gravecrawler': [], 'Grave Titan': ['z'] } })
+  assert.deepEqual(deckTokens(['Smothering Tithe', 'Dockside Extortionist', 'Grave Titan', 'Island']).map(x => [x.c.n, x.from.length]), [['Treasure', 2], ['Zombie', 1]], 'a mesma ficha de duas cartas conta uma vez')
+  assert.deepEqual([searchTokens('2/2').map(c => c.n), searchTokens('zombie black').length, searchTokens('emblem gideon').map(c => c.id), searchTokens('treasure').length], [['Zombie'], 0, ['e'], 1])
+  let tb = tokTable([], { add: 'z', q: 3 })
+  tb = tokTable(tb, { add: 'z', q: 2 }); assert.equal(tb.length, 1); assert.equal(tb[0].q, 5)
+  const k = tb[0].k
+  tb = tokTable(tokTable(tb, { k, tap: 1 }), { k, tap: 1 }); assert.equal(tb[0].tp, 2)
+  tb = tokTable(tb, { add: 'z', q: 1 }); assert.equal(tb.length, 2, 'as viradas ficam à parte das novas')
+  tb = tokTable(tokTable(tb, { k, ctr: '+1/+1', d: 2 }), { k, dq: -4 }); assert.deepEqual([tb[0].q, tb[0].tp, tb[0].ctr], [1, 1, { '+1/+1': 2 }])
+  tb = tokTable(tokTable(tb, { k, tap: 1 }), { k, ctr: '+1/+1', d: -2 }); assert.deepEqual([tb[0].tp, tb[0].ctr], [0, {}], 'todas viradas -> desvira')
+  assert.deepEqual([tokTable(tb, { k, dq: -1 }).length, tokTable(tb, { untap: 1 }).every(x => !x.tp), tokTable(tb, { clear: 1 }).length, tokenById('z')?.pt], [1, true, 0, '2/2'])
+  setTokens(null)
+  console.log('selfcheck meld, exhaust, exílio e Tokens ok')
+}

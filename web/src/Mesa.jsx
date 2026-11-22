@@ -1,5 +1,5 @@
-// Mesa: contador de vida (1 a 6 jogadores, vida e veneno/infect, registo) e lançador de dados (d4–d100 e moeda, com
-// física, registo). Cada um guarda o seu estado no browser; abrir os dados por cima do contador não mexe nas vidas.
+// Mesa: contador de vida (1 a 6 jogadores, vida e veneno/infect, registo), lançador de dados (d4–d100 e moeda, com
+// física, registo) e as fichas (Tokens.jsx). Cada um guarda o seu estado no browser; abrir os dados por cima do contador não mexe nas vidas.
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Logo } from './ui.jsx'
@@ -8,6 +8,7 @@ import { tx, LOCALE } from './i18n.js'
 import { play } from './sfx.js'
 import { needsMark } from './game.js'
 import { isTouch } from './touch.js'
+import Tokens from './Tokens.jsx'
 
 const load = (k, d) => { try { return { ...d, ...JSON.parse(localStorage.getItem(k) || '{}') } } catch { return d } }
 const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* sem armazenamento */ } }
@@ -353,7 +354,7 @@ function Dice({ s, set, compact = false }) {
   )
 }
 
-export default function Mesa({ tool, setTool, onHome, onApp }) {
+export default function Mesa({ tool, setTool, onHome, onApp, deck, decks }) {
   const [life, setLife] = useStored('grimorio.vida', LIFE0)
   const [dice, setDice] = useStored('grimorio.dados', DICE0)
   const [sheet, setSheet] = useState(false)  // dados por cima do contador
@@ -364,10 +365,11 @@ export default function Mesa({ tool, setTool, onHome, onApp }) {
         <span className="seg">
           <button className={tool === 'vida' ? 'on' : ''} onClick={() => setTool('vida')}>❤ {tx('Vida')}</button>
           <button className={tool === 'dados' ? 'on' : ''} onClick={() => setTool('dados')}>🎲 {tx('Dados')}</button>
+          <button className={tool === 'fichas' ? 'on' : ''} onClick={() => setTool('fichas')}>🃏 {tx('Tokens')}</button>
         </span>
         <button className="link small" onClick={onApp}>{tx('abrir os decks →')}</button>
       </header>
-      {tool === 'vida' ? <Life s={life} set={setLife} openDice={() => setSheet(true)} /> : <Dice s={dice} set={setDice} />}
+      {tool === 'vida' ? <Life s={life} set={setLife} openDice={() => setSheet(true)} /> : tool === 'fichas' ? <Tokens deck={deck} decks={decks} /> : <Dice s={dice} set={setDice} />}
       {sheet && tool === 'vida' && (
         <div className="mesa-sheet" onClick={e => { if (e.target === e.currentTarget) setSheet(false) }}>
           <div className="mesa-sheet-in"><button className="close" onClick={() => setSheet(false)} aria-label={tx('Fechar')}>×</button><Dice s={dice} set={setDice} compact /></div>

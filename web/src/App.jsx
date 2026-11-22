@@ -456,7 +456,7 @@ export default function App() {
   }
   // «Voltar» (backnav.js): cada mudança de área, separador, modo do Coliseu ou deck é um passo; o deck que acabou de ganhar
   // id (1.ª gravação) ou o 1.º que carrega substituem o passo em vez de acrescentar
-  const view = JSON.stringify({ home, section, tab, colMode, deck: deck.id || null })
+  const view = JSON.stringify({ home, section, tab, colMode, deck: deck.id || null, tool })  // tool: as ferramentas da mesa (vida, dados, fichas) também são um passo
   const prevView = useRef(null)
   useEffect(() => {
     const p = prevView.current && JSON.parse(prevView.current), v = JSON.parse(view)
@@ -465,7 +465,7 @@ export default function App() {
   }, [view])
   useEffect(() => setOnView(s => {
     const v = JSON.parse(s)
-    setHome(v.home); setSection(v.section); setTab(v.tab); setColMode(v.colMode)
+    setHome(v.home); setSection(v.section); setTab(v.tab); setColMode(v.colMode); setTool(v.tool || null)
     if (v.deck && v.deck !== deck.id && !dirty.current) openDeck(v.deck).catch(() => {})  // com alterações por gravar fica o atual
   }))
   const delDeck = async () => {
@@ -488,7 +488,7 @@ export default function App() {
 
   if (remoteRoom) return remoteRoom.kind === 'taverna' ? <RemoteTaverna data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} /> : <RemoteRoom data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} />
   const levarEl = levar != null && !guest && <FriendRoomModal data={data} link={levar} onClose={closeLevar} onRemote={r => { closeLevar(); setRemoteRoom(r) }} />
-  if (tool) return <Mesa tool={tool} setTool={setTool} onHome={() => { setTool(null); setHome(true) }} onApp={() => { setTool(null); setHome(false) }} />
+  if (tool) return <Mesa tool={tool} setTool={setTool} deck={deck} decks={decks} onHome={() => { setTool(null); setHome(true) }} onApp={() => { setTool(null); setHome(false) }} />
   if (home) return <>{levarEl}<Home friend={!guest} deck={deck} decks={decks} onTool={setTool} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }} onScan={() => { setHome(false); setSection('construir'); setScan(true) }}
     onGo={(sec, mode) => { setHome(false); setSection(sec); if (mode) setColMode(mode) }} /></>
   return (

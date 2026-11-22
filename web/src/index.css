@@ -1654,6 +1654,46 @@ button.fg-card { cursor: pointer; } button.fg-card:hover { border-color: var(--g
   .mesa-top { padding: 8px 10px; } .mesa-top .link.small { white-space: nowrap; font-size: 12px; }
   .mesa-logo { font-size: 0; gap: 0; }
 }
+/* Tokens (Para jogar à mesa): na mesa à esquerda, juntar à direita (no telemóvel uma coluna) */
+.home-tool.tokens i { background: linear-gradient(135deg, #f2b84b44, #2fa36b33); }
+@media (min-width: 900px) { .home-mesa { grid-template-columns: repeat(5, 1fr); } }
+@media (max-width: 899px) { .home-mesa > .home-card:last-child:nth-child(even) { grid-column: 1 / -1; } }  /* 5 ferramentas em 2 colunas: a última a toda a largura */
+.tk { flex: 1; display: grid; gap: 18px; padding: 12px 16px 24px; align-items: start; }
+@media (min-width: 900px) { .tk { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); } .tk-add { position: sticky; top: 64px; max-height: calc(100dvh - 76px); overflow: auto; } }
+.tk h2 { margin: 0; font-size: 18px; } .tk h3 { margin: 14px 0 6px; font-size: 14px; color: var(--gold2); }
+.tk-mesa > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.tk-bar { display: flex; gap: 10px; align-items: center; }
+.tk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(184px, 1fr)); gap: 16px; }
+.tk-img { position: relative; display: block; width: 100%; aspect-ratio: 488/680; padding: 0; border: 0; border-radius: 5%; overflow: visible; background: none; }
+.tk-img > img, .tk-img > .pc-token { width: 100%; height: 100%; display: block; object-fit: cover; border-radius: 5%; transition: transform .25s; box-shadow: 0 6px 16px #0008; }
+.tk-img .pc-token b { font-size: 15px; } .tk-img .pc-token i { font-size: 18px; } .tk-img .pc-token em { font-size: 10px; } .tk-img .pc-token small { font-size: 10px; }
+.tk-t.tapped .tk-img > img, .tk-t.tapped .tk-img > .pc-token { transform: rotate(90deg) scale(.72); opacity: .85; }
+.tk-q { position: absolute; top: 6px; right: 6px; padding: 2px 9px; border-radius: 99px; background: #000c; color: var(--gold2); font-size: 18px; box-shadow: 0 0 0 1px var(--gold); }
+.tk-ctr { position: absolute; left: 6px; bottom: 6px; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 12px); }
+.tk-ctr b { padding: 1px 7px; border-radius: 99px; background: #000d; color: #fff; font-size: 13px; } .tk-ctr b.pt { background: var(--gold); color: #1a1205; font-size: 15px; }
+.tk-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 8px; }
+.tk-t { position: relative; }
+.tk-row > button, .tk-n button { min-width: 32px; min-height: 34px; padding: 2px 5px; }
+.tk-tap { display: inline-flex; align-items: center; gap: 4px; font-size: 17px; } .tk-tap.on { border-color: var(--gold); color: var(--gold2); } .tk-tap small { font-size: 11px; }
+.tk-n { display: inline-flex; align-items: center; gap: 2px; } .tk-n > b { min-width: 18px; text-align: center; } .tk-more .tk-n.wide { grid-column: 1 / -1; }
+.tk-del { position: absolute; top: -8px; left: -8px; z-index: 1; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: #000c; color: var(--muted); }
+.tk-more { display: grid; gap: 4px; margin-top: 6px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.tk-more { grid-template-columns: repeat(2, minmax(0, 1fr)); } .tk-more .tk-n { min-width: 0; justify-content: space-between; } .tk-more .tk-n button { min-width: 26px; min-height: 30px; padding: 0 4px; }
+.tk-more small { flex: 1; min-width: 0; text-align: center; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-add { padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.tk-q-row select, .tk-deck { margin: 0 4px; } .tk-deck, .tk-search { width: 100%; }
+.tk-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 10px; margin-top: 8px; }
+.tk-pick { position: relative; display: grid; gap: 2px; padding: 6px; text-align: left; border-radius: 10px; min-width: 0; }
+.tk-pick .tk-img > img, .tk-pick .tk-img > .pc-token { box-shadow: none; }
+.tk-pick .tk-img .pc-token b { font-size: 11px; } .tk-pick .tk-img .pc-token i { font-size: 13px; } .tk-pick .tk-img .pc-token em { font-size: 8px; }
+.tk-pick b, .tk-pick small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tk-pick b { font-size: 12px; } .tk-pick small { font-size: 10px; color: var(--muted); }
+.tk-pick > i { position: absolute; top: 2px; right: 2px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--gold); color: #1a1205; font-style: normal; font-weight: 800; }
+.tk-big { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; background: #000f; }
+.tk-big-c { height: min(78dvh, calc((100vw - 32px) * 680 / 488)); aspect-ratio: 488/680; }
+.tk-big-c > img, .tk-big-c > .pc-token { width: 100%; height: 100%; display: block; border-radius: 4.5%; transition: transform .25s; }
+.tk-big-c .pc-token b { font-size: 28px; } .tk-big-c .pc-token i { font-size: 36px; } .tk-big-c .pc-token em { font-size: 16px; } .tk-big-c .pc-token small { font-size: 14px; }
+.tk-big-i { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; } .tk-big-i b { padding: 4px 14px; border-radius: 99px; background: #fff2; font-size: 22px; } .tk-big-i b.pt { background: var(--gold); color: #1a1205; }
+@media (max-width: 600px) { .tk { padding: 10px 10px 24px; } .tk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .tk-picks { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 /* ícones dos tipos de torneio */
 .tc-ico { width: 1.2em; height: 1.2em; vertical-align: -.25em; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 /* caixas de seleção: arredondadas, com visto dourado animado (em vez das do browser) */
@@ -2134,7 +2174,7 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .wl-side.forte { border-color: #45ad6266; } .wl-side.fraco, .wl-side.vazio { border-color: #e05a4466; }
 /* página inicial: 6 caminhos em 3×2 (sem um cartão sozinho na última linha); Construir em destaque; a mesa em 4 compactos */
 @media (min-width: 900px) { .home-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 1180px) { .home-grid { width: min(1180px, 100%); grid-template-columns: repeat(4, 1fr); } .home-mesa { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1180px) { .home-grid { width: min(1180px, 100%); grid-template-columns: repeat(4, 1fr); } .home-mesa { width: min(1180px, 100%); } }
 .home-card.main { border-color: #f2b84b77; background: linear-gradient(135deg, #2b2338, #1b1628); box-shadow: 0 8px 24px #0006, 0 0 0 1px #f2b84b22; }
 .home-card.main i { background: linear-gradient(135deg, #f2b84b44, #f2b84b14); }
 .home-card.main:hover { border-color: var(--gold2); box-shadow: 0 12px 30px #0009, 0 0 0 1px #f2b84b66; }

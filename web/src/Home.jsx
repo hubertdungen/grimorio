@@ -1,6 +1,6 @@
 import ForgeBrand from './ForgeBrand.jsx'
 // Página inicial: aparece ao abrir a app e ao tocar no logótipo. Os seis caminhos principais (Construir em destaque) e,
-// por baixo, as ferramentas para a mesa (vida, ler carta, dados, regras).
+// por baixo, as ferramentas para a mesa (vida, ler carta, dados, tokens, regras).
 import { Logo } from './ui.jsx'
 import { Icon } from './icons.jsx'
 import { tx } from './i18n.js'
@@ -44,6 +44,7 @@ export default function Home({ deck, decks, onGo, onNew, onTool, onScan, friend 
         <button className="home-card home-tool life" onClick={() => onTool('vida')}><i><Icon n="vida" /></i><b>{tx('Contador de vida')}</b><span>{tx('Até 6 jogadores, vida e veneno, com registo.')}</span></button>
         <button className="home-card home-tool scan" onClick={onScan}><i><Icon n="scan" /></i><b>{tx('Ler carta')}</b><span>{tx('Aponta a câmara a uma carta e ela entra no deck aberto.')}</span></button>
         <button className="home-card home-tool dice" onClick={() => onTool('dados')}><i><Icon n="dados" /></i><b>{tx('Dados')}</b><span>{tx('d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.')}</span></button>
+        <button className="home-card home-tool tokens" onClick={() => onTool('fichas')}><i><Icon n="fichas" /></i><b>{tx('Tokens')}</b><span>{tx('As fichas do deck em cartas a sério no ecrã: quantas, viradas e marcadores.')}</span></button>
         <button className="home-card home-tool rules" onClick={() => onGo('regras')}><i><Icon n="regras" /></i><b>{tx('Regras')}</b><span>{tx('Dúvidas de regras e cartas em qualquer língua, com os rulings oficiais e a câmara.')}</span></button>
       </div>
       <p className="home-foot muted small"><a href="#definicoes" className="home-set"><Icon n="gear" /> {tx('Definições')}</a> · {tx('Cartas e imagens: Scryfall · combos: Commander Spellbook · meta: EDHREC e MTGTop8 · jogos: Forge')}</p>

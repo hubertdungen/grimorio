@@ -29,6 +29,8 @@ const ICONS = {
   scan: '<path d="M3.5 8V5.5a2 2 0 0 1 2-2H8M16 3.5h2.5a2 2 0 0 1 2 2V8M20.5 16v2.5a2 2 0 0 1-2 2H16M8 20.5H5.5a2 2 0 0 1-2-2V16"/><rect x="8.6" y="6.6" width="6.8" height="10.8" rx="1"/><circle class="acc" cx="12" cy="10.2" r="1.5"/>',
   // dado de vinte faces
   dados: '<path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z"/><path d="M12 7.6 16.3 15H7.7z"/><path d="M12 2.8v4.8M20 7.4l-3.7 7.6M4 7.4l3.7 7.6M7.7 15 4 16.6M16.3 15l3.7 1.6M7.7 15 12 21.2 16.3 15"/><circle class="acc" cx="12" cy="12.3" r="1.1"/>',
+  // tokens: uma carta com a moeda dourada da ficha por cima
+  fichas: '<rect x="4" y="3" width="11.5" height="16" rx="1.6"/><path d="M6.8 6.2h5.9v5.2H6.8zM6.8 14h5.9M6.8 16.2h4"/><circle class="acc" cx="17" cy="16.6" r="3.6"/><path class="acc" d="M17 14.9v3.4M15.3 16.6h3.4"/>',
   // início: casa com a janela acesa
   casa: '<path d="M3.5 11.2 12 4l8.5 7.2"/><path d="M5.8 9.6V20h12.4V9.6"/><path d="M10 20v-5h4v5"/><circle class="acc" cx="12" cy="11" r="1.4"/>',
   // criar: estrela de quatro pontas e um mais

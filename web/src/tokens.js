@@ -66,3 +66,52 @@ function pick1(n, pt, src, col, set) {
   const x = T.tokens[best]
   return asCard(best, x[8] === 'flip' && x[6]?.[1]?.[0].toLowerCase() === n)
 }
+
+// ferramenta Tokens (jogar com cartas a sério): as fichas que um deck cria e a pesquisa no índice inteiro (fichas, emblemas,
+// masmorras, papéis). As impressões repetidas da mesma ficha (nome, P/R, cores, tipo e texto iguais) contam uma vez.
+const same = c => `${c.n}|${c.pt}|${c.co}|${c.t}|${c.o}`
+// names: as cartas do deck -> [{ c, from: [cartas que a criam] }], pelo nome
+export function deckTokens(names) {
+  if (!T) return []
+  const by = new Map()
+  for (const n of names) for (const id of T.byCard[n] || []) {
+    if (!T.tokens[id]) continue
+    const c = asCard(id), k = same(c), e = by.get(k) || { c, from: [] }
+    if (!e.from.includes(n)) e.from.push(n)
+    by.set(k, e)
+  }
+  return [...by.values()].sort((a, b) => a.c.n.localeCompare(b.c.n))
+}
+// q: palavras do nome, tipo, P/R («2/2») ou texto; todas têm de estar. O nome exato primeiro, depois o que começa por ele
+export function searchTokens(q, limit = 60) {
+  const w = String(q || '').toLowerCase().trim().split(/\s+/).filter(Boolean)
+  if (!T || !w.length) return []
+  const seen = new Set(), out = []
+  for (const id of Object.keys(T.tokens)) {
+    const [n, pt, , t, o = ''] = T.tokens[id]
+    if (!w.every(x => `${n} ${t} ${pt} ${o}`.toLowerCase().includes(x))) continue
+    const c = asCard(id), k = same(c)
+    if (!seen.has(k)) { seen.add(k); out.push(c) }
+  }
+  const q0 = w.join(' '), rank = c => { const n = c.n.toLowerCase(); return n === q0 ? 0 : n.startsWith(q0) ? 1 : n.includes(q0) ? 2 : 3 }
+  return out.sort((a, b) => rank(a) - rank(b) || a.n.localeCompare(b.n)).slice(0, limit)
+}
+// a mesa da ferramenta: [{ k, id, q (quantas), tp (quantas viradas), ctr: { '+1/+1': n, … } }]. op: { add: id, q } junta
+// às iguais ainda sem nada (desviradas e sem marcadores) · { k, dq } · { k, tap } vira mais uma (todas viradas -> desvira) ·
+// { untap } · { k, ctr, d } · { k, del } · { clear }
+export function tokTable(list, op) {
+  const up = (k, f) => list.map(x => (x.k === k ? f(x) : x))
+  if (op.clear) return []
+  if (op.untap) return list.map(x => ({ ...x, tp: 0 }))
+  if (op.add) {
+    const q = Math.max(1, op.q || 1), j = list.findIndex(x => x.id === op.add && !x.tp && !Object.keys(x.ctr || {}).length)
+    return j >= 0 ? list.map((x, i) => (i === j ? { ...x, q: x.q + q } : x)) : [...list, { k: `${op.add}:${Date.now().toString(36)}${list.length}`, id: op.add, q, tp: 0, ctr: {} }]
+  }
+  if (op.del) return list.filter(x => x.k !== op.k)
+  if (op.dq) return list.flatMap(x => (x.k !== op.k ? [x] : x.q + op.dq < 1 ? [] : [{ ...x, q: x.q + op.dq, tp: Math.min(x.tp, x.q + op.dq) }]))
+  if (op.tap) return up(op.k, x => ({ ...x, tp: x.tp >= x.q ? 0 : x.tp + 1 }))
+  if (op.ctr) return up(op.k, x => { const c = { ...x.ctr, [op.ctr]: (x.ctr?.[op.ctr] || 0) + op.d }; if (c[op.ctr] <= 0) delete c[op.ctr]; return { ...x, ctr: c } })
+  return list
+}
+// uma ficha da mesa pelo id do índice (o que fica guardado no aparelho); null se o índice ainda não chegou
+export const tokenById = id => (T && T.tokens[id] ? asCard(id) : null)

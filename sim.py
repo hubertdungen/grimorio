@@ -492,7 +492,7 @@ def parse_game(lines, result, decks=None, commanders=None):
         if kind == "D" and len(f) >= 3:
             emit({"k": "day", "v": f[2], "x": 1}, "")
             return
-        if kind in "SPRVEM" and len(f) >= 3 and side.get(f[2]):
+        if kind in "SPRVEMY" and len(f) >= 3 and side.get(f[2]):
             p = side[f[2]]
             if kind == "S" and len(f) >= 4:
                 emit({"k": "speed", "p": p, "n": int(f[3]), "x": 1}, "")
@@ -504,6 +504,9 @@ def parse_game(lines, result, decks=None, commanders=None):
                 emit({"k": "ring", "p": p, "n": int(f[3]), "x": 1}, "")
             elif kind == "V":
                 emit({"k": "dungeon", "p": p, "card": f[3] if len(f) > 3 else "", "to": "|".join(f[4:]), "x": 1}, "")
+            elif kind == "Y":  # cartas do exílio que ainda se podem lançar (plot, warp, foretell, «may»: airbend, aventura…)
+                ws = [x.rpartition("~") for x in "|".join(f[3:]).split("^") if x]
+                emit({"k": "exways", "p": p, "list": [{"n": n, "w": w} for n, _, w in ws], "x": 1}, "")
             elif kind == "E":
                 ems = [x.partition("~") for x in "|".join(f[3:]).split("^") if x]
                 emit({"k": "emblems", "p": p, "list": [{"n": n, "t": tt} for n, _, tt in ems], "x": 1}, "")
@@ -1700,16 +1703,18 @@ def selfcheck():
              "Resolve Stack: Wizard Class - Enchantment", "GRIMORIO|D|night", "GRIMORIO|S|1|2", "GRIMORIO|P|1|ENERGY|3",
              "GRIMORIO|P|2|POISON|1", "GRIMORIO|R|2|1", "GRIMORIO|V|2|Tomb of Annihilation|Veils of Fear",
              "GRIMORIO|E|1|Gideon of the Trials Emblem~As long as you control a Gideon planeswalker, you can't lose the game.",
-             "GRIMORIO|X|9|lvl=2,doors=Bottomless Pool+Locker Room,fd,|Wizard Class", "GRIMORIO|M|1|monarch,initiative,", "GRIMORIO|M|1|initiative,",
+             "GRIMORIO|X|9|lvl=2,doors=Bottomless Pool+Locker Room,fd,exh=1,eot,|Wizard Class", "GRIMORIO|M|1|monarch,initiative,", "GRIMORIO|M|1|initiative,",
+             "GRIMORIO|Y|2|Aloe Alchemist~plot^Mu Yanling~may",
              "Resolve Stack: The Monarch - Whenever a creature deals combat damage to you, its controller becomes the monarch.",
              "Resolve Stack: Gideon of the Trials - You get an emblem with \"...\" and {E}{E}"]
     ev = parse_game(lines, "", {"a": ["Wizard Class", "Gideon of the Trials"]})["events"]
-    got = {e["k"]: e for e in ev if e["k"] in ("day", "speed", "pctr", "ring", "dungeon", "emblems", "state")}
+    got = {e["k"]: e for e in ev if e["k"] in ("day", "speed", "pctr", "ring", "dungeon", "emblems", "state", "exways")}
+    assert (got["exways"]["p"], got["exways"]["list"]) == ("b", [{"n": "Aloe Alchemist", "w": "plot"}, {"n": "Mu Yanling", "w": "may"}]), got["exways"]
     assert got["day"]["v"] == "night" and (got["speed"]["p"], got["speed"]["n"]) == ("a", 2), got
     assert [(e["p"], e["ct"], e["abs"]) for e in ev if e["k"] == "pctr"] == [("a", "energy", 3)]  # o veneno vem do dano
     assert (got["ring"]["p"], got["ring"]["n"], got["dungeon"]["card"], got["dungeon"]["to"]) == ("b", 1, "Tomb of Annihilation", "Veils of Fear")
     assert got["emblems"]["list"] == [{"n": "Gideon of the Trials Emblem", "t": "As long as you control a Gideon planeswalker, you can't lose the game."}]
-    assert got["state"]["id"] == 9 and got["state"]["st"] == {"lvl": 2, "doors": ["Bottomless Pool", "Locker Room"], "fd": 1}, got["state"]
+    assert got["state"]["id"] == 9 and got["state"]["st"] == {"lvl": 2, "doors": ["Bottomless Pool", "Locker Room"], "fd": 1, "exh": 1, "eot": 1}, got["state"]
     assert not any(e["k"] == "player" for e in ev), "P/E/M exatos: sem emblema/energia/monarca tirados do texto"
     assert [e["mk"] for e in ev if e["k"] == "marks"] == [["monarch", "initiative"], ["initiative"]]
     # 3 jogadores (todos contra todos): ataque a um jogador concreto, eliminações a meio (GRIMORIO|L) e lugares

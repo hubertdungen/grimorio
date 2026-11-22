@@ -61,6 +61,26 @@ const faces = n => String(n || '').split(' // ')
 // imagem rodada 180°), null = não se vira
 // protótipo (BRO): «Prototype {1}{U}{U} — 2/1» -> '2/1' (o P/R pequeno com que se pode lançar)
 export const protoPt = c => (c && /\bPrototype (?:\{[^}]+\})+ — (\d+\/\d+)/.exec(c.o || '')?.[1]) || null
+// meld (Eldritch Moon, Brothers' War…): a que tem «… then meld them into R.» é a principal, a outra diz «(Melds with X.)».
+// of: nome de cada metade -> { with: a outra, into: R }; parts: R -> [principal, outra]
+const MELD = new WeakMap()
+export function meldIndex(data) {
+  let m = data && MELD.get(data)
+  if (m || !data?.byName) return m || { of: new Map(), parts: new Map() }
+  m = { of: new Map(), parts: new Map() }
+  const into = new Map()
+  for (const c of data.byName.values()) { const r = /then meld them into ([^.]+)\./.exec(c.o || ''); if (r) into.set(c.n, r[1].trim()) }
+  for (const c of data.byName.values()) {
+    const w = /\(Melds with ([^)]+?)\.\)/.exec(c.o || ''), r = w && into.get(w[1])
+    if (!r) continue
+    m.of.set(c.n, { with: w[1], into: r }); m.of.set(w[1], { with: c.n, into: r }); m.parts.set(r, [w[1], c.n])
+  }
+  MELD.set(data, m)
+  return m
+}
+// do exílio ainda se lança: plot, warp, foretell, suspender (com marcadores de tempo) ou um efeito («may»: airbend, aventura, impulso…)
+export const EXILE_WAY = { plot: tx('plot: lança-se num turno seguinte sem pagar'), warp: tx('warp: lança-se num turno seguinte'), foretell: tx('foretell: lança-se pelo custo de profecia'),
+  suspend: tx('suspender: lança-se quando sair o último marcador de tempo'), may: tx('pode ser lançada daqui (airbend, aventura, impulso…)') }
 export const flipKind = c => (!c ? null : c.df ? 'df' : c.n.includes(' // ') && /\bflip (?!a coin|that coin|coins)/i.test(c.o || '') ? 'flip' : null)
 export const typeOf = (data, perm) => {
   const c = permCard(data, perm)
@@ -314,6 +334,8 @@ export function applyEvent(s0, ev, data) {
       if (j >= 0) s[z.fp][z.from] = pile.filter((_, x) => x !== j)
     }
     if (z.to === 'battlefield' && s[z.tp] && !find(z.id, null)) {
+      const halves = z.from === 'exile' && s[z.fp] && meldIndex(data).parts.get(z.card)  // fundidas: as duas metades saem do exílio (o Forge só move a principal)
+      if (halves) for (const h of halves) { const pile = s[z.fp].exile, j = pile.lastIndexOf(h); if (j >= 0) s[z.fp].exile = pile.filter((_, x) => x !== j) }
       const c = look(z.card), host = z.att != null ? find(z.att, null) : null
       const land = !!(c && /\bLand\b/.test(c.t.split(' // ')[0]))
       make(z.tp, z.card, { src: z.tok ? ev.card || s.stack.at(-1)?.card : undefined, fid: z.id, token: !!z.tok, pt: z.pt || null, kw: z.kw || null, counters: { ...z.ctr }, land, notCre: z.from === 'graveyard' && comesBackNonCreature(c), tapped: land && etbTapped(z.tp, c), attachedTo: host ? host[1].key : null })
@@ -591,12 +613,13 @@ export function applyEvent(s0, ev, data) {
       break
     } break
     case 'dungeon': if (me) s[me].dungeon = ev.card ? { n: ev.card, room: ev.to || '' } : null; break
+    case 'exways': if (me) s[me].exWay = Object.fromEntries((ev.list || []).map(x => [x.n, x.w])); break
     case 'emblems': if (me) { s[me].emblems = (ev.list || []).map(x => x.n); s[me].emText = Object.fromEntries((ev.list || []).filter(x => x.t).map(x => [x.n, x.t])) } break
     case 'state': {
       const f = find(ev.id, null)
       if (f) {
         const st = ev.st || {}
-        upd(f[0], f[1].key, x => ({ ...x, faceDown: !!st.fd, lvl: st.lvl || 0, solved: !!st.solved, ringb: !!st.ring, doors: st.doors || null, phased: !!st.ph }))
+        upd(f[0], f[1].key, x => ({ ...x, faceDown: !!st.fd, lvl: st.lvl || 0, solved: !!st.solved, ringb: !!st.ring, doors: st.doors || null, phased: !!st.ph, exh: st.exh || 0, eot: !!st.eot }))
         touch(f[1].key, !!st.fd !== !!f[1].faceDown ? { kind: 'flip' } : null)
       }
       break

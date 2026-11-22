@@ -348,8 +348,16 @@ public class GrimorioNet {
             if (c.isFaceDown()) o.addProperty("faceDown", true);
             String stn = s.getState().toString();  // a outra face à vista: transformada, flip (Kamigawa), MDFC jogada por trás, fundida
             if (c.isFlipped() || stn.equals("Transformed") || stn.equals("Flipped") || stn.equals("Modal") || stn.equals("Meld")) o.addProperty("flipped", true);
-            if (rc != null) {
+            if (rc != null && rc.isInZone(ZoneType.Exile)) {
+                // no exílio e ainda se pode lançar: plot, warp, foretell; «may» = um efeito deixa (airbend, aventura, impulso…)
+                try { String w = exileWay(rc); if (w != null) o.addProperty("exw", w); } catch (Exception e) { System.err.println("exw: " + e); }
+            } else if (rc != null) {
                 try {
+                    // exhaust/power-up já usada (só uma vez por jogo) e o que sai no fim do turno (mobilize, unearth, warp, dash…)
+                    int ex = 0;
+                    for (forge.game.spellability.SpellAbility sa : new ArrayList<>(rc.getSpellAbilities())) if ((sa.isExhaust() || sa.isPowerUp()) && sa.getActivationsThisGame() > 0) ex++;
+                    if (ex > 0) o.addProperty("exh", ex);
+                    if (rc.hasSVar("EndOfTurnLeavePlay")) o.addProperty("eot", true);
                     if (rc.isPhasedOut()) o.addProperty("phased", true);
                     if (rc.isGoaded()) o.addProperty("goad", true);
                     if (rc.getCopiedPermanent() != null || c.isCloned()) o.addProperty("copy", true);
@@ -374,6 +382,10 @@ public class GrimorioNet {
             if (isHighlighted(c)) o.addProperty("picked", true);  // já escolhida nesta escolha (descartar 2, sacrificar…): o motor marca-a no ecrã
             if (playable.contains(c.getId())) o.addProperty("play", true);
             return o;
+        }
+
+        static String exileWay(forge.game.card.Card c) {
+            return c.isPlotted() ? "plot" : c.isWarped() ? "warp" : c.isForetold() ? "foretell" : c.hasSuspend() ? "suspend" : !c.getMayPlay().isEmpty() ? "may" : null;
         }
 
         // zona de comando: emblemas e masmorras (com a sala atual); os efeitos internos do Forge (monarca, iniciativa…) ficam de fora
@@ -462,7 +474,7 @@ public class GrimorioNet {
             playable = playableNow();
             forge.game.Game game = HM == null ? null : HM.getGame();
             Map<Integer, forge.game.card.Card> rm = new HashMap<>();
-            try { if (game != null) for (forge.game.card.Card x : game.getCardsIncludePhasingIn(ZoneType.Battlefield)) rm.put(x.getId(), x); } catch (Exception e) { System.err.println("real: " + e); }
+            try { if (game != null) for (ZoneType z : new ZoneType[]{ZoneType.Battlefield, ZoneType.Exile}) for (forge.game.card.Card x : game.getCardsIncludePhasingIn(z)) rm.put(x.getId(), x); } catch (Exception e) { System.err.println("real: " + e); }
             real = rm;
             JsonObject o = new JsonObject();
             o.addProperty("t", "state");

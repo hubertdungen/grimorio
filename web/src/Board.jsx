@@ -18,7 +18,7 @@ import { snapBoard, ftBoard, ftTxt } from './fpboard.js'
 import { fClean } from './fpask.js'
 import './fpstack.css'
 import './pilepeek.css'
-import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, protoPt, CT, CT_ICON } from './game.js'
+import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, protoPt, CT, CT_ICON, meldIndex, EXILE_WAY } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
 const PH_SHORT = { untap: tx('Desvirar'), upkeep: tx('Manut.'), draw: tx('fase§Compra'), main1: tx('Princ. 1'), combat: tx('Combate'), main2: tx('Princ. 2'), end: tx('fase§Final') }
@@ -29,7 +29,7 @@ const KW = {
   Indestructible: ['✚', tx('Indestrutível')], Menace: ['‼', tx('Ameaçar')], Reach: ['↥', tx('Alcance')], Infect: ['☣', tx('Infetar')],
 }
 const CT_SHORT = { lore: tx('cap.'), charge: tx('carga'), stun: tx('atord.'), shield: tx('escudo'), time: tx('tempo'), defense: tx('defesa'), oil: tx('óleo') }
-const PACE = { turn: 2, phase: 0.45, tap: 0.3, untap: 0.3, land: 0.9, cast: 1.2, resolve: 0.8, counter: 1, countered: 0.8, trigger: 0.7, activate: 0.8, attack: 0.9, block: 0.9, damage: 0.8, poison: 0.8, life: 0.6, token: 1, counters: 0.8, pump: 0.7, attach: 0.9, transform: 1.3, destroy: 1, exile: 1, bounce: 1, discard: 0.8, mulligan: 0.8, draw: 0.5, mill: 0.6, search: 0.6, player: 1, goad: 0.8, outcome: 2, other: 0.3, day: 1, speed: 0.8, pctr: 0.6, ring: 0.8, marks: 1, dungeon: 0.9, emblems: 1, state: 0.6 }
+const PACE = { turn: 2, phase: 0.45, tap: 0.3, untap: 0.3, land: 0.9, cast: 1.2, resolve: 0.8, counter: 1, countered: 0.8, trigger: 0.7, activate: 0.8, attack: 0.9, block: 0.9, damage: 0.8, poison: 0.8, life: 0.6, token: 1, counters: 0.8, pump: 0.7, attach: 0.9, transform: 1.3, destroy: 1, exile: 1, bounce: 1, discard: 0.8, mulligan: 0.8, draw: 0.5, mill: 0.6, search: 0.6, player: 1, goad: 0.8, outcome: 2, other: 0.3, day: 1, speed: 0.8, pctr: 0.6, ring: 0.8, marks: 1, dungeon: 0.9, emblems: 1, state: 0.6, exways: 0.5 }
 // cor da marca na linha do tempo
 const MARK = { cast: 'm-cast', land: 'm-land', attack: 'm-atk', block: 'm-atk', damage: 'm-dmg', poison: 'm-dmg', destroy: 'm-die', exile: 'm-die', token: 'm-new', counters: 'm-new', transform: 'm-new', outcome: 'm-end' }
 const QUIET = new Set(['other', 'phase'])
@@ -58,10 +58,12 @@ function describe(ev, who) {
     case 'marks': return ev.mk?.includes('monarch') ? tx('{P} torna-se o monarca', { P }) : ev.mk?.includes('initiative') ? tx('{P} toma a iniciativa', { P }) : tx('{P}: designações {x}', { P, x: (ev.mk || []).join(', ') || '—' })
     case 'pctr': return tx('{P}: {n} marcadores {ct}', { P, n: ev.abs, ct: CT[ev.ct] || ev.ct })
     case 'dungeon': return ev.card ? tx('{P} avança na masmorra {d}: {r}', { P, d: ev.card, r: ev.to || '—' }) : tx('{P} completa a masmorra', { P })
+    case 'exways': return (ev.list || []).length ? tx('{P}: no exílio para lançar — {x}', { P, x: ev.list.map(x => short(x.n)).join(', ') }) : tx('{P}: nada no exílio para lançar', { P })
     case 'emblems': return (ev.list || []).length ? tx('{P} tem um emblema novo: {c}', { P, c: short(ev.list.at(-1).n) }) : tx('{P} já não tem emblemas', { P })
     case 'state': { const st = ev.st || {}
       return [st.fd ? tx('{c} está virada para baixo', { c: c || tx('uma carta') }) : null, st.lvl ? tx('{c}: nível {n}', { c, n: st.lvl }) : null, st.solved ? tx('{c}: caso resolvido', { c }) : null,
-        st.ring ? tx('{c} é o portador do Anel', { c }) : null, st.doors ? tx('{c}: portas abertas — {x}', { c, x: st.doors.join(', ') || '—' }) : null, st.ph ? tx('{c} sai de fase', { c }) : null].filter(Boolean).join(' · ') || tx('{c} muda de estado', { c }) }  // réplica de um jogo jogado por pessoas: o que mudou nessa fotografia
+        st.ring ? tx('{c} é o portador do Anel', { c }) : null, st.doors ? tx('{c}: portas abertas — {x}', { c, x: st.doors.join(', ') || '—' }) : null, st.ph ? tx('{c} sai de fase', { c }) : null,
+        st.exh ? tx('{c}: habilidade de esgotar usada', { c }) : null, st.eot ? tx('{c} sai no fim do turno', { c }) : null].filter(Boolean).join(' · ') || tx('{c} muda de estado', { c }) }  // réplica de um jogo jogado por pessoas: o que mudou nessa fotografia
     case 'nodraw': return tx('{P} não compra no 1.º turno (Two-Headed Giant: a equipa que começa)', { P })
     case 'phase': return tx('Fase: {ph}', { ph: PH_LABEL[ev.ph] || ev.ph })
     case 'mulligan': return ev.card === 'kept' ? tx('{P} fica com {n} carta|{P} fica com {n} cartas', { P, n: ev.n }) : tx('{P} faz mulligan para {n}', { P, n: ev.n })
@@ -336,9 +338,15 @@ function PtExplain({ p, data, at }) {  // at: onde está o número (no ecrã): a
 
 // mecânicas à vista numa permanente (Forge Play, réplicas e mesa livre): portas das Salas, nível da Classe, Caso resolvido,
 // capítulo da Saga, carga da Nave (estação), portador do Anel, suspeita, protótipo; batalhas deitadas
-export function mechOf(c, p) {
+export function mechOf(c, p, data) {
   if (p.faceDown || p.hidden) return { doors: null, lvl: 0, badges: [], battle: false }  // virada para baixo: uma 2/2 sem nome nem mecânicas
   const tl = (c?.t || '').split(' // ')[0], o = c?.o || '', badges = []
+  const halves = c && meldIndex(data).parts.get(c.n)  // a carta resultado só chega à mesa fundida
+  if (halves) badges.push(['⚭', tx('Fundida (meld): {x}', { x: halves.map(short).join(' + ') })])
+  if (p.exh) badges.push(['⌁', tx('Habilidade de esgotar (exhaust) já usada: não se ativa outra vez')])
+  if (p.eot) badges.push(['⌛', tx('Sai no fim do turno (mobilize, unearth, warp, dash…)')])
+  // terreno animado (earthbend, manlands, Nissa…): impresso só como terreno e agora é criatura
+  if (data && !/Creature/.test(tl) && isLand(data, p) && isCreature(data, p)) badges.push(['⛰', tx('Terreno que agora é uma criatura (earthbend, manlands…)')])
   const faces = c && /\bRoom\b/.test(c.t) ? c.n.split(' // ') : null
   const doors = faces && faces.length === 2 ? faces.map(f => [f, (p.doors || []).includes(f)]) : null
   const lvl = /\bClass\b/.test(tl) ? p.lvl || p.counters?.level || 1 : 0
@@ -361,7 +369,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
   const creature = isCreature(data, p)
   const pt = creature ? powTough(data, p) : null
   const kws = kwsOf(c, p)
-  const back = backUp(c, p), upside = back && !c?.df && !p.hidden  // carta flip (Kamigawa): a mesma imagem, rodada 180°
+  const back = backUp(c, p), upside = back && !c?.df && !p.hidden && !!c?.n.includes(' // ')  // carta flip (Kamigawa): a mesma imagem, rodada 180° (a fundida do meld tem a sua imagem)
   const ctr = Object.entries(p.counters || {}).filter(([k]) => k !== 'loyalty' && k !== 'defense')
   // palavras-chave em ação: pressa a atacar (rasto de velocidade), alcance a bloquear (ramos), indestrutível ferida
   // (escudo dourado), toque mortal no combate (aura negra-esverdeada), exaltar quando uma criatura ataca sozinha (.bside.lone-atk)
@@ -371,7 +379,7 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
   const cls = ['pc', kfx, p.dmgIn > 0 && 'hurt', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', typeof p.dying === 'string' && `to-${p.dying}`, p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', p.phased && 'phased', p.faceDown && 'down', enter && 'in'].filter(Boolean).join(' ')
   const title = [short(p.face || p.name), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase (phasing): não conta como estando em jogo'), p.copy && tx('cópia'), p.merged?.length > 1 && tx('mutada: {x}', { x: p.merged.map(short).join(' + ') }), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.moon && tx('Blood Moon: é uma Montanha e só dá mana vermelha'), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
   tgt = tgt || (p.atkName ? ['x', short(p.atkName)] : null)  // ataca um planeswalker ou uma batalha
-  const mech = mechOf(c, p)
+  const mech = mechOf(c, p, data)
   return (
     <div className={`${cls}${mech.battle ? ' battle' : ''}`} data-z={`k:${p.key}`} title={title} style={p.pair ? { '--pair': PAIR[(p.pair - 1) % PAIR.length] } : undefined}>
       {kfx && <i className="pc-kfx" aria-hidden="true" />}
@@ -993,7 +1001,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
   )
 }
 
-function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet, zone, who, openLabel }) {  // zone: data-zone (a mesa livre larga cartas nos montes)  // est: jogo antigo, contagem deduzida
+function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet, zone, who, openLabel, ways }) {  // ways: as do exílio que ainda se lançam (nome -> como)  // zone: data-zone (a mesa livre larga cartas nos montes)  // est: jogo antigo, contagem deduzida
   const top = cards?.length ? cards[cards.length - 1] : null
   const c = top && lookup(data, top), im = useImg()
   const n = count ?? cards?.length ?? 0
@@ -1004,7 +1012,7 @@ function Pile({ label, icon, cards, count, onOpen, data, est, back, quiet, zone,
       <span className="pile-c">{back || !c ? <span className={n ? 'pc-back' : 'pile-0'} /> : <In as="img" key={`${n}`} quiet={quiet} src={im(c, 'small')} alt={top} />}</span>
       <small>{icon} {n == null ? '?' : `${est ? '≈' : ''}${n}`}</small>
     </button>
-    {pk.open && <PilePeek pk={pk} zone={zone} label={label} icon={icon} who={who} n={n} est={est} cards={back ? null : cards} data={data} onOpen={onOpen && (() => pk.reopen())} openLabel={openLabel} />}
+    {pk.open && <PilePeek pk={pk} zone={zone} label={label} icon={icon} who={who} n={n} est={est} cards={back ? null : cards} data={data} onOpen={onOpen && (() => pk.reopen())} openLabel={openLabel} ways={ways} />}
   </>)
 }
 
@@ -1054,7 +1062,7 @@ function backWay(c) {  // como volta do cemitério (a palavra-chave) ou null
   const nm = short(c.n), first = nm.split(',')[0]
   return new RegExp(`\\b(cast|return|play|put) (this card|${reEsc(nm)}|${reEsc(first)})\\b[^.]{0,40}\\bfrom your graveyard`, 'i').test(c.o || '') ? tx('volta sozinha') : null
 }
-function PilePeek({ pk, zone, label, icon, who, n, est, cards, data, onOpen, openLabel, libTop }) {
+function PilePeek({ pk, zone, label, icon, who, n, est, cards, data, onOpen, openLabel, libTop, ways }) {
   const im = useImg(), box = useRef(null), [focus, setFocus] = useState(null), [pos, setPos] = useState(null)
   const list = cards || [], last = list.slice(-8), shown = focus || (libTop ? libTop.name : list.at(-1)), sc = shown && lookup(data, shown)
   const sheet = typeof matchMedia === 'function' && (matchMedia('(max-width: 640px)').matches || (pk.open === 'tap' && matchMedia('(max-height: 480px)').matches))
@@ -1069,6 +1077,7 @@ function PilePeek({ pk, zone, label, icon, who, n, est, cards, data, onOpen, ope
   const types = PK_T(0).map(([t], i) => { const k = cs.filter(c => new RegExp(`\\b${t}\\b`).test(c.t || '')).length; return [t, k && PK_T(k)[i][1]] }).filter(x => x[1])
   const deli = new Set(cs.flatMap(c => DELI.filter(t => new RegExp(`\\b${t === 'Kindred' ? '(Kindred|Tribal)' : t}\\b`).test(c.t || '')))).size
   const back = zone === 'graveyard' ? [...new Map(cs.map(c => [c.n, backWay(c)]).filter(x => x[1])).entries()] : []
+  const exw = zone === 'exile' ? Object.entries(ways || {}).filter(([nm]) => list.includes(nm)) : []
   const hid = list.length - known.length
   const title = zone === 'library' ? tx('Biblioteca') : label
   const body = (
@@ -1098,6 +1107,8 @@ function PilePeek({ pk, zone, label, icon, who, n, est, cards, data, onOpen, ope
           {zone === 'graveyard' && list.length > 0 && <p className={`pilepk-deli ${deli >= 4 ? 'on' : ''}`} title={tx('Delírio: quatro ou mais tipos de carta no cemitério')}>{tx('Delírio')}: <b>{deli}</b>{deli >= 4 ? ' ✓' : '/4'}{list.length >= 7 && <> · {tx('Limiar')} ✓</>}</p>}
           {back.length > 0 && <div className="pilepk-back"><small>{tx('Podem voltar do cemitério')}</small>
             {back.slice(0, 5).map(([nm, w]) => <button key={nm} className="pilepk-chip" onPointerEnter={() => setFocus(nm)} onClick={() => setFocus(nm)}>{short(nm)} <i>{w}</i></button>)}</div>}
+          {exw.length > 0 && <div className="pilepk-back"><small>{tx('Podem ser lançadas do exílio')}</small>
+            {exw.slice(0, 6).map(([nm, w]) => <button key={nm} className="pilepk-chip" title={EXILE_WAY[w] || w} onPointerEnter={() => setFocus(nm)} onClick={() => setFocus(nm)}>{short(nm)} <i>{w === 'may' ? tx('pode lançar') : w === 'suspend' ? tx('suspensa') : w}</i></button>)}</div>}
           {hid > 0 && <p className="muted small">{tx('{n} virada para baixo|{n} viradas para baixo', { n: hid })}</p>}
         </div>
       </div>
@@ -1931,7 +1942,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
         {z.libTop ? <LibTop k={k} z={z} data={data} who={name} /> : <Pile label={tx('Biblioteca')} icon="▤" count={z.library} back est={!s.exact} data={data} zone="library" who={name} openLabel={tx('Abrir a biblioteca')} onOpen={openLib && (() => openLib(k))} />}
         {(k !== 'a' || top) && !s.exact && <div className="bhand" title={`${tx('{n} carta na mão|{n} cartas na mão', { n: z.hand })}${s.exact ? '' : ` ${tx('(estimativa)')}`}`}>{Array.from({ length: Math.min(8, z.hand) }).map((_, j) => <span key={j} className="back" />)}<small>✋ {s.exact ? '' : '≈'}{z.hand}</small></div>}
         <Pile label={tx('Cemitério')} icon="⚰" cards={z.graveyard} data={data} quiet={fast} onOpen={() => openZone(k, 'graveyard')} zone="graveyard" who={name} />
-        <Pile label={tx('Exílio')} icon="⌀" cards={z.exile} data={data} quiet={fast} onOpen={() => openZone(k, 'exile')} zone="exile" who={name} />
+        <Pile label={tx('Exílio')} icon="⌀" cards={z.exile} data={data} quiet={fast} onOpen={() => openZone(k, 'exile')} zone="exile" who={name} ways={z.exWay} />
       </div>
     </div>
   )
@@ -2048,7 +2059,7 @@ function zoomInfo(z, s, data) {
           p.pump && tx('{pt} até ao fim do turno', { pt: `${p.pump[0] >= 0 ? '+' : ''}${p.pump[0]}/${p.pump[1] >= 0 ? '+' : ''}${p.pump[1]}` }),
           att.length && tx('Anexadas: {x}', { x: att.map(x => short(x.name)).join(', ') }),
           host && tx('Anexada a {x}', { x: short(host.name) }),
-          ...(m => [m.doors && m.doors.map(([f, on]) => `${on ? '🚪' : '🔒'} ${f}`).join(' · '), m.lvl > 0 && tx('Classe: nível {n}', { n: m.lvl }), ...m.badges.map(b => `${b[0]} ${b[1]}`)])(mechOf(c, p)),
+          ...(m => [m.doors && m.doors.map(([f, on]) => `${on ? '🚪' : '🔒'} ${f}`).join(' · '), m.lvl > 0 && tx('Classe: nível {n}', { n: m.lvl }), ...m.badges.map(b => `${b[0]} ${b[1]}`)])(mechOf(c, p, data)),
           kwsOf(c, p).map(k => KW[k][1]).join(' · '),
           [p.tapped && tx('virada'), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase'), p.copy && tx('cópia'), p.sick && tx('enjoo de invocação'), p.attacking && tx('a atacar'), p.blocking && tx('a bloquear'), p.token && tx('ficha'), p.goaded && tx('incitada')].filter(Boolean).join(' · '),
         ].filter(Boolean)
