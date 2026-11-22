@@ -1362,3 +1362,4 @@ import { ptExplain } from './src/game.js'
 { const { selfcheck } = await import('./src/alterart.js'); selfcheck(assert); console.log('selfcheck alter art (pedido e caixas da arte) ok') }
 { const { selfcheck } = await import('./src/upscale.js'); selfcheck(assert); console.log('selfcheck ampliar (ladrilhos) ok') }
 { const { selfcheck } = await import('./src/alterbatch.js'); selfcheck(assert); console.log('selfcheck alter arts em lote (custo, fila, nomes dos ficheiros) ok') }
+{ const { selfcheck } = await import('./src/epic.js'); const { prepData } = await import('./src/data.js'); selfcheck(assert, prepData); console.log('selfcheck nomes épicos (Teval, Beckett, Izzet tempo; comandante; línguas) ok') }

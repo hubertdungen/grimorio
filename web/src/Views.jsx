@@ -1,7 +1,7 @@
 import { matchArts, shrink } from './artmatch.js'
 import { createContext, useContext, lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
-import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf, fmtBit } from './data.js'
+import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf, fmtBit, deckTribe } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, subsOf, pairOk } from './formats.js'
 import { count as zoneCount } from './deck.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
@@ -912,17 +912,6 @@ export function deckFit(data, deck) {
   // a tribo do deck pesa muito: um comandante desse tipo ou que fala dele no texto («Spirits you control…»)
   const tb = c => (!tre ? 0 : (tre.test(c.t) ? 0.35 : 0) + (tre.test(c.o || '') ? 0.45 : 0))
   return c => { let d = 0; for (let k = 0; k < D; k++) d += cen[k] * E[c.i * D + k]; return d / 127 / eff.length + pop(c) + tb(c) + (deck.main[c.n] ? 0.25 : 0) }
-}
-// o tipo de criatura dominante (≥ 25% das criaturas, pelo menos 6); os changelings contam para todos
-export function deckTribe(cards) {
-  const cre = cards.filter(c => /Creature/.test(c.t)), n = new Map()
-  for (const c of cre) {
-    if (/Changeling/.test(c.o || '')) continue
-    for (const t of new Set((c.t.split(' // ')[0].split(' — ')[1] || '').split(' ').filter(Boolean))) n.set(t, (n.get(t) || 0) + 1)
-  }
-  const ch = cre.filter(c => /Changeling/.test(c.o || '')).length
-  const [t, k] = [...n].sort((a, b) => b[1] - a[1])[0] || []
-  return t && k + ch >= Math.max(6, cre.length / 4) ? t : null
 }
 
 export function SearchView({ data, deck, fmt, ctx, act }) {

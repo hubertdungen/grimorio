@@ -8,13 +8,15 @@ import CardScan from './CardScan.jsx'
 import Rules from './Rules.jsx'
 import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
-import { useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList } from './data.js'
+import { Suspense, lazy, useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList, deckTribe, deckIdentity } from './data.js'
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf, pairOk } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
-import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar, deckFit, deckTribe, BadCards, badProps } from './Views.jsx'
-import { landProd, deckIdentity } from './AnalysisDash.jsx'
+import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar, deckFit, BadCards, badProps } from './Views.jsx'
+import { landProd } from './AnalysisDash.jsx'
+import { addNotes } from './epic.js'
+const EpicDialog = lazy(() => import('./Epic.jsx'))  // ✨ Epificar nomes
 import { pushView, setOnView, useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, flipCardPeek, peekOpen, pressPeek, useFolded, delayedPeek } from './deckview.js'
 import DraftView from './Draft.jsx'
@@ -234,6 +236,7 @@ export default function App() {
   const [showImport, setShowImport] = useState(false)
   const [showAuto, setShowAuto] = useState(false)
   const [showAI, setShowAI] = useState(false)
+  const [showEpic, setShowEpic] = useState(false)
   const [showWizard, setShowWizard] = useState(false)
   // página inicial só na 1.ª abertura da sessão do browser: um F5 volta ao sítio onde se estava
   const [home, setHome] = useState(() => { try { return !FROM_ROOM && !window.location.hash.startsWith('#importar=') && !sessionStorage.getItem('grimorio.dentro') } catch { return true } })
@@ -615,7 +618,7 @@ export default function App() {
       {levarEl}
 
       {section === 'regras' && <div className="area"><Rules data={data} /></div>}
-      {section === 'biblioteca' && <div className="area"><Library data={data} openDeck={id => openDeck(id).then(() => goTab('deck'))} goTab={goTab} say={say} importLinks={importLinks} focus={libFocus} /></div>}
+      {section === 'biblioteca' && <div className="area"><Library data={data} openDeck={id => openDeck(id).then(() => goTab('deck'))} goTab={goTab} say={say} importLinks={importLinks} focus={libFocus} cur={deck.id ? deck : null} patchCur={setDeck} /></div>}
       {section === 'coliseu' && (
         <div className="area coliseu" ref={coliseuRef}>
           {!isCompact() && <p className="rodar-hint">↻ {tx('Roda o tablet para paisagem para veres melhor o tabuleiro.')}</p>}  {/* com a mesa compacta o tablet ao alto já fica bem */}
@@ -638,7 +641,7 @@ export default function App() {
 
       {section === 'construir' && <BadCards.Provider value={badMap}><div className="body">
         <aside className="deck-panel">
-          <DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} />
+          <DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, setShowEpic, hist: histN }} />
         </aside>
         <main className="work">
           {tab === 'pesquisa' && <SearchView {...{ data, deck, fmt, ctx, act }} />}
@@ -652,12 +655,13 @@ export default function App() {
             <div className="view deck-tab">
               <div className="deck-top">
               <label className="dt-name"><span aria-hidden="true">✎</span><input className="deck-name" value={deck.name} onChange={e => setDeck(d => ({ ...d, name: e.target.value }))} aria-label={tx('Nome do deck')} placeholder={tx('Nome do deck')} enterKeyHint="done" onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} /></label>
+              <button className="ep-btn" onClick={() => setShowEpic(true)} title={tx('Epificar nomes: sugestões de nomes épicos para este deck')} aria-label={tx('Epificar nomes')}>✨</button>
               <div className="seg viewby"><button className={deckView === 'grelha' ? 'on' : ''} onClick={() => setDeckView('grelha')}><i>▦</i><span>{tx('Grelha')}</span></button><button className={deckView === 'lista' ? 'on' : ''} onClick={() => setDeckView('lista')}><i>☰</i><span>{tx('Lista')}</span></button></div>
               </div>
               <ColorStrip data={data} deck={deck} className="cs-top" />
               {deckView === 'grelha' && <UndoBtns act={act} hist={histN} />}
               {deckView === 'grelha' && <div className="grid-autos">{(!fmt.size[1] || total < fmt.size[1]) && <button className="auto-btn" onClick={() => setShowAuto(true)}>✦ {tx('Completar deck automaticamente')}</button>}<button className="ai-btn" onClick={() => setShowAI(true)}>✦ {tx('Assistente IA')} <span className="muted small">({tx('extra')})</span></button></div>}  {/* no telemóvel o painel do deck (onde estes vivem) está escondido */}
-              {deckView === 'grelha' ? <DeckGrid {...{ data, deck, fmt, act, ctx }} /> : <div className="deck-mobile"><DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} /></div>}
+              {deckView === 'grelha' ? <DeckGrid {...{ data, deck, fmt, act, ctx }} /> : <div className="deck-mobile"><DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, setShowEpic, hist: histN }} /></div>}
             </div>
           )}
         </main>
@@ -680,6 +684,8 @@ export default function App() {
       }} />}
       {artCard && <ArtPicker c={artCard} deck={deck} data={data} act={act} onClose={() => setArtCard(null)} />}
       {scan && data && <CardScan data={data} onPick={c => act.add(c)} onClose={() => setScan(false)} />}
+      {showEpic && <Suspense fallback={null}><EpicDialog data={data} decks={[deck]} taken={decks.filter(d => d.id !== deck.id).map(d => d.name)} onClose={() => setShowEpic(false)}
+        onApply={async list => { for (const ch of list) setDeck(d => ({ ...d, ...(ch.name ? { name: ch.name } : {}), ...(ch.notes ? { notes: addNotes(d.notes, ch.notes) } : {}) })); say(list.some(c => c.name) ? tx('Nome mudado: {name}', { name: list.find(c => c.name).name }) : tx('Descrição guardada nas notas.')) }} /></Suspense>}
       {showAI && <AIDialog {...{ data, deck, fmt, ctx, act, setDeck, issues, onClose: () => setShowAI(false) }} />}
       {showAuto && <AutoBuildDialog {...{ data, deck, fmt, ctx, setDeck, say, act, onClose: () => setShowAuto(false) }} />}
       {showRefresh && <RefreshDialog {...{ data, deck, setDeck, say, onClose: () => setShowRefresh(false) }} />}
@@ -703,7 +709,7 @@ export default function App() {
   )
 }
 
-function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist }) {
+function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, setShowEpic, hist }) {
   const bad = useContext(BadCards)
   const [viewBy, setViewBy] = useState(deck.groups?.length ? 'grupos' : 'tipo')
   const [proxies, setProxies] = useState(false), ds = useDeckSel()
@@ -758,7 +764,8 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
   )
   return (
     <div className="deck">
-      <input className="deck-name" value={deck.name} onChange={e => setDeck(d => ({ ...d, name: e.target.value }))} aria-label={tx('Nome do deck')} />
+      <div className="dp-name"><input className="deck-name" value={deck.name} onChange={e => setDeck(d => ({ ...d, name: e.target.value }))} aria-label={tx('Nome do deck')} />
+        <button className="ep-btn" onClick={() => setShowEpic(true)} title={tx('Epificar nomes: sugestões de nomes épicos para este deck')} aria-label={tx('Epificar nomes')}>✨</button></div>
       <label className="fmt">
         <span>{tx('Formato')}</span>
         <select value={deck.format} onChange={async e => { const f = e.target.value; if (Object.keys(deck.main).length && !(await ask('formato', { title: tx('Mudar o formato para {f}?', { f: FORMAT[f]?.name || f }), body: tx('As cartas ficam; a validação, as metas e as sugestões passam a ser as do novo formato.'), ok: tx('Mudar'), danger: false }))) return; setDeck(d => ({ ...d, format: f })) }}>

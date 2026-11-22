@@ -985,11 +985,13 @@ class H(BaseHTTPRequestHandler):
             st["auto"] = auto
             write_atomic(p, json.dumps(st).encode())
             return self.json(update_state())
-        if self.path in ("/api/ia/config", "/api/ia/ask"):
+        if self.path in ("/api/ia/config", "/api/ia/ask", "/api/ia/names"):
             try:
                 d = self.body()
                 if self.path == "/api/ia/config":
                     return self.json(ia.save(ARGS.data_dir, d))
+                if self.path == "/api/ia/names":  # «✨ Epificar nomes»: nomes + descrição (ia.names)
+                    return self.json(ia.names(ARGS.data_dir, d))
                 return self.json(ia.ask(ARGS.data_dir, d))
             except ValueError as e:
                 return self.json({"erro": str(e)}, 400)
@@ -1349,6 +1351,12 @@ def selfcheck():
         assert call("POST", "/api/ia/image", {"provider": "mock", "prompt": "#erro"})[:2] == (502, {"erro": imagegen.SAFETY})
         assert call("POST", "/api/ia/image", {"provider": "openai", "prompt": "x"})[0] == 400  # sem chave: nem tenta a rede
         del os.environ["GRIMORIO_IMG_MOCK"]
+        os.environ["GRIMORIO_IA_MOCK"] = "1"  # nomes épicos pela rota, com o fornecedor de teste
+        st, nm = call("POST", "/api/ia/names", {"context": "Comandante: Teval, the Balanced Scale"})[:2]
+        assert st == 200 and nm["names"][0] == "Teval and the Mock Armada" and nm["description"], nm
+        assert call("POST", "/api/ia/names", {"context": "#erro"})[0] == 502
+        del os.environ["GRIMORIO_IA_MOCK"]
+        assert call("POST", "/api/ia/names", {"context": "x"})[0] == 400  # IA desligada: erro claro, sem rede
         assert call("POST", "/api/ia/image", {"provider": "mock", "prompt": "x"})[0] == 400
         APP_TOKEN = "t0k3n"  # app Android: o servidor só responde à WebView da app (cookie grimorio_app)
         try:

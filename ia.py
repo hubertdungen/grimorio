@@ -222,56 +222,117 @@ def _user_prompt(payload):
     return "\n\n".join(parts)
 
 
-def ask(data_dir, payload):
+def _complete(data_dir, provider, system, user, schema, max_tokens=16000, timeout=120):
+    """Uma resposta do fornecedor ativo (ou de outro com chave): (texto, «fornecedor · modelo»). Erros em pt-PT."""
     c = load(data_dir)
-    name = payload.get("provider") if payload.get("provider") in PROVIDERS else c.get("active")  # pode pedir-se a outro fornecedor com chave
+    name = provider if provider in PROVIDERS else c.get("active")  # pode pedir-se a outro fornecedor com chave
     prov = PROVIDERS.get(name)
     if not prov:
         raise ValueError("A IA está desligada. Escolhe um fornecedor nas definições da IA.")
     key = c["keys"].get(name)
     if not prov.get("nokey") and not key:
         raise ValueError("Falta a chave do fornecedor de IA.")
-    c = {"provider": name, "key": key, "model": c["models"].get(name)}  # o resto do pedido usa estes três
-    model = c.get("model") or prov["model"]
-    user = _user_prompt(payload)
+    model = c["models"].get(name) or prov["model"]
     try:
         if prov["kind"] == "anthropic":
             r = _post("https://api.anthropic.com/v1/messages",
-                      {"x-api-key": c["key"], "anthropic-version": "2023-06-01", "anthropic-beta": "server-side-fallback-2026-07-01"},
-                      {"model": model, "max_tokens": 16000, "fallbacks": "default", "system": SYSTEM,
-                       "output_config": {"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
-                       "messages": [{"role": "user", "content": user}]})
+                      {"x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-beta": "server-side-fallback-2026-07-01"},
+                      {"model": model, "max_tokens": max_tokens, "fallbacks": "default", "system": system,
+                       "output_config": {"effort": "medium", "format": {"type": "json_schema", "schema": schema}},
+                       "messages": [{"role": "user", "content": user}]}, timeout)
             if r.get("stop_reason") == "refusal":
                 raise ValueError("O modelo recusou o pedido.")
             text = "".join(b.get("text", "") for b in r.get("content", []) if b.get("type") == "text")
         else:
-            body = {"model": model, "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}],
+            body = {"model": model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
                     "response_format": {"type": "json_object"}}
-            headers = {"Authorization": f"Bearer {c['key']}"} if c.get("key") else {}
+            headers = {"Authorization": f"Bearer {key}"} if key else {}
             try:
-                r = _post(prov["base"] + "/chat/completions", headers, body)
+                r = _post(prov["base"] + "/chat/completions", headers, body, timeout)
             except urllib.error.HTTPError as e:
                 if e.code != 400:
                     raise
                 body.pop("response_format")  # alguns modelos não aceitam o modo JSON
-                r = _post(prov["base"] + "/chat/completions", headers, body)
+                r = _post(prov["base"] + "/chat/completions", headers, body, timeout)
             text = r["choices"][0]["message"]["content"] or ""
-        out = _json_from_text(text)
     except urllib.error.HTTPError as e:
         msg = {401: "Chave inválida.", 403: "A chave não tem acesso a este modelo.", 404: "Modelo não encontrado neste fornecedor.",
                429: "Limite do plano atingido; tenta daqui a pouco."}.get(e.code, f"O fornecedor respondeu com erro {e.code}.")
         raise RuntimeError(msg)
-    except urllib.error.URLError:
+    except (urllib.error.URLError, TimeoutError, OSError):
         raise RuntimeError("Não consegui ligar ao fornecedor de IA.")
-    except (KeyError, IndexError, json.JSONDecodeError):
+    except (KeyError, IndexError, TypeError):
+        raise RuntimeError("A resposta da IA veio num formato inesperado.")
+    return text, f"{name} · {model}"
+
+
+def ask(data_dir, payload):
+    text, label = _complete(data_dir, payload.get("provider"), SYSTEM, _user_prompt(payload), SCHEMA)
+    try:
+        out = _json_from_text(text)
+    except json.JSONDecodeError:
         raise RuntimeError("A resposta da IA veio num formato inesperado.")
     for k in ("adicionar", "tirar", "trocas", "ajustes", "grupos"):
         if not isinstance(out.get(k), list):
             out[k] = []
     out["resumo"] = str(out.get("resumo") or "")
-    out["modelo"] = f"{c['provider']} · {model}"
+    out["modelo"] = label
     return out
 
+
+
+# «✨ Epificar nomes» (web/src/epic.js): nomes épicos + uma descrição curta do deck, a partir de um resumo compacto
+NAMES_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["names", "description"],
+                "properties": {"names": {"type": "array", "items": {"type": "string"}}, "description": {"type": "string"}}}
+NAMES_SYSTEM = """És um bardo de Magic: The Gathering que dá nomes épicos a decks, dentro do Grimório.
+Respondes só com um objeto JSON: {"names": [str], "description": str}.
+- "names": 6 nomes curtos (até 50 caracteres), pronunciáveis, memoráveis e diferentes entre si, no tom de títulos de saga:
+  «Teval's Haunted Dominion», «Morophon, Master of a Thousand Forms», «Ninjas of the Crimson Moon», «SPQR: Roma Invicta»,
+  «Decepticons, All Hail Megatron!». Usa a tribo, a estratégia, o universo (Universes Beyond: frases e referências da franquia),
+  a combinação de cores e as cartas principais. Nada de nomes iguais aos que já existem.
+- "description": 3 a 5 frases curtas na língua pedida: o que o deck faz, como ganha, as peças-chave ou combos, e uma linha
+  sobre o estilo de jogo. Concreta, sem inventar cartas que não estão no resumo."""
+_LANG = {"pt": "português europeu (pt-PT, nunca do Brasil)", "en": "inglês", "es": "espanhol", "de": "alemão", "zh": "chinês simplificado"}
+
+
+def _names_prompt(payload):
+    lang = payload.get("lang") if payload.get("lang") in _LANG else "pt"
+    names_lang = "inglês" if payload.get("english") else f"{_LANG[lang]} (metade) e inglês (metade)"
+    keep = "Inclui o nome do comandante (ou da carta-chave) em metade dos nomes." if payload.get("keep", True) else "NÃO uses o nome do comandante nem de cartas."
+    taken = ", ".join(str(x)[:60] for x in (payload.get("taken") or [])[:40])
+    return "\n".join([f"Nomes em {names_lang}. Descrição em {_LANG[lang]}.", keep, f"Nomes já usados: {taken}" if taken else "",
+                      "## Deck", str(payload.get("context") or "")[:4000]])
+
+
+def _mock_names(user):  # GRIMORIO_IA_MOCK=1: testes sem rede nem custos
+    if "#erro" in user:
+        raise RuntimeError("Limite do plano atingido; tenta daqui a pouco.")
+    m = re.search(r"Comandante: ([^,—|\n]+)", user) or re.search(r"Carta-chave: ([^\n]+)", user)
+    who = (m.group(1).strip() if m else "Grimório")
+    return json.dumps({"names": [f"{who} and the Mock Armada", f"The Gilded Test of {who}", "Requiem of the Fake Key", "Ninjas of the Mock Moon", "Ninjas of the Mock Moon", ""],
+                       "description": f"Deck de teste de {who}: joga em volta das cartas principais e ganha com o plano do resumo. Estilo: paciente."}), "mock · teste"
+
+
+def names(data_dir, payload):
+    """{context (resumo do epic.js), lang, english, keep, taken} -> {names: [≤8], description, modelo}."""
+    user = _names_prompt(payload)
+    if os.environ.get("GRIMORIO_IA_MOCK") == "1":
+        text, label = _mock_names(user)
+    else:
+        text, label = _complete(data_dir, payload.get("provider"), NAMES_SYSTEM, user, NAMES_SCHEMA, max_tokens=1500, timeout=60)
+    try:
+        out = _json_from_text(text)
+    except ValueError:
+        raise RuntimeError("A resposta da IA veio num formato inesperado.")
+    seen, got = {s.lower() for s in (payload.get("taken") or []) if isinstance(s, str)}, []
+    for n in out.get("names") if isinstance(out.get("names"), list) else []:
+        n = re.sub(r"\s+", " ", str(n)).strip().strip('"«»“”')[:80]
+        if n and n.lower() not in seen:
+            seen.add(n.lower()); got.append(n)
+    desc = str(out.get("description") or "").strip()[:1500]
+    if not got and not desc:
+        raise RuntimeError("A IA não propôs nomes; tenta outra vez.")
+    return {"names": got[:8], "description": desc, "modelo": label}
 
 if __name__ == "__main__":  # verificação sem rede
     import tempfile
@@ -297,4 +358,17 @@ if __name__ == "__main__":  # verificação sem rede
     except ValueError:
         pass
     assert "NOVO" in _user_prompt({"mode": "gerar", "question": "elfos"})
+    os.environ["GRIMORIO_IA_MOCK"] = "1"
+    r = names(tmp, {"context": "Comandante: Teval, the Balanced Scale — Flying", "taken": ["Requiem of the Fake Key"]})
+    assert r["names"][0] == "Teval and the Mock Armada" and "Requiem of the Fake Key" not in r["names"] and len(r["names"]) == 3 and "Teval" in r["description"], r
+    try:
+        names(tmp, {"context": "#erro"}); raise AssertionError("erro")
+    except RuntimeError:
+        pass
+    del os.environ["GRIMORIO_IA_MOCK"]
+    assert "NÃO" in _names_prompt({"keep": False}) and "inglês." in _names_prompt({"english": True}).split("\n")[0]
+    try:
+        names(tmp, {"context": "x", "provider": "deepseek"}); raise AssertionError("sem chave")
+    except ValueError:
+        pass
     print("selfcheck ok")
