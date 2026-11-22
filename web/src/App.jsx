@@ -15,7 +15,7 @@ import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
 import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar, deckFit, BadCards, badProps } from './Views.jsx'
 import { landProd } from './AnalysisDash.jsx'
-import { addNotes } from './epic.js'
+import { addNotes, analyse as epicAnalyse, suggest as epicSuggest } from './epic.js'
 const EpicDialog = lazy(() => import('./Epic.jsx'))  // ✨ Epificar nomes
 import { pushView, setOnView, useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, flipCardPeek, peekOpen, pressPeek, useFolded, delayedPeek } from './deckview.js'
@@ -35,7 +35,7 @@ import { gameEvidence, applySwap } from './swap.js'
 import Library from './Library.jsx'
 import { similarity } from './DeckCompare.jsx'
 import './index.css'
-import { tx, LOCALE } from './i18n.js'
+import { tx, LOCALE, LANG } from './i18n.js'
 import Settings from './Settings.jsx'
 import { ApkBanner, DesktopUpdBanner } from './apkupdate.jsx'
 import { WhoPlays, ProfileChip } from './Profiles.jsx'
@@ -550,6 +550,19 @@ export default function App() {
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const deckRef = useRef(deck); deckRef.current = deck
+  // deck novo sem nome com «Nome épico automático»: quando o «Completar deck» fecha (ou logo, se não houve), dá-lhe o 1.º
+  // nome épico do gerador (epic.js, sem IA) e tira a marca
+  const autoWas = useRef(false)
+  useEffect(() => { if (showAuto) autoWas.current = true }, [showAuto])
+  useEffect(() => {
+    if (!deck.epify || showAuto || !data || (deck.epify === 'after' && !autoWas.current)) return
+    autoWas.current = false
+    try {
+      const nm = epicSuggest(epicAnalyse(data, deck), { lang: LANG, keep: true, taken: decks.filter(x => x.id !== deck.id).map(x => x.name), n: 1 })[0]
+      setDeck(d => { const n = { ...d }; delete n.epify; if (nm) n.name = nm; return n })
+      if (nm) say(tx('Nome épico: {name}', { name: nm }))
+    } catch { setDeck(d => { const n = { ...d }; delete n.epify; return n }) }
+  }, [deck.epify, showAuto, data, deck.main]) // eslint-disable-line react-hooks/exhaustive-deps
   // saltar para outro deck (ficha da carta › «Abrir esse deck»): o que estiver por gravar no atual grava-se primeiro
   const goDeck = async id => {
     const d = deckRef.current

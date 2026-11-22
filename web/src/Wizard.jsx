@@ -380,6 +380,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const cmdBets = cmdSugs.length ? cmdSugs.slice(0, start === 'gosto' ? 8 : 6) : cmdLike
   const autoCmd = cmd || (fmt.cmd && start === 'gosto' ? cmdBets[0] || null : null)
   const ready = fmt.cmd ? !!autoCmd : eff.length >= 3
+  const [autoEpic, setAutoEpic] = useState(() => { try { return localStorage.getItem('grimorio.wz.epic') !== '0' } catch { return true } })
+  useEffect(() => { try { localStorage.setItem('grimorio.wz.epic', autoEpic ? '1' : '0') } catch { /* sem armazenamento */ } }, [autoEpic])
   const create = auto => {
     const useCmd = cmds.length ? cmds : autoCmd ? [autoCmd] : []
     const ci = useCmd.map(c => c.ci).join('')
@@ -397,6 +399,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     withIdeas(d, useCmd)
     if (start === 'gosto') d.seedTerms = sel.terms.filter(t => t.u || likeStar.includes(key.t(t))).sort((a, b) => likeStar.includes(key.t(b)) - likeStar.includes(key.t(a))).map(t => ({ k: t.k, v: t.v }))
     d.prefs = prefs
+    if (!name.trim() && autoEpic) d.epify = auto ? 'after' : true  // o App dá-lhe um nome épico quando o deck estiver completo ('after': depois do «Completar deck»)
     onCreate(d, auto)
   }
   // subcomandantes: no deck marcados ♛ se cabem na identidade (senão vão para o maybeboard); talvez: maybeboard
@@ -419,7 +422,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
               {['Multijogador', 'Construído', 'Arena', 'Outros'].map(g => <optgroup key={g} label={tx(g)}>{FORMATS.filter(f => f.group === g).map(f => <option key={f.key} value={f.key}>{f.name}</option>)}</optgroup>)}
             </select>
           </label>
-          <label className="fmt"><span>{tx('Nome (opcional)')}</span><input value={name} onChange={e => setName(e.target.value)} placeholder={tx('o Grimório dá um nome se ficar vazio')} /></label>
+          <label className="fmt"><span>{tx('Nome (opcional)')}</span><input value={name} onChange={e => setName(e.target.value)} placeholder={tx('o Grimório dá um nome se ficar vazio')} />
+            {!name.trim() && <span className="chk small wz-epic"><input type="checkbox" checked={autoEpic} onChange={e => setAutoEpic(e.target.checked)} /> ✨ {tx('Nome épico automático (quando o deck estiver feito)')}</span>}</label>
         </div>
 
         <h4>{tx('Como queres começar?')}</h4>

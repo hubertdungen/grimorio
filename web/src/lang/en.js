@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Nome épico automático (quando o deck estiver feito)": "Automatic epic name (once the deck is built)",
+  "Nome épico: {name}": "Epic name: {name}",
   "Deck de {n} (veio de uma sala ou de um amigo convidado)": "{n}'s deck (came from a room or an invited friend)",
   "um amigo": "a friend",
   "Aplicar ({n})": "Apply ({n})",

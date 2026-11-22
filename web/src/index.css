@@ -4630,3 +4630,6 @@ select.demote:hover { border-color: var(--gold); }
 .seg.whose { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
 .seg.whose button { padding: 4px 12px; border-radius: 999px; font-size: 13px; }
 .seg.whose button i { font-style: normal; opacity: .6; margin-left: 4px; }
+
+/* deck novo: nome épico automático */
+.wz-epic { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: var(--muted); }
