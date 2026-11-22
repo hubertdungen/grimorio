@@ -482,6 +482,15 @@ export default function App() {
 
   const now = useRef({}); now.current = { deck, fmt }
   // ♛ subcomandante: no deck como carta normal (conta para as 99), marcada para trocar depressa; vem do maybeboard se lá estiver
+  // tirar do comando sem perder a carta: para subcomandante (no deck, marcada), só no deck, maybeboard, ou fora do deck
+  const demote = useCallback((c, to) => {
+    setDeck(d => {
+      const commanders = d.commanders.filter(n => n !== c.n)
+      if (to === 'maybe') return { ...d, commanders, maybe: { ...(d.maybe || {}), [c.n]: 1 } }
+      if (to === 'out') return { ...d, commanders }
+      return { ...d, commanders, main: { ...d.main, [c.n]: d.main[c.n] || 1 }, subs: to === 'sub' ? [...new Set([...(d.subs || []), c.n])] : (d.subs || []).filter(n => n !== c.n) }
+    })
+  }, [setDeck])
   const toggleSub = useCallback(c => {
     const on = (now.current.deck.subs || []).includes(c.n)
     setDeck(d => {
@@ -528,13 +537,13 @@ export default function App() {
       && !(await ask('ultima', { title: tx('Tirar «{c}» do deck?', { c: c.n }), body: tx('Era a última cópia. Podes desfazer com ↶.'), ok: tx('Tirar') }))) return
     add(c, zone, -q)
   }, [add])
-  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
+  const act = useMemo(() => ({ add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     goDeck: id => goDeck(id), decksChanged: () => api('/api/decks').then(setDecks).catch(() => {}),
     clearGroups: () => { setDeck(d => ({ ...d, groups: [] })); say(tx('Secções removidas: o deck volta a aparecer por tipo.')) },
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
-  [add, remove, move, setCommander, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
+  [add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const deckRef = useRef(deck); deckRef.current = deck
@@ -703,6 +712,14 @@ export default function App() {
   )
 }
 
+// ⇩ junto ao comandante: tirá-lo do comando sem o perder (lista nativa: funciona igual no telemóvel)
+export function DemoteSel({ c, act }) {
+  return <select className="demote" value="" onClick={e => e.stopPropagation()} onChange={e => { if (e.target.value) act.demote(c, e.target.value) }} title={tx('Tirar do comando')} aria-label={tx('Tirar do comando')}>
+    <option value="">⇩</option><option value="sub">♕ {tx('Passar a subcomandante')}</option><option value="main">＋ {tx('Só no deck')}</option>
+    <option value="maybe">→ Maybeboard</option><option value="out">✕ {tx('Tirar do deck')}</option>
+  </select>
+}
+
 function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist }) {
   const bad = useContext(BadCards)
   const [viewBy, setViewBy] = useState(deck.groups?.length ? 'grupos' : 'tipo')
@@ -803,6 +820,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
             return c && (
               <div key={n} className={`cmd${ds.sel?.has(n) ? ' picked' : ''}`} onClick={() => (ds.sel ? ds.toggle(n) : act.open(c))}>
                 <img src={img(c, 'art_crop', false, pidOf(deck, n))} alt="" /><div><b>{n}</b><Mana cost={c.mc} /></div>
+                <DemoteSel c={c} act={act} />
                 <button onClick={e => { e.stopPropagation(); act.setCommander(c) }} aria-label={tx('Retirar')}>×</button>
               </div>
             )

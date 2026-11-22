@@ -4545,3 +4545,7 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .row[data-bad] .row-main { color: color-mix(in srgb, var(--bad) 70%, var(--text)); }
 @keyframes badglow { 50% { box-shadow: 0 0 0 2px var(--bad), 0 0 26px 6px color-mix(in srgb, var(--bad) 35%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .dg-tile[data-bad] { animation: none; } }
+
+/* ⇩ tirar do comando (comandante na grelha e no painel) */
+select.demote { width: auto; min-width: 0; padding: 2px 6px; font-size: 13px; border-radius: 8px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); cursor: pointer; }
+.cmd select.demote { flex: none; }
