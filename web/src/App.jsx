@@ -581,6 +581,7 @@ export default function App() {
               <div className="seg viewby"><button className={deckView === 'grelha' ? 'on' : ''} onClick={() => setDeckView('grelha')}><i>▦</i><span>{tx('Grelha')}</span></button><button className={deckView === 'lista' ? 'on' : ''} onClick={() => setDeckView('lista')}><i>☰</i><span>{tx('Lista')}</span></button></div>
               </div>
               {deckView === 'grelha' && <UndoBtns act={act} hist={histN} />}
+              {deckView === 'grelha' && <div className="grid-autos">{(!fmt.size[1] || total < fmt.size[1]) && <button className="auto-btn" onClick={() => setShowAuto(true)}>✦ {tx('Completar deck automaticamente')}</button>}<button className="ai-btn" onClick={() => setShowAI(true)}>✦ {tx('Assistente IA')} <span className="muted small">({tx('extra')})</span></button></div>}  {/* no telemóvel o painel do deck (onde estes vivem) está escondido */}
               {deckView === 'grelha' ? <DeckGrid {...{ data, deck, fmt, act, ctx }} /> : <div className="deck-mobile"><DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} /></div>}
             </div>
           )}
