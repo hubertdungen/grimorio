@@ -4626,8 +4626,11 @@ select.demote:hover { border-color: var(--gold); }
 .tile-bar .act.on { background: var(--gold); color: #1b1405; }
 .cmd-acts .act { border-radius: 999px; }
 
-/* biblioteca: de quem são os decks (Meus por omissão) */
-.seg.whose { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+/* biblioteca: de quem são os decks (Meus por omissão), numa linha própria por cima dos formatos */
+.seg.whose { display: flex; float: none; width: max-content; max-width: 100%; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+.seg.whose button { border-radius: 999px !important; }
+.fmt-all { flex-wrap: nowrap; white-space: nowrap; }
+.fmt-chips { clear: both; }
 .seg.whose button { padding: 4px 12px; border-radius: 999px; font-size: 13px; }
 .seg.whose button i { font-style: normal; opacity: .6; margin-left: 4px; }
 
