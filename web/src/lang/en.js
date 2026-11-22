@@ -5520,4 +5520,13 @@ export default {
   "Comandantes para este gosto": "Commanders for this taste",
   "toca para escolher; as cores ficam presas à identidade dele": "tap to choose; the colors stay locked to its identity",
   "✦ Criar deck com {name}": "✦ Create deck with {name}",
+  "Nenhum com estes filtros.": "No commander matches these filters.",
+  "só estas cores": "only these colors",
+  "Backgrounds": "Backgrounds",
+  "Mais relevantes": "Most relevant",
+  "Mais populares": "Most popular",
+  "Custo (menor)": "Cost (lowest)",
+  "Nome (A–Z)": "Name (A–Z)",
+  "com par (Partner…)": "with a pair (Partner…)",
+  "Limpar filtros": "Clear filters",
 }

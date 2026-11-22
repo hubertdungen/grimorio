@@ -9,6 +9,8 @@ import { PrefsPanel, IASettings } from './Views.jsx'
 import { Mana } from './ui.jsx'
 import { tx } from './i18n.js'
 import { useBackClose } from './backnav.js'
+import { held } from './touch.js'
+import { BigCard } from './ForgePlay.jsx'
 
 const subset = (a, b) => [...a].every(k => b.includes(k))
 const KEY = 'grimorio.wizard'
@@ -25,6 +27,43 @@ function pairOk(a, b) {
 }
 
 const START = [['gosto', tx('Gosto de…'), '♥'], ['cartas', tx('Escolher 3–10 cartas'), '▦'], ['manual', tx('Construir à mão'), '✎'], ['importar', tx('Importar e melhorar'), '⇩'], ['ia', tx('Descrever a ideia (IA)'), '✦']]
+
+// carta de comandante: tocar escolhe; tocar e manter (ou botão direito, ou 🔍) mostra-a em grande
+function CmdCard({ c, onPick, onBig }) {
+  const zoom = e => { e.preventDefault(); e.stopPropagation(); held(); onBig(c) }
+  return (
+    <div className="wz-cc">
+      <button onClick={onPick} onContextMenu={zoom} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" draggable={false} /></button>
+      <span className="wz-ccn"><b>{c.n.split(',')[0]}</b><span className="wz-pips">{[...(c.ci || '')].map(k => <i key={k} className={`wz-dot d-${k}`} />)}{!c.ci && <i className="wz-dot d-C" />}</span></span>
+      <button className="wz-zoom" onClick={zoom} aria-label={`${tx('Ver em grande')}: ${c.n}`} title={tx('Ver em grande')}>🔍</button>
+    </div>
+  )
+}
+
+const WUBRG = [['W', 'Branco'], ['U', 'Azul'], ['B', 'Preto'], ['R', 'Vermelho'], ['G', 'Verde'], ['C', 'Incolor']]
+function CmdFilters({ cf, setCf, total, shown, on }) {
+  const set = p => setCf(f => ({ ...f, ...p, n: 18 }))
+  const tog = k => set({ col: cf.col.includes(k) ? cf.col.filter(x => x !== k) : [...cf.col, k] })
+  return (
+    <div className="wz-cf">
+      <div className="wz-cfrow">
+        {WUBRG.map(([k, l]) => <button key={k} type="button" className={`wz-cfc d-${k}${cf.col.includes(k) ? ' on' : ''}`} onClick={() => tog(k)} title={tx(l)} aria-pressed={cf.col.includes(k)}>{k}</button>)}
+        <label className="wz-cfx"><input type="checkbox" checked={cf.exact} onChange={e => set({ exact: e.target.checked })} /> {tx('só estas cores')}</label>
+      </div>
+      <div className="wz-cfrow">
+        <select value={cf.kind} onChange={e => set({ kind: e.target.value })} aria-label={tx('Tipo')}>
+          <option value="">{tx('Todos os tipos')}</option><option value="cr">{tx('Criaturas')}</option><option value="pw">{tx('Planeswalkers')}</option><option value="bg">{tx('Backgrounds')}</option>
+        </select>
+        <select value={cf.sort} onChange={e => set({ sort: e.target.value })} aria-label={tx('Ordenar')}>
+          <option value="rel">{tx('Mais relevantes')}</option><option value="pop">{tx('Mais populares')}</option><option value="mv">{tx('Custo (menor)')}</option><option value="nome">{tx('Nome (A–Z)')}</option>
+        </select>
+        <label className="wz-cfx"><input type="checkbox" checked={cf.partner} onChange={e => set({ partner: e.target.checked })} /> {tx('com par (Partner…)')}</label>
+        <span className="muted small wz-cfn">{shown}{on ? ` / ${total}` : ''}</span>
+        {on && <button type="button" className="wz-cfclr" onClick={() => set({ col: [], exact: false, sort: 'rel', kind: '', partner: false })}>{tx('Limpar filtros')}</button>}
+      </div>
+    </div>
+  )
+}
 
 export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImport }) {
   useBackClose(true, onCancel)  // «voltar» do telemóvel fecha esta janela
@@ -50,6 +89,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const [prefs, setPrefs] = useState(S0.prefs || {})
   const [q, setQ] = useState(S0.q || '')
   const [cq, setCq] = useState('')
+  const [big, setBig] = useState(null)  // carta em grande (tocar e manter / 🔍)
+  const [cf, setCf] = useState({ col: [], exact: false, sort: 'rel', kind: '', partner: false, n: 18 })  // filtros da lista de comandantes
   const dq = useDeferredValue(q), dcq = useDeferredValue(cq)
   const [restored, setRestored] = useState(() => !!(S0.like || S0.likePick?.length || S0.picks?.length || S0.cmds?.length || S0.idea || S0.name))
   useEffect(() => { save({ start, idea, like, likeOff, likeStar, likePick, format, name, picks: picks.map(c => c.n), cmds: cmds.map(c => c.n), prefs, q }) }, [start, idea, like, likeOff, likeStar, likePick, format, name, picks, cmds, prefs, q])
@@ -71,16 +112,16 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     }
     return search(data, dq, { sort: 'pop', inText: false }, ctx, 48).cards
   }, [data, dq, ctx, fmt, cmds, picks])
+  // cores que o comandante tem de cobrir: as das cartas de partida (podem ter mais, nunca menos)
+  const need = useMemo(() => [...new Set(picks.flatMap(c => [...c.ci]))].join(''), [picks])
   // comandantes legais no formato (pela popularidade); com um escolhido que aceite par, os parceiros possíveis
   const partnerOf = cmds.length === 1 && pairable(cmds[0]) ? cmds[0] : null
   const cmdRes = useMemo(() => {
     if (!fmt.cmd || cmds.length >= (partnerOf ? 2 : 1)) return []
     const legal = c => ctx.bit < 0 || c.lg & (1 << ctx.bit)
     const ok = partnerOf ? c => c.i !== partnerOf.i && (canBeCommander(c, fmt) || /Background/.test(c.t)) && pairOk(partnerOf, c) : c => canBeCommander(c, fmt) && subset(need, c.ci)
-    return search(data, dcq, { sort: 'pop', inText: false }, { bit: ctx.bit, identity: null, allowUn: ctx.allowUn }, 40000).cards.filter(c => legal(c) && ok(c)).slice(0, partnerOf ? 12 : 18)
+    return search(data, dcq, { sort: 'pop', inText: false }, { bit: ctx.bit, identity: null, allowUn: ctx.allowUn }, 40000).cards.filter(c => legal(c) && ok(c)).slice(0, partnerOf ? 24 : 90)
   }, [data, dcq, fmt, cmds.length, partnerOf, ctx.bit, ctx.allowUn, need])
-  // cores que o comandante tem de cobrir: as das cartas de partida (podem ter mais, nunca menos)
-  const need = useMemo(() => [...new Set(picks.flatMap(c => [...c.ci]))].join(''), [picks])
   const has = c => picks.some(p => p.i === c.i) || cmds.some(x => x.i === c.i)
   const maxPicks = start === 'ia' ? 30 : 10
   const toggle = c => setPicks(p => (p.some(x => x.i === c.i) ? p.filter(x => x.i !== c.i) : p.length >= maxPicks ? p : [...p, c]))
@@ -211,13 +252,22 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
       if (gosto) { for (const t of sel.terms) if (termMatch(c, t)) b += t.u ? 0.2 : 0.1; for (const g of sel.tags) if (c.tg.includes(g)) b += 0.1 }
       out.push({ c, s: b + d / 127 / eff.length + (c.er ? 0.15 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000)) : 0) - (pin ? 0.05 * (ci.length - c.ci.length) : 0.02 * (c.ci.length - ci.length)) })
     }
-    return out.sort((a, b) => b.s - a.s).slice(0, 18).map(x => x.c)
+    return out.sort((a, b) => b.s - a.s).slice(0, 90).map(x => x.c)
   }, [data, fmt, cmds.length, eff, ctx.bit, start, sel, need])
 
   // Commander e afins: basta o comandante (o resto vem do EDHREC e da sinergia); construído: 3 cartas no mínimo.
   // No «Gosto de…» a primeira sugestão de comandante já serve de escolha, para o deck não ficar sem ele.
   // Com a pesquisa vazia, o seletor de cima também segue o gosto (em vez dos mais populares em geral).
-  const cmdShown = useMemo(() => (picks.length && !dcq && !partnerOf && fmt.cmd && !cmds.length && cmdSugs.length ? cmdSugs : start === 'gosto' && !dcq && !partnerOf && fmt.cmd && !cmds.length && likeAny ? likeCommanders(data, sel, { fmt, bit: ctx.bit, n: 18, need }) : cmdRes), [start, dcq, partnerOf, fmt, cmds.length, likeAny, data, sel, ctx.bit, cmdRes, need, picks.length, cmdSugs])
+  const cmdPool = useMemo(() => (picks.length && !dcq && !partnerOf && fmt.cmd && !cmds.length && cmdSugs.length ? cmdSugs : start === 'gosto' && !dcq && !partnerOf && fmt.cmd && !cmds.length && likeAny ? likeCommanders(data, sel, { fmt, bit: ctx.bit, n: 90, need }) : cmdRes), [start, dcq, partnerOf, fmt, cmds.length, likeAny, data, sel, ctx.bit, cmdRes, need, picks.length, cmdSugs])
+  const cmdShown = useMemo(() => {
+    let l = cmdPool.filter(c => (!cf.col.length || (cf.exact ? [...c.ci].sort().join('') === [...cf.col].filter(k => k !== 'C').sort().join('') : cf.col.every(k => (k === 'C' ? !c.ci : c.ci.includes(k))))) &&
+      (!cf.kind || (cf.kind === 'pw' ? /Planeswalker/.test(c.t) : cf.kind === 'bg' ? /Background/.test(c.t) : /Creature/.test(c.t))) && (!cf.partner || pairable(c)))
+    if (cf.sort === 'pop') l = [...l].sort((a, b) => (a.er || 1e9) - (b.er || 1e9))
+    else if (cf.sort === 'nome') l = [...l].sort((a, b) => a.n.localeCompare(b.n))
+    else if (cf.sort === 'mv') l = [...l].sort((a, b) => a.cmc - b.cmc || a.n.localeCompare(b.n))
+    return l
+  }, [cmdPool, cf])
+  const cfOn = cf.col.length || cf.kind || cf.partner || cf.sort !== 'rel'
   const cmdBets = cmdSugs.length ? cmdSugs.slice(0, start === 'gosto' ? 8 : 6) : cmdLike
   const autoCmd = cmd || (fmt.cmd && start === 'gosto' ? cmdBets[0] || null : null)
   const ready = fmt.cmd ? !!autoCmd : eff.length >= 3
@@ -331,18 +381,20 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         {fmt.cmd && <>
           <h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')} <span className="muted">{cmds.length ? (partnerOf ? tx('aceita um par: escolhe o segundo se quiseres') : '') : tx('escolhe-o aqui, ou ♛ numa das cartas de partida')}</span></h4>
           <div className="wz-cmd">
-            {cmds.map(c => <div key={c.i} className="wz-pick cmd"><img src={img(c, 'normal')} alt={c.n} /><span className="wz-badge">♛ {cmds.length > 1 ? tx('par') : tx('comandante')}</span><button onClick={() => setCmds(x => x.filter(y => y.i !== c.i))} aria-label={tx('Retirar')}>×</button></div>)}
+            {cmds.map(c => <div key={c.i} className="wz-pick cmd" onContextMenu={e => { e.preventDefault(); held(); setBig(c) }}><img src={img(c, 'normal')} alt={c.n} /><span className="wz-badge">♛ {cmds.length > 1 ? tx('par') : tx('comandante')}</span><button onClick={() => setCmds(x => x.filter(y => y.i !== c.i))} aria-label={tx('Retirar')}>×</button></div>)}
             {cmds.length < (partnerOf ? 2 : 1) && <div className="wz-cmdq">
               <input className="big" value={cq} onChange={e => setCq(e.target.value)} placeholder={partnerOf ? tx('Procurar o par de {name}…', { name: partnerOf.n.split(',')[0] }) : tx(fmt.cmd === 'oathbreaker' ? 'Procurar planeswalker legal em {fmt}…' : 'Procurar comandante legal em {fmt}…', { fmt: fmt.name })} />
-              <div className="wz-res cmds">{cmdShown.map(c => <button key={c.i} onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(y => y.i !== c.i)); setCq('') }} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" /></button>)}
-                {!cmdShown.length && <span className="muted small">{dcq ? tx('Nenhum com esse nome.') : partnerOf ? tx('Sem pares legais neste formato.') : ''}</span>}</div>
+              <CmdFilters cf={cf} setCf={setCf} total={cmdPool.length} shown={cmdShown.length} on={cfOn} />
+              <div className="wz-res cmds">{cmdShown.slice(0, cf.n).map(c => <CmdCard key={c.i} c={c} onPick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(y => y.i !== c.i)); setCq('') }} onBig={setBig} />)}
+                {!cmdShown.length && <span className="muted small">{cfOn ? tx('Nenhum com estes filtros.') : dcq ? tx('Nenhum com esse nome.') : partnerOf ? tx('Sem pares legais neste formato.') : ''}</span>}</div>
+              {cmdShown.length > cf.n && <button className="wz-more" onClick={() => setCf(f => ({ ...f, n: f.n + 18 }))}>{tx('Mostrar mais')} ({cmdShown.length - cf.n})</button>}
             </div>}
           </div>
         </>}
         <h4>{start === 'ia' ? tx('Base gerada') : tx('Cartas de partida')} <span className="muted">{picks.length}/{maxPicks} · {start === 'cartas' ? (fmt.cmd ? tx('opcional: 0 a 10 de que gostes (só o comandante também dá)') : tx('escolhe 3 a 10 de que gostas')) : tx('ajusta à vontade')}</span></h4>
         <div className="wz-picks">
           {picks.map(c => (
-            <div key={c.i} className="wz-pick">
+            <div key={c.i} className="wz-pick" onContextMenu={e => { e.preventDefault(); held(); setBig(c) }}>
               <img src={img(c, 'normal')} alt={c.n} />
               {fmt.cmd && (!cmds.length || (partnerOf && pairOk(partnerOf, c))) && canBeCommander(c, fmt) && <button className="wz-mk" onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(x => x.i !== c.i)) }}>♛ {tx('comandante')}</button>}
               <button onClick={() => toggle(c)} aria-label={tx('Retirar')}>×</button>
@@ -355,13 +407,13 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         {cmdBets.length > 0 && (
           <>
             <h4>{start === 'gosto' && cmdBets.length ? tx('Comandantes para este gosto') : tx('Comandantes que encaixam')} <span className="muted">{start === 'gosto' && cmdBets.length ? tx('toca para escolher; as cores ficam presas à identidade dele') : tx('cobrem as cores das tuas cartas')}</span></h4>
-            <div className="wz-res cmds">{cmdBets.map(c => <button key={c.i} onClick={() => setCmd(c)} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" /></button>)}</div>
+            <div className="wz-res cmds">{cmdBets.map(c => <CmdCard key={c.i} c={c} onPick={() => setCmd(c)} onBig={setBig} />)}</div>
           </>
         )}
 
         {start !== 'gosto' && <><input className="big" value={q} onChange={e => setQ(e.target.value)} placeholder={tx(ctx.bit >= 0 ? 'Procurar cartas legais em {fmt}' : 'Procurar cartas', { fmt: fmt.name }) + (ctx.identity != null ? tx(' na identidade {id}', { id: ctx.identity || tx('incolor') }) : '') + '…'} />
         <div className="wz-res">{res.map(c => (
-          <button key={c.i} className={has(c) ? 'on' : ''} onClick={() => toggle(c)} title={c.n} disabled={!has(c) && picks.length >= maxPicks}>
+          <button key={c.i} className={has(c) ? 'on' : ''} onClick={() => toggle(c)} onContextMenu={e => { e.preventDefault(); held(); setBig(c) }} title={c.n} disabled={!has(c) && picks.length >= maxPicks}>
             <img src={img(c, 'normal')} alt={c.n} loading="lazy" />{has(c) && <span>✓</span>}
           </button>
         ))}</div></>}
@@ -375,6 +427,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
           <span className="muted small">{!ready ? (fmt.cmd ? tx('Escolhe o comandante (pesquisa acima, ♛ numa carta ou uma sugestão).') : tx('Falta {n} carta.|Faltam {n} cartas.', { n: 3 - eff.length })) : autoCmd ? <>{cmds.length > 1 ? tx('Comandantes') : tx('Comandante')}: <b>{(cmds.length ? cmds : [autoCmd]).map(c => c.n).join(' + ')}</b> <Mana cost={(cmds.length ? cmds : [autoCmd]).map(c => c.mc).join('')} /></> : fmt.side > 0 ? tx('No fim também é proposto um sideboard de 15.') : ''}</span>
         </div>}
       </div>
+      {big && <BigCard name={big.n} data={data} onClose={() => setBig(null)} />}
     </div>
   )
 }

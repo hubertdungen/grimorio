@@ -5512,4 +5512,13 @@ export default {
   "Comandantes para este gosto": "适合这个口味的指挥官",
   "toca para escolher; as cores ficam presas à identidade dele": "点按选择；颜色将限定为它的标识色",
   "✦ Criar deck com {name}": "✦ 用 {name} 创建套牌",
+  "Nenhum com estes filtros.": "没有符合这些筛选的指挥官。",
+  "só estas cores": "仅这些颜色",
+  "Backgrounds": "背景",
+  "Mais relevantes": "最相关",
+  "Mais populares": "最受欢迎",
+  "Custo (menor)": "费用（最低）",
+  "Nome (A–Z)": "名称（A–Z）",
+  "com par (Partner…)": "可配对（Partner…）",
+  "Limpar filtros": "清除筛选",
 }
