@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Incluir o deck (comandante e principal)": "包括套牌（指挥官和主牌）",
+  "Incluir o maybeboard ({n})": "包括备选区（{n}）",
   "5 cores": "五色",
   "4 cores (sem {c})": "四色（无{c}）",
   "custos": "费用",

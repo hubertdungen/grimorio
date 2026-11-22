@@ -84,7 +84,7 @@ const madeBy = c => { const m = /\bcreates? (a|an|one|two|three|four|five|six|x|
 
 
 // vários decks: cada um com as suas opções; o aberto usa o contexto do App, os outros o mesmo cálculo sem os testes
-const OPT0 = { on: true, side: true, tok: false, sug: false, sugN: 10 }
+const OPT0 = { on: true, main: true, side: true, maybe: false, tok: false, sug: false, sugN: 10 }  // o que entra de cada deck
 const keyOf = d => d.id || 'cur'
 const ctxOf = (data, d) => {
   const fmt = FORMAT[d.format] || FORMAT.casual, cmd = (d.commanders || []).map(n => data.byName.get(n)).filter(Boolean)
@@ -134,7 +134,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
       const k = keyOf(d), r = { ...OPT0, ...opts[k] }
       if (!r.tok || k in toks) continue
       setToks(t => ({ ...t, [k]: null }))
-      const names = [...new Set([...d.commanders || [], ...Object.keys(d.main || {}), ...Object.keys(r.side ? d.side || {} : {})])]
+      const names = [...new Set([...(r.main ? [...d.commanders || [], ...Object.keys(d.main || {})] : []), ...Object.keys(r.side ? d.side || {} : {}), ...Object.keys(r.maybe ? d.maybe || {} : {})])]
       fetch('/api/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ names }) })
         .then(async res => { const j = await res.json(); if (!res.ok) throw new Error(j.erro); return j })
         .then(l => setToks(t => ({ ...t, [k]: l.map(x => ({ ...x, q: Math.max(1, Math.min(12, x.from.reduce((a, n) => a + madeBy(data.byName.get(n)) * ((d.main?.[n] || 0) + (d.side?.[n] || 0) || 1), 0))) })) })))
@@ -154,7 +154,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
   const secs = useMemo(() => all.filter(d => ({ ...OPT0, ...opts[keyOf(d)] }).on).map(d => {
     const k = keyOf(d), r = { ...OPT0, ...opts[k] }, tk = r.tok && toks[k] ? toks[k].filter(t => t.q > 0) : [], sg = sugs[k] || []
     return { d, k, r, tk, sg, groups: [
-      ...proxyGroups(d, data, { side: r.side }).map(g => ({ ...g, key: `${g.c.n}|${g.src || ''}`, fb: d.prints?.[g.c.n]?.id })),
+      ...proxyGroups(d, data, { side: r.side, main: r.main, maybe: r.maybe }).map(g => ({ ...g, key: `${g.c.n}|${g.src || ''}`, fb: d.prints?.[g.c.n]?.id })),
       ...tk.map(t => ({ c: { n: t.name, id: t.id, df: false }, q: t.q, src: null, token: true, key: `tok|${t.id}` })),
       ...sg.map(c => ({ c, q: 1, src: null, sug: true, key: `${c.n}|` }))] }
   }), [all, opts, toks, sugs, data])
@@ -171,7 +171,8 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
   const names = secs.map(s => s.d.name)
   const list = useMemo(() => {
     const extras = (tk, sg) => [...(tk.length ? [`\n// ${tx('Tokens')}`, ...tk.map(t => `${t.q} ${t.name}`)] : []), ...(sg.length ? [`\n// ${tx('Sugestões do Grimório')}`, ...sg.map(c => `1 ${c.n}`)] : [])]
-    const full = s => [exportList(s.r.side ? s.d : { ...s.d, side: {} }), ...extras(s.tk, s.sg)]
+    const full = s => [...(s.r.main || s.r.side ? [exportList({ ...s.d, ...(s.r.main ? {} : { main: {}, commanders: [], signature: null }), side: s.r.side ? s.d.side || {} : {} })] : []),
+      ...(s.r.maybe && Object.keys(s.d.maybe || {}).length ? [`\n// Maybeboard`, ...Object.entries(s.d.maybe).map(([n, q]) => listLine(n, q, s.d.prints?.[n]))] : []), ...extras(s.tk, s.sg)]
     if (!multi) return secs[0] ? full(secs[0]).join('\n') : ''
     const shared = i => {  // só as cópias que os decks de cima ainda não têm
       const mine = pack.items.filter(it => it.deck === i), by = f => mine.filter(it => f(it.g))
@@ -257,7 +258,9 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
         <h3>🖨 {multi ? tx('Proxies de {n} decks', { n: all.length }) : tx('Proxies de «{name}»', { name: all[0]?.name })}</h3>
         <p className="muted small">{multi ? tx('{n} cartas de {d} decks', { n: total, d: secs.length }) : tx('{n} cartas com as artes que escolheste', { n: total })}{share && sum > total ? ` · ${tx('{n} a menos por partilhar', { n: sum - total })}` : ''}{owned ? ` · ${tx('{n} com imagem própria', { n: owned })}` : ''}</p>
         {!multi ? <>
+          <label className="chk small"><input type="checkbox" checked={r0.main} onChange={e => setOpt(k0, { main: e.target.checked })} /> {tx('Incluir o deck (comandante e principal)')}</label>
           <label className="chk small"><input type="checkbox" checked={r0.side} onChange={e => setOpt(k0, { side: e.target.checked })} /> {tx('Incluir o sideboard')}</label>
+          {Object.keys(all[0]?.maybe || {}).length > 0 && <label className="chk small"><input type="checkbox" checked={r0.maybe} onChange={e => setOpt(k0, { maybe: e.target.checked })} /> {tx('Incluir o maybeboard ({n})', { n: Object.values(all[0].maybe).reduce((a, b) => a + b, 0) })}</label>}
           <label className="chk small"><input type="checkbox" checked={r0.tok} onChange={e => { setOpt(k0, { tok: e.target.checked }); setTokErr('') }} /> {tx('Incluir os tokens que o deck cria')}</label>
           {tokList(k0)}
           {tokErr && <p className="small bad-t">{tokErr}</p>}
@@ -273,7 +276,9 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
                   {s && <small className="muted">{tx('{n} carta|{n} cartas', { n: s.groups.reduce((a, g) => a + g.q, 0) })}</small>}
                 </div>
                 {r.on && <div className="px-dopts">
+                  <label className="chk small"><input type="checkbox" checked={r.main} onChange={e => setOpt(k, { main: e.target.checked })} /> {tx('Deck')}</label>
                   <label className="chk small"><input type="checkbox" checked={r.side} onChange={e => setOpt(k, { side: e.target.checked })} /> {tx('Sideboard')}</label>
+                  {Object.keys(d.maybe || {}).length > 0 && <label className="chk small"><input type="checkbox" checked={r.maybe} onChange={e => setOpt(k, { maybe: e.target.checked })} /> Maybeboard</label>}
                   <label className="chk small"><input type="checkbox" checked={r.tok} onChange={e => { setOpt(k, { tok: e.target.checked }); setTokErr('') }} /> {tx('Tokens')}</label>
                   <label className="chk small"><input type="checkbox" checked={r.sug} onChange={e => setOpt(k, { sug: e.target.checked })} /> {tx('Sugestões')} {r.sug && sugN(k, r)}</label>
                 </div>}

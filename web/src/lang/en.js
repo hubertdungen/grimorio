@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Incluir o deck (comandante e principal)": "Include the deck (commander and main)",
+  "Incluir o maybeboard ({n})": "Include the maybeboard ({n})",
   "5 cores": "5 colours",
   "4 cores (sem {c})": "4 colours (no {c})",
   "custos": "costs",

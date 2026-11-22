@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Incluir o deck (comandante e principal)": "Deck einbeziehen (Kommandeur und Hauptdeck)",
+  "Incluir o maybeboard ({n})": "Maybeboard einbeziehen ({n})",
   "5 cores": "5 Farben",
   "4 cores (sem {c})": "4 Farben (ohne {c})",
   "custos": "Kosten",
