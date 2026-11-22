@@ -79,6 +79,9 @@ header.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: 
 .peek { position: fixed; width: 240px; pointer-events: none; z-index: 70; display: none; perspective: 1100px; }
 .peek-in { position: relative; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.2, .8, .2, 1); }
 .peek.flipped .peek-in { transform: rotateY(180deg); }
+.peek.grow { animation: peekgrow .24s cubic-bezier(.2, .8, .2, 1); transform-origin: center; }
+@keyframes peekgrow { from { transform: scale(.55); opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .peek.grow { animation: none; } }
 .peek img { display: block; width: 100%; border-radius: 12px; box-shadow: 0 12px 40px #000a; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .peek .pb { position: absolute; inset: 0; transform: rotateY(180deg); }
 .peek:not([data-df="1"]) .pb { display: none; }
