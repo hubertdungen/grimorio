@@ -1,8 +1,9 @@
 import { matchArts, shrink } from './artmatch.js'
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
-import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
+import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf, fmtBit } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, subsOf, pairOk } from './formats.js'
+import { count as zoneCount } from './deck.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll, SymTxt } from './ui.jsx'
 import { showCardPeek, hideCardPeek, pressPeek, useFolded } from './deckview.js'
@@ -1596,6 +1597,58 @@ function Prints({ c, deck, act, onPreview }) {
 }
 
 const CARD_BACK = sf('https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg')  // o verso comum das cartas (Scryfall)
+// «＋ Outro deck…»: junta a carta a outro deck guardado (deck ou maybeboard) sem sair deste; avisa se esse deck já está no
+// tamanho máximo do formato (60, 100…), se a carta sai da identidade do comandante ou se já tem as cópias todas; depois
+// «Abrir esse deck» salta para lá (o deck atual grava-se antes)
+function ToOtherDeck({ c, data, deck, act }) {
+  const [on, setOn] = useState(false), [list, setList] = useState(null), [q, setQ] = useState(''), [zone, setZone] = useState('main')
+  const [warn, setWarn] = useState(null), [done, setDone] = useState(null), [busy, setBusy] = useState('')
+  useEffect(() => { if (on && !list) fetch('/api/decks').then(r => (r.ok ? r.json() : [])).then(setList).catch(() => setList([])) }, [on, list])
+  const shown = (list || []).filter(d => d.id !== deck.id && d.name.toLowerCase().includes(q.trim().toLowerCase()))
+  const problems = d => {
+    const F = FORMAT[d.format] || FORMAT.commander, out = [], n = zoneCount(d.main || {}) + (d.commanders || []).length, max = F.size?.[1]
+    if (zone === 'main' && max && n >= max) out.push(tx('o deck já tem {n} de {m} cartas', { n, m: max }))
+    if (zone === 'main') {
+      const have = (d.main || {})[c.n] || 0, lim = maxCopies(c, F, fmtBit(data, F))
+      if (have >= lim) out.push(tx('já tem {n} cópia(s), o máximo neste formato', { n: have }))
+      const ci = new Set((d.commanders || []).flatMap(nm => [...(data.byName.get(nm)?.ci || '')]))
+      if (F.cmd && d.commanders?.length && [...(c.ci || '')].some(k => !ci.has(k))) out.push(tx('fica fora da identidade de cor do comandante'))
+    }
+    return out
+  }
+  const put = async (d, force) => {
+    const p = problems(d)
+    if (p.length && !force) return setWarn({ d, p })
+    setBusy(d.id); setWarn(null)
+    try {
+      const full = await (await fetch(`/api/decks/${d.id}`)).json()
+      const z = { ...(full[zone] || {}) }; z[c.n] = (z[c.n] || 0) + 1
+      const body = { ...full, [zone]: z }; body.count = zoneCount(body.main || {}) + (body.commanders || []).length
+      const r = await fetch(`/api/decks/${d.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).erro || r.status)
+      setDone(d); setList(null); act.decksChanged?.()
+    } catch (e) { act.say?.(tx('Não consegui juntar ao deck: {e}', { e: e.message })) } finally { setBusy('') }
+  }
+  if (!on) return <div className="row-btns"><button onClick={() => setOn(true)}>＋ {tx('Outro deck…')}</button></div>
+  return (
+    <div className="other-deck">
+      <div className="od-h"><b>{tx('Juntar «{c}» a outro deck', { c: c.n })}</b><button className="link small" onClick={() => { setOn(false); setWarn(null); setDone(null) }}>{tx('Fechar')}</button></div>
+      {done ? <p className="small">✓ {tx('Juntei a «{d}» ({z}).', { d: done.name, z: zone === 'main' ? tx('deck') : 'Maybeboard' })} <button className="link" onClick={() => act.goDeck?.(done.id)}>{tx('Abrir esse deck')} →</button> <button className="link small" onClick={() => setDone(null)}>{tx('Juntar a outro')}</button></p> : <>
+        <div className="od-q"><input type="search" placeholder={tx('Procurar deck…')} value={q} onChange={e => setQ(e.target.value)} />
+          <select value={zone} onChange={e => setZone(e.target.value)} aria-label={tx('Onde')}><option value="main">{tx('Deck')}</option><option value="maybe">Maybeboard</option></select></div>
+        {!list ? <p className="muted small">{tx('A carregar…')}</p> : !shown.length ? <p className="muted small">{tx('Não há mais decks.')}</p> :
+          <ul className="od-list">{shown.slice(0, 60).map(d => {
+            const F = FORMAT[d.format], n = zoneCount(d.main || {}) + (d.commanders || []).length
+            return <li key={d.id}><span className="od-n">{d.name}</span><small className="muted">{F?.name || d.format} · {n}{F?.size?.[1] ? `/${F.size[1]}` : ''}</small>
+              <button disabled={!!busy} onClick={() => put(d)}>{busy === d.id ? '…' : '＋'}</button></li>
+          })}</ul>}
+        {warn && <div className="od-warn"><p className="small">⚠ {tx('«{d}»: {p}.', { d: warn.d.name, p: warn.p.join('; ') })}</p>
+          <div className="row-btns"><button onClick={() => put(warn.d, true)}>{tx('Juntar mesmo assim')}</button><button className="link" onClick={() => setWarn(null)}>{tx('Cancelar')}</button></div></div>}
+      </>}
+    </div>
+  )
+}
+
 // pares possíveis de um comandante com Partner / «Partner with» / Background / Friends forever / Doctor's companion:
 // aparecem logo na ficha, os mais jogados primeiro, com a identidade de cor junta; «♛ par» põe os dois como comandantes
 const PAIRS = /\bPartner\b|Choose a Background|Friends forever|Doctor's companion/
@@ -1683,6 +1736,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
             {(deck.main[c.n] || deck.side[c.n]) && <button className={`subs-btn ${subs ? 'on' : ''}`} onClick={() => setSubs(!subs)}>🔁 {tx('Sugerir substituto')}</button>}
           </div>
           {subs && <Subs c={c} data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} />}
+          <ToOtherDeck c={c} data={data} deck={deck} act={act} />
           {fmt.cmd && <Partners c={c} data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} />}
           {combos.length > 0 && (
             <>

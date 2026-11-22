@@ -472,11 +472,22 @@ export default function App() {
   const act = useMemo(() => ({ add, remove, move, setCommander, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
+    goDeck: id => goDeck(id), decksChanged: () => api('/api/decks').then(setDecks).catch(() => {}),
     clearGroups: () => { setDeck(d => ({ ...d, groups: [] })); say(tx('Secções removidas: o deck volta a aparecer por tipo.')) },
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
   [add, remove, move, setCommander, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
+  const deckRef = useRef(deck); deckRef.current = deck
+  // saltar para outro deck (ficha da carta › «Abrir esse deck»): o que estiver por gravar no atual grava-se primeiro
+  const goDeck = async id => {
+    const d = deckRef.current
+    if (dirty.current && d.id) {
+      try { await api(`/api/decks/${d.id}`, { method: 'PUT', body: JSON.stringify({ ...d, count: count(d.main) + d.commanders.length }) }); dirty.current = false } catch (e) { say(tx('erro ao guardar: {e}', { e: e.message })); return }
+    }
+    setOpen(null); setHome(false); setSection('construir'); setTab('deck')
+    await openDeck(id)
+  }
   const openDeck = async id => {
     if (!id) return setShowWizard(true)
     const d = await api(`/api/decks/${id}`)
