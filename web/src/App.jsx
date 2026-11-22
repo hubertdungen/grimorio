@@ -182,6 +182,7 @@ export default function App() {
   useEffect(() => { if (!home) try { sessionStorage.setItem('grimorio.dentro', '1') } catch { /* sem armazenamento */ } }, [home])
   // contador de vida e dados (ecrã próprio, aberto do início); o F5 volta a ele
   const [tool, setToolS] = useState(() => { try { return sessionStorage.getItem('grimorio.mesa') || null } catch { return null } })
+  const [homePx, setHomePx] = useState(false)  // o quadrado «Proxies» do início
   const setTool = t => { setToolS(t); try { if (t) sessionStorage.setItem('grimorio.mesa', t); else sessionStorage.removeItem('grimorio.mesa') } catch { /* sem armazenamento */ } }
   const [showRefresh, setShowRefresh] = useState(false)
   // sentado numa mesa livre (o separador guarda-a na sessão): ao recarregar volta direto à mesa, também para convidados
@@ -514,7 +515,7 @@ export default function App() {
   if (remoteRoom) return remoteRoom.kind === 'taverna' ? <RemoteTaverna data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} /> : <RemoteRoom data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} />
   const levarEl = levar != null && !guest && <FriendRoomModal data={data} link={levar} onClose={closeLevar} onRemote={r => { closeLevar(); setRemoteRoom(r) }} />
   if (tool) return <Mesa tool={tool} setTool={setTool} deck={deck} decks={decks} onHome={() => { setTool(null); setHome(true) }} onApp={() => { setTool(null); setHome(false) }} />
-  if (home) return <>{levarEl}<Home friend={!guest} deck={deck} decks={decks} onTool={setTool} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }} onScan={() => { setHome(false); setSection('construir'); setScan(true) }}
+  if (home) return <>{levarEl}{homePx && <ProxyDialog data={data} decks={[]} onClose={() => setHomePx(false)} />}<Home friend={!guest} deck={deck} decks={decks} onTool={setTool} onProxies={data ? () => setHomePx(true) : null} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }} onScan={() => { setHome(false); setSection('construir'); setScan(true) }}
     onGo={(sec, mode) => { setHome(false); setSection(sec); if (mode) setColMode(mode) }} /></>
   return (
     <div className={`app tab-${tab} sec-${section}`}>

@@ -16,7 +16,7 @@ const GO = [
   ['coliseu', 'jogar', 'forge', tx('Jogar'), tx('Senta-te tu à mesa contra o Forge com o teu deck.')],
 ]
 
-export default function Home({ deck, decks, onGo, onNew, onTool, onScan, friend }) {
+export default function Home({ deck, decks, onGo, onNew, onTool, onScan, onProxies, friend }) {
   const last = deck?.id && decks.find(d => d.id === deck.id)
   return (
     <div className="home">
@@ -43,6 +43,7 @@ export default function Home({ deck, decks, onGo, onNew, onTool, onScan, friend 
         <button className="home-card home-tool life" onClick={() => onTool('vida')}><i><Icon n="vida" /></i><b>{tx('Contador de vida')}</b><span>{tx('Até 6 jogadores, vida e veneno, com registo.')}</span></button>
         <button className="home-card home-tool scan" onClick={onScan}><i><Icon n="scan" /></i><b>{tx('Ler carta')}</b><span>{tx('Aponta a câmara a uma carta e ela entra no deck aberto.')}</span></button>
         <button className="home-card home-tool dice" onClick={() => onTool('dados')}><i><Icon n="dados" /></i><b>{tx('Dados')}</b><span>{tx('d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.')}</span></button>
+        {onProxies && <button className="home-card home-tool proxies" onClick={onProxies}><i>🖨</i><b>{tx('Proxies')}</b><span>{tx('Cartas para imprimir de um ou vários decks, com tokens e sugestões: lista, ZIP ou folhas prontas.')}</span></button>}
         <button className="home-card home-tool tokens" onClick={() => onTool('fichas')}><i><Icon n="fichas" /></i><b>{tx('Tokens')}</b><span>{tx('As fichas do deck em cartas a sério no ecrã: quantas, viradas e marcadores.')}</span></button>
         <button className="home-card home-tool rules" onClick={() => onGo('regras')}><i><Icon n="regras" /></i><b>{tx('Regras')}</b><span>{tx('Dúvidas de regras e cartas em qualquer língua, com os rulings oficiais e a câmara.')}</span></button>
       </div>

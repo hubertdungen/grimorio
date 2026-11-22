@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Cartas para imprimir de um ou vários decks, com tokens e sugestões: lista, ZIP ou folhas prontas.": "从一个或多个套牌打印卡牌，含衍生物和建议：清单、ZIP 或现成的打印页。",
+  "Escolhe um ou mais decks: lista para sites de proxies, ZIP com as imagens ou folhas para imprimir, com os tokens e as sugestões de cada deck.": "选择一个或多个套牌：代理网站清单、图片 ZIP 或打印页，包含每个套牌的衍生物和建议。",
   "Tokens do deck": "牌组衍生物",
   "As fichas deste deck em cartas a sério no ecrã, para jogar à mesa": "将此牌组的衍生物以真实卡牌显示在屏幕上，用于桌面对战",
   "As do deck": "牌组里的",

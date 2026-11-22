@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Cartas para imprimir de um ou vários decks, com tokens e sugestões: lista, ZIP ou folhas prontas.": "Cards to print from one or several decks, with tokens and suggestions: list, ZIP or ready sheets.",
+  "Escolhe um ou mais decks: lista para sites de proxies, ZIP com as imagens ou folhas para imprimir, com os tokens e as sugestões de cada deck.": "Pick one or more decks: a list for proxy sites, a ZIP with the images or sheets to print, with each deck's tokens and suggestions.",
   "Tokens do deck": "Deck tokens",
   "As fichas deste deck em cartas a sério no ecrã, para jogar à mesa": "This deck's tokens as real cards on screen, for tabletop play",
   "As do deck": "From the deck",

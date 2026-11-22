@@ -240,6 +240,16 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
   const sugNames = k => (optOf(k).sug && sugs[k]?.length > 0 ? <p className="muted small">{sugs[k].map(c => c.n).join(' · ')}</p> : null)
   const sugN = (k, r) => <input className="px-n" type="number" min="1" max="40" value={r.sugN} onChange={e => setOpt(k, { sugN: Math.max(1, Math.min(40, +e.target.value || 1)) })} aria-label={tx('Quantas sugestões')} />
   const k0 = all[0] && keyOf(all[0]), r0 = optOf(k0)
+  // sem deck nenhum (o quadrado «Proxies» do início): começa por escolher os decks
+  if (!all.length) return createPortal(
+    <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal proxies" role="dialog" aria-label={tx('Proxies')}>
+        <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
+        <h3>🖨 {tx('Proxies')}</h3>
+        <p className="muted small">{tx('Escolhe um ou mais decks: lista para sites de proxies, ZIP com as imagens ou folhas para imprimir, com os tokens e as sugestões de cada deck.')}</p>
+        <JoinPicker have={[]} onAdd={ds => setExtra(ds)} onClose={onClose} />
+      </div>
+    </div>, document.body)
   return createPortal(
     <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal proxies" role="dialog" aria-label={tx('Proxies')}>

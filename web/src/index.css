@@ -1659,7 +1659,8 @@ button.fg-card { cursor: pointer; } button.fg-card:hover { border-color: var(--g
 }
 /* Tokens (Para jogar à mesa): na mesa à esquerda, juntar à direita (no telemóvel uma coluna) */
 .home-tool.tokens i { background: linear-gradient(135deg, #f2b84b44, #2fa36b33); }
-@media (min-width: 900px) { .home-mesa { grid-template-columns: repeat(5, 1fr); } }
+@media (min-width: 900px) { .home-mesa { grid-template-columns: repeat(3, 1fr); } }  /* 6 ferramentas: 3 + 3 */
+.home-tool.proxies i { background: linear-gradient(135deg, #7c5cff44, #f2b84b33); font-style: normal; }
 @media (max-width: 899px) { .home-mesa > .home-card:last-child:nth-child(even) { grid-column: 1 / -1; } }  /* 5 ferramentas em 2 colunas: a última a toda a largura */
 .tk { flex: 1; display: grid; gap: 18px; padding: 12px 16px 24px; align-items: start; }
 @media (min-width: 900px) { .tk { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); } .tk-add { position: sticky; top: 64px; max-height: calc(100dvh - 76px); overflow: auto; } }

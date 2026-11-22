@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Cartas para imprimir de um ou vários decks, com tokens e sugestões: lista, ZIP ou folhas prontas.": "Karten zum Drucken aus einem oder mehreren Decks, mit Spielsteinen und Vorschlägen: Liste, ZIP oder fertige Bögen.",
+  "Escolhe um ou mais decks: lista para sites de proxies, ZIP com as imagens ou folhas para imprimir, com os tokens e as sugestões de cada deck.": "Wähle ein oder mehrere Decks: Liste für Proxy-Seiten, ZIP mit den Bildern oder Druckbögen, mit den Spielsteinen und Vorschlägen jedes Decks.",
   "Tokens do deck": "Spielsteine des Decks",
   "As fichas deste deck em cartas a sério no ecrã, para jogar à mesa": "Die Spielsteine dieses Decks als echte Karten auf dem Bildschirm, zum Spielen am Tisch",
   "As do deck": "Aus dem Deck",
