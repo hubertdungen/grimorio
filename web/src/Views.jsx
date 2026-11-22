@@ -17,6 +17,7 @@ import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 import { parseQuery, likeTheme } from './nlsearch.js'
+import { ARCH } from './archetypes.js'
 import { VOC, findSets, setLabel, setYear, setGroup, setMembers, flavorOf } from './vocab.js'
 import { THREATS, hateMatch } from './hate.js'
 import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
@@ -894,7 +895,7 @@ export function BasicBar({ data, deck, ctx, act }) {
   )
 }
 
-const NL_L = { type: tx('tipo'), sub: tx('subtipo'), tag: tx('função'), cares: tx('beneficia de'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor'), vs: tx('contra'), fmt: tx('formato') }
+const NL_L = { type: tx('tipo'), sub: tx('subtipo'), tag: tx('função'), cares: tx('beneficia de'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor'), vs: tx('contra'), fmt: tx('formato'), arch: tx('estratégia') }
 
 export function SearchView({ data, deck, fmt, ctx, act }) {
   const [q, setQ] = useState('')
@@ -965,7 +966,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       <div>
       {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => (g.k === 'legendary' ? <span key={k} className="chip">♛ <b>{tx('Lendárias')}</b></span>
         : g.k === 'vs' ? <span key={k} className="chip chip-vs" title={res.nl.f.vsCtr ? tx('Só contra-feitiços que apanham estes feitiços') : tx('Cartas que respondem a isto: as mais diretas primeiro')}>🛡 {NL_L.vs} <b>{THREATS[g.v].label}</b><button onClick={() => setNoVs(qq)} aria-label={tx('Retirar {t}', { t: THREATS[g.v].label })}>×</button></span>
-        : <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.k === 'fmt' ? FORMAT[g.v]?.name || g.v : g.v}</b></span>))}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.orTypes && <span className="muted small">{tx('nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra', { t: res.nl.orTypes.map(t => TYPE_LABEL[t] || t).join(' + ') })}</span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
+        : <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.k === 'arch' ? `♟ ${ARCH[g.v].l}` : g.k === 'fmt' ? FORMAT[g.v]?.name || g.v : g.v}</b></span>))}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.orTypes && <span className="muted small">{tx('nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra', { t: res.nl.orTypes.map(t => TYPE_LABEL[t] || t).join(' + ') })}</span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
       {setHit && <p className="small set-hit">📦 {tx('Edição')}: <b>{setHit.set.name}</b> <span className="muted">({setHit.set.tag || setHit.set.code.toUpperCase()}{setHit.set.y ? ` · ${setHit.set.y}` : ''})</span>{!setList && <span className="muted"> · {tx('a carregar as cartas da edição…')}</span>}</p>}
       {uniSug.length > 0 && <p className="small set-hit">{tx('Também é o nome de um universo:')} {uniSug.map(v => <button key={v} className="link small" onClick={() => setQ(`e:${v}`)}>🎬 {setLabel(v)}</button>)}</p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
