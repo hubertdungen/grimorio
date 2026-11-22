@@ -3,7 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { search, recommend, img, fmtBit, passes, STYLES, LEVELS, CREATURE_TYPES, COLORS, TAG_LABEL, TYPE_LABEL, termMatch } from './data.js'
 import { likeTheme, likeCards, likeCommanders, chipUniverse, parseQuery } from './nlsearch.js'
-import { FORMATS, FORMAT, canBeCommander } from './formats.js'
+import { FORMATS, FORMAT, canBeCommander, pairOk } from './formats.js'
 import { emptyDeck } from './deck.js'
 import { PrefsPanel, IASettings } from './Views.jsx'
 import { Mana } from './ui.jsx'
@@ -18,13 +18,6 @@ const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {} } 
 const save = v => { try { if (v) localStorage.setItem(KEY, JSON.stringify(v)); else localStorage.removeItem(KEY) } catch { /* sem armazenamento */ } }
 // dois comandantes: Partner, Partner with X, Friends forever, Choose a Background, Doctor's companion
 const pairable = c => /\bPartner\b|Friends forever|Doctor's companion|Choose a Background/.test(c.o) || /Time Lord Doctor/.test(c.t)
-function pairOk(a, b) {
-  const pw = c => c.o.match(/Partner with ([^\n(]+)/)?.[1]?.trim()
-  if (pw(a) || pw(b)) return pw(a) === b.n || pw(b) === a.n
-  const one = (re, ok) => (re.test(a.o) && ok(b)) || (re.test(b.o) && ok(a))
-  return one(/Choose a Background/, c => /Background/.test(c.t)) || one(/Doctor's companion/, c => /Time Lord Doctor/.test(c.t)) ||
-    [/\bPartner\b/, /Friends forever/].some(re => re.test(a.o) && re.test(b.o))
-}
 
 const START = [['gosto', tx('Gosto de…'), '♥'], ['cartas', tx('Escolher 3–10 cartas'), '▦'], ['manual', tx('Construir à mão'), '✎'], ['importar', tx('Importar e melhorar'), '⇩'], ['ia', tx('Descrever a ideia (IA)'), '✦']]
 
@@ -39,14 +32,30 @@ function PickCard({ c, on, disabled, onPick, onBig }) {
   )
 }
 
-// carta de comandante: tocar escolhe; tocar e manter (ou botão direito, ou 🔍) mostra-a em grande
-function CmdCard({ c, onPick, onBig }) {
+// o que se pode fazer com um comandante possível: ser O comandante, entrar como carta de partida, como subcomandante (no
+// deck, marcado ♛, para trocar depressa) ou ficar no maybeboard (não entra no deck, mas pesa um pouco nas sugestões)
+const ROLE_L = { pick: tx('no deck'), sub: tx('subcomandante'), maybe: tx('talvez') }
+function CmdActs({ c, role, onCmd, onRole, done }) {
+  const go = f => e => { e.stopPropagation(); f(); done?.() }
+  return <>
+    <button className="wz-ca cmd" onClick={go(onCmd)}>♛ {tx('Comandante')}</button>
+    <button className={`wz-ca${role === 'pick' ? ' on' : ''}`} onClick={go(() => onRole(c, 'pick'))}>{role === 'pick' ? '✓' : '＋'} {tx('Juntar ao deck')}</button>
+    <button className={`wz-ca${role === 'sub' ? ' on' : ''}`} onClick={go(() => onRole(c, 'sub'))}>♕ {tx('Subcomandante')}</button>
+    <button className={`wz-ca${role === 'maybe' ? ' on' : ''}`} onClick={go(() => onRole(c, 'maybe'))}>{role === 'maybe' ? '✓' : '＋'} {tx('Talvez')}</button>
+  </>
+}
+// carta de comandante: tocar escolhe; tocar e manter (ou botão direito, ou 🔍) mostra-a em grande; ⋯ abre as outras ações
+function CmdCard({ c, onPick, onBig, role, onRole }) {
+  const [menu, setMenu] = useState(false)
   const zoom = e => { e.preventDefault(); e.stopPropagation(); held(); onBig(c) }
   return (
-    <div className="wz-cc">
+    <div className={`wz-cc${role ? ` r-${role}` : ''}`}>
       <button onClick={onPick} onContextMenu={zoom} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" draggable={false} /></button>
       <span className="wz-ccn"><b>{c.n.split(',')[0]}</b><span className="wz-pips">{[...(c.ci || '')].map(k => <i key={k} className={`wz-dot d-${k}`} />)}{!c.ci && <i className="wz-dot d-C" />}</span></span>
       <button className="wz-zoom" onClick={zoom} aria-label={`${tx('Ver em grande')}: ${c.n}`} title={tx('Ver em grande')}>🔍</button>
+      {onRole && <button className={`wz-more1${menu ? ' on' : ''}`} onClick={e => { e.stopPropagation(); setMenu(m => !m) }} aria-expanded={menu} aria-label={`${tx('Mais ações')}: ${c.n}`} title={tx('Comandante, juntar ao deck, subcomandante ou talvez')}>⋯</button>}
+      {role && !menu && <span className="wz-role">{role === 'sub' ? '♕ ' : ''}{ROLE_L[role]}</span>}
+      {menu && <div className="wz-ccm" role="menu" onClick={() => setMenu(false)}><CmdActs c={c} role={role} onCmd={onPick} onRole={onRole} done={() => setMenu(false)} /></div>}
     </div>
   )
 }
@@ -97,6 +106,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const [name, setName] = useState(S0.name || '')
   const [picks, setPicks] = useState(() => cards(S0.picks))
   const [cmds, setCmds] = useState(() => cards(S0.cmds))
+  const [subsW, setSubsW] = useState(() => cards(S0.subs))  // subcomandantes: entram no deck marcados ♛
+  const [maybes, setMaybes] = useState(() => cards(S0.maybes))  // maybeboard: fora do deck, pesam pouco nas sugestões
   const [prefs, setPrefs] = useState(S0.prefs || {})
   const [q, setQ] = useState(S0.q || '')
   const [cq, setCq] = useState('')
@@ -104,9 +115,9 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const [cf, setCf] = useState({ col: [], exact: false, sort: 'rel', kind: '', partner: false, n: 18 })  // filtros da lista de comandantes
   const dq = useDeferredValue(q), dcq = useDeferredValue(cq)
   const [restored, setRestored] = useState(() => !!(S0.like || S0.likePick?.length || S0.picks?.length || S0.cmds?.length || S0.idea || S0.name))
-  useEffect(() => { save({ start, idea, like, likeOff, likeStar, likePick, format, name, picks: picks.map(c => c.n), cmds: cmds.map(c => c.n), prefs, q }) }, [start, idea, like, likeOff, likeStar, likePick, format, name, picks, cmds, prefs, q])
-  const clear = () => { save(null); setStart('cartas'); setIdea(''); setLike(''); setLikeOff([]); setLikeStar([]); setLikePick([]); setName(''); setPicks([]); setCmds([]); setPrefs({}); setQ(''); setCq(''); setAiSum(null); setRestored(false) }
-  const dirty = like || picks.length || cmds.length || idea || name || q
+  useEffect(() => { save({ start, idea, like, likeOff, likeStar, likePick, format, name, picks: picks.map(c => c.n), cmds: cmds.map(c => c.n), subs: subsW.map(c => c.n), maybes: maybes.map(c => c.n), prefs, q }) }, [start, idea, like, likeOff, likeStar, likePick, format, name, picks, cmds, subsW, maybes, prefs, q])
+  const clear = () => { save(null); setStart('cartas'); setIdea(''); setLike(''); setLikeOff([]); setLikeStar([]); setLikePick([]); setName(''); setPicks([]); setCmds([]); setSubsW([]); setMaybes([]); setPrefs({}); setQ(''); setCq(''); setAiSum(null); setRestored(false) }
+  const dirty = like || picks.length || cmds.length || subsW.length || maybes.length || idea || name || q
   const cmd = cmds[0] || null
   const setCmd = c => {
     setCmds(c ? [c] : [])
@@ -118,11 +129,12 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const res = useMemo(() => {
     if (!dq.trim() && fmt.cmd && cmds.length) {
       const cmdIdx = cmds.map(c => c.i), seeds = [...cmdIdx, ...picks.map(c => c.i)]
-      const recs = recommend(data, { seeds, have: seeds, ctx, filters: { noLands: true }, limit: 48, commanders: cmdIdx })
+      const ideas = [...subsW.map(c => ({ i: c.i, w: 0.25 })), ...maybes.map(c => ({ i: c.i, w: 0.15 }))]  // como no editor (formats.js ideaSeeds)
+      const recs = recommend(data, { seeds, have: [...seeds, ...subsW.map(c => c.i)], ctx, filters: { noLands: true }, limit: 48, commanders: cmdIdx, ideas })
       if (recs.length) return recs.map(r => r.c)
     }
     return search(data, dq, { sort: 'pop', inText: false }, ctx, 48).cards
-  }, [data, dq, ctx, fmt, cmds, picks])
+  }, [data, dq, ctx, fmt, cmds, picks, subsW, maybes])
   // cores que o comandante tem de cobrir: as das cartas de partida (podem ter mais, nunca menos)
   const need = useMemo(() => [...new Set(picks.flatMap(c => [...c.ci]))].join(''), [picks])
   // comandantes legais no formato (pela popularidade); com um escolhido que aceite par, os parceiros possíveis
@@ -136,6 +148,22 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const has = c => picks.some(p => p.i === c.i) || cmds.some(x => x.i === c.i)
   const maxPicks = start === 'ia' ? 30 : 10
   const toggle = c => setPicks(p => (p.some(x => x.i === c.i) ? p.filter(x => x.i !== c.i) : p.length >= maxPicks ? p : [...p, c]))
+  // um comandante possível tem um papel de cada vez: carta de partida, subcomandante ou talvez (tocar no mesmo tira-o)
+  const roleOf = c => (picks.some(x => x.i === c.i) ? 'pick' : subsW.some(x => x.i === c.i) ? 'sub' : maybes.some(x => x.i === c.i) ? 'maybe' : null)
+  const setRole = (c, r) => {
+    const cur = roleOf(c), off = l => l.filter(x => x.i !== c.i)
+    setSubsW(off); setMaybes(off)
+    if (cur === 'pick') setPicks(off)
+    if (r === cur) return
+    if (r === 'pick') toggle(c); else if (r === 'sub') setSubsW(l => [...off(l), c]); else setMaybes(l => [...off(l), c])
+    if (cmds.some(x => x.i === c.i)) setCmds(off)
+  }
+  const pickCmd = c => {  // ♛ a partir do menu: junta como par se fizer par, senão passa a ser o comandante
+    const off = l => l.filter(x => x.i !== c.i)
+    setPicks(off); setSubsW(off); setMaybes(off)
+    if (partnerOf && pairOk(partnerOf, c)) setCmds(x => [...off(x), c]); else setCmd(c)
+  }
+  const cmdOk = c => fmt.cmd && (canBeCommander(c, fmt) || (partnerOf && /Background/.test(c.t) && pairOk(partnerOf, c)))
 
   // «Gosto de…»: o texto vira temas, cores e funções (chips que se desligam); a pré-visualização segue os chips ligados
   const dlike = useDeferredValue(like)
@@ -296,9 +324,17 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
       d.main[c.n] = fmt.copies === 1 || /\bBasic\b/.test(c.t) ? 1 : Math.min(base, c.cmc >= 5 ? 2 : 4)
     }
     d.seeds = seeds.map(c => c.n)
+    withIdeas(d, useCmd)
     if (start === 'gosto') d.seedTerms = sel.terms.filter(t => t.u || likeStar.includes(key.t(t))).sort((a, b) => likeStar.includes(key.t(b)) - likeStar.includes(key.t(a))).map(t => ({ k: t.k, v: t.v }))
     d.prefs = prefs
     onCreate(d, auto)
+  }
+  // subcomandantes: no deck marcados ♛ se cabem na identidade (senão vão para o maybeboard); talvez: maybeboard
+  function withIdeas(d, useCmd) {
+    const ci = useCmd.map(c => c.ci).join(''), fits = c => !useCmd.length || [...c.ci].every(k => ci.includes(k))
+    for (const c of subsW) if (!useCmd.some(x => x.i === c.i)) { if (fits(c)) { d.main[c.n] = 1; d.subs = [...(d.subs || []), c.n] } else d.maybe[c.n] = 1 }
+    for (const c of maybes) if (!useCmd.some(x => x.i === c.i) && !d.main[c.n]) d.maybe[c.n] = 1
+    return d
   }
   const fakeAct = { setPrefs: p => setPrefs(x => ({ ...x, ...p })) }
   return (
@@ -354,7 +390,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
               <div className="wz-res">{preview.map(c => <PickCard key={c.i} c={c} on={has(c)} onPick={() => toggle(c)} onBig={setBig} />)}</div>
             </>}
             <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />
-            <button onClick={() => { save(null); const useCmd = cmds.length ? cmds : autoCmd ? [autoCmd] : []; const d = emptyDeck(format); d.name = name.trim() || tx('{name} — novo', { name: useCmd.length ? useCmd.map(c => c.n.split(',')[0]).join(' & ') : fmt.name }); d.commanders = useCmd.map(c => c.n); d.prefs = prefs; d.seedTerms = sel.terms.map(t => ({ k: t.k, v: t.v })); onCreate(d, false, 'pesquisa') }} disabled={!sel.terms.length}>✎ {tx('Só os temas, construo eu')}</button>
+            <button onClick={() => { save(null); const useCmd = cmds.length ? cmds : autoCmd ? [autoCmd] : []; const d = emptyDeck(format); d.name = name.trim() || tx('{name} — novo', { name: useCmd.length ? useCmd.map(c => c.n.split(',')[0]).join(' & ') : fmt.name }); d.commanders = useCmd.map(c => c.n); d.prefs = prefs; d.seedTerms = sel.terms.map(t => ({ k: t.k, v: t.v })); onCreate(withIdeas(d, useCmd), false, 'pesquisa') }} disabled={!sel.terms.length}>✎ {tx('Só os temas, construo eu')}</button>
           </div>
         )}
 
@@ -396,7 +432,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
             {cmds.length < (partnerOf ? 2 : 1) && <div className="wz-cmdq">
               <input className="big" value={cq} onChange={e => setCq(e.target.value)} placeholder={partnerOf ? tx('Procurar o par de {name}…', { name: partnerOf.n.split(',')[0] }) : tx(fmt.cmd === 'oathbreaker' ? 'Procurar planeswalker legal em {fmt}…' : 'Procurar comandante legal em {fmt}…', { fmt: fmt.name })} />
               <CmdFilters cf={cf} setCf={setCf} total={cmdPool.length} shown={cmdShown.length} on={cfOn} />
-              <div className="wz-res cmds">{cmdShown.slice(0, cf.n).map(c => <CmdCard key={c.i} c={c} onPick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(y => y.i !== c.i)); setCq('') }} onBig={setBig} />)}
+              <div className="wz-res cmds">{cmdShown.slice(0, cf.n).map(c => <CmdCard key={c.i} c={c} onPick={() => { pickCmd(c); setCq('') }} onBig={setBig} role={roleOf(c)} onRole={setRole} />)}
                 {!cmdShown.length && <span className="muted small">{cfOn ? tx('Nenhum com estes filtros.') : dcq ? tx('Nenhum com esse nome.') : partnerOf ? tx('Sem pares legais neste formato.') : ''}</span>}</div>
               {cmdShown.length > cf.n && <button className="wz-more" onClick={() => setCf(f => ({ ...f, n: f.n + 18 }))}>{tx('Mostrar mais')} ({cmdShown.length - cf.n})</button>}
             </div>}
@@ -414,11 +450,15 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
           {start === 'cartas' && !fmt.cmd && Array.from({ length: Math.max(0, 3 - picks.length) }).map((_, k) => <div key={`v${k}`} className="wz-pick empty">{tx('escolhe uma carta')}</div>)}
           {start === 'cartas' && fmt.cmd && !picks.length && <div className="wz-pick empty">{tx('opcional')}</div>}
         </div>
+        {fmt.cmd && subsW.length + maybes.length > 0 && <div className="wz-likerow wz-ideas"><span className="muted small">{tx('Subcomandantes e talvez')}</span>
+          <div className="chips">{[...subsW.map(c => [c, 'sub']), ...maybes.map(c => [c, 'maybe'])].map(([c, r]) => <button key={c.i} className="chip like on" onClick={() => setRole(c, r)} title={tx('Retirar')}>{r === 'sub' ? <span className="sub-badge">♕</span> : '?'} {c.n.split(',')[0]} ×</button>)}</div>
+          <p className="small muted">{tx('Os subcomandantes entram no deck como cartas normais, marcados ♕, para trocar depressa com o comandante; os «talvez» ficam no maybeboard. Ambos puxam um pouco as sugestões.')}</p>
+        </div>}
 
         {cmdBets.length > 0 && (
           <>
             <h4>{start === 'gosto' && cmdBets.length ? tx('Comandantes para este gosto') : tx('Comandantes que encaixam')} <span className="muted">{start === 'gosto' && cmdBets.length ? tx('toca para escolher; as cores ficam presas à identidade dele') : tx('cobrem as cores das tuas cartas')}</span></h4>
-            <div className="wz-res cmds">{cmdBets.map(c => <CmdCard key={c.i} c={c} onPick={() => setCmd(c)} onBig={setBig} />)}</div>
+            <div className="wz-res cmds">{cmdBets.map(c => <CmdCard key={c.i} c={c} onPick={() => pickCmd(c)} onBig={setBig} role={roleOf(c)} onRole={setRole} />)}</div>
           </>
         )}
 
@@ -434,7 +474,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
           <span className="muted small">{!ready ? (fmt.cmd ? tx('Escolhe o comandante (pesquisa acima, ♛ numa carta ou uma sugestão).') : tx('Falta {n} carta.|Faltam {n} cartas.', { n: 3 - eff.length })) : autoCmd ? <>{cmds.length > 1 ? tx('Comandantes') : tx('Comandante')}: <b>{(cmds.length ? cmds : [autoCmd]).map(c => c.n).join(' + ')}</b> <Mana cost={(cmds.length ? cmds : [autoCmd]).map(c => c.mc).join('')} /></> : fmt.side > 0 ? tx('No fim também é proposto um sideboard de 15.') : ''}</span>
         </div>}
       </div>
-      {big && <BigCard name={big.n} data={data} onClose={() => setBig(null)} />}
+      {big && <BigCard name={big.n} data={data} onClose={() => setBig(null)}>{cmdOk(big) && !cmds.some(x => x.i === big.i) ? <CmdActs c={big} role={roleOf(big)} onCmd={() => pickCmd(big)} onRole={setRole} done={() => setBig(null)} /> : null}</BigCard>}
     </div>
   )
 }

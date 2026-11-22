@@ -2,7 +2,7 @@ import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
 import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
-import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT } from './formats.js'
+import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, subsOf } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll, SymTxt } from './ui.jsx'
 import { showCardPeek, hideCardPeek, pressPeek, useFolded } from './deckview.js'
@@ -452,6 +452,7 @@ function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
   const seedTerms = useMemo(() => deck.seedTerms || [], [deck.seedTerms])
   const have = useMemo(() => deckIndices(deck, data), [deck, data])
   const cmdIdx = useMemo(() => deck.commanders.map(n => data.byName.get(n)?.i).filter(x => x != null), [data, deck.commanders])
+  const ideaK = JSON.stringify(ideaSeeds(deck, data, fmt)), ideas = useMemo(() => JSON.parse(ideaK), [ideaK])  // estável: só muda com eles
   const seeds = useMemo(() => {
     if (seedsIdx.length) return seedsIdx
     const main = Object.keys(deck.main).map(n => data.byName.get(n)).filter(c => c && c.mt !== 'Land').map(c => c.i).reverse()
@@ -471,8 +472,8 @@ function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
   const gcCount = useMemo(() => have.filter(i => data.cards[i].gc).length, [have, data])
   // plano do deck (temas com cópias reais); com sementes escolhidas, recommend tira-o das sementes
   const profile = useMemo(() => (seedsIdx.length ? null : deckThemes(data, deck).cats), [data, deck, seedsIdx.length])
-  const recs = useMemo(() => recommend(data, { seeds, seedTerms, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt), profile }),
-    [data, seeds, seedTerms, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt, profile])
+  const recs = useMemo(() => recommend(data, { seeds, seedTerms, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt), profile, ideas }),
+    [data, seeds, seedTerms, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt, profile, ideas])
   const plan = useMemo(() => deckPlan(data, have), [data, have])
   // trocas: preparadas só quando um «+» as pede (o rato em cima ou o menu aberto); swap.js guarda-as por deck
   const swaps = useMemo(() => (c, o) => prepareSwaps(data, deck, fmt, ctx, { co, archetype, meta, evidence: ctx.tests })(c, o), [data, deck, fmt, ctx, co, archetype, meta])
@@ -487,7 +488,7 @@ function PlanLine({ profile, plan }) {
 
 const Why = ({ why }) => <ul className="why">{why.map((w, k) => <li key={k} className={w.k}>{w.combo ? <a href={`https://commanderspellbook.com/combo/${w.combo}/`} target="_blank" rel="noreferrer">{w.txt}</a> : <SymTxt text={w.txt} />}</li>)}</ul>
 
-const PART_LABEL = { estilo: tx('Estilo escolhido'), gosto: tx('O teu gosto'), original: tx('Originalidade'), torneios: tx('Torneios (MTGTop8)'), texto: tx('Texto parecido'), comandante: tx('Comandante'), decksReais: tx('Decks reais (EDHREC)'), combos: 'Combos', interacoes: tx('Interações'), falta: tx('O que falta ao deck'), plano: tx('Plano do deck'), tribo: tx('Tribo e palavras-chave'), popular: tx('Popularidade'), testes: tx('Testes do Laboratório') }
+const PART_LABEL = { estilo: tx('Estilo escolhido'), gosto: tx('O teu gosto'), original: tx('Originalidade'), torneios: tx('Torneios (MTGTop8)'), texto: tx('Texto parecido'), comandante: tx('Comandante'), ideia: tx('Comandantes em ideia'), decksReais: tx('Decks reais (EDHREC)'), combos: 'Combos', interacoes: tx('Interações'), falta: tx('O que falta ao deck'), plano: tx('Plano do deck'), tribo: tx('Tribo e palavras-chave'), popular: tx('Popularidade'), testes: tx('Testes do Laboratório') }
 const pct = x => `${Math.min(99, Math.round(x * 100))}%`
 
 // O raciocínio inteiro de uma sugestão: peso de cada fator e os dados por trás.
@@ -803,6 +804,7 @@ function Actions({ c, deck, fmt, act, swaps }) {
       {fmt.side > 0 && <button className="act" onClick={() => act.add(c, 'side')} title={tx('Juntar ao sideboard')}>SB</button>}
       <button className={`act mb ${deck.maybe?.[c.n] ? 'on' : ''}`} onClick={() => act.add(c, 'maybe')} title={tx('Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes')}>→ MB</button>
       {fmt.cmd && canBeCommander(c, fmt) && <button className={`act ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)} title={fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}>♛</button>}
+      {fmt.cmd && canBeCommander(c, fmt) && !deck.commanders.includes(c.n) && <button className={`act sub ${subsOf(deck).includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSub(c)} title={tx('Subcomandante: entra no deck como carta normal, marcada, para trocar depressa com o comandante')}>♕</button>}
       {fmt.cmd === 'oathbreaker' && /Instant|Sorcery/.test(c.t) && <button className={`act ${deck.signature === c.n ? 'on' : ''}`} onClick={() => act.setSignature(c)} title={tx('Feitiço de assinatura')}>✦</button>}
       <button className={`act seed ${deck.seeds.includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSeed(c)} title={tx('Semente das sugestões')}>★</button>
       <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte (edições e estilos)')}>🎨</button>
@@ -1602,6 +1604,11 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
             {fmt.side > 0 && <button onClick={() => act.add(c, 'side')}>+ Sideboard</button>}
             <button onClick={() => act.add(c, 'maybe')} title={tx('Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes')}>+ Maybeboard{deck.maybe?.[c.n] ? ` (${deck.maybe[c.n]})` : ''}</button>
             {fmt.cmd && canBeCommander(c, fmt) && <button onClick={() => act.setCommander(c)}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : tx('Comandante')}</button>}
+            {fmt.cmd && canBeCommander(c, fmt) && !deck.commanders.includes(c.n) && <>
+              <button className={`sub-btn ${subsOf(deck).includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSub(c)} title={tx('Entra no deck como carta normal, marcada, para trocar depressa com o comandante')}><span className="sub-badge">♕</span> {subsOf(deck).includes(c.n) ? tx('É subcomandante') : tx('Subcomandante')}</button>
+              {deck.commanders.length < 2 ? deck.commanders.length > 0 && <button onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')}>⇄ {tx('Trocar para comandante')}</button>
+                : deck.commanders.map(n => <button key={n} onClick={() => act.promote(c, n)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')}>⇄ {tx('No lugar de {c}', { c: n.split(',')[0] })}</button>)}
+            </>}
             <button onClick={() => act.toggleSeed(c)}>{deck.seeds.includes(c.n) ? `★ ${tx('É semente')}` : `☆ ${tx('Semente')}`}</button>
             <button onClick={() => act.showOnMap(c)}>{tx('Ver no universo')}</button>
             {(deck.main[c.n] || deck.side[c.n]) && <button className={`subs-btn ${subs ? 'on' : ''}`} onClick={() => setSubs(!subs)}>🔁 {tx('Sugerir substituto')}</button>}
@@ -1947,12 +1954,14 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
   const tile1 = ({ c, q, zone, pid, part, k = 0 }) => (  // função e não componente (ver o row do DeckPanel em App.jsx)
     <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}`} data-card={c.n}>
       <button className="dg-img" onClick={() => act.open(c)} title={c.n} {...pressPeek(c, pid ?? pidOf(deck, c.n))}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
+      {zone === 'main' && subsOf(deck).includes(c.n) && <span className="sub-badge dg-sub" title={tx('Subcomandante: carta normal do deck que pode trocar com o comandante')}>♕</span>}
       {(part != null || q > 1) && <span className="dg-q" title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>×{part ?? q}</span>}
       <div className="dg-bar">
         <button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
         <b title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>{part ?? q}</b>
         <button onClick={() => act.add(c, zone, 1)} aria-label={tx('Mais uma')}>+</button>
         <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte')}>🎨</button>
+        {fmt.cmd && (zone === 'main' ? subsOf(deck).includes(c.n) : zone === 'maybe' && canBeCommander(c, fmt)) && <button className="sub-swap" onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')}>⇄♛</button>}
         {['main', ...(fmt.side ? ['side'] : []), 'maybe'].filter(z => z !== zone).map(z => <button key={z} className="dg-mv" onClick={() => act.move(c, zone, z)} title={ZONE_T[z]}>{ZONE_S[z]}</button>)}
         <button className="dg-x" onClick={() => act.remove(c, zone, q)} aria-label={tx('Retirar do deck')} title={tx('Retirar do deck')}>×</button>
       </div>

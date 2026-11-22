@@ -81,6 +81,46 @@ export function canBeCommander(card, fmt, pair) {  // pair: o outro comandante (
 
 const subset = (a, b) => [...a].every(c => b.includes(c))
 
+// dois comandantes juntos: Partner, Partner with X, Friends forever, Choose a Background, Doctor's companion
+export function pairOk(a, b) {
+  const pw = c => c.o.match(/Partner with ([^\n(]+)/)?.[1]?.trim()
+  if (pw(a) || pw(b)) return pw(a) === b.n || pw(b) === a.n
+  const one = (re, ok) => (re.test(a.o) && ok(b)) || (re.test(b.o) && ok(a))
+  return one(/Choose a Background/, c => /Background/.test(c.t)) || one(/Doctor's companion/, c => /Time Lord Doctor/.test(c.t)) ||
+    [/\bPartner\b/, /Friends forever/].some(re => re.test(a.o) && re.test(b.o))
+}
+
+// Subcomandantes: cartas que podiam ser comandante, no deck como cartas normais (deck.subs, marcadas ♛), para trocar depressa.
+export const subsOf = deck => (deck.subs || []).filter(n => deck.main?.[n])
+// Comandantes «em ideia» para as sugestões: os subcomandantes (peso 0,25) e os do maybeboard (0,15). Pesam pouco ao lado do
+// comandante a sério e nunca mexem na identidade nem na legalidade (essas seguem só deck.commanders).
+export function ideaSeeds(deck, data, fmt) {
+  if (!fmt.cmd) return []
+  const out = [], seen = new Set(deck.commanders)
+  const push = (n, w) => { const c = data.byName.get(n); if (c && !seen.has(n) && canBeCommander(c, fmt)) { seen.add(n); out.push({ i: c.i, w }) } }
+  for (const n of subsOf(deck)) push(n, 0.25)
+  for (const n of Object.keys(deck.maybe || {})) push(n, 0.15)
+  return out.slice(0, 8)
+}
+// «Trocar para comandante»: a carta passa a comandante e o comandante que sai fica no deck como subcomandante; se não
+// couber na nova identidade vai para o maybeboard. Num par (Partner/Background) troca-se um: o `out`, ou, sem ele, o que
+// não faz par com a nova carta (fazendo par com os dois, sai o segundo; com nenhum, saem os dois).
+export function swapCommander(deck, data, name, out) {
+  const c = data.byName.get(name)
+  if (!c || deck.commanders.includes(name)) return { deck, toMaybe: [], off: [] }
+  const cur = deck.commanders.map(n => data.byName.get(n)).filter(Boolean)
+  let keep = out != null ? cur.filter(x => x.n !== out) : cur.length === 2 ? cur.filter(x => pairOk(x, c)).slice(0, 1) : []
+  if (keep.length && !pairOk(keep[0], c)) keep = []
+  const cmds = [...keep, c], ident = cmds.map(x => x.ci).join('')
+  const main = { ...deck.main }, maybe = { ...(deck.maybe || {}) }, subs = (deck.subs || []).filter(n => n !== name), toMaybe = []
+  delete main[name]; delete maybe[name]
+  for (const x of cur.filter(x => !keep.includes(x))) {
+    if (subset(x.ci, ident)) { main[x.n] = 1; subs.push(x.n) } else { maybe[x.n] = 1; toMaybe.push(x.n) }
+  }
+  const off = Object.keys(main).filter(n => { const k = data.byName.get(n); return k && !subset(k.ci, ident) })
+  return { deck: { ...deck, commanders: cmds.map(x => x.n), main, maybe, subs: subs.filter(n => main[n]) }, toMaybe, off }
+}
+
 // Valida um deck. Devolve [{nivel: 'erro'|'aviso'|'info', msg}]
 export function validate(deck, fmt, data) {
   const out = []

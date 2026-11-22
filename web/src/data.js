@@ -601,7 +601,9 @@ export function termsOf(data) {
 
 // motor de cartas: compra a cada gatilho («whenever you cast an enchantment spell, draw a card»); não «whenever you draw»
 const ENGINE = /whenever[^.]*, (you may )?([^.]*\band )?draw (a|two|that many|x) cards?/
-export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTerms = [], commanders = [], needs = {}, co = null, deckStats = null, bracket = null, gcCount = 0, meta = null, archetype = null, prefs = null, tastes = [], deckSize = 99, turn = 8, profile = null }) {
+export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTerms = [], commanders = [], needs = {}, co = null, deckStats = null, bracket = null, gcCount = 0, meta = null, archetype = null, prefs = null, tastes = [], deckSize = 99, turn = 8, profile = null, ideas = [] }) {
+  // ideas: [{i, w}] comandantes «em ideia» (subcomandantes, maybeboard; formats.js ideaSeeds): um empurrão leve, w × o peso do
+  // comandante; só pontuam cartas que já passam o filtro (identidade e legalidade continuam as do comandante a sério)
   const pf = prefs?.on ? prefs : null
   const nivel = pf?.nivel ?? 3
   const metaW = pf ? 0.3 + 1.4 * (pf.meta ?? 0.5) : 1
@@ -735,6 +737,9 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     const stm = seedTerms.length ? seedTerms.filter(t => termMatch(c, t)) : []  // sementes-termo (Flying, Rat…) que a carta tem
     if (seedTerms.length) P.semente = stm.length ? 0.22 + 0.08 * (stm.length - 1) : 0
     P.comandante = commanders.length ? 0.25 * cmd : 0
+    let idea = 0, ideaN = -1
+    for (const g of ideas) { const v = g.i === i ? 0 : g.w * dotInt8(E, D, g.i, i); if (v > idea) { idea = v; ideaN = g.i } }
+    if (ideas.length) P.ideia = 0.25 * idea
     P.popular = edhOk && c.er ? 0.06 * Math.max(0, 1 - Math.log(c.er) / LOGR) : 0
     const hits = comboHits.get(i)
     let completes = 0, partial = 0
@@ -874,7 +879,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     const score = Object.values(P).reduce((a, b) => a + b, 0)
     allSem.push(sem)
     if (commanders.length) allCmd.push(cmd)
-    res.push({ i, score, P, sem, near, cmd, stm, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, needQ, softNeed, offPlan, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mInc, mArch, mPart, stHit, tasteBest, tasteName, tb, dead })
+    res.push({ i, score, P, sem, near, cmd, idea, ideaN, stm, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, needQ, softNeed, offPlan, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mInc, mArch, mPart, stHit, tasteBest, tasteName, tb, dead })
   }
   res.sort((a, b) => b.score - a.score)
   const name = i => cards[i].n
@@ -926,6 +931,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     if (r.fix) why.push({ k: 'falta', txt: tx('Dá {c}, as cores com menos fontes no deck', { c: r.fix.map(k => `{${k}}`).join('') }) })
     if (r.curveNote) why.push({ k: 'falta', txt: r.curveNote })
     if (commanders.length && r.cmd >= 0.5) why.push({ k: 'cmd', txt: tx('Sinergia com {c}', { c: commanders.map(name).join(tx(' e ')) }) })
+    if (r.ideaN >= 0 && r.idea >= 0.08) why.push({ k: 'cmd', txt: tx('Combina com {c} (comandante em ideia)', { c: name(r.ideaN) }) })
     if (r.tribal && !shown.some(x => x.x.s.tribe)) why.push({ k: 'tribo', txt: tx('Tribo {t}: {n} no deck', { t: tribe, n: tribeN }) })
     if (r.kws.length) why.push({ k: 'kw', txt: tx('{kw}, como várias cartas do deck', { kw: r.kws.join(', ') }) })
     const shared = c.tg.filter(t => themes.has(t)).map(t => TAG_LABEL[t])

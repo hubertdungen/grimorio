@@ -4355,3 +4355,25 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .zoomcard img.side { transform: rotate(90deg) scale(.72); }  /* batalhas, Salas e divididas lêem-se deitadas */
 .pc.battle:not(.tapped) .pc-loy.def { top: 12%; } .pc.battle:not(.tapped) .pc-prot { bottom: 12%; }  /* junto da carta deitada */
 .emb-pop.up { top: auto; bottom: calc(100% + 4px); } .emb-pop { max-height: 60vh; overflow: auto; }
+/* Subcomandantes (♕: no deck como carta normal, para trocar depressa com o comandante) e as ações de comandante do assistente */
+.sub-badge { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 3px; border: 1px solid var(--gold); border-radius: 99px; color: var(--gold2); background: transparent; font-size: 16px; line-height: 1; flex: none; }
+.row .sub-badge { order: 2; }
+.sub-swap { flex: none; padding: 1px 7px; font-size: 12px; border: 1px solid var(--gold); color: var(--gold2); border-radius: 99px; background: none; order: 4; }
+.sub-swap:hover { background: rgba(242, 184, 75, .12); }
+.row.is-sub .row-name { color: var(--gold2); }
+.dg-sub { position: absolute; top: 8%; left: 6%; min-width: 28px; height: 28px; font-size: 19px; background: rgba(11, 10, 20, .85); pointer-events: none; }
+.act.sub.on, .sub-btn.on { border-color: var(--gold); color: var(--gold2); background: rgba(242, 184, 75, .1); }
+.subs-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 6px 0 0; }
+.subs-line .chip { font-size: 12px; padding: 2px 9px; }
+.wz-cc .wz-more1 { position: absolute; top: 8px; left: 8px; width: auto; min-width: 30px; min-height: 30px; padding: 0 6px; aspect-ratio: auto; border-radius: 99px; border: 1px solid var(--line); background: rgba(11, 10, 20, .8); font-size: 16px; line-height: 1; overflow: visible; }
+.wz-cc .wz-more1.on { border-color: var(--gold); color: var(--gold2); }
+.wz-cc.r-pick, .wz-cc.r-sub, .wz-cc.r-maybe { border-color: color-mix(in srgb, var(--gold) 60%, var(--line)); }
+.wz-role { position: absolute; left: 8px; bottom: 30px; max-width: calc(100% - 16px); padding: 1px 7px; border-radius: 99px; font-size: 11px; background: rgba(11, 10, 20, .88); border: 1px solid var(--gold); color: var(--gold2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.wz-ccm { position: absolute; inset: 2px; z-index: 3; display: grid; align-content: safe center; gap: 3px; padding: 4px; overflow-y: auto; border-radius: 8px; background: rgba(11, 10, 20, .93); border: 1px solid var(--gold); }
+.wz-res .wz-ccm button, .fp-big-acts button { aspect-ratio: auto; width: 100%; min-height: 30px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel2); font-size: 11px; line-height: 1.1; text-align: left; overflow: visible; }
+.wz-ca.on { border-color: var(--gold); color: var(--gold2); }
+.wz-ca.cmd { color: var(--gold2); }
+.wz-ca .sub-badge, .wz-res .wz-ca .sub-badge { position: static; background: none; color: var(--gold2); font-weight: 400; padding: 0 2px; min-width: 18px; height: 18px; font-size: 13px; }
+.fp-big-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: min(92vw, 560px); }
+.fp-big-acts button { width: auto; text-align: center; font-size: 14px; min-height: 40px; padding: 6px 12px; }
+.wz-ideas .chip .sub-badge { min-width: 16px; height: 16px; font-size: 10px; }
