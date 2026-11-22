@@ -277,15 +277,16 @@ export function chipUniverse(data) {
 
 // Comandantes que servem o gosto: têm os temas/funções pedidos, cabem nas cores escolhidas e são legais no formato.
 // Sem temas nem funções (só cores), devolve os mais jogados dessas cores.
-export function likeCommanders(data, { terms = [], colors = [], tags = [] }, { fmt, bit = -1, n = 8 } = {}) {
+export function likeCommanders(data, { terms = [], colors = [], tags = [] }, { fmt, bit = -1, n = 8, need = '' } = {}) {
   if (!fmt?.cmd) return []
   const cs = colors.filter(k => k !== 'C'), wantColorless = colors.includes('C'), any = terms.length || tags.length
-  if (!any && !colors.length) return []
+  if (!any && !colors.length && !need) return []
   const out = []
   for (const c of data.cards) {
     if (!canBeCommander(c, fmt)) continue
     if (bit >= 0 && !(c.lg & (1 << bit))) continue
-    if (cs.length && (!c.ci || ![...c.ci].every(k => cs.includes(k)))) continue
+    if ([...need].some(k => !c.ci.includes(k))) continue
+    if (cs.length && (!c.ci || ![...c.ci].every(k => cs.includes(k) || need.includes(k)))) continue
     if (wantColorless && c.ci) continue
     let s = 0
     for (const t of terms) if (t.k !== 'rar' && t.k !== 'mv' && termMatch(c, t)) s += t.u ? 3 : 1

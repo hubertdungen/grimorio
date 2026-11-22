@@ -5512,4 +5512,13 @@ export default {
   "Comandantes para este gosto": "Comandantes para este gusto",
   "toca para escolher; as cores ficam presas à identidade dele": "toca para elegir; los colores quedan fijados a su identidad",
   "✦ Criar deck com {name}": "✦ Crear mazo con {name}",
+  "Nenhum com estes filtros.": "Ningún comandante cumple estos filtros.",
+  "só estas cores": "solo estos colores",
+  "Backgrounds": "Backgrounds",
+  "Mais relevantes": "Más relevantes",
+  "Mais populares": "Más populares",
+  "Custo (menor)": "Coste (menor)",
+  "Nome (A–Z)": "Nombre (A–Z)",
+  "com par (Partner…)": "con pareja (Partner…)",
+  "Limpar filtros": "Quitar filtros",
 }
