@@ -12,16 +12,16 @@ import { upscale } from './upscale.js'
 
 const lsGet = k => { try { return localStorage.getItem(k) || '' } catch { return '' } }
 const lsSet = (k, v) => { try { localStorage.setItem(k, v) } catch { /* sem armazenamento */ } }
-const post = async blob => {
+export const post = async blob => {
   const r = await fetch('/api/arts', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob }), j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`)
   return j.url
 }
-const fetchable = u => (u?.startsWith('https:') && !/^https:\/\/(cards|backs)\.scryfall\.io\//.test(u) ? `/api/arts/proxy?url=${encodeURIComponent(u)}` : u)
-const Dpi = ({ w, h }) => { const d = dpiOf(w); return <small className={d >= 300 ? 'ok-t' : 'muted'}>{w}×{h} px · ≈ {d} dpi {tx('a 63×88 mm')}{d >= 300 ? ' ✓' : ''}</small> }
+export const fetchable = u => (u?.startsWith('https:') && !/^https:\/\/(cards|backs)\.scryfall\.io\//.test(u) ? `/api/arts/proxy?url=${encodeURIComponent(u)}` : u)
+export const Dpi = ({ w, h }) => { const d = dpiOf(w); return <small className={d >= 300 ? 'ok-t' : 'muted'}>{w}×{h} px · ≈ {d} dpi {tx('a 63×88 mm')}{d >= 300 ? ' ✓' : ''}</small> }
 
 // ⤢ ×2 / ×4 de um blob; devolve {blob, w, h}. Mostra o progresso (o motor descarrega-se só da primeira vez).
-function useEnlarge() {
+export function useEnlarge() {
   const [st, setSt] = useState(null)
   const run = async (blob, scale) => {
     setSt({ f: 0, ep: '' })
@@ -55,7 +55,40 @@ export function UpscaleArt({ src, onSaved }) {
   )
 }
 
-const PROV = () => ({ chatgpt: tx('ChatGPT (o teu plano, sem API)'), openai: tx('OpenAI (chave da API)'), gemini: tx('Google Gemini (chave da API)'), local: tx('Gerador local (A1111/Forge ou ComfyUI)'), mock: tx('Teste (imagens falsas)') })
+export const PROV = () => ({ chatgpt: tx('ChatGPT (o teu plano, sem API)'), openai: tx('OpenAI (chave da API)'), gemini: tx('Google Gemini (chave da API)'), local: tx('Gerador local (A1111/Forge ou ComfyUI)'), mock: tx('Teste (imagens falsas)') })
+
+export async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true } catch { /* http na rede de casa: sem clipboard API */ }
+  const el = document.createElement('textarea'); el.value = t; document.body.append(el); el.select()
+  const ok = document.execCommand('copy'); el.remove()  // ponytail: execCommand está obsoleto mas é o único sem https
+  return ok
+}
+// estes recebem a carta com máscara (a caixa da arte); o ChatGPT e o Gemini recebem a carta inteira
+export const masks = prov => ['openai', 'local', 'mock'].includes(prov)
+// Uma carta → as imagens finais já compostas ({blob, w, h}), pelo servidor. O mesmo caminho para uma carta e para o lote.
+// mode 'frame': a carta (com máscara da caixa da arte para OpenAI/local) vai para editar; refs: srcs ou blobs de estilo.
+export async function genCard({ c, pid, box, mode, aspect, orig, prov, localKind, prompt, n, quality, model, refs = [], card }) {
+  const cardSrc = img(c, 'png', false, pid)
+  let image = null, mask = null, geo = null
+  if (mode === 'frame') {
+    const cd = await card()
+    if (masks(prov)) ({ image, mask, geo } = prepareEdit(cd, box, prov === 'local' ? localKind : 'openai'))
+    else { image = await refURL(cardSrc); geo = { W: cd.width, H: cd.height, rect: { x: 0, y: 0, w: cd.width, h: cd.height } } }
+  }
+  const rs = await Promise.all([...(mode === 'art' && orig ? [img(c, 'art_crop', false, pid)] : []), ...refs.map(r => (typeof r === 'string' ? fetchable(r) : r))].map(refURL))
+  const r = await fetch('/api/ia/image', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: prov, prompt, n, quality, model: model?.trim() || undefined, image, mask, refs: rs, size: mode === 'art' && aspect === 'box' ? '1536x1024' : '1024x1536' }) })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`)
+  const images = []
+  for (const u of j.images) images.push(await finishOut(await bitmap(u), geo, { mode, aspect, box, card }))
+  return { images, model: j.model, cost: j.cost || 0 }
+}
+// resultado (do servidor ou trazido do ChatGPT) → a imagem final, já na moldura; card() = a carta original (bitmap)
+export async function finishOut(out, geo, { mode, aspect, box, card }) {
+  const cv = composite(mode === 'art' && aspect === 'card' ? null : await card(), out, { mode, aspect, box, geo })
+  return { blob: await toBlob(cv), w: cv.width, h: cv.height }
+}
 
 export default function AlterArt({ c, deck, data, act, onClose }) {
   useBackClose(true, onClose)
@@ -80,7 +113,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
 
   const P = cfg?.providers?.find(p => p.id === prov)
   const ready = prov === 'chatgpt' || !!P?.hasKey
-  const masked = mode === 'frame' && ['openai', 'local', 'mock'].includes(prov)
+  const masked = mode === 'frame' && masks(prov)
   const prompt = finalPrompt({ base, custom, mode, masked, aspect, refs: refs.length, orig: mode === 'art' && orig })
   const per = costOf(P?.cost, quality, 1)
   const mine = useMemo(() => [...new Set([...alterHistory(), ...Object.values(deck.art || {}).filter(u => u.startsWith('arts/'))])].slice(0, 24), [deck.art])
@@ -91,28 +124,13 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   const addRef = r => { if (refs.length < 3 && !refs.some(x => x.src === r.src)) setRefs([...refs, r]); setQ('') }
 
   // resultado (do servidor ou trazido do ChatGPT) → a imagem final, já na moldura
-  const finish = async (out, geo) => {
-    const cv = composite(mode === 'art' && aspect === 'card' ? null : await getCard(), out, { mode, aspect, box, geo })
-    const blob = await toBlob(cv)
-    return { blob, url: URL.createObjectURL(blob), w: cv.width, h: cv.height, k: Math.random() }
-  }
+  const withUrl = r => ({ ...r, url: URL.createObjectURL(r.blob), k: Math.random() })
+  const finish = async (out, geo) => withUrl(await finishOut(out, geo, { mode, aspect, box, card: getCard }))
   const gen = async () => {
     setErr(''); setNote(''); setBusy(tx('A gerar… pode demorar um minuto.'))
     try {
-      let image = null, mask = null, geo = null
-      if (mode === 'frame') {
-        const card = await getCard()
-        if (masked) ({ image, mask, geo } = prepareEdit(card, box, prov === 'local' ? cfg.local.kind : 'openai'))
-        else { image = await refURL(cardSrc); geo = { W: card.width, H: card.height, rect: { x: 0, y: 0, w: card.width, h: card.height } } }
-      }
-      const rs = await Promise.all([...(mode === 'art' && orig ? [img(c, 'art_crop', false, pid)] : []), ...refs.map(r => fetchable(r.src))].map(refURL))
-      const r = await fetch('/api/ia/image', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: prov, prompt, n, quality, model: model.trim() || undefined, image, mask, refs: rs, size: mode === 'art' && aspect === 'box' ? '1536x1024' : '1024x1536' }) })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`)
-      const got = []
-      for (const u of j.images) got.push(await finish(await bitmap(u), geo))
-      setResults(x => [...got, ...x])
+      const j = await genCard({ c, pid, box, mode, aspect, orig, prov, localKind: cfg?.local?.kind, prompt, n, quality, model, refs: refs.map(r => r.src), card: getCard })
+      setResults(x => [...j.images.map(withUrl), ...x])
       setNote(`${j.model}${j.cost ? ` · ≈ US$ ${num(j.cost, 3)}` : ''}`)
     } catch (e) { setErr(e.message) } finally { setBusy('') }
   }
@@ -128,12 +146,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
   })
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(prompt); setNote(tx('Pedido copiado.')); return } catch { /* http na rede de casa: sem clipboard API */ }
-    const t = document.createElement('textarea'); t.value = prompt; document.body.append(t); t.select()
-    const ok = document.execCommand('copy'); t.remove()  // ponytail: execCommand está obsoleto mas é o único sem https
-    setNote(ok ? tx('Pedido copiado.') : tx('Não consegui copiar: seleciona o pedido em baixo e copia à mão.'))
-  }
+  const copy = async () => setNote(await copyText(prompt) ? tx('Pedido copiado.') : tx('Não consegui copiar: seleciona o pedido em baixo e copia à mão.'))
   const download = async () => {
     const list = [...(mode === 'frame' ? [[cardSrc, 'carta']] : mode === 'art' && orig ? [[img(c, 'art_crop', false, pid), 'arte-original']] : []), ...refs.map((r, k) => [fetchable(r.src), `estilo-${k + 1}`])]
     for (const [u, name] of list) {

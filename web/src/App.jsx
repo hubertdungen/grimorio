@@ -13,7 +13,7 @@ import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, 
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
-import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar } from './Views.jsx'
+import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar } from './Views.jsx'
 import { pushView, setOnView, useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, flipCardPeek, peekOpen, pressPeek, useFolded } from './deckview.js'
 import DraftView from './Draft.jsx'
@@ -629,7 +629,7 @@ export default function App() {
 
 function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist }) {
   const [viewBy, setViewBy] = useState(deck.groups?.length ? 'grupos' : 'tipo')
-  const [proxies, setProxies] = useState(false)
+  const [proxies, setProxies] = useState(false), ds = useDeckSel()
   const fold = useFolded()
   const bySec = viewBy === 'grupos' && deck.groups?.length
   const secOf = new Map()
@@ -661,16 +661,17 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
   const swapBtn = (c, zone) => fmt.cmd && c && (zone === 'main' ? subs.includes(c.n) : zone === 'maybe' && canBeCommander(c, fmt)) &&
     <button className="sub-swap" onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')} aria-label={tx('Trocar {c} para comandante', { c: c.n })}>⇄♛</button>
   const row = ({ n, q, c, zone }) => (
-    <li key={`${zone}:${n}`} className={`row${zone === 'main' && subs.includes(n) ? ' is-sub' : ''}`} data-card={n}>
+    <li key={`${zone}:${n}`} className={`row${zone === 'main' && subs.includes(n) ? ' is-sub' : ''}${ds.sel?.has(n) ? ' picked' : ''}`} data-card={n}>
+      {ds.sel && c && zone !== 'maybe' && <input type="checkbox" className="row-chk" checked={ds.sel.has(n)} onChange={() => ds.toggle(n)} aria-label={n} />}
       <span className="qty">
         <button onClick={() => c && act.remove(c, zone, 1)} aria-label={tx('Menos')}>−</button>
         <b>{q}</b>
         <button onClick={() => c && act.add(c, zone, 1)} aria-label={tx('Mais')}>+</button>
       </span>
-      {c && <img className="row-art" src={img(c, 'art_crop', false, pidOf(deck, n))} alt="" loading="lazy" onClick={() => act.open(c)} {...pressPeek(c, pidOf(deck, n))} />}
+      {c && <img className="row-art" src={img(c, 'art_crop', false, pidOf(deck, n))} alt="" loading="lazy" onClick={() => (ds.sel ? zone !== 'maybe' && ds.toggle(n) : act.open(c))} {...pressPeek(c, pidOf(deck, n))} />}
       <span className="row-main">
       {zone === 'main' && subs.includes(n) && <span className="sub-badge" title={tx('Subcomandante: carta normal do deck que pode trocar com o comandante')}>♕</span>}
-      <button className="row-name" onClick={() => c && act.open(c)} {...(c ? pressPeek(c, pidOf(deck, n)) : {})} onMouseEnter={e => c && showCardPeek(e, c, pidOf(deck, n))} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.peek-flip')) hideCardPeek() }}>{n}</button>
+      <button className="row-name" onClick={() => c && (ds.sel ? zone !== 'maybe' && ds.toggle(n) : act.open(c))} {...(c ? pressPeek(c, pidOf(deck, n)) : {})} onMouseEnter={e => c && showCardPeek(e, c, pidOf(deck, n))} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.peek-flip')) hideCardPeek() }}>{n}</button>
       {c?.df ? <button className="peek-flip" title={tx('Ver a outra face (ou tecla F com o rato na carta)')} aria-label={tx('Outra face de {c}', { c: n })} onMouseEnter={e => { if (!peekOpen()) showCardPeek(e, c, pidOf(deck, n)) }} onClick={e => { if (!peekOpen()) showCardPeek(e, c, pidOf(deck, n)); flipCardPeek() }} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.row-name')) hideCardPeek() }}>⟲</button> : null}
       {c && <Mana cost={c.mc} />}
       {swapBtn(c, zone)}
@@ -722,7 +723,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
           {deck.commanders.length ? deck.commanders.map(n => {
             const c = data.byName.get(n)
             return c && (
-              <div key={n} className="cmd" onClick={() => act.open(c)}>
+              <div key={n} className={`cmd${ds.sel?.has(n) ? ' picked' : ''}`} onClick={() => (ds.sel ? ds.toggle(n) : act.open(c))}>
                 <img src={img(c, 'art_crop', false, pidOf(deck, n))} alt="" /><div><b>{n}</b><Mana cost={c.mc} /></div>
                 <button onClick={e => { e.stopPropagation(); act.setCommander(c) }} aria-label={tx('Retirar')}>×</button>
               </div>
@@ -735,7 +736,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
         </section>
       )}
 
-      {order.length > 0 && <div className="cat-tools"><FoldAll keys={[...order.map(fk), ...(count(deck.side) ? ['side'] : []), ...(count(deck.maybe || {}) ? ['maybe'] : [])]} f={fold} /></div>}
+      {order.length > 0 && <div className="cat-tools"><SelBar s={ds} {...{ deck, data, act }} /><FoldAll keys={[...order.map(fk), ...(count(deck.side) ? ['side'] : []), ...(count(deck.maybe || {}) ? ['maybe'] : [])]} f={fold} /></div>}
       {order.map(t => (
         <section key={t} className="cat">
           <CatHead label={GROUP_L[t] || TYPE_LABEL[t] || t} cards={groups[t].map(([, q, c]) => [c, q])} shut={fold.shut(fk(t))} onToggle={() => fold.toggle(fk(t))} />
@@ -768,6 +769,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
         <button onClick={download}>{tx('Descarregar')}</button>
         <button onClick={() => setProxies(true)} title={tx('Lista com edições, ZIP com as imagens ou folha para imprimir')}>🖨 {tx('Proxies')}</button>
         {proxies && <ProxyDialog data={data} deck={deck} ctx={ctx} onClose={() => setProxies(false)} />}
+        {Object.keys(deck.main).length > 0 && <button onClick={() => ds.open(null)} title={tx('Alter arts para o deck todo, com filtros (só criaturas, sem terrenos…)')}>✨ {tx('Alter arts do deck')}</button>}
         {deck.id && <button className="danger" onClick={delDeck}>{tx('Eliminar')}</button>}
       </div>
       <textarea className="notes" placeholder={tx('Notas do deck…')} value={deck.notes} onChange={e => setDeck(d => ({ ...d, notes: e.target.value }))} />

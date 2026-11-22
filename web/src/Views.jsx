@@ -24,9 +24,30 @@ import { useBackClose } from './backnav.js'
 import { isTouch } from './touch.js'
 import './Suggest.css'
 import { alterHistory } from './alterart.js'
+import { batchCards } from './alterbatch.js'
 // ✨ alter art e ⤢ ampliar: só se carregam ao abrir (o ampliador traz o ONNX Runtime e o modelo, ainda mais tarde)
 const AlterArt = lazy(() => import('./AlterArt.jsx'))
 const UpscaleArt = lazy(() => import('./AlterArt.jsx').then(m => ({ default: m.UpscaleArt })))
+const AlterBatch = lazy(() => import('./AlterBatch.jsx'))
+
+// ☑ Selecionar cartas do deck (grelha e lista) → ✨ Alter arts (N); «✨ Alter arts do deck» abre o lote com filtros
+export function useDeckSel() {
+  const [sel, setSel] = useState(null), [batch, setBatch] = useState(null)  // sel: null fora do modo, ou Set de nomes
+  const toggle = n => setSel(s => { const t = new Set(s); if (t.has(n)) t.delete(n); else t.add(n); return t })
+  return { sel, setSel, toggle, batch, open: names => { setSel(null); setBatch({ names }) }, close: () => setBatch(null) }
+}
+export function SelBar({ s, deck, data, act }) {
+  return <>
+    {s.sel ? <div className="sel-bar" role="toolbar" aria-label={tx('Seleção')}>
+      <b>{tx('{n} selecionada|{n} selecionadas', { n: s.sel.size })}</b>
+      <button className="small" onClick={() => s.setSel(new Set(batchCards(deck, data).map(c => c.n)))}>{tx('Todas')}</button>
+      <button className="small" onClick={() => s.setSel(new Set())}>{tx('Nenhuma')}</button>
+      <button className="primary small" disabled={!s.sel.size} onClick={() => s.open([...s.sel])}>✨ {tx('Alter arts ({n})', { n: s.sel.size })}</button>
+      <button className="link small" onClick={() => s.setSel(null)} aria-label={tx('Sair da seleção')}>✕</button>
+    </div> : <button className="small sel-on" onClick={() => s.setSel(new Set())} title={tx('Escolher várias cartas para lhes criar alter arts de uma vez')}>☑ {tx('Selecionar')}</button>}
+    {s.batch && <Suspense fallback={null}><AlterBatch names={s.batch.names} deck={deck} data={data} act={act} onClose={s.close} /></Suspense>}
+  </>
+}
 
 // Co-ocorrência em decks reais: comandantes + as 8 sementes mais recentes. Map(carta -> [{kind, from, incl, pot, lift, syn}])
 function useEdhrec(data, cmdIdx, seeds) {
@@ -1945,7 +1966,7 @@ export function PriorityCard({ data, deck, fmt, ctx, act, issues, cuts, needs })
 const ZONE_T = { main: tx('Mover para o deck'), side: tx('Mover para o sideboard'), maybe: tx('Mover para o maybeboard') }, ZONE_S = { main: 'D', side: 'SB', maybe: 'MB' }
 // Deck em grelha: imagens com quantidade, + / − / × (retirar tudo), por tipo ou pelas secções da IA.
 export function DeckGrid({ data, deck, fmt, act, ctx }) {
-  const [bySec, setBySec] = useState(false)
+  const [bySec, setBySec] = useState(false), ds = useDeckSel()
   const fold = useFolded()
   const secOf = new Map()
   if (bySec) for (const g of deck.groups || []) for (const n of g.cartas) if (!secOf.has(n)) secOf.set(n, g.nome)
@@ -1970,8 +1991,9 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
     return parts.map((x, k) => tile1({ c, q, zone, pid: x.pid, part: x.n, k }))
   }
   const tile1 = ({ c, q, zone, pid, part, k = 0 }) => (  // função e não componente (ver o row do DeckPanel em App.jsx)
-    <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}`} data-card={c.n}>
-      <button className="dg-img" onClick={() => act.open(c)} title={c.n} {...pressPeek(c, pid ?? pidOf(deck, c.n))}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
+    <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}${ds.sel?.has(c.n) ? ' picked' : ''}`} data-card={c.n}>
+      <button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))} title={c.n} {...(ds.sel ? {} : pressPeek(c, pid ?? pidOf(deck, c.n)))}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
+      {ds.sel && <input type="checkbox" className="dg-chk" checked={ds.sel.has(c.n)} onChange={() => ds.toggle(c.n)} aria-label={c.n} />}
       {zone === 'main' && subsOf(deck).includes(c.n) && <span className="sub-badge dg-sub" title={tx('Subcomandante: carta normal do deck que pode trocar com o comandante')}>♕</span>}
       {(part != null || q > 1) && <span className="dg-q" title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>×{part ?? q}</span>}
       <div className="dg-bar">
@@ -1994,11 +2016,14 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
       {deck.groups?.length > 0 && (
         <div className="seg viewby"><button className={!bySec ? 'on' : ''} onClick={() => setBySec(false)}><span>{tx('Por tipo')}</span></button><button className={bySec ? 'on' : ''} onClick={() => setBySec(true)}><span>{tx('Por secções (IA)')}</span></button><button className="link small viewby-x" onClick={() => { setBySec(false); act.clearGroups?.() }} title={tx('Apagar as secções da IA deste deck')}>✕ {tx('remover secções')}</button></div>
       )}
+      <SelBar s={ds} {...{ deck, data, act }} />
+      {!ds.sel && <button className="small" onClick={() => ds.open(null)} title={tx('Alter arts para o deck todo, com filtros (só criaturas, sem terrenos…)')}>✨ {tx('Alter arts do deck')}</button>}
       <FoldAll keys={[...order, ...(sum(deck.side) ? ['side'] : []), ...(sum(deck.maybe || {}) ? ['maybe'] : [])]} f={fold} />
       </div>
       {cmd.length > 0 && (
         <section><h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</h4><div className="dg-row">{cmd.map(c => (
-          <div key={c.i} className="dg-tile"><button className="dg-img" onClick={() => act.open(c)}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
+          <div key={c.i} className={`dg-tile${ds.sel?.has(c.n) ? ' picked' : ''}`}><button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
+            {ds.sel && <input type="checkbox" className="dg-chk" checked={ds.sel.has(c.n)} onChange={() => ds.toggle(c.n)} aria-label={c.n} />}
             <div className="dg-bar"><button className="dg-x" onClick={() => act.setCommander(c)} title={tx('Retirar comandante')}>×</button></div></div>
         ))}</div></section>
       )}

@@ -1514,6 +1514,34 @@ img.card-full { transform: scale(1.4); }  /* capa com a carta inteira: só a ilu
 .alter-res img { width: 100%; border-radius: 10px; }
 .alter-up { align-items: center; }
 .aik-local { margin-top: 12px; } .aik-local select { flex: 0 0 auto; width: auto; }
+.abatch { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; width: min(1100px, 100%); }
+.abatch h3 { margin: 0; padding-right: 30px; }
+.abatch > details.ab-set { display: grid; gap: 8px; } .ab-set[open] > * + * { margin-top: 8px; } .ab-set summary { cursor: pointer; }
+.abatch label > input:not([type=radio], [type=checkbox], [type=file], .alter-model) { width: 100%; display: block; margin-top: 4px; }
+.abatch .alter-model { width: 12em; margin: 0; }
+.ab-go { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; position: sticky; top: -20px; z-index: 2; background: var(--panel); padding: 8px 0; border-bottom: 1px solid var(--line); }
+.ab-go p { margin: 0; flex: 1 1 100%; } .ab-go progress { flex: 1 1 160px; }
+.ab-gpt { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 8px; } .ab-gpt p { margin: 0; }
+.ab-step { display: grid; gap: 6px; padding: 8px; border-radius: 8px; background: var(--panel2); }
+.ab-loose { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } .ab-lf { display: inline-flex; gap: 4px; align-items: center; } .ab-lf img { width: 40px; border-radius: 4px; } .ab-lf select { max-width: 14em; }
+.ab-sum { margin: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--gold); }
+.ab-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ab-it { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }
+.ab-it.st-skip { opacity: .55; } .ab-it.st-used { border-color: var(--gold); }
+.ab-orig, .ab-used { width: 92px; border-radius: 6px; display: block; } .ab-used { width: 120px; }
+.ab-body { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.ab-st { font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--panel2); } .ab-st.ok { color: var(--ok, #7c7); } .ab-st.err { color: var(--bad, #e77); } .ab-st.used { color: var(--gold); }
+.ab-body .ab-custom { width: 100%; font-size: 13px; }
+.ab-res { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 160px)); gap: 8px; }
+.ab-res figure { margin: 0; display: grid; gap: 4px; } .ab-res img { width: 100%; border-radius: 8px; } .ab-res figcaption { display: grid; gap: 4px; justify-items: start; }
+.sel-bar { position: fixed; left: 50%; bottom: max(12px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 14px; border: 1px solid var(--gold); background: var(--panel); box-shadow: 0 6px 24px #0008; width: max-content; max-width: calc(100% - 24px); }
+.sel-bar button { min-height: 36px; }
+.dg-chk { position: absolute; top: 6px; left: 6px; width: 26px; height: 26px; margin: 0; accent-color: var(--gold); pointer-events: auto; }
+.dg-tile.picked .dg-img { box-shadow: 0 0 0 3px var(--gold); }
+.row-chk { width: 22px; height: 22px; margin: 0 4px 0 0; flex: 0 0 auto; accent-color: var(--gold); }
+.row.picked, .cmd.picked { background: color-mix(in srgb, var(--gold) 14%, transparent); }
+.deck-tab .deck-mobile .row .row-chk { grid-column: 1; grid-row: 1; align-self: start; justify-self: start; margin: 2px; z-index: 1; }
+@media (max-width: 760px) { .abatch { padding: 14px; } .ab-it { grid-template-columns: 64px minmax(0, 1fr); } .ab-orig { width: 64px; } .ab-res { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ab-go { top: -14px; } }
 @media (max-width: 760px) { .alter { grid-template-columns: minmax(0, 1fr); padding: 14px; } .alter-card img { max-width: 200px; margin: 0 auto; } .alter-res { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* torneio a ver um jogo: «← Voltar» fica ao lado das abas Criar/Ao vivo/Registo (poupa uma linha) */
 .tour-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .tour-slot:empty { display: none; }

@@ -9,12 +9,12 @@ const crc32 = b => {
   return (c ^ 0xffffffff) >>> 0
 }
 
-// files: [{ name, text }] -> Uint8Array do .zip
+// files: [{ name, text } | { name, data: Uint8Array }] -> Uint8Array do .zip
 export function makeZip(files) {
   const parts = [], cen = []
   let off = 0
   for (const f of files) {
-    const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data)
+    const name = enc.encode(f.name), data = f.data || enc.encode(f.text), crc = crc32(data)
     const h = new DataView(new ArrayBuffer(30))
     h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true)  // 0x0800: nomes em UTF-8
     h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true)
