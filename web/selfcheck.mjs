@@ -1363,3 +1363,13 @@ import { ptExplain } from './src/game.js'
 { const { selfcheck } = await import('./src/upscale.js'); selfcheck(assert); console.log('selfcheck ampliar (ladrilhos) ok') }
 { const { selfcheck } = await import('./src/alterbatch.js'); selfcheck(assert); console.log('selfcheck alter arts em lote (custo, fila, nomes dos ficheiros) ok') }
 { const { selfcheck } = await import('./src/epic.js'); const { prepData } = await import('./src/data.js'); selfcheck(assert, prepData); console.log('selfcheck nomes épicos (Teval, Beckett, Izzet tempo; comandante; línguas) ok') }
+
+{ // proxies: o que entra de cada deck (só o maybeboard, deck + maybeboard, sem o principal)
+  const { proxyGroups } = await import('./src/deck.js')
+  const d = { commanders: ['Atraxa, Praetors\' Voice'], main: { 'Sol Ring': 1 }, side: { 'Lightning Bolt': 2 }, maybe: { Forest: 3 } }
+  const n = o => proxyGroups(d, data, o).map(g => `${g.q} ${g.c.n}`).sort()
+  assert.deepEqual(n({ main: false, side: false, maybe: true }), ['3 Forest'])
+  assert.deepEqual(n({ side: false, maybe: true }), ['1 Atraxa, Praetors\' Voice', '1 Sol Ring', '3 Forest'])
+  assert.deepEqual(n({}), ['1 Atraxa, Praetors\' Voice', '1 Sol Ring', '2 Lightning Bolt'])
+  console.log('selfcheck proxies por zona ok')
+}

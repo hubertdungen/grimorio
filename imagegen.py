@@ -6,7 +6,7 @@ GRIMORIO_IMG_MOCK=1). As chaves são as do Assistente IA (ia.json, ia.load) e nu
 Pedido: {provider, prompt, n (1-4), size ("1024x1536"|"1536x1024"), quality, model, image, mask, refs} com as imagens em
 data URL (o browser prepara a carta, a máscara e as referências); resposta: {images: [data URL], model, cost}.
 """
-import base64, binascii, json, os, random, re, struct, time, urllib.error, urllib.parse, urllib.request, uuid, zlib
+import base64, binascii, json, os, random, re, struct, threading, time, urllib.error, urllib.parse, urllib.request, uuid, zlib
 
 import ia
 
@@ -258,6 +258,37 @@ def generate(data_dir, payload):
     mime = lambda b: "image/jpeg" if b[:2] == b"\xff\xd8" else "image/webp" if b[8:12] == b"WEBP" else "image/png"  # noqa: E731
     cost = PROVIDERS[prov]["cost"].get(p["quality"], next(iter(PROVIDERS[prov]["cost"].values())))
     return {"images": [_url(b, mime(b)) for b in out], "model": f"{prov} · {model}" if model else prov, "cost": round(cost * len(out), 3)}
+
+
+# Gerar demora (1–3 min em qualidade alta): o túnel da Cloudflare corta pedidos com mais de 100 s («502»). Por isso o
+# browser arranca um trabalho e vai perguntando por ele; o resultado fica 1 h em memória.
+JOBS, _JL = {}, threading.Lock()
+
+
+def start(data_dir, payload):
+    jid = uuid.uuid4().hex
+    with _JL:
+        for k in [k for k, v in JOBS.items() if time.time() - v["t"] > 3600]:
+            del JOBS[k]
+        JOBS[jid] = {"t": time.time(), "state": "running"}
+
+    def run():
+        try:
+            out = {"state": "done", **generate(data_dir, payload)}
+        except ValueError as e:
+            out = {"state": "error", "erro": str(e), "code": 400}
+        except Exception as e:  # RuntimeError (fornecedor) e o resto: o trabalho nunca fica «a correr» para sempre
+            out = {"state": "error", "erro": str(e) or e.__class__.__name__, "code": 502}
+        with _JL:
+            JOBS[jid] = {"t": time.time(), **out}
+    threading.Thread(target=run, daemon=True).start()
+    return jid
+
+
+def job(jid):
+    with _JL:
+        j = JOBS.get(jid)
+        return {k: v for k, v in j.items() if k != "t"} if j else None
 
 
 def selfcheck():

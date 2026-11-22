@@ -6,7 +6,7 @@ import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, s
 import { count as zoneCount } from './deck.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll, SymTxt } from './ui.jsx'
-import { showCardPeek, hideCardPeek, pressPeek, useFolded } from './deckview.js'
+import { showCardPeek, hideCardPeek, pressPeek, useFolded, delayedPeek } from './deckview.js'
 import { deckPoints, deckSplit, trophyStars, perfOf as troPerf } from './trophyvalue.js'
 import Map3D from './Map3D.jsx'
 import { autoBuild } from './autobuild.js'
@@ -1583,7 +1583,7 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
 const slug = n => n.split(' // ')[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 const SHOW_FORMATS = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'commander', 'oathbreaker', 'brawl', 'historic', 'timeless', 'premodern', 'paupercommander', 'duel']
 
-function Prints({ c, deck, act, onPreview }) {
+function Prints({ c, deck, act, onPreview, extra }) {  // extra: botões na mesma fila do filtro de estilos («✨ Criar alter art»)
   const [prints, setPrints] = useState(null)
   const [err, setErr] = useState(false)
   const [style, setStyle] = useState('')
@@ -1602,12 +1602,13 @@ function Prints({ c, deck, act, onPreview }) {
           {styles.map(x => <option key={x} value={x}>{x} ({prints.filter(p => p.style.includes(x)).length})</option>)}
         </select>
         {(chosen || deck.art?.[c.n]) && <button onClick={() => { act.setPrint(c, null); onPreview(null) }}>{tx('Voltar à predefinida')}</button>}
+        {extra}
       </div>
       {deck.art?.[c.n] && <p className="small">{tx('Agora: arte própria do site de origem (ex.: alterada no TappedOut). Escolher uma edição substitui-a; «⟳ Atualizar do site» volta a trazê-la.')}</p>}
       <div className="prints">
         {shown.map(p => (
           <div key={p.id} className={`print ${chosen?.id === p.id ? 'on' : ''}`}>
-            <button onClick={() => pick(p, chosen?.id === p.id ? chosen.foil : false)} onMouseEnter={() => onPreview(p.id, true)} onMouseLeave={() => onPreview(null, true)} title={`${p.setName} #${p.cn} · ${p.artist || ''}`}>
+            <button onClick={() => pick(p, chosen?.id === p.id ? chosen.foil : false)} onMouseEnter={e => { onPreview(p.id, true); delayedPeek(c, p.id).onMouseEnter(e) }} onMouseLeave={() => { onPreview(null, true); hideCardPeek() }} title={`${p.setName} #${p.cn} · ${p.artist || ''}`}>
               <img src={img(c, 'small', false, p.id)} alt={`${p.setName}`} loading="lazy" />
             </button>
             <small><b>{p.set}</b> {p.y}{p.style.length ? ` · ${p.style.join(', ')}` : ''}</small>
@@ -1623,8 +1624,8 @@ const CARD_BACK = sf('https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e8
 // «＋ Outro deck…»: junta a carta a outro deck guardado (deck ou maybeboard) sem sair deste; avisa se esse deck já está no
 // tamanho máximo do formato (60, 100…), se a carta sai da identidade do comandante ou se já tem as cópias todas; depois
 // «Abrir esse deck» salta para lá (o deck atual grava-se antes)
-function ToOtherDeck({ c, data, deck, act }) {
-  const [on, setOn] = useState(false), [list, setList] = useState(null), [q, setQ] = useState(''), [zone, setZone] = useState('main')
+function ToOtherDeck({ c, data, deck, act, onClose }) {
+  const on = true, [list, setList] = useState(null), [q, setQ] = useState(''), [zone, setZone] = useState('main')
   const [warn, setWarn] = useState(null), [done, setDone] = useState(null), [busy, setBusy] = useState('')
   useEffect(() => { if (on && !list) fetch('/api/decks').then(r => (r.ok ? r.json() : [])).then(setList).catch(() => setList([])) }, [on, list])
   const shown = (list || []).filter(d => d.id !== deck.id && d.name.toLowerCase().includes(q.trim().toLowerCase()))
@@ -1652,10 +1653,9 @@ function ToOtherDeck({ c, data, deck, act }) {
       setDone(d); setList(null); act.decksChanged?.()
     } catch (e) { act.say?.(tx('Não consegui juntar ao deck: {e}', { e: e.message })) } finally { setBusy('') }
   }
-  if (!on) return <div className="row-btns"><button onClick={() => setOn(true)}>＋ {tx('Outro deck…')}</button></div>
   return (
     <div className="other-deck">
-      <div className="od-h"><b>{tx('Juntar «{c}» a outro deck', { c: c.n })}</b><button className="link small" onClick={() => { setOn(false); setWarn(null); setDone(null) }}>{tx('Fechar')}</button></div>
+      <div className="od-h"><b>{tx('Juntar «{c}» a outro deck', { c: c.n })}</b><button className="link small" onClick={onClose}>{tx('Fechar')}</button></div>
       {done ? <p className="small">✓ {tx('Juntei a «{d}» ({z}).', { d: done.name, z: zone === 'main' ? tx('deck') : 'Maybeboard' })} <button className="link" onClick={() => act.goDeck?.(done.id)}>{tx('Abrir esse deck')} →</button> <button className="link small" onClick={() => setDone(null)}>{tx('Juntar a outro')}</button></p> : <>
         <div className="od-q"><input type="search" placeholder={tx('Procurar deck…')} value={q} onChange={e => setQ(e.target.value)} />
           <select value={zone} onChange={e => setZone(e.target.value)} aria-label={tx('Onde')}><option value="main">{tx('Deck')}</option><option value="maybe">Maybeboard</option></select></div>
@@ -1700,6 +1700,7 @@ function Partners({ c, data, deck, fmt, ctx, act }) {
 }
 
 export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
+  const [od, setOd] = useState(false)  // «＋ Outro deck…» aberto
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [back, setBack] = useState(false)  // flip 3D: a outra face (cartas de duas faces) ou o verso
   const side = sideways(c), [rot, setRot] = useState(side ? 90 : 0)  // virar ao contrário (180° de cada vez, animado); deitadas (batalhas, Salas, divididas) começam a 90° e rodam de 90 em 90
@@ -1756,10 +1757,11 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
             </>}
             <button onClick={() => act.toggleSeed(c)}>{deck.seeds.includes(c.n) ? `★ ${tx('É semente')}` : `☆ ${tx('Semente')}`}</button>
             <button onClick={() => act.showOnMap(c)}>{tx('Ver no universo')}</button>
+            <button className={od ? 'on' : ''} onClick={() => setOd(x => !x)}>＋ {tx('Outro deck…')}</button>
             {(deck.main[c.n] || deck.side[c.n]) && <button className={`subs-btn ${subs ? 'on' : ''}`} onClick={() => setSubs(!subs)}>🔁 {tx('Sugerir substituto')}</button>}
           </div>
           {subs && <Subs c={c} data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} />}
-          <ToOtherDeck c={c} data={data} deck={deck} act={act} />
+          {od && <ToOtherDeck c={c} data={data} deck={deck} act={act} onClose={() => setOd(false)} />}
           {fmt.cmd && <Partners c={c} data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} />}
           {combos.length > 0 && (
             <>
@@ -2111,13 +2113,13 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
       {zone === 'main' && subsOf(deck).includes(c.n) && <span className="sub-badge dg-sub" title={tx('Subcomandante: carta normal do deck que pode trocar com o comandante')}>♕</span>}
       {(part != null || q > 1) && <span className="dg-q" title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>×{part ?? q}</span>}
       <div className="dg-bar">
-        <button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
+        <span className="dg-qty"><button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
         <b title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>{part ?? q}</b>
-        <button onClick={() => act.add(c, zone, 1)} aria-label={tx('Mais uma')}>+</button>
-        <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte')}>🎨</button>
+        <button onClick={() => act.add(c, zone, 1)} aria-label={tx('Mais uma')}>+</button></span>
+        <span className="dg-acts"><button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte')}>🎨</button>
         {fmt.cmd && (zone === 'main' ? subsOf(deck).includes(c.n) : zone === 'maybe' && canBeCommander(c, fmt)) && <button className="sub-swap" onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')}>⇄♛</button>}
         {['main', ...(fmt.side ? ['side'] : []), 'maybe'].filter(z => z !== zone).map(z => <button key={z} className="dg-mv" onClick={() => act.move(c, zone, z)} title={ZONE_T[z]}>{ZONE_S[z]}</button>)}
-        <button className="dg-x" onClick={() => act.remove(c, zone, q)} aria-label={tx('Retirar do deck')} title={tx('Retirar do deck')}>×</button>
+        <button className="dg-x" onClick={() => act.remove(c, zone, q)} aria-label={tx('Retirar do deck')} title={tx('Retirar do deck')}>×</button></span>
       </div>
     </div>
   )
@@ -2138,7 +2140,7 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
         <section><h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</h4><div className="dg-row">{cmd.map(c => (
           <div key={c.i} className={`dg-tile${ds.sel?.has(c.n) ? ' picked' : ''}`} {...badProps(bad, c.n)}><button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
             {ds.sel && <input type="checkbox" className="dg-chk" checked={ds.sel.has(c.n)} onChange={() => ds.toggle(c.n)} aria-label={c.n} />}
-            <div className="dg-bar"><button className="dg-x" onClick={() => act.setCommander(c)} title={tx('Retirar comandante')}>×</button></div></div>
+            <div className="dg-bar"><span className="dg-acts"><button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte (edições e estilos)')}>🎨</button><select className="demote" value="" onChange={e => { if (e.target.value) act.demote(c, e.target.value) }} title={tx('Tirar do comando')} aria-label={tx('Tirar do comando')}><option value="">⇩</option><option value="sub">♕ {tx('Passar a subcomandante')}</option><option value="main">＋ {tx('Só no deck')}</option><option value="maybe">→ Maybeboard</option><option value="out">✕ {tx('Tirar do deck')}</option></select><button className="dg-x" onClick={() => act.setCommander(c)} title={tx('Retirar comandante')}>×</button></span></div></div>
         ))}</div></section>
       )}
       {order.map(g => (
@@ -2294,7 +2296,6 @@ export function ArtPicker({ c, deck, data, act, onClose }) {
         <div className="ap-list">
           <h3>{tx('Arte de {c}', { c: c.n })}</h3>
           <p className="muted small">{isTouch() ? tx('Toca e mantém para ver; toca para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).') : tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
-          <div className="row-btns"><button onClick={() => setAlter(true)} title={tx('Uma ilustração nova para esta carta, gerada por IA a partir do texto dela')}>✨ {tx('Criar alter art')}</button></div>
           {alter && <Suspense fallback={null}><AlterArt c={c} deck={deck} data={data} act={act2} onClose={() => setAlter(false)} /></Suspense>}
           {favs.length > 0 && <div className="row-btns"><button onClick={useFavs} title={tx('Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)', { c: c.n })}>★ {tx('Assumir as preferidas das definições')}</button></div>}
           {canSplit && <div className="split-box">
@@ -2311,7 +2312,7 @@ export function ArtPicker({ c, deck, data, act, onClose }) {
               <small className="muted">{tx('{a} de {n} cópias com arte escolhida', { a: sum, n: total })}{sum < total ? ` · ${tx('{n} com a arte principal', { n: total - sum })}` : ''}</small>
             </>}
           </div>}
-          <Prints c={c} deck={deck} act={act2} onPreview={onPreview} />
+          <Prints c={c} deck={deck} act={act2} onPreview={onPreview} extra={<button onClick={() => setAlter(true)} title={tx('Uma ilustração nova para esta carta, gerada por IA a partir do texto dela')}>✨ {tx('Criar alter art')}</button>} />
           <OwnArt c={c} deck={deck} act={act2} />
         </div>
       </div>

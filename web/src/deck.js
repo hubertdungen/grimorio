@@ -114,7 +114,7 @@ export function sampleHand(deck, size = 7) {
 
 // Proxies: cada grupo de cópias com a mesma arte → { name, q, src } (src = id da edição, imagem própria ou null =
 // a predefinida; pr = a edição, para a lista) e o verso das cartas de duas faces. Comandantes, deck e (opcional) sideboard.
-export function proxyGroups(deck, data, { side = true } = {}) {
+export function proxyGroups(deck, data, { side = true, main = true, maybe = false } = {}) {  // main: comandantes + deck; maybe: o maybeboard
   const out = [], add = (n, q) => {
     const c = data.byName.get(n); if (!c || q <= 0) return
     const main = deck.art?.[n] || deck.prints?.[n]?.id || null
@@ -122,10 +122,13 @@ export function proxyGroups(deck, data, { side = true } = {}) {
     for (const x of deck.split?.[n] || []) { const k = Math.min(x.q, left); left -= k; if (k) out.push({ c, q: k, src: x.id, pr: x }) }
     if (left > 0) out.push({ c, q: left, src: main, pr: deck.prints?.[n] })
   }
-  for (const n of deck.commanders || []) add(n, 1)
-  if (deck.signature) add(deck.signature, 1)
-  for (const [n, q] of Object.entries(deck.main || {})) add(n, q)
+  if (main) {
+    for (const n of deck.commanders || []) add(n, 1)
+    if (deck.signature) add(deck.signature, 1)
+    for (const [n, q] of Object.entries(deck.main || {})) add(n, q)
+  }
   if (side) for (const [n, q] of Object.entries(deck.side || {})) add(n, q)
+  if (maybe) for (const [n, q] of Object.entries(deck.maybe || {})) add(n, q)
   return out
 }
 
