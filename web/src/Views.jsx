@@ -6,7 +6,7 @@ import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, s
 import { count as zoneCount } from './deck.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll, SymTxt } from './ui.jsx'
-import { showCardPeek, hideCardPeek, pressPeek, useFolded } from './deckview.js'
+import { showCardPeek, hideCardPeek, pressPeek, useFolded, delayedPeek } from './deckview.js'
 import { deckPoints, deckSplit, trophyStars, perfOf as troPerf } from './trophyvalue.js'
 import Map3D from './Map3D.jsx'
 import { autoBuild } from './autobuild.js'
@@ -1618,7 +1618,7 @@ function Prints({ c, deck, act, onPreview }) {
       <div className="prints">
         {shown.map(p => (
           <div key={p.id} className={`print ${chosen?.id === p.id ? 'on' : ''}`}>
-            <button onClick={() => pick(p, chosen?.id === p.id ? chosen.foil : false)} onMouseEnter={() => onPreview(p.id, true)} onMouseLeave={() => onPreview(null, true)} title={`${p.setName} #${p.cn} · ${p.artist || ''}`}>
+            <button onClick={() => pick(p, chosen?.id === p.id ? chosen.foil : false)} onMouseEnter={e => { onPreview(p.id, true); delayedPeek(c, p.id).onMouseEnter(e) }} onMouseLeave={() => { onPreview(null, true); hideCardPeek() }} title={`${p.setName} #${p.cn} · ${p.artist || ''}`}>
               <img src={img(c, 'small', false, p.id)} alt={`${p.setName}`} loading="lazy" />
             </button>
             <small><b>{p.set}</b> {p.y}{p.style.length ? ` · ${p.style.join(', ')}` : ''}</small>

@@ -1,3 +1,4 @@
+import { delayedPeek } from './deckview.js'
 // Imagens de perfil (avatars.py): a de quem aloja / de cada perfil e a de cada amigo. Uma imagem carregada (aqui
 // cortada num quadrado de 256 px e comprimida em WebP ou JPEG antes de ir) ou a arte de uma carta (o nome e o id da
 // Scryfall; a imagem vem pelo caminho das cartas, sf()). Sem imagem fica a inicial, como antes.
@@ -8,6 +9,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { tx } from './i18n.js'
 import { sf, unaccent } from './data.js'
 import { remoteBase } from './remote.js'
+
+// a carta inteira a crescer ao lado com o rato parado em cima (a lista só mostra a arte pequena)
+const pk = c => delayedPeek({ n: c.n, id: c.id }, c.id)
 
 export const hue = s => [...String(s)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7)
 export const initial = name => ([...String(name || '?').trim()][0] || '?').toUpperCase()
@@ -113,7 +117,7 @@ function CardPick({ data, pick, setPick }) {
       <input type="search" value={q} autoFocus onChange={e => { setQ(e.target.value); setI(0) }} onKeyDown={key} placeholder={tx('Escreve o nome de uma carta…')} aria-label={tx('Carta')}
         role="combobox" aria-expanded={hits.length > 0} aria-controls="av-card-list" aria-autocomplete="list" />
       {hits.length > 0 && <ul id="av-card-list" role="listbox" className="av-card-list">{hits.map((c, k) => (
-        <li key={c.n} role="option" aria-selected={pick?.id === c.id}><button type="button" className={`${k === i ? 'on' : ''} ${pick?.id === c.id ? 'sel' : ''}`} onMouseEnter={() => setI(k)} onClick={() => go(c)}>
+        <li key={c.n} role="option" aria-selected={pick?.id === c.id}><button type="button" className={`${k === i ? 'on' : ''} ${pick?.id === c.id ? 'sel' : ''}`} onMouseEnter={e => { setI(k); pk(c).onMouseEnter(e) }} onMouseLeave={() => pk(c).onMouseLeave()} onClick={() => { pk(c).onMouseLeave(); go(c) }}>
           <img src={artCrop(c.id)} alt="" loading="lazy" onError={e => { e.currentTarget.style.visibility = 'hidden' }} /><span>{c.n}</span></button></li>))}</ul>}
       {q.trim().length >= 2 && !hits.length && <p className="muted small">{tx('Nenhuma carta com esse nome.')}</p>}
     </div>
