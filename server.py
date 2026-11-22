@@ -1038,7 +1038,7 @@ class H(BaseHTTPRequestHandler):
             if not self.owner():
                 return self.json({"erro": "sem utilizador"}, 401)
             try:
-                b = self.body(1_000_000)
+                b = self.body(4_000_000)  # vários decks de uma vez
                 data, missed = artfolder.proxies_zip(b.get("items") or [], os.path.join(ARGS.data_dir, "arts"), str(b.get("list") or ""), bool(b.get("perCopy")))
             except ValueError as e:
                 return self.json({"erro": str(e)}, 400)

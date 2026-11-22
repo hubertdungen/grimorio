@@ -8,6 +8,7 @@ export const PRINT0 = {
   unit: 'cm', paper: 'A4', custom: [210, 297], landscape: false, margins: [5, 5, 5, 5], customMargins: false, center: true,
   card: [63, 88], gap: [0, 0], bleed: 0, guides: 'lines', individual: true, guideColor: '#808080', guideWidth: 0.2,
   bleedFill: 'replicate', bleedColor: '#000000', fillCorners: true, watermark: false, watermarkText: 'PROXY', duplex: false, flip: 'side',
+  newSheet: false, deckNames: true, deckTags: false, share: false,  // vários decks: folha nova por deck, nomes, partilhar cartas
 }
 
 export function pageSize(o) {
@@ -61,10 +62,51 @@ export function guides(L, mode, individual = true) {
   return out
 }
 
+// Vários decks numa impressão. secs = [{ groups: [{ key, q, … }] }], um por deck e pela ordem; key = carta + arte.
+// items = grupos a imprimir com o deck a que pertencem; slots = as cópias pela ordem da folha (null = casa vazia, quando
+// cada deck começa numa folha nova); sheets = os decks de cada folha. share: cada arte sai só as vezes do deck que mais
+// precisa dela (as cópias a mais vão com o deck que as pede) e decks = todos os que a usam.
+export function packDecks(secs, per, { share = false, newSheet = false } = {}) {
+  const users = new Map(), done = new Map(), items = [], slots = []
+  secs.forEach((s, d) => s.groups.forEach(g => users.set(g.key, [...new Set([...(users.get(g.key) || []), d])])))
+  secs.forEach((s, d) => {
+    if (newSheet && per && slots.length % per) slots.push(...Array(per - (slots.length % per)).fill(null))
+    const used = new Map()
+    for (const g of s.groups) {
+      const u = (used.get(g.key) || 0) + g.q, q = share ? Math.max(0, u - (done.get(g.key) || 0)) : g.q
+      used.set(g.key, u); done.set(g.key, Math.max(u, done.get(g.key) || 0))
+      if (!q) continue
+      const it = { g, q, deck: d, decks: share ? users.get(g.key) : [d] }
+      items.push(it)
+      for (let k = 0; k < q; k++) slots.push(it)
+    }
+  })
+  const sheets = per ? Array.from({ length: Math.ceil(slots.length / per) }, (_, p) => [...new Set(slots.slice(p * per, (p + 1) * per).flatMap(x => (x ? x.decks : [])))].sort((a, b) => a - b)) : []
+  return { items, slots, sheets }
+}
+
+// textos da folha (mm, linha de base): o nome dos decks na margem de cima e, se houver espaço, uma etiqueta debaixo de
+// cada carta — no espaço entre cartas ou no bleed, que se corta: nunca em cima da carta
+const fit = (t, w, s) => { const n = Math.max(1, Math.floor(w / (s * 0.55))); return t.length > n ? `${t.slice(0, n - 1)}…` : t }
+export const tagRoom = L => Math.min(L.rows > 1 ? L.gy : Infinity, L.H - L.y0 - L.gh - 1)
+export function sheetLabels(L, head, tags) {
+  const out = [], top = L.y0 - 1  // pode ficar por cima do bleed de fora, que se corta
+  if (head && top >= 4) { const s = Math.min(3.2, top * 0.4); out.push({ x: L.x0, y: top / 2 + s * 0.35, s, t: fit(head, L.gw, s) }) }
+  const room = tagRoom(L)
+  if (tags && room >= 1.4) {
+    const s = Math.min(2.2, room * 0.7)
+    L.cells.forEach((k, i) => { if (tags[i]) out.push({ x: k.x + 1, y: k.y + L.ch + s * 0.95, s, t: fit(tags[i], L.cw - 2, s) }) })
+  }
+  return out
+}
+// texto em Helvetica (WinAnsi): o que não é latino passa a «?»; tudo escapado em octal para o fluxo ficar ASCII
+const WIN = { '€': 0x80, '‚': 0x82, '„': 0x84, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '–': 0x96, '—': 0x97 }
+export const pdfStr = t => [...t].map(ch => { const c = WIN[ch] ?? ch.charCodeAt(0); return c > 255 || ch.length > 1 ? '?' : c < 32 || c > 126 || '()\\'.includes(ch) ? `\\${c.toString(8).padStart(3, '0')}` : ch }).join('')
+
 const PT = 72 / 25.4
 const f = v => (+v.toFixed(3)).toString()
-// frente (e verso, com a folha espelhada) de cada página: ops do PDF por página
-export function pageOps(L, o, slots, imgOf) {
+// frente (e verso, com a folha espelhada) de cada página: ops do PDF por página; labelsOf(p) = textos da frente
+export function pageOps(L, o, slots, imgOf, labelsOf) {
   const g = guides(L, o.guides, o.individual !== false), [R, G, B] = [1, 3, 5].map(k => parseInt(o.guideColor.slice(k, k + 2), 16) / 255)
   const pages = []
   for (let p = 0; p * L.per < slots.length || (!slots.length && !p); p++) {
@@ -72,7 +114,7 @@ export function pageOps(L, o, slots, imgOf) {
     for (const side of o.duplex ? ['front', 'back'] : ['front']) {
       let s = ''
       page.forEach((slot, i) => {
-        const k = L.cells[i], im = imgOf(slot, side)
+        const k = L.cells[i], im = slot && imgOf(slot, side)
         if (im == null) return
         let { x, y } = k, [l, t, r, b] = k.clip
         if (side === 'back') {  // a folha vira: espelha a posição (e o recorte) pela margem lateral ou pela de cima
@@ -82,6 +124,7 @@ export function pageOps(L, o, slots, imgOf) {
         s += `q ${f(l * PT)} ${f((L.H - b) * PT)} ${f((r - l) * PT)} ${f((b - t) * PT)} re W n ${f(iw * PT)} 0 0 ${f(ih * PT)} ${f((x - L.b) * PT)} ${f((L.H - y - L.ch - L.b) * PT)} cm /Im${im} Do Q\n`
       })
       if (side === 'front' && g.length) s += `q ${f(R)} ${f(G)} ${f(B)} RG ${f(o.guideWidth * PT)} w ${g.map(([a, b, c, d]) => `${f(a * PT)} ${f((L.H - b) * PT)} m ${f(c * PT)} ${f((L.H - d) * PT)} l`).join(' ')} S Q\n`
+      if (side === 'front' && labelsOf) for (const t of labelsOf(p)) s += `BT /F1 ${f(t.s * PT)} Tf 0.45 g ${f(t.x * PT)} ${f((L.H - t.y) * PT)} Td (${pdfStr(t.t)}) Tj ET\n`
       pages.push(s)
     }
   }
@@ -102,7 +145,7 @@ export function pdf(W, H, pages, images) {
   images.forEach((im, k) => obj(first + k, [`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.bytes.length} >>\nstream\n`, im.bytes, '\nendstream']))
   pages.forEach((s, k) => {
     const c = enc.encode(s)
-    obj(pageObj(k), `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(W * PT)} ${f(H * PT)}] /Resources << /XObject << ${xo} >> >> /Contents ${pageObj(k) + 1} 0 R >>`)
+    obj(pageObj(k), `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f(W * PT)} ${f(H * PT)}] /Resources << /XObject << ${xo} >> /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >> /Contents ${pageObj(k) + 1} 0 R >>`)
     obj(pageObj(k) + 1, [`<< /Length ${c.length} >>\nstream\n`, c, '\nendstream'])
   })
   const n = first + nImg + 2 * pages.length, xref = len

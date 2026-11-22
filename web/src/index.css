@@ -2433,6 +2433,18 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .wstars.prov { opacity: .7; }
 .px-toks { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; gap: 4px; }
 .px-toks li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .px-toks input, .px-n { width: 56px; }
+/* proxies de vários decks: uma linha por deck, o seletor «Juntar outros decks» e as opções de combinar */
+.px-decks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.px-decks > li { display: grid; gap: 4px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); min-width: 0; }
+.px-decks > li.off { opacity: .55; }
+.px-drow, .px-dopts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; min-width: 0; }
+.px-drow .chk { overflow-wrap: anywhere; } .px-decks .px-toks { margin: 0; }
+.px-join { display: grid; gap: 6px; padding: 10px 12px; border: 1px dashed var(--gold); border-radius: 12px; }
+.px-join ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 240px; overflow-y: auto; }
+.px-join li .chk { padding: 4px 0; overflow-wrap: anywhere; }
+.ppager { display: flex; align-items: center; gap: 10px; } .ppager button { font-size: 20px; padding: 0 10px; }
+.lib-chk { width: 18px; height: 18px; margin: 0; }
+@media (pointer: coarse) { .lib-chk { width: 24px; height: 24px; } }
 .sess-bar { position: fixed; z-index: 9999; left: 50%; top: 10px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: calc(100vw - 24px); padding: 10px 14px; border-radius: 12px; background: #2a1620; border: 1px solid var(--bad); color: var(--text); box-shadow: 0 8px 30px #000a; }
 .rt-tro { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; } .rt-tro b { color: #e8ecf3; font-weight: 600; }
 .src-filt button:disabled { opacity: .4; }

@@ -758,6 +758,30 @@ console.log('selfcheck universo ok')
   const xref = +txt.match(/startxref\n(\d+)/)[1]; assert.equal(txt.slice(xref, xref + 4), 'xref')
   const off = [...txt.matchAll(/(\d{10}) 00000 n/g)].map(m => +m[1]); assert.ok(off.every((v, i) => txt.slice(v).startsWith(`${i + 1} 0 obj`)))
   console.log('selfcheck proxies PDF ok') }
+{ const { packDecks, sheetLabels, tagRoom, pdfStr, layout, pageOps, PRINT0 } = await import('./src/printpdf.js')  // proxies de vários decks
+  const A = { groups: [{ key: 'Bolt|', q: 4 }, { key: 'Sol|x', q: 1 }, { key: 'Bolt|', q: 1 }] }, B = { groups: [{ key: 'Bolt|', q: 3 }, { key: 'Rat|', q: 5 }] }
+  let p = packDecks([A, B], 9)  // soma: 6 + 8 = 14 cartas seguidas em 2 folhas, sem casas vazias
+  assert.equal(p.slots.length, 14); assert.ok(p.slots.every(Boolean)); assert.deepEqual(p.sheets, [[0, 1], [1]])
+  p = packDecks([A, B], 9, { newSheet: true })  // B começa na 2.ª folha: 6 de A + 3 vazias
+  assert.equal(p.slots.length, 17); assert.equal(p.slots.filter(x => !x).length, 3); assert.deepEqual(p.sheets, [[0], [1]])
+  p = packDecks([A, B], 9, { share: true })  // Bolt: A usa 5 (4+1), B 3 → 5 no total, todos com A; Rat 5 com B
+  const n = k => p.items.filter(it => it.g.key === k).reduce((a, it) => a + it.q, 0)
+  assert.equal(n('Bolt|'), 5); assert.equal(n('Rat|'), 5); assert.equal(p.slots.length, 11)
+  assert.ok(p.items.filter(it => it.g.key === 'Bolt|').every(it => it.deck === 0 && it.decks.join() === '0,1'))
+  p = packDecks([B, A], 9, { share: true })  // ao contrário: B traz 3 Bolt e A só as 2 que faltam
+  assert.deepEqual(p.items.filter(it => it.g.key === 'Bolt|').map(it => [it.deck, it.q]), [[0, 3], [1, 1], [1, 1]])
+  assert.deepEqual(packDecks([{ groups: [{ key: 'a', q: 3 }] }], 0).sheets, [])  // a carta não cabe: sem folhas
+  const L0 = layout(PRINT0), Lg = layout({ ...PRINT0, gap: [2.8, 2.8], bleed: 10, customMargins: true, margins: [10, 10, 10, 10] })
+  assert.ok(tagRoom(L0) < 1.4 && tagRoom(Lg) >= 1.4)  // sem espaço entre cartas não há etiquetas
+  assert.equal(sheetLabels(L0, 'Deck A', ['A']).length, 1)  // só o nome no cimo
+  const lb = sheetLabels(Lg, 'Deck A · Deck B', Lg.cells.map(() => 'Deck A'))
+  assert.equal(lb.length, 1 + Lg.per)
+  assert.ok(lb[0].y < Lg.y0 - 1 && lb.slice(1).every((t, i) => t.y > Lg.cells[i].y + Lg.ch && t.y - Lg.cells[i].y - Lg.ch <= tagRoom(Lg)))  // fora da carta
+  assert.ok(sheetLabels(L0, 'x'.repeat(400), null)[0].t.length < 120)  // nome comprido encolhe com «…»
+  assert.equal(pdfStr('Ação (1)\\'), 'A\\347\\343o \\0501\\051\\134'); assert.equal(pdfStr('龍…'), '?\\205')
+  const ops = pageOps(L0, PRINT0, [null, 'x'], () => 0, () => [{ x: 5, y: 5, s: 3, t: 'Olá' }])
+  assert.equal((ops[0].match(/Do Q/g) || []).length, 1); assert.ok(ops[0].includes('(Ol\\341) Tj'))  // casa vazia salta; texto em Helvetica
+  console.log('selfcheck proxies de vários decks ok') }
 { const { winLose } = await import('./src/winlose.js')  // como ganha e como perde: regras simples, à escala de 60 cartas
   const C = (n, t, o, extra = {}) => ({ n, t, o, mt: t.split(' ')[0], tg: [], kw: [], ci: '', cmc: 2, pt: '', i: 0, ...extra })
   const cards = [C('Bear', 'Creature — Bear', '', { pt: '2/2' }), C('Plains', 'Land', '')]

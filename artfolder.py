@@ -87,7 +87,7 @@ def _safe(n):
 
 
 def proxies_zip(items, arts_dir, list_txt="", per_copy=False):
-    """ZIP para gráficas de proxies: items = [{"name", "q", "url", "back", "fallback"}] (url = https:// ou arts/<ficheiro>;
+    """ZIP para gráficas de proxies: items = [{"name", "q", "url", "back", "fallback", "folder"}] (url = https:// ou arts/<ficheiro>;
     back = verso das cartas de duas faces; fallback = a arte normal, se a imagem própria não vier — há sites que recusam
     pedidos que não venham de um browser). Um ficheiro por grupo («Island (x4).png») ou um por cópia; lista.txt com as
     edições e faltam.txt com as imagens que tiveram de ser trocadas. Devolve (bytes do zip, nomes das cartas trocadas)."""
@@ -107,7 +107,7 @@ def proxies_zip(items, arts_dir, list_txt="", per_copy=False):
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:  # imagens já vêm comprimidas
         if list_txt:
             z.writestr("lista.txt", list_txt)
-        for it in items[:400]:
+        for it in items[:1600]:
             k += 1
             q = max(1, min(int(it.get("q") or 1), 99))
             for side, url in (("", it.get("url")), (" - verso", it.get("back"))):
@@ -123,7 +123,8 @@ def proxies_zip(items, arts_dir, list_txt="", per_copy=False):
                         body, ext = load(it["fallback"])
                     except Exception:
                         continue
-                base = f"{k:03d} {_safe(it.get('name'))}"
+                folder = _safe(it["folder"]).lstrip(". ")[:60] if it.get("folder") else ""  # uma pasta por deck
+                base = f"{folder + '/' if folder else ''}{k:03d} {_safe(it.get('name'))}"
                 names = [f"{base}{side} ({i + 1}){ext}" for i in range(q)] if per_copy and q > 1 else [f"{base}{side}{f' (x{q})' if q > 1 else ''}{ext}"]
                 for n in names:
                     z.writestr(n, body)

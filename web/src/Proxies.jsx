@@ -2,11 +2,14 @@
 //  1. lista com as edições («4 Island (FRA) 386», cópias divididas numa linha por arte) — Moxfield, MPCFill, mtgprint…;
 //  2. ZIP com as imagens (PNG da Scryfall e as imagens próprias), um ficheiro por grupo ou por cópia;
 //  3. folha para imprimir: 63×88 mm, 9 por página A4/Letter, com linhas de corte (imprimir ou guardar em PDF).
-import { useEffect, useMemo, useState } from 'react'
+// Vários decks de uma vez (Biblioteca › selecionar, ou «＋ Juntar outros decks»): folhas seguidas ou uma por deck,
+// nomes dos decks na folha e cartas partilhadas entre decks (printpdf.packDecks).
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { img, sf, recommend } from './data.js'
-import { exportList, proxyGroups } from './deck.js'
-import { PAPERS, UNITS, PRINT0, layout, guides, pageOps, pdf } from './printpdf.js'
+import { img, sf, recommend, fmtBit } from './data.js'
+import { FORMAT } from './formats.js'
+import { exportList, proxyGroups, listLine } from './deck.js'
+import { PAPERS, UNITS, PRINT0, layout, guides, pageOps, pdf, packDecks, sheetLabels, tagRoom } from './printpdf.js'
 import { tx } from './i18n.js'
 import { useBackClose } from './backnav.js'
 
@@ -59,7 +62,7 @@ function Num({ v, unit, set, label, min = 0 }) {
 }
 
 // pré-visualização da 1.ª folha: cartas (com o bleed que cabe), margens e guias
-function Preview({ L, o, slots }) {
+function Preview({ L, o, slots, labels }) {
   const g = guides(L, o.guides, o.individual !== false)
   return (
     <svg className="pprev" viewBox={`0 0 ${L.W} ${L.H}`} role="img" aria-label={tx('Pré-visualização da folha')}>
@@ -70,6 +73,7 @@ function Preview({ L, o, slots }) {
           {s ? <image href={s.thumb} x={k.x} y={k.y} width={L.cw} height={L.ch} preserveAspectRatio="none" /> : <rect x={k.x} y={k.y} width={L.cw} height={L.ch} fill="#ddd" />}
         </g>) })}
       {g.map(([a, b, c, d], i) => <line key={i} x1={a} y1={b} x2={c} y2={d} stroke={o.guideColor} strokeWidth={Math.max(o.guideWidth, L.W / 600)} />)}
+      {labels.map((t, i) => <text key={`t${i}`} x={t.x} y={t.y} fontSize={t.s} fill="#737373" fontFamily="Helvetica, Arial, sans-serif">{t.t}</text>)}
     </svg>
   )
 }
@@ -78,92 +82,210 @@ function Preview({ L, o, slots }) {
 const NUMW = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, x: 3 }
 const madeBy = c => { const m = /\bcreates? (a|an|one|two|three|four|five|six|x|\d+)\b/i.exec(c?.o || ''); return m ? NUMW[m[1].toLowerCase()] || +m[1] || 1 : 1 }
 
-export default function ProxyDialog({ data, deck, ctx, onClose }) {
+
+// vários decks: cada um com as suas opções; o aberto usa o contexto do App, os outros o mesmo cálculo sem os testes
+const OPT0 = { on: true, side: true, tok: false, sug: false, sugN: 10 }
+const keyOf = d => d.id || 'cur'
+const ctxOf = (data, d) => {
+  const fmt = FORMAT[d.format] || FORMAT.casual, cmd = (d.commanders || []).map(n => data.byName.get(n)).filter(Boolean)
+  return d.casual ? { bit: -1, identity: null, allowUn: true } : { bit: fmtBit(data, fmt), identity: fmt.cmd && cmd.length ? cmd.map(c => c.ci).join('') : null, allowUn: fmt.key === 'casual' }
+}
+function suggest(data, deck, ctx, n) {
+  const have = [...deck.commanders || [], ...Object.keys(deck.main || {})].map(n => data.byName.get(n)?.i).filter(i => i != null)
+  const cols = new Set(have.flatMap(i => (data.cards[i].mt === 'Land' ? [] : [...data.cards[i].ci])))  // as cores do deck, sem os terrenos
+  return recommend(data, { seeds: have.filter(i => data.cards[i].mt !== 'Land'), have, ctx, filters: { noLands: true }, limit: n * 3 }).map(r => r.c)
+    .filter(c => !deck.main?.[c.n] && !deck.side?.[c.n] && [...c.ci].every(k => cols.has(k))).slice(0, n)
+}
+const fileBase = ds => { const j = ds.map(d => d.name).join(' + '); return (ds.length > 1 && j.length > 60 ? `${ds.length} decks` : j).replace(/[^\w\- +]+/g, '').trim() || 'deck' }
+
+// «＋ Juntar outros decks»: os decks guardados, com pesquisa
+function JoinPicker({ have, onAdd, onClose }) {
+  const [list, setList] = useState(null), [q, setQ] = useState(''), [pick, setPick] = useState([]), [busy, setBusy] = useState(false), [err, setErr] = useState('')
+  useEffect(() => { fetch('/api/decks').then(r => (r.ok ? r.json() : Promise.reject(new Error()))).then(setList).catch(() => setErr(tx('Não consegui ler os teus decks.'))) }, [])
+  const shown = (list || []).filter(d => !have.includes(d.id) && d.name.toLowerCase().includes(q.trim().toLowerCase()))
+  const add = async () => {
+    setBusy(true)
+    try { onAdd(await Promise.all(pick.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : Promise.reject(new Error())))))) } catch { setErr(tx('Não consegui ler os teus decks.')) } finally { setBusy(false) }
+  }
+  return (
+    <div className="px-join">
+      <input type="search" placeholder={tx('Procurar deck…')} value={q} onChange={e => setQ(e.target.value)} aria-label={tx('Procurar deck…')} />
+      {!list && !err && <p className="muted small">{tx('A carregar…')}</p>}
+      {list && !shown.length && <p className="muted small">{tx('Não há mais decks.')}</p>}
+      <ul>{shown.map(d => <li key={d.id}><label className="chk small"><input type="checkbox" checked={pick.includes(d.id)} onChange={() => setPick(p => (p.includes(d.id) ? p.filter(x => x !== d.id) : [...p, d.id]))} /> {d.name} <small className="muted">{tx('{n} carta|{n} cartas', { n: d.count || 0 })}</small></label></li>)}</ul>
+      {err && <p className="small bad-t">{err}</p>}
+      <div className="row-btns"><button className="primary" disabled={!pick.length || busy} onClick={add}>{tx('Juntar {n} deck|Juntar {n} decks', { n: pick.length })}</button><button onClick={onClose}>{tx('Cancelar')}</button></div>
+    </div>
+  )
+}
+
+// deck = o deck aberto (com ctx); decks = outros decks inteiros (da Biblioteca ou de «Juntar outros decks")
+export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
-  const [side, setSide] = useState(true), [perCopy, setPerCopy] = useState(false)
-  // extras: os tokens que as cartas do deck criam (Scryfall, pelo servidor) e as sugestões do Grimório para testar
-  const [withTok, setWithTok] = useState(false), [toks, setToks] = useState(null), [tokErr, setTokErr] = useState('')
-  const [withSug, setWithSug] = useState(false), [sugN, setSugN] = useState(10)
+  const [extra, setExtra] = useState(() => decks || []), [joining, setJoining] = useState(false)
+  const all = useMemo(() => (deck ? [deck, ...extra.filter(d => !deck.id || d.id !== deck.id)] : extra), [deck, extra])
+  const multi = all.length > 1
+  const [opts, setOpts] = useState({}), [perCopy, setPerCopy] = useState(false)
+  const optOf = k => ({ ...OPT0, ...opts[k] }), setOpt = (k, p) => setOpts(m => ({ ...m, [k]: { ...OPT0, ...m[k], ...p } }))
+  // extras: os tokens que as cartas de cada deck criam (Scryfall, pelo servidor) e as sugestões do Grimório para testar
+  const [toks, setToks] = useState({}), [tokErr, setTokErr] = useState('')  // toks[k]: null = a procurar
   useEffect(() => {
-    if (!withTok || toks) return
-    const names = [...new Set([...deck.commanders || [], ...Object.keys(deck.main || {}), ...Object.keys(side ? deck.side || {} : {})])]
-    fetch('/api/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ names }) })
-      .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j.erro); return j })
-      .then(l => setToks(l.map(t => ({ ...t, q: Math.max(1, Math.min(12, t.from.reduce((a, n) => a + madeBy(data.byName.get(n)) * ((deck.main?.[n] || 0) + (deck.side?.[n] || 0) || 1), 0))) }))))
-      .catch(e => { setTokErr(e.message); setWithTok(false) })
-  }, [withTok, toks, deck, side, data])
-  const sugs = useMemo(() => {
-    if (!withSug || !ctx) return []
-    const have = [...deck.commanders || [], ...Object.keys(deck.main || {})].map(n => data.byName.get(n)?.i).filter(i => i != null)
-    const cols = new Set(have.flatMap(i => (data.cards[i].mt === 'Land' ? [] : [...data.cards[i].ci])))  // as cores do deck, sem os terrenos
-    return recommend(data, { seeds: have.filter(i => data.cards[i].mt !== 'Land'), have, ctx, filters: { noLands: true }, limit: sugN * 3 }).map(r => r.c)
-      .filter(c => !deck.main?.[c.n] && !deck.side?.[c.n] && [...c.ci].every(k => cols.has(k))).slice(0, sugN)
-  }, [withSug, sugN, data, deck, ctx])
+    for (const d of all) {
+      const k = keyOf(d), r = { ...OPT0, ...opts[k] }
+      if (!r.tok || k in toks) continue
+      setToks(t => ({ ...t, [k]: null }))
+      const names = [...new Set([...d.commanders || [], ...Object.keys(d.main || {}), ...Object.keys(r.side ? d.side || {} : {})])]
+      fetch('/api/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ names }) })
+        .then(async res => { const j = await res.json(); if (!res.ok) throw new Error(j.erro); return j })
+        .then(l => setToks(t => ({ ...t, [k]: l.map(x => ({ ...x, q: Math.max(1, Math.min(12, x.from.reduce((a, n) => a + madeBy(data.byName.get(n)) * ((d.main?.[n] || 0) + (d.side?.[n] || 0) || 1), 0))) })) })))
+        .catch(e => { setTokErr(e.message); setOpts(m => ({ ...m, [k]: { ...OPT0, ...m[k], tok: false } })); setToks(t => { const n = { ...t }; delete n[k]; return n }) })
+    }
+  }, [all, opts, toks, data])
+  const sugCache = useRef(new Map())  // recomendar é pesado: só se refaz quando o deck ou o número mudam
+  const sugs = useMemo(() => Object.fromEntries(all.map(d => {
+    const k = keyOf(d), r = { ...OPT0, ...opts[k] }, c = d === deck ? ctx : ctxOf(data, d)
+    if (!r.sug || !c) return [k, []]
+    const hit = sugCache.current.get(k), cc = d === deck ? ctx : null
+    if (hit?.d === d && hit.n === r.sugN && hit.c === cc) return [k, hit.out]
+    const out = suggest(data, d, c, r.sugN)
+    sugCache.current.set(k, { d, n: r.sugN, c: cc, out })
+    return [k, out]
+  })), [all, opts, data, deck, ctx])
+  const secs = useMemo(() => all.filter(d => ({ ...OPT0, ...opts[keyOf(d)] }).on).map(d => {
+    const k = keyOf(d), r = { ...OPT0, ...opts[k] }, tk = r.tok && toks[k] ? toks[k].filter(t => t.q > 0) : [], sg = sugs[k] || []
+    return { d, k, r, tk, sg, groups: [
+      ...proxyGroups(d, data, { side: r.side }).map(g => ({ ...g, key: `${g.c.n}|${g.src || ''}`, fb: d.prints?.[g.c.n]?.id })),
+      ...tk.map(t => ({ c: { n: t.name, id: t.id, df: false }, q: t.q, src: null, token: true, key: `tok|${t.id}` })),
+      ...sg.map(c => ({ c, q: 1, src: null, sug: true, key: `${c.n}|` }))] }
+  }), [all, opts, toks, sugs, data])
   const [o, setO] = useState(loadPrint), [pdfBusy, setPdfBusy] = useState('')
   const up = p => setO(x => { const n = { ...x, ...p }; try { localStorage.setItem('grimorio.print', JSON.stringify(n)) } catch { /* sem armazenamento */ } return n })
   const [busy, setBusy] = useState(''), [err, setErr] = useState(''), [warn, setWarn] = useState(''), [copied, setCopied] = useState(false)
-  const groups = useMemo(() => [...proxyGroups(deck, data, { side }),
-    ...(withTok && toks ? toks.filter(t => t.q > 0).map(t => ({ c: { n: t.name, id: t.id, df: false }, q: t.q, src: null, token: true })) : []),
-    ...sugs.map(c => ({ c, q: 1, src: null, sug: true }))], [deck, data, side, withTok, toks, sugs])
-  const list = useMemo(() => [exportList(side ? deck : { ...deck, side: {} }),
-    ...(withTok && toks?.some(t => t.q > 0) ? [`\n// ${tx('Tokens')}`, ...toks.filter(t => t.q > 0).map(t => `${t.q} ${t.name}`)] : []),
-    ...(sugs.length ? [`\n// ${tx('Sugestões do Grimório')}`, ...sugs.map(c => `1 ${c.n}`)] : [])].join('\n'), [deck, side, withTok, toks, sugs])
-  const total = groups.reduce((a, g) => a + g.q, 0), owned = groups.filter(g => own(g.src)).reduce((a, g) => a + g.q, 0)
-  useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   const L = useMemo(() => layout(o), [o])
-  const slots = useMemo(() => groups.flatMap(g => Array.from({ length: g.q }, () => ({ g, thumb: urlOf(g, 'small'), front: urlOf(g, 'png'), back: urlOf(g, 'png', true) || CARD_BACK }))), [groups])
+  const share = multi && o.share, newSheet = multi && o.newSheet
+  const pack = useMemo(() => packDecks(secs, L.per, { share, newSheet }), [secs, L.per, share, newSheet])
+  const slots = useMemo(() => {
+    const ex = new Map(pack.items.map(it => [it, { ...it, thumb: urlOf(it.g, 'small'), front: urlOf(it.g, 'png'), back: urlOf(it.g, 'png', true) || CARD_BACK }]))
+    return pack.slots.map(s => s && ex.get(s))
+  }, [pack])
+  const names = secs.map(s => s.d.name)
+  const list = useMemo(() => {
+    const extras = (tk, sg) => [...(tk.length ? [`\n// ${tx('Tokens')}`, ...tk.map(t => `${t.q} ${t.name}`)] : []), ...(sg.length ? [`\n// ${tx('Sugestões do Grimório')}`, ...sg.map(c => `1 ${c.n}`)] : [])]
+    const full = s => [exportList(s.r.side ? s.d : { ...s.d, side: {} }), ...extras(s.tk, s.sg)]
+    if (!multi) return secs[0] ? full(secs[0]).join('\n') : ''
+    const shared = i => {  // só as cópias que os decks de cima ainda não têm
+      const mine = pack.items.filter(it => it.deck === i), by = f => mine.filter(it => f(it.g))
+      const out = [...by(g => !g.token && !g.sug).map(it => listLine(it.g.c.n, it.q, it.g.pr)), ...extras(by(g => g.token).map(it => ({ q: it.q, name: it.g.c.n })), by(g => g.sug).map(it => it.g.c))]
+      return out.length ? out : [`// ${tx('(já está tudo nos decks de cima)')}`]
+    }
+    return [...(share ? [`// ${tx('Cartas partilhadas: cada deck só traz as cópias que os de cima ainda não têm')}`] : []),
+      ...secs.map((s, i) => [`// ${s.d.name}`, ...(share ? shared(i) : full(s))].join('\n'))].join('\n\n')
+  }, [secs, multi, share, pack])
+  const total = slots.filter(Boolean).length, owned = pack.items.filter(it => own(it.g.src)).reduce((a, it) => a + it.q, 0)
+  const sum = secs.reduce((a, s) => a + s.groups.reduce((b, g) => b + g.q, 0), 0)
+  useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   const sheets = L.per ? Math.ceil(slots.length / L.per) : 0
+  const [pgS, setPg] = useState(0), pg = Math.min(pgS, Math.max(0, sheets - 1))
+  // nomes dos decks na folha: no cimo os que lá estão; por baixo de cada carta, se couber, o(s) deck(s) dela
+  const labelsOf = p => (multi && o.deckNames && pack.sheets[p] ? sheetLabels(L, `${pack.sheets[p].map(i => names[i]).join(' · ')} — ${p + 1}/${sheets}`,
+    o.deckTags ? slots.slice(p * L.per, (p + 1) * L.per).map(s => s && s.decks.map(i => names[i]).join(' + ')) : null) : [])
+  const base = fileBase(secs.map(s => s.d))
   const makePdf = async () => {
     setErr(''); setWarn('')
-    const urls = [...new Set(slots.flatMap(x => (o.duplex ? [x.front, x.back] : [x.front])))], idx = new Map(), images = []
+    const real = slots.filter(Boolean), urls = [...new Set(real.flatMap(x => (o.duplex ? [x.front, x.back] : [x.front])))], idx = new Map(), images = []
     let missed = 0
     try {
       for (const u of urls) {
         setPdfBusy(tx('A preparar as imagens… {a}/{b}', { a: images.length + 1, b: urls.length }))
         let im
         try { im = await renderCard(fetchable(u), o, L) } catch {
-          const sl = slots.find(x => x.front === u), fb = sl && img(sl.g.c, 'png', false, deck.prints?.[sl.g.c.n]?.id)  // imagem própria que não vem: a arte normal
+          const sl = real.find(x => x.front === u), fb = sl && img(sl.g.c, 'png', false, sl.g.fb)  // imagem própria que não vem: a arte normal
           if (!fb || fb === u) throw new Error(tx('Não consegui carregar a imagem de {c}.', { c: sl?.g.c.n || u }))
           im = await renderCard(fb, o, L); missed++
         }
         idx.set(u, images.length); images.push(im)
       }
       setPdfBusy(tx('A montar o PDF…'))
-      const bytes = pdf(L.W, L.H, pageOps(L, o, slots, (x, side) => idx.get(side === 'back' ? x.back : x.front)), images)
+      const bytes = pdf(L.W, L.H, pageOps(L, o, slots, (x, side) => idx.get(side === 'back' ? x.back : x.front), labelsOf), images)
       const a = document.createElement('a')
-      a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); a.download = `${deck.name.replace(/[^\w\- ]+/g, '') || 'deck'} - proxies.pdf`; a.click()
+      a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); a.download = `${base} - proxies.pdf`; a.click()
       if (missed) setWarn(tx('{n} imagem própria não veio e ficou a arte normal.|{n} imagens próprias não vieram e ficou a arte normal.', { n: missed }))
     } catch (e) { setErr(e.message) } finally { setPdfBusy('') }
   }
   const zip = async () => {
-    setErr(''); setBusy(tx('A juntar {n} imagens…', { n: groups.length }))
+    // partilhadas: tudo numa pasta, cada arte uma vez; senão uma pasta por deck (com um deck só, como sempre)
+    const merged = new Map()
+    for (const it of pack.items) { const x = share && merged.get(it.g.key); if (x) x.q += it.q; else merged.set(share ? it.g.key : merged.size, { ...it }) }
+    const items = [...merged.values()].map(it => ({ name: it.g.c.n, q: it.q, url: urlOf(it.g, 'png'), back: urlOf(it.g, 'png', true), ...(own(it.g.src) && { fallback: img(it.g.c, 'png', false, it.g.fb) }), ...(multi && !share && { folder: names[it.deck] }) }))
+    setErr(''); setBusy(tx('A juntar {n} imagens…', { n: items.length }))
     try {
       setWarn('')
-      const items = groups.map(g => ({ name: g.c.n, q: g.q, url: urlOf(g, 'png'), back: urlOf(g, 'png', true), ...(own(g.src) && { fallback: img(g.c, 'png', false, deck.prints?.[g.c.n]?.id) }) }))
-      const r = await fetch('/api/proxies.zip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, list, perCopy, name: deck.name }) })
+      const r = await fetch('/api/proxies.zip', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, list, perCopy, name: base }) })
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).erro || tx('Não consegui juntar as imagens.'))
       const missed = +(r.headers.get('X-Missed') || 0)
       if (missed) setWarn(tx('{n} imagem própria não veio (o site recusa descargas que não sejam do browser) e ficou a arte normal; a lista está no faltam.txt. Para as incluir, guarda-as no computador e junta-as em «Imagem própria › Uma pasta de imagens › Pasta do computador». A folha para imprimir já as mostra.|{n} imagens próprias não vieram (o site recusa descargas que não sejam do browser) e ficou a arte normal; a lista está no faltam.txt. Para as incluir, guarda-as no computador e junta-as em «Imagem própria › Uma pasta de imagens › Pasta do computador». A folha para imprimir já as mostra.', { n: missed }))
       const a = document.createElement('a')
-      a.href = URL.createObjectURL(await r.blob()); a.download = `${deck.name.replace(/[^\w\- ]+/g, '') || 'deck'} - proxies.zip`; a.click()
+      a.href = URL.createObjectURL(await r.blob()); a.download = `${base} - proxies.zip`; a.click()
     } catch (e) { setErr(e.message) } finally { setBusy('') }
   }
+  const tokList = k => {
+    const t0 = toks[k]
+    if (!optOf(k).tok) return null
+    if (!t0) return <p className="muted small">{tx('A procurar os tokens na Scryfall…')}</p>
+    return t0.length ? <ul className="px-toks">{t0.map((t, j) => (
+      <li key={t.id}><input type="number" min="0" max="40" value={t.q} onChange={e => setToks(m => ({ ...m, [k]: m[k].map((x, i) => (i === j ? { ...x, q: Math.max(0, Math.min(40, +e.target.value || 0)) } : x)) }))} aria-label={tx('Quantos de {t}', { t: t.name })} />
+        <b>{t.name}</b> <small className="muted">{t.type.replace(/^Token /, '')} · {tx('de {c}', { c: t.from.join(', ') })}</small></li>))}</ul>
+      : <p className="muted small">{tx('Nenhuma carta do deck cria tokens.')}</p>
+  }
+  const sugNames = k => (optOf(k).sug && sugs[k]?.length > 0 ? <p className="muted small">{sugs[k].map(c => c.n).join(' · ')}</p> : null)
+  const sugN = (k, r) => <input className="px-n" type="number" min="1" max="40" value={r.sugN} onChange={e => setOpt(k, { sugN: Math.max(1, Math.min(40, +e.target.value || 1)) })} aria-label={tx('Quantas sugestões')} />
+  const k0 = all[0] && keyOf(all[0]), r0 = optOf(k0)
   return createPortal(
     <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal proxies" role="dialog" aria-label={tx('Proxies')}>
         <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
-        <h3>🖨 {tx('Proxies de «{name}»', { name: deck.name })}</h3>
-        <p className="muted small">{tx('{n} cartas com as artes que escolheste', { n: total })}{owned ? ` · ${tx('{n} com imagem própria', { n: owned })}` : ''}</p>
-        <label className="chk small"><input type="checkbox" checked={side} onChange={e => setSide(e.target.checked)} /> {tx('Incluir o sideboard')}</label>
-        <label className="chk small"><input type="checkbox" checked={withTok} onChange={e => { setWithTok(e.target.checked); setTokErr('') }} /> {tx('Incluir os tokens que o deck cria')}</label>
-        {withTok && !toks && <p className="muted small">{tx('A procurar os tokens na Scryfall…')}</p>}
-        {withTok && toks && (toks.length ? <ul className="px-toks">{toks.map((t, k) => (
-          <li key={t.id}><input type="number" min="0" max="40" value={t.q} onChange={e => setToks(l => l.map((x, j) => (j === k ? { ...x, q: Math.max(0, Math.min(40, +e.target.value || 0)) } : x)))} aria-label={tx('Quantos de {t}', { t: t.name })} />
-            <b>{t.name}</b> <small className="muted">{t.type.replace(/^Token /, '')} · {tx('de {c}', { c: t.from.join(', ') })}</small></li>))}</ul>
-          : <p className="muted small">{tx('Nenhuma carta do deck cria tokens.')}</p>)}
-        {tokErr && <p className="small bad-t">{tokErr}</p>}
-        {ctx && <label className="chk small"><input type="checkbox" checked={withSug} onChange={e => setWithSug(e.target.checked)} /> {tx('Incluir sugestões do Grimório para testar')} {withSug && <input className="px-n" type="number" min="1" max="40" value={sugN} onChange={e => setSugN(Math.max(1, Math.min(40, +e.target.value || 1)))} aria-label={tx('Quantas sugestões')} />}</label>}
-        {withSug && sugs.length > 0 && <p className="muted small">{sugs.map(c => c.n).join(' · ')}</p>}
+        <h3>🖨 {multi ? tx('Proxies de {n} decks', { n: all.length }) : tx('Proxies de «{name}»', { name: all[0]?.name })}</h3>
+        <p className="muted small">{multi ? tx('{n} cartas de {d} decks', { n: total, d: secs.length }) : tx('{n} cartas com as artes que escolheste', { n: total })}{share && sum > total ? ` · ${tx('{n} a menos por partilhar', { n: sum - total })}` : ''}{owned ? ` · ${tx('{n} com imagem própria', { n: owned })}` : ''}</p>
+        {!multi ? <>
+          <label className="chk small"><input type="checkbox" checked={r0.side} onChange={e => setOpt(k0, { side: e.target.checked })} /> {tx('Incluir o sideboard')}</label>
+          <label className="chk small"><input type="checkbox" checked={r0.tok} onChange={e => { setOpt(k0, { tok: e.target.checked }); setTokErr('') }} /> {tx('Incluir os tokens que o deck cria')}</label>
+          {tokList(k0)}
+          {tokErr && <p className="small bad-t">{tokErr}</p>}
+          {(ctx || !deck) && <label className="chk small"><input type="checkbox" checked={r0.sug} onChange={e => setOpt(k0, { sug: e.target.checked })} /> {tx('Incluir sugestões do Grimório para testar')} {r0.sug && sugN(k0, r0)}</label>}
+          {sugNames(k0)}
+        </> : <>
+          <ul className="px-decks">{all.map(d => {
+            const k = keyOf(d), r = optOf(k), s = secs.find(x => x.k === k)
+            return (
+              <li key={k} className={r.on ? '' : 'off'}>
+                <div className="px-drow">
+                  <label className="chk"><input type="checkbox" checked={r.on} onChange={e => setOpt(k, { on: e.target.checked })} /> <b>{d.name}</b></label>
+                  {s && <small className="muted">{tx('{n} carta|{n} cartas', { n: s.groups.reduce((a, g) => a + g.q, 0) })}</small>}
+                </div>
+                {r.on && <div className="px-dopts">
+                  <label className="chk small"><input type="checkbox" checked={r.side} onChange={e => setOpt(k, { side: e.target.checked })} /> {tx('Sideboard')}</label>
+                  <label className="chk small"><input type="checkbox" checked={r.tok} onChange={e => { setOpt(k, { tok: e.target.checked }); setTokErr('') }} /> {tx('Tokens')}</label>
+                  <label className="chk small"><input type="checkbox" checked={r.sug} onChange={e => setOpt(k, { sug: e.target.checked })} /> {tx('Sugestões')} {r.sug && sugN(k, r)}</label>
+                </div>}
+                {r.on && tokList(k)}
+                {r.on && sugNames(k)}
+              </li>)
+          })}</ul>
+          {tokErr && <p className="small bad-t">{tokErr}</p>}
+        </>}
+        <div className="row-btns"><button className="link small" onClick={() => setJoining(j => !j)}>＋ {tx('Juntar outros decks')}</button></div>
+        {joining && <JoinPicker have={all.map(d => d.id).filter(Boolean)} onAdd={ds => { setExtra(x => [...x, ...ds]); setJoining(false) }} onClose={() => setJoining(false)} />}
+
+        {multi && <section className="px-opt px-multi">
+          <h4>{tx('Vários decks')}</h4>
+          {[[false, tx('Otimizar folhas'), tx('Os decks seguem uns atrás dos outros, sem folhas meio vazias.')], [true, tx('Cada deck começa numa folha nova'), tx('Mais fácil de separar depois do corte, mas a última folha de cada deck pode ficar meio vazia.')]].map(([v, l, d]) => (
+            <label key={l} className="chk small"><input type="radio" name="px-sheets" checked={!!o.newSheet === v} onChange={() => up({ newSheet: v })} /> <span><b>{l}</b> <span className="muted">· {d}</span></span></label>))}
+          <label className="chk small"><input type="checkbox" checked={o.deckNames} onChange={e => up({ deckNames: e.target.checked })} /> {tx('Nome do deck na folha (na margem de cima)')}</label>
+          {o.deckNames && <label className="chk small"><input type="checkbox" checked={o.deckTags} onChange={e => up({ deckTags: e.target.checked })} /> {tx('E uma etiqueta pequena debaixo de cada carta, fora do corte')}</label>}
+          {o.deckNames && o.deckTags && tagRoom(L) < 1.4 && <p className="muted small">{tx('As etiquetas precisam de espaço entre as cartas (pelo menos 1,4 mm, como na pré-definição de gráfica); assim fica só o nome no cimo.')}</p>}
+          <label className="chk small"><input type="checkbox" checked={o.share} onChange={e => up({ share: e.target.checked })} /> {tx('Partilhar cartas entre decks')}</label>
+          <p className="muted small">{tx('Cada arte sai só as vezes que o deck que mais a usa precisa, em vez da soma — para quem nunca tem os decks montados ao mesmo tempo.')}</p>
+        </section>}
 
         <section className="px-opt">
           <h4>{tx('Lista para sites de proxies')}</h4>
@@ -171,15 +293,15 @@ export default function ProxyDialog({ data, deck, ctx, onClose }) {
           <textarea readOnly value={list} rows={6} />
           <div className="row-btns">
             <button onClick={async () => { try { await navigator.clipboard.writeText(list); setCopied(true) } catch { setErr(tx('O browser não deixou copiar; usa «Descarregar».')) } }}>{copied ? tx('✓ Copiada') : tx('Copiar lista')}</button>
-            <button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([list], { type: 'text/plain' })); a.download = `${deck.name.replace(/[^\w\- ]+/g, '') || 'deck'}.txt`; a.click() }}>{tx('Descarregar')}</button>
+            <button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([list], { type: 'text/plain' })); a.download = `${base}.txt`; a.click() }}>{tx('Descarregar')}</button>
           </div>
         </section>
 
         <section className="px-opt">
           <h4>{tx('Imagens (ZIP)')}</h4>
-          <p className="muted small">{tx('Cada arte numa imagem de alta qualidade (PNG da Scryfall ou a tua), com o verso das cartas de duas faces e a lista dentro. Para enviar a uma gráfica (MakePlayingCards, loja local…).')}</p>
+          <p className="muted small">{tx('Cada arte numa imagem de alta qualidade (PNG da Scryfall ou a tua), com o verso das cartas de duas faces e a lista dentro. Para enviar a uma gráfica (MakePlayingCards, loja local…).')}{multi ? ` ${share ? tx('Com as cartas partilhadas fica tudo numa pasta.') : tx('Uma pasta por deck.')}` : ''}</p>
           <label className="chk small"><input type="checkbox" checked={perCopy} onChange={e => setPerCopy(e.target.checked)} /> {tx('Um ficheiro por cópia (em vez de «Island (x4)»)')}</label>
-          <div className="row-btns"><button className="primary" disabled={!!busy || !groups.length} onClick={zip}>⬇ {busy || tx('Descarregar ZIP')}</button></div>
+          <div className="row-btns"><button className="primary" disabled={!!busy || !pack.items.length} onClick={zip}>⬇ {busy || tx('Descarregar ZIP')}</button></div>
         </section>
 
         <section className="px-opt px-print">
@@ -217,7 +339,8 @@ export default function ProxyDialog({ data, deck, ctx, onClose }) {
               </details>
             </div>
             <div className="pview">
-              <Preview {...{ L, o, slots }} />
+              <Preview {...{ L, o, slots: slots.slice(pg * L.per, (pg + 1) * L.per), labels: labelsOf(pg) }} />
+              {sheets > 1 && <div className="ppager"><button className="link" disabled={!pg} onClick={() => setPg(pg - 1)} aria-label={tx('Folha anterior')}>‹</button> <span className="small">{tx('Folha {a} de {b}', { a: pg + 1, b: sheets })}</span> <button className="link" disabled={pg >= sheets - 1} onClick={() => setPg(pg + 1)} aria-label={tx('Folha seguinte')}>›</button></div>}
               <p className="small">{L.per ? tx('{n} por folha ({c}×{r}) · {s} folha|{n} por folha ({c}×{r}) · {s} folhas', { n: L.per, c: L.cols, r: L.rows, s: sheets }) : <span className="bad-t">{tx('A carta não cabe na folha com estas margens.')}</span>}{o.duplex && L.per ? ` · ${tx('frente e verso')}` : ''}</p>
               {L.warn.includes('bleed') && <p className="muted small">{tx('Entre cartas o bleed fica com metade do espaço ({v}), para não tapar a vizinha; por fora fica o bleed inteiro.', { v: `${+(Math.min(o.bleed, Math.min(o.gap[0], o.gap[1]) / 2) / UNITS[o.unit]).toFixed(3)} ${o.unit}` })}</p>}
               <button className="primary" disabled={!!pdfBusy || !L.per || !slots.length} onClick={makePdf}>⬇ {pdfBusy || tx('Gerar PDF')}</button>

@@ -14,6 +14,7 @@ import { trophyValue, deckSplit, deckPoints, perfOf, trophyStars, pointStars } f
 import { SyncHint } from './Settings.jsx'
 import { useBackClose } from './backnav.js'
 import DeckIO from './DeckIO.jsx'
+import ProxyDialog from './Proxies.jsx'
 
 const META_FMTS = ['commander', 'duel', 'standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'premodern']
 const ls = (k, v) => { try { return v === undefined ? localStorage.getItem(k) : localStorage.setItem(k, v) } catch { return null } }
@@ -194,7 +195,8 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   const [tro, setTro] = useState({})  // troféus por deck
   useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const [view, setView] = useState(() => ls('grimorio.lib.view') || 'grelha')
-  const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false)
+  const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false), [px, setPx] = useState(null)  // px = decks inteiros para os proxies
+  const proxiesSel = async () => { try { setPx(await Promise.all(sel.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : Promise.reject(new Error())))))) } catch { say(tx('Não consegui ler os teus decks.')) } }
   const toggleSel = id => setSel(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]))
   // alterações em massa aos selecionados: o mesmo GET+PUT de um deck, campo posto a um valor (não alternado)
   const bulk = async (patch, msg) => {
@@ -339,6 +341,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
         {sel.length > 0 && <div className="cmp-bar">
           <b>{tx('{n} deck selecionado|{n} decks selecionados', { n: sel.length })}</b>
           <button className="primary" disabled={sel.length < 2 || sel.length > 4} title={tx('escolhe 2 a 4 para comparar')} onClick={() => setCmp(true)}>⇄ {tx('Comparar')}</button>
+          <button onClick={proxiesSel} title={tx('Lista com edições, ZIP com as imagens ou folha para imprimir')}>🖨 {tx('Proxies ({n} deck)|Proxies ({n} decks)', { n: sel.length })}</button>
           <span className="cmp-mass">
             <button onClick={() => bulk({ community: true }, '{n} deck passou a ser da comunidade|{n} decks passaram a ser da comunidade')}>🌐 {tx('Comunidade')}</button>
             <button onClick={() => bulk({ community: false }, '{n} deck passou a ser teu|{n} decks passaram a ser teus')}>🧙 {tx('Meus')}</button>
@@ -351,6 +354,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           </span>
           <button className="link small" onClick={() => setSel([])}>{tx('limpar')}</button>
         </div>}
+        {px && <ProxyDialog data={data} decks={px} onClose={() => setPx(null)} />}
         {bulkLand && <BasicArtPicker title={tx('Arte dos terrenos básicos em {n} decks', { n: sel.length })} applyLabel={tx('Aplicar a {n} decks', { n: sel.length })} onClose={() => setBulkLand(false)} onApply={landsSel} />}
         {bulkDel && <div className="modal-bg" onClick={() => setBulkDel(false)}><div className="modal" onClick={e => e.stopPropagation()}>
           <h3>{tx('Apagar {n} decks?', { n: sel.length })}</h3>
@@ -371,7 +375,8 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
               <i className="chev">▾</i><b>{fname(f)}</b><span className="muted">{ds.length} {ds.length === 1 ? 'deck' : 'decks'}</span><span className="fmt-line" />
             </button>
             {view === 'grelha' ? <div className="dgrid">{ds.map(d => <DeckBox key={d.id} d={d} data={data} openDeck={openDeck} goTab={goTab} duplicate={duplicate} setCover={setCover} setImg={setImg} rt={rt[`deck:${d.id}`]} rtc={rt[`deck:${d.id}|casual`]} tro={tro[d.id]} tp={tpts[d.id]} onCom={toggleCom} selected={sel.includes(d.id)} onSelect={toggleSel} onFav={toggleFav} onDelete={remove} />)}</div> : <ul className="lib-list">{ds.map(d => (
-              <li key={d.id}>
+              <li key={d.id} className={sel.includes(d.id) ? 'sel' : ''}>
+                <input type="checkbox" className="lib-chk" checked={sel.includes(d.id)} onChange={() => toggleSel(d.id)} aria-label={tx('Selecionar (para comparar ou mudar vários de uma vez)')} />
                 <button className="link plain" onClick={() => openDeck(d.id).then(() => goTab('deck'))}><b>{d.name}</b></button>
                 <span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span>
                 <Trophies list={tro[d.id]} />
