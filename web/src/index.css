@@ -4514,3 +4514,6 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .od-list li:hover { background: var(--panel); }
 .od-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .od-warn { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--gold); }
+
+/* biblioteca: deck ilegal no formato */
+.dbox-bad { margin-left: auto; padding: 1px 8px; font-size: 11.5px; border-radius: 99px; border: 1px solid var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); white-space: nowrap; }

@@ -1,7 +1,7 @@
 // Biblioteca: os meus decks (abrir, duplicar, testar), o lixo (restaurar) e decks do meta para guardar como meus.
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FORMATS, FORMAT } from './formats.js'
+import { FORMATS, FORMAT, validate } from './formats.js'
 import { Empty, Mana, Stars } from './ui.jsx'
 import { img, HUE, coverOf, coverImgOf, colorsOf } from './data.js'
 import ProfileImport from './ProfileImport.jsx'
@@ -156,6 +156,12 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
   const edge = cols.length ? cols.map(x => HUE[x]) : ['#8a8a99']
   const bg = edge.length > 1 ? `linear-gradient(135deg, ${edge.join(', ')})` : edge[0]
   const open = t => openDeck(d.id).then(() => goTab(t))
+  // ilegal no formato (a mesma validação do construtor; os casuais podem): selo com os motivos ao passar o rato
+  const bad = useMemo(() => {
+    const F = FORMAT[d.format]
+    if (!F || !data || d.casual) return []
+    try { return validate({ side: {}, maybe: {}, ...d, main: d.main || {}, commanders: d.commanders || [] }, F, data).filter(i => i.nivel === 'erro').map(i => i.msg) } catch { return [] }
+  }, [d, data])
   return (
     <div className={`dbox ${selected ? 'sel' : ''}`} style={{ '--edge': bg }} data-deck={d.id}>
       <label className="dbox-check" title={tx('Selecionar (para comparar ou mudar vários de uma vez)')}><input type="checkbox" checked={!!selected} onChange={() => onSelect(d.id)} /></label>
@@ -168,7 +174,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
       <div className="dbox-body">
         <b title={d.name}>{d.name}</b>
         <span className="dbox-l1">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}>{d.community ? '🌐' : '🧙'}</button></span>
-        <span className="dbox-l2"><DeckRating d={d} rt={rt} rtc={rtc} /></span>
+        <span className="dbox-l2"><DeckRating d={d} rt={rt} rtc={rtc} />{bad.length > 0 && <button className="dbox-bad" onClick={() => open('deck')} title={bad.join('\n')}>⚠ {tx('Ilegal em {f}', { f: FORMAT[d.format]?.name || d.format })} · {bad.length}</button>}</span>
         <span className="row-btns">
           <button onClick={() => open('deck')}>{tx('Abrir')}</button>
           <button className="ib" onClick={() => open('teste')} title={tx('Testar no Forge')} aria-label={tx('Testar no Forge')}><Ico n="play" /></button>

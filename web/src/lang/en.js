@@ -3868,6 +3868,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Ilegal em {f}": "Illegal in {f}",
   "o deck já tem {n} de {m} cartas": "the deck already has {n} of {m} cards",
   "já tem {n} cópia(s), o máximo neste formato": "it already has {n} copy/copies, the most this format allows",
   "fica fora da identidade de cor do comandante": "it's outside the commander's colour identity",

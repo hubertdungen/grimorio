@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Ilegal em {f}": "在{f}中不合法",
   "o deck já tem {n} de {m} cartas": "该套牌已有 {n}/{m} 张牌",
   "já tem {n} cópia(s), o máximo neste formato": "已有 {n} 张，达到此赛制上限",
   "fica fora da identidade de cor do comandante": "超出指挥官的颜色标识",
