@@ -72,7 +72,7 @@ function ActMenu({ at, c, onClose, children }) {
   useEffect(() => {
     const out = e => { if (!ref.current?.contains(e.target) && !at.contains(e.target)) onClose() }
     const key = e => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
-    const scr = e => { if (!ref.current?.contains(e.target)) onClose() }
+    const t0 = Date.now(), scr = e => { if (Date.now() - t0 > 400 && !ref.current?.contains(e.target)) onClose() }  // o scroll que ainda está a acabar quando se toca não o fecha
     addEventListener('pointerdown', out, true); addEventListener('keydown', key, true); addEventListener('scroll', scr, true)
     return () => { removeEventListener('pointerdown', out, true); removeEventListener('keydown', key, true); removeEventListener('scroll', scr, true) }
   }, [at, onClose])
