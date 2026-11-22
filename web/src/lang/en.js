@@ -3868,6 +3868,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "A geração está a demorar demasiado; tenta outra vez.": "Generation is taking too long; try again.",
   "Carta inteira (moldura e letra novas)": "Whole card (new frame and lettering)",
   "Estilo da moldura": "Frame style",
   "Estilo da letra": "Lettering style",

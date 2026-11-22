@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "A geração está a demorar demasiado; tenta outra vez.": "La generación está tardando demasiado; inténtalo de nuevo.",
   "Carta inteira (moldura e letra novas)": "Carta entera (marco y letra nuevos)",
   "Estilo da moldura": "Estilo del marco",
   "Estilo da letra": "Estilo de la letra",

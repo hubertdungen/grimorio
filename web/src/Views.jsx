@@ -2124,13 +2124,13 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
       {zone === 'main' && subsOf(deck).includes(c.n) && <span className="sub-badge dg-sub" title={tx('Subcomandante: carta normal do deck que pode trocar com o comandante')}>♕</span>}
       {(part != null || q > 1) && <span className="dg-q" title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>×{part ?? q}</span>}
       <div className="dg-bar">
-        <button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
+        <span className="dg-qty"><button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
         <b title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>{part ?? q}</b>
-        <button onClick={() => act.add(c, zone, 1)} aria-label={tx('Mais uma')}>+</button>
-        <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte')}>🎨</button>
+        <button onClick={() => act.add(c, zone, 1)} aria-label={tx('Mais uma')}>+</button></span>
+        <span className="dg-acts"><button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte')}>🎨</button>
         {fmt.cmd && (zone === 'main' ? subsOf(deck).includes(c.n) : zone === 'maybe' && canBeCommander(c, fmt)) && <button className="sub-swap" onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')}>⇄♛</button>}
         {['main', ...(fmt.side ? ['side'] : []), 'maybe'].filter(z => z !== zone).map(z => <button key={z} className="dg-mv" onClick={() => act.move(c, zone, z)} title={ZONE_T[z]}>{ZONE_S[z]}</button>)}
-        <button className="dg-x" onClick={() => act.remove(c, zone, q)} aria-label={tx('Retirar do deck')} title={tx('Retirar do deck')}>×</button>
+        <button className="dg-x" onClick={() => act.remove(c, zone, q)} aria-label={tx('Retirar do deck')} title={tx('Retirar do deck')}>×</button></span>
       </div>
     </div>
   )
@@ -2151,7 +2151,7 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
         <section><h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</h4><div className="dg-row">{cmd.map(c => (
           <div key={c.i} className={`dg-tile${ds.sel?.has(c.n) ? ' picked' : ''}`} {...badProps(bad, c.n)}><button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
             {ds.sel && <input type="checkbox" className="dg-chk" checked={ds.sel.has(c.n)} onChange={() => ds.toggle(c.n)} aria-label={c.n} />}
-            <div className="dg-bar"><button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte (edições e estilos)')}>🎨</button><select className="demote" value="" onChange={e => { if (e.target.value) act.demote(c, e.target.value) }} title={tx('Tirar do comando')} aria-label={tx('Tirar do comando')}><option value="">⇩</option><option value="sub">♕ {tx('Passar a subcomandante')}</option><option value="main">＋ {tx('Só no deck')}</option><option value="maybe">→ Maybeboard</option><option value="out">✕ {tx('Tirar do deck')}</option></select><button className="dg-x" onClick={() => act.setCommander(c)} title={tx('Retirar comandante')}>×</button></div></div>
+            <div className="dg-bar"><span className="dg-acts"><button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte (edições e estilos)')}>🎨</button><select className="demote" value="" onChange={e => { if (e.target.value) act.demote(c, e.target.value) }} title={tx('Tirar do comando')} aria-label={tx('Tirar do comando')}><option value="">⇩</option><option value="sub">♕ {tx('Passar a subcomandante')}</option><option value="main">＋ {tx('Só no deck')}</option><option value="maybe">→ Maybeboard</option><option value="out">✕ {tx('Tirar do deck')}</option></select><button className="dg-x" onClick={() => act.setCommander(c)} title={tx('Retirar comandante')}>×</button></span></div></div>
         ))}</div></section>
       )}
       {order.map(g => (

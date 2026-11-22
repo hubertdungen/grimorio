@@ -76,10 +76,21 @@ export async function genCard({ c, pid, box, mode, aspect, orig, prov, localKind
     else { image = await refURL(cardSrc); geo = { W: cd.width, H: cd.height, rect: { x: 0, y: 0, w: cd.width, h: cd.height } } }
   }
   const rs = await Promise.all([...(mode === 'card' ? [cardSrc] : []), ...(mode === 'art' && orig ? [img(c, 'art_crop', false, pid)] : []), ...refs.map(r => (typeof r === 'string' ? fetchable(r) : r))].map(refURL))
+  // em segundo plano: o servidor arranca a geração e responde logo; pergunta-se de 2 em 2 s (a Cloudflare corta aos 100 s)
   const r = await fetch('/api/ia/image', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider: prov, prompt, n, quality, model: model?.trim() || undefined, image, mask, refs: rs, size: mode === 'art' && aspect === 'box' ? '1536x1024' : '1024x1536' }) })
-  const j = await r.json().catch(() => ({}))
+    body: JSON.stringify({ provider: prov, prompt, n, quality, model: model?.trim() || undefined, image, mask, refs: rs, size: mode === 'art' && aspect === 'box' ? '1536x1024' : '1024x1536', async: true }) })
+  let j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`)
+  for (const t0 = Date.now(); j.job || j.state === 'running';) {
+    if (Date.now() - t0 > 15 * 60e3) throw new Error(tx('A geração está a demorar demasiado; tenta outra vez.'))
+    await new Promise(ok => setTimeout(ok, 2000))
+    const q = await fetch(`/api/ia/image/job?id=${j.job || j.id}`).catch(() => null)
+    if (!q) continue  // a rede falhou um instante: volta a perguntar
+    const st = await q.json().catch(() => ({}))
+    if (!q.ok) throw new Error(st.erro || `HTTP ${q.status}`)
+    if (st.state === 'error') throw new Error(st.erro)
+    j = st.state === 'done' ? st : { ...st, job: j.job }
+  }
   const images = []
   for (const u of j.images) images.push(await finishOut(await bitmap(u), geo, { mode, aspect, box, card }))
   return { images, model: j.model, cost: j.cost || 0 }

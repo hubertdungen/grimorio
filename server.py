@@ -569,6 +569,9 @@ class H(BaseHTTPRequestHandler):
             return self.json(ia.public_config(ARGS.data_dir))
         if p == "/api/ia/image":  # alter arts: fornecedores de imagens, se têm chave e o preço por imagem (imagegen.py)
             return self.json(imagegen.config(ARGS.data_dir))
+        if p == "/api/ia/image/job":  # alter art: o estado de uma geração (running | done com as imagens | error)
+            j = imagegen.job(urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("id", [""])[0])
+            return self.json(j if j else {"erro": "trabalho desconhecido"}, 200 if j else 404)
         if p == "/api/ia/models":  # modelos mais recentes do fornecedor (pela chave guardada)
             try:
                 return self.json(ia.models(ARGS.data_dir, urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("provider", [""])[0]))
@@ -999,7 +1002,10 @@ class H(BaseHTTPRequestHandler):
             if not self.owner():
                 return self.json({"erro": "sem utilizador"}, 401)
             try:
-                return self.json(imagegen.generate(ARGS.data_dir, self.body(60_000_000)))
+                b = self.body(60_000_000)
+                if b.get("async"):  # pedidos longos: trabalho em segundo plano (a Cloudflare corta aos 100 s)
+                    return self.json({"job": imagegen.start(ARGS.data_dir, b)})
+                return self.json(imagegen.generate(ARGS.data_dir, b))
             except ValueError as e:
                 return self.json({"erro": str(e)}, 400)
             except RuntimeError as e:
@@ -1348,6 +1354,22 @@ def selfcheck():
         assert st == 200 and len(ig["images"]) == 3 and ig["images"][0].startswith("data:image/png;base64,") and ig["cost"] == 0, ig.keys()
         assert call("POST", "/api/ia/image", {"provider": "mock", "prompt": "#erro"})[:2] == (502, {"erro": imagegen.SAFETY})
         assert call("POST", "/api/ia/image", {"provider": "openai", "prompt": "x"})[0] == 400  # sem chave: nem tenta a rede
+        st, jb = call("POST", "/api/ia/image", {"provider": "mock", "prompt": "Original art", "n": 2, "async": True})[:2]
+        assert st == 200 and jb.get("job"), jb
+        for _ in range(100):
+            st, js = call("GET", "/api/ia/image/job?id=" + jb["job"])[:2]
+            if js.get("state") != "running":
+                break
+            time.sleep(0.05)
+        assert st == 200 and js["state"] == "done" and len(js["images"]) == 2, js.get("state")
+        st, jb = call("POST", "/api/ia/image", {"provider": "mock", "prompt": "#erro", "async": True})[:2]
+        for _ in range(100):
+            js = call("GET", "/api/ia/image/job?id=" + jb["job"])[1]
+            if js.get("state") != "running":
+                break
+            time.sleep(0.05)
+        assert js == {"state": "error", "erro": imagegen.SAFETY, "code": 502}, js
+        assert call("GET", "/api/ia/image/job?id=nada")[0] == 404
         del os.environ["GRIMORIO_IMG_MOCK"]
         assert call("POST", "/api/ia/image", {"provider": "mock", "prompt": "x"})[0] == 400
         APP_TOKEN = "t0k3n"  # app Android: o servidor só responde à WebView da app (cookie grimorio_app)

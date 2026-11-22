@@ -4561,3 +4561,14 @@ select.demote:hover { border-color: var(--gold); }
 .alter-thumb.own { outline: 2px solid var(--gold); }
 .alter-card-st { display: grid; gap: 6px; margin: 6px 0 0 24px; }
 .alter-card-st label { display: grid; gap: 2px; }
+
+/* botões das cartas da grelha: tudo do mesmo tamanho — «− n +» numa linha e as ações (🎨, ⇄♛, SB/MB, ×, ⇩) noutra, em
+   células iguais */
+.dg-bar { display: grid; gap: 4px; justify-content: stretch; }
+.dg-qty { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 4px; }
+.dg-acts { display: flex; gap: 4px; }
+.dg-acts > * { flex: 1 1 0; min-width: 0; }
+.dg-bar button, .dg-bar select.demote { height: 30px; padding: 0 4px; font-size: 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.dg-bar select.demote { width: auto; display: block; text-align-last: center; }
+.dg-bar .dg-x { margin-left: 0; }
+.dg-bar .dg-mv { font-size: 12px; }
