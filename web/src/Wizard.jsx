@@ -1,7 +1,7 @@
 // Assistente de deck novo: formato → comandante (Commander e afins: pode ser só ele) e/ou 3 a 10 cartas → personalização → completar.
 // As escolhas ficam guardadas neste browser até o deck ser criado (fechar sem querer não as perde); «Limpar» recomeça.
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { search, img, fmtBit, passes, STYLES, LEVELS, CREATURE_TYPES, COLORS, TAG_LABEL, TYPE_LABEL, termMatch } from './data.js'
+import { search, recommend, img, fmtBit, passes, STYLES, LEVELS, CREATURE_TYPES, COLORS, TAG_LABEL, TYPE_LABEL, termMatch } from './data.js'
 import { likeTheme, likeCards, likeCommanders, chipUniverse, parseQuery } from './nlsearch.js'
 import { FORMATS, FORMAT, canBeCommander } from './formats.js'
 import { emptyDeck } from './deck.js'
@@ -62,15 +62,25 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   }
   const fmt = FORMAT[format]
   const ctx = useMemo(() => ({ bit: fmtBit(data, fmt), identity: fmt.cmd && cmds.length ? cmds.map(c => c.ci).join('') : null, allowUn: fmt.key === 'casual' }), [data, fmt, cmds])
-  const res = useMemo(() => search(data, dq, { sort: 'pop', inText: false }, ctx, 48).cards, [data, dq, ctx])
+  // Com comandante e sem pesquisa, as cartas sugeridas são as que sinergizam com ele (legais, na identidade dele), não só as populares.
+  const res = useMemo(() => {
+    if (!dq.trim() && fmt.cmd && cmds.length) {
+      const cmdIdx = cmds.map(c => c.i), seeds = [...cmdIdx, ...picks.map(c => c.i)]
+      const recs = recommend(data, { seeds, have: seeds, ctx, filters: { noLands: true }, limit: 48, commanders: cmdIdx })
+      if (recs.length) return recs.map(r => r.c)
+    }
+    return search(data, dq, { sort: 'pop', inText: false }, ctx, 48).cards
+  }, [data, dq, ctx, fmt, cmds, picks])
   // comandantes legais no formato (pela popularidade); com um escolhido que aceite par, os parceiros possíveis
   const partnerOf = cmds.length === 1 && pairable(cmds[0]) ? cmds[0] : null
   const cmdRes = useMemo(() => {
     if (!fmt.cmd || cmds.length >= (partnerOf ? 2 : 1)) return []
     const legal = c => ctx.bit < 0 || c.lg & (1 << ctx.bit)
-    const ok = partnerOf ? c => c.i !== partnerOf.i && (canBeCommander(c, fmt) || /Background/.test(c.t)) && pairOk(partnerOf, c) : c => canBeCommander(c, fmt)
+    const ok = partnerOf ? c => c.i !== partnerOf.i && (canBeCommander(c, fmt) || /Background/.test(c.t)) && pairOk(partnerOf, c) : c => canBeCommander(c, fmt) && subset(need, c.ci)
     return search(data, dcq, { sort: 'pop', inText: false }, { bit: ctx.bit, identity: null, allowUn: ctx.allowUn }, 40000).cards.filter(c => legal(c) && ok(c)).slice(0, partnerOf ? 12 : 18)
-  }, [data, dcq, fmt, cmds.length, partnerOf, ctx.bit, ctx.allowUn])
+  }, [data, dcq, fmt, cmds.length, partnerOf, ctx.bit, ctx.allowUn, need])
+  // cores que o comandante tem de cobrir: as das cartas de partida (podem ter mais, nunca menos)
+  const need = useMemo(() => [...new Set(picks.flatMap(c => [...c.ci]))].join(''), [picks])
   const has = c => picks.some(p => p.i === c.i) || cmds.some(x => x.i === c.i)
   const maxPicks = start === 'ia' ? 30 : 10
   const toggle = c => setPicks(p => (p.some(x => x.i === c.i) ? p.filter(x => x.i !== c.i) : p.length >= maxPicks ? p : [...p, c]))
@@ -154,9 +164,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   }, [chipGroups, chipTab, chipQ, chipAlias])
   const eff = start === 'gosto' && !picks.length ? preview.slice(0, 8) : picks
   // Comandantes que servem os chips do «Gosto de…» (temas, funções e cores), antes de haver um escolhido.
-  const cmdLike = useMemo(() => (fmt.cmd && !cmds.length && likeAny ? likeCommanders(data, sel, { fmt, bit: ctx.bit, n: 8 }) : []), [data, fmt, cmds.length, likeAny, sel, ctx.bit])
-  // Com a pesquisa vazia, o seletor de cima também segue o gosto (em vez dos mais populares em geral).
-  const cmdShown = useMemo(() => (start === 'gosto' && !dcq && !partnerOf && fmt.cmd && !cmds.length && likeAny ? likeCommanders(data, sel, { fmt, bit: ctx.bit, n: 18 }) : cmdRes), [start, dcq, partnerOf, fmt, cmds.length, likeAny, data, sel, ctx.bit, cmdRes])
+  const cmdLike = useMemo(() => (fmt.cmd && !cmds.length && likeAny ? likeCommanders(data, sel, { fmt, bit: ctx.bit, n: 8, need }) : []), [data, fmt, cmds.length, likeAny, sel, ctx.bit, need])
 
   // IA: gera a base do deck a partir da ideia; cada carta é validada (existe, legal, cores) antes de entrar.
   const generate = async () => {
@@ -195,7 +203,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     for (const c of eff) for (let k = 0; k < D; k++) cen[k] += E[c.i * D + k]
     const out = []
     for (const c of data.cards) {
-      if (!canBeCommander(c, fmt) || !(pin ? subset(c.ci, ci) : subset(ci, c.ci)) || (ctx.bit >= 0 && !(c.lg & (1 << ctx.bit)))) continue
+      if (!canBeCommander(c, fmt) || !(pin ? subset(need, c.ci) && subset(c.ci, ci + need) : subset(ci, c.ci)) || (ctx.bit >= 0 && !(c.lg & (1 << ctx.bit)))) continue
       let d = 0
       for (let k = 0; k < D; k++) d += cen[k] * E[c.i * D + k]
       // «Gosto de…»: o que o comandante é e faz pesa tanto como a semelhança com as cartas; incolor/cores a mais custam
@@ -203,12 +211,14 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
       if (gosto) { for (const t of sel.terms) if (termMatch(c, t)) b += t.u ? 0.2 : 0.1; for (const g of sel.tags) if (c.tg.includes(g)) b += 0.1 }
       out.push({ c, s: b + d / 127 / eff.length + (c.er ? 0.15 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000)) : 0) - (pin ? 0.05 * (ci.length - c.ci.length) : 0.02 * (c.ci.length - ci.length)) })
     }
-    return out.sort((a, b) => b.s - a.s).slice(0, gosto ? 8 : 6).map(x => x.c)
-  }, [data, fmt, cmds.length, eff, ctx.bit, start, sel])
+    return out.sort((a, b) => b.s - a.s).slice(0, 18).map(x => x.c)
+  }, [data, fmt, cmds.length, eff, ctx.bit, start, sel, need])
 
   // Commander e afins: basta o comandante (o resto vem do EDHREC e da sinergia); construído: 3 cartas no mínimo.
   // No «Gosto de…» a primeira sugestão de comandante já serve de escolha, para o deck não ficar sem ele.
-  const cmdBets = cmdSugs.length ? cmdSugs : cmdLike
+  // Com a pesquisa vazia, o seletor de cima também segue o gosto (em vez dos mais populares em geral).
+  const cmdShown = useMemo(() => (picks.length && !dcq && !partnerOf && fmt.cmd && !cmds.length && cmdSugs.length ? cmdSugs : start === 'gosto' && !dcq && !partnerOf && fmt.cmd && !cmds.length && likeAny ? likeCommanders(data, sel, { fmt, bit: ctx.bit, n: 18, need }) : cmdRes), [start, dcq, partnerOf, fmt, cmds.length, likeAny, data, sel, ctx.bit, cmdRes, need, picks.length, cmdSugs])
+  const cmdBets = cmdSugs.length ? cmdSugs.slice(0, start === 'gosto' ? 8 : 6) : cmdLike
   const autoCmd = cmd || (fmt.cmd && start === 'gosto' ? cmdBets[0] || null : null)
   const ready = fmt.cmd ? !!autoCmd : eff.length >= 3
   const create = auto => {
