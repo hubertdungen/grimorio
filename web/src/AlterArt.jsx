@@ -109,6 +109,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   const [base, setBase] = useState(() => basePrompt(c, null)), edited = useRef(false)
   const [custom, setCustom] = useState(''), [mode, setMode] = useState('frame'), [aspect, setAspect] = useState('card'), [orig, setOrig] = useState(false)
   const [frame, setFrame] = useState(''), [font, setFont] = useState('')  // modo «carta inteira»: estilo da moldura e da letra
+  const [altName, setAltName] = useState(''), [autoAlt, setAutoAlt] = useState(false)  // nome alternativo (o original fica por baixo)
   const [refs, setRefs] = useState([]), [q, setQ] = useState(''), [n, setN] = useState(2), [quality, setQuality] = useState('medium')
   const [prov, setProv] = useState(() => lsGet('grimorio.alter.prov') || 'chatgpt'), [model, setModel] = useState('')
   const [results, setResults] = useState([]), [busy, setBusy] = useState(''), [err, setErr] = useState(''), [note, setNote] = useState('')
@@ -127,7 +128,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   const P = cfg?.providers?.find(p => p.id === prov)
   const ready = prov === 'chatgpt' || !!P?.hasKey
   const masked = mode === 'frame' && masks(prov)
-  const prompt = finalPrompt({ base, custom, mode, masked, aspect, refs: refs.length, orig: mode === 'art' && orig, frame, font })
+  const prompt = finalPrompt({ base, custom, mode, masked, aspect, refs: refs.length, orig: mode === 'art' && orig, frame, font, altName: mode === 'card' ? altName : '', autoAlt: mode === 'card' && autoAlt, name: c.n })
   const per = costOf(P?.cost, quality, 1)
   const mine = useMemo(() => [...new Set([...alterHistory(), ...Object.values(deck.art || {}).filter(u => u.startsWith('arts/'))])].slice(0, 24), [deck.art])
   const hits = useMemo(() => {
@@ -187,7 +188,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   }
   const use = async r => {
     setBusy(tx('A guardar…'))
-    try { const url = await post(r.blob), rec = pickRecipe({ custom, frame, font, mode }); act.setArt(c.n, url, rec); rememberAlter(c.n, url, rec); act.say(tx('Alter art guardada como imagem própria de {c}.', { c: c.n })); onClose() } catch (e) { setErr(e.message); setBusy('') }
+    try { const url = await post(r.blob), rec = pickRecipe({ custom, frame, font, mode, altName: mode === 'card' ? altName : '' }); act.setArt(c.n, url, rec); rememberAlter(c.n, url, rec); act.say(tx('Alter art guardada como imagem própria de {c}.', { c: c.n })); onClose() } catch (e) { setErr(e.message); setBusy('') }
   }
 
   return createPortal(
@@ -207,6 +208,8 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
             {mode === 'card' && <div className="alter-card-st">
               <label><span className="small">{tx('Estilo da moldura')}</span><input value={frame} onChange={e => setFrame(e.target.value)} placeholder={tx('ex.: art nouveau dourada, gótica com ossos, minimalista…')} /></label>
               <label><span className="small">{tx('Estilo da letra')}</span><input value={font} onChange={e => setFont(e.target.value)} placeholder={tx('ex.: caligrafia medieval, letras gravadas em pedra…')} /></label>
+              <label><span className="small">{tx('Nome alternativo (opcional)')}</span><input value={altName} onChange={e => { setAltName(e.target.value); if (e.target.value) setAutoAlt(false) }} placeholder={tx('ex.: Megatron, Godzilla… o nome original fica por baixo')} /></label>
+              {!altName.trim() && <label className="chk small"><input type="checkbox" checked={autoAlt} onChange={e => setAutoAlt(e.target.checked)} /> ✨ {tx('A IA inventa um nome alternativo')}</label>}
               <p className="muted small">{tx('A IA redesenha a carta toda: o texto pode sair com erros, confere antes de usar.')}</p>
             </div>}
             {!box && <small className="muted">{tx('Esta moldura não tem caixa da arte conhecida (sem margem, arte completa, showcase, planeswalker…): fica a arte completa.')}</small>}

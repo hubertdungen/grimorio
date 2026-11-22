@@ -37,14 +37,17 @@ export function basePrompt(c, pr) {
 // O pedido final: base + toque pessoal + instruções do modo e das imagens anexadas (pela ordem em que vão).
 // mode: 'frame' (arte nova na moldura) | 'art' (só a ilustração); masked: o fornecedor recebe máscara (OpenAI, local);
 // aspect: 'card' | 'box' (modo arte); refs: quantas referências de estilo; orig: a arte original vai como referência.
-export function finalPrompt({ base, custom, mode, masked, aspect = 'card', refs = 0, orig = false, frame = '', font = '' }) {
+export function finalPrompt({ base, custom, mode, masked, aspect = 'card', refs = 0, orig = false, frame = '', font = '', altName = '', autoAlt = false, name = '' }) {
   const out = [String(base || '').trim()]
   if (custom?.trim()) out.push(`Personal direction from the user: ${custom.trim()}`)
   const att = []
   if (mode === 'card') {  // carta inteira: ilustração, moldura e letra novas; o texto da carta tem de ficar certo
     att.push('the original card (reference for its exact wording and layout only)')
     out.push(['Redesign the WHOLE trading card: a new original illustration, a new frame and new lettering, portrait 2:3 card proportions.',
-      'Keep every word exactly as on the original card and spell it correctly: the title, the mana cost, the type line, the rules text and the power/toughness, in the usual card positions.',
+      ...(altName.trim() || autoAlt
+        ? [`Give the card an alternate name like the Universes Beyond / Godzilla Series cards: the title line shows ${altName.trim() ? `"${altName.trim()}"` : 'a new, evocative alternate name you invent that fits the new art (2-4 words)'} in the usual title lettering, and directly below the title, in smaller letters, the original name "${name}".`,
+          'Keep every other word exactly as on the original card and spell it correctly: the mana cost, the type line, the rules text and the power/toughness, in the usual card positions.']
+        : ['Keep every word exactly as on the original card and spell it correctly: the title, the mana cost, the type line, the rules text and the power/toughness, in the usual card positions.']),
       `Frame style: ${frame.trim() || 'a fresh, ornate fantasy frame that fits the art'}.`, `Lettering style: ${font.trim() || 'clear, readable fantasy lettering'}.`].join(' '))
   } else if (mode === 'frame') {
     att.push('the card to edit')
@@ -156,7 +159,7 @@ export function rememberAlter(name, url, recipe) {
 // a «receita» de uma alter art (o texto de personalizar, a moldura, a letra e o modo com que foi feita), para colar o
 // mesmo estilo noutra carta: deste aparelho ou guardada no deck (deck.artRecipe, viaja com o deck)
 const RK = 'grimorio.alter.recipes'
-export const pickRecipe = ({ custom, frame, font, mode }) => ({ ...(custom?.trim() ? { custom: custom.trim() } : {}), ...(frame?.trim() ? { frame: frame.trim() } : {}), ...(font?.trim() ? { font: font.trim() } : {}), ...(mode ? { mode } : {}) })
+export const pickRecipe = ({ custom, frame, font, mode, altName }) => ({ ...(custom?.trim() ? { custom: custom.trim() } : {}), ...(frame?.trim() ? { frame: frame.trim() } : {}), ...(font?.trim() ? { font: font.trim() } : {}), ...(mode ? { mode } : {}), ...(altName?.trim() ? { altName: altName.trim() } : {}) })
 export function recipeOf(url, decks = []) {
   for (const d of decks) if (d?.artRecipe?.[url]) return d.artRecipe[url]
   try { return JSON.parse(localStorage.getItem(RK) || '{}')[url] || null } catch { return null }
