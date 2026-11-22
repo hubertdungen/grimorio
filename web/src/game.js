@@ -29,7 +29,7 @@ export function initialState(life = 20, setup = null) {
     const cmd = setup?.[k]?.commanders || []
     const size = setup?.[k]?.size
     return {
-      life, poison: 0, energy: 0, monarch: false, initiative: false, emblems: [],
+      life, poison: 0, energy: 0, monarch: false, initiative: false, emblems: [], emText: {}, speed: 0, pctr: {}, ring: 0, dungeon: null,
       hand: 7, known: [], library: size ? size - 7 : null, perms: [], graveyard: [], exile: [],
       command: cmd.map(name => ({ name, casts: 0, out: false })), cmdDmg: {},
     }
@@ -53,12 +53,14 @@ export const permCard = (data, p) => {
 }
 // nomes dos marcadores (tabuleiro e menus da mesa livre)
 export const CT = { '+1/+1': '+1/+1', '-1/-1': '−1/−1', loyalty: tx('lealdade'), lore: tx('capítulo'), charge: tx('carga'), stun: tx('atordoamento'), shield: tx('escudo'), oil: tx('óleo'), time: tx('tempo'), defense: tx('defesa'), poison: tx('veneno'),
-  fade: tx('desvanecer'), age: tx('idade'), level: tx('nível'), finality: tx('finalidade'), bounty: tx('recompensa'), energy: tx('energia'), experience: tx('experiência'), rad: tx('radiação') }
+  fade: tx('desvanecer'), age: tx('idade'), level: tx('nível'), finality: tx('finalidade'), bounty: tx('recompensa'), energy: tx('energia'), experience: tx('experiência'), rad: tx('radiação'), ticket: tx('bilhete') }
 // ícone de cada marcador na carta (o número ao lado; o nome por extenso no título)
-export const CT_ICON = { lore: '📜', charge: '⚡', stun: '💫', shield: '🛡', oil: '🛢', time: '⏳', fade: '⏳', age: '⏳', level: '★', finality: '✝', bounty: '🎯', rad: '☢' }
+export const CT_ICON = { lore: '📜', charge: '⚡', stun: '💫', shield: '🛡', oil: '🛢', time: '⏳', fade: '⏳', age: '⏳', level: '★', finality: '✝', bounty: '🎯', rad: '☢', experience: '✦', ticket: '🎟' }
 const faces = n => String(n || '').split(' // ')
 // como se vira a carta: 'df' = duas faces (transformar/MDFC: a imagem de trás), 'flip' = carta flip de Kamigawa (a mesma
 // imagem rodada 180°), null = não se vira
+// protótipo (BRO): «Prototype {1}{U}{U} — 2/1» -> '2/1' (o P/R pequeno com que se pode lançar)
+export const protoPt = c => (c && /\bPrototype (?:\{[^}]+\})+ — (\d+\/\d+)/.exec(c.o || '')?.[1]) || null
 export const flipKind = c => (!c ? null : c.df ? 'df' : c.n.includes(' // ') && /\bflip (?!a coin|that coin|coins)/i.test(c.o || '') ? 'flip' : null)
 export const typeOf = (data, perm) => {
   const c = permCard(data, perm)
@@ -67,7 +69,9 @@ export const typeOf = (data, perm) => {
 }
 // notCre: impressa como criatura mas agora não é — Enduring Vitality/Innocence/Curiosity… voltam do cemitério «It's an
 // enchantment. (It's not a creature.)»; no Forge Play o Forge diz-o sempre (Imprisoned in the Moon, deuses sem devoção…)
-export const isCreature = (data, perm) => !perm.dormant && !perm.notCre && (perm.crewed || perm.animated || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt))
+// impending (Duskmourn): enquanto tem marcadores de tempo não é criatura (os Overlords lançados por impending)
+const impending = (data, perm) => perm.counters?.time > 0 && /\bImpending\b/.test(permCard(data, perm)?.o || '')
+export const isCreature = (data, perm) => !perm.dormant && !perm.notCre && !impending(data, perm) && (perm.crewed || perm.animated || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt))
 // volta do cemitério e o texto diz que deixa de ser criatura (o ciclo Enduring de Duskmourn e afins)
 const comesBackNonCreature = c => /It's not a creature/i.test(c?.o || '')
 // deuses de Theros: «As long as your devotion to blue is less than five, Thassa isn't a creature.» — devoção = símbolos
@@ -574,6 +578,29 @@ export function applyEvent(s0, ev, data) {
       else if (ev.to === 'energy') z.energy += ev.n || 1
       break
     } break
+    // mecânicas do GrimorioSim (linhas D/S/P/R/V/E/X): dia/noite, velocidade, marcadores de jogador, Anel, masmorra,
+    // emblemas (a lista inteira, com o texto) e o estado de uma carta no campo (virada para baixo, nível, Caso, portas…)
+    case 'day': s.day = ev.v; break
+    case 'speed': if (me) s[me].speed = ev.n || 0; break
+    case 'ring': if (me) s[me].ring = ev.n || 0; break
+    case 'marks': if (me) { const z = s[me], mk = ev.mk || []; z.monarch = mk.includes('monarch'); z.initiative = mk.includes('initiative'); z.blessing = mk.includes('blessing') } break
+    case 'pctr': if (me) {
+      const z = s[me]
+      if (ev.ct === 'energy') z.energy = ev.abs || 0
+      else { const c = { ...z.pctr, [ev.ct]: ev.abs }; if (!ev.abs) delete c[ev.ct]; z.pctr = c }
+      break
+    } break
+    case 'dungeon': if (me) s[me].dungeon = ev.card ? { n: ev.card, room: ev.to || '' } : null; break
+    case 'emblems': if (me) { s[me].emblems = (ev.list || []).map(x => x.n); s[me].emText = Object.fromEntries((ev.list || []).filter(x => x.t).map(x => [x.n, x.t])) } break
+    case 'state': {
+      const f = find(ev.id, null)
+      if (f) {
+        const st = ev.st || {}
+        upd(f[0], f[1].key, x => ({ ...x, faceDown: !!st.fd, lvl: st.lvl || 0, solved: !!st.solved, ringb: !!st.ring, doors: st.doors || null, phased: !!st.ph }))
+        touch(f[1].key, !!st.fd !== !!f[1].faceDown ? { kind: 'flip' } : null)
+      }
+      break
+    }
     case 'outcome': if (me) {
       const won = / has won/.test(ev.txt || '')
       s.over = { ...s.over, [won ? 'winner' : 'loser']: me }
@@ -607,6 +634,11 @@ export function applyEvent(s0, ev, data) {
     const m = /Ai\(\d\)-([A-D]) may search (?:their|his or her) library for a basic land card, put (?:that card|it) onto the battlefield( tapped)?/.exec(ev.txt || '')
     const k = m && m[1].toLowerCase()
     if (k && s[k]) { if (s[k].library != null) s[k].library = Math.max(0, s[k].library - 1); make(k, null, { hidden: true, land: true, est: true, tapped: !!m[2] }) }
+  }
+  // protótipo: a resolução diz o P/R com que entrou («Arcane Proxy - Creature 2 / 1»); o tabuleiro usa-o em vez do impresso
+  if (ev.k === 'resolve' && ev.pt && ev.card && protoPt(look(ev.card)) === ev.pt.replace(/\s/g, '')) {
+    const f = find(ev.id, ev.card, me)
+    if (f) upd(f[0], f[1].key, x => ({ ...x, pt: protoPt(look(ev.card)), proto: true }))
   }
   // marcadores com que a carta entra, ditos pelo Forge ("enters with three loyalty counters")
   if (ev.ctr) {

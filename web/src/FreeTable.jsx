@@ -11,7 +11,7 @@ import { useDrag, STAGE, useOverlap, useStage, useGameFocus, useFlip, spotOn, us
 import { fpPrefs, setFpPrefs, cardVars, CARD_PX } from './fpprefs.js'
 import Friends from './Friends.jsx'
 import { remoteOn } from './remote.js'
-import { lookup, isCreature, isLand, flipKind, staticPump, spellFx, powTough, CT, CT_ICON } from './game.js'
+import { lookup, isCreature, isLand, flipKind, staticPump, spellFx, powTough, protoPt, CT, CT_ICON } from './game.js'
 import { FORMAT } from './formats.js'
 import { ask } from './confirm.jsx'
 import { usePlaying } from './taverna.js'
@@ -39,7 +39,11 @@ const TO = { library: tx('para o topo da biblioteca'), bottom: tx('para o fundo 
 const HELP_K = 'grimorio.mesalivre.ajuda'
 const short = n => String(n || '').split(' // ')[0]
 const DESIG = { monarch: ['♛', tx('Monarca')], initiative: ['⚑', tx('Iniciativa')], blessing: ['🏙', tx('Bênção da cidade')] }
-const MORE_CT = ['-1/-1', 'shield', 'stun', 'lore', 'time', 'defense', 'oil', 'charge', 'level']  // marcadores do submenu
+const MORE_CT = ['-1/-1', 'shield', 'stun', 'lore', 'time', 'defense', 'oil', 'charge', 'level', 'finality', 'bounty']  // marcadores do submenu
+const P_CT = ['experience', 'rad', 'ticket']  // marcadores de jogador (além do veneno e da energia)
+const DUNGEONS = ['Tomb of Annihilation', 'Lost Mine of Phandelver', 'Dungeon of the Mad Mage', 'Undercity', "Baldur's Gate Wilderness"]
+// o emblema que uma carta dá («you get an emblem with "…"»): o texto entre aspas e o nome do emblema na Scryfall
+const emblemOf = (card, data) => { const c = lookup(data, card); const m = c && /emblem with "([^"]+)"/i.exec(c.o); return m ? { name: `${short(c.n)} Emblem`, text: m[1] } : null }
 const lsGet = k => { try { return localStorage.getItem(k) } catch { return null } }
 const lsSet = (k, v) => { try { localStorage.setItem(k, v) } catch { /* sem armazenamento */ } }
 
@@ -94,6 +98,13 @@ function line(e, who) {
     case 'side': return tx('{P} já escolheu o sideboard', { P })
     case 'sidetime': return tx('Acabou o tempo do sideboard: cada um joga com a lista que tinha.')
     case 'gf': return tx('Adversário imaginário: vida {v} ({d})', { v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
+    case 'goad': return e.on ? tx('{P} incita {c}', { P, c: c || tx('uma carta') }) : tx('{P}: {c} deixa de estar incitada', { P, c: c || tx('uma carta') })
+    case 'door': return e.on ? tx('{P} abre a porta {x}', { P, x: short((e.name || '').split(' // ')[e.i] || '') }) : tx('{P} fecha a porta {x}', { P, x: short((e.name || '').split(' // ')[e.i] || '') })
+    case 'speed': return tx('{T}: velocidade {v}', { T, v: e.v })
+    case 'ring': return tx('O Anel tenta {T} ({v}.ª vez)', { T, v: e.v })
+    case 'pctr': return tx('{T}: {v} marcadores {ct}', { T, v: e.v, ct: CT[e.ct] || e.ct })
+    case 'emblem': return e.on ? tx('{T} recebe um emblema: {c}', { T, c }) : tx('{T} perde o emblema {c}', { T, c })
+    case 'dungeon': return e.name ? tx('{T}: masmorra {c}, sala {r}', { T, c, r: e.r }) : tx('{T}: masmorra completada', { T })
     default: return e.k
   }
 }
@@ -402,7 +413,8 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const toField = (cid, extra) => {
     const e = byId.get(cid), w = spot(e?.c), cd = e?.c?.n && !extra?.down && lookup(data, e.c.n), fromField = e?.z === 'battlefield'
     const k = cd && /^\d+$/.test(cd.pt || '') && (/Planeswalker/.test(cd.t) ? 'loyalty' : /\bBattle\b/.test(cd.t) ? 'defense' : null)
-    return mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me, ...extra }).then(r => (k && !fromField && r ? send({ c: 'counter', id: cid, k, d: +cd.pt }) : r))
+    const pv = k === 'defense' && others.find(i => !seats[i].out)  // batalha: protege-a o primeiro adversário (muda-se no menu da carta)
+    return mv(cid, 'battlefield', { x: w.x, y: w.y, seat: me, ...extra }).then(r => (k && !fromField && r ? send({ c: 'counter', id: cid, k, d: +cd.pt }).then(r2 => (pv != null && pv !== false ? send({ c: 'protector', id: cid, seat: pv }) : r2)) : r))
   }
   const tap = cid => { play('tick', { amount: 1 }); send({ c: 'tap', id: cid }) }
   const turnOver = cid => { const e = byId.get(cid), cd = e && lookup(data, e.c.n); return send(flipKind(cd) ? { c: 'flip', id: cid } : { c: 'face', id: cid }) }  // F: transformar (duas faces / carta flip) ou virar para baixo
@@ -529,10 +541,12 @@ function Table({ id, data, onClose, onNext, onBegin }) {
   const ftTeamOrb = ftDrawers && ftMates.length > 0 && fpPrefs().teamOrb
   const fx = { hl: new Set(), par: 0, pops: new Map(), life: lifeFx, player: null }
   const hs = { active: keyOf(s.active), exact: true, i: s.seq, sides: [] }
-  const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: v.cd || {}, poison: v.poison, energy: v.energy || 0, emblems: [], out: false, perms: v.battlefield.filter(c => c.n && !c.ph && !c.sp).map(c => permOf(c)),  // as permanentes: a esfera ganha as cores e o fluido do que está em campo (como no Forge Play)
+  const zOf = v => ({ life: v.life, library: v.library, hand: v.hand.length, known: [], graveyard: v.graveyard.map(c => c.n), exile: v.exile.map(c => c.n), command: [], cmdDmg: v.cd || {}, poison: v.poison, energy: v.energy || 0, emblems: (v.em || []).map(x => x.n), emText: Object.fromEntries((v.em || []).filter(x => x.t).map(x => [x.n, x.t])), speed: v.speed || 0, pctr: v.pc || {}, ring: v.ring || 0,
+    dungeon: v.dg ? { n: v.dg.n, room: `${short(v.dg.n)} · ${tx('sala {n}', { n: v.dg.r })}` } : null, out: false, perms: v.battlefield.filter(c => c.n && !c.ph && !c.sp).map(c => permOf(c)),  // as permanentes: a esfera ganha as cores e o fluido do que está em campo (como no Forge Play)
     monarch: v.mk?.includes('monarch'), initiative: v.mk?.includes('initiative'), blessing: v.mk?.includes('blessing') })
   const handOf = v => (handOrder ? [...v.hand].sort((a, b) => { const i = handOrder.indexOf(String(a.id)), k = handOrder.indexOf(String(b.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : v.hand)
-  const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, blocking: c.blk != null ? String(c.blk) : undefined, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, atkKey: c.atc != null ? String(c.atc) : undefined, atkName: c.atc != null ? byId.get(c.atc)?.c?.n : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph })
+  const permOf = c => ({ key: String(c.id), name: c.n || '', hidden: !c.n, blocking: c.blk != null ? String(c.blk) : undefined, tapped: !!c.t, flipped: !!c.f, token: !!c.tok, counters: c.k || {}, attacking: c.atk != null ? keyOf(c.atk) : undefined, atkKey: c.atc != null ? String(c.atc) : undefined, atkName: c.atc != null ? byId.get(c.atc)?.c?.n : undefined, faceDown: !!c.d && !!c.n, phased: !!c.ph,
+    goaded: !!c.gd, doors: c.dr && c.n ? c.dr.map(i => c.n.split(' // ')[i]).filter(Boolean) : undefined, proto: !!c.pr, pt: c.pr ? protoPt(lookup(data, c.n)) || undefined : undefined, prot: c.pv != null ? who(c.pv) : undefined })
   const onField = new Set(seats.flatMap(v => v.battlefield.map(c => c.id)))
   // a pilha: os feitiços lançados (no campo de quem lança, marcados sp) pela ordem em que entraram; o de cima resolve primeiro
   const stack = seats.flatMap((v, i) => v.battlefield.filter(c => c.sp).map(c => ({ ...c, s: i }))).sort((a, b) => b.sp - a.sp)  // s: quem lançou (o lado onde está)
@@ -661,11 +675,19 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         [`☠ ${tx('veneno')} ${v.poison}`, null, pm('poison')], [`ϟ ${tx('energia')} ${v.energy || 0}`, null, pm('energy')],
         ...cmdrs.map(n => [`⚔ ${short(n)} ${v.cd?.[n] || 0}/21`, null, pm('cmdmg', { name: n })]),
         ...Object.entries(DESIG).map(([k, [ic, l]]) => [`${ic} ${l}${v.mk?.includes(k) ? ' ✓' : ''}`, () => send({ c: 'mark', seat: i, k })]),
+        [`🏁 ${tx('velocidade')} ${v.speed || 0}/4`, null, pm('speed')], [`💍 ${tx('o Anel tentou')} ${v.ring || 0}×`, null, pm('ring')],
+        ...[...new Set([...P_CT, ...Object.keys(v.pc || {})])].map(k => [`${CT_ICON[k] || '◆'} ${CT[k] || k} ${v.pc?.[k] || 0}`, null, pm('pctr', { k })]),
+        ['◆ ' + tx('Outro marcador de jogador…'), () => { const k = window.prompt(tx('Nome do marcador (ex.: experiência, rad, bilhete):')); if (k?.trim()) send({ c: 'pctr', seat: i, k: k.trim(), d: 1 }) }],
+        ['✦ ' + tx('Criar um emblema…'), () => { const x = window.prompt(tx('Nome da carta que dá o emblema, ou o texto do emblema:')); if (!x?.trim()) return; const e = emblemOf(x.trim(), data); send({ c: 'emblem', seat: i, ...(e || { text: x.trim() }) }) }],
+        ...(v.em || []).map((x, j) => ['✕ ' + tx('Tirar o emblema {c}', { c: short(x.n) }), () => send({ c: 'emblem', seat: i, del: j })]),
+        ...(v.dg ? [[`⚑ ${short(v.dg.n)} · ${tx('sala {n}', { n: v.dg.r })}`, null, [['−', () => send({ c: 'dungeon', seat: i, name: v.dg.n, room: v.dg.r - 1 })], ['＋', () => send({ c: 'dungeon', seat: i, name: v.dg.n, room: v.dg.r + 1 })]]], ['✓ ' + tx('Masmorra completada'), () => send({ c: 'dungeon', seat: i })]]
+          : DUNGEONS.map(n => ['⚑ ' + tx('Entrar na masmorra {d}', { d: n }), () => send({ c: 'dungeon', seat: i, name: n, room: 1 })])),
         ...(i !== me && !ended ? [['👁 ' + tx('Olhar para a mão (só tu vês)'), () => send({ c: 'lookhand', seat: i })]] : [])]
     }
     if (menu.ctr != null) {  // submenu dos marcadores: −/+ por tipo
       const cid = menu.ctr, c = byId.get(cid)?.c
-      return [[tx('Marcadores'), null], ...MORE_CT.map(k => [`${CT_ICON[k] || ''} ${CT[k] || k} ${c?.k?.[k] || 0}`, null, [['−', () => send({ c: 'counter', id: cid, k, d: -1 })], ['＋', () => send({ c: 'counter', id: cid, k, d: 1 })]]])]
+      return [[tx('Marcadores'), null], ...[...new Set([...MORE_CT, ...Object.keys(c?.k || {}).filter(k => k !== '+1/+1' && k !== 'loyalty')])].map(k => [`${CT_ICON[k] || ''} ${CT[k] || k} ${c?.k?.[k] || 0}`, null, [['−', () => send({ c: 'counter', id: cid, k, d: -1 })], ['＋', () => send({ c: 'counter', id: cid, k, d: 1 })]]]),
+        ['◆ ' + tx('Marcador com outro nome…'), () => { const k = window.prompt(tx('Nome do marcador:')); if (k?.trim()) send({ c: 'counter', id: cid, k: k.trim(), d: 1 }) }]]
     }
     const e = byId.get(menu.id)
     if (!e) return []
@@ -684,6 +706,10 @@ function Table({ id, data, onClose, onNext, onBegin }) {
         ...(flipKind(cd) === 'df' ? [['⟲ ' + tx('Transformar (outra face)'), () => send({ c: 'flip', id: cid })]] : flipKind(cd) === 'flip' ? [['⟲ ' + tx('Virar a carta flip (180°)'), () => send({ c: 'flip', id: cid })]] : []),
         c.at != null ? ['📎 ' + tx('Soltar (deixa de estar presa)'), () => attach(cid, null)] : ['📎 ' + tx('Prender a… (toca na carta)'), () => setPickAt(cid)],
         [c.ph ? '◐ ' + tx('Voltar à fase') : '◐ ' + tx('Sair de fase (phasing)'), () => send({ c: 'phase', id: cid })],
+        [c.gd ? '⚑ ' + tx('Deixar de estar incitada') : '⚑ ' + tx('Incitar (goad)'), () => send({ c: 'goad', id: cid })],
+        ...(cd && /\bRoom\b/.test(cd.t) ? cd.n.split(' // ').map((f, j) => [`${c.dr?.includes(j) ? '🔒 ' + tx('Fechar a porta') : '🚪 ' + tx('Abrir a porta')}: ${f}`, () => send({ c: 'door', id: cid, i: j })]) : []),
+        ...(protoPt(cd) ? [[(c.pr ? '✓ ' : '⚙ ') + tx('Lançada como protótipo ({pt})', { pt: protoPt(cd) }), () => send({ c: 'proto', id: cid })]] : []),
+        ...(cd && /\bBattle\b/.test(cd.t.split(' // ')[0]) ? seats.map((_, j) => j).filter(j => !seats[j].out).map(j => [`🛡 ${tx('Protegida por {p}', { p: who(j) })}${c.pv === j ? ' ✓' : ''}`, () => send({ c: 'protector', id: cid, seat: j })]) : []),
         ...(c.n ? [['⧉ ' + tx('Criar uma ficha cópia'), () => send({ c: 'token', name: short(c.n), x: Math.min(0.95, (c.x ?? 0.5) + 0.06), y: c.y ?? 0.5 })]] : []),
         ['📝 ' + (c.nt ? tx('Mudar a nota') : tx('Pôr uma nota')), () => { const v = window.prompt(tx('Nota nesta carta (todos a veem; vazia apaga):'), c.nt || ''); if (v != null) send({ c: 'note', id: cid, txt: v }) }],
         ...(owner || c.d ? [[c.d ? tx('🂠 Virar para cima') : tx('🂠 Virar para baixo'), () => send({ c: 'face', id: cid })]] : []),

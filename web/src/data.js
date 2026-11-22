@@ -188,6 +188,15 @@ export function probeScryfall() {
     t.src = t.src.replace(/^https:\/\/(cards|backs)\.scryfall\.io\//, '/sf/$1/')
   }, true)
 }
+// cartas impressas deitadas (a imagem da Scryfall vem ao alto): batalhas (a face da frente), Salas e cartas divididas
+// (Fire // Ice); aftermath, aventuras, omens e cartas flip ficam ao alto
+export const sideways = c => {
+  if (!c?.t) return false
+  const fs = c.t.split(' // ')
+  if (/\bBattle\b/.test(fs[0])) return true
+  if (c.df || fs.length !== 2 || /\bAftermath\b/.test(c.o || '')) return false
+  return fs.every(f => /\bRoom\b/.test(f)) || fs.every(f => /^(Instant|Sorcery)$/.test(f.trim()))
+}
 export const img = (c, size = 'normal', back = false, pid = null) => {
   if (pid?.startsWith('https:') || pid?.startsWith('arts/')) { if (!back) return pid; pid = null }  // imagem própria (site de origem ou carregada)
   const id = pid || basicShown(c.n) || c.id

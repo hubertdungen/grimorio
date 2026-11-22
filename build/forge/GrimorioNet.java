@@ -354,6 +354,12 @@ public class GrimorioNet {
                     if (rc.isGoaded()) o.addProperty("goad", true);
                     if (rc.getCopiedPermanent() != null || c.isCloned()) o.addProperty("copy", true);
                     if (rc.getMergedCards() != null && rc.getMergedCards().size() > 1) { JsonArray m = new JsonArray(); for (forge.game.card.Card x : rc.getMergedCards()) m.add(x.getName()); o.add("merged", m); }
+                    // Salas (portas abertas), Classes (nível), Casos (resolvido), portador do Anel, suspeita
+                    if (rc.isRoom()) { JsonArray d = new JsonArray(); for (String x : rc.getUnlockedRoomNames()) d.add(x); o.add("doors", d); }
+                    if (rc.getType().hasSubtype("Class")) o.addProperty("lvl", rc.getClassLevel());
+                    if (rc.isSolved()) o.addProperty("solved", true);
+                    if (rc.isRingBearer()) o.addProperty("ringb", true);
+                    if (rc.isSuspected()) o.addProperty("suspect", true);
                 } catch (Exception e) { System.err.println("card: " + e); }
             }
             if (c.getAttachedTo() != null) o.addProperty("attachedTo", c.getAttachedTo().getId());
@@ -375,11 +381,12 @@ public class GrimorioNet {
             JsonArray a = new JsonArray();
             if (p.getCommand() != null) for (CardView c : p.getCommand()) {
                 String room = c.getCurrentRoom();
+                if (room != null && room.isEmpty()) room = null;  // o Forge 2.0.15 dá "" a tudo: sem isto entravam os efeitos internos (The Initiative, Start Your Engines!)
                 if (!c.isEmblem() && room == null && !c.isCommander()) continue;
                 JsonObject o = new JsonObject();
                 o.addProperty("id", c.getId());
                 o.addProperty("name", c.getCurrentState().getName());
-                if (c.isEmblem()) o.addProperty("emblem", true);
+                if (c.isEmblem()) { o.addProperty("emblem", true); try { o.addProperty("text", c.getText()); } catch (Exception e) { /* sem texto */ } }
                 if (room != null) o.addProperty("room", room);
                 a.add(o);
             }
@@ -508,6 +515,7 @@ public class GrimorioNet {
                     if (rp.hasInitiative()) po.addProperty("initiative", true);
                     if (rp.hasBlessing()) po.addProperty("blessing", true);
                     if (!rp.noSpeed()) po.addProperty("speed", rp.getSpeed());
+                    if (rp.getNumRingTemptedYou() > 0) po.addProperty("ring", rp.getNumRingTemptedYou());  // o Anel tentou-te n vezes
                 } catch (Exception e) { System.err.println("designações: " + e); }
                 com.google.common.collect.Multiset<CounterType> pc = p.getCounters();
                 if (pc != null && !pc.isEmpty()) { JsonObject co = new JsonObject(); for (CounterType t : pc.elementSet()) co.addProperty(t.getName(), pc.count(t)); po.add("counters", co); }

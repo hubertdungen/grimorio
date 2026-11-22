@@ -6,7 +6,7 @@ import './fpchoice.css'
 import { fpPrefs, setFpPrefs, cardVars } from './fpprefs.js'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
-import { Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, GameMenuBtns, DrawerChip, TeamOrb, ORB_DEATH } from './Board.jsx'
+import { DayNight, Side, Hand, StackFx, CardPx, MatPick, CombatLinks, StackLinks, DamageFx, ZoneFx, Arts, useImg, artOf, OrbCtx, FsBtn, GameMenuBtns, DrawerChip, TeamOrb, ORB_DEATH } from './Board.jsx'
 import { ctrs, toPerm, zoneOf } from './fpboard.js'
 import { usePlaying } from './taverna.js'
 import { tx } from './i18n.js'
@@ -146,7 +146,7 @@ function ManaOrb({ k, n, onClick, title }) {
   )
 }
 // dia/noite (daybound/nightbound): a pastilha troca com um meio giro quando muda
-export const DayNight = ({ v, onClick }) => <button type="button" key={v} className={`fp-day ${v}`} onClick={onClick} disabled={!onClick} title={v === 'day' ? tx('É dia (cartas daybound à vista)') : tx('É noite (cartas nightbound à vista)')}>{v === 'day' ? `☀ ${tx('dia')}` : `☾ ${tx('noite')}`}</button>
+export { DayNight }  // vive no Board.jsx (também nas réplicas)
 
 // o registo do Forge (as últimas 40 entradas): «Ruin Crab (55)» passa a nome com o rato a mostrar a carta
 const NAME_END = /([A-Z][\w'’,-]*(?: (?:[A-Z][\w'’,-]*|of|the|to|and|in|from|for|with|a|an|on|at))*)$/

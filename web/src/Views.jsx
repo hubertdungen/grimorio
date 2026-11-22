@@ -1,7 +1,7 @@
 import { matchArts, shrink } from './artmatch.js'
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
-import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
+import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll, SymTxt } from './ui.jsx'
@@ -1556,7 +1556,7 @@ const CARD_BACK = sf('https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e8
 export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [back, setBack] = useState(false)  // flip 3D: a outra face (cartas de duas faces) ou o verso
-  const [rot, setRot] = useState(0)  // virar ao contrário (180° de cada vez, animado)
+  const side = sideways(c), [rot, setRot] = useState(side ? 90 : 0)  // virar ao contrário (180° de cada vez, animado); deitadas (batalhas, Salas, divididas) começam a 90° e rodam de 90 em 90
   const [subs, setSubs] = useState(false)  // 🔁 substitutos desta carta neste deck (motor + IA)
   const [preview, setPreview] = useState(null)
   const [hoverPid, setHoverPid] = useState(null)
@@ -1570,7 +1570,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
       <div className="modal cardmodal" onClick={e => e.stopPropagation()}>
         <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
         <div className="cm-img">
-          <div className="cm-turn" style={{ '--rot': `${rot}deg` }}>
+          <div className={`cm-turn ${(rot - (side && back && c.df ? 90 : 0)) % 180 ? 'lying' : ''}`} style={{ '--rot': `${rot - (side && back && c.df ? 90 : 0)}deg` }}>{/* batalha: a face de trás lê-se ao alto */}
             <div className="cm-tilt" onClick={() => setBack(b => !b)} title={tx('Clica para virar')}
               onPointerMove={e => { if (e.pointerType !== 'mouse') return; const r = e.currentTarget.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5
                 e.currentTarget.style.setProperty('--tx', `${(x * 18).toFixed(1)}deg`); e.currentTarget.style.setProperty('--ty', `${(-y * 18).toFixed(1)}deg`); e.currentTarget.style.setProperty('--gx', `${(x + 0.5) * 100}%`); e.currentTarget.style.setProperty('--gy', `${(y + 0.5) * 100}%`) }}
@@ -1584,7 +1584,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
           </div>
           {deck.art?.[c.n] ? <small className="muted">{tx('Arte própria do site de origem')}</small> : deck.prints?.[c.n] && <small className="muted">{tx('Estilo escolhido:')} {deck.prints[c.n].set} #{deck.prints[c.n].cn}{deck.prints[c.n].foil ? ' (foil)' : ''}</small>}
           <div className="row-btns cm-turn-btns">
-            <button onClick={() => setRot(r => r + 180)} title={tx('Para ler o que está escrito ao contrário')}>↻ {tx('Virar ao contrário')}</button>
+            <button onClick={() => setRot(r => r + (side ? 90 : 180))} title={side ? tx('Esta carta lê-se deitada: roda 90°') : tx('Para ler o que está escrito ao contrário')}>↻ {side ? tx('Rodar 90°') : tx('Virar ao contrário')}</button>
             <button onClick={() => setBack(!back)}>⟲ {c.df ? (back ? tx('Face da frente') : tx('Outra face')) : back ? tx('Ver a frente') : tx('Ver o verso')}</button>
           </div>
         </div>

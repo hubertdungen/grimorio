@@ -67,12 +67,16 @@ export function maxCopies(card, fmt, fmtBit) {
   return fmt.copies
 }
 
-export function canBeCommander(card, fmt) {
-  if (fmt.cmd === 'oathbreaker') return /Planeswalker/.test(card.t)
-  if (/can be your commander/i.test(card.o)) return true
-  if (fmt.key === 'brawl' || fmt.key === 'standardbrawl') return /Legendary/.test(card.t) && /(Creature|Planeswalker)/.test(card.t)
-  if (fmt.key === 'paupercommander') return /Creature/.test(card.t) && card.r === 'u'
-  return /Legendary/.test(card.t) && /Creature/.test(card.t)
+// pela face da frente: uma carta flip/de duas faces com a face de trás lendária (Bushi Tenderfoot // Kenzo) não pode ser
+// comandante; um Background só ao lado de um comandante com «Choose a Background» (validate)
+export function canBeCommander(card, fmt, pair) {  // pair: o outro comandante (null = nenhum; omitido = ainda não se sabe, nos botões)
+  const t = card.t.split(' // ')[0], o = card.o.split('\n//\n')[0]
+  if (fmt.cmd === 'oathbreaker') return /Planeswalker/.test(t)
+  if (/can be your commander/i.test(o)) return true
+  if (/\bBackground\b/.test(t) && /Legendary/.test(t)) return pair === undefined || (!!pair && /Choose a Background/i.test(pair.o))
+  if (fmt.key === 'brawl' || fmt.key === 'standardbrawl') return /Legendary/.test(t) && /(Creature|Planeswalker)/.test(t)
+  if (fmt.key === 'paupercommander') return /Creature/.test(t) && card.r === 'u'
+  return /Legendary/.test(t) && /Creature/.test(t)
 }
 
 const subset = (a, b) => [...a].every(c => b.includes(c))
@@ -94,7 +98,7 @@ export function validate(deck, fmt, data) {
 
   if (fmt.cmd) {
     if (!cmdCards.length) out.push({ nivel: 'erro', k: 'cmd', msg: fmt.cmd === 'oathbreaker' ? tx('Escolhe um Oathbreaker (planeswalker).') : tx('Escolhe o comandante.') })
-    for (const c of cmdCards) if (!canBeCommander(c, fmt)) out.push({ nivel: 'erro', msg: fmt.cmd === 'oathbreaker' ? tx('{c} não pode ser Oathbreaker.', { c: c.n }) : tx('{c} não pode ser comandante.', { c: c.n }) })
+    for (const c of cmdCards) if (!canBeCommander(c, fmt, cmdCards.find(x => x !== c) || null)) out.push({ nivel: 'erro', msg: fmt.cmd === 'oathbreaker' ? tx('{c} não pode ser Oathbreaker.', { c: c.n }) : tx('{c} não pode ser comandante.', { c: c.n }) })
     if (cmdCards.length === 2 && !cmdCards.every(c => /Partner|Friends forever|Doctor's companion|Choose a Background/i.test(c.o) || /Background/.test(c.t)))
       out.push({ nivel: 'erro', msg: tx('Dois comandantes só com Partner, Friends forever, Background ou Doctor\'s companion.') })
     if (cmdCards.length > 2) out.push({ nivel: 'erro', msg: tx('No máximo dois comandantes.') })

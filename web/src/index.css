@@ -581,8 +581,11 @@ h2 .mana img { width: 20px; height: 20px; }
 .pc img { width: 100%; height: 100%; object-fit: cover; display: block; user-select: none; }
 .pc-est, .est-i { position: absolute; top: 2px; left: 3px; font-style: normal; font-size: 10px; line-height: 1; color: #fff; opacity: .45; text-shadow: 0 0 3px #000; cursor: help; pointer-events: auto; }
 .est-i { position: static; font-size: 11px; }
-.pc-token { width: 100%; height: 100%; display: grid; align-content: center; justify-items: center; gap: 2px; padding: 3px; text-align: center; background: radial-gradient(circle at 50% 35%, #3a3460, #15122a); border: 1px solid #8f84c9; border-radius: inherit; }
-.pc-token small { font-size: 8px; letter-spacing: .1em; color: #b9b0e8; } .pc-token b { font-size: 10px; line-height: 1.1; } .pc-token i { font-style: normal; font-weight: 800; font-size: 12px; }
+.pc-token { width: 100%; height: 100%; display: grid; align-content: center; justify-items: center; gap: 2px; padding: 3px; text-align: center; background: radial-gradient(circle at 50% 30%, #ffffff40, transparent 60%), var(--tk, radial-gradient(circle at 50% 35%, #3a3460, #15122a)); border: 2px solid #0008; box-shadow: inset 0 0 0 1px #fff6; border-radius: inherit; color: #fff; text-shadow: 0 1px 2px #000c; overflow: hidden; }
+.pc-token.lite { color: #241c0c; text-shadow: 0 1px 0 #fff8; }
+.pc-token small { font-size: 8px; letter-spacing: .1em; opacity: .8; } .pc-token b { font-size: 10px; line-height: 1.1; } .pc-token i { font-style: normal; font-weight: 800; font-size: 12px; }
+.pc-token em { font-style: normal; font-size: 7px; line-height: 1.1; opacity: .85; max-width: 100%; }
+.pc img.up, .zoomcard img.up { transform: rotate(180deg); }  /* papel (Role) da metade de baixo: a mesma imagem ao contrário */
 .pc.in.tok { animation: spawn .6s ease-out; }
 @keyframes spawn { 0% { opacity: 0; transform: scale(.4); filter: brightness(2.2) drop-shadow(0 0 10px #c9b8ff); } 60% { opacity: 1; transform: scale(1.08); } 100% { transform: none; filter: none; } }
 @keyframes enter { from { opacity: 0; transform: scale(.7) translateY(8px); } to { opacity: 1; transform: none; } }
@@ -679,7 +682,7 @@ h2 .mana img { width: 20px; height: 20px; }
 .zoomhover { position: fixed; z-index: 90; pointer-events: none; animation: fadein .15s ease-out; }
 .zoomcard { display: grid; gap: 6px; }
 .zoomcard img { width: 100%; border-radius: 4.75%/3.5%; box-shadow: 0 10px 30px #000d; display: block; }
-.zoomcard .zt { aspect-ratio: 488/680; border-radius: 12px; } .zoomcard .zt b { font-size: 18px; } .zoomcard .zt i { font-size: 22px; }
+.zoomcard .zt { aspect-ratio: 488/680; border-radius: 12px; overflow: hidden; } .zoomcard .zt .pc-token { border-radius: 12px; } .zoomcard .zt b { font-size: 18px; } .zoomcard .zt i { font-size: 22px; } .zoomcard .zt em { font-size: 11px; } .zoomcard .zt small { font-size: 11px; }
 .zinfo { display: grid; gap: 2px; padding: 6px 9px; border-radius: 8px; background: #0d0f18f0; border: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .zinfo b { color: var(--text); font-size: 13px; }
 .zoomover { position: fixed; inset: 0; z-index: 95; display: grid; place-items: center; padding: 16px; background: #000c; animation: fadein .2s ease-out; touch-action: pinch-zoom; cursor: zoom-out; }
@@ -1951,6 +1954,7 @@ input[type=checkbox]:disabled { opacity: .45; cursor: default; }
 @media (max-width: 700px) { .rules-card { grid-template-columns: minmax(0, 1fr); } .rules-card img { max-width: 260px; } }
 /* janela da carta: virar ao contrário e flip 3D */
 .cm-turn { transform: rotate(var(--rot, 0deg)); transition: transform .7s cubic-bezier(.3, 1.3, .5, 1); perspective: 1400px; }
+.cm-turn.lying { transform: rotate(var(--rot, 0deg)) scale(.72); }  /* deitada: cabe na largura da coluna */
 .cm-flip { position: relative; transform-style: preserve-3d; transition: transform .8s cubic-bezier(.2, .8, .2, 1); }
 .cm-flip.on { transform: rotateY(180deg); }
 .cm-flip .cm-face { display: block; width: 100%; border-radius: 16px; backface-visibility: hidden; -webkit-backface-visibility: hidden; box-shadow: 0 18px 40px #000a; }
@@ -3716,7 +3720,7 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 @media (prefers-reduced-motion: reduce) { .zland, .zrib { display: none; } }
 
 /* batalha: quem a protege (o defensor quando é atacada) */
-.pc-prot { position: absolute; left: 50%; top: -9px; transform: translateX(-50%); z-index: 5; max-width: 110%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.pc-prot { position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); z-index: 5; max-width: 110%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 10px; font-style: normal; padding: 1px 6px; border-radius: 8px; background: #1e293bee; color: #e2e8f0; border: 1px solid #94a3b8; pointer-events: none; }
 
 /* reserva de mana em mini-esferas 3D (ForgePlay ManaOrb): o canvas maior que o botão (o halo), o número por cima */
@@ -4320,3 +4324,22 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .wz-res.cmds .wz-cc > button:first-child { aspect-ratio: 488 / 680; }
 .wz-res .wz-cc > button.wz-zoom { position: absolute; top: 8px; right: 8px; width: auto; aspect-ratio: auto; border: 1px solid var(--line); background: rgba(11, 10, 20, .8); overflow: visible; }
 .wz-res .wz-cc > button:first-child { border: 0; }
+
+/* mecânicas na carta: batalhas deitadas (como na mesa a sério), portas das Salas, nível da Classe, marcas (Caso, Anel…) */
+.pc.battle:not(.tapped) .pc-rot { transform: rotate(90deg) scale(.82); }
+.pc.battle.tapped .pc-rot { transform: rotate(180deg) scale(.9); }
+.fp .pc.battle:not(.tapped) .pc-rot { animation: none; }
+.pc-doors { position: absolute; left: 50%; top: -7px; transform: translateX(-50%); display: flex; gap: 2px; z-index: 2; }
+.pc-doors i { font-style: normal; font-size: 10px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 4px; background: #0d0f18e6; border: 1px solid #ffffff38; opacity: .75; }
+.pc-doors i.on { opacity: 1; border-color: var(--gold); box-shadow: 0 0 6px #f5c54288; }
+.pc-lvl { position: absolute; left: -4px; top: -4px; font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 4px; background: linear-gradient(180deg, #c4b5fd, #7c3aed); color: #1e0b45; z-index: 2; }
+.pc-mech { position: absolute; left: -3px; top: 14px; display: grid; gap: 1px; z-index: 2; }
+.pc-mech i { font-style: normal; font-size: 10px; width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: #0d0f18e6; border: 1px solid #ffffff38; }
+.chip.emb { position: relative; cursor: pointer; }
+.emb-pop { position: absolute; left: 0; top: calc(100% + 4px); z-index: 40; display: grid; gap: 6px; width: min(300px, 80vw); padding: 8px; border-radius: 8px; background: #12141ef5; border: 1px solid #ffffff30; box-shadow: 0 6px 20px #000a; text-align: left; white-space: normal; cursor: default; }
+.emb-it { display: grid; grid-template-columns: 56px 1fr; gap: 8px; align-items: start; }
+.emb-it img { width: 56px; border-radius: 4px; } .emb-it > i { font-style: normal; font-size: 22px; text-align: center; }
+.emb-it b { display: block; font-size: 12px; } .emb-it small { display: block; font-size: 11px; line-height: 1.3; opacity: .85; }
+.zoomcard img.side { transform: rotate(90deg) scale(.72); }  /* batalhas, Salas e divididas lêem-se deitadas */
+.pc.battle:not(.tapped) .pc-loy.def { top: 12%; } .pc.battle:not(.tapped) .pc-prot { bottom: 12%; }  /* junto da carta deitada */
+.emb-pop.up { top: auto; bottom: calc(100% + 4px); } .emb-pop { max-height: 60vh; overflow: auto; }
