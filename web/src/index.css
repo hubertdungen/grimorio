@@ -4524,3 +4524,12 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .cmd-sug-r:hover { border-color: var(--gold); }
 .cmd-sug-r > img { width: 44px; height: 32px; object-fit: cover; border-radius: 4px; background: var(--panel2); }
 .cmd-sug-r b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+
+/* as cores do deck (painel do deck; no telemóvel no topo do separador Deck) */
+.color-strip { display: grid; gap: 3px; margin: 2px 0 6px; font-size: 12.5px; }
+.cs-id { display: flex; align-items: center; gap: 6px; }
+.cs-bar { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 6px; }
+.cs-seg { display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: var(--panel2); }
+.cs-seg i { display: block; min-width: 3px; }
+.color-strip.cs-top { display: none; }
+@media (max-width: 900px) { .color-strip.cs-top { display: grid; } }

@@ -161,6 +161,41 @@ function LiveBar({ guest, go, data }) {
   </>)
 }
 
+// as cores do deck, em pequeno: o nome da combinação (Azorius, Esper, Abzan…, «5 cores»), a identidade e duas barras —
+// os símbolos de mana nos custos (devoção) e as cores que os terrenos fazem (pela identidade do terreno)
+const CNAME = { W: 'Mono-branco', U: 'Mono-azul', B: 'Mono-preto', R: 'Mono-vermelho', G: 'Mono-verde', WU: 'Azorius', UB: 'Dimir', BR: 'Rakdos', RG: 'Gruul', WG: 'Selesnya',
+  WB: 'Orzhov', UR: 'Izzet', BG: 'Golgari', WR: 'Boros', UG: 'Simic', WUB: 'Esper', UBR: 'Grixis', BRG: 'Jund', WRG: 'Naya', WUG: 'Bant', WBG: 'Abzan', WUR: 'Jeskai',
+  UBG: 'Sultai', WBR: 'Mardu', URG: 'Temur' }
+const CHUE = { W: '#efe6c4', U: '#3d7fd9', B: '#8a7f96', R: '#e0553a', G: '#3f9d58' }
+function ColorStrip({ data, deck, className = '' }) {
+  const { ci, dev, land } = useMemo(() => {
+    const dev = { W: 0, U: 0, B: 0, R: 0, G: 0 }, land = { W: 0, U: 0, B: 0, R: 0, G: 0 }, all = new Set()
+    const cards = [...deck.commanders.map(n => [n, 1]), ...Object.entries(deck.main || {})]
+    for (const [n, q] of cards) {
+      const c = data.byName.get(n)
+      if (!c) continue
+      for (const k of c.ci || '') all.add(k)
+      if (/\bLand\b/.test(c.t.split(' // ')[0])) { for (const k of c.ci || '') land[k] += q; continue }
+      for (const m of (c.mc || '').matchAll(/\{([^}]+)\}/g)) { const ks = m[1].split('/').filter(k => dev[k] != null); for (const k of ks) dev[k] += q / ks.length }
+    }
+    const cmd = deck.commanders.map(n => data.byName.get(n)?.ci || '').join('')
+    return { ci: [...'WUBRG'].filter(k => (cmd ? cmd.includes(k) : all.has(k))).join(''), dev, land }
+  }, [data, deck])
+  if (!ci && !Object.values(land).some(Boolean)) return null
+  const name = !ci ? tx('Incolor') : ci.length === 5 ? tx('5 cores') : ci.length === 4 ? tx('4 cores (sem {c})', { c: [...'WUBRG'].find(k => !ci.includes(k)) }) : tx(CNAME[ci] || ci)
+  const bar = (v, label) => {
+    const tot = Object.values(v).reduce((a, b) => a + b, 0)
+    if (!tot) return null
+    const parts = [...'WUBRG'].filter(k => v[k] > 0)
+    return <span className="cs-bar" title={`${label}: ${parts.map(k => `${k} ${Math.round(100 * v[k] / tot)}%`).join(' · ')}`}><small className="muted">{label}</small>
+      <span className="cs-seg">{parts.map(k => <i key={k} style={{ flexGrow: v[k], background: CHUE[k] }} />)}</span></span>
+  }
+  return <div className={`color-strip ${className}`}>
+    <span className="cs-id"><Mana cost={ci ? [...ci].map(k => `{${k}}`).join('') : '{C}'} /> <b>{name}</b></span>
+    {bar(dev, tx('custos'))}{bar(land, tx('terrenos'))}
+  </div>
+}
+
 // deck de Commander sem comandante: os que cobrem as cores das cartas e mais se parecem com elas (embeddings, como no
 // assistente), os populares um pouco à frente; as lendárias que já estão no deck primeiro (♛ tira-as das 99)
 function CmdSuggest({ data, deck, fmt, ctx, act }) {
@@ -174,7 +209,8 @@ function CmdSuggest({ data, deck, fmt, ctx, act }) {
       // cartas que este comandante deixa de fora (cores que não tem): as que cobrem tudo à frente, mas um da tribo que
       // obriga a tirar poucas também aparece, com o aviso
       const off = eff.filter(x => [...(x.ci || '')].some(k => !(c.ci || '').includes(k))).length
-      if (off > Math.max(8, eff.length * 0.15)) continue
+      const tribal = t && (c.t.includes(t) || new RegExp(`\\b${t}s?\\b`).test(c.o || ''))  // da tribo do deck: pode deixar mais cartas de fora
+      if (off > Math.max(8, eff.length * (tribal ? 0.45 : 0.15))) continue
       out.push({ c, off, s: fit(c) - 0.03 * off })
     }
     return [t, out.sort((a, b) => b.s - a.s).slice(0, 30)]
@@ -624,6 +660,7 @@ export default function App() {
               <label className="dt-name"><span aria-hidden="true">✎</span><input className="deck-name" value={deck.name} onChange={e => setDeck(d => ({ ...d, name: e.target.value }))} aria-label={tx('Nome do deck')} placeholder={tx('Nome do deck')} enterKeyHint="done" onKeyDown={e => { if (e.key === 'Enter') e.target.blur() }} /></label>
               <div className="seg viewby"><button className={deckView === 'grelha' ? 'on' : ''} onClick={() => setDeckView('grelha')}><i>▦</i><span>{tx('Grelha')}</span></button><button className={deckView === 'lista' ? 'on' : ''} onClick={() => setDeckView('lista')}><i>☰</i><span>{tx('Lista')}</span></button></div>
               </div>
+              <ColorStrip data={data} deck={deck} className="cs-top" />
               {deckView === 'grelha' && <UndoBtns act={act} hist={histN} />}
               {deckView === 'grelha' && <div className="grid-autos">{(!fmt.size[1] || total < fmt.size[1]) && <button className="auto-btn" onClick={() => setShowAuto(true)}>✦ {tx('Completar deck automaticamente')}</button>}<button className="ai-btn" onClick={() => setShowAI(true)}>✦ {tx('Assistente IA')} <span className="muted small">({tx('extra')})</span></button></div>}  {/* no telemóvel o painel do deck (onde estes vivem) está escondido */}
               {deckView === 'grelha' ? <DeckGrid {...{ data, deck, fmt, act, ctx }} /> : <div className="deck-mobile"><DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} /></div>}
@@ -746,6 +783,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
           </select>
         </label>
       )}
+      <ColorStrip data={data} deck={deck} />
       <div className={`count ${errors ? 'bad' : 'ok'}`}>
         <b>{total}</b><span>/ {max ? max : `${min}+`}</span>
         <span className="pill">{errors ? tx('{n} problema|{n} problemas', { n: errors }) : tx('válido')}</span>
