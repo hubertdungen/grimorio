@@ -4485,3 +4485,9 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 /* «Completar deck» e «Assistente IA» na grelha do deck: só no telemóvel/tablet (no computador estão no painel ao lado) */
 .grid-autos { display: none; }
 @media (max-width: 900px) { .grid-autos { display: grid; gap: 0; margin: 4px 0 8px; } .grid-autos .auto-btn { margin: 0 0 6px; } }
+
+/* pesquisa: «♛ Comandante» e «♕ Sub» numa linha própria do cartão */
+.tile-bar { flex-wrap: wrap; }
+.cmd-acts { flex-basis: 100%; display: flex; gap: 4px; }
+.cmd-acts .act.cmd { flex: 1; font-size: 12.5px; }
+.cmd-acts .act.sub { font-size: 12.5px; }

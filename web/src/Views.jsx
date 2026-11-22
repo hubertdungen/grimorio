@@ -830,11 +830,13 @@ function Actions({ c, deck, fmt, act, swaps }) {
       <QtyPick c={c} deck={deck} fmt={fmt} act={act}><AddOrSwap c={c} act={act} swaps={swaps} up><button className="act add" onClick={() => act.add(c)} title={tx('Juntar ao deck')}>+{q ? <sup>{q}</sup> : null}</button></AddOrSwap></QtyPick>
       {fmt.side > 0 && <button className="act" onClick={() => act.add(c, 'side')} title={tx('Juntar ao sideboard')}>SB</button>}
       <button className={`act mb ${deck.maybe?.[c.n] ? 'on' : ''}`} onClick={() => act.add(c, 'maybe')} title={tx('Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes')}>→ MB</button>
-      {fmt.cmd && canBeCommander(c, fmt) && <button className={`act ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)} title={fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}>♛</button>}
-      {fmt.cmd && canBeCommander(c, fmt) && !deck.commanders.includes(c.n) && <button className={`act sub ${subsOf(deck).includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSub(c)} title={tx('Subcomandante: entra no deck como carta normal, marcada, para trocar depressa com o comandante')}>♕</button>}
       {fmt.cmd === 'oathbreaker' && /Instant|Sorcery/.test(c.t) && <button className={`act ${deck.signature === c.n ? 'on' : ''}`} onClick={() => act.setSignature(c)} title={tx('Feitiço de assinatura')}>✦</button>}
       <button className={`act seed ${deck.seeds.includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSeed(c)} title={tx('Semente das sugestões')}>★</button>
       <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte (edições e estilos)')}>🎨</button>
+      {fmt.cmd && canBeCommander(c, fmt) && <span className="cmd-acts">  {/* numa linha própria e com nome: o ♛ sozinho passava despercebido no telemóvel */}
+        <button className={`act cmd ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)} title={fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</button>
+        {!deck.commanders.includes(c.n) && <button className={`act sub ${subsOf(deck).includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSub(c)} title={tx('Subcomandante: entra no deck como carta normal, marcada, para trocar depressa com o comandante')}>♕ {tx('Sub')}</button>}
+      </span>}
     </>
   )
 }
