@@ -10,7 +10,7 @@ import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList } from './data.js'
-import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat } from './formats.js'
+import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
 import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar } from './Views.jsx'
@@ -55,7 +55,7 @@ const SECTIONS = [['construir', tx('Construir')], ['biblioteca', tx('Biblioteca'
 const COL_MODES = [['bots', 'bots', tx('Bots a testar')], ['jogar', 'forge', tx('Jogar contra o Forge')], ['torneio', 'torneio', tx('Torneio')], ['draft', 'draft', tx('Draft')], ['taverna', 'taverna', tx('Taverna')], ['online', 'online', tx('Online')], ['ratings', 'ratings', tx('Ratings')]]
 const ZONE_L = { main: tx('deck'), side: tx('sideboard'), maybe: tx('maybeboard') }
 // Desfazer: só o conteúdo do deck (nome, notas, formato, preferências e sementes ficam de fora)
-const CONTENT = ['main', 'side', 'maybe', 'commanders', 'signature', 'prints', 'cover', 'coverImg']
+const CONTENT = ['main', 'side', 'maybe', 'commanders', 'subs', 'signature', 'prints', 'cover', 'coverImg']
 const snapOf = d => Object.fromEntries(CONTENT.map(k => [k, d[k]]))
 const norm = v => JSON.stringify(v && typeof v === 'object' && !Object.keys(v).length ? null : v ?? null)
 // o que mudou: as cartas com outra quantidade («main:Bolt») e os outros campos; '' = nada
@@ -280,7 +280,8 @@ export default function App() {
     }).catch(() => {})
   }, [profOk])
   const say = useCallback((msg, undo = false) => { setToast({ msg, undo }); clearTimeout(say.t); say.t = setTimeout(() => setToast(null), undo ? 4500 : 2600) }, [])
-  const setDeck = useCallback(fn => { dirty.current = true; setDeckRaw(fn) }, [])
+  // subcomandantes (deck.subs) só enquanto estão no deck: sair do deck por qualquer caminho tira a marca
+  const setDeck = useCallback(fn => { dirty.current = true; setDeckRaw(d0 => { const d = typeof fn === 'function' ? fn(d0) : fn; return d.subs?.some(n => !d.main?.[n]) ? { ...d, subs: subsOf(d) } : d }) }, [])
 
   // Histórico do deck: cada mudança de conteúdo guarda o estado anterior (até 50); cliques seguidos na mesma carta
   // (< 600 ms) contam como um passo; abrir outro deck limpa (um deck novo com cartas, do assistente, desfaz para vazio).
@@ -416,6 +417,31 @@ export default function App() {
     })
   }, [fmt, setDeck, say])
 
+  const now = useRef({}); now.current = { deck, fmt }
+  // ♛ subcomandante: no deck como carta normal (conta para as 99), marcada para trocar depressa; vem do maybeboard se lá estiver
+  const toggleSub = useCallback(c => {
+    const on = (now.current.deck.subs || []).includes(c.n)
+    setDeck(d => {
+      const subs = d.subs || []
+      if (subs.includes(c.n)) return { ...d, subs: subs.filter(n => n !== c.n) }
+      if (d.commanders.includes(c.n)) return d
+      const maybe = { ...(d.maybe || {}) }; delete maybe[c.n]
+      return { ...d, main: { ...d.main, [c.n]: d.main[c.n] || 1 }, maybe, subs: [...subs, c.n] }
+    })
+    say(on ? tx('{c} deixa de ser subcomandante (fica no deck).', { c: c.n }) : tx('{c} → deck, como subcomandante ♕', { c: c.n }), true)
+  }, [setDeck, say])
+  // ⇄ Trocar para comandante (formats.js swapCommander): o comandante que sai fica como subcomandante (ou no maybeboard)
+  const promote = useCallback((c, out) => {
+    const d0 = now.current.deck, r = swapCommander(d0, data, c.n, out)
+    if (r.deck === d0) return
+    if (!canBeCommander(c, now.current.fmt, r.deck.commanders.length > 1 ? data.byName.get(r.deck.commanders[0]) : null)) say(tx('Atenção: {card} não costuma poder ser comandante em {fmt}.', { card: c.n, fmt: now.current.fmt.name }))
+    setDeck(r.deck)
+    const gone = d0.commanders.filter(n => !r.deck.commanders.includes(n)), subs = gone.filter(n => !r.toMaybe.includes(n))
+    say([tx('♛ {c} é agora o comandante.', { c: c.n }),
+      subs.length ? tx('{c} fica no deck como subcomandante.', { c: subs.join(' + ') }) : '',
+      r.toMaybe.length ? tx('{c} não cabe na nova identidade de cor: foi para o maybeboard.', { c: r.toMaybe.join(' + ') }) : '',
+      r.off.length ? tx('{n} carta fica fora da nova identidade (ver os problemas). Desfazer com ↶.|{n} cartas ficam fora da nova identidade (ver os problemas). Desfazer com ↶.', { n: r.off.length }) : ''].filter(Boolean).join(' '))
+  }, [data, setDeck, say])
   const toggleSeed = useCallback(c => setDeck(d => ({ ...d, seeds: d.seeds.includes(c.n) ? d.seeds.filter(n => n !== c.n) : [...d.seeds, c.n] })), [setDeck])
   const toggleSeedTerm = useCallback(t => setDeck(d => { const l = d.seedTerms || [], has = l.some(x => x.k === t.k && x.v === t.v); return { ...d, seedTerms: has ? l.filter(x => !(x.k === t.k && x.v === t.v)) : [...l, { k: t.k, v: t.v }] } }), [setDeck])
   const setPrefs = useCallback(p => setDeck(d => ({ ...d, prefs: { ...(d.prefs || {}), ...p } })), [setDeck])
@@ -433,19 +459,18 @@ export default function App() {
   const setSplit = useCallback((n, list) => setDeck(d => { const split = { ...(d.split || {}) }; if (list?.length) split[n] = list; else delete split[n]; return { ...d, split } }), [setDeck])
   const setArt = useCallback((n, url) => setDeck(d => { const art = { ...(d.art || {}) }; if (url) art[n] = url; else delete art[n]; return { ...d, art } }), [setDeck])
   // tirar cópias à mão (− e ×): pergunta antes de tirar a última (em formatos de uma cópia só se assim estiver nas Definições)
-  const now = useRef({}); now.current = { deck, fmt }
   const remove = useCallback(async (c, zone, q) => {
     const { deck: d, fmt: f } = now.current, left = (d[zone]?.[c.n] || 0) - q
     if (zone !== 'maybe' && left <= 0 && (f.copies !== 1 || confirmOn('ultimaSingleton'))
       && !(await ask('ultima', { title: tx('Tirar «{c}» do deck?', { c: c.n }), body: tx('Era a última cópia. Podes desfazer com ↶.'), ok: tx('Tirar') }))) return
     add(c, zone, -q)
   }, [add])
-  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
+  const act = useMemo(() => ({ add, remove, move, setCommander, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     clearGroups: () => { setDeck(d => ({ ...d, groups: [] })); say(tx('Secções removidas: o deck volta a aparecer por tipo.')) },
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
-  [add, remove, move, setCommander, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
+  [add, remove, move, setCommander, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const openDeck = async id => {
@@ -630,8 +655,12 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
   const zones = ['main', ...(fmt.side ? ['side'] : []), 'maybe']
   // chamada como função e não como componente: um componente definido aqui dentro seria outro a cada render e o
   // React remontava todas as linhas (perdia-se o scroll da lista ao abrir uma carta)
+  const subs = subsOf(deck)
+  // ⇄ nos subcomandantes e nos comandantes possíveis do maybeboard: passa a comandante (o atual fica como subcomandante)
+  const swapBtn = (c, zone) => fmt.cmd && c && (zone === 'main' ? subs.includes(c.n) : zone === 'maybe' && canBeCommander(c, fmt)) &&
+    <button className="sub-swap" onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')} aria-label={tx('Trocar {c} para comandante', { c: c.n })}>⇄♛</button>
   const row = ({ n, q, c, zone }) => (
-    <li key={`${zone}:${n}`} className="row" data-card={n}>
+    <li key={`${zone}:${n}`} className={`row${zone === 'main' && subs.includes(n) ? ' is-sub' : ''}`} data-card={n}>
       <span className="qty">
         <button onClick={() => c && act.remove(c, zone, 1)} aria-label={tx('Menos')}>−</button>
         <b>{q}</b>
@@ -639,9 +668,11 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
       </span>
       {c && <img className="row-art" src={img(c, 'art_crop', false, pidOf(deck, n))} alt="" loading="lazy" onClick={() => act.open(c)} {...pressPeek(c, pidOf(deck, n))} />}
       <span className="row-main">
+      {zone === 'main' && subs.includes(n) && <span className="sub-badge" title={tx('Subcomandante: carta normal do deck que pode trocar com o comandante')}>♕</span>}
       <button className="row-name" onClick={() => c && act.open(c)} {...(c ? pressPeek(c, pidOf(deck, n)) : {})} onMouseEnter={e => c && showCardPeek(e, c, pidOf(deck, n))} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.peek-flip')) hideCardPeek() }}>{n}</button>
       {c?.df ? <button className="peek-flip" title={tx('Ver a outra face (ou tecla F com o rato na carta)')} aria-label={tx('Outra face de {c}', { c: n })} onMouseEnter={e => { if (!peekOpen()) showCardPeek(e, c, pidOf(deck, n)) }} onClick={e => { if (!peekOpen()) showCardPeek(e, c, pidOf(deck, n)); flipCardPeek() }} onMouseLeave={e => { if (!e.relatedTarget?.closest?.('.row-name')) hideCardPeek() }}>⟲</button> : null}
       {c && <Mana cost={c.mc} />}
+      {swapBtn(c, zone)}
       </span>
       {c && <MoveMenu label={tx('Mover {card}', { card: n })} to={zones.filter(z => z !== zone)} onMove={z => act.move(c, zone, z)} />}
     </li>
@@ -696,6 +727,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
               </div>
             )
           }) : <p className="muted small">{tx('Na pesquisa, usa ♛ numa carta lendária.')}</p>}
+          {subs.length > 0 && <p className="small subs-line"><span className="muted">{tx('Subcomandantes')}:</span> {subs.map(n => { const c = data.byName.get(n); return c && <button key={n} className="chip" onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')}>⇄ {n.split(',')[0]}</button> })}</p>}
           {fmt.cmd === 'oathbreaker' && (
             <p className="small">{tx('Assinatura:')} {deck.signature ? <button className="link" onClick={() => act.open(data.byName.get(deck.signature))}>{deck.signature}</button> : <span className="muted">{tx('usa ✦ num instantâneo ou feitiço')}</span>}</p>
           )}

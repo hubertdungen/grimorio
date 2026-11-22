@@ -568,6 +568,67 @@ console.log('selfcheck universo ok')
   const dh = deckCuts(sdata, kn, { ctx: { bit: -1, allowUn: true, identity: 'W' }, meta }).find(x => x.c.n === 'Dragon Hunter')
   assert.ok(dh && /Carta de sideboard/.test(dh.why[0]), JSON.stringify(dh?.why))
   console.log('selfcheck sugestões ok') }
+// Subcomandantes e comandantes «em ideia»: trocar de comandante (o que sai fica no deck marcado, ou no maybeboard se não
+// couber na nova identidade), trocar um de um par Partner/Background, e o peso leve nas sugestões sem mexer na legalidade.
+{ const { prepData, recommend, passes } = await import('./src/data.js')
+  const { swapCommander, ideaSeeds, subsOf, pairOk } = await import('./src/formats.js')
+  const all = (1 << F.length) - 1
+  const K = (n, t, o, ci, extra = {}) => ({ n, t, o, mc: `{${ci[0] || 1}}`, cmc: 1, ci, co: ci, lg: all, rs: 0, r: 'r', kw: [], pt: '', er: 5000, tg: [], ...extra })
+  const cards = [
+    K('Gold Lord', 'Legendary Creature — Human', '', 'WU'), K('Blue Lord', 'Legendary Creature — Merfolk', '', 'U'),
+    K('Red Lord', 'Legendary Creature — Goblin', '', 'R'), K('Pal A', 'Legendary Creature — Elf', 'Partner', 'G'),
+    K('Pal B', 'Legendary Creature — Elf', 'Partner', 'B'), K('Pal C', 'Legendary Creature — Elf', 'Partner', 'G'),
+    K('Bg Lover', 'Legendary Creature — Human', 'Choose a Background', 'W'), K('Bg One', 'Legendary Enchantment — Background', 'Commander creatures you own have flying.', 'W'),
+    K('Bg Two', 'Legendary Enchantment — Background', 'Commander creatures you own have vigilance.', 'B'),
+    K('White Spell', 'Instant', 'Draw a card.', 'W'), K('Blue Spell', 'Instant', 'Draw a card.', 'U'), K('Red Spell', 'Instant', 'Draw a card.', 'R'),
+    K('Plains', 'Basic Land — Plains', '', 'W', { tg: ['land'] }),
+  ]
+  const D = 8, emb = new Int8Array(cards.length * D)
+  for (let i = 0; i < cards.length; i++) for (let k = 0; k < D; k++) emb[i * D + k] = 20 + ((i * 7 + k * 13) % 40)
+  const RS = cards.findIndex(c => c.n === 'Red Spell'), RL = cards.findIndex(c => c.n === 'Red Lord')
+  for (let k = 0; k < D; k++) { emb[RS * D + k] = k % 2 ? 100 : -100; emb[RL * D + k] = k % 2 ? 100 : -100 }  // Red Spell só combina com Red Lord
+  const sd = prepData({ formats: F, dim: D }, cards, [], emb.buffer, new Float32Array(cards.length * 2).buffer)
+  const base = { ...emptyDeck('commander'), commanders: ['Gold Lord'], main: { 'Blue Lord': 1, 'White Spell': 1, 'Blue Spell': 1, Plains: 30 }, maybe: { 'Red Lord': 1 }, subs: ['Blue Lord'] }
+  // Blue Lord (U) passa a comandante; Gold Lord (WU) não cabe em U: vai para o maybeboard; White Spell fica fora da identidade
+  let r = swapCommander(base, sd, 'Blue Lord')
+  assert.deepEqual(r.deck.commanders, ['Blue Lord'])
+  assert.ok(!r.deck.main['Blue Lord'] && !r.deck.main['Gold Lord'] && r.deck.maybe['Gold Lord'] === 1 && r.deck.maybe['Red Lord'] === 1)
+  assert.deepEqual([r.toMaybe, r.off, r.deck.subs], [['Gold Lord'], ['White Spell', 'Plains'], []])
+  // e de volta: Gold Lord (do maybeboard) a comandante, Blue Lord cabe em WU e fica como subcomandante; o total do deck mantém-se
+  r = swapCommander(r.deck, sd, 'Gold Lord')
+  assert.deepEqual([r.deck.commanders, r.deck.subs, r.deck.main['Blue Lord'], r.deck.maybe['Gold Lord'], r.off], [['Gold Lord'], ['Blue Lord'], 1, undefined, []])
+  assert.equal(Object.values(r.deck.main).reduce((a, b) => a + b, 0) + r.deck.commanders.length, Object.values(base.main).reduce((a, b) => a + b, 0) + 1)
+  assert.ok(!validate(r.deck, FORMAT.commander, sd).some(i => /identidade|cópias/.test(i.msg)))
+  assert.deepEqual(swapCommander(r.deck, sd, 'Gold Lord').deck, r.deck)  // já é o comandante: nada muda
+  // par Partner: Pal C troca com um dos dois (o escolhido, ou sem escolha o segundo) e o outro fica
+  const pals = { ...emptyDeck('commander'), commanders: ['Pal A', 'Pal B'], main: { 'Pal C': 1 }, subs: ['Pal C'] }
+  assert.ok(pairOk(sd.byName.get('Pal A'), sd.byName.get('Pal C')))
+  r = swapCommander(pals, sd, 'Pal C', 'Pal A')
+  assert.deepEqual([r.deck.commanders, r.deck.subs, r.toMaybe], [['Pal B', 'Pal C'], ['Pal A'], []])
+  r = swapCommander(pals, sd, 'Pal C')
+  assert.deepEqual([r.deck.commanders, r.toMaybe], [['Pal A', 'Pal C'], ['Pal B']])  // Pal B (preto) não cabe em GG: maybeboard
+  // Background: troca-se o Background e o comandante que o escolhe fica
+  r = swapCommander({ ...emptyDeck('commander'), commanders: ['Bg Lover', 'Bg One'], main: { 'Bg Two': 1 } }, sd, 'Bg Two')
+  assert.deepEqual([r.deck.commanders, r.deck.maybe['Bg One'] ?? r.deck.main['Bg One']], [['Bg Lover', 'Bg Two'], 1])
+  // sem par possível com o que fica (Red Lord num par Partner): saem os dois
+  r = swapCommander(pals, sd, 'Red Lord')
+  assert.deepEqual([r.deck.commanders, r.toMaybe.sort()], [['Red Lord'], ['Pal A', 'Pal B']])
+  // a marca só vale enquanto a carta está no deck
+  assert.deepEqual(subsOf({ main: { X: 1 }, subs: ['X', 'Y'] }), ['X'])
+  // sugestões: o maybe-comandante vermelho (fora da identidade WU) não traz cartas vermelhas; dentro dela, empurra pouco
+  const deck = { ...base, subs: [] }, ctx = { bit: -1, allowUn: true, identity: 'WU' }
+  const ideas = ideaSeeds(deck, sd, FORMAT.commander)
+  assert.deepEqual(ideas.map(x => [sd.cards[x.i].n, x.w]), [['Red Lord', 0.15]])  // Blue Lord está no deck sem marca: não é ideia
+  assert.deepEqual(ideaSeeds(base, sd, FORMAT.commander).map(x => x.w), [0.25, 0.15])  // marcado: pesa mais do que o maybeboard
+  assert.deepEqual(ideaSeeds(base, sd, FORMAT.modern), [])
+  const have = [...base.commanders, ...Object.keys(base.main)].map(n => sd.byName.get(n).i)
+  const go = ideas => recommend(sd, { seeds: have.filter(i => sd.cards[i].mt !== 'Land'), have, ctx, filters: null, limit: 40, commanders: [sd.byName.get('Gold Lord').i], ideas })
+  const plain = go([]), withIdeas = go(ideaSeeds(base, sd, FORMAT.commander))
+  assert.ok(withIdeas.every(x => passes(x.c, null, ctx)) && !withIdeas.some(x => x.c.n === 'Red Spell'), withIdeas.map(x => x.c.n).join())
+  assert.deepEqual(withIdeas.map(x => x.c.n).sort(), plain.map(x => x.c.n).sort())  // as mesmas cartas legais: só a ordem/pontos mudam
+  assert.ok(withIdeas.some(x => x.parts.ideia > 0))
+  for (const x of withIdeas) assert.ok((x.parts.ideia || 0) <= 0.25 * 0.25 + 1e-9 && (x.parts.ideia || 0) <= (x.parts.comandante || 0) + 0.25 * 0.25)
+  console.log('selfcheck subcomandantes ok') }
 // Sugestões pelo plano do deck (synergy.js deckThemes): num deck de encantamentos (constelação/enchantress) um encantamento
 // sobe e um artefacto sem sinergia desce com «Fora do plano»; num deck de artefactos é ao contrário; uma lacuna de remoção e
 // a peça que fecha um combo passam mesmo fora do tipo do deck. Embeddings iguais: o texto parecido não decide nada.

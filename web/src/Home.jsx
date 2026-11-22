@@ -21,7 +21,6 @@ export default function Home({ deck, decks, onGo, onNew, onTool, onScan, friend 
   return (
     <div className="home">
       <div className="home-hero">
-        <ForgeBrand />
         <Logo size={96} />
         <h1>Grimório</h1>
         <p>{tx('Constrói, testa e põe à prova os teus decks de Magic.')}</p>
@@ -47,7 +46,7 @@ export default function Home({ deck, decks, onGo, onNew, onTool, onScan, friend 
         <button className="home-card home-tool tokens" onClick={() => onTool('fichas')}><i><Icon n="fichas" /></i><b>{tx('Tokens')}</b><span>{tx('As fichas do deck em cartas a sério no ecrã: quantas, viradas e marcadores.')}</span></button>
         <button className="home-card home-tool rules" onClick={() => onGo('regras')}><i><Icon n="regras" /></i><b>{tx('Regras')}</b><span>{tx('Dúvidas de regras e cartas em qualquer língua, com os rulings oficiais e a câmara.')}</span></button>
       </div>
-      <p className="home-foot muted small"><a href="#definicoes" className="home-set"><Icon n="gear" /> {tx('Definições')}</a> · {tx('Cartas e imagens: Scryfall · combos: Commander Spellbook · meta: EDHREC e MTGTop8 · jogos: Forge')}</p>
+      <p className="home-foot muted small"><a href="#definicoes" className="home-set"><Icon n="gear" /> {tx('Definições')}</a> · {tx('Cartas e imagens: Scryfall · combos: Commander Spellbook · meta: EDHREC e MTGTop8 · jogos: Forge')} <span className="home-brand"><ForgeBrand /></span></p>
     </div>
   )
 }

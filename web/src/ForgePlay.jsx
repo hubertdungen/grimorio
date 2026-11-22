@@ -312,8 +312,9 @@ function NameAsk({ a, data, answer, zoom, src }) {
 }
 
 // carta em grande para o toque (tocar e manter numa carta, Forge Play e mesa livre): ecrã escurecido com a carta ao centro;
-// dois dedos ampliam (até 3×), duplo toque amplia/volta, arrastar para baixo ou um toque fecha; Esc no teclado
-export function BigCard({ name, data, onClose }) {
+// dois dedos ampliam (até 3×), duplo toque amplia/volta, arrastar para baixo ou um toque fecha; Esc no teclado. O clique que
+// fecha não passa para quem está por baixo (o fundo do «criar novo deck» fechava o assistente)
+export function BigCard({ name, data, onClose, children }) {  // children: botões por baixo da carta (assistente: comandante, talvez…)
   const im = useImg()
   const card = name && (lookup(data, name))
   const ref = useRef(null), g = useRef({ pts: new Map(), s: 1, s0: 1, d0: 0, dy: 0, y0: 0, t0: 0, moved: 0, last: 0 })
@@ -341,8 +342,9 @@ export function BigCard({ name, data, onClose }) {
     x.dy = 0; draw()
   }
   return (
-    <div className="fp-big" role="dialog" aria-label={card.n} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
+    <div className="fp-big" role="dialog" aria-label={card.n} onClick={e => e.stopPropagation()} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
       <img ref={ref} src={im(card, 'large')} alt={card.n} draggable="false" />
+      {children && <div className="fp-big-acts" onPointerDown={e => e.stopPropagation()} onPointerUp={e => e.stopPropagation()}>{children}</div>}
       <small>{tx('Dois dedos ampliam · arrasta para baixo para fechar')}</small>
     </div>)
 }
