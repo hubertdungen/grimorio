@@ -197,7 +197,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     // também pelo tipo de criatura: «pirat», «pirata», «piratas», «vampires», «elfos» → os comandantes desse tipo
     const tys = cmdTypes(data, dcq), seen = new Set(byName.map(c => c.i))
     const byType = tys.size ? search(data, '', { sort: 'pop', inText: false }, { bit: ctx.bit, identity: null, allowUn: ctx.allowUn }, 40000).cards
-      .filter(c => !seen.has(c.i) && legal(c) && ok(c) && subsIn(c).some(t => tys.has(t))) : []
+      .filter(c => !seen.has(c.i) && legal(c) && ok(c) && subsIn(c).some(t => tys.has(t)))
+      .map((c, k) => [c, k, subsIn(c).filter(t => tys.has(t)).length]).sort((a, b) => b[2] - a[2] || a[1] - b[1]).map(x => x[0]) : []  // os que têm todos os tipos pedidos primeiro
     return [...byName, ...byType].slice(0, partnerOf ? 24 : 90)
   }, [data, dcq, fmt, cmds.length, partnerOf, ctx.bit, ctx.allowUn, need])
   const has = c => picks.some(p => p.i === c.i) || cmds.some(x => x.i === c.i)

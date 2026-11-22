@@ -236,7 +236,7 @@ export function parseQuery(q, opts = {}) {
     const base = [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/en$/, ''), w.replace(/n$/, '')].find(x => TYPES[x] || COLORS[x])
     if (LEGEND.has(w) || LEGEND.has(w.replace(/s$/, '')) || LEGEND.has(w.replace(/n$/, ''))) { f.legendary = true; s = s.replace(` ${w} `, ' ') }
     else if (base && TYPES[base]) { const t = TYPES[base]; if (!f.type) f.type = t; else if (f.type !== t && !(f.types2 ||= []).includes(t)) f.types2.push(t); s = s.replace(` ${w} `, ' ') }  // vários tipos: todos («criatura encantamento»)
-    else if (!f.sub && subOf(w, opts.types)) { f.sub = subOf(w, opts.types); s = s.replace(` ${w} `, ' ') }
+    else if (subOf(w, opts.types)) { const t = subOf(w, opts.types); if (!f.sub) f.sub = t; else if (f.sub !== t && !(f.subs2 ||= []).includes(t)) f.subs2.push(t); s = s.replace(` ${w} `, ' ') }  // vários subtipos: todos («assassin pirate» = Assassin e Pirate)
     else if (base && COLORS[base]) { add('colors', COLORS[base]); s = s.replace(` ${w} `, ' ') }
     else if (['incolor', 'incolores', 'colorless', 'farblos', 'farblose'].includes(w)) { f.colorless = true; s = s.replace(` ${w} `, ' ') }
   }
@@ -248,6 +248,7 @@ export function parseQuery(q, opts = {}) {
   for (const t of f.types2 || []) got.push({ k: 'type', v: t })
   if (f.legendary) got.push({ k: 'legendary', v: '' })
   if (f.sub) got.push({ k: 'sub', v: f.sub })
+  for (const t of f.subs2 || []) got.push({ k: 'sub', v: t })
   for (const c of f.cares || []) got.push({ k: 'cares', v: CARES[c].join(' / ') })
   for (const t of f.tags || []) got.push({ k: 'tag', v: t })
   for (const a of f.arch || []) got.push({ k: 'arch', v: a })

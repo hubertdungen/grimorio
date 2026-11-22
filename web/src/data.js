@@ -503,6 +503,7 @@ export function passes(c, f, ctx) {
   if (f.legendary && !c.t.includes('Legendary')) return false
   if (f.types2?.length && !c.t.split(' // ').some(fc => [f.type, ...f.types2, f.sub].every(t => !t || fc.toLowerCase().includes(t.toLowerCase())))) return false  // «criatura encantamento humano»: tipos e subtipo na mesma face
   if (f.sub && !c.t.toLowerCase().includes(f.sub.toLowerCase())) return false
+  if (f.subs2?.length && !f.subs2.every(t => c.t.toLowerCase().includes(t.toLowerCase()))) return false
   if (f.tag && !c.tg.includes(f.tag)) return false
   if (f.names && !f.names.has(c.n)) return false  // cartas de uma edição (fetchSetCards)
   if (f.rarity && c.r !== f.rarity) return false
