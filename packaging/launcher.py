@@ -383,6 +383,28 @@ class Bridge:
         return bool(r)
 
 
+def unblock_self():
+    """Windows: a .zip descarregado e extraído pelo Explorador deixa a «marca da Web» (fluxo NTFS Zone.Identifier) em
+    cada ficheiro, e o .NET recusa carregar o Python.Runtime.dll do pythonnet («Failed to resolve
+    Python.Runtime.Loader.Initialize»): a app abria sem janela. Tira-se a marca às bibliotecas da própria pasta (o mesmo
+    que «Desbloquear» nas propriedades), antes de carregar a janela."""
+    if os.name != "nt":
+        return 0
+    base = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, "frozen", False) else __file__))
+    n = 0
+    for root, _, files in os.walk(base):
+        for name in files:
+            if name.lower().endswith((".dll", ".pyd", ".exe")):
+                try:
+                    os.remove(os.path.join(root, name) + ":Zone.Identifier")
+                    n += 1
+                except OSError:
+                    pass  # sem marca (o normal) ou sem permissão
+    if n:
+        say(f"Unblocked {n} files downloaded from the internet (Windows «mark of the web»).")
+    return n
+
+
 def window(url, d, api=None):
     """Grimório in its own window (pywebview: Edge WebView2 on Windows). Blocks until the window is closed; False if
     there is no window toolkit here (then the caller opens the browser). api = Bridge (window.pywebview.api)."""
@@ -488,6 +510,7 @@ def main():
     args = ap.parse_args()
     utf8_files()
     ca_bundle()
+    unblock_self()  # antes da janela (pythonnet/.NET recusa DLLs com a marca da Web)
     d, ver = data_dir(), version()
     os.makedirs(d, exist_ok=True)
     state = os.path.join(d, "launcher.json")
