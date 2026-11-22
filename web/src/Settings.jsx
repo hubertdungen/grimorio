@@ -209,7 +209,7 @@ function TrashSettings() {
     await fetch(`/api/decks/${d.id}?forever=1`, { method: 'DELETE' }); load()
   }
   const left = d => Math.max(0, Math.ceil(((d.deleted < 1795389235 ? 30 : days) * 86400 - (Date.now() / 1000 - d.deleted)) / 86400))
-  return <>
+  return <div className="trash-set">
     <p className="muted small">{tx('Os decks apagados ficam no lixo durante uns dias e podes trazê-los de volta.')}</p>
     {days != null && <div className="seg trash-days">{[[7, tx('7 dias')], [30, tx('30 dias')], [0, tx('Desligado')]].map(([d, l]) => <button key={d} className={days === d ? 'on' : ''} onClick={() => put(d)}>{l}</button>)}</div>}
     {days === 0 && <p className="small bad-t">{tx('Lixo desligado: apagar um deck é de vez.')}</p>}
@@ -218,7 +218,7 @@ function TrashSettings() {
       <li key={d.id}><span className="tl-n">{d.name}</span><small className="muted">{tx('sai em {n} dias', { n: left(d) })}</small>
         <button onClick={() => restore(d)}>↶ {tx('Restaurar')}</button><button className="link small bad-t" onClick={() => forever(d)}>{tx('Apagar de vez')}</button></li>))}</ul>
       : <p className="muted small">{tx('O lixo está vazio.')}</p>)}
-  </>
+  </div>
 }
 
 function ScreenAwake() {

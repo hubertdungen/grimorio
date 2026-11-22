@@ -4640,3 +4640,7 @@ select.demote:hover { border-color: var(--gold); }
 .trash-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; max-height: 280px; overflow-y: auto; }
 .trash-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--line); }
 .tl-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.trash-set { display: grid; gap: 6px; width: 100%; min-width: 0; }
+.trash-set .trash-list { width: 100%; }
+.trash-list li > button { white-space: nowrap; }
