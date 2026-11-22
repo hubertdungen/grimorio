@@ -4491,3 +4491,9 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .cmd-acts { flex-basis: 100%; display: flex; gap: 4px; }
 .cmd-acts .act.cmd { flex: 1; font-size: 12.5px; }
 .cmd-acts .act.sub { font-size: 12.5px; }
+
+/* cartas de partida: «♛ Fazer comandante» é um botão (o selo «♛ comandante» é só do comandante) e o ⋯ muda o papel */
+.wz-pick .wz-mk { cursor: pointer; border-style: dashed; background: rgba(11, 10, 20, .92); font-weight: 600; }
+.wz-pick .wz-mk:hover { background: var(--gold); color: #1b1405; border-style: solid; }
+.wz-pick > .wz-more1 { position: absolute; top: 4px; left: 4px; min-width: 28px; min-height: 28px; padding: 0 6px; border-radius: 99px; border: 1px solid var(--line); background: rgba(11, 10, 20, .85); font-size: 15px; line-height: 1; }
+.wz-pick > .wz-more1.on { border-color: var(--gold); color: var(--gold2); }

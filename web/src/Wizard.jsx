@@ -59,7 +59,7 @@ const ROLE_L = { pick: tx('no deck'), sub: tx('subcomandante'), maybe: tx('talve
 function CmdActs({ c, role, onCmd, onRole, done }) {
   const go = f => e => { e.stopPropagation(); f(); done?.() }
   return <>
-    <button className="wz-ca cmd" onClick={go(onCmd)}>♛ {tx('Comandante')}</button>
+    <button className={`wz-ca cmd${role === 'cmd' ? ' on' : ''}`} onClick={go(onCmd)}>{role === 'cmd' ? '✓' : '♛'} {tx('Comandante')}</button>
     <button className={`wz-ca${role === 'pick' ? ' on' : ''}`} onClick={go(() => onRole(c, 'pick'))}>{role === 'pick' ? '✓' : '＋'} {tx('Juntar ao deck')}</button>
     <button className={`wz-ca${role === 'sub' ? ' on' : ''}`} onClick={go(() => onRole(c, 'sub'))}>♕ {tx('Subcomandante')}</button>
     <button className={`wz-ca${role === 'maybe' ? ' on' : ''}`} onClick={go(() => onRole(c, 'maybe'))}>{role === 'maybe' ? '✓' : '＋'} {tx('Talvez')}</button>
@@ -83,6 +83,15 @@ function ActMenu({ at, c, onClose, children }) {
       <div className="wz-actm-h"><b>{c.n.split(',')[0]}</b><button onClick={onClose} aria-label={tx('Fechar')}>✕</button></div>
       {children}
     </div>, document.body)
+}
+
+// ⋯ numa carta já escolhida (comandante ou carta de partida): mudar o papel — comandante, só no deck, subcomandante, talvez
+function RoleMenu({ c, role, onCmd, onRole }) {
+  const [at, setAt] = useState(null)
+  return <>
+    <button className={`wz-more1${at ? ' on' : ''}`} onClick={e => { e.stopPropagation(); const b = e.currentTarget; setAt(m => (m ? null : b)) }} aria-expanded={!!at} aria-label={`${tx('Mais ações')}: ${c.n}`} title={tx('Comandante, juntar ao deck, subcomandante ou talvez')}>⋯</button>
+    {at && <ActMenu at={at} c={c} onClose={() => setAt(null)}><CmdActs c={c} role={role} onCmd={onCmd} onRole={onRole} done={() => setAt(null)} /></ActMenu>}
+  </>
 }
 
 // carta de comandante: tocar escolhe; tocar e manter (ou botão direito, ou 🔍) mostra-a em grande; ⋯ abre as outras ações
@@ -195,7 +204,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   const maxPicks = start === 'ia' ? 30 : 10
   const toggle = c => setPicks(p => (p.some(x => x.i === c.i) ? p.filter(x => x.i !== c.i) : p.length >= maxPicks ? p : [...p, c]))
   // um comandante possível tem um papel de cada vez: carta de partida, subcomandante ou talvez (tocar no mesmo tira-o)
-  const roleOf = c => (picks.some(x => x.i === c.i) ? 'pick' : subsW.some(x => x.i === c.i) ? 'sub' : maybes.some(x => x.i === c.i) ? 'maybe' : null)
+  const roleOf = c => (cmds.some(x => x.i === c.i) ? 'cmd' : picks.some(x => x.i === c.i) ? 'pick' : subsW.some(x => x.i === c.i) ? 'sub' : maybes.some(x => x.i === c.i) ? 'maybe' : null)
   const setRole = (c, r) => {
     const cur = roleOf(c), off = l => l.filter(x => x.i !== c.i)
     setSubsW(off); setMaybes(off)
@@ -488,7 +497,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         {fmt.cmd && <>
           <h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')} <span className="muted">{cmds.length ? (partnerOf ? tx('aceita um par: escolhe o segundo se quiseres') : '') : tx('escolhe-o aqui, ou ♛ numa das cartas de partida')}</span></h4>
           <div className="wz-cmd">
-            {cmds.map(c => <div key={c.i} className="wz-pick cmd" onContextMenu={e => { e.preventDefault(); held(); setBig(c) }} {...delayedPeek(c)}><img src={img(c, 'normal')} alt={c.n} /><span className="wz-badge">♛ {cmds.length > 1 ? tx('par') : tx('comandante')}</span><button onClick={() => setCmds(x => x.filter(y => y.i !== c.i))} aria-label={tx('Retirar')}>×</button></div>)}
+            {cmds.map(c => <div key={c.i} className="wz-pick cmd" onContextMenu={e => { e.preventDefault(); held(); setBig(c) }} {...delayedPeek(c)}><img src={img(c, 'normal')} alt={c.n} /><span className="wz-badge">♛ {cmds.length > 1 ? tx('par') : tx('comandante')}</span><RoleMenu c={c} role="cmd" onCmd={() => pickCmd(c)} onRole={setRole} /><button onClick={() => setCmds(x => x.filter(y => y.i !== c.i))} aria-label={tx('Retirar')}>×</button></div>)}
             {cmds.length < (partnerOf ? 2 : 1) && <div className="wz-cmdq">
               <input className="big" value={cq} onChange={e => setCq(e.target.value)} placeholder={partnerOf ? tx('Procurar o par de {name}…', { name: partnerOf.n.split(',')[0] }) : tx(fmt.cmd === 'oathbreaker' ? 'Procurar planeswalker legal em {fmt}…' : 'Procurar comandante legal em {fmt}…', { fmt: fmt.name })} />
               <CmdFilters cf={cf} setCf={setCf} total={cmdPool.length} shown={cmdShown.length} on={cfOn} />
@@ -503,7 +512,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
           {picks.map(c => (
             <div key={c.i} className="wz-pick" onContextMenu={e => { e.preventDefault(); held(); setBig(c) }} {...delayedPeek(c)}>
               <img src={img(c, 'normal')} alt={c.n} />
-              {fmt.cmd && (!cmds.length || (partnerOf && pairOk(partnerOf, c))) && canBeCommander(c, fmt) && <button className="wz-mk" onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(x => x.i !== c.i)) }}>♛ {tx('comandante')}</button>}
+              {fmt.cmd && (!cmds.length || (partnerOf && pairOk(partnerOf, c))) && canBeCommander(c, fmt) && <button className="wz-mk" onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(x => x.i !== c.i)) }}>♛ {tx('Fazer comandante')}</button>}
+              {fmt.cmd && canBeCommander(c, fmt) && <RoleMenu c={c} role="pick" onCmd={() => pickCmd(c)} onRole={setRole} />}
               <button onClick={() => toggle(c)} aria-label={tx('Retirar')}>×</button>
             </div>
           ))}

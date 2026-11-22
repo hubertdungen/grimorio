@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Fazer comandante": "Zum Kommandeur machen",
   "Sub": "Neben",
   "Alter arts para o deck todo, com filtros (só criaturas, sem terrenos…)": "Alter Arts für das ganze Deck, mit Filtern (nur Kreaturen, ohne Länder…)",
   "Alter arts do deck": "Alter Arts fürs Deck",
