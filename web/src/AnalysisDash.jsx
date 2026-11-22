@@ -135,11 +135,14 @@ export function landProd(data, deck) {
 const CNAME = { W: 'Mono-branco', U: 'Mono-azul', B: 'Mono-preto', R: 'Mono-vermelho', G: 'Mono-verde', WU: 'Azorius', UB: 'Dimir', BR: 'Rakdos', RG: 'Gruul', WG: 'Selesnya',
   WB: 'Orzhov', UR: 'Izzet', BG: 'Golgari', WR: 'Boros', UG: 'Simic', WUB: 'Esper', UBR: 'Grixis', BRG: 'Jund', WRG: 'Naya', WUG: 'Bant', WBG: 'Abzan', WUR: 'Jeskai',
   UBG: 'Sultai', WBR: 'Mardu', URG: 'Temur' }
+// quatro cores: os nomes dos Nephilim (Guildpact), os que se usam na comunidade
+const NEPH = { UBRG: 'Glint-Eye', WBRG: 'Dune-Brood', WURG: 'Ink-Treader', WUBG: 'Witch-Maw', WUBR: 'Yore-Tiller' }
 export function deckIdentity(data, deck) {
   const cmd = deck.commanders.map(n => data.byName.get(n)?.ci || '').join(''), all = new Set()
   for (const n of [...deck.commanders, ...Object.keys(deck.main || {})]) for (const k of data.byName.get(n)?.ci || '') all.add(k)
   const ci = [...'WUBRG'].filter(k => (cmd ? cmd.includes(k) : all.has(k))).join('')
-  const name = !ci ? tx('Incolor') : ci.length === 5 ? tx('5 cores') : ci.length === 4 ? tx('4 cores (sem {c})', { c: [...'WUBRG'].find(k => !ci.includes(k)) }) : tx(CNAME[ci] || ci)
+  const miss = [...'WUBRG'].find(k => !ci.includes(k))
+  const name = !ci ? tx('Incolor') : ci.length === 5 ? tx('5 cores') : ci.length === 4 ? `${NEPH[ci]} · ${tx('4 cores (sem {c})', { c: (COLORS[miss] || miss).toLowerCase() })}` : tx(CNAME[ci] || ci)
   return { ci, name }
 }
 
