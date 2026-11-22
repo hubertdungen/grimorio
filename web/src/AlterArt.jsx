@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom'
 import { tx, num } from './i18n.js'
 import { img } from './data.js'
 import { useBackClose } from './backnav.js'
-import { artBox, basePrompt, finalPrompt, costOf, dpiOf, prepareEdit, composite, bitmap, refURL, toBlob, alterHistory, rememberAlter } from './alterart.js'
+import { artBox, basePrompt, finalPrompt, costOf, dpiOf, prepareEdit, composite, bitmap, refURL, toBlob, alterHistory, rememberAlter, pickRecipe, recipeOf } from './alterart.js'
 import { upscale } from './upscale.js'
 
 const lsGet = k => { try { return localStorage.getItem(k) || '' } catch { return '' } }
@@ -142,7 +142,10 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   const filt = l => { const s = q.trim().toLowerCase(); return s ? l.filter(n => n.toLowerCase().includes(s)) : l }
   const alterAll = useMemo(() => [...new Set([...mine, ...(others || []).flatMap(d => Object.values(d.art || {}).filter(u => u.startsWith('arts/')))])], [mine, others])
   const odDeck = (others || []).find(x => x.id === od)
-  const addRef = r => { if (refs.length < 3 && !refs.some(x => x.src === r.src)) setRefs([...refs, r]); setQ('') }
+  // ao escolher como referência uma alter art feita aqui, oferece colar o estilo com que foi feita
+  const [rec, setRec] = useState(null)
+  const pasteRec = () => { if (rec.custom != null) setCustom(rec.custom); if (rec.frame != null) setFrame(rec.frame); if (rec.font != null) setFont(rec.font); if (rec.mode) setMode(rec.mode); setRec(null) }
+  const addRef = r => { if (refs.length < 3 && !refs.some(x => x.src === r.src)) setRefs([...refs, r]); setQ(''); const rc = recipeOf(r.src, [deck, ...(others || [])]); setRec(rc && Object.keys(rc).length ? rc : null) }
 
   // resultado (do servidor ou trazido do ChatGPT) → a imagem final, já na moldura
   const withUrl = r => ({ ...r, url: URL.createObjectURL(r.blob), k: Math.random() })
@@ -184,7 +187,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   }
   const use = async r => {
     setBusy(tx('A guardar…'))
-    try { const url = await post(r.blob); act.setArt(c.n, url); rememberAlter(c.n, url); act.say(tx('Alter art guardada como imagem própria de {c}.', { c: c.n })); onClose() } catch (e) { setErr(e.message); setBusy('') }
+    try { const url = await post(r.blob), rec = pickRecipe({ custom, frame, font, mode }); act.setArt(c.n, url, rec); rememberAlter(c.n, url, rec); act.say(tx('Alter art guardada como imagem própria de {c}.', { c: c.n })); onClose() } catch (e) { setErr(e.message); setBusy('') }
   }
 
   return createPortal(
@@ -219,6 +222,8 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
             <input value={custom} onChange={e => setCustom(e.target.value)} placeholder={tx('ex.: ao pôr do sol, aguarela, o elfo é uma criança…')} /></label>
           <div className="alter-refs">
             <span className="small">{tx('Referências de estilo (até 3)')}</span>
+            {rec && <div className="alter-rec small"><span>{tx('Esta alter art foi feita com:')} {[rec.custom && `«${rec.custom}»`, rec.frame && `${tx('moldura')}: ${rec.frame}`, rec.font && `${tx('letra')}: ${rec.font}`].filter(Boolean).join(' · ')}</span>
+              <span className="row-btns"><button className="primary" onClick={pasteRec}>⧉ {tx('Usar o mesmo estilo')}</button><button className="link small" onClick={() => setRec(null)}>{tx('Não')}</button></span></div>}
             <div className="alter-thumbs">{refs.map(r => <button key={r.src} className="alter-thumb on" onClick={() => setRefs(refs.filter(x => x !== r))} title={tx('Tirar')}><img src={fetchable(r.src)} alt="" /><small>{r.label} ×</small></button>)}</div>
             {refs.length < 3 && <>
               <div className="seg alter-src">{[['pesquisa', tx('Pesquisar')], ['deck', tx('Deste deck')], ['alters', tx('Alter arts')], ['outros', tx('Outros decks')]].map(([k, l]) => <button key={k} className={src === k ? 'on' : ''} onClick={() => setSrc(k)}>{l}</button>)}</div>

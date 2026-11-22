@@ -708,7 +708,7 @@ class H(BaseHTTPRequestHandler):
                     continue  # convidado: só os decks dele
                 out.append({"id": r[0], "name": r[1], "format": r[2], "updated": r[3], "deleted": r[5], "count": d.get("count", 0), "created": d.get("created") or r[3], "community": bool(d.get("community")), **({"friend": d["friend"], "friendName": d.get("friendName")} if d.get("friend") else {}),
                             "cover": d.get("cover"), "coverImg": d.get("coverImg"), "fav": bool(d.get("fav")), "casual": bool(d.get("casual")), "commanders": d.get("commanders") or [], "seeds": (d.get("seeds") or [])[:3],
-                            "main": d.get("main") or {}, **({"art": d["art"]} if d.get("art") else {})})  # artes próprias (capa)
+                            "main": d.get("main") or {}, **({"art": d["art"]} if d.get("art") else {}), **({"artRecipe": d["artRecipe"]} if d.get("artRecipe") else {})})  # artes próprias (capa) e como foram feitas
             return self.json(out)
         if p == "/api/decks/export":  # «Exportar decks»: os meus decks inteiros num ficheiro, para levar ao Grimório de um amigo
             with db() as con:

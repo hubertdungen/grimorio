@@ -145,12 +145,21 @@ const HK = 'grimorio.alters'
 export function alterHistory(name) {
   try { const h = JSON.parse(localStorage.getItem(HK) || '{}'); return name ? h[name] || [] : Object.values(h).flat() } catch { return [] }
 }
-export function rememberAlter(name, url) {
+export function rememberAlter(name, url, recipe) {
   try {
     const h = JSON.parse(localStorage.getItem(HK) || '{}')
     h[name] = [url, ...(h[name] || []).filter(u => u !== url)].slice(0, 12)
     localStorage.setItem(HK, JSON.stringify(h))
+    if (recipe) { const r = JSON.parse(localStorage.getItem(RK) || '{}'); r[url] = recipe; localStorage.setItem(RK, JSON.stringify(r)) }
   } catch { /* sem armazenamento */ }
+}
+// a «receita» de uma alter art (o texto de personalizar, a moldura, a letra e o modo com que foi feita), para colar o
+// mesmo estilo noutra carta: deste aparelho ou guardada no deck (deck.artRecipe, viaja com o deck)
+const RK = 'grimorio.alter.recipes'
+export const pickRecipe = ({ custom, frame, font, mode }) => ({ ...(custom?.trim() ? { custom: custom.trim() } : {}), ...(frame?.trim() ? { frame: frame.trim() } : {}), ...(font?.trim() ? { font: font.trim() } : {}), ...(mode ? { mode } : {}) })
+export function recipeOf(url, decks = []) {
+  for (const d of decks) if (d?.artRecipe?.[url]) return d.artRecipe[url]
+  try { return JSON.parse(localStorage.getItem(RK) || '{}')[url] || null } catch { return null }
 }
 
 export function selfcheck(assert) {

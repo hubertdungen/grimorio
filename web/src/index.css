@@ -4644,3 +4644,6 @@ select.demote:hover { border-color: var(--gold); }
 .trash-set { display: grid; gap: 6px; width: 100%; min-width: 0; }
 .trash-set .trash-list { width: 100%; }
 .trash-list li > button { white-space: nowrap; }
+
+/* alter art: colar o estilo de uma alter art usada como referência */
+.alter-rec { display: grid; gap: 6px; padding: 8px 10px; margin: 4px 0; border-radius: 10px; border: 1px solid var(--gold); background: color-mix(in srgb, var(--gold) 8%, transparent); }
