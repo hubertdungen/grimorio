@@ -1359,3 +1359,5 @@ import { ptExplain } from './src/game.js'
   assert.ok(chipUniverse(data).archs.some(x => x.v === 'control'), 'a paleta tem as estratégias')
   console.log('selfcheck estratégias ok')
 }
+{ const { selfcheck } = await import('./src/alterart.js'); selfcheck(assert); console.log('selfcheck alter art (pedido e caixas da arte) ok') }
+{ const { selfcheck } = await import('./src/upscale.js'); selfcheck(assert); console.log('selfcheck ampliar (ladrilhos) ok') }

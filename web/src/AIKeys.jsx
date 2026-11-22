@@ -47,6 +47,28 @@ export default function AIKeys() {
           </div>}
           {err[p.id] && <p className="small bad-t">{err[p.id]}</p>}
         </li>) })}</ul>
+      <LocalGen cfg={cfg} setCfg={setCfg} />
     </div>
+  )
+}
+
+// ✨ Alter arts (🎨 Arte da carta): as chaves da OpenAI e do Gemini acima também servem para gerar imagens; aqui, um gerador
+// no teu PC (Automatic1111/Forge WebUI ou ComfyUI). O servidor do Grimório é que lhe liga (imagegen.py).
+function LocalGen({ cfg, setCfg }) {
+  const cur = cfg.imgLocal || { url: '', kind: 'a1111' }
+  const [url, setUrl] = useState(cur.url), [kind, setKind] = useState(cur.kind), [msg, setMsg] = useState('')
+  const put = async u => { setMsg(''); try { const c = await save({ imgLocal: { url: u, kind } }); setCfg(c); setUrl(c.imgLocal.url); setMsg(u ? tx('Guardado ✓') : '') } catch (e) { setMsg(e.message) } }
+  return (
+    <details className="aik-local" open={!!cur.url}>
+      <summary className="small"><b>{tx('Gerador de imagens local (para as alter arts)')}</b>{cur.url && <span className="ok-t"> ✓</span>}</summary>
+      <p className="small muted">{tx('As chaves da OpenAI e do Gemini também servem para as alter arts. Para gerar no teu PC: Automatic1111/Forge WebUI (arranca com --api --listen, porta 7860) ou ComfyUI (--listen, porta 8188).')}</p>
+      <div className="row-btns">
+        <select value={kind} onChange={e => setKind(e.target.value)}><option value="a1111">Automatic1111 / Forge WebUI</option><option value="comfy">ComfyUI</option></select>
+        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="http://192.168.1.50:7860" />
+        <button onClick={() => put(url.trim())} disabled={!url.trim()}>{tx('Guardar')}</button>
+        {cur.url && <button className="link small" onClick={() => put('')}>{tx('apagar')}</button>}
+      </div>
+      {msg && <p className="small muted">{msg}</p>}
+    </details>
   )
 }

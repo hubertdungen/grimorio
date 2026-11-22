@@ -1491,6 +1491,30 @@ img.card-full { transform: scale(1.4); }  /* capa com a carta inteira: só a ilu
 .ownart { margin-top: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); display: grid; gap: 6px; }
 .ownart summary { cursor: pointer; } .ownart input:not([type=file]) { flex: 1 1 200px; min-width: 0; }
 .ownart textarea { width: 100%; font: 12px/1.4 monospace; }
+.alter { width: min(1100px, 100%); display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; padding: 20px; }
+.alter-card img { width: 100%; border-radius: 14px; display: block; }
+.alter-card { display: grid; gap: 6px; align-content: start; }
+.alter-form { display: grid; gap: 10px; min-width: 0; }
+.alter-form h3 { margin: 0; padding-right: 30px; }
+.alter-form textarea, .alter-form label > input:not([type=radio], [type=checkbox], [type=file], .alter-model) { width: 100%; display: block; margin-top: 4px; }
+.alter-form textarea { font: 12px/1.45 ui-monospace, monospace; }
+.alter-opts { border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px 8px; display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; }
+.alter-opts legend { padding: 0 4px; }
+.alter-refs { display: grid; gap: 6px; }
+.alter-thumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.alter-thumb { display: grid; gap: 2px; padding: 3px; width: 92px; border-radius: 8px; font-size: 11px; text-align: left; }
+.alter-thumb img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 5px; }
+.alter-thumb small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alter-thumb.on { border-color: var(--gold); }
+.alter-form .alter-model { display: inline-block; width: 14em; margin: 0; }
+.alter-gpt ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.alter-gpt a.btn { display: inline-block; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+.alter-res { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.alter-res figure { margin: 0; display: grid; gap: 4px; }
+.alter-res img { width: 100%; border-radius: 10px; }
+.alter-up { align-items: center; }
+.aik-local { margin-top: 12px; } .aik-local select { flex: 0 0 auto; width: auto; }
+@media (max-width: 760px) { .alter { grid-template-columns: minmax(0, 1fr); padding: 14px; } .alter-card img { max-width: 200px; margin: 0 auto; } .alter-res { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* torneio a ver um jogo: «← Voltar» fica ao lado das abas Criar/Ao vivo/Registo (poupa uma linha) */
 .tour-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; } .tour-slot:empty { display: none; }
 @media (min-width: 600px) {

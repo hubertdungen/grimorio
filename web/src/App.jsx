@@ -602,7 +602,7 @@ export default function App() {
         setDeckView('grelha'); setTab(goTab)
         if (auto) setTimeout(() => setShowAuto(true), 50)
       }} />}
-      {artCard && <ArtPicker c={artCard} deck={deck} act={act} onClose={() => setArtCard(null)} />}
+      {artCard && <ArtPicker c={artCard} deck={deck} data={data} act={act} onClose={() => setArtCard(null)} />}
       {scan && data && <CardScan data={data} onPick={c => act.add(c)} onClose={() => setScan(false)} />}
       {showAI && <AIDialog {...{ data, deck, fmt, ctx, act, setDeck, issues, onClose: () => setShowAI(false) }} />}
       {showAuto && <AutoBuildDialog {...{ data, deck, fmt, ctx, setDeck, say, act, onClose: () => setShowAuto(false) }} />}
