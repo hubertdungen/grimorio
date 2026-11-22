@@ -161,6 +161,35 @@ function LiveBar({ guest, go, data }) {
   </>)
 }
 
+// deck de Commander sem comandante: os que cobrem as cores das cartas e mais se parecem com elas (embeddings, como no
+// assistente), os populares um pouco à frente; as lendárias que já estão no deck primeiro (♛ tira-as das 99)
+function CmdSuggest({ data, deck, fmt, ctx, act }) {
+  const [n, setN] = useState(6)
+  const list = useMemo(() => {
+    const eff = Object.keys(deck.main || {}).map(k => data.byName.get(k)).filter(c => c && !/\bBasic\b/.test(c.t))
+    if (!eff.length || !data.emb) return []
+    const ci = new Set(eff.flatMap(c => [...(c.ci || '')])), D = data.D, E = data.emb, cen = new Float32Array(D)
+    for (const c of eff) for (let k = 0; k < D; k++) cen[k] += E[c.i * D + k]
+    const out = []
+    for (const c of data.cards) {
+      if (!canBeCommander(c, fmt) || (ctx.bit >= 0 && !(c.lg & (1 << ctx.bit))) || ![...ci].every(k => (c.ci || '').includes(k))) continue
+      let d = 0
+      for (let k = 0; k < D; k++) d += cen[k] * E[c.i * D + k]
+      out.push({ c, s: d / 127 / eff.length + (c.er ? 0.15 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000)) : 0) - 0.03 * ((c.ci || '').length - ci.size) + (deck.main[c.n] ? 0.25 : 0) })
+    }
+    return out.sort((a, b) => b.s - a.s).slice(0, 30).map(x => x.c)
+  }, [data, deck.main, fmt, ctx.bit])
+  if (!list.length) return null
+  return <div className="cmd-sug">
+    {list.slice(0, n).map(c => (
+      <div key={c.i} className="cmd-sug-r" onClick={() => act.open(c)}>
+        <img src={img(c, 'art_crop')} alt="" loading="lazy" /><div><b>{c.n}</b><Mana cost={c.mc} />{deck.main[c.n] ? <small className="muted"> · {tx('já no deck')}</small> : null}</div>
+        <button className="act" onClick={e => { e.stopPropagation(); act.setCommander(c) }} title={tx('Comandante')}>♛</button>
+      </div>))}
+    {list.length > n && <button className="link small" onClick={() => setN(k => k + 6)}>{tx('Mostrar mais')}</button>}
+  </div>
+}
+
 export default function App() {
   const [data, setData] = useState(null)
   const [err, setErr] = useState(null)
@@ -743,7 +772,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
                 <button onClick={e => { e.stopPropagation(); act.setCommander(c) }} aria-label={tx('Retirar')}>×</button>
               </div>
             )
-          }) : <p className="muted small">{tx('Na pesquisa, usa ♛ numa carta lendária.')}</p>}
+          }) : <><p className="muted small">{tx('Na pesquisa, usa ♛ numa carta lendária, ou escolhe uma sugestão:')}</p><CmdSuggest data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} /></>}
           {subs.length > 0 && <p className="small subs-line"><span className="muted">{tx('Subcomandantes')}:</span> {subs.map(n => { const c = data.byName.get(n); return c && <button key={n} className="chip" onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')}>⇄ {n.split(',')[0]}</button> })}</p>}
           {fmt.cmd === 'oathbreaker' && (
             <p className="small">{tx('Assinatura:')} {deck.signature ? <button className="link" onClick={() => act.open(data.byName.get(deck.signature))}>{deck.signature}</button> : <span className="muted">{tx('usa ✦ num instantâneo ou feitiço')}</span>}</p>

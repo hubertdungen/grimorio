@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Na pesquisa, usa ♛ numa carta lendária, ou escolhe uma sugestão:": "Nutze in der Suche ♛ auf einer legendären Karte oder wähle einen Vorschlag:",
+  "já no deck": "schon im Deck",
   "Ilegal em {f}": "Illegal in {f}",
   "o deck já tem {n} de {m} cartas": "das Deck hat schon {n} von {m} Karten",
   "já tem {n} cópia(s), o máximo neste formato": "es hat schon {n} Kopie(n), das Maximum in diesem Format",
