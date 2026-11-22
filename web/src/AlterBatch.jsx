@@ -218,7 +218,7 @@ export default function AlterBatch({ names: picked, deck, data, act, onClose }) 
             {S.prov === 'openai' && <label className="small">{tx('Qualidade')} <select value={S.quality} onChange={e => setS({ quality: e.target.value })}>
               <option value="low">{tx('rascunho')}</option><option value="medium">{tx('normal')}</option><option value="high">{tx('alta')}</option></select></label>}
             <label className="small">{tx('Ao mesmo tempo')} <select value={S.conc} onChange={e => setS({ conc: +e.target.value })}>{[1, 2].map(k => <option key={k}>{k}</option>)}</select></label>
-            <label className="small">{tx('Modelo')} <input key={S.prov} className="alter-model" defaultValue={model} placeholder={P?.model || tx('o primeiro que houver')} onChange={e => lsSet(`grimorio.alter.model.${S.prov}`, e.target.value)} /></label>
+            <label className="small">{tx('Modelo')} <input key={S.prov} className="alter-model" list="alter-models" defaultValue={model} placeholder={P?.model || tx('o primeiro que houver')} onChange={e => lsSet(`grimorio.alter.model.${S.prov}`, e.target.value)} />{P?.models?.length > 0 && <datalist id="alter-models">{P.models.map(m => <option key={m} value={m} />)}</datalist>}</label>
           </div>}
           <label className="chk small"><input type="checkbox" checked={!!S.up2} onChange={e => setS({ up2: e.target.checked })} /> {tx('Ampliar ×2 ao aceitar (Real-ESRGAN no teu browser, uma de cada vez)')}</label>
         </details>

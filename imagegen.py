@@ -29,11 +29,43 @@ def mock_on():
     return os.environ.get("GRIMORIO_IMG_MOCK") == "1"
 
 
+# Os modelos de imagem mudam de nome (o gpt-image-1 deixou de existir): pergunta-se ao fornecedor quais há para a chave
+# guardada (grátis) e usa-se o mais recente; fica 1 h em memória. Sem rede, fica o predefinido.
+_MODELS = {}
+
+
+def _ver(m):
+    v = re.search(r"(\d+(?:\.\d+)?)", m)
+    return float(v.group(1)) if v else 0.0
+
+
+def models(prov, key):
+    hit = _MODELS.get(prov)
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    out = []
+    try:
+        if prov == "openai":
+            ids = [m["id"] for m in _req(f"{OPENAI}/models", headers={"Authorization": f"Bearer {key}"}, timeout=20).get("data", [])]
+            out = [m for m in ids if re.fullmatch(r"gpt-image-[\d.]+(-[a-z]+)?|chatgpt-image-latest", m)]
+            # o mais recente primeiro; na mesma versão o nome simples antes das variantes
+            out.sort(key=lambda m: (m.startswith("gpt-image"), _ver(m), "-" not in m.replace("gpt-image-", "", 1)), reverse=True)
+        elif prov == "gemini":
+            ids = [m["name"].split("/")[-1] for m in _req(f"{GEMINI}/models?pageSize=200", headers={"x-goog-api-key": key}, timeout=20).get("models", [])]
+            out = sorted([m for m in ids if "image" in m and "preview" not in m and "lite" not in m], key=lambda m: (_ver(m), "pro" in m), reverse=True)
+    except Exception:  # sem rede ou chave má: fica o predefinido (o erro aparece ao gerar)
+        out = []
+    _MODELS[prov] = (time.time(), out)
+    return out
+
+
 def config(data_dir):
     c = ia.load(data_dir)
     loc = c.get("imgLocal") or {}
     ids = [k for k in PROVIDERS if k != "mock" or mock_on()]
-    return {"providers": [{"id": k, "model": PROVIDERS[k]["model"], "cost": PROVIDERS[k]["cost"],
+    keys = c["keys"]
+    ms = {k: models(k, keys[k]) for k in ("openai", "gemini") if keys.get(k)}
+    return {"providers": [{"id": k, "model": (ms.get(k) or [PROVIDERS[k]["model"]])[0], "models": ms.get(k, []), "cost": PROVIDERS[k]["cost"],
                            "hasKey": bool(loc.get("url")) if k == "local" else k == "mock" or bool(c["keys"].get(k))} for k in ids],
             "local": {"url": loc.get("url", ""), "kind": loc.get("kind", "a1111")}}
 
@@ -215,7 +247,11 @@ def generate(data_dir, payload):
     if not prompt:
         raise ValueError("O pedido (prompt) está vazio.")
     size = payload.get("size") if payload.get("size") in SIZES else "1024x1536"
-    model = str(payload.get("model") or PROVIDERS[prov]["model"]).strip()
+    model = str(payload.get("model") or "").strip()
+    if not model and prov in ("openai", "gemini"):
+        key0 = ia.load(data_dir)["keys"].get(prov)
+        model = ((models(prov, key0) if key0 else []) or [PROVIDERS[prov]["model"]])[0]  # o mais recente da conta
+    model = model or PROVIDERS[prov]["model"]
     if model and not re.fullmatch(r"[\w.\-:/ ]{1,120}", model):
         raise ValueError("Nome de modelo inválido.")
     refs = payload.get("refs") or []

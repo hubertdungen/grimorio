@@ -241,7 +241,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
             <label className="small">{tx('Variações')} <select value={n} onChange={e => setN(+e.target.value)}>{[1, 2, 3, 4].map(k => <option key={k}>{k}</option>)}</select></label>
             {prov === 'openai' && <label className="small">{tx('Qualidade')} <select value={quality} onChange={e => setQuality(e.target.value)}>
               <option value="low">{tx('rascunho')}</option><option value="medium">{tx('normal')}</option><option value="high">{tx('alta')}</option></select></label>}
-            <label className="small">{tx('Modelo')} <input className="alter-model" value={model} placeholder={P?.model || tx('o primeiro que houver')} onChange={e => { setModel(e.target.value); lsSet(`grimorio.alter.model.${prov}`, e.target.value) }} /></label>
+            <label className="small">{tx('Modelo')} <input className="alter-model" list="alter-models" value={model} placeholder={P?.model || tx('o primeiro que houver')} onChange={e => { setModel(e.target.value); lsSet(`grimorio.alter.model.${prov}`, e.target.value) }} />{P?.models?.length > 0 && <datalist id="alter-models">{P.models.map(m => <option key={m} value={m} />)}</datalist>}</label>
           </div>}
           <p className="small muted">{prov === 'chatgpt' ? tx('Sem custo extra: usa o teu plano do ChatGPT. O ChatGPT Plus não inclui acesso à API, por isso aqui é copiar e colar.')
             : per ? tx('≈ US$ {u} por imagem · {n} = ≈ US$ {t} (preço indicativo; as imagens enviadas somam um pouco)', { u: num(per, 3), n, t: num(per * n, 3) }) : tx('Grátis.')}</p>
