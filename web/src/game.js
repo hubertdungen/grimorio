@@ -69,7 +69,9 @@ export const typeOf = (data, perm) => {
 }
 // notCre: impressa como criatura mas agora não é — Enduring Vitality/Innocence/Curiosity… voltam do cemitério «It's an
 // enchantment. (It's not a creature.)»; no Forge Play o Forge diz-o sempre (Imprisoned in the Moon, deuses sem devoção…)
-export const isCreature = (data, perm) => !perm.dormant && !perm.notCre && (perm.crewed || perm.animated || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt))
+// impending (Duskmourn): enquanto tem marcadores de tempo não é criatura (os Overlords lançados por impending)
+const impending = (data, perm) => perm.counters?.time > 0 && /\bImpending\b/.test(permCard(data, perm)?.o || '')
+export const isCreature = (data, perm) => !perm.dormant && !perm.notCre && !impending(data, perm) && (perm.crewed || perm.animated || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt))
 // volta do cemitério e o texto diz que deixa de ser criatura (o ciclo Enduring de Duskmourn e afins)
 const comesBackNonCreature = c => /It's not a creature/i.test(c?.o || '')
 // deuses de Theros: «As long as your devotion to blue is less than five, Thassa isn't a creature.» — devoção = símbolos

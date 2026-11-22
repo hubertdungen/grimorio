@@ -1570,7 +1570,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
       <div className="modal cardmodal" onClick={e => e.stopPropagation()}>
         <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
         <div className="cm-img">
-          <div className={`cm-turn ${rot % 180 ? 'lying' : ''}`} style={{ '--rot': `${rot}deg` }}>
+          <div className={`cm-turn ${(rot - (side && back && c.df ? 90 : 0)) % 180 ? 'lying' : ''}`} style={{ '--rot': `${rot - (side && back && c.df ? 90 : 0)}deg` }}>{/* batalha: a face de trás lê-se ao alto */}
             <div className="cm-tilt" onClick={() => setBack(b => !b)} title={tx('Clica para virar')}
               onPointerMove={e => { if (e.pointerType !== 'mouse') return; const r = e.currentTarget.getBoundingClientRect(), x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5
                 e.currentTarget.style.setProperty('--tx', `${(x * 18).toFixed(1)}deg`); e.currentTarget.style.setProperty('--ty', `${(-y * 18).toFixed(1)}deg`); e.currentTarget.style.setProperty('--gx', `${(x + 0.5) * 100}%`); e.currentTarget.style.setProperty('--gy', `${(y + 0.5) * 100}%`) }}

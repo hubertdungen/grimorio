@@ -99,7 +99,7 @@ function line(e, who) {
     case 'sidetime': return tx('Acabou o tempo do sideboard: cada um joga com a lista que tinha.')
     case 'gf': return tx('Adversário imaginário: vida {v} ({d})', { v: e.v, d: e.d > 0 ? `+${e.d}` : e.d })
     case 'goad': return e.on ? tx('{P} incita {c}', { P, c: c || tx('uma carta') }) : tx('{P}: {c} deixa de estar incitada', { P, c: c || tx('uma carta') })
-    case 'door': return e.on ? tx('{P} abre a porta {x} de {c}', { P, c, x: short((e.name || '').split(' // ')[e.i] || '') }) : tx('{P} fecha a porta {x} de {c}', { P, c, x: short((e.name || '').split(' // ')[e.i] || '') })
+    case 'door': return e.on ? tx('{P} abre a porta {x}', { P, x: short((e.name || '').split(' // ')[e.i] || '') }) : tx('{P} fecha a porta {x}', { P, x: short((e.name || '').split(' // ')[e.i] || '') })
     case 'speed': return tx('{T}: velocidade {v}', { T, v: e.v })
     case 'ring': return tx('O Anel tenta {T} ({v}.ª vez)', { T, v: e.v })
     case 'pctr': return tx('{T}: {v} marcadores {ct}', { T, v: e.v, ct: CT[e.ct] || e.ct })

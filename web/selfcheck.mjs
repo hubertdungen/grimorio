@@ -1107,6 +1107,8 @@ import { ptExplain } from './src/game.js'
   assert.deepEqual(by('Bottomless Pool // Locker Room').doors, ['Bottomless Pool'])
   assert.equal(by('Wizard Class').lvl, 2)
   assert.equal(protoPt(G[2]), '2/1')
+  const { isCreature } = await import('./src/game.js'), ov = { n: 'Overlord of the Floodpits', t: 'Enchantment Creature — Avatar Horror', o: 'Impending 4—{1}{U}{U}', pt: '5/3', kw: [] }, gi = { byName: new Map([[ov.n, ov]]), byLower: new Map() }
+  assert.deepEqual([isCreature(gi, { name: ov.n, counters: { time: 2 } }), isCreature(gi, { name: ov.n, counters: {} })], [false, true], 'impending: não é criatura com marcadores de tempo')
   assert.deepEqual([pt(gm, by('Arcane Proxy')).p, pt(gm, by('Arcane Proxy')).t, by('Arcane Proxy').proto], [2, 1, true], 'protótipo: entra 2/1')
   assert.deepEqual([s.day, s.a.speed, s.b.ring, s.a.energy, s.a.pctr, s.b.dungeon], ['night', 2, 1, 3, { experience: 2 }, { n: 'Tomb of Annihilation', room: 'Veils of Fear' }])
   assert.deepEqual([s.a.monarch, s.b.monarch, s.b.initiative], [true, false, true], 'monarca/iniciativa exatos')

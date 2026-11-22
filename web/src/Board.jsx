@@ -337,6 +337,7 @@ function PtExplain({ p, data, at }) {  // at: onde está o número (no ecrã): a
 // mecânicas à vista numa permanente (Forge Play, réplicas e mesa livre): portas das Salas, nível da Classe, Caso resolvido,
 // capítulo da Saga, carga da Nave (estação), portador do Anel, suspeita, protótipo; batalhas deitadas
 export function mechOf(c, p) {
+  if (p.faceDown || p.hidden) return { doors: null, lvl: 0, badges: [], battle: false }  // virada para baixo: uma 2/2 sem nome nem mecânicas
   const tl = (c?.t || '').split(' // ')[0], o = c?.o || '', badges = []
   const faces = c && /\bRoom\b/.test(c.t) ? c.n.split(' // ') : null
   const doors = faces && faces.length === 2 ? faces.map(f => [f, (p.doors || []).includes(f)]) : null
