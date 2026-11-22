@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "selecionar todos": "全选",
   "A geração está a demorar demasiado; tenta outra vez.": "生成时间过长，请重试。",
   "Carta inteira (moldura e letra novas)": "整张卡（新边框和字体）",
   "Estilo da moldura": "边框风格",

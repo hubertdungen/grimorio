@@ -375,7 +375,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
         {fmts.length > 1 && <div className="fmt-chips">
           <button className={!only ? 'on' : ''} onClick={() => setOnly('')}>{tx('Todos')} <i>{mine.length}</i></button>
           {fmts.map(([f, ds]) => <button key={f} className={only === f ? 'on' : ''} onClick={() => { setOnly(only === f ? '' : f); setClosed(c => { const n = { ...c }; delete n[f]; return n }) }}>{fname(f)} <i>{ds.length}</i></button>)}
-          <span className="fmt-all"><button className="link small" onClick={() => setClosed({})}>{tx('abrir todos')}</button><button className="link small" onClick={() => setClosed(Object.fromEntries(fmts.map(([f]) => [f, 1])))}>{tx('fechar todos')}</button></span>
+          <span className="fmt-all"><button className="link small" onClick={() => setSel(fmts.filter(([f]) => !only || f === only).flatMap(([, ds]) => ds.map(d => d.id)).filter((x, k, a) => a.indexOf(x) === k))}>{tx('selecionar todos')}</button>{sel.length > 0 && <button className="link small" onClick={() => setSel([])}>{tx('nenhum')}</button>}<button className="link small" onClick={() => setClosed({})}>{tx('abrir todos')}</button><button className="link small" onClick={() => setClosed(Object.fromEntries(fmts.map(([f]) => [f, 1])))}>{tx('fechar todos')}</button></span>
         </div>}
         {fmts.filter(([f]) => !only || f === only).map(([f, ds]) => (
           <div key={f} className={`fmt-sec ${closed[f] ? 'shut' : ''}`}>

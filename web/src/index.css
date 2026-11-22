@@ -4572,3 +4572,7 @@ select.demote:hover { border-color: var(--gold); }
 .dg-bar select.demote { width: auto; display: block; text-align-last: center; }
 .dg-bar .dg-x { margin-left: 0; }
 .dg-bar .dg-mv { font-size: 12px; }
+
+/* biblioteca: os troféus no topo da capa (entre a caixa de seleção e a estrela); o formato fica no fundo */
+.dbox-tro { top: 8px; bottom: auto; right: auto; left: 50%; transform: translateX(-50%); max-width: calc(100% - 84px); overflow: hidden; white-space: nowrap; }
+.dbox-top:has(.dbox-tro) .dbox-fmt { bottom: 7px; }
