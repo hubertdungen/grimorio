@@ -1,3 +1,4 @@
+import ForgeBrand from './ForgeBrand.jsx'
 // Página inicial: aparece ao abrir a app e ao tocar no logótipo. Os seis caminhos principais (Construir em destaque) e,
 // por baixo, as ferramentas para a mesa (vida, ler carta, dados, regras).
 import { Logo } from './ui.jsx'
@@ -44,7 +45,7 @@ export default function Home({ deck, decks, onGo, onNew, onTool, onScan, friend 
         <button className="home-card home-tool dice" onClick={() => onTool('dados')}><i><Icon n="dados" /></i><b>{tx('Dados')}</b><span>{tx('d4 a d100 e moeda em 3D: lança-se, agarra-se e atira-se com o dedo, com registo.')}</span></button>
         <button className="home-card home-tool rules" onClick={() => onGo('regras')}><i><Icon n="regras" /></i><b>{tx('Regras')}</b><span>{tx('Dúvidas de regras e cartas em qualquer língua, com os rulings oficiais e a câmara.')}</span></button>
       </div>
-      <p className="home-foot muted small"><a href="#definicoes" className="home-set"><Icon n="gear" /> {tx('Definições')}</a> · {tx('Cartas e imagens: Scryfall · combos: Commander Spellbook · meta: EDHREC e MTGTop8 · jogos: Forge')}</p>
+      <p className="home-foot muted small"><a href="#definicoes" className="home-set"><Icon n="gear" /> {tx('Definições')}</a> · {tx('Cartas e imagens: Scryfall · combos: Commander Spellbook · meta: EDHREC e MTGTop8 · jogos: Forge')} <span className="home-brand"><ForgeBrand /></span></p>
     </div>
   )
 }

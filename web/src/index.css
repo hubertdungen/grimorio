@@ -4279,9 +4279,12 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .forge-link:hover .fgm .a,.forge-link:hover .fgm .c,.forge-link:focus-visible .fgm .a,.forge-link:focus-visible .fgm .c{fill-opacity:.2;stroke-dasharray:1;animation:fgd .9s ease calc(var(--i)*55ms) both,fgf .8s ease 2.6s forwards}
 }
 /* no rodapé: pequeno e discreto; acende ao passar o rato */
-.foot .forge-link{opacity:.45;transition:opacity .3s}
-.foot .forge-link:hover,.foot .forge-link:focus-visible{opacity:1}
+.foot .forge-link,.home-brand .forge-link{opacity:.45;transition:opacity .3s}
+.foot .forge-link:hover,.foot .forge-link:focus-visible,.home-brand .forge-link:hover,.home-brand .forge-link:focus-visible{opacity:1}
 .foot .fgm{width:58px;height:28px}
+.home-brand{display:block;margin-top:10px}
+.home-brand .forge-link{padding:0!important}
+.home-brand .fgm{width:46px;height:22px}
 @keyframes fgd{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
 @keyframes fgf{to{fill-opacity:1;stroke-opacity:0;stroke-width:0}}
 @media (prefers-reduced-motion:reduce){.forge-link:hover .fgm *{animation:none}}
@@ -4326,6 +4329,11 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .wz-cf select { min-height: 34px; }
 .wz-res.cmds .wz-cc { aspect-ratio: auto; }
 .wz-res.cmds .wz-cc > button:first-child { aspect-ratio: 488 / 680; }
+.wz-pc { position: relative; min-width: 0; }
+.wz-pc > button:first-child { width: 100%; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.wz-pc img { -webkit-touch-callout: none; pointer-events: none; }
+.wz-res .wz-pc > button.wz-zoom { position: absolute; top: auto; bottom: 6px; right: 6px; width: auto; min-height: 28px; min-width: 28px; aspect-ratio: auto; border: 1px solid var(--line); background: rgba(11, 10, 20, .8); overflow: visible; }
+@media (hover: hover) { .wz-res .wz-pc > button.wz-zoom { opacity: 0; transition: opacity .15s; } .wz-pc:hover > button.wz-zoom, .wz-res .wz-pc > button.wz-zoom:focus-visible { opacity: .9; } }
 .wz-res .wz-cc > button.wz-zoom { position: absolute; top: 8px; right: 8px; width: auto; aspect-ratio: auto; border: 1px solid var(--line); background: rgba(11, 10, 20, .8); overflow: visible; }
 .wz-res .wz-cc > button:first-child { border: 0; }
 

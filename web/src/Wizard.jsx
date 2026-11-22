@@ -28,6 +28,17 @@ function pairOk(a, b) {
 
 const START = [['gosto', tx('Gosto de…'), '♥'], ['cartas', tx('Escolher 3–10 cartas'), '▦'], ['manual', tx('Construir à mão'), '✎'], ['importar', tx('Importar e melhorar'), '⇩'], ['ia', tx('Descrever a ideia (IA)'), '✦']]
 
+// carta para escolher (cartas do gosto, pesquisa): tocar junta/tira; 🔍, botão direito ou tocar e manter mostra-a em grande
+function PickCard({ c, on, disabled, onPick, onBig }) {
+  const zoom = e => { e.preventDefault(); e.stopPropagation(); held(); onBig(c) }
+  return (
+    <div className="wz-pc">
+      <button className={on ? 'on' : ''} onClick={onPick} onContextMenu={zoom} title={c.n} disabled={disabled}><img src={img(c, 'normal')} alt={c.n} loading="lazy" draggable={false} />{on && <span>✓</span>}</button>
+      <button className="wz-zoom" onClick={zoom} aria-label={`${tx('Ver em grande')}: ${c.n}`} title={tx('Ver em grande')}>🔍</button>
+    </div>
+  )
+}
+
 // carta de comandante: tocar escolhe; tocar e manter (ou botão direito, ou 🔍) mostra-a em grande
 function CmdCard({ c, onPick, onBig }) {
   const zoom = e => { e.preventDefault(); e.stopPropagation(); held(); onBig(c) }
@@ -340,7 +351,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
             </div>}
             {preview.length > 0 && <>
               <h4>{tx('Cartas deste gosto')} <span className="muted">{tx('toca para as juntar às cartas de partida')}</span></h4>
-              <div className="wz-res">{preview.map(c => <button key={c.i} className={has(c) ? 'on' : ''} onClick={() => toggle(c)} title={c.n}><img src={img(c, 'normal')} alt={c.n} loading="lazy" />{has(c) && <span>✓</span>}</button>)}</div>
+              <div className="wz-res">{preview.map(c => <PickCard key={c.i} c={c} on={has(c)} onPick={() => toggle(c)} onBig={setBig} />)}</div>
             </>}
             <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />
             <button onClick={() => { save(null); const useCmd = cmds.length ? cmds : autoCmd ? [autoCmd] : []; const d = emptyDeck(format); d.name = name.trim() || tx('{name} — novo', { name: useCmd.length ? useCmd.map(c => c.n.split(',')[0]).join(' & ') : fmt.name }); d.commanders = useCmd.map(c => c.n); d.prefs = prefs; d.seedTerms = sel.terms.map(t => ({ k: t.k, v: t.v })); onCreate(d, false, 'pesquisa') }} disabled={!sel.terms.length}>✎ {tx('Só os temas, construo eu')}</button>
@@ -412,11 +423,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         )}
 
         {start !== 'gosto' && <><input className="big" value={q} onChange={e => setQ(e.target.value)} placeholder={tx(ctx.bit >= 0 ? 'Procurar cartas legais em {fmt}' : 'Procurar cartas', { fmt: fmt.name }) + (ctx.identity != null ? tx(' na identidade {id}', { id: ctx.identity || tx('incolor') }) : '') + '…'} />
-        <div className="wz-res">{res.map(c => (
-          <button key={c.i} className={has(c) ? 'on' : ''} onClick={() => toggle(c)} onContextMenu={e => { e.preventDefault(); held(); setBig(c) }} title={c.n} disabled={!has(c) && picks.length >= maxPicks}>
-            <img src={img(c, 'normal')} alt={c.n} loading="lazy" />{has(c) && <span>✓</span>}
-          </button>
-        ))}</div></>}
+        <div className="wz-res">{res.map(c => <PickCard key={c.i} c={c} on={has(c)} disabled={!has(c) && picks.length >= maxPicks} onPick={() => toggle(c)} onBig={setBig} />)}</div></>}
 
         {start !== 'gosto' && <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />}
         </>}
