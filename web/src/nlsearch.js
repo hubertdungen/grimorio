@@ -6,6 +6,7 @@
 import { parseThreats } from './hate.js'
 import { termsOf, termMatch, subsOf, passes, TAG_LABEL } from './data.js'
 import { canBeCommander } from './formats.js'
+import { VOC, findSets, setGroup, norm } from './vocab.js'
 
 const strip = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 const TYPES = {
@@ -104,10 +105,13 @@ const SUBS = {
   artifice: 'Artificer', lobisomem: 'Werewolf', werwolf: 'Werewolf', lobo: 'Wolf', wolf: 'Wolf', serpente: 'Serpent', serpiente: 'Serpent', schlange: 'Serpent',
   hidra: 'Hydra', hydra: 'Hydra', gigante: 'Giant', riese: 'Giant', riesen: 'Giant', anao: 'Dwarf', enano: 'Dwarf', zwerg: 'Dwarf', urso: 'Bear', oso: 'Bear', bar: 'Bear',
   aranha: 'Spider', arana: 'Spider', spinne: 'Spider', inseto: 'Insect', insecto: 'Insect', insekt: 'Insect', fungo: 'Fungus', hongo: 'Fungus', pilz: 'Fungus', planta: 'Plant', pflanze: 'Plant',
+  hobbit: 'Halfling', hobbits: 'Halfling', mediano: 'Halfling', halbling: 'Halfling',
   cavalo: 'Horse', caballo: 'Horse', pferd: 'Horse', coelho: 'Rabbit', conejo: 'Rabbit', hase: 'Rabbit', rana: 'Frog', sapo: 'Frog', frosch: 'Frog', raposa: 'Fox', zorro: 'Fox', fuchs: 'Fox',
 }
 const ZH_SUBS = [['忍者', 'Ninja'], ['人类', 'Human'], ['精灵', 'Elf'], ['天使', 'Angel'], ['恶魔', 'Demon'], ['灵俑', 'Zombie'], ['吸血鬼', 'Vampire'], ['鬼怪', 'Goblin'], ['法师', 'Wizard'],
   ['战士', 'Warrior'], ['士兵', 'Soldier'], ['骑士', 'Knight'], ['僧侣', 'Cleric'], ['浪客', 'Rogue'], ['精怪', 'Spirit'], ['野兽', 'Beast'], ['猫', 'Cat'], ['鼠', 'Rat'], ['龙', 'Dragon']]
+let ZS = null
+const zhSubs = () => { if (ZS?.v !== VOC.zh) ZS = { v: VOC.zh, l: [...ZH_SUBS, ...VOC.zh.map(w => [w, VOC.types.get(w)])].sort((a, b) => b[0].length - a[0].length) }; return ZS.l }
 // «que beneficiem de X» / «that benefit from X» / «care about X»: cartas cujo texto fala de X (qualquer das palavras)
 // marcadores (e não «counter target spell» / «can't be countered»)
 const CTR = ['+1/+1 counter', '-1/-1 counter', 'counter on', 'counters on', 'proliferate', 'number of counters', 'with counters', 'counters among']
@@ -132,11 +136,17 @@ const STOP = new Set(('que de do da dos das com e um uma a o os as no na nos nas
 const LEGEND = new Set(['lendaria', 'lendario', 'legendary', 'legendaria', 'legendario', 'legendare', 'legendar', 'legendaren', 'legendares'])
 const CJK = /[\u3400-\u9fff]/
 
+// plurais e nomes noutras línguas: «elves», «wolves», «mice», «fungi», «dragões», e os tipos das impressões traduzidas
+// (vocab.js: «zumbi», «Drache», «半身人»); o tipo tem de existir nos dados
 const subOf = (w, types) => {
-  for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/en$/, ''), w.replace(/n$/, ''), w.replace(/e$/, '')]) {
+  for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/en$/, ''), w.replace(/n$/, ''), w.replace(/e$/, ''), w.replace(/ves$/, 'f'),
+    w.replace(/ies$/, 'y'), w.replace(/i$/, 'us'), w.replace(/ice$/, 'ouse'), w.replace(/(oes|aes)$/, 'ao')]) {
     if (SUBS[x]) return SUBS[x]
+    if (x.length < 3 || COLORS[x] || TYPES[x]) continue
+    const t = VOC.types.get(x)
+    if (t && (!types || types.has(t))) return t
     const cap = x[0]?.toUpperCase() + x.slice(1)
-    if (x.length > 2 && types?.has(cap) && !COLORS[x] && !TYPES[x]) return cap
+    if (types?.has(cap)) return cap
   }
   return null
 }
@@ -210,7 +220,7 @@ export function parseQuery(q, opts = {}) {
     if (x.colorless) f.colorless = true
     if (x.legendary) f.legendary = true
   }
-  if (CJK.test(s)) for (const [w, t] of ZH_SUBS) if (s.includes(w)) { s = s.replaceAll(w, ' '); f.sub ||= t }
+  if (CJK.test(s)) for (const [w, t] of zhSubs()) if (s.includes(w)) { s = s.replaceAll(w, ' '); f.sub ||= t }
   // funções e habilidades por frases (as compridas primeiro, para «robar el control» não ser «robar»)
   const phrases = [...Object.entries(CONCEPTS).flatMap(([t, ws]) => ws.map(w => [w, 'tags', t])), ...Object.entries(KW).flatMap(([k, ws]) => ws.map(w => [w, 'oracle', k]))]
     .sort((a, b) => b[0].length - a[0].length)
@@ -254,6 +264,12 @@ const tagTotOf = data => { if (TT?.d !== data) { const m = new Map(); for (const
 // Todos os chips que existem em MTG a partir dos dados reais: cores, tipos, subtipos (temas), habilidades e funções.
 // É a paleta do «Gosto de…»; fica em cache porque são centenas e não mudam enquanto a app estiver aberta.
 let CU = null
+// quantas cartas nasceram na edição/universo (para os chips; contas de uma vez, sem percorrer as cartas por edição)
+let FC = null
+const setCount = v => {
+  if (FC?.f !== VOC.first) { const m = new Map(); for (const k of VOC.first) m.set(k, (m.get(k) || 0) + 1); FC = { f: VOC.first, m } }
+  return setGroup(v).reduce((a, k) => a + (FC.m.get(k) || 0), 0) + (VOC.fr.get(v)?.extra.length || 0)
+}
 export function chipUniverse(data) {
   if (CU?.d === data) return CU.u
   const all = termsOf(data), rank = (a, b) => b.n - a.n
@@ -264,6 +280,8 @@ export function chipUniverse(data) {
     for (const k of c.ci) if (cc.has(k)) cc.set(k, cc.get(k) + 1)
   }
   for (const [v, n] of cc) colors.push({ v, n })
+  // edições e universos: os universos primeiro, depois as edições das mais recentes para as antigas (≥3 cartas nascidas lá)
+  const sets = VOC.on ? [...VOC.fr.keys(), ...[...VOC.sets.keys()].filter(k => !VOC.fr.has(k))].map(v => ({ v, n: setCount(v) })).filter(x => x.n >= 3) : []
   const tagTot = tagTotOf(data)
   const tags = Object.keys(TAG_LABEL).map(v => ({ v, n: tagTot.get(v) || 0 })).filter(x => x.n).sort(rank)
   const u = {
@@ -272,6 +290,7 @@ export function chipUniverse(data) {
     themes: all.filter(t => t.k === 'sub').sort(rank),
     keywords: all.filter(t => t.k === 'kw').sort(rank),
     tags,
+    sets,
     rarities: ['c', 'u', 'r', 'm'].map(v => ({ v, n: data.cards.filter(c => !c.un && c.r === v).length })).filter(x => x.n),
     mvs: ['0', '1', '2', '3', '4', '5', '6', '7+'].map(v => ({ v, n: data.cards.filter(c => !c.un && termMatch(c, { k: 'mv', v })).length })).filter(x => x.n),
   }
@@ -302,25 +321,42 @@ export function likeCommanders(data, { terms = [], colors = [], tags = [] }, { f
   return out.sort((a, b) => b.s - a.s || a.c.n.localeCompare(b.c.n)).slice(0, n).map(x => x.c)
 }
 export function likeTheme(data, text, { types } = {}) {
-  const out = { terms: [], colors: [], tags: [] }
-  const p = parseQuery(text || '', { types })
+  const out = { terms: [], colors: [], tags: [], cards: [] }
+  // edições e universos («transformers», «senhor dos anéis», «LTR», «指环王») viram chips de edição; uma palavra que
+  // também é um tipo fica para o resto («assassins» = o tipo Assassin e o Assassin's Creed; «hobbits» = Halfling e LTR)
+  const fs = findSets(text || '')
+  const left = [fs.rest, ...fs.hits.filter(h => !h.w.includes(' ') && subOf(h.w, types)).map(h => h.w)].join(' ')
+  const p = parseQuery(left, { types })
   const all = termsOf(data), N = data.cards.length
   const byKey = new Map(all.map(t => [`${t.k}:${t.v.toLowerCase()}`, t]))
   // pt/es/de → subtipo inglês (o parseQuery só sabe os nomes ingleses)
   const found = [], hit = (k, v) => { const t = byKey.get(`${k}:${String(v).toLowerCase()}`); if (t && !found.includes(t)) found.push(t); return !!t }
   if (p?.f.sub) hit('sub', p.f.sub)
   for (const o of p?.f.oracle || []) hit('kw', o)
-  for (const w of (p ? p.rest : strip(text || '')).split(/\s+/)) {
+  const plain = ` ${strip(left)} `
+  for (const t of all) if (t.k === 'kw' && t.v.includes(' ') && plain.includes(` ${t.v.toLowerCase()} `)) hit('kw', t.v)  // «first strike», «living weapon»
+  for (const w of (p ? p.rest : strip(left)).split(/\s+/)) {
     if (w.length < 3) continue
-    for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ves$/, 'f'), subOf(w, types), subOf(w.replace(/(oes|aes)$/, 'ao'), types)]) if (x) if (hit('sub', x) || hit('kw', x)) break
+    for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ves$/, 'f'), subOf(w, types)]) if (x) if (hit('sub', x) || hit('kw', x)) break
   }
+  const kinds = found.length
+  for (const h of fs.hits) { const n = setCount(h.v); if (n) found.push({ k: 'set', v: h.v, n }) }
+  // nomes alternativos das impressões («megatron» = Blightsteel Colossus da Secret Lair, «mothra» = Luminous Broodmoth)
+  const nt = ` ${norm(text || '')} `
+  if (nt.trim().length >= 4) for (const c of data.cards) for (const x of c.fl || []) {
+    const head = norm(x.n.split(',')[0])
+    if (head.length >= 4 && nt.includes(` ${head} `) && !out.cards.some(y => y.c === c)) out.cards.push({ c, fl: x })
+  }
+  out.cards = out.cards.sort((a, b) => (a.c.er || 1e9) - (b.c.er || 1e9)).slice(0, 8)
   const explicit = p?.f.colors || []
   const tags = (p?.f.tags || []).filter(t => TAG_LABEL[t])
   if (!found.length && !explicit.length && !tags.length) return out
   const M = found.length ? data.cards.filter(c => !c.un && found.some(t => termMatch(c, t))) : []
   const big = M.length >= 3
-  const colors = explicit.length ? explicit.map(k => ({ k, share: 1 })) : big
-    ? 'WUBRG'.split('').map(k => ({ k, share: M.filter(c => c.ci.includes(k)).length / M.length })).filter(x => x.share >= 0.25).sort((a, b) => b.share - a.share).slice(0, 3) : []
+  // as cores só saem dos temas: uma edição tem cartas de todas (ficam livres, a não ser que se digam)
+  const MC = found.length > kinds ? M.filter(c => found.slice(0, kinds).some(t => termMatch(c, t))) : M
+  const colors = explicit.length ? explicit.map(k => ({ k, share: 1 })) : MC.length >= 3
+    ? 'WUBRG'.split('').map(k => ({ k, share: MC.filter(c => c.ci.includes(k)).length / MC.length })).filter(x => x.share >= 0.25).sort((a, b) => b.share - a.share).slice(0, 3) : []
   const rel = [], relTags = [], cnt = new Map()
   if (big) {
     const lift = (n, tot) => (n / M.length) / (tot / N)

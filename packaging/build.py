@@ -22,7 +22,8 @@ JRE = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0
 # card-name translations — is for the GUI). 471 MB -> ~80 MB.
 FORGE_RES = ("ai", "blockdata", "cardsfolder", "deckgendecks", "defaults", "editions", "effects", "formats", "lists",
              "setlookup", "tokenscripts")
-DATA_FILES = ("cards.json", "combos.json", "emb.bin", "pos.bin", "meta.json", "tokens.json")
+DATA_FILES = ("cards.json", "combos.json", "emb.bin", "pos.bin", "meta.json", "tokens.json", "vocab.json")
+OPTIONAL = {"vocab.json"}  # without it the app looks sets up on Scryfall, as before
 
 
 def fetch(url, dest, sha256=None):
@@ -188,13 +189,14 @@ def package(platform, work, version, out):
 
 
 def data(data_dir, out):
-    """data/ (cards, embeddings, 3D map, combos, tokens) + meta/ (tournament meta and the decks behind it) -> zip.
+    """data/ (cards, embeddings, 3D map, combos, tokens, sets/universes vocabulary) + meta/ (tournament meta and the decks behind it) -> zip.
     The .gz copies are left out (the server falls back to the plain files; it runs on the same computer)."""
     os.makedirs(out, exist_ok=True)
     z = os.path.join(out, "grimorio-data.zip")
     with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         for n in DATA_FILES:
-            zf.write(os.path.join(data_dir, "data", n), f"data/{n}")
+            if n not in OPTIONAL or os.path.isfile(os.path.join(data_dir, "data", n)):
+                zf.write(os.path.join(data_dir, "data", n), f"data/{n}")
         meta = os.path.join(data_dir, "meta")
         for p in sorted(glob.glob(os.path.join(meta, "*.json")) + glob.glob(os.path.join(meta, "raw", "*.txt"))):
             zf.write(p, "meta/" + os.path.relpath(p, meta).replace(os.sep, "/"))

@@ -1264,3 +1264,59 @@ import { ptExplain } from './src/game.js'
   setTokens(null)
   console.log('selfcheck meld, exhaust, exílio e Tokens ok')
 }
+
+// Vocabulário (build/vocab.py → data/vocab.json): edições, universos (build/franchises.json), nomes alternativos das
+// impressões e tipos traduzidos. Cartas e edições inventadas; as palavras dos universos são as do repositório.
+{ const { prepData, search, CREATURE_TYPES, termMatch } = await import('./src/data.js')
+  const { setVocab, findSets, setOriginals, setMembers, setLabel } = await import('./src/vocab.js')
+  const { likeTheme, parseQuery, chipUniverse } = await import('./src/nlsearch.js')
+  const mk = (n, t, x = {}) => ({ n, t, o: '', mc: '', cmc: 3, ci: 'B', co: 'B', lg: 1 << 6, rs: 0, r: 'r', tg: [], kw: [], er: 10, un: 0, ...x })
+  const cards = [mk('Blightsteel Colossus', 'Artifact Creature — Phyrexian Golem', { ci: '' }), mk('Optimus Prime, Hero', 'Legendary Artifact Creature — Robot', { ci: 'URW' }),
+    mk('Samwise Gamgee', 'Legendary Creature — Halfling Peasant', { ci: 'GW' }), mk('Frodo Baggins', 'Legendary Creature — Halfling Scout', { ci: 'GW' }), mk('Bilbo, Retired Burglar', 'Legendary Creature — Halfling Rogue', { ci: 'UR' }),
+    mk('Ezio Auditore da Firenze', 'Legendary Creature — Human Assassin'), mk('Twinblade Assassins', 'Creature — Elf Assassin'), mk('Hired Poisoner', 'Creature — Human Assassin'),
+    mk('Spider-Man, Brooklyn Visionary', 'Legendary Creature — Spider Human Hero', { ci: 'G' }), mk('Zilortha, Strength Incarnate', 'Legendary Creature — Dinosaur', { ci: 'RG' }),
+    mk('Sol Ring', 'Artifact', { ci: '' }), mk('Gravecrawler', 'Creature — Zombie'), mk('Diregraf Ghoul', 'Creature — Zombie'), mk('Carrion Feeder', 'Creature — Zombie')]
+  const I = n => cards.findIndex(c => c.n === n), delta = ns => ns.map(I).sort((a, b) => a - b).map((x, k, l) => x - (k ? l[k - 1] : 0))
+  const sets = [['spm', "Marvel's Spider-Man", '2025', 'expansion', [], delta(['Spider-Man, Brooklyn Visionary'])], ['acr', "Assassin's Creed", '2024', 'draft_innovation', [], delta(['Ezio Auditore da Firenze', 'Sol Ring'])],
+    ['ltr', 'The Lord of the Rings: Tales of Middle-earth', '2023', 'draft_innovation', ['ltc'], delta(['Samwise Gamgee', 'Frodo Baggins'])], ['ltc', 'Tales of Middle-earth Commander', '2023', 'commander', [], delta(['Bilbo, Retired Burglar', 'Sol Ring'])],
+    ['bot', 'Transformers', '2022', 'eternal', [], delta(['Optimus Prime, Hero'])], ['iko', 'Ikoria: Lair of Behemoths', '2020', 'expansion', [], delta(['Zilortha, Strength Incarnate'])],
+    ['sld', 'Secret Lair Drop', '2019', 'box', [], delta(['Blightsteel Colossus'])], ['lea', 'Limited Edition Alpha', '1993', 'core', [], delta(['Sol Ring', 'Twinblade Assassins', 'Hired Poisoner', 'Gravecrawler', 'Diregraf Ghoul', 'Carrion Feeder'])]]
+  const pos = Object.fromEntries(sets.map((s, k) => [s[0], k])), at = {}
+  for (const s of sets) { let i = 0; for (const d of s[5]) at[i += d] ||= s[0] }
+  const first = cards.map((c, i) => (c.n === 'Sol Ring' ? pos.lea : pos[at[i]] ?? -1))
+  const fl = [[I('Blightsteel Colossus'), 'Megatron', 'sld', '1079', 'b1'], [I('Zilortha, Strength Incarnate'), 'Godzilla, King of the Monsters', 'iko', '275', 'z1']]
+  const fr = JSON.parse(readFileSync(new URL('../build/franchises.json', import.meta.url), 'utf8')).franchises
+    .map(f => [f.id, f.name, f.sets.filter(s => pos[s] != null).flatMap(s => [s, ...sets[pos[s]][4]]).filter((s, k, l) => l.indexOf(s) === k), f.alias,
+      f.id === 'bot' ? [I('Blightsteel Colossus')] : f.id === 'godzilla' ? [I('Zilortha, Strength Incarnate')] : []])
+  const data = prepData({ formats: F }, cards, [], new ArrayBuffer(0), new ArrayBuffer(0))
+  assert.equal(setVocab({ n: cards.length + 1, sets, first, fr, fl, types: {} }, cards), false, 'vocab de outro cards.json: ignorado')
+  assert.ok(setVocab({ n: cards.length, sets, first, fr, fl, types: { zumbi: 'Zombie', drache: 'Dragon', 半身人: 'Halfling', vampiro: 'Vampire' } }, cards))
+  const T = { types: CREATURE_TYPES }, hits = q => findSets(q).hits.map(h => h.v), th = q => likeTheme(data, q, T).terms.map(t => `${t.k}:${t.v}`)
+  for (const q of ['transformers', 'Decepticons', 'autobots', 'optimus', 'set:bot', 'BOT']) assert.deepEqual(hits(q), ['bot'], q)
+  for (const q of ['lord of the rings', 'o senhor dos anéis', 'el señor de los anillos', 'Der Herr der Ringe', '指环王', 'LOTR', 'tolkien']) assert.deepEqual(hits(q), ['ltr'], q)
+  for (const q of ["assassin's creed", 'assassins creed', 'Assassins']) assert.deepEqual(hits(q), ['acr'], q)
+  for (const q of ['spiderman', 'Spider-Man', 'homem-aranha', 'hombre araña', '蜘蛛侠']) assert.deepEqual(hits(q), ['spm'], q)
+  assert.deepEqual(hits('Tales of Middle-earth Commander'), ['ltc'])
+  assert.equal(findSets("transformers Urza's").rest, "Urza's", 'o resto fica como veio')
+  assert.equal(setLabel('bot'), 'Transformers (BOT)')
+  // «Gosto de…»: o universo é um chip (as cartas nascidas lá + as impressões com o nome dele); um tipo fica também
+  assert.deepEqual(th('transformers').filter(t => t.startsWith('set:')), ['set:bot'])
+  assert.ok(th('decepticons').includes('set:bot'))
+  assert.ok(th('hobbits').includes('sub:Halfling') && th('hobbits').includes('set:ltr'), 'hobbits = Halfling + LTR')
+  assert.ok(th('assassins').includes('sub:Assassin') && th('assassins').includes('set:acr'), 'assassins = Assassin + ACR')
+  assert.ok(th('spiderman').includes('set:spm'))
+  assert.deepEqual([...setOriginals('ltr')].map(i => cards[i].n).sort(), ['Bilbo, Retired Burglar', 'Frodo Baggins', 'Samwise Gamgee'], 'LTR + LTC sem o Sol Ring reimpresso')
+  assert.ok(setMembers('ltr').has(I('Sol Ring')), 'a pesquisa set:ltr traz as reimpressões')
+  assert.ok(termMatch(cards[I('Blightsteel Colossus')], { k: 'set', v: 'bot' }), 'o Megatron da Secret Lair é Transformers')
+  assert.equal(likeTheme(data, 'transformers', T).colors.length, 0, 'uma edição não fixa as cores')
+  assert.deepEqual(likeTheme(data, 'megatron', T).cards.map(x => [x.c.n, x.fl.n]), [['Blightsteel Colossus', 'Megatron']])
+  // tipos: plurais e as outras línguas (vocab.types tirado das impressões traduzidas)
+  for (const [q, t] of [['zumbis', 'Zombie'], ['Drachen', 'Dragon'], ['半身人', 'Halfling'], ['vampiros', 'Vampire'], ['hobbits', 'Halfling'], ['assassinos', 'Assassin'], ['asesinos', 'Assassin']]) assert.equal(parseQuery(q, T)?.f.sub, t, q)
+  // pesquisa geral: o nome alternativo encontra a carta a sério, com a impressão que bateu
+  const r = search(data, 'megatron', null, { bit: -1 })
+  assert.deepEqual([r.cards.map(c => c.n), r.fl.get(I('Blightsteel Colossus'))?.set], [['Blightsteel Colossus'], 'sld'])
+  assert.deepEqual(search(data, 'Godzilla, King of the Monsters', null, { bit: -1 }).cards.map(c => c.n), ['Zilortha, Strength Incarnate'])
+  assert.ok(chipUniverse(data).sets.some(x => x.v === 'ltr'), 'a paleta tem os universos')
+  setVocab(null, cards)
+  console.log('selfcheck edições, universos e nomes alternativos ok')
+}

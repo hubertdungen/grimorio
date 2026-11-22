@@ -9,6 +9,7 @@ import { emptyDeck } from './deck.js'
 import { PrefsPanel, IASettings } from './Views.jsx'
 import { Mana } from './ui.jsx'
 import { tx } from './i18n.js'
+import { findSets, setLabel, flavorOf } from './vocab.js'
 import { useBackClose } from './backnav.js'
 import { held } from './touch.js'
 import { delayedPeek } from './deckview.js'
@@ -24,11 +25,12 @@ const pairable = c => /\bPartner\b|Friends forever|Doctor's companion|Choose a B
 const START = [['gosto', tx('Gosto de…'), '♥'], ['cartas', tx('Escolher 3–10 cartas'), '▦'], ['manual', tx('Construir à mão'), '✎'], ['importar', tx('Importar e melhorar'), '⇩'], ['ia', tx('Descrever a ideia (IA)'), '✦']]
 
 // carta para escolher (cartas do gosto, pesquisa): tocar junta/tira; 🔍, botão direito ou tocar e manter mostra-a em grande
-function PickCard({ c, on, disabled, onPick, onBig }) {
+function PickCard({ c, on, disabled, onPick, onBig, fl }) {  // fl: a impressão com outro nome («Megatron», SLD) que a trouxe
   const zoom = e => { e.preventDefault(); e.stopPropagation(); held(); onBig(c) }
   return (
     <div className="wz-pc">
-      <button className={on ? 'on' : ''} onClick={onPick} onContextMenu={zoom} disabled={disabled} {...delayedPeek(c)}><img src={img(c, 'normal')} alt={c.n} loading="lazy" draggable={false} />{on && <span>✓</span>}</button>
+      <button className={on ? 'on' : ''} onClick={onPick} onContextMenu={zoom} disabled={disabled} {...delayedPeek(c)}><img src={img(c, 'normal', false, fl?.id)} alt={fl ? `${fl.n} (${c.n})` : c.n} loading="lazy" draggable={false} />{on && <span>✓</span>}</button>
+      {fl && <small className="wz-fl" title={tx('Também conhecida como {n}', { n: `${fl.n} (${fl.set.toUpperCase()})` })}>{fl.n}</small>}
       <button className="wz-zoom" onClick={zoom} aria-label={`${tx('Ver em grande')}: ${c.n}`} title={tx('Ver em grande')}>🔍</button>
     </div>
   )
@@ -204,7 +206,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     const auto = new Set([...theme.terms.map(key.t), ...theme.colors.map(key.c), ...theme.tags.map(key.g)])
     for (const k of likePick) {
       if (auto.has(k)) continue
-      const m = /^t:(kw|sub|type|rar|mv):(.+)$/.exec(k)
+      const m = /^t:(kw|sub|type|rar|mv|set):(.+)$/.exec(k)
       if (m) addT({ k: m[1], v: m[2], u: 1 })
       else if (k.startsWith('c:')) colors.push(k.slice(2))
       else if (k.startsWith('g:')) tags.push(k.slice(2))
@@ -217,8 +219,15 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
       tags: [...new Set(tags)],
     }
   }, [theme, likeOff, likeStar, likePick, cmds]) // eslint-disable-line react-hooks/exhaustive-deps
-  const preview = useMemo(() => (start === 'gosto' ? likeCards(data, sel, ctx, 12) : []), [data, sel, ctx, start])
-  const likeAny = theme.terms.length + theme.colors.length + theme.tags.length + likePick.length > 0
+  // as cartas com um nome alternativo escrito («megatron», «mothra») primeiro, depois as dos chips
+  const preview = useMemo(() => {
+    if (start !== 'gosto') return []
+    const l = likeCards(data, sel, ctx, 12), fl = theme.cards.map(x => x.c).filter(c => passes(c, null, ctx))
+    return [...fl, ...l.filter(c => !fl.includes(c))].slice(0, 12)
+  }, [data, sel, ctx, start, theme])
+  const sets = sel.terms.filter(t => t.k === 'set')
+  const flOf = c => theme.cards.find(x => x.c === c)?.fl || sets.map(t => flavorOf(c, t.v)).find(Boolean)
+  const likeAny = theme.terms.length + theme.colors.length + theme.tags.length + theme.cards.length + likePick.length > 0
   const chipTap = (k, star) => (star ? (!on(k) ? flip(likeOff, setLikeOff, k) : likeStar.includes(k) ? (flip(likeStar, setLikeStar, k), flip(likeOff, setLikeOff, k)) : flip(likeStar, setLikeStar, k)) : flip(likeOff, setLikeOff, k))
   // Paleta com todos os chips de MTG (cores, tipos, subtipos, habilidades e funções), em cache nos dados reais.
   const universe = useMemo(() => chipUniverse(data), [data])
@@ -226,6 +235,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     { id: 'colors', label: tx('Cores'), items: universe.colors.map(x => ({ key: `c:${x.v}`, label: x.v === 'C' ? tx('Incolor') : COLORS[x.v], v: x.v, n: x.n })) },
     { id: 'types', label: tx('Tipos'), items: universe.types.map(x => ({ key: `t:type:${x.v}`, label: TYPE_LABEL[x.v] || x.v, v: x.v, n: x.n })) },
     { id: 'themes', label: tx('Temas'), items: universe.themes.map(x => ({ key: `t:sub:${x.v}`, label: x.v, v: x.v, n: x.n })) },
+    { id: 'sets', label: tx('Sets e universos'), items: universe.sets.map(x => ({ key: `t:set:${x.v}`, label: `🎬 ${setLabel(x.v)}`, v: x.v, n: x.n })) },
     { id: 'keywords', label: tx('Habilidades'), items: universe.keywords.map(x => ({ key: `t:kw:${x.v}`, label: x.v, v: x.v, n: x.n })) },
     { id: 'rar', label: tx('Raridade'), items: universe.rarities.map(x => ({ key: `t:rar:${x.v}`, label: { c: tx('Comum'), u: tx('Incomum'), r: tx('Rara'), m: tx('Mítica') }[x.v], v: x.v, n: x.n })) },
     { id: 'mv', label: 'MV', items: universe.mvs.map(x => ({ key: `t:mv:${x.v}`, label: `MV ${x.v}`, v: x.v, n: x.n })) },
@@ -256,6 +266,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
       for (const g of p.f.tags || []) s.add(`g:${g}`)
       for (const c of p.f.colors || []) s.add(`c:${c}`)
     }
+    for (const h of findSets(q).hits) s.add(`t:set:${h.v}`)  // «senhor dos anéis», «decepticons», «LTR»
     return s.size ? s : null
   }, [chipQ])
   const chipShown = useMemo(() => {
@@ -383,8 +394,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
             <label className="fmt"><span>{tx('Gosto de:')}</span>
               <input className="big" value={like} onChange={e => setLike(e.target.value)} placeholder={tx('ninjas, dragões, roubar cartas, azul e preto…')} autoFocus />
             </label>
-            {like.trim() && !likeAny && <p className="small muted">{tx('Não percebi nenhum tema: tenta um tipo de criatura (ninjas), uma habilidade (voar), uma função (ramp) ou cores.')}</p>}
-            {[[tx('Temas'), theme.terms, key.t, t => `${t.k === 'kw' ? '✦' : '🏷'} ${t.v}`, true], [tx('Cores'), theme.colors, key.c, x => COLORS[x.k], false], [tx('Funções'), theme.tags, key.g, x => TAG_LABEL[x.k], false]]
+            {like.trim() && !likeAny && <p className="small muted">{tx('Não percebi nenhum tema: tenta um tipo de criatura (ninjas), uma habilidade (voar), uma função (ramp), cores ou um universo (Transformers, O Senhor dos Anéis).')}</p>}
+            {[[tx('Temas'), theme.terms, key.t, t => (t.k === 'set' ? `🎬 ${setLabel(t.v)}` : `${t.k === 'kw' ? '✦' : '🏷'} ${t.v}`), true], [tx('Cores'), theme.colors, key.c, x => COLORS[x.k], false], [tx('Funções'), theme.tags, key.g, x => TAG_LABEL[x.k], false]]
               .filter(r => r[1].length).map(([h, list, kf, lab, star]) => (
                 <div key={h} className="wz-likerow"><span className="muted small">{h}</span>
                   <div className="chips">{list.map(x => { const k = kf(x), st = likeStar.includes(k), off = h === tx('Cores') && chipColorOff(k); return <button key={k} className={`chip like${on(k) && !off ? ' on' : ''}`} onClick={() => chipTap(k, star)} disabled={off} title={off ? tx('Fora da identidade de cor do comandante') : star ? tx('Toca outra vez para tornar este tema essencial ★') : undefined}>{st && !off && '★ '}{lab(x)}</button> })}</div>
@@ -409,7 +420,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
             </div>}
             {preview.length > 0 && <>
               <h4>{tx('Cartas deste gosto')} <span className="muted">{tx('toca para as juntar às cartas de partida')}</span></h4>
-              <div className="wz-res">{preview.map(c => <PickCard key={c.i} c={c} on={has(c)} onPick={() => toggle(c)} onBig={setBig} />)}</div>
+              <div className="wz-res">{preview.map(c => <PickCard key={c.i} c={c} on={has(c)} onPick={() => toggle(c)} onBig={setBig} fl={flOf(c)} />)}</div>
             </>}
             <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />
             <button onClick={() => { save(null); const useCmd = cmds.length ? cmds : autoCmd ? [autoCmd] : []; const d = emptyDeck(format); d.name = name.trim() || tx('{name} — novo', { name: useCmd.length ? useCmd.map(c => c.n.split(',')[0]).join(' & ') : fmt.name }); d.commanders = useCmd.map(c => c.n); d.prefs = prefs; d.seedTerms = sel.terms.map(t => ({ k: t.k, v: t.v })); onCreate(withIdeas(d, useCmd), false, 'pesquisa') }} disabled={!sel.terms.length}>✎ {tx('Só os temas, construo eu')}</button>

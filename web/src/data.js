@@ -5,6 +5,7 @@ import { landInfo, offColorLand } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 import { deckThemes } from './synergy.js'
 import { hateMatch, hateScore } from './hate.js'
+import { setVocab, setOriginals, flavorHit, norm } from './vocab.js'
 
 // funções a mais, tiradas do texto ao carregar (os dados só trazem as 20 do build_data): moer, dano direto, reforço,
 // piscar, devolver à mão, copiar, roubar, drenar, escolher cartas, reduzir custos, desvirar, turno extra, landfall, taxar
@@ -353,11 +354,13 @@ const NOT_CREATURE = new Set(['Saga', 'Equipment', 'Aura', 'Food', 'Clue', 'Trea
 const ownTypes = c => new Set(c.t.split(' // ').flatMap(f => (f.includes('—') ? f.split('—')[1].trim().split(/\s+/) : [])))
 
 export async function loadData() {
-  const [meta, cards, combos, emb, pos] = await Promise.all([
+  const [meta, cards, combos, emb, pos, vocab] = await Promise.all([
     get('meta.json', 'json'), get('cards.json', 'json'), get('combos.json', 'json'),
-    get('emb.bin'), get('pos.bin'),
+    get('emb.bin'), get('pos.bin'), get('vocab.json', 'json').catch(() => null),  // edições/universos (build/vocab.py); opcional
   ])
-  return prepData(meta, cards, combos, emb, pos)
+  const data = prepData(meta, cards, combos, emb, pos)
+  setVocab(vocab, cards)
+  return data
 }
 
 // Índices e etiquetas calculadas por carta (separado de loadData para o selfcheck usar cartas inventadas).
@@ -516,11 +519,12 @@ export function passes(c, f, ctx) {
 export const unaccent = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 export function search(data, q, f, ctx, limit = 150) {
   const words = unaccent(q.toLowerCase()).trim().split(/\s+/).filter(Boolean)
-  const out = []
+  const fw = words.flatMap(w => norm(w).split(' ')).filter(Boolean)
+  const out = [], fl = new Map()  // fl: cartas que entraram pelo nome alternativo («megatron» → Blightsteel Colossus, SLD)
   for (const c of data.cards) {
     if (words.length) {
       const hay = f?.inText ? c.f + '\n' + unaccent(c.o.toLowerCase()) + '\n' + c.t.toLowerCase() : c.f
-      if (!words.every(w => hay.includes(w))) continue
+      if (!words.every(w => hay.includes(w))) { const x = flavorHit(c, fw); if (!x) continue; fl.set(c.i, x) }
     }
     if (!passes(c, f, ctx)) continue
     out.push(c)
@@ -533,13 +537,13 @@ export function search(data, q, f, ctx, limit = 150) {
   out.sort((a, b) => {
     if (vs) { const d = hateScore(b, vs, f.vsCtr) - hateScore(a, vs, f.vsCtr); if (d) return d }
     if (words.length && sort === 'pop') {
-      const pa = a.f.startsWith(words.join(' ')) ? 0 : 1, pb = b.f.startsWith(words.join(' ')) ? 0 : 1
+      const w = words.join(' '), pa = (fl.get(a.i)?.f || a.f).startsWith(w) ? 0 : 1, pb = (fl.get(b.i)?.f || b.f).startsWith(w) ? 0 : 1
       if (pa !== pb) return pa - pb
     }
     const ka = key(a), kb = key(b)
     return ka < kb ? -1 : ka > kb ? 1 : 0
   })
-  return { total: out.length, cards: out.slice(0, limit) }
+  return { total: out.length, cards: out.slice(0, limit), fl }
 }
 
 function dotInt8(E, D, a, b) {
@@ -583,6 +587,7 @@ export function termMatch(c, t) {
   if (t.k === 'sub') return subsOf(c).includes(t.v)
   if (t.k === 'rar') return c.r === t.v  // raridade (c/u/r/m)
   if (t.k === 'mv') return t.v === '7+' ? c.cmc >= 7 : c.cmc === +t.v && !/Land/.test(c.t)  // custo de mana
+  if (t.k === 'set') return setOriginals(t.v).has(c.i)  // edição/universo: as cartas que nasceram lá (vocab.js)
   return c.t.split('—')[0].includes(t.v)
 }
 let TERMS = null

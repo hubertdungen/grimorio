@@ -17,6 +17,7 @@ import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 import { parseQuery, likeTheme } from './nlsearch.js'
+import { VOC, findSets, setLabel, setYear, setGroup, setMembers, flavorOf } from './vocab.js'
 import { THREATS, hateMatch } from './hate.js'
 import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
 import { useBackClose } from './backnav.js'
@@ -875,16 +876,25 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   const [f, setF] = useState(F0)
   const dq = useDeferredValue(q), df = useDeferredValue(f)
   const [raw, setRaw] = useState('')  // frase que o utilizador quis pelo nome (✕ no «Entendido como»)
-  // edição na pesquisa («Assassin's Creed», «MH3», «e:ltr»): a lista de edições e as cartas de cada uma vêm da Scryfall
-  // quando são precisas; só conta se nenhuma carta começa pelo que se escreveu (assim «Zendikar's Roil» é a carta)
+  // edição ou universo na pesquisa («Assassin's Creed», «MH3», «e:ltr», «transformers», «senhor dos anéis»): com os dados
+  // do vocab.json (build/vocab.py) tudo local; sem eles, a lista de edições e as cartas de cada uma vêm da Scryfall.
+  // Só conta se nenhuma carta começa pelo que se escreveu (assim «Zendikar's Roil» é a carta). Uma palavra que também é
+  // um tipo («assassins», «hobbits», «avatar») fica o tipo, e a edição aparece como sugestão (uniSug).
   const [sets, setSets] = useState(null), [setNames, setSetNames] = useState({})
-  useEffect(() => { if (!sets && dq.trim().length >= 3) fetchSets().then(setSets) }, [dq, sets])
-  const setHit = useMemo(() => {
-    const h = sets && findSet(dq, sets), qf = unaccent(dq.toLowerCase().trim())
-    return h && !data.cards.some(c => (c.f || c.l).startsWith(qf)) ? h : null
+  useEffect(() => { if (!VOC.on && !sets && dq.trim().length >= 3) fetchSets().then(setSets) }, [dq, sets])
+  const [setHit, uniSug] = useMemo(() => {
+    const qf = unaccent(dq.toLowerCase().trim())
+    if (!qf || data.cards.some(c => (c.f || c.l).startsWith(qf))) return [null, []]
+    if (!VOC.on) return [sets && findSet(dq, sets), []]
+    const { hits, rest } = findSets(dq), weak = h => !h.w.includes(' ') && parseQuery(h.w, { types: CREATURE_TYPES })?.f.sub
+    const strong = hits.filter(h => !weak(h)), soft = hits.filter(weak)
+    if (!strong.length) return [null, soft.map(h => h.v)]
+    const v = strong[0].v, f = VOC.fr.get(v)
+    const set = { code: v, name: f?.name || VOC.sets.get(v)?.name || v, y: setYear(v), tag: VOC.sets.has(v) ? v.toUpperCase() : setGroup(v).slice(0, 4).map(k => k.toUpperCase()).join(', ') }
+    return [{ set, rest: [rest, ...soft.map(h => h.w)].join(' ').trim(), local: true }, []]
   }, [dq, sets, data])
-  useEffect(() => { const k = setHit?.set.code; if (k && !setNames[k]) fetchSetCards(k).then(n => setSetNames(x => ({ ...x, [k]: n }))) }, [setHit]) // eslint-disable-line react-hooks/exhaustive-deps
-  const setList = setHit && setNames[setHit.set.code]
+  useEffect(() => { const k = setHit?.set.code; if (k && !setHit.local && !setNames[k]) fetchSetCards(k).then(n => setSetNames(x => ({ ...x, [k]: n }))) }, [setHit]) // eslint-disable-line react-hooks/exhaustive-deps
+  const setList = useMemo(() => (setHit?.local ? new Set([...setMembers(setHit.set.code)].map(i => data.cards[i].n)) : setHit && setNames[setHit.set.code]), [setHit, setNames, data])
   const qq = setHit ? setHit.rest : dq
   const dff = useMemo(() => (setHit ? { ...df, names: setList || new Set() } : df), [df, setHit, setList])
   const [noVs, setNoVs] = useState('')  // frase em que o utilizador tirou o «contra X» (✕ no chip)
@@ -931,11 +941,13 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => (g.k === 'legendary' ? <span key={k} className="chip">♛ <b>{tx('Lendárias')}</b></span>
         : g.k === 'vs' ? <span key={k} className="chip chip-vs" title={res.nl.f.vsCtr ? tx('Só contra-feitiços que apanham estes feitiços') : tx('Cartas que respondem a isto: as mais diretas primeiro')}>🛡 {NL_L.vs} <b>{THREATS[g.v].label}</b><button onClick={() => setNoVs(qq)} aria-label={tx('Retirar {t}', { t: THREATS[g.v].label })}>×</button></span>
         : <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.k === 'fmt' ? FORMAT[g.v]?.name || g.v : g.v}</b></span>))}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.orTypes && <span className="muted small">{tx('nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra', { t: res.nl.orTypes.map(t => TYPE_LABEL[t] || t).join(' + ') })}</span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
+      {setHit && <p className="small set-hit">📦 {tx('Edição')}: <b>{setHit.set.name}</b> <span className="muted">({setHit.set.tag || setHit.set.code.toUpperCase()}{setHit.set.y ? ` · ${setHit.set.y}` : ''})</span>{!setList && <span className="muted"> · {tx('a carregar as cartas da edição…')}</span>}</p>}
+      {uniSug.length > 0 && <p className="small set-hit">{tx('Também é o nome de um universo:')} {uniSug.map(v => <button key={v} className="link small" onClick={() => setQ(`e:${v}`)}>🎬 {setLabel(v)}</button>)}</p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">
-        {res.cards.map(c => <CardTile key={c.i} c={c} pid={pidOf(deck, c.n)} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} note={res.nl?.f.vs && <VsWhy c={c} nl={res.nl} />} />)}
+        {res.cards.map(c => { const fl = res.fl?.get(c.i) || (setHit?.local && flavorOf(c, setHit.set.code))  // entrou por outro nome: a imagem dessa impressão
+          return <CardTile key={c.i} c={c} pid={pidOf(deck, c.n) || fl?.id} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} note={<>{fl && <p className="small muted tile-fl" title={tx('Também conhecida como {n}', { n: `${fl.n} (${fl.set.toUpperCase()})` })}>«{fl.n}» · {fl.set.toUpperCase()}</p>}{res.nl?.f.vs && <VsWhy c={c} nl={res.nl} />}</>} /> })}
       </div>
-      {setHit && <p className="small set-hit">📦 {tx('Edição')}: <b>{setHit.set.name}</b> <span className="muted">({setHit.set.code.toUpperCase()}{setHit.set.y ? ` · ${setHit.set.y}` : ''})</span>{!setList && <span className="muted"> · {tx('a carregar as cartas da edição…')}</span>}</p>}
       {hidden > 0 && <p className="small fmt-hidden">{tx('{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}', { n: hidden, f: ctx.identity != null && ctx.bit < 0 ? tx('na identidade do comandante') : fmt.name })} <button className="link small" onClick={() => setAnyFmt(true)}>{tx('mostrar mesmo assim')}</button></p>}
       {anyFmt && <p className="small fmt-hidden">{tx('A mostrar cartas de todos os formatos.')} <button className="link small" onClick={() => setAnyFmt(false)}>{tx('só as legais')}</button></p>}
       {!res.total && <Empty>{tx('Nenhuma carta com estes filtros.')}</Empty>}
@@ -952,8 +964,9 @@ function VsWhy({ c, nl }) {
   return ws.length > 0 && <ul className="why vs-why"><li className="tema" title={tx('Porque aparece nesta pesquisa')}>🛡 {ws.join(' · ')}</li></ul>
 }
 
-const TERM_ICO = { kw: '✦', sub: '🏷', type: '▦', rar: '◆', mv: '◎' }
-const TERM_L = { kw: tx('habilidade'), sub: tx('subtipo'), type: tx('tipo'), rar: tx('Raridade'), mv: 'MV' }
+const TERM_ICO = { kw: '✦', sub: '🏷', type: '▦', rar: '◆', mv: '◎', set: '🎬' }
+const TERM_L = { kw: tx('habilidade'), sub: tx('subtipo'), type: tx('tipo'), rar: tx('Raridade'), mv: 'MV', set: tx('edição ou universo') }
+const termV = t => (t.k === 'set' ? setLabel(t.v) : t.v)
 function SeedPicker({ data, ctx, act }) {
   const [q, setQ] = useState('')
   const hits = useMemo(() => (q.length < 2 ? [] : search(data, q, null, { ...ctx, identity: null }, 8).cards), [data, q, ctx])
@@ -961,7 +974,7 @@ function SeedPicker({ data, ctx, act }) {
     const n = q.trim().toLowerCase(), base = n.replace(/(es|s)$/, '')
     if (n.length < 2) return []
     const pre = termsOf(data).filter(t => { const v = t.v.toLowerCase(); return v.startsWith(n) || v === base || v.startsWith(base) })
-    const like = likeTheme(data, q, { types: CREATURE_TYPES }).terms.filter(t => t.u).map(t => termsOf(data).find(x => x.k === t.k && x.v === t.v)).filter(Boolean)  // frases: «ninjas dragões»
+    const like = likeTheme(data, q, { types: CREATURE_TYPES }).terms.filter(t => t.u).map(t => (t.k === 'set' ? t : termsOf(data).find(x => x.k === t.k && x.v === t.v))).filter(Boolean)  // frases: «ninjas dragões»
     return [...new Set([...like, ...pre])].slice(0, 8)
   }, [data, q])
   return (
@@ -969,7 +982,7 @@ function SeedPicker({ data, ctx, act }) {
       <input value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Junta uma carta, uma habilidade (Flying…) ou um tipo (Rat, Human…)')} />
       {(terms.length > 0 || hits.length > 0) && (
         <ul className="ac">
-          {terms.map(t => <li key={t.k + t.v}><button className="ac-term" onClick={() => { act.toggleSeedTerm(t); setQ('') }}><i>{TERM_ICO[t.k]}</i><b>{t.v}</b><small className="muted">{TERM_L[t.k]} · {tx('{n} cartas', { n: t.n.toLocaleString(LOCALE) })}</small></button></li>)}
+          {terms.map(t => <li key={t.k + t.v}><button className="ac-term" onClick={() => { act.toggleSeedTerm(t); setQ('') }}><i>{TERM_ICO[t.k]}</i><b>{termV(t)}</b><small className="muted">{TERM_L[t.k]} · {tx('{n} cartas', { n: t.n.toLocaleString(LOCALE) })}</small></button></li>)}
           {hits.map(c => <li key={c.i}><button onClick={() => { act.toggleSeed(c); setQ('') }}><img src={img(c, 'small')} alt="" />{c.n}</button></li>)}
         </ul>
       )}
@@ -995,7 +1008,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
         </div>
         <div className="chips">
           {deck.seeds.map(n => { const c = data.byName.get(n); return c && <span key={n} className="chip"><button className="link" onClick={() => act.open(c)}>{n}</button><button onClick={() => act.toggleSeed(c)} aria-label={tx('Retirar')}>×</button></span> })}
-          {(deck.seedTerms || []).map(t => <span key={t.k + t.v} className="chip chip-term" title={TERM_L[t.k]}>{TERM_ICO[t.k]} {t.v}<button onClick={() => act.toggleSeedTerm(t)} aria-label={tx('Retirar {t}', { t: t.v })}>×</button></span>)}
+          {(deck.seedTerms || []).map(t => <span key={t.k + t.v} className="chip chip-term" title={TERM_L[t.k]}>{TERM_ICO[t.k]} {termV(t)}<button onClick={() => act.toggleSeedTerm(t)} aria-label={tx('Retirar {t}', { t: termV(t) })}>×</button></span>)}
           {(deck.seeds.length > 0 || deck.seedTerms?.length > 0) && <button className="link small" onClick={() => setDeck(d => ({ ...d, seeds: [], seedTerms: [] }))}>{tx('limpar')}</button>}
         </div>
         <SeedPicker {...{ data, ctx, act }} />
@@ -1593,6 +1606,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
         <div className="cm-info">
           <h2>{c.n} <Mana cost={c.mc} /></h2>
           <p className="type">{c.t}{c.pt ? ` · ${c.pt}` : ''}</p>
+          {c.fl?.length > 0 && <p className="small muted cm-aka">{tx('Também conhecida como')} {c.fl.map((x, k) => <span key={x.id}>{k ? ', ' : ''}<button className="link small" onClick={() => onPreview(x.id)} title={tx('Ver esta impressão')}>{x.n}</button> ({x.set.toUpperCase()})</span>)}</p>}
           <Oracle text={c.o} />
           <Tags c={c} onTag={t => { onClose(); act.suggestFor(t) }} />
           <div className="legal">

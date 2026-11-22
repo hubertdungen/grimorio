@@ -4379,6 +4379,9 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .wz-res .wz-pc > button.wz-zoom { position: absolute; top: auto; bottom: 6px; right: 6px; width: auto; min-height: 28px; min-width: 28px; aspect-ratio: auto; border: 1px solid var(--line); background: rgba(11, 10, 20, .8); overflow: visible; }
 @media (hover: hover) { .wz-res .wz-pc > button.wz-zoom { opacity: 0; transition: opacity .15s; } .wz-pc:hover > button.wz-zoom, .wz-res .wz-pc > button.wz-zoom:focus-visible { opacity: .9; } }
 .wz-res .wz-cc > button.wz-zoom { position: absolute; top: 8px; right: 8px; width: auto; aspect-ratio: auto; border: 1px solid var(--line); background: rgba(11, 10, 20, .8); overflow: visible; }
+/* impressão com outro nome («Megatron» = Blightsteel Colossus, SLD): o nome por cima da carta, sem mexer na grelha */
+.wz-fl { position: absolute; left: 6px; bottom: 8px; max-width: calc(100% - 48px); padding: 1px 7px; border-radius: 99px; background: rgba(11, 10, 20, .85); border: 1px solid var(--line); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.tile-fl { margin: 2px 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wz-res .wz-cc > button:first-child { border: 0; }
 
 /* mecânicas na carta: batalhas deitadas (como na mesa a sério), portas das Salas, nível da Classe, marcas (Caso, Anel…) */
