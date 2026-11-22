@@ -139,7 +139,7 @@ const CJK = /[\u3400-\u9fff]/
 
 // plurais e nomes noutras línguas: «elves», «wolves», «mice», «fungi», «dragões», e os tipos das impressões traduzidas
 // (vocab.js: «zumbi», «Drache», «半身人»); o tipo tem de existir nos dados
-const subOf = (w, types) => {
+export const subOf = (w, types) => {
   for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/en$/, ''), w.replace(/n$/, ''), w.replace(/e$/, ''), w.replace(/ves$/, 'f'),
     w.replace(/ies$/, 'y'), w.replace(/i$/, 'us'), w.replace(/ice$/, 'ouse'), w.replace(/(oes|aes)$/, 'ao')]) {
     if (SUBS[x]) return SUBS[x]

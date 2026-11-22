@@ -3,14 +3,14 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { search, recommend, img, fmtBit, passes, STYLES, LEVELS, CREATURE_TYPES, COLORS, TAG_LABEL, TYPE_LABEL, termMatch } from './data.js'
-import { likeTheme, likeCards, likeCommanders, chipUniverse, parseQuery } from './nlsearch.js'
+import { likeTheme, likeCards, likeCommanders, chipUniverse, parseQuery, subOf } from './nlsearch.js'
 import { ARCH, ARCH_OF_TAG } from './archetypes.js'
 import { FORMATS, FORMAT, canBeCommander, pairOk } from './formats.js'
 import { emptyDeck } from './deck.js'
 import { PrefsPanel, IASettings } from './Views.jsx'
 import { Mana } from './ui.jsx'
 import { tx } from './i18n.js'
-import { findSets, setLabel, flavorOf } from './vocab.js'
+import { findSets, setLabel, flavorOf, norm } from './vocab.js'
 import { useBackClose } from './backnav.js'
 import { held } from './touch.js'
 import { delayedPeek } from './deckview.js'
@@ -24,6 +24,22 @@ const save = v => { try { if (v) localStorage.setItem(KEY, JSON.stringify(v)); e
 const pairable = c => /\bPartner\b|Friends forever|Doctor's companion|Choose a Background/.test(c.o) || /Time Lord Doctor/.test(c.t)
 
 const START = [['gosto', tx('Gosto de…'), '♥'], ['cartas', tx('Escolher 3–10 cartas'), '▦'], ['manual', tx('Construir à mão'), '✎'], ['importar', tx('Importar e melhorar'), '⇩'], ['ia', tx('Descrever a ideia (IA)'), '✦']]
+
+// subtipos de uma carta (as duas faces)
+const subsIn = c => (c.t || '').split(' // ').flatMap(f => (f.split(' — ')[1] || '').split(' ')).filter(Boolean)
+// as palavras da pesquisa de comandantes que são tipos de criatura: o nome inteiro em qualquer língua/plural (subOf),
+// ou o começo de um tipo enquanto se escreve («pirat» → Pirate); só tipos que existem em criaturas lendárias
+let CT = null
+const cmdTypes = (data, q) => {
+  if (!CT || CT.d !== data) CT = { d: data, s: new Set(data.cards.filter(c => /Legendary/.test(c.t)).flatMap(subsIn)) }
+  const out = new Set()
+  for (const w of norm(q).split(/[\s,]+/).filter(x => x.length >= 3)) {
+    const t = subOf(w, CT.s)
+    if (t) { out.add(t); continue }
+    if (w.length >= 4) for (const x of CT.s) if (x.toLowerCase().startsWith(w)) out.add(x)
+  }
+  return out
+}
 
 // carta para escolher (cartas do gosto, pesquisa): tocar junta/tira; 🔍, botão direito ou tocar e manter mostra-a em grande
 function PickCard({ c, on, disabled, onPick, onBig, fl }) {  // fl: a impressão com outro nome («Megatron», SLD) que a trouxe
@@ -168,7 +184,12 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     if (!fmt.cmd || cmds.length >= (partnerOf ? 2 : 1)) return []
     const legal = c => ctx.bit < 0 || c.lg & (1 << ctx.bit)
     const ok = partnerOf ? c => c.i !== partnerOf.i && (canBeCommander(c, fmt) || /Background/.test(c.t)) && pairOk(partnerOf, c) : c => canBeCommander(c, fmt) && subset(need, c.ci)
-    return search(data, dcq, { sort: 'pop', inText: false }, { bit: ctx.bit, identity: null, allowUn: ctx.allowUn }, 40000).cards.filter(c => legal(c) && ok(c)).slice(0, partnerOf ? 24 : 90)
+    const byName = search(data, dcq, { sort: 'pop', inText: false }, { bit: ctx.bit, identity: null, allowUn: ctx.allowUn }, 40000).cards.filter(c => legal(c) && ok(c))
+    // também pelo tipo de criatura: «pirat», «pirata», «piratas», «vampires», «elfos» → os comandantes desse tipo
+    const tys = cmdTypes(data, dcq), seen = new Set(byName.map(c => c.i))
+    const byType = tys.size ? search(data, '', { sort: 'pop', inText: false }, { bit: ctx.bit, identity: null, allowUn: ctx.allowUn }, 40000).cards
+      .filter(c => !seen.has(c.i) && legal(c) && ok(c) && subsIn(c).some(t => tys.has(t))) : []
+    return [...byName, ...byType].slice(0, partnerOf ? 24 : 90)
   }, [data, dcq, fmt, cmds.length, partnerOf, ctx.bit, ctx.allowUn, need])
   const has = c => picks.some(p => p.i === c.i) || cmds.some(x => x.i === c.i)
   const maxPicks = start === 'ia' ? 30 : 10
