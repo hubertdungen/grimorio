@@ -1031,3 +1031,46 @@ import { ptExplain } from './src/game.js'
   console.log('selfcheck fichas ok')
 }
 { const { selfcheck } = await import('./src/fpask.js'); selfcheck(assert); console.log('selfcheck pedidos do Forge ok') }
+
+// terrenos que passam a criatura: earthbend (Badgermole Cub, grande final de 12/11) e manlands até ao fim do turno — vão
+// para a fila das criaturas com o P/R certo; o que volta do exílio volta só terreno
+{
+  const { replayStates: rs, isCreature: isC, powTough: pt } = await import('./src/game.js')
+  const G = [
+    { n: 'Badgermole Cub', t: 'Creature — Badger Mole', o: 'When this creature enters, earthbend 1.', pt: '2/2', kw: [] },
+    { n: 'Llanowar Wastes', t: 'Land', o: '{T}: Add {C}.', pt: '', kw: [] },
+    { n: 'Mutavault', t: 'Land', o: '{1}: Until end of turn, Mutavault becomes a 2/2 creature with all creature types.', pt: '', kw: [] },
+    { n: 'Path to Exile', t: 'Instant', o: 'Exile target creature.', pt: '', kw: [] },
+  ]
+  const gm = { byName: new Map(G.map(c => [c.n, c])), byLower: new Map(G.map(c => [c.n.toLowerCase(), c])) }
+  const E = [
+    { t: 0, k: 'mulligan', p: 'a', n: 7, card: 'kept' },
+    { t: 1, k: 'turn', p: 'a' },
+    { t: 1, k: 'land', p: 'a', card: 'Llanowar Wastes', id: 1, zn: [{ id: 1, card: 'Llanowar Wastes', from: 'hand', to: 'battlefield', fp: 'a', tp: 'a' }] },
+    { t: 1, k: 'land', p: 'a', card: 'Mutavault', id: 12, zn: [{ id: 12, card: 'Mutavault', from: 'hand', to: 'battlefield', fp: 'a', tp: 'a' }] },
+    { t: 1, k: 'cast', p: 'a', card: 'Badgermole Cub', zn: [{ id: 18, card: 'Badgermole Cub', from: 'hand', to: 'stack', fp: 'a', tp: null }] },
+    { t: 1, k: 'resolve', p: 'a', card: 'Badgermole Cub', pt: '2/2', zn: [{ id: 18, card: 'Badgermole Cub', from: 'stack', to: 'battlefield', fp: null, tp: 'a' }] },
+    { t: 1, k: 'trigger', p: 'a', card: 'Badgermole Cub', target: 'Llanowar Wastes', tid: 1 },
+    { t: 1, k: 'counters', p: 'a', card: 'Llanowar Wastes', id: 1, ct: '+1/+1', n: 1, abs: 1, x: 1 },
+    { t: 1, k: 'resolve', p: 'a', txt: 'When this creature enters, earthbend 1. (Target land you control becomes a 0/0 creature with haste that\'s still a land. Put a +1/+1 counter on it.) (Targeting: [[Llanowar Wastes (1)]])' },
+    { t: 1, k: 'activate', p: 'a', card: 'Mutavault', id: 12 },
+    { t: 1, k: 'resolve', p: 'a', card: 'Mutavault', txt: 'Mutavault (12) - Until end of turn, Mutavault becomes a 2/2 creature with all creature types.' },
+  ]
+  let st = rs(E, gm, 20, null, true), s = st.at(-1)
+  const lw = s.a.perms.find(p => p.name === 'Llanowar Wastes'), mv = s.a.perms.find(p => p.name === 'Mutavault')
+  assert.ok(isC(gm, lw), 'o earthbend torna o terreno criatura')
+  assert.deepEqual([pt(gm, lw).p, pt(gm, lw).t], [1, 1], 'terreno com earthbend 1 = 0/0 + marcador = 1/1')
+  assert.ok(isC(gm, mv) && pt(gm, mv).p === 2, 'Mutavault animado é uma 2/2')
+  // no turno seguinte o Mutavault volta a ser só terreno; a Llanowar Wastes continua criatura
+  st = rs([...E, { t: 2, k: 'turn', p: 'b' }], gm, 20, null, true); s = st.at(-1)
+  assert.ok(!isC(gm, s.a.perms.find(p => p.name === 'Mutavault')), '«until end of turn» acaba no fim do turno')
+  assert.ok(isC(gm, s.a.perms.find(p => p.name === 'Llanowar Wastes')), 'o earthbend fica')
+  // exilada (Path) e devolvida virada: volta só terreno
+  st = rs([...E,
+    { t: 1, k: 'exile', p: 'a', card: 'Llanowar Wastes', id: 1, x: 1, zn: [{ id: 1, card: 'Llanowar Wastes', from: 'battlefield', to: 'exile', fp: 'a', tp: 'a' }] },
+    { t: 1, k: 'zone', p: 'a', card: 'Llanowar Wastes', id: 1, x: 1, zn: [{ id: 1, card: 'Llanowar Wastes', from: 'exile', to: 'battlefield', fp: 'a', tp: 'a' }] },
+  ], gm, 20, null, true); s = st.at(-1)
+  const back = s.a.perms.find(p => p.name === 'Llanowar Wastes')
+  assert.ok(back && !isC(gm, back), 'de volta do exílio é só terreno')
+  console.log('selfcheck terrenos animados ok')
+}

@@ -1880,7 +1880,7 @@ export function Side({ k, name, s, data, fx, att, top, fast, start, openZone, ha
   const creatures = [], lands = [], others = [], loose = []
   // planeswalkers e batalhas na fila da frente, no fim (à direita das criaturas): são o que se ataca, à vista de quem ataca
   const walker = p => !isCreature(data, p) && (p.counters?.loyalty != null || /\b(Planeswalker|Battle)\b/.test(typeOf(data, p)))
-  for (const p of live) { if (free?.[p.key]) { loose.push(p); continue } const r = place?.[p.key] || (isCreature(data, p) || walker(p) ? 'front' : isLand(data, p) ? 'lands' : 'others'); (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
+  for (const p of live) { if (free?.[p.key]) { loose.push(p); continue } const nat = isCreature(data, p) || walker(p) ? 'front' : isLand(data, p) ? 'lands' : 'others', pl = place?.[p.key], r = pl && !((pl === 'lands') !== (nat === 'lands') && (pl === 'front' || nat === 'front')) ? pl : nat;  /* um terreno que passou a criatura (earthbend, manland) sai da fila dos terrenos: a fila guardada só manda se não mudou de terreno ↔ criatura */ (r === 'front' ? creatures : r === 'lands' ? lands : others).push(p) }
   creatures.sort((x, y) => walker(x) - walker(y))  // estável: as criaturas pela ordem delas, os planeswalkers depois
   if (order) for (const xs of [creatures, lands, others]) xs.sort((x, y) => (order[x.key] ?? 1e9) - (order[y.key] ?? 1e9))
   const front = <Row perms={creatures} data={data} fx={fx} att={att} cls="front" groupable={p => p.token} empty={tx('sem criaturas')} quiet={fast} who={who} split />

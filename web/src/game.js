@@ -67,7 +67,7 @@ export const typeOf = (data, perm) => {
 }
 // notCre: impressa como criatura mas agora não é — Enduring Vitality/Innocence/Curiosity… voltam do cemitério «It's an
 // enchantment. (It's not a creature.)»; no Forge Play o Forge diz-o sempre (Imprisoned in the Moon, deuses sem devoção…)
-export const isCreature = (data, perm) => !perm.dormant && !perm.notCre && (perm.crewed || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt))
+export const isCreature = (data, perm) => !perm.dormant && !perm.notCre && (perm.crewed || perm.animated || /Creature/.test(typeOf(data, perm)) || (perm.token && !!perm.pt))
 // volta do cemitério e o texto diz que deixa de ser criatura (o ciclo Enduring de Duskmourn e afins)
 const comesBackNonCreature = c => /It's not a creature/i.test(c?.o || '')
 // deuses de Theros: «As long as your devotion to blue is less than five, Thassa isn't a creature.» — devoção = símbolos
@@ -99,7 +99,7 @@ export const isLand = (data, perm) => perm.land || /\bLand\b/.test(typeOf(data, 
 // P/R atual: base (do Forge ou da carta) + marcadores +1/+1 e −1/−1 + efeitos até ao fim do turno
 export function powTough(data, perm) {
   const c = permCard(data, perm)
-  const base = perm.pt || (c && /\//.test(c.pt) ? c.pt : null)
+  const base = perm.pt || ((perm.animated || perm.crewed) && perm.apt) || (c && /\//.test(c.pt) ? c.pt : null)  // apt: P/R de um terreno animado (earthbend, manlands)
   if (!base) return null
   let [p, t] = base.split('/').map(x => parseInt(x, 10))
   if (Number.isNaN(p) || Number.isNaN(t)) return null
@@ -334,7 +334,7 @@ export function applyEvent(s0, ev, data) {
           const untap = mine && x.tapped && (!X || ut.has(x.fid))  // exato: só o que o Forge desvirou
           const lore = !X && mine && x.counters?.lore != null
           if (!x.damage && !x.pump && !x.attacking && !x.blocking && !x.crewed && !x.deathtouched && !untap && !(mine && x.sick) && !(x.goaded && x.goaded === ev.p) && !lore) return x
-          const y = { ...x, damage: 0, pump: null, attacking: null, atkKey: null, atkName: null, blocking: null, crewed: false, deathtouched: false }
+          const y = { ...x, damage: 0, pump: null, attacking: null, atkKey: null, atkName: null, blocking: null, crewed: false, deathtouched: false, apt: x.animated ? x.apt : null }
           if (mine) y.sick = false
           if (untap) y.tapped = false
           if (y.goaded === ev.p) y.goaded = null
@@ -414,6 +414,22 @@ export function applyEvent(s0, ev, data) {
         }
         const to = k || owner
         if (dest === 'hand') { if (to) toZone(to, name, 'hand') } else if (to && !find(+fid, null)) make(owner || to, name, { fid: +fid, notCre: comesBackNonCreature(look(name)) })
+      }
+      // passa a criatura (earthbend; «becomes a 2/2 … creature» de manlands e feitiços que animam terrenos): o Forge só o diz no
+      // texto da resolução — o alvo («Targeting: [[Nome (id)]]») ou a própria carta («Mutavault (12) - …»). «Until end of turn»
+      // volta a ser só terreno no fim do turno (crewed); o earthbend fica criatura enquanto estiver no campo (animated)
+      if (ev.k === 'resolve') {  // também no modo exato: as mudanças de zona não dizem que passou a criatura
+        const t0 = ev.txt || '', eb = /\bearthbend\b/i.test(t0), bm = /becomes? an? (\d+|X)\/(\d+|X)\b[^.]{0,80}?\bcreature/i.exec(t0)
+        if (eb || bm) {
+          const tg = [...(t0.split('(Targeting:')[1] || '').matchAll(/([^[\]]+?) \((\d+)\)/g)].map(m => [+m[2], m[1].trim()])
+          const self = /^(.+?) \((\d+)\) - /.exec(t0)
+          const ids = tg.length ? tg : self ? [[+self[2], self[1]]] : ev.id != null ? [[ev.id, ev.card]] : []
+          const eot = /until end of turn/i.test(t0), apt = eb ? '0/0' : `${bm[1] === 'X' ? 0 : bm[1]}/${bm[2] === 'X' ? 0 : bm[2]}`
+          for (const [fid, name] of ids) {
+            const f = find(fid, name)
+            if (f) { upd(f[0], f[1].key, x => ({ ...x, apt, sick: eb ? false : x.sick, ...(eot ? { crewed: true } : { animated: true }) })); touch(f[1].key) }
+          }
+        }
       }
       // lealdade: a habilidade do planeswalker resolve agora (o Forge não diz o custo; lê-se do texto da carta)
       if (top?.kind === 'activate' && ev.card && !X) {
