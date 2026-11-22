@@ -37,11 +37,16 @@ export function basePrompt(c, pr) {
 // O pedido final: base + toque pessoal + instruções do modo e das imagens anexadas (pela ordem em que vão).
 // mode: 'frame' (arte nova na moldura) | 'art' (só a ilustração); masked: o fornecedor recebe máscara (OpenAI, local);
 // aspect: 'card' | 'box' (modo arte); refs: quantas referências de estilo; orig: a arte original vai como referência.
-export function finalPrompt({ base, custom, mode, masked, aspect = 'card', refs = 0, orig = false }) {
+export function finalPrompt({ base, custom, mode, masked, aspect = 'card', refs = 0, orig = false, frame = '', font = '' }) {
   const out = [String(base || '').trim()]
   if (custom?.trim()) out.push(`Personal direction from the user: ${custom.trim()}`)
   const att = []
-  if (mode === 'frame') {
+  if (mode === 'card') {  // carta inteira: ilustração, moldura e letra novas; o texto da carta tem de ficar certo
+    att.push('the original card (reference for its exact wording and layout only)')
+    out.push(['Redesign the WHOLE trading card: a new original illustration, a new frame and new lettering, portrait 2:3 card proportions.',
+      'Keep every word exactly as on the original card and spell it correctly: the title, the mana cost, the type line, the rules text and the power/toughness, in the usual card positions.',
+      `Frame style: ${frame.trim() || 'a fresh, ornate fantasy frame that fits the art'}.`, `Lettering style: ${font.trim() || 'clear, readable fantasy lettering'}.`].join(' '))
+  } else if (mode === 'frame') {
     att.push('the card to edit')
     out.push(masked
       ? 'Paint brand-new original artwork only inside the masked (transparent) area, which is the illustration box of the card. Keep the frame, title, mana symbols, type line, text box and borders exactly as they are.'

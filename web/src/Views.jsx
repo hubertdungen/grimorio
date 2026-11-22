@@ -1594,7 +1594,7 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
 const slug = n => n.split(' // ')[0].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 const SHOW_FORMATS = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper', 'commander', 'oathbreaker', 'brawl', 'historic', 'timeless', 'premodern', 'paupercommander', 'duel']
 
-function Prints({ c, deck, act, onPreview }) {
+function Prints({ c, deck, act, onPreview, extra }) {  // extra: botões na mesma fila do filtro de estilos («✨ Criar alter art»)
   const [prints, setPrints] = useState(null)
   const [err, setErr] = useState(false)
   const [style, setStyle] = useState('')
@@ -1613,6 +1613,7 @@ function Prints({ c, deck, act, onPreview }) {
           {styles.map(x => <option key={x} value={x}>{x} ({prints.filter(p => p.style.includes(x)).length})</option>)}
         </select>
         {(chosen || deck.art?.[c.n]) && <button onClick={() => { act.setPrint(c, null); onPreview(null) }}>{tx('Voltar à predefinida')}</button>}
+        {extra}
       </div>
       {deck.art?.[c.n] && <p className="small">{tx('Agora: arte própria do site de origem (ex.: alterada no TappedOut). Escolher uma edição substitui-a; «⟳ Atualizar do site» volta a trazê-la.')}</p>}
       <div className="prints">
@@ -2306,7 +2307,6 @@ export function ArtPicker({ c, deck, data, act, onClose }) {
         <div className="ap-list">
           <h3>{tx('Arte de {c}', { c: c.n })}</h3>
           <p className="muted small">{isTouch() ? tx('Toca e mantém para ver; toca para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).') : tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
-          <div className="row-btns"><button onClick={() => setAlter(true)} title={tx('Uma ilustração nova para esta carta, gerada por IA a partir do texto dela')}>✨ {tx('Criar alter art')}</button></div>
           {alter && <Suspense fallback={null}><AlterArt c={c} deck={deck} data={data} act={act2} onClose={() => setAlter(false)} /></Suspense>}
           {favs.length > 0 && <div className="row-btns"><button onClick={useFavs} title={tx('Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)', { c: c.n })}>★ {tx('Assumir as preferidas das definições')}</button></div>}
           {canSplit && <div className="split-box">
@@ -2323,7 +2323,7 @@ export function ArtPicker({ c, deck, data, act, onClose }) {
               <small className="muted">{tx('{a} de {n} cópias com arte escolhida', { a: sum, n: total })}{sum < total ? ` · ${tx('{n} com a arte principal', { n: total - sum })}` : ''}</small>
             </>}
           </div>}
-          <Prints c={c} deck={deck} act={act2} onPreview={onPreview} />
+          <Prints c={c} deck={deck} act={act2} onPreview={onPreview} extra={<button onClick={() => setAlter(true)} title={tx('Uma ilustração nova para esta carta, gerada por IA a partir do texto dela')}>✨ {tx('Criar alter art')}</button>} />
           <OwnArt c={c} deck={deck} act={act2} />
         </div>
       </div>

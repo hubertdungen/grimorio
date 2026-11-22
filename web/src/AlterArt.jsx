@@ -75,7 +75,7 @@ export async function genCard({ c, pid, box, mode, aspect, orig, prov, localKind
     if (masks(prov)) ({ image, mask, geo } = prepareEdit(cd, box, prov === 'local' ? localKind : 'openai'))
     else { image = await refURL(cardSrc); geo = { W: cd.width, H: cd.height, rect: { x: 0, y: 0, w: cd.width, h: cd.height } } }
   }
-  const rs = await Promise.all([...(mode === 'art' && orig ? [img(c, 'art_crop', false, pid)] : []), ...refs.map(r => (typeof r === 'string' ? fetchable(r) : r))].map(refURL))
+  const rs = await Promise.all([...(mode === 'card' ? [cardSrc] : []), ...(mode === 'art' && orig ? [img(c, 'art_crop', false, pid)] : []), ...refs.map(r => (typeof r === 'string' ? fetchable(r) : r))].map(refURL))
   const r = await fetch('/api/ia/image', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ provider: prov, prompt, n, quality, model: model?.trim() || undefined, image, mask, refs: rs, size: mode === 'art' && aspect === 'box' ? '1536x1024' : '1024x1536' }) })
   const j = await r.json().catch(() => ({}))
@@ -86,7 +86,8 @@ export async function genCard({ c, pid, box, mode, aspect, orig, prov, localKind
 }
 // resultado (do servidor ou trazido do ChatGPT) → a imagem final, já na moldura; card() = a carta original (bitmap)
 export async function finishOut(out, geo, { mode, aspect, box, card }) {
-  const cv = composite(mode === 'art' && aspect === 'card' ? null : await card(), out, { mode, aspect, box, geo })
+  const full = mode === 'card' || (mode === 'art' && aspect === 'card')  // carta inteira ou ilustração no formato da carta: sem a moldura original por cima
+  const cv = composite(full ? null : await card(), out, { mode: full ? 'art' : mode, aspect: full ? 'card' : aspect, box, geo })
   return { blob: await toBlob(cv), w: cv.width, h: cv.height }
 }
 
@@ -96,6 +97,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   const [pr, setPr] = useState(null), [cfg, setCfg] = useState(null)
   const [base, setBase] = useState(() => basePrompt(c, null)), edited = useRef(false)
   const [custom, setCustom] = useState(''), [mode, setMode] = useState('frame'), [aspect, setAspect] = useState('card'), [orig, setOrig] = useState(false)
+  const [frame, setFrame] = useState(''), [font, setFont] = useState('')  // modo «carta inteira»: estilo da moldura e da letra
   const [refs, setRefs] = useState([]), [q, setQ] = useState(''), [n, setN] = useState(2), [quality, setQuality] = useState('medium')
   const [prov, setProv] = useState(() => lsGet('grimorio.alter.prov') || 'chatgpt'), [model, setModel] = useState('')
   const [results, setResults] = useState([]), [busy, setBusy] = useState(''), [err, setErr] = useState(''), [note, setNote] = useState('')
@@ -114,13 +116,21 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   const P = cfg?.providers?.find(p => p.id === prov)
   const ready = prov === 'chatgpt' || !!P?.hasKey
   const masked = mode === 'frame' && masks(prov)
-  const prompt = finalPrompt({ base, custom, mode, masked, aspect, refs: refs.length, orig: mode === 'art' && orig })
+  const prompt = finalPrompt({ base, custom, mode, masked, aspect, refs: refs.length, orig: mode === 'art' && orig, frame, font })
   const per = costOf(P?.cost, quality, 1)
   const mine = useMemo(() => [...new Set([...alterHistory(), ...Object.values(deck.art || {}).filter(u => u.startsWith('arts/'))])].slice(0, 24), [deck.art])
   const hits = useMemo(() => {
     const s = q.trim().toLowerCase()
     return s.length < 2 || !data ? [] : data.cards.filter(x => x.n.toLowerCase().includes(s)).slice(0, 6)
   }, [q, data])
+  // referências de estilo: cartas deste deck (com a arte própria, se tiver), alter arts (este e outros decks) e cartas de outros decks
+  const [src, setSrc] = useState('pesquisa'), [others, setOthers] = useState(null), [od, setOd] = useState('')
+  useEffect(() => { if ((src === 'outros' || src === 'alters') && !others) fetch('/api/decks').then(r => (r.ok ? r.json() : [])).then(l => setOthers(l.filter(x => x.id !== deck.id))).catch(() => setOthers([])) }, [src, others, deck.id])
+  const thumb = (d, n) => { const own = d.art?.[n]; const x = data?.byName.get(n); return own ? own : x ? img(x, 'art_crop') : null }
+  const deckCards = useMemo(() => [...(deck.commanders || []), ...Object.keys(deck.main || {})].filter(n => n !== c.n && !/^(Plains|Island|Swamp|Mountain|Forest|Wastes)$/.test(n)), [deck, c.n])
+  const filt = l => { const s = q.trim().toLowerCase(); return s ? l.filter(n => n.toLowerCase().includes(s)) : l }
+  const alterAll = useMemo(() => [...new Set([...mine, ...(others || []).flatMap(d => Object.values(d.art || {}).filter(u => u.startsWith('arts/')))])], [mine, others])
+  const odDeck = (others || []).find(x => x.id === od)
   const addRef = r => { if (refs.length < 3 && !refs.some(x => x.src === r.src)) setRefs([...refs, r]); setQ('') }
 
   // resultado (do servidor ou trazido do ChatGPT) → a imagem final, já na moldura
@@ -179,6 +189,12 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
           <fieldset className="alter-opts"><legend className="small">{tx('Modo')}</legend>
             <label className="chk"><input type="radio" checked={mode === 'frame'} disabled={!box} onChange={() => setMode('frame')} /> {tx('Nova arte na moldura original')}</label>
             <label className="chk"><input type="radio" checked={mode === 'art'} onChange={() => setMode('art')} /> {tx('Arte completa (só a ilustração)')}</label>
+            <label className="chk"><input type="radio" checked={mode === 'card'} onChange={() => setMode('card')} /> {tx('Carta inteira (moldura e letra novas)')}</label>
+            {mode === 'card' && <div className="alter-card-st">
+              <label><span className="small">{tx('Estilo da moldura')}</span><input value={frame} onChange={e => setFrame(e.target.value)} placeholder={tx('ex.: art nouveau dourada, gótica com ossos, minimalista…')} /></label>
+              <label><span className="small">{tx('Estilo da letra')}</span><input value={font} onChange={e => setFont(e.target.value)} placeholder={tx('ex.: caligrafia medieval, letras gravadas em pedra…')} /></label>
+              <p className="muted small">{tx('A IA redesenha a carta toda: o texto pode sair com erros, confere antes de usar.')}</p>
+            </div>}
             {!box && <small className="muted">{tx('Esta moldura não tem caixa da arte conhecida (sem margem, arte completa, showcase, planeswalker…): fica a arte completa.')}</small>}
             {mode === 'art' && <div className="row-btns">
               <label className="chk"><input type="radio" checked={aspect === 'card'} onChange={() => setAspect('card')} /> {tx('Do tamanho da carta (sem moldura)')}</label>
@@ -194,10 +210,15 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
             <span className="small">{tx('Referências de estilo (até 3)')}</span>
             <div className="alter-thumbs">{refs.map(r => <button key={r.src} className="alter-thumb on" onClick={() => setRefs(refs.filter(x => x !== r))} title={tx('Tirar')}><img src={fetchable(r.src)} alt="" /><small>{r.label} ×</small></button>)}</div>
             {refs.length < 3 && <>
-              <input value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar outra carta…')} />
-              {hits.length > 0 && <div className="alter-thumbs">{hits.map(x => <button key={x.n} className="alter-thumb" onClick={() => addRef({ src: img(x, 'art_crop'), label: x.n })}><img src={img(x, 'art_crop')} alt="" loading="lazy" /><small>{x.n}</small></button>)}</div>}
-              {mine.length > 0 && <details><summary className="small">{tx('As tuas alter arts')}</summary>
-                <div className="alter-thumbs">{mine.map(u => <button key={u} className="alter-thumb" onClick={() => addRef({ src: u, label: tx('alter art') })}><img src={u} alt="" loading="lazy" /></button>)}</div></details>}
+              <div className="seg alter-src">{[['pesquisa', tx('Pesquisar')], ['deck', tx('Deste deck')], ['alters', tx('Alter arts')], ['outros', tx('Outros decks')]].map(([k, l]) => <button key={k} className={src === k ? 'on' : ''} onClick={() => setSrc(k)}>{l}</button>)}</div>
+              {src !== 'alters' && <input value={q} onChange={e => setQ(e.target.value)} placeholder={src === 'pesquisa' ? tx('Procurar outra carta…') : tx('Filtrar pelo nome…')} />}
+              {src === 'deck' && <div className="alter-thumbs alter-scroll">{filt(deckCards).slice(0, 60).map(n => { const u = thumb(deck, n); return u && <button key={n} className="alter-thumb" title={n} onClick={() => addRef({ src: u, label: n })}><img src={fetchable(u)} alt={n} loading="lazy" /></button> })}</div>}
+              {src === 'alters' && (!others ? <p className="muted small">{tx('A carregar…')}</p> : alterAll.length ? <div className="alter-thumbs alter-scroll">{alterAll.map(u => <button key={u} className="alter-thumb" onClick={() => addRef({ src: u, label: tx('alter art') })}><img src={u} alt="" loading="lazy" /></button>)}</div> : <p className="muted small">{tx('Ainda não há alter arts.')}</p>)}
+              {src === 'outros' && (!others ? <p className="muted small">{tx('A carregar…')}</p> : <>
+                <select value={od} onChange={e => setOd(e.target.value)} aria-label={tx('Deck')}><option value="">{tx('Escolhe um deck…')}</option>{others.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+                {odDeck && <div className="alter-thumbs alter-scroll">{filt([...(odDeck.commanders || []), ...Object.keys(odDeck.main || {})]).slice(0, 60).map(n => { const u = thumb(odDeck, n); return u && <button key={n} className={`alter-thumb${odDeck.art?.[n] ? ' own' : ''}`} title={n} onClick={() => addRef({ src: u, label: n })}><img src={fetchable(u)} alt={n} loading="lazy" /></button> })}</div>}
+              </>)}
+              {src === 'pesquisa' && hits.length > 0 && <div className="alter-thumbs">{hits.map(x => <button key={x.n} className="alter-thumb" onClick={() => addRef({ src: img(x, 'art_crop'), label: x.n })}><img src={img(x, 'art_crop')} alt="" loading="lazy" /><small>{x.n}</small></button>)}</div>}
             </>}
           </div>
           <fieldset className="alter-opts"><legend className="small">{tx('Quem gera')}</legend>

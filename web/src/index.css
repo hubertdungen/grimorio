@@ -4547,5 +4547,17 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 @media (prefers-reduced-motion: reduce) { .dg-tile[data-bad] { animation: none; } }
 
 /* ⇩ tirar do comando (comandante na grelha e no painel) */
-select.demote { width: auto; min-width: 0; padding: 2px 6px; font-size: 13px; border-radius: 8px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); cursor: pointer; }
-.cmd select.demote { flex: none; }
+select.demote { flex: none; width: 34px; min-width: 0; height: 28px; padding: 0; font-size: 15px; line-height: 1; text-align: center; text-align-last: center;
+  border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); background-image: none; color: var(--text); cursor: pointer; }
+select.demote:hover { border-color: var(--gold); }
+.cmd select.demote { border-color: transparent; background: none; color: var(--muted); font-size: 17px; }
+.cmd select.demote:hover { color: var(--text); }
+.dg-bar select.demote { height: auto; align-self: stretch; }
+
+/* alter art: fontes das referências de estilo e o modo «carta inteira» */
+.alter-src { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.alter-src button { padding: 4px 10px; font-size: 12.5px; }
+.alter-scroll { max-height: 170px; overflow-y: auto; }
+.alter-thumb.own { outline: 2px solid var(--gold); }
+.alter-card-st { display: grid; gap: 6px; margin: 6px 0 0 24px; }
+.alter-card-st label { display: grid; gap: 2px; }
