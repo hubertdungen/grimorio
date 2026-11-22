@@ -28,7 +28,7 @@ function PickCard({ c, on, disabled, onPick, onBig }) {
   const zoom = e => { e.preventDefault(); e.stopPropagation(); held(); onBig(c) }
   return (
     <div className="wz-pc">
-      <button className={on ? 'on' : ''} onClick={onPick} onContextMenu={zoom} title={c.n} disabled={disabled} {...delayedPeek(c)}><img src={img(c, 'normal')} alt={c.n} loading="lazy" draggable={false} />{on && <span>✓</span>}</button>
+      <button className={on ? 'on' : ''} onClick={onPick} onContextMenu={zoom} disabled={disabled} {...delayedPeek(c)}><img src={img(c, 'normal')} alt={c.n} loading="lazy" draggable={false} />{on && <span>✓</span>}</button>
       <button className="wz-zoom" onClick={zoom} aria-label={`${tx('Ver em grande')}: ${c.n}`} title={tx('Ver em grande')}>🔍</button>
     </div>
   )
@@ -72,7 +72,7 @@ function CmdCard({ c, onPick, onBig, role, onRole }) {
   const zoom = e => { e.preventDefault(); e.stopPropagation(); held(); onBig(c) }
   return (
     <div className={`wz-cc${role ? ` r-${role}` : ''}`}>
-      <button onClick={onPick} onContextMenu={zoom} title={c.n} {...delayedPeek(c)}><img src={img(c, 'normal')} alt={c.n} loading="lazy" draggable={false} /></button>
+      <button onClick={onPick} onContextMenu={zoom} {...delayedPeek(c)}><img src={img(c, 'normal')} alt={c.n} loading="lazy" draggable={false} /></button>
       <span className="wz-ccn"><b>{c.n.split(',')[0]}</b><span className="wz-pips">{[...(c.ci || '')].map(k => <i key={k} className={`wz-dot d-${k}`} />)}{!c.ci && <i className="wz-dot d-C" />}</span></span>
       <button className="wz-zoom" onClick={zoom} aria-label={`${tx('Ver em grande')}: ${c.n}`} title={tx('Ver em grande')}>🔍</button>
       {onRole && <button className={`wz-more1${menu ? ' on' : ''}`} onClick={e => { e.stopPropagation(); const b = e.currentTarget; setMenu(m => (m ? null : b)) }} aria-expanded={!!menu} aria-label={`${tx('Mais ações')}: ${c.n}`} title={tx('Comandante, juntar ao deck, subcomandante ou talvez')}>⋯</button>}
