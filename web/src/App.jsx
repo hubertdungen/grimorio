@@ -1,3 +1,4 @@
+import ForgeBrand from './ForgeBrand.jsx'
 import Home from './Home.jsx'
 import { Icon } from './icons.jsx'
 import KwPeek from './KwPeek.jsx'
@@ -561,7 +562,9 @@ export default function App() {
       </div>}
 
       <footer className="foot">
+        <div><ForgeBrand /></div>
         {tx('Dados:')} <a href="https://scryfall.com" target="_blank" rel="noreferrer">Scryfall</a> {tx('e')} <a href="https://commanderspellbook.com" target="_blank" rel="noreferrer">Commander Spellbook</a> · {tx('atualizados {date} · {cards} cartas, {combos} combos.', { date: data.meta.built.slice(0, 10), cards: data.meta.cards.toLocaleString(LOCALE), combos: data.meta.combos.toLocaleString(LOCALE) })}{' '}
+
         {tx('Conteúdo de fã não oficial, permitido pela Fan Content Policy. Não aprovado nem apoiado pela Wizards. Partes dos materiais usados são propriedade da Wizards of the Coast. ©Wizards of the Coast LLC.')}
       </footer>
 

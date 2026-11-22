@@ -408,3 +408,6 @@ Não é aprovado/apoiado pela Wizards. Partes dos materiais utilizados são prop
 
 [GPL-3.0](LICENSE) — podes usá-lo, estudá-lo, alterá-lo e partilhá-lo livremente; as alterações que distribuíres têm de
 continuar abertas, sob a mesma licença.
+
+
+<p align="center"><a href="https://dlforge.dungenlabs.com"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/branding/dlforge-logo-negative.svg"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></picture></a></p>

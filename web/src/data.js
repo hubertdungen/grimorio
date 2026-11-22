@@ -567,11 +567,13 @@ const subtypes = c => {
  */
 // Sementes que não são cartas: keywords (Flying, Outlast…), subtipos (Rat, Human…) e tipos (Creature, Artifact…).
 // termsOf: o índice (com quantas cartas têm cada um), feito uma vez; termMatch: a carta tem esse termo?
-const MAIN_TYPES = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Battle', 'Legendary', 'Kindred']
-const subsOf = c => (c.t.split('—')[1] || '').split('//')[0].trim().split(/\s+/).filter(Boolean)
+const MAIN_TYPES = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Battle', 'Legendary', 'Kindred', 'Snow', 'Basic', 'Tribal', 'World']
+export const subsOf = c => (c.t.split('—')[1] || '').split('//')[0].trim().split(/\s+/).filter(Boolean)
 export function termMatch(c, t) {
   if (t.k === 'kw') return (c.kw || []).includes(t.v)
   if (t.k === 'sub') return subsOf(c).includes(t.v)
+  if (t.k === 'rar') return c.r === t.v  // raridade (c/u/r/m)
+  if (t.k === 'mv') return t.v === '7+' ? c.cmc >= 7 : c.cmc === +t.v && !/Land/.test(c.t)  // custo de mana
   return c.t.split('—')[0].includes(t.v)
 }
 let TERMS = null

@@ -1,3 +1,4 @@
+import ForgeBrand from './ForgeBrand.jsx'
 // Página inicial: aparece ao abrir a app e ao tocar no logótipo. Os seis caminhos principais (Construir em destaque) e,
 // por baixo, as ferramentas para a mesa (vida, ler carta, dados, regras).
 import { Logo } from './ui.jsx'
@@ -20,6 +21,7 @@ export default function Home({ deck, decks, onGo, onNew, onTool, onScan, friend 
   return (
     <div className="home">
       <div className="home-hero">
+        <ForgeBrand />
         <Logo size={96} />
         <h1>Grimório</h1>
         <p>{tx('Constrói, testa e põe à prova os teus decks de Magic.')}</p>

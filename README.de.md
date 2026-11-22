@@ -421,3 +421,6 @@ the Coast LLC.*
 
 [GPL-3.0](LICENSE) – frei nutzbar, untersuchbar, veränderbar und weitergebbar; Änderungen, die du weitergibst, müssen
 unter derselben Lizenz offen bleiben.
+
+
+<p align="center"><a href="https://dlforge.dungenlabs.com"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/branding/dlforge-logo-negative.svg"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></picture></a></p>
