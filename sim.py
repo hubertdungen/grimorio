@@ -357,6 +357,9 @@ def parse_game(lines, result, decks=None, commanders=None):
     reason, winner = None, "draw"
     ph, ph_txt, shown_ph, tapped_next, mana_wait, ctr_next = None, "", None, set(), [], {}
     exact = any(l.startswith("GRIMORIO|") for l in lines)
+    pexact = any(l.startswith("GRIMORIO|P|") for l in lines)  # marcadores de jogador exatos (energia…)
+    eexact = any(l.startswith("GRIMORIO|E|") for l in lines)  # emblemas exatos
+    mexact = any(l.startswith("GRIMORIO|M|") for l in lines)  # monarca/iniciativa exatos
     hands, lib, dirty = {x: [] for x in pnames.values()}, {}, set()  # mão exata [(id, nome)], biblioteca, lados mudados
     bf, wait, pz, turn_ev = set(), {}, [], None  # ids no campo; marcadores/anexo antes de entrar; zonas por explicar
     out = {}  # 3+ jogadores: lado eliminado -> {t, by (quem lhe tirou a última vida), why}, pela ordem de eliminação
@@ -484,6 +487,36 @@ def parse_game(lines, result, decks=None, commanders=None):
             out[p] = {"t": int(f[3]) if f[3].isdigit() else t, "by": by, "why": "|".join(f[4:])}
             emit({"k": "outcome", "p": p}, f"{pname.get(p, p)} {out[p]['why']}")
             return
+        # mecânicas sem linha no registo (GrimorioSim.Spy): dia/noite, velocidade, marcadores de jogador, estado das
+        # cartas (virada para baixo, nível, caso resolvido, portas, Anel, phasing), masmorra, emblemas, Anel
+        if kind == "D" and len(f) >= 3:
+            emit({"k": "day", "v": f[2], "x": 1}, "")
+            return
+        if kind in "SPRVEM" and len(f) >= 3 and side.get(f[2]):
+            p = side[f[2]]
+            if kind == "S" and len(f) >= 4:
+                emit({"k": "speed", "p": p, "n": int(f[3]), "x": 1}, "")
+            elif kind == "P" and len(f) >= 5 and f[3].lower() != "poison":  # o veneno já vem do dano
+                emit({"k": "pctr", "p": p, "ct": f[3].lower(), "abs": int(f[4]), "x": 1}, "")
+            elif kind == "M":  # monarca, iniciativa, bênção da cidade: o estado exato (o texto dos gatilhos engana-se no dono)
+                emit({"k": "marks", "p": p, "mk": [x for x in (f[3] if len(f) > 3 else "").split(",") if x], "x": 1}, "")
+            elif kind == "R" and len(f) >= 4:
+                emit({"k": "ring", "p": p, "n": int(f[3]), "x": 1}, "")
+            elif kind == "V":
+                emit({"k": "dungeon", "p": p, "card": f[3] if len(f) > 3 else "", "to": "|".join(f[4:]), "x": 1}, "")
+            elif kind == "E":
+                ems = [x.partition("~") for x in "|".join(f[3:]).split("^") if x]
+                emit({"k": "emblems", "p": p, "list": [{"n": n, "t": tt} for n, _, tt in ems], "x": 1}, "")
+            return
+        if kind == "X" and len(f) >= 5 and f[2].isdigit():
+            st = {}
+            for x in f[3].split(","):
+                key, _, v = x.partition("=")
+                if key:
+                    st[key] = (v.split("+") if v else []) if key == "doors" else int(v) if v.isdigit() else 1
+            emit({"k": "state", "p": id_side.get(f[2]), "card": canon("|".join(f[4:])) or canon(id_name.get(f[2])),
+                  "id": int(f[2]), "st": st, "x": 1}, "")
+            return
         i = int(f[2]) if len(f) > 3 and f[2].isdigit() else None
         name, p = canon(f[-1]), id_side.get(f[2]) if len(f) > 2 else None
         if kind == "T" and i is not None and i in bf:
@@ -574,6 +607,8 @@ def parse_game(lines, result, decks=None, commanders=None):
             out.append({"k": "mill", "p": p, "n": num(x.group(1))})
         for what, rx in (("monarch", r"\bbecomes? the monarch"), ("initiative", r"\btakes? the initiative"),
                          ("emblem", r"\bgets? an emblem"), ("energy", r"\{E\}")):
+            if (what == "energy" and pexact) or (what == "emblem" and eexact) or (what in ("monarch", "initiative") and mexact):
+                continue  # o GrimorioSim diz os valores exatos (linhas P e E)
             if re.search(rx, plain) and not (what == "energy" and "pay" in plain.lower()):
                 out.append({"k": "player", "p": p, "to": what, "card": src,
                             "n": plain.count("{E}") if what == "energy" else None})
@@ -792,7 +827,7 @@ def parse_game(lines, result, decks=None, commanders=None):
             "events": ev, "summary": summarize(ev, t, start_life, "".join(sorted(set(pnames.values())))), **({"exact": True} if exact else {})}
 
 
-ONFIELD = ("attack", "block", "tap", "untap", "attach", "pump", "counters", "transform", "goad",
+ONFIELD = ("attack", "block", "tap", "untap", "attach", "pump", "counters", "transform", "goad", "state",
            "destroy", "exile", "bounce", "other")
 
 
@@ -1657,6 +1692,26 @@ def selfcheck():
     assert tok["card"] == "Soldier Token" and tok["id"] == 199 and tok["pt"] == "1/1" and tok["kw"] == ["Flying"], tok
     ctr = next(e for e in ev if e["k"] == "counters")
     assert ctr["n"] == -1 and ctr["abs"] == 0 and ctr["x"] == 1
+    # mecânicas sem linha no registo (Spy): dia/noite, velocidade, marcadores de jogador, Anel, masmorra, emblemas, estado
+    # das cartas; com linhas P/E exatas, a energia e os emblemas não se tiram do texto
+    lines = ["Ai(1)-A [Default] vs Ai(2)-B [Default] - one game of Constructed", "GRIMORIO|H|1|53|5:Island",
+             "Turn: Turn 1 (Ai(1)-A)", "GRIMORIO|Z|9|1|0|Hand|Stack|0|||Wizard Class",
+             "Add To Stack: Ai(1)-A cast Wizard Class", "GRIMORIO|Z|9|0|1|Stack|Battlefield|0|||Wizard Class",
+             "Resolve Stack: Wizard Class - Enchantment", "GRIMORIO|D|night", "GRIMORIO|S|1|2", "GRIMORIO|P|1|ENERGY|3",
+             "GRIMORIO|P|2|POISON|1", "GRIMORIO|R|2|1", "GRIMORIO|V|2|Tomb of Annihilation|Veils of Fear",
+             "GRIMORIO|E|1|Gideon of the Trials Emblem~As long as you control a Gideon planeswalker, you can't lose the game.",
+             "GRIMORIO|X|9|lvl=2,doors=Bottomless Pool+Locker Room,fd,|Wizard Class", "GRIMORIO|M|1|monarch,initiative,", "GRIMORIO|M|1|initiative,",
+             "Resolve Stack: The Monarch - Whenever a creature deals combat damage to you, its controller becomes the monarch.",
+             "Resolve Stack: Gideon of the Trials - You get an emblem with \"...\" and {E}{E}"]
+    ev = parse_game(lines, "", {"a": ["Wizard Class", "Gideon of the Trials"]})["events"]
+    got = {e["k"]: e for e in ev if e["k"] in ("day", "speed", "pctr", "ring", "dungeon", "emblems", "state")}
+    assert got["day"]["v"] == "night" and (got["speed"]["p"], got["speed"]["n"]) == ("a", 2), got
+    assert [(e["p"], e["ct"], e["abs"]) for e in ev if e["k"] == "pctr"] == [("a", "energy", 3)]  # o veneno vem do dano
+    assert (got["ring"]["p"], got["ring"]["n"], got["dungeon"]["card"], got["dungeon"]["to"]) == ("b", 1, "Tomb of Annihilation", "Veils of Fear")
+    assert got["emblems"]["list"] == [{"n": "Gideon of the Trials Emblem", "t": "As long as you control a Gideon planeswalker, you can't lose the game."}]
+    assert got["state"]["id"] == 9 and got["state"]["st"] == {"lvl": 2, "doors": ["Bottomless Pool", "Locker Room"], "fd": 1}, got["state"]
+    assert not any(e["k"] == "player" for e in ev), "P/E/M exatos: sem emblema/energia/monarca tirados do texto"
+    assert [e["mk"] for e in ev if e["k"] == "marks"] == [["monarch", "initiative"], ["initiative"]]
     # 3 jogadores (todos contra todos): ataque a um jogador concreto, eliminações a meio (GRIMORIO|L) e lugares
     lines = ["Ai(1)-A [Default] vs Ai(2)-B [Default] vs Ai(3)-C [Reckless] - one game of Constructed",
              "GRIMORIO|H|3|53|5:Mountain", "Turn: Turn 1 (Ai(1)-A)", "Phase: Ai(1)-A's Declare Attackers Step",

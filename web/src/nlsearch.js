@@ -17,6 +17,10 @@ const TYPES = {
   terreno: 'Land', land: 'Land', tierra: 'Land', lander: 'Land',
   planeswalker: 'Planeswalker', aura: 'Aura', equipamento: 'Equipment', equipment: 'Equipment', equipo: 'Equipment', ausrustung: 'Equipment',
   batalha: 'Battle', battle: 'Battle', batalla: 'Battle', veiculo: 'Vehicle', vehicle: 'Vehicle', vehiculo: 'Vehicle', fahrzeug: 'Vehicle',
+  // tipos e subtipos das edições recentes: Sagas, Salas (DSK), Classes, naves e planetas (EOE), kindred, Backgrounds
+  saga: 'Saga', sagas: 'Saga', room: 'Room', rooms: 'Room', class: 'Class', classe: 'Class', clase: 'Class', klasse: 'Class',
+  spacecraft: 'Spacecraft', nave: 'Spacecraft', naves: 'Spacecraft', raumschiff: 'Spacecraft', planet: 'Planet', planeta: 'Planet',
+  kindred: 'Kindred', tribal: 'Kindred', background: 'Background', siege: 'Siege', cerco: 'Siege',
 }
 const COLORS = {
   branco: 'W', branca: 'W', white: 'W', blanco: 'W', blanca: 'W', weiss: 'W', weisse: 'W',

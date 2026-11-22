@@ -292,11 +292,12 @@ def _snap(t):
             if c.get("sp"):
                 continue
             x = {"id": c["id"], **({"n": c["n"]} if not c.get("d") else {})}
-            x.update({k: c[k] for k in ("t", "k", "at", "tok", "atk", "blk") if c.get(k) is not None and c.get(k) is not False and c.get(k) != {}})
+            x.update({k: c[k] for k in ("t", "k", "at", "tok", "atk", "blk", "f", "ph", "gd", "dr", "pr", "pv") if c.get(k) is not None and c.get(k) is not False and c.get(k) not in ({}, [])})
             bf.append(x)
         seats.append({"name": s["name"], "life": s["life"], "psn": s.get("poison", 0), "lib": len(z["library"]), "hand": len(z["hand"]), "bf": bf,
-                      "gy": [card(x)["n"] for x in z["graveyard"]], "ex": [card(x)["n"] for x in z["exile"]], **({"out": True} if s.get("out") else {})})
-    st = {"turn": t["turn"], "active": t["active"], "seats": seats}
+                      "gy": [card(x)["n"] for x in z["graveyard"]], "ex": [card(x)["n"] for x in z["exile"]], **({"out": True} if s.get("out") else {}),
+                      **{k: s[k] for k in ("energy", "mk", "speed", "pc", "em", "dg", "ring") if s.get(k)}})  # designações e mecânicas do jogador
+    st = {"turn": t["turn"], "active": t["active"], "seats": seats, **({"day": t["day"]} if t.get("day") else {})}
     sig = json.dumps(st, sort_keys=True)
     if sig == t.get("snapsig"):
         return
@@ -335,9 +336,10 @@ def _card(t, cid, me):
     out = {"id": c["id"], "o": c["o"]}
     if _sees(t, c, me):
         out["n"] = c["n"]
-    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "tok", "at", "ph", "cm", "cc", "sp", "tg", "blk", "nt"):
-        if c.get(k) not in (None, False, {}):
-            out[k] = c[k]
+    for k in ("x", "y", "t", "d", "f", "k", "atk", "atc", "r", "tok", "at", "ph", "cm", "cc", "sp", "tg", "blk", "nt", "gd", "dr", "pr", "pv"):
+        v = c.get(k)
+        if v is not None and v is not False and v != {} and v != []:  # 0 conta (atacar ou ser protegida pelo lugar 0)
+            out[k] = v
     return out
 
 
@@ -347,6 +349,7 @@ def view(t, me):
     for i, s in enumerate(t["seats"]):
         z = t["zones"][i]
         v = {**{k: s[k] for k in ("name", "deck", "format", "life", "poison", "out")}, "energy": s.get("energy", 0), "cd": s.get("cd") or {}, "mat": s.get("mat"), "orb": s.get("orb"),
+             "speed": s.get("speed", 0), "pc": s.get("pc") or {}, "em": s.get("em") or [], "dg": s.get("dg"), "ring": s.get("ring", 0),
              "mk": s.get("mk") or [], "me": i == me, **({"av": s["av"]} if s.get("av") else {}), "library": len(z["library"]), "arts": s.get("arts") or {},
              "hand": [_card(t, c, me) for c in z["hand"]], **{k: [_card(t, c, me) for c in z[k]] for k in ("graveyard", "exile", "command", "battlefield")}}
         if s.get("look") is not None:  # público: todos sabem quem está a olhar para a mão de quem (as cartas não)
@@ -575,7 +578,7 @@ def apply(t, me, d):
         if host:
             c["at"] = host["id"]
             _log(t, me, "attach", name=None if c.get("d") else c["n"], to=None if host.get("d") else host["n"])
-    elif c0 in ("tap", "flip", "face", "attack", "counter", "phase", "attach"):
+    elif c0 in ("tap", "flip", "face", "attack", "counter", "phase", "attach", "goad", "door", "proto", "protector"):
         c = need()
         if c["z"] != "battlefield":
             raise ValueError("A carta tem de estar no campo.")
@@ -591,6 +594,19 @@ def apply(t, me, d):
                 raise PermissionError("Só quem controla a carta a pode virar para cima ou para baixo.")
             c["d"] = not c.get("d")
             _log(t, me, "face", name=None if c["d"] else c["n"], down=c["d"])
+        elif c0 == "goad":  # incitada: ataca no próximo turno de quem a controla, e não quem a incitou
+            c["gd"] = not c.get("gd")
+            _log(t, me, "goad", name=None if c.get("d") else c["n"], on=c["gd"])
+        elif c0 == "door":  # Sala (Duskmourn): abrir/fechar a porta 0 (esquerda) ou 1 (direita)
+            i = _num(d.get("i"), 0, 1)
+            dr = set(c.get("dr") or [])
+            dr ^= {i}
+            c["dr"] = sorted(dr)
+            _log(t, me, "door", name=c["n"], i=i, on=i in dr)
+        elif c0 == "proto":  # lançada como protótipo: o P/R (e o custo) mais pequeno impresso na carta
+            c["pr"] = not c.get("pr")
+        elif c0 == "protector":  # batalha: o adversário que a protege (Siege)
+            c["pv"] = _num(d.get("seat"), 0, len(t["seats"]) - 1, c["s"])
         elif c0 == "phase":  # phasing: fica na mesa mas não conta
             c["ph"] = not c.get("ph")
             _log(t, me, "phase", name=None if c.get("d") else c["n"], out=c["ph"])
@@ -639,7 +655,7 @@ def apply(t, me, d):
         if not t.get("solo"):
             raise ValueError("Só se recomeça numa mesa a solo.")
         _deal(t, me)
-        seat.update(life=seat.get("life0", 20), poison=0, energy=0, cd={}, mk=[])
+        seat.update(life=seat.get("life0", 20), poison=0, energy=0, cd={}, mk=[], speed=0, pc={}, em=[], dg=None, ring=0)
         for c in t["cards"].values():
             c.pop("cc", None)
         t.update(turn=1, gf=20, roll=None, day=None)
@@ -692,6 +708,39 @@ def apply(t, me, d):
                     s2["mk"].remove(k)
         mk.remove(k) if not on else mk.append(k)
         _log(t, me, "mark", p=who, mk=k, on=on)
+    elif c0 in ("speed", "ring", "pctr"):  # velocidade (0–4), vezes que o Anel te tentou, marcadores de jogador (experiência, rad…)
+        who = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
+        s, n = t["seats"][who], _num(d.get("d"), -99, 99, 1)
+        if c0 == "pctr":
+            k = str(d.get("k") or "").strip().lower()[:20]
+            if not k:
+                raise ValueError("Que marcador?")
+            pc = s.setdefault("pc", {})
+            pc[k] = _num(pc.get(k, 0) + n, 0, 999)
+            if not pc[k]:
+                del pc[k]
+            _log(t, me, "pctr", p=who, ct=k, v=pc.get(k, 0))
+        else:
+            s[c0] = _num(s.get(c0, 0) + n, 0, 4 if c0 == "speed" else 99)
+            _log(t, me, c0, p=who, v=s[c0])
+    elif c0 == "emblem":  # emblemas na zona de comando: {n, t}; del = posição a tirar
+        who = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
+        em = t["seats"][who].setdefault("em", [])
+        if d.get("del") is not None:
+            j = _num(d.get("del"), 0, 99)
+            if j < len(em):
+                _log(t, me, "emblem", p=who, name=em.pop(j)["n"], on=False)
+        else:
+            n, tt = str(d.get("name") or "").strip()[:80], str(d.get("text") or "").strip()[:400]
+            if not (n or tt) or len(em) >= 20:
+                raise ValueError("Falta o emblema.")
+            em.append({"n": n or "Emblem", "t": tt})
+            _log(t, me, "emblem", p=who, name=n or "Emblem", on=True)
+    elif c0 == "dungeon":  # masmorra: nome e sala (n.º); sem nome = completada/tirada
+        who = _num(d.get("seat"), 0, len(t["seats"]) - 1, me)
+        s, n = t["seats"][who], str(d.get("name") or "").strip()[:60]
+        s["dg"] = {"n": n, "r": _num(d.get("room"), 1, 9, 1)} if n else None
+        _log(t, me, "dungeon", p=who, name=n or None, r=s["dg"]["r"] if n else None)
     elif c0 == "day":  # dia/noite: nenhum -> dia -> noite -> dia…; v=None tira
         v = d.get("v", "night" if t.get("day") == "day" else "day")
         if v not in ("day", "night", None):
@@ -1092,6 +1141,22 @@ def selfcheck():
     st, rv = call("POST", "guest:rui", {"c": "token", "name": "Goblin", "x": 0.5, "y": 0.5})
     tok = rv["seats"][1]["battlefield"][-1]
     assert tok["tok"] and tok["n"] == "Goblin"
+    # mecânicas à mão: incitar, portas de Sala, protótipo, protetor da batalha; velocidade, Anel, marcadores de jogador,
+    # emblemas e masmorra (o que o outro lugar vê)
+    for cmd in ({"c": "goad"}, {"c": "door", "i": 1}, {"c": "proto"}, {"c": "protector", "seat": 0}, {"c": "counter", "k": "Bounty", "d": 2}):
+        call("POST", "guest:rui", {**cmd, "id": tok["id"]})
+    tk = next(c for c in call("GET", "host")[1]["seats"][1]["battlefield"] if c["id"] == tok["id"])
+    assert tk["gd"] and tk["dr"] == [1] and tk["pr"] and tk["pv"] == 0 and tk["k"] == {"Bounty": 2}
+    call("POST", "guest:rui", {"c": "door", "id": tok["id"], "i": 1})
+    assert "dr" not in next(c for c in call("GET", "host")[1]["seats"][1]["battlefield"] if c["id"] == tok["id"])
+    for cmd in ({"c": "speed", "d": 1}, {"c": "speed", "d": 9}, {"c": "ring"}, {"c": "pctr", "k": "Experience", "d": 3}, {"c": "pctr", "k": "rad", "d": 1},
+                {"c": "pctr", "k": "rad", "d": -1}, {"c": "emblem", "name": "Gideon of the Trials Emblem", "text": "You can't lose."}, {"c": "emblem", "text": "Creatures get +1/+1."},
+                {"c": "emblem", "del": 0}, {"c": "dungeon", "name": "Tomb of Annihilation", "room": 2}):
+        call("POST", "guest:rui", cmd)
+    v1 = call("GET", "host")[1]["seats"][1]
+    assert (v1["speed"], v1["ring"], v1["pc"], v1["em"], v1["dg"]) == (4, 1, {"experience": 3}, [{"n": "Emblem", "t": "Creatures get +1/+1."}], {"n": "Tomb of Annihilation", "r": 2})
+    call("POST", "guest:rui", {"c": "dungeon"})
+    assert call("GET", "host")[1]["seats"][1]["dg"] is None
     call("POST", "guest:rui", {"c": "move", "id": tok["id"], "to": "graveyard"})
     assert str(tok["id"]) not in t["cards"]  # a ficha desaparece
     call("POST", "guest:rui", {"c": "life", "seat": 0, "d": -3})

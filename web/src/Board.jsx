@@ -1,11 +1,11 @@
 // Tabuleiro (repetição e ao vivo), ao estilo de uma mesa digital: aplica os eventos do Forge ao modelo de estado
 // (game.js) e anima só o que mudou em cada passo (a carta que entrou/virou/atacou/morreu, a vida que mudou).
 // Controlos: pausa, velocidade, passo, salto de turno, linha do tempo com marcas por tipo de evento.
-import { createContext, Fragment, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, Fragment, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { img, artPick, artMapOf, basicSplit, sf } from './data.js'
+import { img, artPick, artMapOf, basicSplit, sf, sideways } from './data.js'
 import { tx, num, LANG } from './i18n.js'
-import { tokenCard } from './tokens.js'
+import { tokenCard, onTokens, tokensVer } from './tokens.js'
 import { useColors, sideColors, Syms, keepOnScreen } from './ui.jsx'
 import { playEvent, play } from './sfx.js'
 import { attackStyle, attackFx } from './orbfx.js'
@@ -18,7 +18,7 @@ import { snapBoard, ftBoard, ftTxt } from './fpboard.js'
 import { fClean } from './fpask.js'
 import './fpstack.css'
 import './pilepeek.css'
-import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, CT, CT_ICON } from './game.js'
+import { PHASES, replayStates, giantTurns, lookup, permCard, isCreature, isLand, powTough, ptExplain, typeOf, markDormant, markMoon, replayDmg, protoPt, CT, CT_ICON } from './game.js'
 
 const PH_LABEL = { untap: tx('Desvirar'), upkeep: tx('Manutenção'), draw: tx('fase§Compra'), main1: tx('Principal 1'), combat: tx('Combate'), main2: tx('Principal 2'), end: tx('fase§Final') }
 const PH_SHORT = { untap: tx('Desvirar'), upkeep: tx('Manut.'), draw: tx('fase§Compra'), main1: tx('Princ. 1'), combat: tx('Combate'), main2: tx('Princ. 2'), end: tx('fase§Final') }
@@ -29,7 +29,7 @@ const KW = {
   Indestructible: ['✚', tx('Indestrutível')], Menace: ['‼', tx('Ameaçar')], Reach: ['↥', tx('Alcance')], Infect: ['☣', tx('Infetar')],
 }
 const CT_SHORT = { lore: tx('cap.'), charge: tx('carga'), stun: tx('atord.'), shield: tx('escudo'), time: tx('tempo'), defense: tx('defesa'), oil: tx('óleo') }
-const PACE = { turn: 2, phase: 0.45, tap: 0.3, untap: 0.3, land: 0.9, cast: 1.2, resolve: 0.8, counter: 1, countered: 0.8, trigger: 0.7, activate: 0.8, attack: 0.9, block: 0.9, damage: 0.8, poison: 0.8, life: 0.6, token: 1, counters: 0.8, pump: 0.7, attach: 0.9, transform: 1.3, destroy: 1, exile: 1, bounce: 1, discard: 0.8, mulligan: 0.8, draw: 0.5, mill: 0.6, search: 0.6, player: 1, goad: 0.8, outcome: 2, other: 0.3 }
+const PACE = { turn: 2, phase: 0.45, tap: 0.3, untap: 0.3, land: 0.9, cast: 1.2, resolve: 0.8, counter: 1, countered: 0.8, trigger: 0.7, activate: 0.8, attack: 0.9, block: 0.9, damage: 0.8, poison: 0.8, life: 0.6, token: 1, counters: 0.8, pump: 0.7, attach: 0.9, transform: 1.3, destroy: 1, exile: 1, bounce: 1, discard: 0.8, mulligan: 0.8, draw: 0.5, mill: 0.6, search: 0.6, player: 1, goad: 0.8, outcome: 2, other: 0.3, day: 1, speed: 0.8, pctr: 0.6, ring: 0.8, marks: 1, dungeon: 0.9, emblems: 1, state: 0.6 }
 // cor da marca na linha do tempo
 const MARK = { cast: 'm-cast', land: 'm-land', attack: 'm-atk', block: 'm-atk', damage: 'm-dmg', poison: 'm-dmg', destroy: 'm-die', exile: 'm-die', token: 'm-new', counters: 'm-new', transform: 'm-new', outcome: 'm-end' }
 const QUIET = new Set(['other', 'phase'])
@@ -51,7 +51,17 @@ function describe(ev, who) {
   const P = who[ev.p] || tx('Alguém'), c = short(ev.card), T = who[ev.target] || short(ev.target)
   switch (ev.k) {
     case 'turn': return tx('Turno {t} — {P}', { t: ev.t, P })
-    case 'snap': return ev.txt || ''  // réplica de um jogo jogado por pessoas: o que mudou nessa fotografia
+    case 'snap': return ev.txt || ''
+    case 'day': return ev.v === 'day' ? tx('Passa a ser dia') : tx('Passa a ser noite')
+    case 'speed': return tx('{P}: velocidade {n}', { P, n: ev.n })
+    case 'ring': return tx('O Anel tenta {P} ({n}.ª vez)', { P, n: ev.n })
+    case 'marks': return ev.mk?.includes('monarch') ? tx('{P} torna-se o monarca', { P }) : ev.mk?.includes('initiative') ? tx('{P} toma a iniciativa', { P }) : tx('{P}: designações {x}', { P, x: (ev.mk || []).join(', ') || '—' })
+    case 'pctr': return tx('{P}: {n} marcadores {ct}', { P, n: ev.abs, ct: CT[ev.ct] || ev.ct })
+    case 'dungeon': return ev.card ? tx('{P} avança na masmorra {d}: {r}', { P, d: ev.card, r: ev.to || '—' }) : tx('{P} completa a masmorra', { P })
+    case 'emblems': return (ev.list || []).length ? tx('{P} tem um emblema novo: {c}', { P, c: short(ev.list.at(-1).n) }) : tx('{P} já não tem emblemas', { P })
+    case 'state': { const st = ev.st || {}
+      return [st.fd ? tx('{c} está virada para baixo', { c: c || tx('uma carta') }) : null, st.lvl ? tx('{c}: nível {n}', { c, n: st.lvl }) : null, st.solved ? tx('{c}: caso resolvido', { c }) : null,
+        st.ring ? tx('{c} é o portador do Anel', { c }) : null, st.doors ? tx('{c}: portas abertas — {x}', { c, x: st.doors.join(', ') || '—' }) : null, st.ph ? tx('{c} sai de fase', { c }) : null].filter(Boolean).join(' · ') || tx('{c} muda de estado', { c }) }  // réplica de um jogo jogado por pessoas: o que mudou nessa fotografia
     case 'nodraw': return tx('{P} não compra no 1.º turno (Two-Headed Giant: a equipa que começa)', { P })
     case 'phase': return tx('Fase: {ph}', { ph: PH_LABEL[ev.ph] || ev.ph })
     case 'mulligan': return ev.card === 'kept' ? tx('{P} fica com {n} carta|{P} fica com {n} cartas', { P, n: ev.n }) : tx('{P} faz mulligan para {n}', { P, n: ev.n })
@@ -270,21 +280,38 @@ export function StackFx({ s, rev, ri, data, arts, quiet, who, speed, cur, pend }
   )
 }
 
+// dia/noite (daybound/nightbound): Forge Play, mesa livre (onClick muda) e réplicas
+export const DayNight = ({ v, onClick }) => <button type="button" key={v} className={`fp-day ${v}`} onClick={onClick} disabled={!onClick} title={v === 'day' ? tx('É dia (cartas daybound à vista)') : tx('É noite (cartas nightbound à vista)')}>{v === 'day' ? `☀ ${tx('dia')}` : `☾ ${tx('noite')}`}</button>
+
 // ---------- uma carta no campo ----------
 const kwsOf = (c, p) => [...new Set([...(c?.kw || []), ...(p.kw || [])])].filter(k => KW[k])
 
-function Face({ p, c, back, size = 'small' }) {
-  const im = useImg(), set = useImgSet()
-  if (p.hidden) return <div className="pc-back" />
-  if (!c && p.token) c = tokenCard(p.name, p.pt, p.src)
-  if (c) return <img src={im(c, size, back && !!c.df, undefined, p.key)} srcSet={size === 'small' ? set(c, back && !!c.df, undefined, p.key) : undefined} sizes="(max-width: 900px) 60px, 7.4vw" alt={short(p.face || p.name)} loading="lazy" draggable="false" />
+// ficha sem imagem (sem índice, ou a imagem não carrega nem pelo Grimório): uma moldura com a cor, o nome, o tipo e o P/R
+const TOK_BG = { W: '#d9cfa8', U: '#2f6eae', B: '#3b3046', R: '#b1432f', G: '#3d7a39' }
+export function TokenFrame({ name, pt, col, t, token = true }) {
+  const cs = [...new Set(String(col || '').toUpperCase())].filter(k => TOK_BG[k])
+  const bg = cs.length > 1 ? `linear-gradient(135deg, ${cs.map(k => TOK_BG[k]).join(', ')})` : cs.length ? TOK_BG[cs[0]] : '#7d828c'
+  const tl = String(t || '').split(' // ')[0].replace(/^Token\s+/, '')
   return (
-    <div className="pc-token">
-      <small>{p.token ? tx('FICHA') : ''}</small>
-      <b>{short(p.name).replace(/ Token$/, '')}</b>
-      {p.pt && <i>{p.pt}</i>}
+    <div className={`pc-token ${cs.length === 1 && cs[0] === 'W' ? 'lite' : ''}`} style={{ '--tk': bg }}>
+      <small>{token ? tx('FICHA') : ''}</small>
+      <b>{short(name).replace(/ Token$/, '')}</b>
+      {tl && <em>{tl}</em>}
+      {pt && <i>{pt}</i>}
     </div>
   )
+}
+// fichas: a imagem real do índice (build/tokens.py) quando chega; se a imagem falha também pelo Grimório (/sf/), a moldura
+export function Face({ p, c, back, size = 'small' }) {
+  const im = useImg(), set = useImgSet()
+  useSyncExternalStore(onTokens, tokensVer)  // o índice de fichas chega depois: volta a desenhar
+  const [bad, setBad] = useState(null)
+  if (p.hidden) return <div className="pc-back" />
+  if (!c && p.token) c = tokenCard(p.name, p.pt, p.src, p.col, p.set)
+  const src = c && im(c, size, back && !!c.df, undefined, p.key)
+  if (c && bad !== src) return <img className={c.up ? 'up' : undefined} src={src} srcSet={size === 'small' ? set(c, back && !!c.df, undefined, p.key) : undefined} sizes="(max-width: 900px) 60px, 7.4vw" alt={short(p.face || p.name)} loading="lazy" draggable="false"
+    onError={e => { const el = e.currentTarget; if (src.startsWith('/sf/') || el.dataset.fail) setBad(src); else el.dataset.fail = '1' }} />  // a 1.ª falha tenta pelo Grimório (data.js)
+  return <TokenFrame name={p.name} pt={p.pt || c?.pt} col={p.col ?? c?.co} t={c?.t || (p.token ? '' : null)} token={!!p.token || !!c?.tok} />
 }
 
 // cartas já mostradas na mesa (Side marca-as depois de desenhar): uma carta que volta a montar só porque mudou de monte
@@ -307,6 +334,25 @@ function PtExplain({ p, data, at }) {  // at: onde está o número (no ecrã): a
     </span>, document.fullscreenElement || document.body)
 }
 
+// mecânicas à vista numa permanente (Forge Play, réplicas e mesa livre): portas das Salas, nível da Classe, Caso resolvido,
+// capítulo da Saga, carga da Nave (estação), portador do Anel, suspeita, protótipo; batalhas deitadas
+export function mechOf(c, p) {
+  const tl = (c?.t || '').split(' // ')[0], o = c?.o || '', badges = []
+  const faces = c && /\bRoom\b/.test(c.t) ? c.n.split(' // ') : null
+  const doors = faces && faces.length === 2 ? faces.map(f => [f, (p.doors || []).includes(f)]) : null
+  const lvl = /\bClass\b/.test(tl) ? p.lvl || p.counters?.level || 1 : 0
+  if (p.solved) badges.push(['🔎', tx('Caso resolvido')])
+  if (p.ringb) badges.push(['💍', tx('Portador do Anel: lendário e não pode ser bloqueado por criaturas com mais poder')])
+  if (p.suspect) badges.push(['🕵', tx('Suspeita: ameaçar e não pode bloquear')])
+  if (p.proto || (p.pt && p.pt === protoPt(c) && p.pt !== c?.pt)) badges.push(['⚙', tx('Lançada como protótipo')])
+  const need = /\bStation\b/.test(o) ? Math.max(0, ...[...o.matchAll(/^(\d+)\+ \|/gm)].map(m => +m[1])) : 0
+  if (need) { const n = p.counters?.charge || 0; badges.push([n >= need ? '🚀' : '🛰', tx('Estação: {n} de {m} marcadores de carga', { n, m: need })]) }
+  const ROM = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6 }
+  const ch = /\bSaga\b/.test(tl) ? Math.max(0, ...[...o.matchAll(/^((?:I|II|III|IV|V|VI)(?:, (?:I|II|III|IV|V|VI))*) —/gm)].flatMap(m => m[1].split(', ').map(r => ROM[r]))) : 0
+  if (ch && p.counters?.lore) badges.push(['📜', tx('Saga: capítulo {n} de {m}', { n: Math.min(p.counters.lore, ch), m: ch })])
+  return { doors, lvl, badges, battle: /\bBattle\b/.test(tl) && !backUp(c, p) && !p.hidden && !p.faceDown }
+}
+
 export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt }) {  // tgt: [lado, nome] do jogador atacado (3+ jogadores)
   const [ex, setEx] = useState(null)  // a conta do P/R aberta: o retângulo do número
   const [enter] = useState(() => !quiet && !(Date.now() - (seenAt.get(p.key) || 0) < 600000))
@@ -324,8 +370,9 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
   const cls = ['pc', kfx, p.dmgIn > 0 && 'hurt', p.tapped && 'tapped', p.attacking && 'atk', p.blocking && 'blk', p.dying && 'dying', typeof p.dying === 'string' && `to-${p.dying}`, p.token && 'tok', hl && `hl${hl}`, p.sick && 'sick', creature && 'cre', p.dormant && 'dormant', p.phased && 'phased', p.faceDown && 'down', enter && 'in'].filter(Boolean).join(' ')
   const title = [short(p.face || p.name), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase (phasing): não conta como estando em jogo'), p.copy && tx('cópia'), p.merged?.length > 1 && tx('mutada: {x}', { x: p.merged.map(short).join(' + ') }), p.dormant && tx('não é criatura: devoção {d} de {n}', { d: p.dormant.d, n: p.dormant.need }), p.moon && tx('Blood Moon: é uma Montanha e só dá mana vermelha'), p.sick && tx('enjoo de invocação'), p.tapped && tx('virada')].filter(Boolean).join(' · ')
   tgt = tgt || (p.atkName ? ['x', short(p.atkName)] : null)  // ataca um planeswalker ou uma batalha
+  const mech = mechOf(c, p)
   return (
-    <div className={cls} data-z={`k:${p.key}`} title={title} style={p.pair ? { '--pair': PAIR[(p.pair - 1) % PAIR.length] } : undefined}>
+    <div className={`${cls}${mech.battle ? ' battle' : ''}`} data-z={`k:${p.key}`} title={title} style={p.pair ? { '--pair': PAIR[(p.pair - 1) % PAIR.length] } : undefined}>
       {kfx && <i className="pc-kfx" aria-hidden="true" />}
       {p.dmgOut > 0 && <span className="pc-dmgout" title={tx('Dano que fez neste combate: {n}', { n: p.dmgOut })}>⚔ {p.dmgOut}{p.trample > 0 && <em title={tx('Passou {n} com atropelar', { n: p.trample })}> ↠{p.trample}</em>}</span>}
       {p.dmgIn > 0 && <span className="pc-dmgin" title={tx('Dano que levou neste combate: {n}', { n: p.dmgIn })}>✕ {p.dmgIn}</span>}
@@ -347,13 +394,16 @@ export const Perm = memo(function Perm({ p, data, hl, pop, att, n, quiet, tgt })
         {p.counters?.loyalty != null && <b key={`l${p.counters.loyalty}`} className={`pc-loy ${pop?.ct === 'loyalty' && !quiet ? (pop.n > 0 ? 'up' : 'down') : ''}`} title={tx('Lealdade')}>{p.counters.loyalty}</b>}
         {p.counters?.defense != null && <b key={`d${p.counters.defense}`} className={`pc-loy def ${pop?.ct === 'defense' && !quiet ? 'down' : ''}`} title={tx('Defesa (batalha)')}>⛨{p.counters.defense}</b>}
         {ctr.length > 0 && <span className="pc-ctr">{ctr.map(([k, v]) => <b key={`${k}${v}`} className={`c-${k === '+1/+1' ? 'p1' : k === '-1/-1' ? 'm1' : k}`} title={tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[k] || k })}>{k === '+1/+1' ? `+${v}` : k === '-1/-1' ? `−${v}` : CT_ICON[k] ? `${CT_ICON[k]}${v}` : `${CT_SHORT[k] || (CT[k] || k).slice(0, 5)} ${v}`}</b>)}</span>}
-        {(p.copy || p.merged?.length > 1 || (p.faceDown && !p.hidden)) && <span className="pc-tags">{p.faceDown && !p.hidden && <i title={tx('Virada para baixo: só tu sabes qual é')}>👁</i>}{p.copy && <i title={tx('Cópia')}>⎘</i>}{p.merged?.length > 1 && <i title={tx('mutada: {x}', { x: p.merged.map(short).join(' + ') })}>⧉{p.merged.length}</i>}</span>}
+        {(p.copy || p.merged?.length > 1 || (p.faceDown && !p.hidden) || (p.token && c && !c.tok)) && <span className="pc-tags">{p.token && c && !c.tok && <i title={tx('Ficha que é cópia de uma carta')}>◇</i>}{p.faceDown && !p.hidden && <i title={tx('Virada para baixo: só tu sabes qual é')}>👁</i>}{p.copy && <i title={tx('Cópia')}>⎘</i>}{p.merged?.length > 1 && <i title={tx('mutada: {x}', { x: p.merged.map(short).join(' + ') })}>⧉{p.merged.length}</i>}</span>}
         {kws.length > 0 && <span className="pc-kw">{kws.map(k => <i key={k} data-kw={k} aria-label={KW[k][1]}>{KW[k][0]}</i>)}</span>}
         {p.sick && <i className="pc-zz" title={tx('Enjoo de invocação: entrou neste turno')}>z<sup>z</sup></i>}
         {p.goaded && <i className="pc-goad" title={tx('Incitada')}>⚑</i>}
         {n > 1 && <b className="pc-n">×{n}</b>}
         {tgt && <i className={`pc-tgt t-${tgt[0]}`} title={tx('Ataca {x}', { x: tgt[1] })}>⚔ {tgt[1]}</i>}
         {p.prot && <i className="pc-prot" title={tx('Batalha protegida por {x}', { x: p.prot })}>🛡 {short(p.prot)}</i>}
+        {mech.doors && <span className="pc-doors">{mech.doors.map(([f, on]) => <i key={f} className={on ? 'on' : ''} title={on ? tx('Porta aberta: {x}', { x: f }) : tx('Porta fechada: {x}', { x: f })}>{on ? '🚪' : '🔒'}</i>)}</span>}
+        {mech.lvl > 0 && <b className="pc-lvl" title={tx('Classe: nível {n}', { n: mech.lvl })}>{tx('Nv {n}', { n: mech.lvl })}</b>}
+        {mech.badges.length > 0 && <span className="pc-mech">{mech.badges.map(([ic, t]) => <i key={t} title={t}>{ic}</i>)}</span>}
         {(p.est || p.hidden) && <i className="pc-est" title={p.hidden ? tx('Estimativa: terreno procurado na biblioteca; o registo deste jogo (antigo) não diz qual.') : EST}>≈</i>}
       </div>
       {pop && !quiet && <i key={pop.i} className={`pc-pop ${pop.kind} ${pop.ct === 'loyalty' ? 'loyalty' : ''} ${pop.n < 0 ? 'neg' : ''} ${pop.ct === '-1/-1' || pop.ct === 'poison' ? 'ct-m1' : ''}`}>{pop.kind === 'flip' ? '⟲' : pop.kind === 'enter' || pop.kind === 'attach' ? pop.txt : pop.kind === 'pump' ? pop.pt : `${pop.n > 0 ? '+' : '−'}${Math.abs(pop.n)}${pop.ct && pop.ct !== '+1/+1' && pop.ct !== 'loyalty' ? ` ${CT_ICON[pop.ct] || CT[pop.ct] || pop.ct}` : ''}`}</i>}
@@ -1824,6 +1874,19 @@ function LibTop({ k, z, data, who }) {
 
 // de onde vem o deck de cada lugar: meta, meu, de um amigo ou da comunidade (ao lado da etiqueta do bot)
 const OWN = { meta: ['📊', tx('Meta'), tx('Deck do meta (torneios reais)')], meu: ['🧙', tx('Meu'), tx('Um deck teu')], ami: ['🤝', tx('Amigo'), tx('Deck de um amigo')], com: ['🌐', tx('Comunidade'), tx('Deck da comunidade (de outra pessoa)')] }
+// emblemas (zona de comando): o chip abre a lista com a imagem (índice de fichas: «… Emblem») e o texto de cada um
+function EmblemChip({ z }) {
+  const [open, setOpen] = useState(false), im = useImg()
+  useSyncExternalStore(onTokens, tokensVer)
+  return (
+    <span className="chip emb" title={z.emblems.map(short).join(', ')} role="button" tabIndex={0} onClick={e => { const up = e.currentTarget.getBoundingClientRect().top > innerHeight / 2; setOpen(o => (o ? false : up ? 'up' : 'down')) }} onKeyDown={e => { if (e.key === 'Enter') setOpen(o => (o ? false : 'up')) }}>
+      ✦ {tx('{n} emblema|{n} emblemas', { n: z.emblems.length })}
+      {open && <span className={`emb-pop ${open}`} onClick={e => e.stopPropagation()}>{z.emblems.map((n, j) => { const c = tokenCard(n), t = z.emText?.[n] || c?.o || ''
+        return <span key={j} className="emb-it">{c ? <img src={im(c, 'small')} alt="" /> : <i>✦</i>}<span><b>{short(n)}</b>{t && <small><Syms text={t} /></small>}</span></span> })}</span>}
+    </span>
+  )
+}
+
 export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, hand, bet, bot, own, openLib, av }) {  // av: a imagem de perfil de quem joga este lado (avatar.jsx)  // openLib: clicar na biblioteca (mesa livre: comprar)  // bet: as minhas apostas neste deck (torneios)  // hand: a mão fica nesta linha, ao centro (em baixo a nossa, em cima a do adversário)
   const cmdDmg = Object.entries(z.cmdDmg || {}), im = useImg(), oc = useContext(OrbCtx)
   return (
@@ -1845,7 +1908,9 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
           {z.blessing && <span className="chip gold" title={tx('Bênção da cidade (ascender): fica para o resto do jogo')}>🏙 {tx('bênção')}</span>}
           {z.speed > 0 && <span className="chip" title={tx('Velocidade (Start your engines!): sobe uma vez por turno, até 4')}>🏁 {z.speed}</span>}
           {Object.entries(z.pctr || {}).map(([k, v]) => <span key={k} className="chip" title={tx('{n} marcador {ct}|{n} marcadores {ct}', { n: v, ct: CT[k] || k })}>{k === 'rad' ? '☢' : k === 'experience' ? '✦' : '◆'} {v}</span>)}
-          {z.emblems?.length > 0 && <span className="chip" title={z.emblems.map(short).join(', ')}>✦ {tx('{n} emblema|{n} emblemas', { n: z.emblems.length })}</span>}
+          {z.emblems?.length > 0 && <EmblemChip z={z} />}
+          {z.ring > 0 && <span className="chip gold" title={tx('O Anel tentou-te {n} vez|O Anel tentou-te {n} vezes', { n: z.ring })}>💍 {Math.min(4, z.ring)}</span>}
+          {z.dungeon && <span className="chip" title={tx('Masmorra: {d} · sala: {r}', { d: z.dungeon.n, r: z.dungeon.room || '—' })}>⚑ {short(z.dungeon.room || z.dungeon.n)}</span>}
           {cmdDmg.map(([n, v]) => { const cc = lookup(data, n)  // com a cara do comandante: dois parceiros já não são dois «⚔ 6/21» iguais
             return <span key={n} className={`chip cmdd ${v >= 15 ? 'psn' : ''}`} title={tx('Dano de comandante de {c} (21 = derrota)', { c: short(n) })}>{cc ? <img src={im(cc, 'art_crop')} alt="" /> : '⚔'} {v}/21</span> })}
           {z.out ? <span className="chip psn">{tx('eliminado no turno {n}', { n: z.out })}</span> : s.over?.loser === k ? <span className="chip psn">{tx('derrota')}</span> : null}
@@ -1982,10 +2047,11 @@ function zoomInfo(z, s, data) {
           p.pump && tx('{pt} até ao fim do turno', { pt: `${p.pump[0] >= 0 ? '+' : ''}${p.pump[0]}/${p.pump[1] >= 0 ? '+' : ''}${p.pump[1]}` }),
           att.length && tx('Anexadas: {x}', { x: att.map(x => short(x.name)).join(', ') }),
           host && tx('Anexada a {x}', { x: short(host.name) }),
+          ...(m => [m.doors && m.doors.map(([f, on]) => `${on ? '🚪' : '🔒'} ${f}`).join(' · '), m.lvl > 0 && tx('Classe: nível {n}', { n: m.lvl }), ...m.badges.map(b => `${b[0]} ${b[1]}`)])(mechOf(c, p)),
           kwsOf(c, p).map(k => KW[k][1]).join(' · '),
           [p.tapped && tx('virada'), p.faceDown && tx('virada para baixo'), p.phased && tx('fora de fase'), p.copy && tx('cópia'), p.sick && tx('enjoo de invocação'), p.attacking && tx('a atacar'), p.blocking && tx('a bloquear'), p.token && tx('ficha'), p.goaded && tx('incitada')].filter(Boolean).join(' · '),
         ].filter(Boolean)
-        return { c: c || (p.token ? tokenCard(p.name, p.pt, p.src) : null), side: k, back: backUp(c, p) && !!c?.df, name: short(p.face || p.name) || tx('Terreno'), lines, p }
+        return { c: c || (p.token ? tokenCard(p.name, p.pt, p.src, p.col, p.set) : null), side: k, back: backUp(c, p) && !!c?.df, name: short(p.face || p.name) || tx('Terreno'), lines, p }
       }
     }
     return null
@@ -2000,7 +2066,7 @@ function ZoomCard({ info, big }) {
   if (!info) return null
   return (
     <div className={`zoomcard ${big ? 'big' : ''}`}>
-      {info.c ? <img src={im(info.c, 'normal', info.back, info.side)} alt={info.name} /> : <div className="pc-token zt"><b>{info.name}</b>{info.p?.pt && <i>{info.p.pt}</i>}</div>}
+      {info.c ? <img className={info.c.up ? 'up' : !info.back && sideways(info.c) ? 'side' : undefined} src={im(info.c, 'normal', info.back, info.side)} alt={info.name} /> : <div className="zt"><TokenFrame name={info.name} pt={info.p?.pt} col={info.p?.col} token={!!info.p?.token} /></div>}
       <div className="zinfo"><b>{info.name}</b>{info.lines.map((l, j) => <span key={j}><Syms text={l} /></span>)}</div>
     </div>
   )
@@ -2350,6 +2416,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
           <div className="bmid">
             <div className="phases" style={{ '--n': PHASES.length, '--x': Math.max(0, ph) }}>
               <span className="turnno">T{s.turn || 0}</span>
+              {s.day && <DayNight v={s.day} />}
               <div className="phtrack">
                 {ph >= 0 && <i className={`phmark ${s.active || ''}`} />}
                 {PHASES.map((x, j) => <span key={x} className={j === ph ? 'on' : j < ph ? 'past' : ''} title={PH_LABEL[x]}>{PH_SHORT[x]}</span>)}

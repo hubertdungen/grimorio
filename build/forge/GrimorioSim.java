@@ -1170,5 +1170,71 @@ public class GrimorioSim {
             String to = e.newTarget() instanceof CardView ? String.valueOf(e.newTarget().getId()) : "";
             emit("A|" + e.equipment().getId() + "|" + to + "|" + name(e.equipment()));
         }
+
+        // mecânicas que o registo do Forge não diz: dia/noite, velocidade, marcadores de jogador (energia, experiência,
+        // rad, bilhetes…), o estado das cartas no campo (virada para baixo, nível de Classe, Caso resolvido, portas de
+        // Sala abertas, portador do Anel, fora de fase) e, por jogador, masmorra/sala, emblemas e vezes que o Anel tentou.
+        // Linhas: D|day · S|lugar|n · P|lugar|tipo|n · X|id|estado|nome · V|lugar|masmorra|sala · E|lugar|nome~texto^… · R|lugar|n · M|lugar|monarch,initiative,blessing,
+        @Subscribe
+        public void day(GameEventDayTimeChanged e) { emit("D|" + (e.daytime() ? "day" : "night")); }
+
+        @Subscribe
+        public void speed(GameEventSpeedChanged e) { emit("S|" + seat(e.player()) + "|" + e.newValue()); }
+
+        @Subscribe
+        public void pctr(GameEventPlayerCounters e) {
+            for (Player p : g.getPlayers())
+                if (e.receiver() != null && p.getId() == e.receiver().getId()) emit("P|" + seat.get(p.getId()) + "|" + e.type().getName() + "|" + p.getCounters(e.type()));
+        }
+
+        final Map<Integer, String> cst = new HashMap<>();
+        final Map<String, String> pst = new HashMap<>();
+
+        static String clean(String s) { return s == null ? "" : s.replace('|', '/').replace('\n', ' ').replace('^', ' ').replace('~', '-'); }
+
+        void scan() {
+            Set<Integer> here = new HashSet<>();
+            for (Card c : g.getCardsIn(ZoneType.Battlefield)) {
+                here.add(c.getId());
+                StringBuilder b = new StringBuilder();
+                try {
+                    if (c.isFaceDown()) b.append("fd,");
+                    if (c.getType().hasSubtype("Class")) b.append("lvl=").append(c.getClassLevel()).append(',');
+                    if (c.isSolved()) b.append("solved,");
+                    if (c.isRingBearer()) b.append("ring,");
+                    if (c.isRoom()) b.append("doors=").append(clean(String.join("+", c.getUnlockedRoomNames()))).append(',');
+                    if (c.isPhasedOut()) b.append("ph,");
+                } catch (Exception x) { continue; }
+                String s = b.toString();
+                if (!s.equals(cst.getOrDefault(c.getId(), ""))) { cst.put(c.getId(), s); emit("X|" + c.getId() + "|" + s + "|" + name(c.getView())); }
+            }
+            cst.keySet().retainAll(here);
+            for (Player p : g.getPlayers()) {
+                int k = seat.get(p.getId());
+                StringBuilder dn = new StringBuilder(), em = new StringBuilder();
+                for (Card c : p.getCardsIn(ZoneType.Command)) {
+                    try {
+                        if (c.isEmblem()) em.append(em.length() > 0 ? "^" : "").append(clean(c.getName())).append('~').append(clean(c.getView().getText()));
+                        else if (c.getCurrentRoom() != null && !c.getCurrentRoom().isEmpty()) dn.append(clean(c.getName())).append('|').append(clean(c.getCurrentRoom()));
+                    } catch (Exception x) { /* carta de efeito sem texto */ }
+                }
+                put(k, "V", dn.toString());
+                put(k, "E", em.toString());
+                put(k, "R", String.valueOf(p.getNumRingTemptedYou()));
+                put(k, "M", (p.isMonarch() ? "monarch," : "") + (p.hasInitiative() ? "initiative," : "") + (p.hasBlessing() ? "blessing," : ""));  // designações exatas
+            }
+        }
+
+        void put(int k, String kind, String v) {
+            String key = kind + k, was = pst.get(key);
+            if (v.equals(was) || (was == null && (v.isEmpty() || v.equals("0")))) return;
+            pst.put(key, v);
+            emit(kind + "|" + k + "|" + v);
+        }
+
+        @Subscribe public void resolved(GameEventSpellResolved e) { scan(); }
+        @Subscribe public void stats(GameEventCardStatsChanged e) { if (e.transform()) scan(); }  // dispara a cada conta de P/R: só as viragens
+        @Subscribe public void door(GameEventDoorChanged e) { scan(); }
+        @Subscribe public void phase(GameEventTurnPhase e) { scan(); }
     }
 }

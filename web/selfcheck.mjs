@@ -1074,3 +1074,60 @@ import { ptExplain } from './src/game.js'
   assert.ok(back && !isC(gm, back), 'de volta do exílio é só terreno')
   console.log('selfcheck terrenos animados ok')
 }
+
+// mecânicas novas nas réplicas (linhas D/S/P/R/V/E/X do GrimorioSim -> eventos day/speed/pctr/ring/dungeon/emblems/state),
+// protótipo pelo P/R da resolução, fichas (emblemas, papéis da metade de baixo, edição), cartas deitadas e comandantes
+{
+  const { replayStates: rs, protoPt, powTough: pt } = await import('./src/game.js')
+  const G = [
+    { n: 'Bottomless Pool // Locker Room', t: 'Enchantment — Room // Enchantment — Room', o: 'When you unlock this door, return up to one target creature to its owner\'s hand.\n//\nWhenever one or more creatures you control deal combat damage to a player, draw a card.', pt: '', kw: [] },
+    { n: 'Wizard Class', t: 'Enchantment — Class', o: 'You have no maximum hand size.', pt: '', kw: [] },
+    { n: 'Arcane Proxy', t: 'Artifact Creature — Wizard', o: 'Prototype {1}{U}{U} — 2/1 (You may cast this spell with different mana cost, color, and size.)', pt: '4/3', kw: [] },
+    { n: 'Invasion of Zendikar // Awakened Skyclave', t: 'Battle — Siege // Creature — Elemental', o: '', pt: '3', kw: [], df: 1 },
+    { n: 'Fire // Ice', t: 'Instant // Instant', o: 'Fire deals 2 damage divided as you choose among one or two targets.\n//\nTap target permanent.', pt: '', kw: [] },
+    { n: 'Commit // Memory', t: 'Instant // Sorcery', o: 'Put target spell or nonland permanent into its owner\'s library second from the top.\n//\nAftermath', pt: '', kw: [] },
+    { n: 'Bonecrusher Giant // Stomp', t: 'Creature — Giant // Instant — Adventure', o: '', pt: '4/3', kw: [] },
+  ]
+  const gm = { byName: new Map(G.map(c => [c.n, c])), byLower: new Map(G.map(c => [c.n.toLowerCase(), c])) }
+  const Z = (id, card, tp = 'a') => ({ id, card, from: 'stack', to: 'battlefield', fp: null, tp })
+  const E = [
+    { t: 0, k: 'mulligan', p: 'a', n: 7, card: 'kept' }, { t: 1, k: 'turn', p: 'a' },
+    { t: 1, k: 'resolve', p: 'a', card: 'Bottomless Pool // Locker Room', zn: [Z(5, 'Bottomless Pool // Locker Room')] },
+    { t: 1, k: 'resolve', p: 'a', card: 'Wizard Class', zn: [Z(6, 'Wizard Class')] },
+    { t: 1, k: 'resolve', p: 'a', card: 'Arcane Proxy', pt: '2/1', zn: [Z(7, 'Arcane Proxy')] },
+    { t: 1, k: 'state', p: 'a', card: 'Bottomless Pool // Locker Room', id: 5, st: { doors: ['Bottomless Pool'] }, x: 1 },
+    { t: 1, k: 'state', p: 'a', card: 'Wizard Class', id: 6, st: { lvl: 2 }, x: 1 },
+    { t: 1, k: 'day', v: 'night', x: 1 }, { t: 1, k: 'speed', p: 'a', n: 2, x: 1 }, { t: 1, k: 'ring', p: 'b', n: 1, x: 1 },
+    { t: 1, k: 'pctr', p: 'a', ct: 'energy', abs: 3, x: 1 }, { t: 1, k: 'pctr', p: 'a', ct: 'experience', abs: 2, x: 1 },
+    { t: 1, k: 'dungeon', p: 'b', card: 'Tomb of Annihilation', to: 'Veils of Fear', x: 1 },
+    { t: 1, k: 'marks', p: 'b', mk: ['monarch', 'initiative'], x: 1 }, { t: 1, k: 'marks', p: 'b', mk: ['initiative'], x: 1 }, { t: 1, k: 'marks', p: 'a', mk: ['monarch'], x: 1 },
+    { t: 1, k: 'emblems', p: 'a', list: [{ n: 'Gideon of the Trials Emblem', t: 'As long as you control a Gideon planeswalker, you can\'t lose the game.' }], x: 1 },
+  ]
+  const s = rs(E, gm, 20, null, true).at(-1), by = n => s.a.perms.find(p => p.name === n)
+  assert.deepEqual(by('Bottomless Pool // Locker Room').doors, ['Bottomless Pool'])
+  assert.equal(by('Wizard Class').lvl, 2)
+  assert.equal(protoPt(G[2]), '2/1')
+  assert.deepEqual([pt(gm, by('Arcane Proxy')).p, pt(gm, by('Arcane Proxy')).t, by('Arcane Proxy').proto], [2, 1, true], 'protótipo: entra 2/1')
+  assert.deepEqual([s.day, s.a.speed, s.b.ring, s.a.energy, s.a.pctr, s.b.dungeon], ['night', 2, 1, 3, { experience: 2 }, { n: 'Tomb of Annihilation', room: 'Veils of Fear' }])
+  assert.deepEqual([s.a.monarch, s.b.monarch, s.b.initiative], [true, false, true], 'monarca/iniciativa exatos')
+  assert.deepEqual([s.a.emblems, Object.keys(s.a.emText)], [['Gideon of the Trials Emblem'], ['Gideon of the Trials Emblem']])
+  const s2 = rs([...E, { t: 1, k: 'state', p: 'a', card: 'Wizard Class', id: 6, st: { fd: 1 }, x: 1 }], gm, 20, null, true).at(-1)
+  assert.ok(s2.a.perms.find(p => p.name === 'Wizard Class').faceDown && !s2.a.perms.find(p => p.name === 'Wizard Class').lvl)
+  const { sideways } = await import('./src/data.js')
+  assert.deepEqual(G.map(sideways), [true, false, false, true, true, false, false], 'deitadas: Salas, batalhas e divididas; aftermath e aventuras não')
+  const { canBeCommander, FORMAT } = await import('./src/formats.js')
+  const cmd = FORMAT.commander, bg = { n: 'Raised by Giants', t: 'Legendary Enchantment — Background', o: 'Commander creatures you own have base power and toughness 10/10.' }
+  const bushi = { n: 'Bushi Tenderfoot // Kenzo the Hardhearted', t: 'Creature — Human Soldier // Legendary Creature — Human Samurai', o: '' }
+  const chooser = { n: 'Wilson', t: 'Legendary Creature — Bear Warrior', o: 'Choose a Background' }
+  assert.deepEqual([canBeCommander(bg, cmd), canBeCommander(bg, cmd, null), canBeCommander(bg, cmd, chooser), canBeCommander(bushi, cmd), canBeCommander(chooser, cmd)], [true, false, true, false, true])
+  // fichas: «Emblem - X» do Forge = «X Emblem» da Scryfall; papel da metade de baixo = a imagem ao contrário; a edição desempata
+  const { setTokens, tokenCard } = await import('./src/tokens.js')
+  setTokens({ tokens: { e: ['Gideon of the Trials Emblem', '', '', 'Emblem — Gideon', '', [], 0, 'tm19', ''], r: ['Royal // Young Hero', '', '', 'Token Enchantment — Aura Role // Token Enchantment — Aura Role', '', [], [['Royal', '', ''], ['Young Hero', '', '']], 'twoe', 'flip'],
+    g1: ['Goblin', '1/1', 'R', 'Token Creature — Goblin', '', [], 0, 'tm13', ''], g2: ['Goblin', '1/1', 'R', 'Token Creature — Goblin', '', [], 0, 'tdom', ''] },
+  byName: { 'gideon of the trials emblem': ['e'], royal: ['r'], 'young hero': ['r'], goblin: ['g1', 'g2'] }, byCard: {} })
+  assert.equal(tokenCard('Emblem - Gideon of the Trials')?.id, 'e')
+  assert.deepEqual([tokenCard('Young Hero')?.up, tokenCard('Royal')?.up, tokenCard('Royal Role')?.df], [1, undefined, 0])
+  assert.deepEqual([tokenCard('Goblin Token', '1/1', null, 'R', 'DOM')?.id, tokenCard('Goblin Token', '1/1', null, 'R', 'M13')?.id], ['g2', 'g1'])
+  setTokens(null)
+  console.log('selfcheck mecânicas novas ok')
+}
