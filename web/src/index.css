@@ -4522,5 +4522,5 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .cmd-sug { display: grid; gap: 4px; margin: 4px 0 8px; }
 .cmd-sug-r { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
 .cmd-sug-r:hover { border-color: var(--gold); }
-.cmd-sug-r img { width: 44px; height: 32px; object-fit: cover; border-radius: 4px; background: var(--panel2); }
+.cmd-sug-r > img { width: 44px; height: 32px; object-fit: cover; border-radius: 4px; background: var(--panel2); }
 .cmd-sug-r b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }

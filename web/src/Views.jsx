@@ -842,7 +842,7 @@ function Actions({ c, deck, fmt, act, swaps }) {
   )
 }
 
-function Filters({ f, set, compact, noTag }) {
+function Filters({ f, set, compact, noTag, cmd }) {
   const up = (k, v) => set(x => ({ ...x, [k]: v }))
   const togColor = k => up('colors', f.colors.includes(k) ? f.colors.filter(x => x !== k) : [...f.colors, k])
   return (
@@ -860,7 +860,7 @@ function Filters({ f, set, compact, noTag }) {
           </select>
         )}
       </div>
-      <select value={f.type} onChange={e => up('type', e.target.value)} aria-label={tx('Tipo')}><option value="">{tx('Todos os tipos')}</option>{TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}</select>
+      <select value={f.type} onChange={e => up('type', e.target.value)} aria-label={tx('Tipo')}><option value="">{tx('Todos os tipos')}</option>{cmd && <option value="__cmd">♛ {tx('Comandantes possíveis')}</option>}{TYPES.map(t => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}</select>
       <button className={`fchip lgd ${f.legendary ? 'on' : ''}`} onClick={() => up('legendary', !f.legendary)} aria-pressed={!!f.legendary} title={tx('Só cartas lendárias (junta-se ao tipo: criaturas lendárias, artefactos lendários…)')}>♛ {tx('Lendárias')}</button>
       {!noTag && <select value={f.tag} onChange={e => up('tag', e.target.value)} aria-label={tx('Função')}><option value="">{tx('Qualquer função')}</option>{TAG_GROUPS.map(([g, ks]) => <optgroup key={g} label={g}>{ks.map(k => <option key={k} value={k}>{TAG_LABEL[k]}</option>)}</optgroup>)}</select>}
       <input value={f.sub} onChange={e => up('sub', e.target.value)} placeholder={tx('Subtipo (Elf, Dragon…)')} className="w-sub" />
@@ -900,10 +900,24 @@ export function BasicBar({ data, deck, ctx, act }) {
 
 const NL_L = { type: tx('tipo'), sub: tx('subtipo'), tag: tx('função'), cares: tx('beneficia de'), oracle: tx('texto'), mv: tx('custo'), colors: tx('cor'), vs: tx('contra'), fmt: tx('formato'), arch: tx('estratégia') }
 
+// quanto uma carta se parece com o deck (embeddings, como nas sugestões de comandante) + um pouco de popularidade; sem
+// cartas no deck, só a popularidade
+export function deckFit(data, deck) {
+  const eff = Object.keys(deck.main || {}).map(k => data.byName.get(k)).filter(c => c && !/\bBasic\b/.test(c.t))
+  const pop = c => (c.er ? 0.15 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000)) : 0)
+  if (!eff.length || !data.emb) return pop
+  const D = data.D, E = data.emb, cen = new Float32Array(D)
+  for (const c of eff) for (let k = 0; k < D; k++) cen[k] += E[c.i * D + k]
+  return c => { let d = 0; for (let k = 0; k < D; k++) d += cen[k] * E[c.i * D + k]; return d / 127 / eff.length + pop(c) + (deck.main[c.n] ? 0.25 : 0) }
+}
+
 export function SearchView({ data, deck, fmt, ctx, act }) {
   const [q, setQ] = useState('')
   const [f, setF] = useState(F0)
-  const dq = useDeferredValue(q), df = useDeferredValue(f)
+  const dq = useDeferredValue(q), df0 = useDeferredValue(f)
+  const cmdMode = df0.type === '__cmd'
+  const df = useMemo(() => (cmdMode ? { ...df0, type: '', pred: c => canBeCommander(c, fmt) } : df0), [df0, cmdMode, fmt])
+  const fit = useMemo(() => (cmdMode ? deckFit(data, deck) : null), [cmdMode, data, deck])
   const [raw, setRaw] = useState('')  // frase que o utilizador quis pelo nome (✕ no «Entendido como»)
   // edição ou universo na pesquisa («Assassin's Creed», «MH3», «e:ltr», «transformers», «senhor dos anéis»): com os dados
   // do vocab.json (build/vocab.py) tudo local; sem eles, a lista de edições e as cartas de cada uma vêm da Scryfall.
@@ -932,13 +946,14 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   useEffect(() => setAnyFmt(false), [dq])
   const sctx = useMemo(() => (anyFmt ? { ...ctx, bit: -1, identity: null, allowUn: true } : ctx), [anyFmt, ctx])
   const res = useMemo(() => {  // frase: só se a sintaxe é explícita ou se pelo nome não há nada (assim «Black Lotus» continua a ser a carta)
-    const byName = search(data, qq, dff, sctx)
+    const lim = cmdMode ? 40000 : undefined  // comandantes: todos, para ordenar pelo encaixe no deck
+    const byName = search(data, qq, dff, sctx, lim)
     // o nome ganha só se alguma carta começa pelo que se escreveu («Black Lotus», «Lightning»); «removal» com a Seal of
     // Removal a bater no meio do nome é a função Remoção, não essa carta
     const qf = unaccent(qq.toLowerCase().trim()), nameHit = byName.cards.some(c => (c.f || c.l).startsWith(qf))
     if (!nl || (byName.total && nameHit && !/[:<>=]/.test(qq))) return { ...byName, nl: null }
     const fx = nl.f.fmt ? { ...sctx, bit: data.meta.formats.indexOf(nl.f.fmt) } : sctx  // «em modern»: legais nesse formato
-    const r = search(data, nl.rest, { ...dff, ...nl.f }, fx)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
+    const r = search(data, nl.rest, { ...dff, ...nl.f }, fx, lim)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
     const out = r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...dff, ...nl.f }, fx), nl: { ...nl, rest: '', skipped: nl.rest } }
     // vários tipos sem nenhuma carta que os tenha todos («enchantment planeswalker»): um ou outro
     if (!out.total && nl.f.types2?.length) {
@@ -947,7 +962,12 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       if (r2.total) return { ...r2, nl: { ...out.nl, orTypes: [nl.f.type, ...nl.f.types2] } }
     }
     return out
-  }, [data, qq, dff, sctx, nl])
+  }, [data, qq, dff, sctx, nl, cmdMode])
+  const shownRes = useMemo(() => {
+    if (!cmdMode) return res
+    const cards = fit ? res.cards.map(c => [c, fit(c)]).sort((a, b) => b[1] - a[1]).map(x => x[0]) : res.cards
+    return { ...res, cards: cards.slice(0, 150) }
+  }, [res, cmdMode, fit])
   // o formato do deck escondeu cartas com este nome? (ex.: Gaea's Cradle num deck de Pauper)
   const hidden = useMemo(() => (!anyFmt && dq.trim().length > 2 && (ctx.bit >= 0 || ctx.identity != null) ? Math.max(0, search(data, dq, F0, { bit: -1, allowUn: true }, 1).total - search(data, dq, F0, ctx, 1).total) : 0), [data, dq, ctx, anyFmt])
   const [showF, setShowF] = useState(false)
@@ -964,7 +984,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
         </select>
       </div>
       <button className="filters-toggle" onClick={() => setShowF(!showF)}>{tx('Filtros')}{nActive ? ` (${nActive})` : ''} {showF ? '▴' : '▾'}</button>
-      <div className={`filters-wrap ${showF ? 'open' : ''}`}><Filters f={f} set={setF} /></div>
+      <div className={`filters-wrap ${showF ? 'open' : ''}`}><Filters f={f} set={setF} cmd={!!fmt.cmd} /></div>
       <div className="search-layout">
       <div>
       {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => (g.k === 'legendary' ? <span key={k} className="chip">♛ <b>{tx('Lendárias')}</b></span>
@@ -974,7 +994,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       {uniSug.length > 0 && <p className="small set-hit">{tx('Também é o nome de um universo:')} {uniSug.map(v => <button key={v} className="link small" onClick={() => setQ(`e:${v}`)}>🎬 {setLabel(v)}</button>)}</p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">
-        {res.cards.map(c => { const fl = res.fl?.get(c.i) || (setHit?.local && flavorOf(c, setHit.set.code))  // entrou por outro nome: a imagem dessa impressão
+        {shownRes.cards.map(c => { const fl = res.fl?.get(c.i) || (setHit?.local && flavorOf(c, setHit.set.code))  // entrou por outro nome: a imagem dessa impressão
           return <CardTile key={c.i} c={c} pid={pidOf(deck, c.n) || fl?.id} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} note={<>{fl && <p className="small muted tile-fl" title={tx('Também conhecida como {n}', { n: `${fl.n} (${fl.set.toUpperCase()})` })}>«{fl.n}» · {fl.set.toUpperCase()}</p>}{res.nl?.f.vs && <VsWhy c={c} nl={res.nl} />}</>} /> })}
       </div>
       {hidden > 0 && <p className="small fmt-hidden">{tx('{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}', { n: hidden, f: ctx.identity != null && ctx.bit < 0 ? tx('na identidade do comandante') : fmt.name })} <button className="link small" onClick={() => setAnyFmt(true)}>{tx('mostrar mesmo assim')}</button></p>}

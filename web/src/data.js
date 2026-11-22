@@ -499,6 +499,7 @@ export function passes(c, f, ctx) {
   }
   if (f.colorless && cs.length) return false
   if (f.type && c.mt !== f.type && !c.t.includes(f.type)) return false
+  if (f.pred && !f.pred(c)) return false  // filtro calculado (ex.: «♛ Comandantes possíveis» na pesquisa)
   if (f.typesAny?.length && !f.typesAny.some(t => c.mt === t || c.t.includes(t))) return false  // «encantamento ou planeswalker»
   if (f.legendary && !c.t.includes('Legendary')) return false
   if (f.types2?.length && !c.t.split(' // ').some(fc => [f.type, ...f.types2, f.sub].every(t => !t || fc.toLowerCase().includes(t.toLowerCase())))) return false  // «criatura encantamento humano»: tipos e subtipo na mesma face

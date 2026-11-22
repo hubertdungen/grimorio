@@ -15,7 +15,7 @@ import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
 import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar } from './Views.jsx'
 import { pushView, setOnView, useBackClose } from './backnav.js'
-import { showCardPeek, hideCardPeek, flipCardPeek, peekOpen, pressPeek, useFolded } from './deckview.js'
+import { showCardPeek, hideCardPeek, flipCardPeek, peekOpen, pressPeek, useFolded, delayedPeek } from './deckview.js'
 import DraftView from './Draft.jsx'
 import NewDeckWizard from './Wizard.jsx'
 import LabView from './Lab.jsx'
@@ -182,7 +182,7 @@ function CmdSuggest({ data, deck, fmt, ctx, act }) {
   if (!list.length) return null
   return <div className="cmd-sug">
     {list.slice(0, n).map(c => (
-      <div key={c.i} className="cmd-sug-r" onClick={() => act.open(c)}>
+      <div key={c.i} className="cmd-sug-r" onClick={() => act.open(c)} {...delayedPeek(c)}>
         <img src={img(c, 'art_crop')} alt="" loading="lazy" /><div><b>{c.n}</b><Mana cost={c.mc} />{deck.main[c.n] ? <small className="muted"> · {tx('já no deck')}</small> : null}</div>
         <button className="act" onClick={e => { e.stopPropagation(); act.setCommander(c) }} title={tx('Comandante')}>♛</button>
       </div>))}
