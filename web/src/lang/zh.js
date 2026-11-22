@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Deck de {n} (veio de uma sala ou de um amigo convidado)": "{n} 的套牌（来自房间或受邀好友）",
+  "um amigo": "一位好友",
   "Aplicar ({n})": "应用（{n}）",
   "com «{c}»": "含「{c}」",
   "Descrição guardada nas notas.": "描述已保存到笔记。",

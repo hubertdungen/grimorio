@@ -175,7 +175,7 @@ function DeckBox({ d, data, openDeck, goTab, duplicate, setCover, setImg, rt, rt
       </button>{tro?.length > 0 && <span className="dbox-tro"><Trophies list={tro} />{tp && <b className="tro-pts" title={`${tx('{p} pontos de troféus · n.º {r} de {n} no ranking dos teus decks', { p: tp.p, r: tp.rank, n: tp.of })}\n${tx('Estrelas brancas {s}: {a} dos {p} pontos de troféus (até 4★) + {b} do desempenho (até 2★)', { s: num(tp.s), a: num(pointStars(tp.p)), p: tp.p, b: num(tp.s - pointStars(tp.p)) })}${tp.blue ? `\n${tx('{a} normais (ranked) + {b} de troféus azuis (casual ou não ranked, valem metade)', { a: tp.p - tp.blue, b: tp.blue })}` : ''}`}>{tp.rank === 1 ? '👑 ' : `#${tp.rank} · `}{tp.p} · {num(tp.s)}★</b>}</span>}</div>
       <div className="dbox-body">
         <b title={d.name}>{d.name}</b>
-        <span className="dbox-l1">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span><button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}>{d.community ? '🌐' : '🧙'}</button></span>
+        <span className="dbox-l1">{cols.length ? <Mana cost={cols.map(x => `{${x}}`).join('')} /> : <Mana cost="{C}" />}<span className="muted small">{tx('{n} carta|{n} cartas', { n: d.count })} · {when(d.updated)}</span>{d.friend ? <span className="dbox-com on" title={tx('Deck de {n} (veio de uma sala ou de um amigo convidado)', { n: d.friendName || tx('um amigo') })}>🤝</span> : <button className={`dbox-com ${d.community ? 'on' : ''}`} onClick={() => onCom(d)} title={d.community ? tx('Deck da comunidade (de outra pessoa) — clica para passar a meu') : tx('Deck meu — clica para marcar como da comunidade (de outra pessoa)')}>{d.community ? '🌐' : '🧙'}</button>}</span>
         <span className="dbox-l2"><DeckRating d={d} rt={rt} rtc={rtc} />{bad.length > 0 && <button className="dbox-bad" onClick={() => open('deck')} title={bad.join('\n')}>⚠ {tx('Ilegal em {f}', { f: FORMAT[d.format]?.name || d.format })} · {bad.length}</button>}</span>
         <span className="row-btns">
           <button onClick={() => open('deck')}>{tx('Abrir')}</button>
@@ -313,8 +313,14 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
     const byName = (a, b) => a.name.localeCompare(b.name, LOCALE, { sensitivity: 'base' })
     return [...mine].sort((a, b) => (key ? key(a) - key(b) : 0) || byName(a, b))
   }, [mine, sort, rt, tpts, data])
+  // de quem é: «Meus» por omissão; os decks das salas e dos amigos convidados (friend) são dos amigos; os marcados 🌐, da comunidade
+  const [whose, setWhose] = useState(() => ls('grimorio.lib.whose') || 'meus')
+  useEffect(() => { ls('grimorio.lib.whose', whose) }, [whose])
+  const kindOf = d => (d.friend ? 'amigos' : d.community ? 'comunidade' : 'meus')
+  const nKind = k => (k === 'todos' ? sorted.length : sorted.filter(d => kindOf(d) === k).length)
+  const sortedW = whose === 'todos' ? sorted : sorted.filter(d => kindOf(d) === whose)
   const byFmt = {}
-  for (const d of sorted) (byFmt[d.format] ||= []).push(d)
+  for (const d of sortedW) (byFmt[d.format] ||= []).push(d)
   // deck pedido de fora (pódio): mostra todos os formatos, abre o grupo dele, desliza até ao cartão e acende-o
   const focused = useRef(null)
   useEffect(() => {
@@ -346,7 +352,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   useEffect(() => { ls('grimorio.lib.parecidos', JSON.stringify(ign)) }, [ign])
   const gid = g => g.decks.map(d => d.id).sort().join('|')
   const shownDupes = dupes.filter(g => !ign.includes(gid(g))), hiddenDupes = dupes.length - shownDupes.length
-  const favs = sorted.filter(d => d.fav)
+  const favs = sortedW.filter(d => d.fav)
   const fmts = [...(favs.length ? [['★', favs]] : []), ...Object.entries(byFmt).sort((a, b) => b[1].length - a[1].length)]
   const fname = f => (f === '★' ? tx('★ Favoritos') : FORMAT[f]?.name || f)
   return (
@@ -391,8 +397,10 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
         </div></div>}
         {cmp && <DeckCompare data={data} decks={sel.map(id => mine.find(d => d.id === id)).filter(Boolean)} onClose={() => setCmp(false)}
           onOpen={id => { setCmp(false); openDeck(id).then(() => goTab('deck')) }} onFav={toggleFav} onDelete={remove} rt={rt} trophies={d => (tro[d.id]?.length ? <Trophies list={tro[d.id]} /> : null)} />}
+        {sorted.length > 0 && <div className="seg whose">{[['meus', tx('Meus')], ['amigos', tx('Amigos')], ['comunidade', tx('Comunidade')], ['todos', tx('Todos')]].filter(([k]) => k === 'meus' || k === 'todos' || nKind(k) > 0).map(([k, l]) => (
+          <button key={k} className={whose === k ? 'on' : ''} onClick={() => setWhose(k)}>{k === 'amigos' ? '🤝 ' : k === 'comunidade' ? '🌐 ' : k === 'meus' ? '🧙 ' : ''}{l} <i>{nKind(k)}</i></button>))}</div>}
         {fmts.length > 1 && <div className="fmt-chips">
-          <button className={!only ? 'on' : ''} onClick={() => setOnly('')}>{tx('Todos')} <i>{mine.length}</i></button>
+          <button className={!only ? 'on' : ''} onClick={() => setOnly('')}>{tx('Todos')} <i>{sortedW.length}</i></button>
           {fmts.map(([f, ds]) => <button key={f} className={only === f ? 'on' : ''} onClick={() => { setOnly(only === f ? '' : f); setClosed(c => { const n = { ...c }; delete n[f]; return n }) }}>{fname(f)} <i>{ds.length}</i></button>)}
           <span className="fmt-all"><button className="link small" onClick={() => setSel(fmts.filter(([f]) => !only || f === only).flatMap(([, ds]) => ds.map(d => d.id)).filter((x, k, a) => a.indexOf(x) === k))}>{tx('selecionar todos')}</button>{sel.length > 0 && <button className="link small" onClick={() => setSel([])}>{tx('nenhum')}</button>}<button className="link small" onClick={() => setClosed({})}>{tx('abrir todos')}</button><button className="link small" onClick={() => setClosed(Object.fromEntries(fmts.map(([f]) => [f, 1])))}>{tx('fechar todos')}</button></span>
         </div>}

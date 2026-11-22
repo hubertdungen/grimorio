@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Deck de {n} (veio de uma sala ou de um amigo convidado)": "Deck von {n} (aus einem Raum oder von einem eingeladenen Freund)",
+  "um amigo": "einem Freund",
   "Aplicar ({n})": "Anwenden ({n})",
   "com «{c}»": "mit „{c}“",
   "Descrição guardada nas notas.": "Beschreibung in den Notizen gespeichert.",

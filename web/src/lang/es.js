@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "Deck de {n} (veio de uma sala ou de um amigo convidado)": "Mazo de {n} (vino de una sala o de un amigo invitado)",
+  "um amigo": "un amigo",
   "Aplicar ({n})": "Aplicar ({n})",
   "com «{c}»": "con «{c}»",
   "Descrição guardada nas notas.": "Descripción guardada en las notas.",
