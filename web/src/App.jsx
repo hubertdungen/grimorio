@@ -10,7 +10,7 @@ import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList } from './data.js'
-import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf } from './formats.js'
+import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf, pairOk } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
 import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar } from './Views.jsx'
@@ -414,9 +414,12 @@ export default function App() {
     setDeck(d => {
       if (d.commanders.includes(c.n)) return { ...d, commanders: d.commanders.filter(n => n !== c.n) }
       const main = { ...d.main }; delete main[c.n]
-      return { ...d, main, commanders: [...d.commanders, c.n].slice(-2) }
+      // um segundo comandante só se fizer par com o que lá está (Partner, Partner with, Background, Friends forever,
+      // Doctor's companion); senão passa a ser o único (antes juntava dois que não fazem par: deck ilegal)
+      const cur = d.commanders.length === 1 ? data?.byName.get(d.commanders[0]) : null
+      return { ...d, main, commanders: cur && pairOk(cur, c) ? [...d.commanders, c.n] : [c.n] }
     })
-  }, [fmt, setDeck, say])
+  }, [fmt, setDeck, say, data])
 
   const now = useRef({}); now.current = { deck, fmt }
   // ♛ subcomandante: no deck como carta normal (conta para as 99), marcada para trocar depressa; vem do maybeboard se lá estiver

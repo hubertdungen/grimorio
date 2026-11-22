@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Par": "Partner",
+  "Pares possíveis": "Possible partners",
   "Fazer comandante": "Make commander",
   "Sub": "Sub",
   "Alter arts para o deck todo, com filtros (só criaturas, sem terrenos…)": "Alter arts for the whole deck, with filters (creatures only, no lands…)",

@@ -2,7 +2,7 @@ import { matchArts, shrink } from './artmatch.js'
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
 import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf } from './data.js'
-import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, subsOf } from './formats.js'
+import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, subsOf, pairOk } from './formats.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
 import { CardTile, Mana, Oracle, Tags, price, Empty, Stars, TrophyStars, CatHead, FoldAll, SymTxt } from './ui.jsx'
 import { showCardPeek, hideCardPeek, pressPeek, useFolded } from './deckview.js'
@@ -1596,6 +1596,33 @@ function Prints({ c, deck, act, onPreview }) {
 }
 
 const CARD_BACK = sf('https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg')  // o verso comum das cartas (Scryfall)
+// pares possíveis de um comandante com Partner / «Partner with» / Background / Friends forever / Doctor's companion:
+// aparecem logo na ficha, os mais jogados primeiro, com a identidade de cor junta; «♛ par» põe os dois como comandantes
+const PAIRS = /\bPartner\b|Choose a Background|Friends forever|Doctor's companion/
+const canPair = c => PAIRS.test(c.o || '') || /\bBackground\b/.test(c.t || '') || /Time Lord Doctor/.test(c.t || '')
+function Partners({ c, data, deck, fmt, ctx, act }) {
+  const [n, setN] = useState(12)
+  const list = useMemo(() => (canPair(c)
+    ? search(data, '', { sort: 'pop', inText: false }, { bit: ctx.bit, identity: null, allowUn: ctx.allowUn }, 40000).cards
+      .filter(x => x.i !== c.i && (canBeCommander(x, fmt) || /\bBackground\b/.test(x.t)) && pairOk(c, x))
+    : []), [c, data, fmt, ctx.bit, ctx.allowUn])
+  if (!list.length) return null
+  const isCmd = deck.commanders.includes(c.n), full = deck.commanders.length >= 2
+  const pair = x => { if (!isCmd) act.setCommander(c); if (!deck.commanders.includes(x.n)) act.setCommander(x) }
+  return <>
+    <h4>{/Partner with/.test(c.o) ? tx('Par') : tx('Pares possíveis')} <span className="muted">{list.length}</span></h4>
+    <div className="pairs">{list.slice(0, n).map(x => {
+      const ci = [...new Set([...(c.ci || ''), ...(x.ci || '')])].join('')
+      return <div key={x.i} className="pair-c">
+        <button className="pair-img" onClick={() => act.open(x)} title={x.n}><img src={img(x, 'normal')} alt={x.n} loading="lazy" /></button>
+        <span className="pair-ci"><Mana cost={ci ? [...'WUBRG'].filter(k => ci.includes(k)).map(k => `{${k}}`).join('') : '{C}'} /></span>
+        <button className={`act ${deck.commanders.includes(x.n) ? 'on' : ''}`} disabled={full && !deck.commanders.includes(x.n)} onClick={() => pair(x)}>♛ {tx('par')}</button>
+      </div>
+    })}</div>
+    {list.length > n && <button className="link small" onClick={() => setN(k => k + 24)}>{tx('Mostrar mais')} ({list.length - n})</button>}
+  </>
+}
+
 export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [back, setBack] = useState(false)  // flip 3D: a outra face (cartas de duas faces) ou o verso
@@ -1656,6 +1683,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
             {(deck.main[c.n] || deck.side[c.n]) && <button className={`subs-btn ${subs ? 'on' : ''}`} onClick={() => setSubs(!subs)}>🔁 {tx('Sugerir substituto')}</button>}
           </div>
           {subs && <Subs c={c} data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} />}
+          {fmt.cmd && <Partners c={c} data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} />}
           {combos.length > 0 && (
             <>
               <h4>{tx('Combos com esta carta')} <span className="muted">{data.combosByCard[c.i].length}</span></h4>

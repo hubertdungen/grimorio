@@ -4497,3 +4497,10 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .wz-pick .wz-mk:hover { background: var(--gold); color: #1b1405; border-style: solid; }
 .wz-pick > .wz-more1 { position: absolute; top: 4px; left: 4px; min-width: 28px; min-height: 28px; padding: 0 6px; border-radius: 99px; border: 1px solid var(--line); background: rgba(11, 10, 20, .85); font-size: 15px; line-height: 1; }
 .wz-pick > .wz-more1.on { border-color: var(--gold); color: var(--gold2); }
+
+/* ficha da carta: pares possíveis (Partner, Background…) */
+.pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 4px 0 10px; }
+.pair-c { display: grid; gap: 3px; justify-items: center; min-width: 0; }
+.pair-img { padding: 0; border: 0; background: none; border-radius: 6px; overflow: hidden; width: 100%; }
+.pair-img img { width: 100%; display: block; aspect-ratio: 488 / 680; object-fit: cover; background: var(--panel2); }
+.pair-c .act { width: 100%; font-size: 12px; }
