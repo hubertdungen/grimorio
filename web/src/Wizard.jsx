@@ -461,7 +461,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         {fmt.cmd && <>
           <h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')} <span className="muted">{cmds.length ? (partnerOf ? tx('aceita um par: escolhe o segundo se quiseres') : '') : tx('escolhe-o aqui, ou ♛ numa das cartas de partida')}</span></h4>
           <div className="wz-cmd">
-            {cmds.map(c => <div key={c.i} className="wz-pick cmd" onContextMenu={e => { e.preventDefault(); held(); setBig(c) }}><img src={img(c, 'normal')} alt={c.n} /><span className="wz-badge">♛ {cmds.length > 1 ? tx('par') : tx('comandante')}</span><button onClick={() => setCmds(x => x.filter(y => y.i !== c.i))} aria-label={tx('Retirar')}>×</button></div>)}
+            {cmds.map(c => <div key={c.i} className="wz-pick cmd" onContextMenu={e => { e.preventDefault(); held(); setBig(c) }} {...delayedPeek(c)}><img src={img(c, 'normal')} alt={c.n} /><span className="wz-badge">♛ {cmds.length > 1 ? tx('par') : tx('comandante')}</span><button onClick={() => setCmds(x => x.filter(y => y.i !== c.i))} aria-label={tx('Retirar')}>×</button></div>)}
             {cmds.length < (partnerOf ? 2 : 1) && <div className="wz-cmdq">
               <input className="big" value={cq} onChange={e => setCq(e.target.value)} placeholder={partnerOf ? tx('Procurar o par de {name}…', { name: partnerOf.n.split(',')[0] }) : tx(fmt.cmd === 'oathbreaker' ? 'Procurar planeswalker legal em {fmt}…' : 'Procurar comandante legal em {fmt}…', { fmt: fmt.name })} />
               <CmdFilters cf={cf} setCf={setCf} total={cmdPool.length} shown={cmdShown.length} on={cfOn} />
@@ -474,7 +474,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
         <h4>{start === 'ia' ? tx('Base gerada') : tx('Cartas de partida')} <span className="muted">{picks.length}/{maxPicks} · {start === 'cartas' ? (fmt.cmd ? tx('opcional: 0 a 10 de que gostes (só o comandante também dá)') : tx('escolhe 3 a 10 de que gostas')) : tx('ajusta à vontade')}</span></h4>
         <div className="wz-picks">
           {picks.map(c => (
-            <div key={c.i} className="wz-pick" onContextMenu={e => { e.preventDefault(); held(); setBig(c) }}>
+            <div key={c.i} className="wz-pick" onContextMenu={e => { e.preventDefault(); held(); setBig(c) }} {...delayedPeek(c)}>
               <img src={img(c, 'normal')} alt={c.n} />
               {fmt.cmd && (!cmds.length || (partnerOf && pairOk(partnerOf, c))) && canBeCommander(c, fmt) && <button className="wz-mk" onClick={() => { setCmds(x => [...x, c]); setPicks(p => p.filter(x => x.i !== c.i)) }}>♛ {tx('comandante')}</button>}
               <button onClick={() => toggle(c)} aria-label={tx('Retirar')}>×</button>
