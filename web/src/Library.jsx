@@ -239,7 +239,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   }
   const removeSel = async () => {
     for (const id of sel) await fetch(`/api/decks/${id}`, { method: 'DELETE' })
-    say(tx('{n} deck foi para o lixo (30 dias).|{n} decks foram para o lixo (30 dias).', { n: sel.length })); setSel([]); setBulkDel(false); reload()
+    say(tx('{n} deck apagado (Definições › Decks apagados para os recuperar).|{n} decks apagados (Definições › Decks apagados para os recuperar).', { n: sel.length })); setSel([]); setBulkDel(false); reload()
   }
   const toggleCom = async d => {  // meu ↔ comunidade (deck de outra pessoa guardado na Biblioteca)
     const full = await (await fetch(`/api/decks/${d.id}`)).json()

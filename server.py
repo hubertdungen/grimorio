@@ -229,6 +229,40 @@ def app_cookie(raw):
     return c["grimorio_app"].value if "grimorio_app" in c else ""
 
 
+
+# Lixo dos decks apagados: quantos dias fica (por dono; 0 = desligado, apagar é de vez). Os decks apagados antes desta
+# opção existir (TRASH_SINCE) mantêm os 30 dias que tinham quando foram para o lixo.
+TRASH_SINCE, TRASH_DAYS = 1795389235, (0, 7, 30)
+
+
+def trash_days(owner):
+    try:
+        with open(os.path.join(ARGS.data_dir, "trash.json"), encoding="utf-8") as f:
+            v = json.load(f).get(owner)
+        return v if v in TRASH_DAYS else 7
+    except (OSError, ValueError, AttributeError):
+        return 7
+
+
+def set_trash_days(owner, days):
+    f = os.path.join(ARGS.data_dir, "trash.json")
+    try:
+        with open(f, encoding="utf-8") as h:
+            d = json.load(h)
+    except (OSError, ValueError):
+        d = {}
+    d[owner] = days
+    with open(f + ".tmp", "w", encoding="utf-8") as h:
+        json.dump(d, h)
+    os.replace(f + ".tmp", f)
+
+
+def trash_expired(owner, deleted, now=None):
+    now = now or time.time()
+    days = 30 if deleted < TRASH_SINCE else trash_days(owner)
+    return days == 0 or deleted < now - days * 86400
+
+
 class H(BaseHTTPRequestHandler):
     server_version = "Grimorio/1.0"
 
@@ -657,10 +691,12 @@ class H(BaseHTTPRequestHandler):
             return self.json(*reversed(tournament.route("GET", self.path, self.owner())))
         if p.startswith(("/api/ratings", "/api/arena")):  # ratings dos decks e Arena automática (ratings.py)
             return self.json(*reversed(ratings.route("GET", self.path, self.owner())))
+        if p == "/api/decks/trash/settings":  # Definições › Decks apagados: quantos dias ficam no lixo
+            return self.json({"days": trash_days(self.owner()), "options": list(TRASH_DAYS)})
         if p in ("/api/decks", "/api/decks/trash"):
             trash = p.endswith("trash")
             with db() as con:
-                for did, own, dl in con.execute("SELECT id, owner, deleted FROM decks WHERE deleted IS NOT NULL AND deleted < ?", (time.time() - 30 * 86400,)).fetchall():
+                for did, own, dl in [r for r in con.execute("SELECT id, owner, deleted FROM decks WHERE deleted IS NOT NULL").fetchall() if trash_expired(r[1], r[2])]:
                     backup.tomb(con, "deck", did, own, ts=dl)  # o lixo esvazia: a marca impede que um aparelho antigo o traga de volta
                     con.execute("DELETE FROM decks WHERE id=?", (did,))
                 rows = con.execute("SELECT id, name, format, updated, body, deleted FROM decks WHERE owner=? AND deleted IS "
@@ -1143,6 +1179,15 @@ class H(BaseHTTPRequestHandler):
             return self.profiles_route("PUT")
         if self.no_profile():
             return
+        if self.path == "/api/decks/trash/settings":
+            try:
+                days = int(self.body().get("days"))
+            except (ValueError, TypeError, AttributeError):
+                return self.json({"erro": "dias inválidos"}, 400)
+            if days not in TRASH_DAYS:
+                return self.json({"erro": "dias inválidos"}, 400)
+            set_trash_days(self.owner(), days)
+            return self.json({"days": days})
         did = self.path.split("?")[0].rsplit("/", 1)[1]
         if not self.path.startswith("/api/decks/") or not DECK_ID.match(did):
             return self.json({"erro": "rota desconhecida"}, 404)
@@ -1290,12 +1335,19 @@ class H(BaseHTTPRequestHandler):
                     backup.tomb(con, "sim_run", mr.group(1), self.owner(), data=backup.row_of(con, "sim_runs", mr.group(1)))
                 con.execute("DELETE FROM sim_runs WHERE id=? AND owner=?", (mr.group(1), self.owner()))
             return self.json({"ok": True})
-        did = self.path.rsplit("/", 1)[1]
-        if not self.path.startswith("/api/decks/") or not DECK_ID.match(did):
+        path, _, qs = self.path.partition("?")
+        did = path.rsplit("/", 1)[1]
+        if not path.startswith("/api/decks/") or not DECK_ID.match(did):
             return self.json({"erro": "rota desconhecida"}, 404)
-        with db() as con:  # vai para o lixo (recuperável 30 dias)
-            con.execute("UPDATE decks SET deleted=? WHERE id=? AND owner=?", (time.time(), did, self.owner()))
-        return self.json({"ok": True})
+        forever = "forever=1" in qs or trash_days(self.owner()) == 0
+        with db() as con:
+            if forever:  # de vez: a marca (backup.tomb) impede que um aparelho antigo o traga de volta
+                if con.execute("SELECT 1 FROM decks WHERE id=? AND owner=?", (did, self.owner())).fetchone():
+                    backup.tomb(con, "deck", did, self.owner())
+                con.execute("DELETE FROM decks WHERE id=? AND owner=?", (did, self.owner()))
+            else:  # vai para o lixo (recuperável os dias escolhidos nas Definições)
+                con.execute("UPDATE decks SET deleted=? WHERE id=? AND owner=?", (time.time(), did, self.owner()))
+        return self.json({"ok": True, "forever": forever})
 
 
 def selfcheck():
@@ -1418,6 +1470,18 @@ def selfcheck():
             rules.route = rules_route
         with db() as con:
             assert not con.execute("SELECT 1 FROM profiles WHERE id='boom'").fetchone()  # desfeito
+        # lixo dos decks: 7 dias por omissão, 0 = apagar de vez, «forever=1» tira do lixo; os antigos guardam os 30 dias
+        assert call("GET", "/api/decks/trash/settings")[1]["days"] == 7
+        st, dk = call("POST", "/api/decks", {"name": "Para o lixo", "main": {"Forest": 1}})[:2]
+        assert call("DELETE", f"/api/decks/{dk['id']}")[1] == {"ok": True, "forever": False}
+        assert any(d["id"] == dk["id"] for d in call("GET", "/api/decks/trash")[1])
+        assert call("DELETE", f"/api/decks/{dk['id']}?forever=1")[1]["forever"] and not any(d["id"] == dk["id"] for d in call("GET", "/api/decks/trash")[1])
+        assert call("PUT", "/api/decks/trash/settings", {"days": 3})[0] == 400 and call("PUT", "/api/decks/trash/settings", {"days": 0})[1] == {"days": 0}
+        st, dk = call("POST", "/api/decks", {"name": "De vez", "main": {"Forest": 1}})[:2]
+        assert call("DELETE", f"/api/decks/{dk['id']}")[1]["forever"] and not any(d["id"] == dk["id"] for d in call("GET", "/api/decks/trash")[1])
+        call("PUT", "/api/decks/trash/settings", {"days": 7})
+        assert not trash_expired("x", TRASH_SINCE - 20 * 86400, TRASH_SINCE + 86400)  # apagado antes da opção: 30 dias
+        assert trash_expired("x", TRASH_SINCE + 1, TRASH_SINCE + 8 * 86400) and not trash_expired("x", TRASH_SINCE + 1, TRASH_SINCE + 6 * 86400)
         for i in range(30):
             call("POST", "/api/decks", {"name": f"Deck {i}", "main": {"Forest": 20, "Llanowar Elves": 4}})
         with raw("GET", "/api/decks", hd={"Accept-Encoding": "gzip"}) as r:

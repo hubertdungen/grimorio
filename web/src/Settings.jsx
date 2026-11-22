@@ -192,6 +192,35 @@ function TableKeys() {
   )
 }
 
+// Decks apagados: quantos dias ficam no lixo (7 por omissão; desligado = apagar é de vez) e o lixo em si, com
+// «Restaurar» e «Apagar de vez»
+function TrashSettings() {
+  const [days, setDays] = useState(null), [list, setList] = useState(null), [msg, setMsg] = useState('')
+  const load = () => fetch('/api/decks/trash').then(r => (r.ok ? r.json() : [])).then(setList).catch(() => setList([]))
+  useEffect(() => { fetch('/api/decks/trash/settings').then(r => (r.ok ? r.json() : null)).then(j => setDays(j ? j.days : 7)).catch(() => setDays(7)); load() }, [])
+  const put = async d => {
+    if (d === 0 && !(await ask('lixo-off', { title: tx('Desligar o lixo?'), body: tx('Daqui em diante, apagar um deck é de vez (não há forma de o recuperar). Os que já estão no lixo saem também.'), ok: tx('Desligar') }))) return
+    const r = await fetch('/api/decks/trash/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: d }) })
+    if (r.ok) { setDays(d); load() }
+  }
+  const restore = async d => { await fetch(`/api/decks/${d.id}/restore`, { method: 'POST' }); setMsg(tx('«{n}» voltou à Biblioteca.', { n: d.name })); load() }
+  const forever = async d => {
+    if (!(await ask('lixo-apagar', { title: tx('Apagar «{n}» de vez?', { n: d.name }), body: tx('Não há forma de o recuperar.'), ok: tx('Apagar de vez') }))) return
+    await fetch(`/api/decks/${d.id}?forever=1`, { method: 'DELETE' }); load()
+  }
+  const left = d => Math.max(0, Math.ceil(((d.deleted < 1795389235 ? 30 : days) * 86400 - (Date.now() / 1000 - d.deleted)) / 86400))
+  return <>
+    <p className="muted small">{tx('Os decks apagados ficam no lixo durante uns dias e podes trazê-los de volta.')}</p>
+    {days != null && <div className="seg trash-days">{[[7, tx('7 dias')], [30, tx('30 dias')], [0, tx('Desligado')]].map(([d, l]) => <button key={d} className={days === d ? 'on' : ''} onClick={() => put(d)}>{l}</button>)}</div>}
+    {days === 0 && <p className="small bad-t">{tx('Lixo desligado: apagar um deck é de vez.')}</p>}
+    {msg && <p className="small">✓ {msg}</p>}
+    {list && (list.length ? <ul className="trash-list">{list.map(d => (
+      <li key={d.id}><span className="tl-n">{d.name}</span><small className="muted">{tx('sai em {n} dias', { n: left(d) })}</small>
+        <button onClick={() => restore(d)}>↶ {tx('Restaurar')}</button><button className="link small bad-t" onClick={() => forever(d)}>{tx('Apagar de vez')}</button></li>))}</ul>
+      : <p className="muted small">{tx('O lixo está vazio.')}</p>)}
+  </>
+}
+
 function ScreenAwake() {
   const [on, setOn] = useState(wakeOn), [orient, setOrient] = useState(fsOrientPref)
   return (
@@ -337,6 +366,7 @@ export default function Settings({ prof, data, onClose, onSwitch, onNew }) {
       <section className="card"><h3>{tx('Estrelas dos decks')}</h3><StarLayers /></section>
       <section className="card"><h3>{tx('Cores nos jogos')}</h3><GameColors /></section>
       <section className="card"><h3>{tx('Terrenos básicos')}</h3><BasicSettings getDefaults={getBasicDefaults} setDefaults={setBasicDefaults} ask={ask} /></section>
+      <section className="card"><h3>🗑 {tx('Decks apagados')}</h3><TrashSettings /></section>
       <section className="card"><h3>{tx('Confirmações')}</h3><p className="muted small">{tx('Perguntar antes de:')}</p><ConfirmSettings /></section>
       <section className="card"><h3><IL n="mago" t={tx('🤖 IA')} /></h3><AIKeys /></section>
       <section className="card"><h3><IL n="amigos" t={tx('🤝 Amigos')} /></h3><Friends /></section>
