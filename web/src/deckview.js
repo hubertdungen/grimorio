@@ -36,6 +36,21 @@ function openPeek(a, c, pid) {
   placePeek(peek, a)
   peek.style.display = 'block'
 }
+// rato parado em cima de uma carta (grelhas de imagens, onde o nome já está à vista): ao fim de meio segundo a carta
+// cresce ao lado, menor do que a «🔍»; sair, clicar ou tocar fecha
+let delayT
+export const delayedPeek = (c, pid, ms = 500) => ({
+  onMouseEnter: e => {
+    const a = e.currentTarget; clearTimeout(delayT)
+    if (!matchMedia('(hover: hover)').matches) return
+    delayT = setTimeout(() => {
+      if (!a.isConnected || !a.matches(':hover')) return
+      openPeek(a, c, pid); watchPeek(peek, a)
+      peek.classList.remove('grow'); void peek.offsetWidth; peek.classList.add('grow')  // reinicia a animação
+    }, ms)
+  },
+  onMouseLeave: () => { clearTimeout(delayT); hideCardPeek() },
+})
 // toque longo (telemóvel/tablet): a carta aparece ao centro enquanto o dedo está em cima; ao largar fecha e esse toque
 // não abre a ficha. Se o dedo arrastar, o browser cancela (pointercancel) e a página faz scroll como sempre.
 let pressT, pressed = false
