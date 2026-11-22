@@ -155,10 +155,10 @@ export function validate(deck, fmt, data) {
     const c = data.byName.get(n)
     if (!c) { out.push({ nivel: 'aviso', msg: tx('«{c}» não foi encontrada na base de cartas.', { c: n }) }); continue }
     const lim = maxCopies(c, fmt, bit)
-    if (q > lim) out.push({ nivel: 'erro', msg: tx('{c}: {q} cópias (máximo {lim}).', { c: n, q, lim }) })
-    if (bit >= 0 && !(c.lg & (1 << bit))) out.push({ nivel: 'erro', msg: tx('{c} não é legal em {f}.', { c: n, f: fmt.name }) })
+    if (q > lim) out.push({ nivel: 'erro', card: n, msg: tx('{c}: {q} cópias (máximo {lim}).', { c: n, q, lim }) })
+    if (bit >= 0 && !(c.lg & (1 << bit))) out.push({ nivel: 'erro', card: n, msg: tx('{c} não é legal em {f}.', { c: n, f: fmt.name }) })
     if (fmt.cmd && cmdCards.length && !deck.commanders.includes(n) && !subset(c.ci, ident))
-      out.push({ nivel: 'erro', msg: tx('{c} está fora da identidade de cor ({id}).', { c: n, id: ident || tx('incolor') }) })
+      out.push({ nivel: 'erro', card: n, msg: tx('{c} está fora da identidade de cor ({id}).', { c: n, id: ident || tx('incolor') }) })
   }
   if (fmt.cmd === 'commander') {
     const gc = [...seen.keys()].filter(n => data.byName.get(n)?.gc)

@@ -8,12 +8,13 @@ import CardScan from './CardScan.jsx'
 import Rules from './Rules.jsx'
 import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList } from './data.js'
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf, pairOk } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
-import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar, deckFit, deckTribe } from './Views.jsx'
+import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar, deckFit, deckTribe, BadCards, badProps } from './Views.jsx'
+import { landProd, deckIdentity } from './AnalysisDash.jsx'
 import { pushView, setOnView, useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, flipCardPeek, peekOpen, pressPeek, useFolded, delayedPeek } from './deckview.js'
 import DraftView from './Draft.jsx'
@@ -163,26 +164,18 @@ function LiveBar({ guest, go, data }) {
 
 // as cores do deck, em pequeno: o nome da combinação (Azorius, Esper, Abzan…, «5 cores»), a identidade e duas barras —
 // os símbolos de mana nos custos (devoção) e as cores que os terrenos fazem (pela identidade do terreno)
-const CNAME = { W: 'Mono-branco', U: 'Mono-azul', B: 'Mono-preto', R: 'Mono-vermelho', G: 'Mono-verde', WU: 'Azorius', UB: 'Dimir', BR: 'Rakdos', RG: 'Gruul', WG: 'Selesnya',
-  WB: 'Orzhov', UR: 'Izzet', BG: 'Golgari', WR: 'Boros', UG: 'Simic', WUB: 'Esper', UBR: 'Grixis', BRG: 'Jund', WRG: 'Naya', WUG: 'Bant', WBG: 'Abzan', WUR: 'Jeskai',
-  UBG: 'Sultai', WBR: 'Mardu', URG: 'Temur' }
 const CHUE = { W: '#efe6c4', U: '#3d7fd9', B: '#8a7f96', R: '#e0553a', G: '#3f9d58' }
 function ColorStrip({ data, deck, className = '' }) {
-  const { ci, dev, land } = useMemo(() => {
-    const dev = { W: 0, U: 0, B: 0, R: 0, G: 0 }, land = { W: 0, U: 0, B: 0, R: 0, G: 0 }, all = new Set()
-    const cards = [...deck.commanders.map(n => [n, 1]), ...Object.entries(deck.main || {})]
-    for (const [n, q] of cards) {
+  const { ci, name, dev, land } = useMemo(() => {
+    const dev = { W: 0, U: 0, B: 0, R: 0, G: 0 }
+    for (const [n, q] of [...deck.commanders.map(n => [n, 1]), ...Object.entries(deck.main || {})]) {
       const c = data.byName.get(n)
-      if (!c) continue
-      for (const k of c.ci || '') all.add(k)
-      if (/\bLand\b/.test(c.t.split(' // ')[0])) { for (const k of c.ci || '') land[k] += q; continue }
+      if (!c || c.mt === 'Land') continue
       for (const m of (c.mc || '').matchAll(/\{([^}]+)\}/g)) { const ks = m[1].split('/').filter(k => dev[k] != null); for (const k of ks) dev[k] += q / ks.length }
     }
-    const cmd = deck.commanders.map(n => data.byName.get(n)?.ci || '').join('')
-    return { ci: [...'WUBRG'].filter(k => (cmd ? cmd.includes(k) : all.has(k))).join(''), dev, land }
+    return { ...deckIdentity(data, deck), dev, land: landProd(data, deck) }
   }, [data, deck])
   if (!ci && !Object.values(land).some(Boolean)) return null
-  const name = !ci ? tx('Incolor') : ci.length === 5 ? tx('5 cores') : ci.length === 4 ? tx('4 cores (sem {c})', { c: [...'WUBRG'].find(k => !ci.includes(k)) }) : tx(CNAME[ci] || ci)
   const bar = (v, label) => {
     const tot = Object.values(v).reduce((a, b) => a + b, 0)
     if (!tot) return null
@@ -589,6 +582,7 @@ export default function App() {
 
   // deck casual: as regras do formato não o impedem de nada; os erros passam a informação
   const issues = validate(deck, fmt, data).map(i => (deck.casual && i.nivel === 'erro' ? { ...i, nivel: 'info', msg: tx('{msg} (deck casual: permitido)', { msg: i.msg }) } : i))
+  const badMap = new Map(issues.filter(i => i.nivel === 'erro' && i.card).map(i => [i.card, i.msg]))
   const errors = issues.filter(i => i.nivel === 'erro').length
   const total = count(deck.main) + deck.commanders.length + (deck.signature ? 1 : 0)
 
@@ -642,7 +636,7 @@ export default function App() {
         </div>
       )}
 
-      {section === 'construir' && <div className="body">
+      {section === 'construir' && <BadCards.Provider value={badMap}><div className="body">
         <aside className="deck-panel">
           <DeckPanel {...{ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist: histN }} />
         </aside>
@@ -667,7 +661,7 @@ export default function App() {
             </div>
           )}
         </main>
-      </div>}
+      </div></BadCards.Provider>}
 
       <footer className="foot">
         <div><ForgeBrand /></div>
@@ -710,6 +704,7 @@ export default function App() {
 }
 
 function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, hist }) {
+  const bad = useContext(BadCards)
   const [viewBy, setViewBy] = useState(deck.groups?.length ? 'grupos' : 'tipo')
   const [proxies, setProxies] = useState(false), ds = useDeckSel()
   const fold = useFolded()
@@ -743,7 +738,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
   const swapBtn = (c, zone) => fmt.cmd && c && (zone === 'main' ? subs.includes(c.n) : zone === 'maybe' && canBeCommander(c, fmt)) &&
     <button className="sub-swap" onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')} aria-label={tx('Trocar {c} para comandante', { c: c.n })}>⇄♛</button>
   const row = ({ n, q, c, zone }) => (
-    <li key={`${zone}:${n}`} className={`row${zone === 'main' && subs.includes(n) ? ' is-sub' : ''}${ds.sel?.has(n) ? ' picked' : ''}`} data-card={n}>
+    <li key={`${zone}:${n}`} className={`row${zone === 'main' && subs.includes(n) ? ' is-sub' : ''}${ds.sel?.has(n) ? ' picked' : ''}`} data-card={n} {...(zone === 'main' ? badProps(bad, n) : {})}>
       {ds.sel && c && zone !== 'maybe' && <input type="checkbox" className="row-chk" checked={ds.sel.has(n)} onChange={() => ds.toggle(n)} aria-label={n} />}
       <span className="qty">
         <button onClick={() => c && act.remove(c, zone, 1)} aria-label={tx('Menos')}>−</button>

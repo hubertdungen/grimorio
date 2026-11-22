@@ -1,5 +1,5 @@
 import { matchArts, shrink } from './artmatch.js'
-import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
 import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf, fmtBit } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, subsOf, pairOk } from './formats.js'
@@ -2084,7 +2084,13 @@ export function PriorityCard({ data, deck, fmt, ctx, act, issues, cuts, needs })
 
 const ZONE_T = { main: tx('Mover para o deck'), side: tx('Mover para o sideboard'), maybe: tx('Mover para o maybeboard') }, ZONE_S = { main: 'D', side: 'SB', maybe: 'MB' }
 // Deck em grelha: imagens com quantidade, + / − / × (retirar tudo), por tipo ou pelas secções da IA.
+// cartas ilegais no deck (validate: cópias a mais, fora do formato, fora da identidade): nome → motivo; a grelha e a lista
+// desenham-nas com um brilho vermelho e o motivo ao passar o rato
+export const BadCards = createContext(null)
+export const badProps = (bad, n) => (bad?.has(n) ? { 'data-bad': '', title: bad.get(n) } : {})
+
 export function DeckGrid({ data, deck, fmt, act, ctx }) {
+  const bad = useContext(BadCards)
   const [bySec, setBySec] = useState(false), ds = useDeckSel()
   const fold = useFolded()
   const secOf = new Map()
@@ -2110,7 +2116,7 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
     return parts.map((x, k) => tile1({ c, q, zone, pid: x.pid, part: x.n, k }))
   }
   const tile1 = ({ c, q, zone, pid, part, k = 0 }) => (  // função e não componente (ver o row do DeckPanel em App.jsx)
-    <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}${ds.sel?.has(c.n) ? ' picked' : ''}`} data-card={c.n}>
+    <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}${ds.sel?.has(c.n) ? ' picked' : ''}`} data-card={c.n} {...badProps(bad, c.n)}>
       <button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))} title={c.n} {...(ds.sel ? {} : pressPeek(c, pid ?? pidOf(deck, c.n)))}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
       {ds.sel && <input type="checkbox" className="dg-chk" checked={ds.sel.has(c.n)} onChange={() => ds.toggle(c.n)} aria-label={c.n} />}
       {zone === 'main' && subsOf(deck).includes(c.n) && <span className="sub-badge dg-sub" title={tx('Subcomandante: carta normal do deck que pode trocar com o comandante')}>♕</span>}
@@ -2141,7 +2147,7 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
       </div>
       {cmd.length > 0 && (
         <section><h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</h4><div className="dg-row">{cmd.map(c => (
-          <div key={c.i} className={`dg-tile${ds.sel?.has(c.n) ? ' picked' : ''}`}><button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
+          <div key={c.i} className={`dg-tile${ds.sel?.has(c.n) ? ' picked' : ''}`} {...badProps(bad, c.n)}><button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
             {ds.sel && <input type="checkbox" className="dg-chk" checked={ds.sel.has(c.n)} onChange={() => ds.toggle(c.n)} aria-label={c.n} />}
             <div className="dg-bar"><button className="dg-x" onClick={() => act.setCommander(c)} title={tx('Retirar comandante')}>×</button></div></div>
         ))}</div></section>

@@ -114,25 +114,42 @@ function Donut({ parts, unit, title }) {
 }
 
 // queijinhos: símbolos de mana nos custos vs. o que os terrenos produzem (cada terreno vale 1, dividido pelas suas cores)
+// a mana que os terrenos do deck dão, por cor (um terreno de duas cores conta meio para cada); partilhado com a faixa de
+// cores do painel do deck
+export function landProd(data, deck) {
+  const deckCols = new Set(), out = Object.fromEntries(ORDER.map(k => [k, 0]))
+  for (const n of [...Object.keys(deck.main), ...deck.commanders]) for (const k of data.byName.get(n)?.ci || '') deckCols.add(k)
+  for (const [n, q] of Object.entries(deck.main)) {
+    const c = data.byName.get(n)
+    if (!c || c.mt !== 'Land') continue
+    const L = landInfo(c, deck.commanders.length > 0)
+    let cols = L.any ? [...deckCols] : [...L.colors].flatMap(k => (k === '*' ? [...deckCols] : [k]))
+    cols = [...new Set(cols)].filter(k => ORDER.includes(k))
+    if (/search your library/i.test(c.o)) cols = cols.filter(k => deckCols.has(k))  // fetch: só traz o que o deck tem (Scalding Tarn num deck sem vermelho dá azul)
+    if (!cols.length) continue
+    for (const k of cols) out[k] += q / cols.length
+  }
+  return out
+}
+// identidade do deck (a dos comandantes, ou a das cartas) e o nome da combinação: Azorius, Esper, Abzan…, «5 cores»
+const CNAME = { W: 'Mono-branco', U: 'Mono-azul', B: 'Mono-preto', R: 'Mono-vermelho', G: 'Mono-verde', WU: 'Azorius', UB: 'Dimir', BR: 'Rakdos', RG: 'Gruul', WG: 'Selesnya',
+  WB: 'Orzhov', UR: 'Izzet', BG: 'Golgari', WR: 'Boros', UG: 'Simic', WUB: 'Esper', UBR: 'Grixis', BRG: 'Jund', WRG: 'Naya', WUG: 'Bant', WBG: 'Abzan', WUR: 'Jeskai',
+  UBG: 'Sultai', WBR: 'Mardu', URG: 'Temur' }
+export function deckIdentity(data, deck) {
+  const cmd = deck.commanders.map(n => data.byName.get(n)?.ci || '').join(''), all = new Set()
+  for (const n of [...deck.commanders, ...Object.keys(deck.main || {})]) for (const k of data.byName.get(n)?.ci || '') all.add(k)
+  const ci = [...'WUBRG'].filter(k => (cmd ? cmd.includes(k) : all.has(k))).join('')
+  const name = !ci ? tx('Incolor') : ci.length === 5 ? tx('5 cores') : ci.length === 4 ? tx('4 cores (sem {c})', { c: [...'WUBRG'].find(k => !ci.includes(k)) }) : tx(CNAME[ci] || ci)
+  return { ci, name }
+}
+
 export function ColorDonuts({ data, deck, s }) {
-  const prod = useMemo(() => {
-    const deckCols = new Set(), out = Object.fromEntries(ORDER.map(k => [k, 0]))
-    for (const n of [...Object.keys(deck.main), ...deck.commanders]) for (const k of data.byName.get(n)?.ci || '') deckCols.add(k)
-    for (const [n, q] of Object.entries(deck.main)) {
-      const c = data.byName.get(n)
-      if (!c || c.mt !== 'Land') continue
-      const L = landInfo(c, deck.commanders.length > 0)
-      let cols = L.any ? [...deckCols] : [...L.colors].flatMap(k => (k === '*' ? [...deckCols] : [k]))
-      cols = [...new Set(cols)].filter(k => ORDER.includes(k))
-      if (/search your library/i.test(c.o)) cols = cols.filter(k => deckCols.has(k))  // fetch: só traz o que o deck tem (Scalding Tarn num deck sem vermelho dá azul)
-      if (!cols.length) continue
-      for (const k of cols) out[k] += q / cols.length
-    }
-    return out
-  }, [data, deck.main, deck.commanders])
+  const prod = useMemo(() => landProd(data, deck), [data, deck])
+  const id = useMemo(() => deckIdentity(data, deck), [data, deck])
   const parts = o => ORDER.filter(k => o[k] > 0).map(k => ({ k, v: o[k], color: COL[k], name: NAME[k] }))
   return (
     <section className="card an-colors">
+      <div className="an-ident">{(id.ci ? [...id.ci] : ['C']).map(k => <img key={k} src={sf(`https://svgs.scryfall.io/card-symbols/${k}.svg`)} alt={k} />)}<b>{id.name}</b></div>
       <h3>{tx('Cores')} <span className="muted small">{tx('o que os custos pedem vs. o que os terrenos dão')}</span> <Hint t={tx('À esquerda, as cores dos símbolos de mana nos custos; à direita, as cores que os terrenos produzem. Devem ser parecidas: uma cor que pede muito mais do que recebe falha nos primeiros turnos.')} /></h3>
       <div className="donuts">
         <Donut title={tx('Símbolos nos custos')} unit={tx('símbolos')} parts={parts(s.pips)} />

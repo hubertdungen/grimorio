@@ -4533,3 +4533,15 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .cs-seg i { display: block; min-width: 3px; }
 .color-strip.cs-top { display: none; }
 @media (max-width: 900px) { .color-strip.cs-top { display: grid; } }
+
+/* Análise › Cores: a identidade em grande */
+.an-ident { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; }
+.an-ident img { width: 30px; height: 30px; filter: drop-shadow(0 2px 4px #0008); }
+.an-ident b { font-size: 22px; margin-left: 6px; letter-spacing: .02em; }
+
+/* cartas ilegais no deck: brilho vermelho (motivo no title) */
+.dg-tile[data-bad] { box-shadow: 0 0 0 2px var(--bad), 0 0 16px 2px color-mix(in srgb, var(--bad) 55%, transparent); border-radius: 10px; animation: badglow 2.4s ease-in-out infinite; }
+.row[data-bad] { box-shadow: inset 3px 0 0 var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.row[data-bad] .row-main { color: color-mix(in srgb, var(--bad) 70%, var(--text)); }
+@keyframes badglow { 50% { box-shadow: 0 0 0 2px var(--bad), 0 0 26px 6px color-mix(in srgb, var(--bad) 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .dg-tile[data-bad] { animation: none; } }
