@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Tribo do deck: {t}": "Stamm des Decks: {t}",
+  "deixa de fora {n} carta|deixa de fora {n} cartas": "lässt {n} Karte weg|lässt {n} Karten weg",
   "Comandantes possíveis": "Mögliche Kommandeure",
   "Na pesquisa, usa ♛ numa carta lendária, ou escolhe uma sugestão:": "Nutze in der Suche ♛ auf einer legendären Karte oder wähle einen Vorschlag:",
   "já no deck": "schon im Deck",

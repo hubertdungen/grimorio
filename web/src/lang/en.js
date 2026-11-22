@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Tribo do deck: {t}": "Deck tribe: {t}",
+  "deixa de fora {n} carta|deixa de fora {n} cartas": "leaves out {n} card|leaves out {n} cards",
   "Comandantes possíveis": "Possible commanders",
   "Na pesquisa, usa ♛ numa carta lendária, ou escolhe uma sugestão:": "In search, use ♛ on a legendary card, or pick a suggestion:",
   "já no deck": "already in the deck",

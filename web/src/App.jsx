@@ -13,7 +13,7 @@ import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, 
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf, pairOk } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
-import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar } from './Views.jsx'
+import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar, deckFit, deckTribe } from './Views.jsx'
 import { pushView, setOnView, useBackClose } from './backnav.js'
 import { showCardPeek, hideCardPeek, flipCardPeek, peekOpen, pressPeek, useFolded, delayedPeek } from './deckview.js'
 import DraftView from './Draft.jsx'
@@ -165,25 +165,26 @@ function LiveBar({ guest, go, data }) {
 // assistente), os populares um pouco à frente; as lendárias que já estão no deck primeiro (♛ tira-as das 99)
 function CmdSuggest({ data, deck, fmt, ctx, act }) {
   const [n, setN] = useState(6)
-  const list = useMemo(() => {
+  const [tribe, list] = useMemo(() => {
     const eff = Object.keys(deck.main || {}).map(k => data.byName.get(k)).filter(c => c && !/\bBasic\b/.test(c.t))
-    if (!eff.length || !data.emb) return []
-    const ci = new Set(eff.flatMap(c => [...(c.ci || '')])), D = data.D, E = data.emb, cen = new Float32Array(D)
-    for (const c of eff) for (let k = 0; k < D; k++) cen[k] += E[c.i * D + k]
-    const out = []
+    if (!eff.length || !data.emb) return [null, []]
+    const fit = deckFit(data, deck), t = deckTribe(eff), out = []
     for (const c of data.cards) {
-      if (!canBeCommander(c, fmt) || (ctx.bit >= 0 && !(c.lg & (1 << ctx.bit))) || ![...ci].every(k => (c.ci || '').includes(k))) continue
-      let d = 0
-      for (let k = 0; k < D; k++) d += cen[k] * E[c.i * D + k]
-      out.push({ c, s: d / 127 / eff.length + (c.er ? 0.15 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000)) : 0) - 0.03 * ((c.ci || '').length - ci.size) + (deck.main[c.n] ? 0.25 : 0) })
+      if (!canBeCommander(c, fmt) || (ctx.bit >= 0 && !(c.lg & (1 << ctx.bit)))) continue
+      // cartas que este comandante deixa de fora (cores que não tem): as que cobrem tudo à frente, mas um da tribo que
+      // obriga a tirar poucas também aparece, com o aviso
+      const off = eff.filter(x => [...(x.ci || '')].some(k => !(c.ci || '').includes(k))).length
+      if (off > Math.max(8, eff.length * 0.15)) continue
+      out.push({ c, off, s: fit(c) - 0.03 * off })
     }
-    return out.sort((a, b) => b.s - a.s).slice(0, 30).map(x => x.c)
-  }, [data, deck.main, fmt, ctx.bit])
+    return [t, out.sort((a, b) => b.s - a.s).slice(0, 30)]
+  }, [data, deck, fmt, ctx.bit])
   if (!list.length) return null
   return <div className="cmd-sug">
-    {list.slice(0, n).map(c => (
+    {tribe && <p className="muted small">{tx('Tribo do deck: {t}', { t: tribe })}</p>}
+    {list.slice(0, n).map(({ c, off }) => (
       <div key={c.i} className="cmd-sug-r" onClick={() => act.open(c)} {...delayedPeek(c)}>
-        <img src={img(c, 'art_crop')} alt="" loading="lazy" /><div><b>{c.n}</b><Mana cost={c.mc} />{deck.main[c.n] ? <small className="muted"> · {tx('já no deck')}</small> : null}</div>
+        <img src={img(c, 'art_crop')} alt="" loading="lazy" /><div><b>{c.n}</b><span><Mana cost={c.mc} />{deck.main[c.n] ? <small className="muted"> · {tx('já no deck')}</small> : null}{off ? <small className="bad-t"> · {tx('deixa de fora {n} carta|deixa de fora {n} cartas', { n: off })}</small> : null}</span></div>
         <button className="act" onClick={e => { e.stopPropagation(); act.setCommander(c) }} title={tx('Comandante')}>♛</button>
       </div>))}
     {list.length > n && <button className="link small" onClick={() => setN(k => k + 6)}>{tx('Mostrar mais')}</button>}

@@ -908,7 +908,21 @@ export function deckFit(data, deck) {
   if (!eff.length || !data.emb) return pop
   const D = data.D, E = data.emb, cen = new Float32Array(D)
   for (const c of eff) for (let k = 0; k < D; k++) cen[k] += E[c.i * D + k]
-  return c => { let d = 0; for (let k = 0; k < D; k++) d += cen[k] * E[c.i * D + k]; return d / 127 / eff.length + pop(c) + (deck.main[c.n] ? 0.25 : 0) }
+  const tribe = deckTribe(eff), tre = tribe && new RegExp(`\\b${tribe}s?\\b`)
+  // a tribo do deck pesa muito: um comandante desse tipo ou que fala dele no texto («Spirits you control…»)
+  const tb = c => (!tre ? 0 : (tre.test(c.t) ? 0.35 : 0) + (tre.test(c.o || '') ? 0.45 : 0))
+  return c => { let d = 0; for (let k = 0; k < D; k++) d += cen[k] * E[c.i * D + k]; return d / 127 / eff.length + pop(c) + tb(c) + (deck.main[c.n] ? 0.25 : 0) }
+}
+// o tipo de criatura dominante (≥ 25% das criaturas, pelo menos 6); os changelings contam para todos
+export function deckTribe(cards) {
+  const cre = cards.filter(c => /Creature/.test(c.t)), n = new Map()
+  for (const c of cre) {
+    if (/Changeling/.test(c.o || '')) continue
+    for (const t of new Set((c.t.split(' // ')[0].split(' — ')[1] || '').split(' ').filter(Boolean))) n.set(t, (n.get(t) || 0) + 1)
+  }
+  const ch = cre.filter(c => /Changeling/.test(c.o || '')).length
+  const [t, k] = [...n].sort((a, b) => b[1] - a[1])[0] || []
+  return t && k + ch >= Math.max(6, cre.length / 4) ? t : null
 }
 
 export function SearchView({ data, deck, fmt, ctx, act }) {

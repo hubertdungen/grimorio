@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Tribo do deck: {t}": "套牌种族：{t}",
+  "deixa de fora {n} carta|deixa de fora {n} cartas": "会排除 {n} 张牌|会排除 {n} 张牌",
   "Comandantes possíveis": "可作指挥官",
   "Na pesquisa, usa ♛ numa carta lendária, ou escolhe uma sugestão:": "在搜索中对传奇牌使用 ♛，或选择一个建议：",
   "já no deck": "已在套牌中",
