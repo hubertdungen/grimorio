@@ -1,6 +1,7 @@
 // Assistente de deck novo: formato → comandante (Commander e afins: pode ser só ele) e/ou 3 a 10 cartas → personalização → completar.
 // As escolhas ficam guardadas neste browser até o deck ser criado (fechar sem querer não as perde); «Limpar» recomeça.
-import { useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { search, recommend, img, fmtBit, passes, STYLES, LEVELS, CREATURE_TYPES, COLORS, TAG_LABEL, TYPE_LABEL, termMatch } from './data.js'
 import { likeTheme, likeCards, likeCommanders, chipUniverse, parseQuery } from './nlsearch.js'
 import { FORMATS, FORMAT, canBeCommander, pairOk } from './formats.js'
@@ -45,18 +46,38 @@ function CmdActs({ c, role, onCmd, onRole, done }) {
     <button className={`wz-ca${role === 'maybe' ? ' on' : ''}`} onClick={go(() => onRole(c, 'maybe'))}>{role === 'maybe' ? '✓' : '＋'} {tx('Talvez')}</button>
   </>
 }
+// o menu do ⋯: janela pequena por cima da página, presa ao botão (dentro do quadrado da carta não cabia e não fechava);
+// fecha com ✕, um clique fora, Esc ou scroll
+function ActMenu({ at, c, onClose, children }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const out = e => { if (!ref.current?.contains(e.target) && !at.contains(e.target)) onClose() }
+    const key = e => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
+    const scr = e => { if (!ref.current?.contains(e.target)) onClose() }
+    addEventListener('pointerdown', out, true); addEventListener('keydown', key, true); addEventListener('scroll', scr, true)
+    return () => { removeEventListener('pointerdown', out, true); removeEventListener('keydown', key, true); removeEventListener('scroll', scr, true) }
+  }, [at, onClose])
+  const r = at.getBoundingClientRect(), W = 190, H = 190
+  const left = Math.max(8, Math.min(r.left, innerWidth - W - 8)), top = r.bottom + 4 + H > innerHeight ? Math.max(8, r.top - H - 4) : r.bottom + 4
+  return createPortal(
+    <div ref={ref} className="wz-actm" role="menu" aria-label={c.n} style={{ left, top, width: W }} onClick={e => e.stopPropagation()}>
+      <div className="wz-actm-h"><b>{c.n.split(',')[0]}</b><button onClick={onClose} aria-label={tx('Fechar')}>✕</button></div>
+      {children}
+    </div>, document.body)
+}
+
 // carta de comandante: tocar escolhe; tocar e manter (ou botão direito, ou 🔍) mostra-a em grande; ⋯ abre as outras ações
 function CmdCard({ c, onPick, onBig, role, onRole }) {
-  const [menu, setMenu] = useState(false)
+  const [menu, setMenu] = useState(null)  // o botão ⋯ (âncora do menu)
   const zoom = e => { e.preventDefault(); e.stopPropagation(); held(); onBig(c) }
   return (
     <div className={`wz-cc${role ? ` r-${role}` : ''}`}>
       <button onClick={onPick} onContextMenu={zoom} title={c.n} {...delayedPeek(c)}><img src={img(c, 'normal')} alt={c.n} loading="lazy" draggable={false} /></button>
       <span className="wz-ccn"><b>{c.n.split(',')[0]}</b><span className="wz-pips">{[...(c.ci || '')].map(k => <i key={k} className={`wz-dot d-${k}`} />)}{!c.ci && <i className="wz-dot d-C" />}</span></span>
       <button className="wz-zoom" onClick={zoom} aria-label={`${tx('Ver em grande')}: ${c.n}`} title={tx('Ver em grande')}>🔍</button>
-      {onRole && <button className={`wz-more1${menu ? ' on' : ''}`} onClick={e => { e.stopPropagation(); setMenu(m => !m) }} aria-expanded={menu} aria-label={`${tx('Mais ações')}: ${c.n}`} title={tx('Comandante, juntar ao deck, subcomandante ou talvez')}>⋯</button>}
+      {onRole && <button className={`wz-more1${menu ? ' on' : ''}`} onClick={e => { e.stopPropagation(); const b = e.currentTarget; setMenu(m => (m ? null : b)) }} aria-expanded={!!menu} aria-label={`${tx('Mais ações')}: ${c.n}`} title={tx('Comandante, juntar ao deck, subcomandante ou talvez')}>⋯</button>}
       {role && !menu && <span className="wz-role">{role === 'sub' ? '♕ ' : ''}{ROLE_L[role]}</span>}
-      {menu && <div className="wz-ccm" role="menu" onClick={() => setMenu(false)}><CmdActs c={c} role={role} onCmd={onPick} onRole={onRole} done={() => setMenu(false)} /></div>}
+      {menu && <ActMenu at={menu} c={c} onClose={() => setMenu(null)}><CmdActs c={c} role={role} onCmd={onPick} onRole={onRole} done={() => setMenu(null)} /></ActMenu>}
     </div>
   )
 }

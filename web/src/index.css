@@ -4372,6 +4372,11 @@ p.needs-forge { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; m
 .wz-cc .wz-more1.on { border-color: var(--gold); color: var(--gold2); }
 .wz-cc.r-pick, .wz-cc.r-sub, .wz-cc.r-maybe { border-color: color-mix(in srgb, var(--gold) 60%, var(--line)); }
 .wz-role { position: absolute; left: 8px; bottom: 30px; max-width: calc(100% - 16px); padding: 1px 7px; border-radius: 99px; font-size: 11px; background: rgba(11, 10, 20, .88); border: 1px solid var(--gold); color: var(--gold2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.wz-actm { position: fixed; z-index: 80; display: grid; gap: 4px; padding: 6px; border-radius: 10px; background: var(--panel); border: 1px solid var(--gold); box-shadow: 0 10px 30px #000a; animation: peekgrow .14s ease-out; }
+.wz-actm-h { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 2px 2px; font-size: 12px; min-width: 0; }
+.wz-actm-h b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wz-actm-h button { flex: none; min-width: 28px; min-height: 28px; padding: 0; border: 0; background: none; color: var(--muted); }
+.wz-actm .wz-ca { width: 100%; min-height: 34px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel2); font-size: 13px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wz-ccm { position: absolute; inset: 2px; z-index: 3; display: grid; align-content: safe center; gap: 3px; padding: 4px; overflow-y: auto; border-radius: 8px; background: rgba(11, 10, 20, .93); border: 1px solid var(--gold); }
 .wz-res .wz-ccm button, .fp-big-acts button { aspect-ratio: auto; width: 100%; min-height: 30px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel2); font-size: 11px; line-height: 1.1; text-align: left; overflow: visible; }
 .wz-ca.on { border-color: var(--gold); color: var(--gold2); }
