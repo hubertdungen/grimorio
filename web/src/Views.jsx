@@ -1,7 +1,7 @@
 import { matchArts, shrink } from './artmatch.js'
 import { createContext, useContext, lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { HATE, CAT_LABEL } from './tests.js'
-import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf, fmtBit, deckTribe } from './data.js'
+import { unaccent, fetchSets, fetchSetCards, findSet, search, recommend, termsOf, termMatch, narrowHate, similar, deckCombos, deckPlan, deckCuts, deckLinks, sideSuggest, fetchMeta, metaIndex, detectArchetype, STYLES, LEVELS, comboTurn, pctP, passes, fetchPrints, fetchEdh, TAG_LABEL, TAG_GROUPS, TYPES, TYPE_LABEL, COLORS, img, sideways, pidOf, basicList, CREATURE_TYPES, sf, fmtBit, deckTribe, edhIndex, intentTerms, termLabel } from './data.js'
 import { canBeCommander, landAdvice, targetsFor, maxCopies, FORMAT, ideaSeeds, subsOf, pairOk } from './formats.js'
 import { count as zoneCount } from './deck.js'
 import { deckIndices, stats, sampleHand, exportList, landOdds } from './deck.js'
@@ -60,18 +60,7 @@ function useEdhrec(data, cmdIdx, seeds) {
     let live = true
     const srcs = key.split(',').map(k => (k[0] === 'c' ? { kind: 'commanders', i: +k.slice(1) } : { kind: 'cards', i: +k }))
     Promise.all(srcs.map(s => fetchEdh(s.kind, data.cards[s.i].n).then(d => ({ ...s, d })))).then(all => {
-      if (!live) return
-      const m = new Map()
-      for (const { kind, i, d } of all) {
-        const from = data.cards[i].n
-        for (const [n, num, pot, lift, syn] of d.cards || []) {
-          const c = data.byName.get(n) || data.byLower.get(n.toLowerCase())
-          if (!c || !pot || (kind === 'cards' && !lift)) continue
-          if (!m.has(c.i)) m.set(c.i, [])
-          m.get(c.i).push({ kind, from, incl: num / pot, pot, lift, syn })
-        }
-      }
-      setCo(m)
+      if (live) setCo(edhIndex(data, all))
     })
     return () => { live = false }
   }, [key, data])
@@ -413,12 +402,21 @@ export function PrefsPanel({ deck, fmt, act, compact = false }) {
   useEffect(() => { if (open) fetch('/api/decks').then(r => r.json()).then(setDecks).catch(() => {}) }, [open])
   const set = p => act.setPrefs(p)
   const nivel = pf.nivel ?? 3, meta = pf.meta ?? 0.5
-  const summary = pf.on ? [LEVELS[nivel], meta < 0.3 ? tx('original') : meta > 0.7 ? tx('segue o meta') : '', ...(pf.estilo || []).map(k => STYLES[k]?.label), pf.gosto && pf.gosto !== 'off' ? tx('ao teu gosto') : '', pf.orcamento ? `≤ ${pf.orcamento} €` : ''].filter(Boolean).join(' · ') : tx('desligada: sugestão completa, sem viés')
+  const cmdOff = [fmt.cmd && pf.cmdTipo === false && tx('sem o tipo do comandante'), fmt.cmd && pf.cmdTexto === false && tx('sem o texto do comandante'), fmt.cmd && pf.cmdEdh === false && tx('sem os decks reais do comandante'), pf.staples === false && tx('sem staples')].filter(Boolean)
+  const summary = pf.on ? [LEVELS[nivel], meta < 0.3 ? tx('original') : meta > 0.7 ? tx('segue o meta') : '', ...(pf.estilo || []).map(k => STYLES[k]?.label), pf.gosto && pf.gosto !== 'off' ? tx('ao teu gosto') : '', pf.orcamento ? `≤ ${pf.orcamento} €` : ''].filter(Boolean).join(' · ') : cmdOff.length ? '' : tx('desligada: sugestão completa, sem viés')
   return (
     <div className={`prefs ${pf.on ? 'on' : ''}`}>
       <button className="prefs-head" onClick={() => setOpen(!open)}>
-        <span>⚙ {tx('Personalizar')}</span><small className="muted">{summary}</small><span className="chev">{open ? '▾' : '▸'}</span>
+        <span>⚙ {tx('Personalizar')}</span><small className="muted">{[summary, ...cmdOff].filter(Boolean).join(' · ')}</small><span className="chev">{open ? '▾' : '▸'}</span>
       </button>
+      {/* sempre à vista (antes de gerar) e válidos com a personalização desligada: o que o comandante pode puxar além das
+          cores (o tipo, o texto, os decks reais dele) e os staples; guardados em deck.prefs. O tema pedido manda sempre */}
+      <div className="prefs-cmd">
+        {fmt.cmd && <label className="chk small" title={tx('Ligado, a tribo do comandante (Human Hero, Vampire Knight…) conta como tema do deck. Desligado, só contam os tipos das tuas cartas e dos temas pedidos.')}><input type="checkbox" checked={pf.cmdTipo !== false} onChange={e => set({ cmdTipo: e.target.checked })} /> {tx('Usar o tipo de criatura do comandante')}</label>}
+        {fmt.cmd && <label className="chk small" title={tx('Habilidades, palavras-chave e estratégia tiradas do texto do comandante (semelhança e plano). Desligado, o texto dele deixa de puxar cartas.')}><input type="checkbox" checked={pf.cmdTexto !== false} onChange={e => set({ cmdTexto: e.target.checked })} /> {tx('Usar o resto do texto do comandante')}</label>}
+        {fmt.cmd && <label className="chk small" title={tx('A inclusão e a sinergia das cartas nos decks deste comandante no EDHREC («Em 74% dos decks de…»). Desligado, esses números deixam de puxar cartas.')}><input type="checkbox" checked={pf.cmdEdh !== false} onChange={e => set({ cmdEdh: e.target.checked })} /> {tx('Usar os decks reais do comandante (EDHREC)')}</label>}
+        <label className="chk small" title={tx('Cartas muito jogadas em qualquer deck (Sol Ring, Arcane Signet…). Desligado, as funções enchem-se com cartas do tema.')}><input type="checkbox" checked={pf.staples !== false} onChange={e => set({ staples: e.target.checked })} /> {tx('Puxar staples genéricos')}</label>
+      </div>
       {open && (
         <div className="prefs-body">
           <label className="switch"><input type="checkbox" checked={!!pf.on} onChange={e => set({ on: e.target.checked })} /> <span>{pf.on ? tx('Personalização ligada') : tx('Ligar personalização (opcional)')}</span></label>
@@ -478,6 +476,7 @@ function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
   const tastes = useTastes(data, deck)
   const seedsIdx = useMemo(() => deck.seeds.map(n => data.byName.get(n)).filter(Boolean).map(c => c.i), [data, deck.seeds])
   const seedTerms = useMemo(() => deck.seedTerms || [], [deck.seedTerms])
+  const intent = useMemo(() => intentTerms(data, { seeds: deck.seeds, seedTerms }), [data, deck.seeds, seedTerms])  // + o que as cartas de partida partilham
   const have = useMemo(() => deckIndices(deck, data), [deck, data])
   const cmdIdx = useMemo(() => deck.commanders.map(n => data.byName.get(n)?.i).filter(x => x != null), [data, deck.commanders])
   const ideaK = JSON.stringify(ideaSeeds(deck, data, fmt)), ideas = useMemo(() => JSON.parse(ideaK), [ideaK])  // estável: só muda com eles
@@ -499,9 +498,9 @@ function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
   const bracket = fmt.cmd === 'commander' ? (deck.bracket ? +deck.bracket : pf?.nivel && pf.nivel <= 3 ? pf.nivel : null) : null
   const gcCount = useMemo(() => have.filter(i => data.cards[i].gc).length, [have, data])
   // plano do deck (temas com cópias reais); com sementes escolhidas, recommend tira-o das sementes
-  const profile = useMemo(() => (seedsIdx.length ? null : deckThemes(data, deck).cats), [data, deck, seedsIdx.length])
-  const recs = useMemo(() => recommend(data, { seeds, seedTerms, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt), profile, ideas }),
-    [data, seeds, seedTerms, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt, profile, ideas])
+  const profile = useMemo(() => (seedsIdx.length ? null : deckThemes(data, deck.prefs?.cmdTexto === false ? { ...deck, commanders: [] } : deck).cats), [data, deck, seedsIdx.length])
+  const recs = useMemo(() => recommend(data, { seeds, seedTerms: intent, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt), profile, ideas }),
+    [data, seeds, intent, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt, profile, ideas])
   const plan = useMemo(() => deckPlan(data, have), [data, have])
   // trocas: preparadas só quando um «+» as pede (o rato em cima ou o menu aberto); swap.js guarda-as por deck
   const swaps = useMemo(() => (c, o) => prepareSwaps(data, deck, fmt, ctx, { co, archetype, meta, evidence: ctx.tests })(c, o), [data, deck, fmt, ctx, co, archetype, meta])
@@ -516,7 +515,7 @@ function PlanLine({ profile, plan }) {
 
 const Why = ({ why }) => <ul className="why">{why.map((w, k) => <li key={k} className={w.k}>{w.combo ? <a href={`https://commanderspellbook.com/combo/${w.combo}/`} target="_blank" rel="noreferrer">{w.txt}</a> : <SymTxt text={w.txt} />}</li>)}</ul>
 
-const PART_LABEL = { estilo: tx('Estilo escolhido'), gosto: tx('O teu gosto'), original: tx('Originalidade'), torneios: tx('Torneios (MTGTop8)'), texto: tx('Texto parecido'), comandante: tx('Comandante'), ideia: tx('Comandantes em ideia'), decksReais: tx('Decks reais (EDHREC)'), combos: 'Combos', interacoes: tx('Interações'), falta: tx('O que falta ao deck'), plano: tx('Plano do deck'), tribo: tx('Tribo e palavras-chave'), popular: tx('Popularidade'), testes: tx('Testes do Laboratório') }
+const PART_LABEL = { estilo: tx('Estilo escolhido'), gosto: tx('O teu gosto'), original: tx('Originalidade'), torneios: tx('Torneios (MTGTop8)'), texto: tx('Texto parecido'), comandante: tx('Comandante'), ideia: tx('Comandantes em ideia'), decksReais: tx('Decks reais (EDHREC)'), combos: 'Combos', interacoes: tx('Interações'), falta: tx('O que falta ao deck'), plano: tx('Plano do deck'), tribo: tx('Tribo e palavras-chave'), popular: tx('Popularidade'), testes: tx('Testes do Laboratório'), semente: tx('Tema pedido'), tipoCmd: tx('Só o tipo do comandante (desligado)') }
 const pct = x => `${Math.min(99, Math.round(x * 100))}%`
 
 // O raciocínio inteiro de uma sugestão: peso de cada fator e os dados por trás.
@@ -1042,9 +1041,9 @@ function VsWhy({ c, nl }) {
   return ws.length > 0 && <ul className="why vs-why"><li className="tema" title={tx('Porque aparece nesta pesquisa')}>🛡 {ws.join(' · ')}</li></ul>
 }
 
-const TERM_ICO = { kw: '✦', sub: '🏷', type: '▦', rar: '◆', mv: '◎', set: '🎬' }
-const TERM_L = { kw: tx('habilidade'), sub: tx('subtipo'), type: tx('tipo'), rar: tx('Raridade'), mv: 'MV', set: tx('edição ou universo') }
-const termV = t => (t.k === 'set' ? setLabel(t.v) : t.v)
+const TERM_ICO = { kw: '✦', sub: '🏷', type: '▦', rar: '◆', mv: '◎', set: '🎬', arch: '♟', tag: '⚙' }
+const TERM_L = { kw: tx('habilidade'), sub: tx('subtipo'), type: tx('tipo'), rar: tx('Raridade'), mv: 'MV', set: tx('edição ou universo'), arch: tx('estratégia'), tag: tx('função') }
+const termV = t => (t.k === 'set' ? setLabel(t.v) : termLabel(t)) + (t.s ? ' ★' : '')
 function SeedPicker({ data, ctx, act }) {
   const [q, setQ] = useState('')
   const hits = useMemo(() => (q.length < 2 ? [] : search(data, q, null, { ...ctx, identity: null }, 8).cards), [data, q, ctx])

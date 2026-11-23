@@ -2,8 +2,9 @@
 // As escolhas ficam guardadas neste browser até o deck ser criado (fechar sem querer não as perde); «Limpar» recomeça.
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { search, recommend, img, fmtBit, passes, STYLES, LEVELS, CREATURE_TYPES, COLORS, TAG_LABEL, TYPE_LABEL, termMatch } from './data.js'
+import { search, recommend, img, fmtBit, passes, STYLES, LEVELS, CREATURE_TYPES, COLORS, TAG_LABEL, TYPE_LABEL } from './data.js'
 import { likeTheme, likeCards, likeCommanders, chipUniverse, parseQuery, subOf } from './nlsearch.js'
+import { likeSel, likeKey, likeSeedTerms, cmdSuggest, seedDeck } from './newdeck.js'
 import { ARCH, ARCH_OF_TAG } from './archetypes.js'
 import { FORMATS, FORMAT, canBeCommander, pairOk } from './formats.js'
 import { emptyDeck } from './deck.js'
@@ -180,11 +181,11 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
     if (!dq.trim() && fmt.cmd && cmds.length) {
       const cmdIdx = cmds.map(c => c.i), seeds = [...cmdIdx, ...picks.map(c => c.i)]
       const ideas = [...subsW.map(c => ({ i: c.i, w: 0.25 })), ...maybes.map(c => ({ i: c.i, w: 0.15 }))]  // como no editor (formats.js ideaSeeds)
-      const recs = recommend(data, { seeds, have: [...seeds, ...subsW.map(c => c.i)], ctx, filters: { noLands: true }, limit: 48, commanders: cmdIdx, ideas })
+      const recs = recommend(data, { seeds, have: [...seeds, ...subsW.map(c => c.i)], ctx, filters: { noLands: true }, limit: 48, commanders: cmdIdx, ideas, prefs })
       if (recs.length) return recs.map(r => r.c)
     }
     return search(data, dq, { sort: 'pop', inText: false }, ctx, 48).cards
-  }, [data, dq, ctx, fmt, cmds, picks, subsW, maybes])
+  }, [data, dq, ctx, fmt, cmds, picks, subsW, maybes, prefs])
   // cores que o comandante tem de cobrir: as das cartas de partida (podem ter mais, nunca menos)
   const need = useMemo(() => [...new Set(picks.flatMap(c => [...c.ci]))].join(''), [picks])
   // comandantes legais no formato (pela popularidade); com um escolhido que aceite par, os parceiros possíveis
@@ -224,36 +225,11 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   // «Gosto de…»: o texto vira temas, cores e funções (chips que se desligam); a pré-visualização segue os chips ligados
   const dlike = useDeferredValue(like)
   const theme = useMemo(() => likeTheme(data, dlike, { types: CREATURE_TYPES }), [data, dlike])
-  const key = { t: t => `t:${t.k}:${t.v}`, c: x => `c:${x.k}`, g: x => `g:${x.k}`, a: x => `a:${x.k}` }
+  const key = likeKey
   const on = k => !likeOff.includes(k)
   const flip = (list, set, k) => set(list.includes(k) ? list.filter(x => x !== k) : [...list, k])
   // Detetados no texto + escolhidos na paleta completa, sem repetir. Com comandante, as cores ficam na identidade dele.
-  const sel = useMemo(() => {
-    const terms = [], seen = new Set(), colors = [], tags = [], arch = []
-    const addT = t => { const k = key.t(t); if (!seen.has(k)) { seen.add(k); terms.push(t) } }
-    for (const t of theme.terms) if (on(key.t(t))) addT(t)
-    for (const x of theme.colors) if (on(key.c(x))) colors.push(x.k)
-    for (const x of theme.tags) if (on(key.g(x))) tags.push(x.k)
-    for (const x of theme.arch) if (on(key.a(x))) arch.push(x.k)
-    // o que o texto já detetou manda: o mesmo chip escolhido à mão não conta duas vezes nem ignora o desligar
-    const auto = new Set([...theme.terms.map(key.t), ...theme.colors.map(key.c), ...theme.tags.map(key.g), ...theme.arch.map(key.a)])
-    for (const k of likePick) {
-      if (auto.has(k)) continue
-      const m = /^t:(kw|sub|type|rar|mv|set):(.+)$/.exec(k)
-      if (m) addT({ k: m[1], v: m[2], u: 1 })
-      else if (k.startsWith('c:')) colors.push(k.slice(2))
-      else if (k.startsWith('g:')) tags.push(k.slice(2))
-      else if (k.startsWith('a:') && ARCH[k.slice(2)]) arch.push(k.slice(2))
-    }
-    const ci = cmds.map(c => c.ci).join(''), cols = [...new Set(colors)]
-    return {
-      terms,
-      star: terms.filter(t => likeStar.includes(key.t(t))),
-      colors: ci ? cols.filter(k => (k === 'C' ? !ci : ci.includes(k))) : cols,
-      tags: [...new Set(tags)],
-      arch: [...new Set(arch)],
-    }
-  }, [theme, likeOff, likeStar, likePick, cmds]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sel = useMemo(() => likeSel(theme, { off: likeOff, star: likeStar, pick: likePick, cmds }), [theme, likeOff, likeStar, likePick, cmds])
   // as cartas com um nome alternativo escrito («megatron», «mothra») primeiro, depois as dos chips
   const preview = useMemo(() => {
     if (start !== 'gosto') return []
@@ -345,24 +321,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   }
 
   // Comandantes que cobrem as cores das cartas escolhidas, pela semelhança de texto + popularidade.
-  const cmdSugs = useMemo(() => {
-    if (!fmt.cmd || cmds.length || !eff.length) return []
-    const gosto = start === 'gosto'
-    const pin = gosto && sel.colors.length, ci = pin ? sel.colors.join('') : [...new Set(eff.flatMap(c => [...c.ci]))].join('')
-    const D = data.D, E = data.emb, cen = new Float32Array(D)
-    for (const c of eff) for (let k = 0; k < D; k++) cen[k] += E[c.i * D + k]
-    const out = []
-    for (const c of data.cards) {
-      if (!canBeCommander(c, fmt) || !(pin ? subset(need, c.ci) && subset(c.ci, ci + need) : subset(ci, c.ci)) || (ctx.bit >= 0 && !(c.lg & (1 << ctx.bit)))) continue
-      let d = 0
-      for (let k = 0; k < D; k++) d += cen[k] * E[c.i * D + k]
-      // «Gosto de…»: o que o comandante é e faz pesa tanto como a semelhança com as cartas; incolor/cores a mais custam
-      let b = 0
-      if (gosto) { for (const t of sel.terms) if (termMatch(c, t)) b += t.u ? 0.2 : 0.1; for (const g of sel.tags) if (c.tg.includes(g)) b += 0.1 }
-      out.push({ c, s: b + d / 127 / eff.length + (c.er ? 0.15 * Math.max(0, 1 - Math.log(c.er) / Math.log(40000)) : 0) - (pin ? 0.05 * (ci.length - c.ci.length) : 0.02 * (c.ci.length - ci.length)) })
-    }
-    return out.sort((a, b) => b.s - a.s).slice(0, 90).map(x => x.c)
-  }, [data, fmt, cmds.length, eff, ctx.bit, start, sel, need])
+  const cmdSugs = useMemo(() => (cmds.length ? [] : cmdSuggest(data, fmt, eff, { bit: ctx.bit, gosto: start === 'gosto', sel, need })), [data, fmt, cmds.length, eff, ctx.bit, start, sel, need])
 
   // Commander e afins: basta o comandante (o resto vem do EDHREC e da sinergia); construído: 3 cartas no mínimo.
   // No «Gosto de…» a primeira sugestão de comandante já serve de escolha, para o deck não ficar sem ele.
@@ -384,21 +343,10 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
   useEffect(() => { try { localStorage.setItem('grimorio.wz.epic', autoEpic ? '1' : '0') } catch { /* sem armazenamento */ } }, [autoEpic])
   const create = auto => {
     const useCmd = cmds.length ? cmds : autoCmd ? [autoCmd] : []
-    const ci = useCmd.map(c => c.ci).join('')
-    const keep = c => !useCmd.some(x => x.i === c.i) && (!useCmd.length || [...c.ci].every(k => ci.includes(k)))
-    const seeds = eff.filter(keep)
-    const d = emptyDeck(format)
+    const d = seedDeck(format, fmt, useCmd, eff, { seedTerms: start === 'gosto' ? likeSeedTerms(sel, likeStar) : null, prefs })
     d.name = name.trim() || tx('{name} — novo', { name: useCmd.length ? useCmd.map(c => c.n.split(',')[0]).join(' & ') : fmt.name })
-    d.commanders = useCmd.map(c => c.n)
     save(null)
-    for (const c of seeds) {
-      const base = seeds.length <= 5 ? 4 : seeds.length <= 8 ? 3 : 2 // muitas cartas iniciais: menos cópias, sobra espaço
-      d.main[c.n] = fmt.copies === 1 || /\bBasic\b/.test(c.t) ? 1 : Math.min(base, c.cmc >= 5 ? 2 : 4)
-    }
-    d.seeds = seeds.map(c => c.n)
     withIdeas(d, useCmd)
-    if (start === 'gosto') d.seedTerms = sel.terms.filter(t => t.u || likeStar.includes(key.t(t))).sort((a, b) => likeStar.includes(key.t(b)) - likeStar.includes(key.t(a))).map(t => ({ k: t.k, v: t.v }))
-    d.prefs = prefs
     if (!name.trim() && autoEpic) d.epify = auto ? 'after' : true  // o App dá-lhe um nome épico quando o deck estiver completo ('after': depois do «Completar deck»)
     onCreate(d, auto)
   }
@@ -465,7 +413,7 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
               <div className="wz-res">{preview.map(c => <PickCard key={c.i} c={c} on={has(c)} disabled={!has(c) && picks.length >= maxPicks} onPick={() => toggle(c)} onBig={setBig} fl={flOf(c)} />)}</div>
             </>}
             <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />
-            <button onClick={() => { save(null); const useCmd = cmds.length ? cmds : autoCmd ? [autoCmd] : []; const d = emptyDeck(format); d.name = name.trim() || tx('{name} — novo', { name: useCmd.length ? useCmd.map(c => c.n.split(',')[0]).join(' & ') : fmt.name }); d.commanders = useCmd.map(c => c.n); d.prefs = prefs; d.seedTerms = sel.terms.map(t => ({ k: t.k, v: t.v })); onCreate(withIdeas(d, useCmd), false, 'pesquisa') }} disabled={!sel.terms.length}>✎ {tx('Só os temas, construo eu')}</button>
+            <button onClick={() => { save(null); const useCmd = cmds.length ? cmds : autoCmd ? [autoCmd] : []; const d = emptyDeck(format); d.name = name.trim() || tx('{name} — novo', { name: useCmd.length ? useCmd.map(c => c.n.split(',')[0]).join(' & ') : fmt.name }); d.commanders = useCmd.map(c => c.n); d.prefs = prefs; d.seedTerms = likeSeedTerms(sel, likeStar); onCreate(withIdeas(d, useCmd), false, 'pesquisa') }} disabled={!sel.terms.length && !sel.arch.length}>✎ {tx('Só os temas, construo eu')}</button>
           </div>
         )}
 

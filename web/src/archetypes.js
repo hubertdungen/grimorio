@@ -15,7 +15,9 @@ export const ARCH = {
   control: { l: tx('Controlo'), w: ['control', 'controlo', 'controle', 'controlar', 'controlar o jogo', 'controlar a mesa', 'deck de controlo', 'control deck', 'draw go', 'draw-go', 'kontrolle', 'kontrolldeck', 'kontrollieren'], zh: ['控制'],
     tg: { counter: 2, wipe: 2, removal: 1.5, draw: 1.2, bounce: 0.5, selection: 0.3 }, kw: { Flash: 0.3 } },
   burn: { l: tx('Burn (dano direto)'), of: 'burn', w: ['queimar', 'queima', 'quemar', 'quema', 'verbrennen', 'face damage', 'go face', 'red deck wins', 'rdw', 'dano a cara', 'dano aos adversarios', 'damage to players'], zh: ['火烧', '烧牌'],
-    tg: { burn: 2, drain: 1.2 }, re: [[/deals? (\d+|x|that much) damage to (each opponent|each player|target player|target opponent|any target)/, 1]] },
+    tg: { burn: 2, drain: 1.2 }, re: [[/deals? (\d+|x|that much) damage to (each opponent|each player|target player|target opponent|any target)/, 1]],
+    // as criaturas do burn: baratas e com pressa ou prowess (Goblin Guide, Monastery Swiftspear), que batem antes de morrer
+    fn: c => (c.mt === 'Creature' && c.cmc <= 2 && (c.kw?.includes('Haste') || c.kw?.includes('Prowess')) ? 1 : 0) },
   wipe: { l: tx('Limpar a mesa'), of: 'wipe', w: ['wipe everything', 'wipes', 'board wipes', 'boardwipe', 'wrath', 'wraths', 'sweeper', 'sweepers', 'mass removal', 'mass destruction', 'destruction', 'destroy everything', 'destroy all',
     'destruir tudo', 'limpar tudo', 'arrasar a mesa', 'limpeza da mesa', 'destruir todo', 'barrer la mesa', 'destruccion masiva', 'alles zerstoren', 'alles vernichten', 'brett leeren'], zh: ['全灭', '天谴'],
     tg: { wipe: 2.5 }, re: [[/all (other )?(creatures|nonland permanents|permanents) get -\d|destroy each (creature|nonland|permanent)|exile each (creature|nonland)|each player sacrifices (all|x|two|three|half)/, 2]] },
@@ -49,7 +51,8 @@ export const ARCH = {
   reanimator: { l: tx('Reanimator'), of: 'reanimate', w: ['reanimator', 'reanimation', 'necromancia', 'necromancy', 'wiederbeleben', 'reanimador'], zh: ['重生'],
     tg: { reanimate: 2.5, recursion: 0.5 }, re: [[/from a graveyard onto the battlefield under your control|creature cards? from (a|your|any) graveyard (onto|to) the battlefield/, 1.5], [/search your library for a card[^.]*put (it|that card) into your graveyard|discard (a|two|x) cards?|\bmills?\b/, 0.8]] },
   spellslinger: { l: tx('Instantâneos e feitiços'), of: 'spellslinger', w: ['spellslinger', 'spells matter', 'instants and sorceries', 'instantaneos e feiticos', 'instantaneos y conjuros', 'spontanzauber und hexereien', 'magias'], zh: ['法术流'],
-    tg: { spellslinger: 1.5 }, kw: { Prowess: 1 }, re: [[SPELL_PAY, 2]], fn: c => (spell(c) ? 0.4 + (c.tg.includes('copy') ? 0.6 : 0) : 0) },
+    // os feitiços baratos (Brainstorm, Opt, Counterspell) são o combustível: servem a estratégia; os caros só ajudam
+    tg: { spellslinger: 1.5 }, kw: { Prowess: 1 }, re: [[SPELL_PAY, 2]], fn: c => (spell(c) ? (c.cmc <= 2 ? 1 : 0.4) + (c.tg.includes('copy') ? 0.6 : 0) : 0) },
   lifegain: { l: tx('Ganho de vida'), of: 'lifegain', w: ['soul sisters', 'lifelink deck', 'vida a mais', 'muita vida'], zh: [],
     tg: { lifegain: 1.2 }, re: [[/whenever you gain life|if you would gain life|each time you gain life|life you gained|gained life this turn|you gain life for the first time/, 2]] },
   landfall: { l: 'Landfall', of: 'landfall', w: ['lands matter', 'terrenos importam', 'tierras importan', 'lander zahlen'], zh: [],
