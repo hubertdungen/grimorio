@@ -267,6 +267,116 @@ public class GrimorioSim {
             return sa != null ? List.of(sa) : r;
         }
 
+        // Multijogador (3+ jogadores): a IA do Forge escolhe UM adversário por combate (AiAttackController.defendingOpponent)
+        // e, se o consegue matar, ataca com tudo — deixou um adversário a −44 com 18 criaturas enquanto outro, a 2 de vida,
+        // ficava vivo e matava-a na volta seguinte com a mesa vazia. Depois da escolha do Forge, os atacantes redistribuem-se:
+        // 1) eliminar: por ameaça, cada adversário que dê para matar recebe só os atacantes precisos (os bloqueadores dele
+        //    param os maiores; as evasões não contam como bloqueáveis);
+        // 2) defender: ficam em casa as melhores bloqueadoras até o que os adversários vivos podem atacar de volta (o mais
+        //    perigoso inteiro + metade dos outros) ficar abaixo da nossa vida;
+        // 3) o resto mantém o alvo do Forge; se esse já morre com os do passo 1, vai para o adversário vivo mais fraco.
+        // Se o ataque final não for legal (criaturas que têm de atacar, custos…), fica o do Forge.
+        @Override
+        public void declareAttackers(Player attacker, Combat combat) {
+            super.declareAttackers(attacker, combat);
+            try { spreadAttack(combat); } catch (Throwable e) { System.err.println("spreadAttack: " + e); }
+        }
+
+        static int pw(Card c) { return Math.max(0, c.getNetCombatDamage()); }
+
+        // quanto passa de um grupo de atacantes contra os bloqueadores de o (cada bloqueador trava o maior que pode)
+        static int through(List<Card> atk, Player o, Combat combat) {
+            List<Card> bl = new ArrayList<>();
+            for (Card b : o.getCreaturesInPlay()) if (forge.game.combat.CombatUtil.canBlock(b)) bl.add(b);  // desviradas agora
+            List<Card> s = new ArrayList<>(atk);
+            s.sort((x, y) -> pw(y) - pw(x));
+            int left = bl.size(), dmg = 0;
+            for (Card a : s) {
+                boolean blockable = false;
+                for (Card b : bl) if (forge.game.combat.CombatUtil.canBlock(a, b)) { blockable = true; break; }
+                if (blockable && left > 0) left--; else dmg += pw(a);
+            }
+            return dmg;
+        }
+
+        // o que o adversário o pode fazer-nos no turno dele contra as nossas bloqueadoras (cada uma trava a maior)
+        static int danger(Player o, int blockers) {
+            List<Integer> p = new ArrayList<>();
+            for (Card c : o.getCreaturesInPlay()) if (!c.hasKeyword(Keyword.DEFENDER)) p.add(Math.max(0, c.getNetCombatDamage()));
+            p.sort(Collections.reverseOrder());
+            int d = 0;
+            for (int i = blockers; i < p.size(); i++) d += p.get(i);
+            return d;
+        }
+
+        void spreadAttack(Combat combat) {
+            List<Player> opps = new ArrayList<>();
+            for (Player o : player.getOpponents()) if (!o.hasLost()) opps.add(o);
+            if (opps.size() < 2) return;  // 1 contra 1: fica o Forge
+            Map<Card, GameEntity> before = new LinkedHashMap<>(combat.getAttackersAndDefenders());
+            List<Card> pool = new ArrayList<>();
+            for (Map.Entry<Card, GameEntity> e : before.entrySet()) if (e.getValue() instanceof Player) pool.add(e.getKey());
+            if (pool.size() < 2) return;
+            Map<Card, GameEntity> plan = new LinkedHashMap<>();
+            Set<Player> dead = new HashSet<>();
+            // 1) eliminar, do adversário mais perigoso para o menos
+            List<Player> byThreat = new ArrayList<>(opps);
+            byThreat.sort((x, y) -> danger(y, 0) - danger(x, 0));
+            for (Player o : byThreat) {
+                if (o.cantLoseForZeroOrLessLife() || o.getLife() <= 0) continue;
+                List<Card> can = new ArrayList<>();
+                for (Card a : pool) if (!plan.containsKey(a) && forge.game.combat.CombatUtil.canAttack(a, o)) can.add(a);
+                can.sort((x, y) -> pw(y) - pw(x));
+                List<Card> take = new ArrayList<>();
+                for (Card a : can) { take.add(a); if (through(take, o, combat) >= o.getLife()) break; }
+                if (take.isEmpty() || through(take, o, combat) < o.getLife()) continue;
+                // tira os que sobram (os mais pequenos primeiro), desde que continue a matar
+                for (int i = take.size() - 1; i >= 0; i--) {
+                    Card a = take.remove(i);
+                    if (through(take, o, combat) < o.getLife()) take.add(i, a);
+                }
+                for (Card a : take) plan.put(a, o);
+                dead.add(o);
+            }
+            // 2) defender: as nossas bloqueadoras = quem não ataca e pode bloquear, mais as com vigilância
+            List<Player> alive = new ArrayList<>();
+            for (Player o : opps) if (!dead.contains(o)) alive.add(o);
+            List<Card> free = new ArrayList<>();
+            for (Card a : pool) if (!plan.containsKey(a)) free.add(a);
+            int home = 0;
+            for (Card c : player.getCreaturesInPlay())
+                if ((!before.containsKey(c) || c.hasKeyword(Keyword.VIGILANCE)) && forge.game.combat.CombatUtil.canBlock(c)) home++;
+            free.sort((x, y) -> (y.getNetToughness() - pw(y)) - (x.getNetToughness() - pw(x)));  // as melhores a bloquear primeiro
+            Set<Card> stay = new HashSet<>();
+            for (Card c : free) {
+                int worst = 0, rest = 0;
+                for (Player o : alive) { int d = danger(o, home); rest += d; worst = Math.max(worst, d); }
+                if (worst + (rest - worst) / 2 < player.getLife()) break;
+                if (c.hasKeyword(Keyword.VIGILANCE) || !forge.game.combat.CombatUtil.canBlock(c)) continue;
+                stay.add(c); home++;
+            }
+            // 3) o resto: o alvo do Forge se continua vivo; se já morre com os do passo 1, o adversário vivo mais fraco
+            for (Card a : free) {
+                if (stay.contains(a)) continue;
+                GameEntity was = before.get(a);
+                if (!dead.contains(was)) { plan.put(a, was); continue; }
+                Player best = null;
+                for (Player o : alive) if (forge.game.combat.CombatUtil.canAttack(a, o) && (best == null || o.getLife() < best.getLife())) best = o;
+                if (best != null) plan.put(a, best); else stay.add(a);  // ninguém mais a atacar: fica a defender
+            }
+            boolean same = stay.isEmpty();
+            for (Card a : pool) if (same && plan.get(a) != before.get(a)) same = false;
+            if (same) return;
+            for (Card a : pool) combat.removeFromCombat(a);
+            for (Card a : pool) if (plan.containsKey(a)) combat.addAttacker(a, plan.get(a));
+            if (!forge.game.combat.CombatUtil.validateAttackers(combat)) {  // ilegal: volta ao do Forge
+                for (Card a : pool) combat.removeFromCombat(a);
+                for (Card a : pool) combat.addAttacker(a, before.get(a));
+                return;
+            }
+            System.err.println("spreadAttack: " + player.getName() + " — " + plan.size() + " atacam (" + dead.size() + " a eliminar), " + stay.size() + " ficam a defender");
+        }
+
         // Fetchlands (Polluted Delta, Flooded Strand…): para «Island ou Swamp» o Forge traz o tipo básico com menos cópias
         // na biblioteca (ComputerUtilCard.getBestLandAI) sem olhar à mão — com 6 Islands, 2 Swamps e dois Counterspell na
         // mão ia buscar o Swamp. Aqui traz-se o terreno da cor que falta à mão: por cor, os símbolos que a carta mais

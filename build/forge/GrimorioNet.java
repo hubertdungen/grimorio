@@ -128,7 +128,7 @@ public class GrimorioNet {
         LobbyPlayer human = GamePlayerUtil.getGuiPlayer();
         human.setName(a.length > 2 ? a[2] : "Tu");
         LobbyPlayer other = pvp ? new forge.player.LobbyPlayerHuman(a.length > 4 ? a[4] : "Jogador 2", 0, 0)  // a outra pessoa
-            : GamePlayerUtil.createAiPlayer(a.length > 4 ? a[4] : "Forge", a.length > 3 ? a[3] : "Default");  // nome (o deck dele), perfil
+            : GrimorioSim.withBrain((forge.ai.LobbyPlayerAi) GamePlayerUtil.createAiPlayer(a.length > 4 ? a[4] : "Forge", a.length > 3 ? a[3] : "Default"), java.util.EnumSet.noneOf(forge.ai.AIOption.class));  // com as correções do Brain (ataques em multijogador…)  // nome (o deck dele), perfil
         RegisteredPlayer rh = reg(dh, cmd), ra = reg(da, cmd);
         List<RegisteredPlayer> players = new ArrayList<>();
         players.add(rh.setPlayer(human));
@@ -136,7 +136,7 @@ public class GrimorioNet {
         List<RegisteredPlayer> more = new ArrayList<>();
         for (String[] x : extra) {
             RegisteredPlayer r = reg(DeckSerializer.fromFile(new File(x[0])), cmd);
-            players.add(r.setPlayer(pvp ? new forge.player.LobbyPlayerHuman(x[1], 0, 0) : GamePlayerUtil.createAiPlayer(x[1], x.length > 2 ? x[2] : (a.length > 3 ? a[3] : "Default"))));
+            players.add(r.setPlayer(pvp ? new forge.player.LobbyPlayerHuman(x[1], 0, 0) : GrimorioSim.withBrain((forge.ai.LobbyPlayerAi) GamePlayerUtil.createAiPlayer(x[1], x.length > 2 ? x[2] : (a.length > 3 ? a[3] : "Default")), java.util.EnumSet.noneOf(forge.ai.AIOption.class))));
             more.add(r);
         }
         boolean giant = pvp && mode.contains("2hg") && players.size() == 4;
