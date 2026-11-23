@@ -1863,7 +1863,7 @@ function Subs({ c, data, deck, fmt, ctx, act }) {
     setBusy(true); setErr('')
     try {
       setIa(await postJSON('/api/ia/ask', { mode: 'carta', question: tx('A carta a analisar é «{c}» ({q} cópia(s) no deck).', { c: c.n, q: deck.main[c.n] || deck.side[c.n] || 0 }),
-        context: { formato: `${fmt.name}: ${fmt.size[0]} cartas`, comandante: deck.commanders.join(' + '), plano: plan.map(x => `${x.label} (${x.n})`).join(', '), lista: exportList(deck) } }))
+        context: { formato: `${fmt.name}: ${fmt.size[0]} cartas`, comandante: deck.commanders.join(' + '), plano: plan.map(x => `${x.label} (${x.n})`).join(', '), lista: exportList(deck, { maybe: false }) } }))
     } catch (e) { setErr(e.message) }
     setBusy(false)
   }
@@ -1984,7 +1984,7 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
       excesso: mainN > fmt.size[0] ? `O deck tem ${mainN - fmt.size[0]} carta(s) a mais (${mainN} para ${fmt.size[0]}). Corta EXATAMENTE ${mainN - fmt.size[0]} com "ajustes" (de → para, menos cópias) ou "tirar", escolhendo as mais fracas ou fora do plano; as trocas não contam para isto.` : '',
       historico: (deck.iaHist || []).slice(-6).map(h => `${new Date(h.ts).toLocaleDateString('pt-PT')} · ${h.mode}${h.q ? ` · pedido: ${h.q}` : ''} → ${h.resumo || ''}${h.applied?.length ? ` · aplicado: ${h.applied.join('; ')}` : ' · nada aplicado'}`).join('\n'),
       sugestoes: recs.slice(0, 30).map(r => `${r.c.n} — ${r.why.slice(0, 2).map(w => w.txt).join('; ')}`).join('\n'),
-      lista: exportList(deck),
+      lista: exportList(deck, { maybe: false }),
     }
     try {
       const r = await postJSON('/api/ia/ask', { mode, question: q, context })

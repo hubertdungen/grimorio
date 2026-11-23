@@ -171,7 +171,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
   const names = secs.map(s => s.d.name)
   const list = useMemo(() => {
     const extras = (tk, sg) => [...(tk.length ? [`\n// ${tx('Tokens')}`, ...tk.map(t => `${t.q} ${t.name}`)] : []), ...(sg.length ? [`\n// ${tx('Sugestões do Grimório')}`, ...sg.map(c => `1 ${c.n}`)] : [])]
-    const full = s => [...(s.r.main || s.r.side ? [exportList({ ...s.d, ...(s.r.main ? {} : { main: {}, commanders: [], signature: null }), side: s.r.side ? s.d.side || {} : {} })] : []),
+    const full = s => [...(s.r.main || s.r.side ? [exportList({ ...s.d, ...(s.r.main ? {} : { main: {}, commanders: [], signature: null }), side: s.r.side ? s.d.side || {} : {} }, { maybe: false })] : []),
       ...(s.r.maybe && Object.keys(s.d.maybe || {}).length ? [`\n// Maybeboard`, ...Object.entries(s.d.maybe).map(([n, q]) => listLine(n, q, s.d.prints?.[n]))] : []), ...extras(s.tk, s.sg)]
     if (!multi) return secs[0] ? full(secs[0]).join('\n') : ''
     const shared = i => {  // só as cópias que os decks de cima ainda não têm

@@ -88,7 +88,7 @@ export function parseList(text, data) {
 // Com estilo escolhido sai "1 Sol Ring (CMR) 263 *F*", que o Moxfield, o Archidekt e o Arena percebem.
 // Cópias divididas por várias artes (deck.split) saem numa linha por arte; as que sobram ficam com a edição principal.
 export const listLine = (n, q, pr) => `${q} ${n}${pr?.set ? ` (${pr.set}) ${pr.cn}` : ''}${pr?.foil ? ' *F*' : ''}`
-export function exportList(deck) {
+export function exportList(deck, { maybe = true } = {}) {  // maybe: junta o maybeboard (secção «Maybeboard», que a importação entende)
   const ln = (n, q) => {
     const pr = deck.prints?.[n], sp = deck.split?.[n]
     if (!sp?.length) return listLine(n, q, pr)
@@ -101,7 +101,8 @@ export function exportList(deck) {
   if (deck.commanders.length) lines.push('Commander', ...deck.commanders.map(n => ln(n, 1)), '')
   if (deck.signature) lines.push('Signature Spell', ln(deck.signature, 1), '')
   lines.push('Deck', ...Object.entries(deck.main).sort(([a], [b]) => a.localeCompare(b)).map(([n, q]) => ln(n, q)))
-  if (count(deck.side)) lines.push('', 'Sideboard', ...Object.entries(deck.side).map(([n, q]) => ln(n, q)))
+  if (count(deck.side || {})) lines.push('', 'Sideboard', ...Object.entries(deck.side).map(([n, q]) => ln(n, q)))
+  if (maybe && count(deck.maybe || {})) lines.push('', 'Maybeboard', ...Object.entries(deck.maybe).sort(([a], [b]) => a.localeCompare(b)).map(([n, q]) => ln(n, q)))
   return lines.join('\n')
 }
 
