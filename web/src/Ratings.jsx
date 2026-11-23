@@ -185,11 +185,12 @@ export default function Ratings({ data, fmt }) {
   }, [f, n, cas])
   const val = r => r[by] ?? -1
   const kindOf = r => (r.friend ? 'ami' : r.community ? 'com' : r.kind === 'meu' ? 'meu' : 'meta')
-  const cfs = cas ? [...new Set((res?.rows || []).map(r => r.deck_format).filter(Boolean))].sort((a, b) => fmtName(a).localeCompare(fmtName(b))) : []
+  const dfOf = r => (!r.deck_format ? null : FORMAT[r.deck_format] ? r.deck_format : 'limited')  // decks de draft (<torneio>:<lugar>) = limitado
+  const cfs = cas ? [...new Set((res?.rows || []).map(dfOf).filter(Boolean))].sort((a, b) => fmtName(a).localeCompare(fmtName(b))) : []
   const cfOn = cas && cf !== 'all' && cfs.includes(cf)
   const has = new Set((res?.rows || []).map(kindOf)), only = who.length < 4 || cfOn
   // com filtro, as posições contam-se só entre os decks que ficam
-  const base = (res?.rows || []).filter(r => who.includes(kindOf(r)) && (!cfOn || r.deck_format === cf))
+  const base = (res?.rows || []).filter(r => who.includes(kindOf(r)) && (!cfOn || dfOf(r) === cf))
   const rows = by === 'stars' ? (only ? base.map((r, i) => ({ ...r, rank: i + 1 })) : base) : [...base].sort((a, b) => val(b) - val(a) || b.elo - a.elo).map((r, i) => ({ ...r, rank: i + 1, tier: Math.floor(val(r)) }))
   const tiers = [6, 5, 4, 3, 2, 1, 0, -1].map(t => [t, rows.filter(r => r.tier === t).map((r, i) => (by === 'stars' && !only ? r : { ...r, rank_in_tier: i + 1 }))]).filter(([, rs]) => rs.length)
   // estrelas brancas e número de troféus (só os meus decks ganham troféus)
