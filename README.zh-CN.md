@@ -4,6 +4,8 @@
 
 <h1 align="center">Grimório</h1>
 
+<p align="center"><a href="AI-DECLARATION.md"><img src="https://img.shields.io/badge/䷼%20AI--DECLARATION-copilot-fee2e2?labelColor=fee2e2" alt="AI-DECLARATION: copilot"></a></p>
+
 **构筑、测试你的万智牌（Magic: The Gathering）套牌，再让它们上场一较高下——建议都附带理由，有真正的 AI 对 AI 对局，你也可以亲自和 Forge 对战。**
 
 Grimório 是一款免费的套牌构筑工具，支持所有赛制（指挥官 Commander、摩登 Modern、纯铁 Pauper、标准 Standard、薪传 Legacy……），直接在你自己的电脑上运行。

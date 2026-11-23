@@ -4,6 +4,8 @@
 
 <h1 align="center">Grimório</h1>
 
+<p align="center"><a href="AI-DECLARATION.md"><img src="https://img.shields.io/badge/䷼%20AI--DECLARATION-copilot-fee2e2?labelColor=fee2e2" alt="AI-DECLARATION: copilot"></a></p>
+
 **Build, test and battle your Magic: The Gathering decks — with explained suggestions, real AI-vs-AI games and games you play yourself against Forge.**
 
 Grimório is a free deck builder for every format (Commander, Modern, Pauper, Standard, Legacy, …) that runs on your
