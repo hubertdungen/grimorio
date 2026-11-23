@@ -1134,7 +1134,7 @@ const ROLE_TAGS = ['ramp', 'draw', 'removal', 'wipe', 'counter', 'tutor', 'prote
  * Cartas do deck que menos encaixam, com o porquê, e uma troca com a mesma função.
  * fit = semelhança ao resto + interações + combos + decks reais + função de que o deck precisa.
  */
-export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, recs = [], limit = 8, meta = null, archetype = null }) {
+export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, recs = [], limit = 8, meta = null, archetype = null, every = false }) {  // every: todas as candidatas, da que menos encaixa à que mais (💪 Reforçar)
   const { emb: E, D, cards } = data
   const main = Object.keys(deck.main).map(n => data.byName.get(n)).filter(c => c && !/\bBasic\b/.test(c.t))
   const nonland = main.filter(c => c.mt !== 'Land').map(c => c.i)
@@ -1229,6 +1229,7 @@ export function deckCuts(data, deck, { ctx, co, commanders = [], needs = {}, rec
     out.push({ c, fit, why, buts, force, sb })
   }
   out.sort((a, b) => a.fit - b.fit)
+  if (every) return out
   const used = new Set()
   const real = out.filter(x => x.force || x.why.length > x.buts) // só se propõe cortar com um motivo
   return real.slice(0, limit).map(x => {

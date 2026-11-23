@@ -568,6 +568,68 @@ console.log('selfcheck universo ok')
   const dh = deckCuts(sdata, kn, { ctx: { bit: -1, allowUn: true, identity: 'W' }, meta }).find(x => x.c.n === 'Dragon Hunter')
   assert.ok(dh && /Carta de sideboard/.test(dh.why[0]), JSON.stringify(dh?.why))
   console.log('selfcheck sugestões ok') }
+// 💪 Reforçar o deck (reinforce.js): por função, cartas novas da função e na identidade; a que sai nunca é o comandante nem
+// tira uma função que está no alvo ou abaixo; com jogos gravados, quem ganha menos quando aparece sai primeiro.
+{ const { prepData } = await import('./src/data.js')
+  const { cutQueue, reinforcePlan, roleState } = await import('./src/reinforce.js')
+  const all = (1 << F.length) - 1
+  const K = (n, t, o, mc, ci, extra = {}) => ({ n, t, o, mc, cmc: (+(mc.match(/\{(\d+)\}/)?.[1] || 0)) + (mc.match(/\{[WUBRGC]\}/g) || []).length, ci, co: ci, lg: all, rs: 0, r: 'c', kw: [], pt: '', er: 5000, tg: [], ...extra })
+  const cre = (n, ci, o = '') => K(n, 'Creature — Rat', o, `{2}{${ci}}`, ci, { pt: '2/2' })
+  const cards = [
+    K('Cap Dimir', 'Legendary Creature — Human Rogue', 'Whenever you cast a spell, draw a card.', '{1}{U}{B}', 'UB', { pt: '2/3' }),
+    K('Old Murder', 'Instant', 'Destroy target creature.', '{2}{B}', 'B', { tg: ['removal'] }),
+    K('Fresh Murder', 'Instant', 'Destroy target creature.', '{1}{B}', 'B', { er: 200, tg: ['removal'] }),
+    K('Blue Exile', 'Instant', 'Exile target creature.', '{1}{U}', 'U', { er: 300, tg: ['removal'] }),
+    K('Red Burn', 'Instant', 'Destroy target creature.', '{R}', 'R', { er: 10, tg: ['removal'] }),
+    K('Big Draw', 'Sorcery', 'Draw three cards.', '{2}{U}', 'U', { tg: ['draw'] }), K('Small Draw', 'Sorcery', 'Draw two cards.', '{1}{U}', 'U', { tg: ['draw'] }),
+    ...'ABCDEFGH'.split('').map(x => cre(`Filler ${x}`, x < 'E' ? 'U' : 'B')),
+    K('Island', 'Basic Land — Island', '({T}: Add {U}.)', '', 'U', { tg: ['land'] }), K('Swamp', 'Basic Land — Swamp', '({T}: Add {B}.)', '', 'B', { tg: ['land'] }),
+  ]
+  const D = 8, emb = new Int8Array(cards.length * D)
+  let sd = 11
+  for (let k = 0; k < emb.length; k++) emb[k] = ((sd = (sd * 16807) % 2147483647) % 200) - 100
+  const sdata = prepData({ formats: F, dim: D }, cards, [], emb.buffer, new Float32Array(cards.length * 2).buffer)
+  const by = n => sdata.byName.get(n)
+  assert.ok(by('Fresh Murder').tg.includes('removal') && by('Big Draw').tg.includes('draw'), JSON.stringify([by('Fresh Murder').tg, by('Big Draw').tg]))
+  const deck = { ...emptyDeck('commander'), commanders: ['Cap Dimir'], main: { 'Old Murder': 1, 'Big Draw': 1, 'Small Draw': 1, ...Object.fromEntries('ABCDEFGH'.split('').map(x => [`Filler ${x}`, 1])), Island: 20, Swamp: 20 } }
+  const fmt = FORMAT.commander, cmdIdx = [by('Cap Dimir').i]
+  const have = [...deck.commanders, ...Object.keys(deck.main)].map(n => by(n).i)
+  const needs = { removal: [1, 8], draw: [2, 2] }  // compra no alvo: as cartas de compra não saem
+  const tags = { removal: 1, draw: 2, creature: 9 }, N = { lands: 40, target: 37, cols: { U: { have: 20, need: 15, full: 19 }, B: { have: 20, need: 15, full: 19 } } }
+  const ev = { exact: 8, winsExact: 4, dead: {}, impact: {}, cats: {}, cards: { 'Filler A': { seen: 6, seenW: 0 }, 'Filler H': { seen: 6, seenW: 6 } } }
+  const mk = tests => ({ bit: -1, allowUn: true, identity: 'UB', tests })
+  const rq = c => ({ seeds: have.filter(i => sdata.cards[i].mt !== 'Land'), seedTerms: [], have, ctx: c, commanders: cmdIdx, needs, deckSize: 99, turn: 8 })
+  const plan = reinforcePlan(sdata, deck, fmt, { roles: ['removal'], rq: rq(mk(ev)), N, needs, tags, ctx: mk(ev), commanders: cmdIdx })
+  const rows = plan[0].rows
+  assert.ok(rows.length >= 2, JSON.stringify(rows.map(r => r.add.c.n)))
+  for (const r of rows) {
+    assert.ok(r.add.c.tg.includes('removal') && [...r.add.c.ci].every(k => 'UB'.includes(k)) && !deck.main[r.add.c.n], `fora da função/identidade: ${r.add.c.n}`)
+    assert.ok(r.cut && r.cut.c.n !== 'Cap Dimir' && !r.cut.c.tg.includes('draw') && !r.cut.c.tg.includes('removal'), `corte proibido: ${r.cut?.c.n}`)
+  }
+  assert.ok(!rows.some(r => r.add.c.n === 'Red Burn'), 'Red Burn é vermelha: fora da identidade UB')
+  // sem outras cartas para sair, as de compra no alvo continuam protegidas: a linha só aparece se o deck tiver lugar
+  const tiny = { ...deck, main: { 'Big Draw': 1, 'Small Draw': 1, Island: 97 } }
+  assert.ok(reinforcePlan(sdata, tiny, fmt, { roles: ['removal'], rq: rq(mk(null)), N, needs, tags, ctx: mk(null), commanders: cmdIdx }).every(g => g.rows.every(r => !r.cut || r.cut.c.n !== 'Cap Dimir')))
+  // histórico: a Filler A (0 de 6 jogos ganhos quando apareceu) sai antes da Filler H (6 de 6), e mais cedo do que sem jogos
+  const Q0 = cutQueue(sdata, deck, { ctx: mk(null), commanders: cmdIdx, needs }), q0 = Q0.map(x => x.c.n), q1 = cutQueue(sdata, deck, { ctx: mk(ev), commanders: cmdIdx, needs })
+  const n1 = q1.map(x => x.c.n), sc = (q, n) => q.find(x => x.c.n === n).score
+  assert.ok(n1.indexOf('Filler A') < n1.indexOf('Filler H'), n1.join())
+  assert.ok(n1.indexOf('Filler A') <= q0.indexOf('Filler A') && n1.indexOf('Filler H') >= q0.indexOf('Filler H'), `${q0} → ${n1}`)
+  assert.ok(sc(q1, 'Filler A') < sc(Q0, 'Filler A') - 0.2 && sc(q1, 'Filler H') > sc(Q0, 'Filler H') + 0.2, 'o histórico pesa no corte')
+  assert.ok(n1[0] === 'Filler A', `a que perde sempre sai primeiro: ${n1}`)
+  assert.match(q1.find(x => x.c.n === 'Filler A').why[0], /ganhou \d+% menos quando apareceu \(0 de 6 jogos\)/)
+  assert.ok(!n1.includes('Cap Dimir'))
+  // tem/alvo: terrenos pelo manaNeeds; abaixo do alvo fica marcado
+  const rs = roleState(tags, needs, N, fmt)
+  assert.deepEqual(['removal', 'draw', 'land'].map(t => { const x = rs.find(y => y.t === t); return [x.have, x.target, x.low] }), [[1, 8, true], [2, 2, false], [40, 37, false]])
+  // 60 cartas: cópias até ao que falta para o alvo e nunca mais do que as da carta que sai
+  const d60 = { ...emptyDeck('modern'), main: { 'Old Murder': 2, 'Big Draw': 4, ...Object.fromEntries('ABCDEFGH'.split('').map(x => [`Filler ${x}`, 4])), Island: 11, Swamp: 11 } }
+  const h60 = Object.keys(d60.main).map(n => by(n).i), n60 = { removal: [2, 6], draw: [4, 4] }
+  const p60 = reinforcePlan(sdata, d60, FORMAT.modern, { roles: ['removal'], rq: { ...rq(mk(null)), have: h60, seeds: h60.filter(i => sdata.cards[i].mt !== 'Land'), commanders: [], needs: n60 }, N, needs: n60, tags: { removal: 2, draw: 4 }, ctx: mk(null) })
+  assert.ok(p60[0].rows.length && p60[0].rows.every(r => r.q >= 1 && r.q <= 4 && r.q <= d60.main[r.cut.c.n] && r.cut.c.n !== 'Big Draw'), JSON.stringify(p60[0].rows.map(r => [r.add.c.n, r.q, r.cut?.c.n])))
+  assert.equal(p60[0].rows[0].q, 4, 'faltam 4 remoções: entram 4 cópias da primeira')
+  console.log('selfcheck reforçar o deck (função e identidade, cortes protegidos, histórico dos testes, cópias) ok')
+}
 // Subcomandantes e comandantes «em ideia»: trocar de comandante (o que sai fica no deck marcado, ou no maybeboard se não
 // couber na nova identidade), trocar um de um par Partner/Background, e o peso leve nas sugestões sem mexer na legalidade.
 { const { prepData, recommend, passes } = await import('./src/data.js')

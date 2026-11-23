@@ -14,6 +14,7 @@ import { deckSynergy, deckThemes } from './synergy.js'
 import { manaNeeds, recommendLands, reanimTargets } from './mana.js'
 import { tx, num, LOCALE } from './i18n.js'
 import { prepareSwaps, cutPlan, landPlan } from './swap.js'
+import { roleState, cutQueue, reinforcePlan } from './reinforce.js'
 import AddOrSwap from './AddSwap.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
@@ -179,6 +180,73 @@ function FillPanel({ data, deck, fmt, ctx, act, recs, needs, meta }) {
         {plan.items.length > 0 && <button className="primary" onClick={() => plan.items.forEach(x => act.add(x.c, 'main', x.k))}>✓ {tx('Juntar todas ({n})', { n })}</button>}
         {n < plan.gap && <p className="small muted">{tx('Ainda ficam {n} por escolher: mais sugestões abaixo.', { n: plan.gap - n })}</p>}
       </div>
+    </div>
+  )
+}
+
+// 💪 Reforçar o deck: escolhem-se as funções de que o deck precisa mais (fica no deck: prefs.reforco) e, por função, as melhores
+// cartas novas, cada uma com a mais fraca a sair (deckCuts + jogos gravados; reinforce.js). Abaixo do tamanho: «Só juntar».
+const RFZ_BASE = ['removal', 'wipe', 'ramp', 'draw', 'counter', 'protection', 'recursion', 'tutor', 'land', 'creature', 'wincon']
+function ReinforcePanel({ data, deck, fmt, ctx, act, rq, recs, needs, deckStats, co, cmdIdx, meta, archetype }) {
+  const [open, setOpenS] = useState(() => { try { return localStorage.getItem('grimorio.reforcar') !== '0' } catch { return true } })
+  const setOpen = v => { setOpenS(v); try { localStorage.setItem('grimorio.reforcar', v ? '1' : '0') } catch { /* sem armazenamento */ } }
+  const sel = useMemo(() => deck.prefs?.reforco || [], [deck.prefs?.reforco])
+  const toggle = t => act.setPrefs({ reforco: sel.includes(t) ? sel.filter(x => x !== t) : [...sel, t] })
+  const N = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
+  const roles = useMemo(() => roleState(deckStats.tags, needs, N, fmt).sort((a, b) => b.low - a.low), [deckStats, needs, N, fmt])
+  const queue = useMemo(() => (open && sel.length ? cutQueue(data, deck, { ctx, co, commanders: cmdIdx, needs, recs, meta, archetype }) : null), [open, sel.length, data, deck, ctx, co, cmdIdx, needs, recs, meta, archetype])
+  const plan = useMemo(() => (queue ? reinforcePlan(data, deck, fmt, { roles: sel, rq: { ...rq, filters: rq.budget }, N, needs, tags: deckStats.tags, ctx, co, commanders: cmdIdx, meta, archetype, intent: rq.seedTerms, per: sel.length > 2 ? 3 : 4, queue }) : []),
+    [queue, data, deck, fmt, sel, rq, N, needs, deckStats, ctx, co, cmdIdx, meta, archetype])
+  const total = Object.values(deck.main).reduce((a, q) => a + q, 0) + deck.commanders.length, under = total < fmt.size[0]
+  const low = roles.filter(x => x.low)
+  const [more, setMore] = useState(false)  // as funções de tema (fichas, sacrifício…) num «+N»; as de base, as abaixo do alvo e as escolhidas à vista
+  const shown = more ? roles : roles.filter(x => RFZ_BASE.includes(x.t) || x.low || sel.includes(x.t))
+  const lbl = t => (t === 'land' ? tx('Terrenos') : TAG_LABEL[t])
+  const count = x => (x.target != null ? tx('tem {n} · alvo {m}', { n: x.have, m: x.target }) : tx('tem {n}', { n: x.have }))
+  return (
+    <div className={`prefs cutp rfz ${open ? 'on' : ''}`}>
+      <button className="prefs-head" onClick={() => setOpen(!open)}>
+        <span>💪 {tx('Reforçar o deck')}</span><small className="muted">{low.length ? <b className="bad-t">{tx('abaixo do alvo: {l}', { l: low.map(x => lbl(x.t).toLowerCase()).join(', ') })}</b> : tx('escolhe o que o deck precisa mais')}{sel.length > 0 && ` · ${tx('{n} função escolhida|{n} funções escolhidas', { n: sel.length })}`}</small><span className="chev">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <div className="cutp-body">
+          <p className="muted small">{tx('Escolhe uma ou mais funções: para cada uma, as cartas que melhor servem o deck, cada uma com a mais fraca a sair (pelas funções e pelos jogos gravados).')}</p>
+          <div className="fchips rfz-chips" role="group" aria-label={tx('Funções a reforçar')}>
+            {shown.map(x => (
+              <button key={x.t} className={`fchip ${sel.includes(x.t) ? 'on' : ''} ${x.low ? 'gap' : ''}`} aria-pressed={sel.includes(x.t)} onClick={() => toggle(x.t)}
+                title={x.low ? tx('O deck tem {a} de {b} recomendadas', { a: x.have, b: x.target }) : undefined}>
+                {lbl(x.t)}<b>{count(x)}</b>
+              </button>
+            ))}
+            {roles.length > shown.length || more ? <button className="fchip more" onClick={() => setMore(m => !m)}>{more ? tx('menos') : `+${roles.length - shown.length}`}</button> : null}
+            {sel.length > 0 && <button className="fchip clear" onClick={() => act.setPrefs({ reforco: [] })}>× {tx('limpar')}</button>}
+          </div>
+          {plan.map(g => { const x = roles.find(r => r.t === g.t); return (
+            <div key={g.t} className="rfz-role">
+              <h4>{lbl(g.t)} <span className={`small ${x?.low ? 'bad-t' : 'muted'}`}>{x && count(x)}</span></h4>
+              {!g.rows.length ? <p className="muted small">{tx('Sem cartas novas desta função que encaixem no deck (cores, formato e orçamento).')}</p>
+                : <ul className="cutp-list">{g.rows.map(r => { const a = r.add.c, o = r.cut?.c; return (
+                  <li key={a.n} {...hlProps([{ n: a.n, tone: 'in' }, ...(o ? [{ n: o.n, tone: 'out' }] : [])])}>
+                    <div className="cutp-pair">
+                      <button className="cutp-card in" onClick={() => act.open(a)}><img src={img(a, 'art_crop')} alt="" loading="lazy" /><span><b>+ {r.q > 1 ? `${r.q}× ` : ''}{a.n}</b><Mana cost={a.mc} /></span></button>
+                      <span className="cutp-arrow">⇄</span>
+                      {o ? <button className="cutp-card" onClick={() => { pin([{ n: o.n, tone: 'out' }]); act.open(o) }}><img src={img(o, 'art_crop', false, pidOf(deck, o.n))} alt="" loading="lazy" /><span><b>− {r.q > 1 ? `${r.q}× ` : ''}{o.n}</b><Mana cost={o.mc} /></span></button>
+                        : <span className="muted small">{tx('nada sai: o deck tem lugar')}</span>}
+                    </div>
+                    <div className="rfz-why">
+                      <ul className="why">{r.add.why.slice(0, 3).map((w, k) => <li key={k} className={k ? '' : 'tema'}><SymTxt text={w} /></li>)}</ul>
+                      {r.cut && <ul className="why">{r.cut.why.map((w, k) => <li key={k} className={w.startsWith(tx('Mas')) ? 'tema' : 'falta'}><SymTxt text={w} /></li>)}{r.cut.warn && <li className="falta"><b>{r.cut.warn}</b></li>}</ul>}
+                    </div>
+                    <div className="row-btns">
+                      {o && <button className="primary small" onClick={() => act.swap(a, { out: o.n, q: r.q })}>⇄ {tx('Trocar')}</button>}
+                      {(under || !o) && <button className={`small ${o ? '' : 'primary'}`} onClick={() => act.add(a, 'main', r.q)}>＋ {o ? tx('Só juntar') : tx('Juntar')}</button>}
+                    </div>
+                  </li>
+                ) })}</ul>}
+            </div>
+          ) })}
+        </div>
+      )}
     </div>
   )
 }
@@ -501,12 +569,14 @@ function useDeckRecs(data, deck, fmt, ctx0, filters0, limit) {
   const gcCount = useMemo(() => have.filter(i => data.cards[i].gc).length, [have, data])
   // plano do deck (temas com cópias reais); com sementes escolhidas, recommend tira-o das sementes
   const profile = useMemo(() => (seedsIdx.length ? null : deckThemes(data, deck.prefs?.cmdTexto === false ? { ...deck, commanders: [] } : deck).cats), [data, deck, seedsIdx.length])
-  const recs = useMemo(() => recommend(data, { seeds, seedTerms: intent, have: [...new Set([...have, ...seedsIdx])], ctx, filters, limit, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt), profile, ideas }),
-    [data, seeds, intent, have, seedsIdx, ctx, filters, limit, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt, profile, ideas])
+  // rq: os argumentos de recommend sem filtros nem limite (💪 Reforçar pede por função, com o orçamento das preferências)
+  const rq = useMemo(() => ({ seeds, seedTerms: intent, have: [...new Set([...have, ...seedsIdx])], ctx, commanders: cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, prefs: deck.prefs, tastes, deckSize: fmt.size[0] >= 99 ? 99 : Math.max(40, fmt.size[0] || 60), turn: comboTurn(fmt), profile, ideas, budget: pf?.orcamento ? { priceMax: pf.orcamento } : null }),
+    [seeds, intent, have, seedsIdx, ctx, cmdIdx, needs, co, deckStats, bracket, gcCount, meta, archetype, deck.prefs, tastes, fmt, profile, ideas, pf?.orcamento])
+  const recs = useMemo(() => recommend(data, { ...rq, filters, limit }), [data, rq, filters, limit])
   const plan = useMemo(() => deckPlan(data, have), [data, have])
   // trocas: preparadas só quando um «+» as pede (o rato em cima ou o menu aberto); swap.js guarda-as por deck
   const swaps = useMemo(() => (c, o) => prepareSwaps(data, deck, fmt, ctx, { co, archetype, meta, evidence: ctx.tests })(c, o), [data, deck, fmt, ctx, co, archetype, meta])
-  return { recs, seeds, seedsIdx, have, usingDeck: !seedsIdx.length, plan, profile, co, cmdIdx, needs, bracket, meta, archetype, tastes, swaps }
+  return { recs, seeds, seedsIdx, have, usingDeck: !seedsIdx.length, plan, profile, co, cmdIdx, needs, bracket, meta, archetype, tastes, swaps, rq, deckStats }
 }
 
 // o plano que as sugestões servem: os temas do deck (synergy.js), com as cartas que ativam e as que beneficiam
@@ -1093,7 +1163,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
   const df = useDeferredValue(f)
   const [kind, setKind] = useState('')
   const filtering = ['type', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].some(k => df[k] !== '' && df[k] != null) || df.colors.length > 0 || !!df.legendary
-  const { recs: allSug, seeds, usingDeck, needs, swaps, co, cmdIdx, meta, archetype, have, profile, plan } = useDeckRecs(data, deck, fmt, ctx, df, filtering ? 200 : 80)  // com filtros: mais cartas (senão as melhores pontuadas tapam o resto)
+  const { recs: allSug, seeds, usingDeck, needs, swaps, co, cmdIdx, meta, archetype, have, profile, plan, rq, deckStats } = useDeckRecs(data, deck, fmt, ctx, df, filtering ? 200 : 80)  // com filtros: mais cartas (senão as melhores pontuadas tapam o resto)
   const [sort, setSortS] = useState(() => { try { return localStorage.getItem('grimorio.sug.ordem') || 'score' } catch { return 'score' } })
   const setSort = v => { setSortS(v); try { localStorage.setItem('grimorio.sug.ordem', v) } catch { /* sem armazenamento */ } }
   const recs = useMemo(() => sortRecs(applyFilter(allSug, kind, ''), sort), [allSug, kind, sort])
@@ -1113,6 +1183,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
       </div>
       <PrefsPanel {...{ deck, fmt, act }} />
       <FillPanel {...{ data, deck, fmt, ctx, act, recs: allSug, needs, meta }} />
+      <ReinforcePanel {...{ data, deck, fmt, ctx, act, rq, recs: allSug, needs, deckStats, co, cmdIdx, meta, archetype }} />
       <CutPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug, co, cmdIdx, needs, meta, archetype }} />
       <AdjustPanel {...{ data, deck, fmt, ctx, act, needs }} />
       <LandPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug, co, meta }} />
