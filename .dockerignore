@@ -1,0 +1,9 @@
+.git
+.claude
+**/node_modules
+web/dist
+android
+work
+**/__pycache__
+web/*.png
+web/qa

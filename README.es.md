@@ -57,6 +57,31 @@ Si quieres instalarlo en un servidor doméstico para varios dispositivos, o desa
 
 ## En tu propio servidor Linux (Docker)
 
+La forma más rápida es la imagen oficial, con Forge y Java dentro: cualquier Linux con Docker (un mini PC, un portátil
+viejo, un NAS como Synology, QNAP, Unraid o TrueNAS), x86-64 o ARM64, con ~4 GB de RAM libre para las partidas.
+
+```bash
+mkdir grimorio && cd grimorio
+curl -LO https://raw.githubusercontent.com/hubertdungen/grimorio/main/docker-compose.yml
+docker compose up -d
+```
+
+Después abre `http://IP-DEL-SERVIDOR:8107`. En el primer arranque el contenedor descarga los datos de las cartas
+(~11 MB) al volumen `grimorio`, donde también quedan tus mazos, perfiles y partidas. Sin Compose:
+`docker run -d --name grimorio -p 8107:8107 -v grimorio:/data --restart unless-stopped ghcr.io/hubertdungen/grimorio`.
+
+- **Ajustes**, en un archivo `.env` junto a `docker-compose.yml`: `GRIMORIO_OWNER=tunombre` para un solo usuario (sin
+  perfiles); `GRIMORIO_PORT=8200` para otro puerto; `GRIMORIO_BIND=127.0.0.1` detrás de un proxy con login, para que
+  solo el proxy llegue a la app y la cabecera `Remote-User` que envía dé a cada login sus propios mazos;
+  `GRIMORIO_TAG=1.13.110` para quedarte en una versión.
+- **Actualizar:** `docker compose pull && docker compose up -d`. Antes de que una versión nueva abra la base de datos,
+  se guarda una copia en `backups/` dentro del volumen.
+- **Tu propia compilación:** clona este repositorio y ejecuta `docker compose up -d --build`.
+- El Coliseo, los torneos, la Arena y Forge Play ejecutan Forge dentro del contenedor. La ventana clásica de Forge en el
+  navegador (noVNC) necesita la instalación desde el código, abajo.
+
+### Desde el código (sin la imagen)
+
 Instala Grimório en un servidor en casa (un mini PC, un portátil viejo, un NAS con Linux) y ábrelo desde todos los
 móviles, tablets y ordenadores de la casa. El Coliseo ejecuta Forge en **Docker** y *Jugar contra Forge* funciona en el
 navegador. Hecho en Ubuntu 24.04 (otros Debian/Ubuntu recientes deberían

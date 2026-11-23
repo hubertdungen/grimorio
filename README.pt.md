@@ -55,6 +55,31 @@ Para o pôr a correr num servidor em casa para vários dispositivos, ou para o d
 
 ## No teu servidor Linux (Docker)
 
+O caminho mais rápido é a imagem oficial, com o Forge e o Java lá dentro: qualquer Linux com Docker (um mini PC, um
+portátil antigo, um NAS como Synology, QNAP, Unraid ou TrueNAS), x86-64 ou ARM64, com ~4 GB de RAM livre para os jogos.
+
+```bash
+mkdir grimorio && cd grimorio
+curl -LO https://raw.githubusercontent.com/hubertdungen/grimorio/main/docker-compose.yml
+docker compose up -d
+```
+
+Depois abre `http://IP-DO-SERVIDOR:8107`. No primeiro arranque o contentor descarrega os dados das cartas (~11 MB) para
+o volume `grimorio`, onde ficam também os teus decks, perfis e jogos. Sem o Compose:
+`docker run -d --name grimorio -p 8107:8107 -v grimorio:/data --restart unless-stopped ghcr.io/hubertdungen/grimorio`.
+
+- **Definições**, num ficheiro `.env` ao lado do `docker-compose.yml`: `GRIMORIO_OWNER=onome` para um só utilizador
+  (sem perfis); `GRIMORIO_PORT=8200` para outra porta; `GRIMORIO_BIND=127.0.0.1` atrás de um proxy com login, para que
+  só o proxy chegue à app e o cabeçalho `Remote-User` que ele envia dê a cada login os seus decks;
+  `GRIMORIO_TAG=1.13.110` para ficar numa versão.
+- **Atualizar:** `docker compose pull && docker compose up -d`. Antes de uma versão nova abrir a base de dados, vai uma
+  cópia para `backups/` no volume.
+- **Compilar tu mesmo:** clona este repositório e corre `docker compose up -d --build`.
+- O Coliseu, os torneios, a Arena e o Forge Play correm o Forge dentro do contentor. A janela clássica do Forge no
+  browser (noVNC) precisa da instalação a partir do código, abaixo.
+
+### A partir do código (sem a imagem)
+
 Põe o Grimório num servidor em casa (um mini PC, um portátil antigo, um NAS com Linux) e abre-o em todos os
 telemóveis, tablets e computadores da casa. O Coliseu corre o Forge em **Docker** e o *Jogar contra o Forge* funciona no
 browser. Feito em Ubuntu 24.04 (outros Debian/Ubuntu recentes devem

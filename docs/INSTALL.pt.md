@@ -124,6 +124,21 @@ Dicas:
 **Ctrl+C** no terminal (Linux; fechar o terminal também o para). Os jogos do Forge que estiverem a decorrer também
 param. Os teus decks são guardados à medida que trabalhas: não se perde nada.
 
+## Docker (num servidor ou NAS)
+
+Para correr o Grimório num servidor de casa para todos os telemóveis, tablets e computadores, usa a imagem Docker
+oficial (x86-64 e ARM64; o Forge e o Java vêm lá dentro):
+
+```bash
+mkdir grimorio && cd grimorio
+curl -LO https://raw.githubusercontent.com/hubertdungen/grimorio/main/docker-compose.yml
+docker compose up -d
+```
+
+Abre `http://IP-DO-SERVIDOR:8107`. Os teus dados ficam no volume Docker `grimorio` (`/data` no contentor); para
+atualizar, `docker compose pull && docker compose up -d`. Definições (um só utilizador, outra porta, proxy com login):
+[No teu servidor Linux](../README.pt.md#no-teu-servidor-linux-docker).
+
 ## Onde ficam os teus dados
 
 | Sistema | Pasta |
