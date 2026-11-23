@@ -108,7 +108,7 @@ export function exportList(deck, { maybe = true } = {}) {  // maybe: junta o may
 
 // a lista no formato de cada site: [{label, text}] — um bloco por caixa de texto do site (o TappedOut tem uma caixa por zona)
 export const EXPORT_SITES = ['grimorio', 'tappedout', 'archidekt', 'nomes']
-export function exportFor(deck, site) {
+export function exportFor(deck, site, { setOk } = {}) {  // setOk(código): a edição existe no site (TappedOut)
   const zones = (f) => {
     const out = []
     const each = (n, q) => {
@@ -127,7 +127,7 @@ export function exportFor(deck, site) {
   if (site === 'tappedout') {  // comandante na caixa principal com *CMDR*; sideboard e maybeboard nas caixas deles; sem n.º de coleção
     // o TappedOut recusa a lista inteira por um código de edição que não conhece («Printings not found: Island (P23)»):
     // os promos do Scryfall (P23, PLST, PRM, PSLD…: «p» + 2 a 4 letras/números) vão sem edição
-    const toSet = pr => (pr?.set && !/^p[a-z0-9]{2,4}$/i.test(pr.set) ? ` (${pr.set.toUpperCase()})` : '')
+    const toSet = pr => (pr?.set && (setOk ? setOk(pr.set.toLowerCase()) : !/^p[a-z0-9]{2,4}$/i.test(pr.set)) ? ` (${pr.set.toUpperCase()})` : '')
     const ls = zones((z, n, q, pr) => ({ z, t: `${q}x ${n}${toSet(pr)}${pr?.foil && toSet(pr) ? ' *F*' : ''}${z === 'cmd' ? ' *CMDR*' : ''}` }))
     return [['Mainboard', ls.filter(x => x.z === 'cmd' || x.z === 'main')], ['Sideboard', ls.filter(x => x.z === 'side')], ['Maybeboard', ls.filter(x => x.z === 'maybe')]]
       .filter(([, l]) => l.length).map(([label, l]) => ({ label, text: l.map(x => x.t).join('\n') }))

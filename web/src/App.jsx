@@ -15,6 +15,7 @@ import ThemeArtDialog, { ThemeArtBtn } from './ThemeArt.jsx'
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf, pairOk } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf, exportFor } from './deck.js'
 import { createPortal } from 'react-dom'
+import { VOC } from './vocab.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
 import { SearchView, SuggestView, MapView, CombosView, AnalysisView, CardModal, AutoBuildDialog, AIDialog, DeckGrid, ArtPicker, BasicBar, useDeckSel, SelBar, deckFit, BadCards, badProps } from './Views.jsx'
 import { landProd } from './AnalysisDash.jsx'
@@ -776,7 +777,10 @@ function CopyList({ deck, data, act, onClose }) {
   const deckX = shown ? { ...deck, prints: { ...shown, ...(deck.prints || {}) } } : deck
   const [site, setSite] = useState(() => { try { return localStorage.getItem('grimorio.copySite') || 'grimorio' } catch { return 'grimorio' } })
   useEffect(() => { try { localStorage.setItem('grimorio.copySite', site) } catch { /* sem armazenamento */ } }, [site])
-  const blocks = exportFor(deckX, site)
+  // o TappedOut só conhece as edições físicas normais: as que estão no vocabulário de edições (sem promos nem digitais, como
+  // ME1, P23, VMA) e sem a antologia Duel Decks (DVD, EVG, GVL, JVC); as outras vão sem edição
+  const setOk = VOC.on ? k => VOC.sets.has(k) && !['dvd', 'evg', 'gvl', 'jvc'].includes(k) : undefined
+  const blocks = exportFor(deckX, site, { setOk })
   const cp = async t => { try { await navigator.clipboard.writeText(t); act.say(tx('Lista copiada.')) } catch { act.say(tx('O browser não deixou copiar; seleciona o texto e copia à mão.')) } }
   const hint = { grimorio: tx('Moxfield, Grimório e afins: secções Commander / Deck / Sideboard / Maybeboard, com a edição de cada carta.'),
     tappedout: tx('TappedOut: cola cada bloco na caixa com o mesmo nome (Mainboard, Sideboard, Maybeboard); o comandante vai marcado *CMDR*.'),
