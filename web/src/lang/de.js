@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Esconde as cartas que já estão no deck": "Blendet Karten aus, die schon im Deck sind",
   "Edição (40K, Warhammer…)": "Edition (40K, Warhammer…)",
   "A juntar as edições das artes que se veem no deck…": "Hole die Editionen der Bilder, die im Deck zu sehen sind…",
   "Sem ligação ao Scryfall: as cartas sem edição escolhida vão só com o nome.": "Keine Verbindung zu Scryfall: Karten ohne gewählte Edition gehen nur mit dem Namen.",

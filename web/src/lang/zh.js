@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Esconde as cartas que já estão no deck": "隐藏已在套牌中的卡牌",
   "Edição (40K, Warhammer…)": "系列（40K、战锤…）",
   "A juntar as edições das artes que se veem no deck…": "正在获取套牌中显示的卡图版本…",
   "Sem ligação ao Scryfall: as cartas sem edição escolhida vão só com o nome.": "无法连接 Scryfall：未选版本的卡牌只带名称。",

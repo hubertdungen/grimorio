@@ -974,7 +974,12 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     return used ? new Set(pool.map(c => c.n)) : null
   }, [setHit, setList, data, dq])
   const qq = setHit ? (uniWords ? '' : setHit.rest) : dq
-  const dff = useMemo(() => (setHit ? { ...df, names: uniWords || setList || new Set() } : df), [df, setHit, setList, uniWords])
+  // «Fora do deck»: esconde as cartas que já estão no deck (comandantes, principal e sideboard)
+  const [notIn, setNotIn] = useState(() => { try { return localStorage.getItem('grimorio.search.notIn') === '1' } catch { return false } })
+  useEffect(() => { try { localStorage.setItem('grimorio.search.notIn', notIn ? '1' : '0') } catch { /* sem armazenamento */ } }, [notIn])
+  const inDeckSet = useMemo(() => new Set([...(deck.commanders || []), ...Object.keys(deck.main || {}), ...Object.keys(deck.side || {})]), [deck])
+  const dff0 = useMemo(() => (setHit ? { ...df, names: uniWords || setList || new Set() } : df), [df, setHit, setList, uniWords])
+  const dff = useMemo(() => (notIn ? { ...dff0, pred: c => !inDeckSet.has(c.n) && (!dff0.pred || dff0.pred(c)) } : dff0), [dff0, notIn, inDeckSet])
   const [noVs, setNoVs] = useState('')  // frase em que o utilizador tirou o «contra X» (✕ no chip)
   const nl = useMemo(() => (raw === qq ? null : parseQuery(qq, { types: CREATURE_TYPES, noVs: noVs === qq })), [qq, raw, noVs])
   const [anyFmt, setAnyFmt] = useState(false)  // mostrar também cartas que o formato do deck esconde (só para esta pesquisa)
@@ -1021,6 +1026,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
         <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Nome, ou uma frase em qualquer língua: «encantamento que dê flying até 2», «terrenos que compram cartas»…')} className="big" />
         <button className="scan-btn" onClick={act.scan} title={tx('Ler uma carta pela câmara ou por uma foto')} aria-label={tx('Ler carta')}>📷</button>
         <label className="chk"><input type="checkbox" checked={f.inText} onChange={e => setF(x => ({ ...x, inText: e.target.checked }))} /> {tx('também no texto')}</label>
+        <label className="chk" title={tx('Esconde as cartas que já estão no deck')}><input type="checkbox" checked={notIn} onChange={e => setNotIn(e.target.checked)} /> {tx('fora do deck')}</label>
         <select value={f.sort} onChange={e => setF(x => ({ ...x, sort: e.target.value }))} aria-label={tx('Ordenar')}>
           <option value="pop">{tx('Mais jogadas')}</option><option value="name">{tx('Nome')}</option><option value="cmc">{tx('Custo')}</option><option value="price">{tx('Preço')}</option><option value="new">{tx('Mais recentes')}</option>
         </select>
