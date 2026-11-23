@@ -12,7 +12,7 @@ const LOGR = Math.log(40000)
 // Qualidade numa função: sinergia geral + popularidade + custo baixo + inclusão real nos decks do comandante.
 // O tema pedido (semente) e o plano contam até 0,25: uma muralha que remove entra antes do Path to Exile só se for boa
 // na função; senão, a função fica com a carta forte e o tema com os lugares de sinergia.
-function roleQuality(r, staples = true, edh = true) {
+export function roleQuality(r, staples = true, edh = true) {
   const c = r.c, P = r.parts || {}, theme = (P.semente || 0) + (P.plano || 0), mv = /\{X\}/.test(c.mc || '') ? Math.max(2, c.cmc) : c.cmc  // Walking Ballista não custa 0
   // a popularidade do EDHREC pesa nos decks de 100 cartas; nos de 60 manda o meta, que já está no score
   return r.score - theme + Math.min(0.25, (P.semente || 0) + 0.5 * (P.plano || 0)) + (staples && edh ? 0.3 : 0) * (c.er ? Math.max(0, 1 - Math.log(c.er) / LOGR) : 0) +

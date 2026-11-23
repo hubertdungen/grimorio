@@ -1,3 +1,4 @@
+import { roleQuality } from './autobuild.js'
 // 💪 Reforçar o deck: escolhem-se as funções de que o deck precisa mais (remoção, ramp, terrenos…) e, por função, as melhores
 // cartas novas (recommend: plano, tribo, comandante, combos, EDHREC, orçamento), cada uma com a carta que sai: a mais fraca
 // do deck pelas funções (deckCuts) e pelo histórico dos testes (quem ganha menos quando aparece sai primeiro).
@@ -90,7 +91,11 @@ export function reinforcePlan(data, deck, fmt, { roles = [], rq, N, needs = {}, 
   for (const t of roles) {
     const adds = t === 'land'
       ? recommendLands(data, { deck, fmt, ctx: rq.ctx, co, meta, need: N, limit: per * 3, terms: intent }).map(r => ({ c: r.c, why: r.why.map(w => w.txt) }))
-      : recommend(data, { ...rq, filters: { ...(rq.filters || {}), tag: t }, limit: per * 3 }).filter(r => r.c.tg.includes(t)).map(r => ({ c: r.c, why: r.why.map(w => w.txt) }))
+      // a qualidade na função manda (custo, popularidade, decks reais); o tema só desempata até 0,25 — pedir «remoção» num
+      // deck de piratas traz boa remoção (de preferência pirata), e não um pirata que remove mal
+      : recommend(data, { ...rq, filters: { ...(rq.filters || {}), tag: t }, limit: per * 6 }).filter(r => r.c.tg.includes(t))
+        .sort((a, b) => roleQuality(b, rq.prefs?.staples !== false, rq.prefs?.cmdEdh !== false) - roleQuality(a, rq.prefs?.staples !== false, rq.prefs?.cmdEdh !== false))
+        .slice(0, per * 3).map(r => ({ c: r.c, why: r.why.map(w => w.txt) }))
     const target = t === 'land' ? N?.target : needs[t]?.[1]
     const rows = []
     let landsIn = 0
