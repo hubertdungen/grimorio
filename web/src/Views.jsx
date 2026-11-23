@@ -956,15 +956,19 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
   // dentro de um universo, as outras palavras («marines», «imperium», «tyranids», «chaos») procuram no nome, no tipo e no
   // texto das cartas (com plurais e alguns sinónimos das fações); se nenhuma bater, ficam para a pesquisa normal
   const uniWords = useMemo(() => {
-    if (!setHit?.local || !setHit.rest) return null
-    const ws = unaccent(setHit.rest.toLowerCase()).split(/[^a-z0-9']+/).filter(w => w.length >= 3)
-    if (!ws.length || !setList) return null
+    if (!setHit?.local || !setList) return null
+    // todas as palavras escritas (também as que são outro nome do universo, como «tyranids» no Warhammer): cada uma filtra só
+    // se bater em algumas cartas do universo — as que batem em nenhuma ou em quase todas («warhammer») não contam
+    const ws = [...new Set(unaccent(dq.toLowerCase()).split(/[^a-z0-9']+/).filter(w => w.length >= 3))]
     const forms = w => { const b = w.replace(/(ies)$/, 'y').replace(/(es|s)$/, ''); return [...new Set([w, b, ...(UNI_SYN[b] || UNI_SYN[w] || [])])] }
-    const all = ws.map(forms)
     const hay = c => unaccent(`${c.n} ${c.t} ${c.o || ''}`.toLowerCase())
-    const hit = [...setList].filter(n => { const c = data.byName.get(n); if (!c) return false; const h = hay(c); return all.every(fs => fs.some(f => h.includes(f))) })
-    return hit.length ? new Set(hit) : null
-  }, [setHit, setList, data])
+    let pool = [...setList].map(n => data.byName.get(n)).filter(Boolean), used = 0
+    for (const w of ws) {
+      const fs = forms(w), next = pool.filter(c => { const h = hay(c); return fs.some(f => h.includes(f)) })
+      if (next.length && next.length < pool.length * 0.8) { pool = next; used++ }
+    }
+    return used ? new Set(pool.map(c => c.n)) : null
+  }, [setHit, setList, data, dq])
   const qq = setHit ? (uniWords ? '' : setHit.rest) : dq
   const dff = useMemo(() => (setHit ? { ...df, names: uniWords || setList || new Set() } : df), [df, setHit, setList, uniWords])
   const [noVs, setNoVs] = useState('')  // frase em que o utilizador tirou o «contra X» (✕ no chip)
@@ -996,7 +1000,13 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     return { ...res, cards: cards.slice(0, 150) }
   }, [res, cmdMode, fit])
   // o formato do deck escondeu cartas com este nome? (ex.: Gaea's Cradle num deck de Pauper)
-  const hidden = useMemo(() => (!anyFmt && dq.trim().length > 2 && (ctx.bit >= 0 || ctx.identity != null) ? Math.max(0, search(data, dq, F0, { bit: -1, allowUn: true }, 1).total - search(data, dq, F0, ctx, 1).total) : 0), [data, dq, ctx, anyFmt])
+  // escondidas pelo deck: separa as que o formato não deixa das que só ficam fora da identidade do comandante (a The Horus
+  // Heresy é legal em Commander, mas UBR não cabe num deck BUW)
+  const [hidden, hidId] = useMemo(() => {
+    if (anyFmt || dq.trim().length <= 2 || (ctx.bit < 0 && ctx.identity == null)) return [0, 0]
+    const all = search(data, dq, F0, { bit: -1, allowUn: true }, 1).total, legal = search(data, dq, F0, { ...ctx, identity: null }, 1).total, mine = search(data, dq, F0, ctx, 1).total
+    return [Math.max(0, all - legal), Math.max(0, legal - mine)]
+  }, [data, dq, ctx, anyFmt])
   const [showF, setShowF] = useState(false)
   const [swaps, setSwaps] = useState(null)
   const nActive = ['type', 'legendary', 'tag', 'sub', 'cmcMin', 'cmcMax', 'rarity', 'priceMax'].filter(k => f[k]).length + (f.colors.length ? 1 : 0) + (f.colorless ? 1 : 0)
@@ -1025,7 +1035,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
         {shownRes.cards.map(c => { const fl = res.fl?.get(c.i) || (setHit?.local && flavorOf(c, setHit.set.code))  // entrou por outro nome: a imagem dessa impressão
           return <CardTile key={c.i} c={c} pid={pidOf(deck, c.n) || fl?.id} onOpen={act.open} actions={<Actions {...{ c, deck, fmt, act, swaps }} />} note={<>{fl && <p className="small muted tile-fl" title={tx('Também conhecida como {n}', { n: `${fl.n} (${fl.set.toUpperCase()})` })}>«{fl.n}» · {fl.set.toUpperCase()}</p>}{res.nl?.f.vs && <VsWhy c={c} nl={res.nl} />}</>} /> })}
       </div>
-      {hidden > 0 && <p className="small fmt-hidden">{tx('{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}', { n: hidden, f: ctx.identity != null && ctx.bit < 0 ? tx('na identidade do comandante') : fmt.name })} <button className="link small" onClick={() => setAnyFmt(true)}>{tx('mostrar mesmo assim')}</button></p>}
+      {(hidden > 0 || hidId > 0) && <p className="small fmt-hidden">{[hidden > 0 && tx('{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}', { n: hidden, f: fmt.name }), hidId > 0 && tx('{n} carta com este nome é legal mas fica fora da identidade de cor do comandante ({id})|{n} cartas com este nome são legais mas ficam fora da identidade de cor do comandante ({id})', { n: hidId, id: ctx.identity || tx('incolor') })].filter(Boolean).join(' · ')} <button className="link small" onClick={() => setAnyFmt(true)}>{tx('mostrar mesmo assim')}</button></p>}
       {anyFmt && <p className="small fmt-hidden">{tx('A mostrar cartas de todos os formatos.')} <button className="link small" onClick={() => setAnyFmt(false)}>{tx('só as legais')}</button></p>}
       {!res.total && <Empty>{tx('Nenhuma carta com estes filtros.')}</Empty>}
       </div>

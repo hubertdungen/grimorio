@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "{n} carta com este nome é legal mas fica fora da identidade de cor do comandante ({id})|{n} cartas com este nome são legais mas ficam fora da identidade de cor do comandante ({id})": "{n} carta con este nombre es legal pero queda fuera de la identidad de color del comandante ({id})|{n} cartas con este nombre son legales pero quedan fuera de la identidad de color del comandante ({id})",
   "Habilidades, palavras-chave e estratégia tiradas do texto do comandante (semelhança e plano). Desligado, o texto dele deixa de puxar cartas.": "Habilidades, palabras clave y estrategia sacadas del texto del comandante (similitud y plan). Desactivado, su texto deja de atraer cartas.",
   "sem os decks reais do comandante": "sin los mazos reales del comandante",
   "Usar os decks reais do comandante (EDHREC)": "Usar los mazos reales del comandante (EDHREC)",

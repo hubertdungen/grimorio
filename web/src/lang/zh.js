@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "{n} carta com este nome é legal mas fica fora da identidade de cor do comandante ({id})|{n} cartas com este nome são legais mas ficam fora da identidade de cor do comandante ({id})": "{n} 张同名卡合法，但超出指挥官的颜色标识（{id}）|{n} 张同名卡合法，但超出指挥官的颜色标识（{id}）",
   "Habilidades, palavras-chave e estratégia tiradas do texto do comandante (semelhança e plano). Desligado, o texto dele deixa de puxar cartas.": "从指挥官文字中得出的异能、关键词和策略（相似度与套牌计划）。关闭时，它的文字不再拉入卡牌。",
   "sem os decks reais do comandante": "不用指挥官的真实套牌",
   "Usar os decks reais do comandante (EDHREC)": "使用指挥官的真实套牌（EDHREC）",
