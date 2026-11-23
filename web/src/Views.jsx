@@ -1626,13 +1626,18 @@ const SHOW_FORMATS = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pau
 function Prints({ c, deck, act, onPreview, extra }) {  // extra: botões na mesma fila do filtro de estilos («✨ Criar alter art»)
   const [prints, setPrints] = useState(null)
   const [err, setErr] = useState(false)
-  const [style, setStyle] = useState('')
+  const [style, setStyle] = useState(''), [setQ, setSetQ] = useState('')  // setQ: edição (código ou nome: «40k», «warhammer»)
   useEffect(() => { fetchPrints(c.n).then(setPrints).catch(() => setErr(true)) }, [c.n])
   const chosen = deck.prints?.[c.n]
   if (err) return <p className="muted small">{tx('Não consegui falar com a Scryfall para ver as edições.')}</p>
   if (!prints) return <p className="muted small">{tx('A procurar edições e estilos…')}</p>
   const styles = [...new Set(prints.flatMap(p => p.style))].filter(x => x.length > 2)
-  const shown = style ? prints.filter(p => p.style.includes(style)) : prints
+  // as edições que o deck já usa (a do tema, 40K…) como atalhos, se esta carta tiver impressões nelas
+  const deckSets = [...new Set(Object.values(deck.prints || {}).map(x => String(x?.set || '').toLowerCase()).filter(Boolean))]
+  const quick = deckSets.filter(k => prints.some(p => p.set.toLowerCase() === k)).slice(0, 4)
+  const sq = setQ.trim().toLowerCase()
+  const bySet = p => !sq || p.set.toLowerCase() === sq || (sq.length >= 3 && (p.setName || '').toLowerCase().includes(sq))
+  const shown = prints.filter(p => (!style || p.style.includes(style)) && bySet(p))
   const pick = (p, foil = false) => { act.setPrint(c, { id: p.id, set: p.set, cn: p.cn, eur: p.eur, eurFoil: p.eurFoil, style: p.style, foil }); onPreview(p.id) }
   return (
     <>
@@ -1641,6 +1646,8 @@ function Prints({ c, deck, act, onPreview, extra }) {  // extra: botões na mesm
           <option value="">{tx('Todas ({n})', { n: prints.length })}</option>
           {styles.map(x => <option key={x} value={x}>{x} ({prints.filter(p => p.style.includes(x)).length})</option>)}
         </select>
+        <input className="pr-set" value={setQ} onChange={e => setSetQ(e.target.value)} placeholder={tx('Edição (40K, Warhammer…)')} aria-label={tx('Edição')} />
+        {quick.map(k => <button key={k} className={`chip ${sq === k ? 'on' : ''}`} onClick={() => setSetQ(sq === k ? '' : k)}>{k.toUpperCase()}</button>)}
         {(chosen || deck.art?.[c.n]) && <button onClick={() => { act.setPrint(c, null); onPreview(null) }}>{tx('Voltar à predefinida')}</button>}
         {extra}
       </div>

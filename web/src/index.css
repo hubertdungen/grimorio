@@ -4684,3 +4684,6 @@ select.demote:hover { border-color: var(--gold); }
 .cl-block { display: grid; gap: 4px; }
 .cl-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .cl-block textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12.5px; resize: vertical; }
+
+/* arte da carta: filtro por edição */
+.pr-set { width: 160px; min-width: 0; }
