@@ -1373,3 +1373,38 @@ import { ptExplain } from './src/game.js'
   assert.deepEqual(n({}), ['1 Atraxa, Praetors\' Voice', '1 Sol Ring', '2 Lightning Bolt'])
   console.log('selfcheck proxies por zona ok')
 }
+
+// Intenção explícita (data.js intentTerms/intentHit, newdeck.js): os temas pedidos e o que as cartas de partida partilham;
+// um payoff que fala do tema conta como do tema; o comandante desligado deixa de puxar a tribo dele. Cartas inventadas.
+{ const { prepData, intentTerms, intentHit, recommend } = await import('./src/data.js')
+  const { likeSeedTerms } = await import('./src/newdeck.js')
+  const mk = (n, t, o = '', x = {}) => ({ n, t, o, mc: '{1}{G}', cmc: 2, ci: 'G', co: 'G', lg: 1 << 6, rs: 0, r: 'c', tg: [], kw: [], er: 100, un: 0, pt: '0/4', ...x })
+  const cards = [mk('Wall A', 'Creature — Wall', 'Defender', { kw: ['Defender'] }), mk('Wall B', 'Creature — Plant Wall', 'Defender', { kw: ['Defender'] }), mk('Wall C', 'Creature — Wall', 'Defender', { kw: ['Defender'] }),
+    mk('Formation', 'Enchantment', 'Each creature you control assigns combat damage equal to its toughness rather than its power.'),
+    mk('Wall Lord', 'Creature — Elf', 'Walls you control get +1/+1 and can attack as though they didn\'t have defender.'),
+    mk('Hero Pal', 'Creature — Human Hero', 'Other Heroes you control get +1/+1.', { pt: '2/2' }), mk('Hero Two', 'Creature — Human Hero', '', { pt: '2/2' }),
+    mk('Captain', 'Legendary Creature — Human Hero', 'Create a 0/3 Wall creature token with defender.', { cmc: 3, pt: '2/3' })]
+  const data = prepData({ formats: F, dim: 1 }, cards, [], new Int8Array(cards.length).fill(64).buffer, new ArrayBuffer(0))
+  const I = n => cards.findIndex(c => c.n === n), T = intentTerms(data, { seeds: ['Wall A', 'Wall B', 'Wall C'] })
+  assert.deepEqual(T.filter(t => t.k === 'sub').map(t => t.v), ['Wall'], 'as cartas de partida: Wall (Plant só numa)')
+  assert.ok(T.some(t => t.k === 'kw' && t.v === 'Defender'))
+  assert.ok(intentHit(cards[I('Wall Lord')], T).rw > 0, 'fala de Walls: serve o tema')
+  assert.equal(intentHit(cards[I('Hero Pal')], T).sw + intentHit(cards[I('Hero Pal')], T).rw, 0)
+  // ★ vale mais, os relacionados menos; estratégias entram como termos
+  const st = likeSeedTerms({ terms: [{ k: 'sub', v: 'Wall', u: 1 }, { k: 'kw', v: 'Defender' }], arch: ['aggro'], tags: [] }, ['t:kw:Defender'])
+  assert.deepEqual(st, [{ k: 'kw', v: 'Defender', s: 1 }, { k: 'sub', v: 'Wall' }, { k: 'arch', v: 'aggro' }])
+  assert.deepEqual(intentTerms(data, { seedTerms: st, seeds: ['Hero Pal', 'Hero Two', 'Captain'] }).map(t => t.w), [1.5, 1, 1], 'com temas escritos as sementes não inventam tribo')
+  const seeds = [I('Captain'), I('Wall A'), I('Wall B'), I('Wall C')], ctx = { bit: -1, identity: 'G', allowUn: false }
+  const rec = prefs => recommend(data, { seeds, have: seeds, ctx, filters: { noLands: true }, seedTerms: T, commanders: [I('Captain')], prefs, limit: 9 })
+  const top = rec({}).map(r => r.c.n)
+  assert.ok(top.indexOf('Wall Lord') < top.indexOf('Hero Pal'), 'o payoff das muralhas antes da tribo do comandante: ' + top)
+  assert.ok(rec({ cmdTipo: false }).find(r => r.c.n === 'Hero Pal').parts.tipoCmd < 0, 'sem o tipo do comandante, um Human Hero fora do tema desce')
+  assert.equal(rec({ cmdTexto: false }).find(r => r.c.n === 'Hero Pal').parts.comandante, 0, 'sem o texto do comandante, a semelhança com ele não conta')
+  console.log('selfcheck intenção explícita (temas, ★, sementes, comandante desligado) ok')
+}
+// Os casos reais (deckeval.mjs --fast: Invisible Woman + muralhas, Morophon + changelings), quando há dados locais.
+{ const { spawnSync } = await import('node:child_process')
+  const r = spawnSync(process.execPath, [new URL('./deckeval.mjs', import.meta.url).pathname, '--check', '--fast'], { encoding: 'utf8', timeout: 600000 })
+  process.stdout.write(r.stdout.split('\n').filter(l => /^[✓✗]|deckeval/.test(l)).map(l => `  ${l}\n`).join(''))
+  assert.equal(r.status, 0, 'deckeval --fast: ' + (r.stdout + r.stderr).slice(-600))
+}

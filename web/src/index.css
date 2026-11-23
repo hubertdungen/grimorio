@@ -378,6 +378,7 @@ h2 .mana img { width: 20px; height: 20px; }
 .prefs-head { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; background: none; border: none; padding: 8px 12px; }
 .prefs-head span:first-child { font-weight: 600; color: #c794ff; white-space: nowrap; }
 .prefs-head small { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prefs-cmd { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 0 12px 8px; }
 .prefs-body { display: grid; gap: 10px; padding: 4px 12px 12px; }
 .prefs-body fieldset { border: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .prefs-body fieldset:disabled { opacity: .45; }

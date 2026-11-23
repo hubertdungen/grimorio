@@ -6,7 +6,7 @@ import { tx, num, LOCALE } from './i18n.js'
 import { deckThemes } from './synergy.js'
 import { hateMatch, hateScore } from './hate.js'
 import { setVocab, setOriginals, flavorHit, norm } from './vocab.js'
-import { archScore, archRank } from './archetypes.js'
+import { ARCH, archScore, archRank } from './archetypes.js'
 
 // funções a mais, tiradas do texto ao carregar (os dados só trazem as 20 do build_data): moer, dano direto, reforço,
 // piscar, devolver à mão, copiar, roubar, drenar, escolher cartas, reduzir custos, desvirar, turno extra, landfall, taxar
@@ -128,6 +128,21 @@ export function fetchEdh(kind, name) {
   const key = `${kind}/${edhSlug(name)}`
   if (!edhCache.has(key)) edhCache.set(key, fetch(`/api/edhrec/${key}`).then(r => r.json()).catch(() => ({ cards: [] })))
   return edhCache.get(key)
+}
+
+// Co-ocorrência do EDHREC já indexada por carta: [{kind, i, d}] (d = resposta de fetchEdh) → Map(i → [{kind, from, incl, pot, lift, syn}]).
+export function edhIndex(data, all) {
+  const m = new Map()
+  for (const { kind, i, d } of all) {
+    const from = data.cards[i].n
+    for (const [n, num, pot, lift, syn] of d.cards || []) {
+      const c = data.byName.get(n) || data.byLower.get(n.toLowerCase())
+      if (!c || !pot || (kind === 'cards' && !lift)) continue
+      if (!m.has(c.i)) m.set(c.i, [])
+      m.get(c.i).push({ kind, from, incl: num / pot, pot, lift, syn })
+    }
+  }
+  return m
 }
 
 export const COLORS = { W: tx('Branco'), U: tx('Azul'), B: tx('Preto'), R: tx('Vermelho'), G: tx('Verde') }
@@ -594,7 +609,51 @@ export function termMatch(c, t) {
   if (t.k === 'rar') return c.r === t.v  // raridade (c/u/r/m)
   if (t.k === 'mv') return t.v === '7+' ? c.cmc >= 7 : c.cmc === +t.v && !/Land/.test(c.t)  // custo de mana
   if (t.k === 'set') return setOriginals(t.v).has(c.i)  // edição/universo: as cartas que nasceram lá (vocab.js)
+  if (t.k === 'arch') return archScore(c, t.v) >= 1  // estratégia (archetypes.js): a carta serve-a
+  if (t.k === 'tag') return c.tg.includes(t.v)  // função (remoção, ramp…)
   return c.t.split('—')[0].includes(t.v)
+}
+
+// Intenção explícita do deck: os temas do «Gosto de…» (★ valem 1,5; os relacionados, ligados sem escolha, 0,5 e as funções 0,3);
+// sem eles, o que as
+// cartas de partida têm em comum (≥ 3 e ≥ 40% das criaturas com o mesmo tipo; ≥ 3 e ≥ 60% com a mesma habilidade).
+export function intentTerms(data, deck) {
+  const out = (deck.seedTerms || []).map(t => ({ ...t, w: t.s ? 1.5 : t.rel ? (t.k === 'tag' ? 0.3 : 0.5) : 1 }))
+  const seeds = (deck.seeds || []).map(n => data.byName.get(n)).filter(c => c && c.mt !== 'Land')
+  const cre = seeds.filter(c => /Creature/.test(c.t)), sub = {}, kw = {}
+  for (const c of cre) for (const x of new Set(subsOf(c))) sub[x] = (sub[x] || 0) + 1
+  for (const c of seeds) for (const k of c.kw || []) kw[k] = (kw[k] || 0) + 1
+  // só sem temas escritos: no «Gosto de…» sem cartas escolhidas, as de partida são a pré-visualização (o tipo delas é acaso)
+  if (out.length) return out
+  const add = (k, v) => { if (!out.some(t => t.k === k && t.v === v)) out.push({ k, v, w: 1, auto: 1 }) }
+  for (const [v, n] of Object.entries(sub)) if (n >= 3 && n >= cre.length * 0.4 && /^[A-Z]/.test(v)) add('sub', v)
+  for (const [v, n] of Object.entries(kw)) if (n >= 3 && n >= seeds.length * 0.6) add('kw', v)
+  // sem tema nenhum, a estratégia que as cartas de partida servem (4 feitiços de dano → ♟ Burn), só a mais partilhada;
+  // combo e midrange dizem pouco (metade das cartas boas serve-os)
+  const ar = out.length ? null : Object.keys(ARCH).filter(k => k !== 'combo' && k !== 'midrange').map(k => [k, seeds.filter(c => archScore(c, k) >= 1).length]).sort((a, b) => b[1] - a[1])[0]
+  if (ar && ar[1] >= 3 && ar[1] >= seeds.length * 0.6) add('arch', ar[0])
+  return out
+}
+// nome de um termo para mostrar: estratégia e função pelo nome traduzido, o resto como vem (Wall, Flying)
+export const termLabel = t => (t.k === 'arch' ? ARCH[t.v]?.l || t.v : t.k === 'tag' ? TAG_LABEL[t.v] || t.v : t.v)
+// a carta é do tema (sw: tem o termo) ou serve-o (rw: fala dele: «defender», «Walls you control», «choose a creature type»)
+const TRIBAL_ANY = /choose a creature type|creature type of your choice|chosen type|shares? a creature type|every creature type|\bchangeling\b/
+const refRe = new Map()
+export function intentHit(c, terms) {
+  let sw = 0, rw = 0
+  const hit = [], ref = []
+  if (!terms.length) return { sw, rw, hit, ref }
+  const o = (c._io ??= c.o.toLowerCase().replace(/\([^)]*\)/g, ''))
+  for (const t of terms) {
+    if (termMatch(c, t)) { sw += t.w ?? 1; hit.push(t); continue }
+    if (t.k !== 'sub' && t.k !== 'kw') continue
+    const key = t.v.toLowerCase()
+    if (!refRe.has(key)) refRe.set(key, new RegExp(`\\b${key.replace(/[^a-z0-9 ]/g, '.')}(s|es)?\\b`))
+    // o nome do tema no texto conta inteiro; «choose a creature type» (serve qualquer tribo) conta metade
+    const v = refRe.get(key).test(o) ? 1 : (t.k === 'sub' || t.v === 'Changeling') && TRIBAL_ANY.test(o) ? 0.5 : 0
+    if (v) { rw += v * (t.w ?? 1); ref.push(t) }
+  }
+  return { sw, rw, hit, ref }
 }
 let TERMS = null
 export function termsOf(data) {
@@ -623,9 +682,17 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
   const gcLimit = bracket == null ? Infinity : bracket <= 2 ? 0 : bracket === 3 ? 3 : Infinity
   const { emb: E, D, cards, combos, combosByCard } = data
   if (!seeds.length) return []
-  const pinned = seeds.slice(0, 16)
+  // O comandante (prefs, «Usar o tipo de criatura do comandante» / «Usar o resto do texto do comandante»): desligados, fica só
+  // a identidade de cor e a legalidade dele; o texto (semelhança, plano, decks reais) e o tipo (tribo) deixam de puxar.
+  // «Usar os decks reais do comandante (EDHREC)» desligado: a inclusão/sinergia nos decks dele deixa de contar
+  const cmdTipo = prefs?.cmdTipo !== false, cmdTexto = prefs?.cmdTexto !== false, cmdEdh = prefs?.cmdEdh !== false, staples = prefs?.staples !== false
+  const cmdSet = new Set(commanders), cmdSubs = new Set(commanders.flatMap(i => subtypes(cards[i])))
+  const tSeeds = cmdTexto || !seeds.some(i => !cmdSet.has(i)) ? seeds : seeds.filter(i => !cmdSet.has(i))
+  // Intenção explícita (intentTerms: temas do «Gosto de…», ★, o que as cartas de partida partilham): o sinal que manda.
+  const terms = seedTerms.map(t => ({ ...t, w: t.w ?? (t.s ? 1.5 : t.rel ? 0.5 : 1) })), intent = terms.length > 0
+  const pinned = tSeeds.slice(0, 16)
   const cen = new Float32Array(D)
-  for (const s of seeds) for (let k = 0; k < D; k++) cen[k] += E[s * D + k]
+  for (const s of tSeeds) for (let k = 0; k < D; k++) cen[k] += E[s * D + k]
   let norm = 0
   for (let k = 0; k < D; k++) norm += cen[k] * cen[k]
   norm = Math.sqrt(norm) * 127 || 1
@@ -649,27 +716,38 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
   const tagCount = {}, tribeCount = {}, kwCount = {}
   let creatures = 0, spells = 0
   for (const s of seeds) {
-    const c = cards[s]
+    const c = cards[s], isCmd = cmdSet.has(s)
     if (c.tg.includes('hate')) continue // respostas de sideboard não definem o plano do deck
-    for (const t of c.tg) if (!['land', 'creature', 'wincon', 'hate'].includes(t)) tagCount[t] = (tagCount[t] || 0) + 1
+    if (isCmd && !cmdTexto && !cmdTipo) continue
+    if (!isCmd || cmdTexto) for (const t of c.tg) if (!['land', 'creature', 'wincon', 'hate'].includes(t)) tagCount[t] = (tagCount[t] || 0) + 1
     if (c.mt === 'Land') continue
     spells++
-    const st = subtypes(c)
+    const st = isCmd && !cmdTipo ? [] : subtypes(c)
     if (st.length) creatures++
     for (const t of st) tribeCount[t] = (tribeCount[t] || 0) + 1
-    for (const k of c.kw) kwCount[k] = (kwCount[k] || 0) + 1
+    if (!isCmd || cmdTexto) for (const k of c.kw) kwCount[k] = (kwCount[k] || 0) + 1
   }
   const themes = new Set(Object.entries(tagCount).filter(([, n]) => n >= Math.max(2, seeds.length * 0.25)).map(([t]) => t))
   const [tribe, tribeN] = Object.entries(tribeCount).sort((a, b) => b[1] - a[1])[0] || []
   // Perfil do deck (synergy.js deckThemes): os temas com quem ativa e quem beneficia, em cópias. É o plano do deck:
   // uma sugestão vale pelo que dispara ou aproveita nele (um encantamento num deck de constelação), não por ser parecida.
-  const prof = profile || deckThemes(data, { main: Object.fromEntries(seeds.map(i => [cards[i].n, 1])) }).cats
+  const prof = profile || deckThemes(data, { main: Object.fromEntries(tSeeds.map(i => [cards[i].n, 1])) }).cats
   const maxRaw = Math.max(0, ...prof.map(x => x.raw))
   // fm/pm: o lado escasso vale até 1,5× (combustível quando há mais quem beneficie, e vice-versa; Mesa Enchantress com 32 encantamentos)
   const scarce = (a, b) => 1 + 0.5 * Math.min(1, Math.max(0, a / Math.max(1, b) - 1))
   // o controlo (synergy.js ctrlCat) não tem lados: uma resposta ou compra num deck de controlo vale como as duas metades de um tema
   const plan = prof.map(x => ({ x, w: Math.min(1, x.raw) * Math.min(1, x.raw / (0.5 * maxRaw)), fm: scarce(x.P, x.E), pm: x.s.fn ? 1.5 : scarce(x.E, x.P) })).filter(p => p.w >= 0.1)
   const hasPlan = maxRaw >= 0.6, SAT = 6  // SAT: cópias do outro lado que já fazem do tema um motivo inteiro
+  // temas do plano que SÃO a intenção (as cartas do deck com o termo estão quase todas de um lado do tema, e são metade dele:
+  // muralhas → «Defensores e muralhas»; goblins → «Tribal: Goblin»): quem os aproveita serve a intenção mesmo sem dizer
+  // «wall» (Assault Formation, Arcades: a resistência como dano). «Sempre que lanças» (cartas baratas) não é a intenção.
+  const onT = new Map(Object.entries(Object.fromEntries(prof.flatMap(x => [...x.en, ...x.pay]).map(y => [y.c.i, y]))).map(([i, y]) => [+i, intentHit(y.c, terms).sw > 0 ? y.q : 0]))
+  const onTot = [...onT.values()].reduce((a, q) => a + q, 0)
+  const aligned = new Set(intent && onTot >= 3 ? prof.filter(x => {
+    const side = l => l.reduce((a, y) => a + (onT.get(y.c.i) || 0), 0), all = [...x.en, ...x.pay]
+    // o controlo (fn) é uma fatia do deck e não um tema: quatro feitiços de dano não fazem da remoção a intenção
+    return !x.s.fn && Math.max(side(x.en), side(x.pay)) >= onTot * 0.9 && side(all) >= all.reduce((a, y) => a + y.q, 0) * 0.5
+  }) : [])
   // tribo a sério: é um tema do deck (tem quem fale dela: lords, «Sliver you control»); Human por acaso não conta
   const hasTribe = tribe && tribeN >= Math.max(3, creatures * 0.3) && prof.some(x => x.s.tribe === tribe)
   // (?!) nunca casa; o antigo «$^» casava com o texto vazio e dava «Tribo X» a todas as criaturas sem texto (Alpha Myr)
@@ -677,7 +755,6 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
   const topKw = Object.entries(kwCount).filter(([k, n]) => n >= Math.max(3, spells * 0.15) && k !== 'Enchant' && k !== 'Equip').map(([k]) => k)  // «Enchant»/«Equip» já estão nos temas
 
   // Probabilidade de montar combos (peças fora do comandante, tutores no deck).
-  const cmdSet = new Set(commanders)
   const tutorsN = [...haveSet].filter(i => cards[i].tg.includes('tutor')).length
   const piecesOf = cb => cb[1].filter(x => !cmdSet.has(x)).length
   const pOf = (cb, extraTutor = 0) => comboProb({ pieces: piecesOf(cb), tutors: tutorsN + extraTutor, deckSize, turn })
@@ -741,17 +818,19 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     let mx = -1, near = -1
     for (const s of pinned) { const v = dotInt8(E, D, s, i); if (v > mx) { mx = v; near = s } }
     let cmd = 0
-    for (const s of commanders) cmd = Math.max(cmd, dotInt8(E, D, s, i))
+    if (cmdTexto) for (const s of commanders) cmd = Math.max(cmd, dotInt8(E, D, s, i))
     // Cada fator guarda o seu peso: é o que o «Porquê?» mostra.
     const P = {}
     P.texto = (commanders.length ? 0.4 * sem + 0.35 * mx : 0.55 * sem + 0.45 * mx) * (hasPlan ? 0.6 : 1)  // texto parecido: desempate quando há plano
-    const stm = seedTerms.length ? seedTerms.filter(t => termMatch(c, t)) : []  // sementes-termo (Flying, Rat…) que a carta tem
-    if (seedTerms.length) P.semente = stm.length ? 0.22 + 0.08 * (stm.length - 1) : 0
+    // sementes-termo (Wall, Flying, Rat…): a carta tem-nas (sw) ou fala delas (rw: «defender», «choose a creature type»);
+    // pesa mais do que o comandante e os decks reais, que fora da intenção descem (mais abaixo)
+    const ih = intentHit(c, terms), stm = ih.hit
+    let onIntent = ih.sw + ih.rw >= 0.5
     P.comandante = commanders.length ? 0.25 * cmd : 0
     let idea = 0, ideaN = -1
     for (const g of ideas) { const v = g.i === i ? 0 : g.w * dotInt8(E, D, g.i, i); if (v > idea) { idea = v; ideaN = g.i } }
     if (ideas.length) P.ideia = 0.25 * idea
-    P.popular = edhOk && c.er ? 0.06 * Math.max(0, 1 - Math.log(c.er) / LOGR) : 0
+    P.popular = staples && edhOk && c.er ? 0.06 * Math.max(0, 1 - Math.log(c.er) / LOGR) : 0
     const hits = comboHits.get(i)
     let completes = 0, partial = 0
     let comboP = 0, cw = 0, pw = 0
@@ -793,6 +872,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     let pv = 0
     for (const { x, w, fm, pm } of plan) {
       const tr = x.trig(c), us = x.uses(c)
+      if (aligned.has(x) && us.length >= 3 && !ih.sw) { ih.ref.push({ k: 'plan', v: x.s.name }); ih.rw += 1 }  // um membro já conta como membro
       const tq = tr.reduce((a, y) => a + y.q, 0), uq = us.reduce((a, y) => a + y.q, 0)
       // um motor do tema principal com combustível (compra a cada gatilho: Mesa Enchantress, Setessan Champion) vale por si:
       // o dobro como payoff, e conta como combustível, que é o que compra. Sem isto a enchantress criatura ficava muito abaixo
@@ -807,6 +887,12 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
       if (us.length) inter.push({ side: x.s.fn ? 'como' : 'usa', x, who: us.map(y => y.c.i), v: vu })
     }
     inter.sort((a, b) => b.v - a.v)
+    // membro (tem o termo) e payoff (fala dele, ou aproveita um tema que é a intenção): o payoff vale um pouco mais, que há
+    // muitos membros e poucos payoffs; ter dois termos (Wall e Defender) não faz a carta melhor
+    onIntent = ih.sw + ih.rw >= 0.5
+    if (intent) P.semente = Math.min(0.55, 0.25 * Math.min(1, ih.sw) + 0.4 * Math.min(1, ih.rw))
+    if (intent && !onIntent) P.comandante *= 0.5
+    if (intent && onIntent) P.popular *= 2.5  // entre as cartas do tema, as mais jogadas primeiro (Brainstorm antes de um feitiço qualquer)
     // sem teto baixo: um motor que dispara e aproveita (Enchantress's Presence) vale mais do que só combustível (Snake Umbra);
     // fechar um combo conta como servir o plano (Walking Ballista com o Heliod), senão mil encantamentos tapavam-no
     P.plano = 0.16 * Math.min(4, pv + (completes ? 2 * Math.min(1.5, cw / 0.18) : 0))  // um combo provável (wP > 1) vale mais
@@ -818,12 +904,18 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     if (edh) {
       let b = 0
       for (const e of edh) {
-        if (e.kind === 'commanders') { edhCmd = e; b += 0.35 * Math.max(0, Math.min(e.syn, 0.5)) / 0.5 + 0.2 * e.incl }
+        if (e.kind === 'commanders') { if (cmdEdh) { edhCmd = e; b += 0.35 * Math.max(0, Math.min(e.syn, 0.5)) / 0.5 + (staples ? 0.2 * e.incl : 0) } }
         else if (e.lift > 1) { edhCards.push(e); b += 0.05 * Math.min(1, Math.log(e.lift) / Math.log(6)) * Math.min(1, e.incl * 4) * e.pot / (e.pot + 200) }
       }
       P.decksReais = Math.min(0.4, b)
       edhCards.sort((x, y) => y.lift - x.lift)
     }
+    // fora da intenção, os decks reais do comandante só desempatam; sem o tipo do comandante, quem só partilha o tipo dele
+    // (Human Hero da Invisible Woman num deck de muralhas) nem isso
+    const edhRaw = P.decksReais  // a qualidade da carta na função (autobuild.js roleQuality) usa o valor inteiro
+    if (intent && !onIntent) P.decksReais *= 0.35
+    const cmdKin = !cmdTipo && !onIntent && subtypes(c).some(x => cmdSubs.has(x))
+    if (cmdKin) { P.decksReais = 0; P.tipoCmd = -0.1 }
     // Torneios (MTGTop8): inclusão no formato, peça do arquétipo, parceiras em listas reais.
     P.torneios = 0
     const mRow0 = meta?.byCard.get(i), mInc = metaIncl(mRow0), mRow = mInc > 0 ? mRow0 : null
@@ -857,7 +949,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     if (hasPlan) {
       if (!mArch && P.torneios > 0) P.torneios *= 0.6
       if (!edhCmd) P.decksReais *= 0.6
-      offPlan = pv < 0.15 && !completes && !tribal && !reanTarget && !mArch && !fix && !(need && !softNeed) && !(edhCmd && edhCmd.syn >= 0.2)
+      offPlan = pv < 0.15 && !completes && !onIntent && !tribal && !reanTarget && !mArch && !fix && !(need && !softNeed) && !(edhCmd && edhCmd.syn >= 0.2)
       if (offPlan) P.plano -= 0.12
     }
     // Personalização (opcional): nível, peso do meta, estilo e gosto pelos decks do utilizador.
@@ -890,7 +982,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     const score = Object.values(P).reduce((a, b) => a + b, 0)
     allSem.push(sem)
     if (commanders.length) allCmd.push(cmd)
-    res.push({ i, score, P, sem, near, cmd, idea, ideaN, stm, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, needQ, softNeed, offPlan, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mInc, mArch, mPart, stHit, tasteBest, tasteName, tb, dead })
+    res.push({ i, score, P, edhRaw, onIntent, sem, near, cmd, idea, ideaN, stm, ih, completes, partial, hits, comboP, tutorGain, reanTarget, pw: power, need, needQ, softNeed, offPlan, tribal, kws, inter, edhCmd, edhCards, curveNote, fix, mRow, mInc, mArch, mPart, stHit, tasteBest, tasteName, tb, dead })
   }
   res.sort((a, b) => b.score - a.score)
   const name = i => cards[i].n
@@ -935,7 +1027,8 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
       const top = r.edhCards.slice(0, 2)
       why.push({ k: 'edh', txt: tx('Jogada com {with} em decks reais ({x}× mais do que o normal)', { with: top.map(e => e.from).join(tx(' e ')), x: num(top[0].lift, 1) }) })
     }
-    if (r.stm?.length) why.unshift({ k: 'semente', txt: tx('Semente: {t}', { t: r.stm.map(t => t.v).join(', ') }) })
+    if (r.stm?.length) why.unshift({ k: 'semente', txt: tx('Semente: {t}', { t: r.stm.map(termLabel).join(', ') }) })
+    else if (r.ih?.ref.length) why.unshift({ k: 'semente', txt: tx('Serve o tema pedido: {t}', { t: r.ih.ref.map(termLabel).join(', ') }) })
     if (r.need && r.softNeed) why.push({ k: 'falta', txt: tx('O deck precisa de {what} ({h}/{n})', { what: r.need[0] === 'wincon' ? tx('condições de vitória') : TAG_LABEL[r.need[0]].toLowerCase(), h: r.need[1][0], n: r.need[1][1] }) })
     if (r.reanTarget) why.push({ k: 'inter', txt: tx('Alvo de reanimação (poder {p}) para {who}', { p: r.pw, who: reanimators.slice(0, 2).map(name).join(', ') }) })
     if (c.tg.includes('wincon') && !r.need) why.push({ k: 'tema', txt: tx('Condição de vitória') })
@@ -951,7 +1044,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
     if (r.tasteName && r.tasteBest >= 0.3) why.push({ k: 'gosto', txt: tx('Ao teu gosto: perto das cartas de «{d}»', { d: r.tasteName }) })
     if (r.P.original) why.push({ k: 'estilo', txt: tx('Escolha original (pouco jogada)') })
     if (r.near >= 0 && why.length < 3) why.push({ k: 'perto', txt: tx('Parecida com {c}', { c: name(r.near) }) })
-    if (edhOk && c.er && c.er <= 300 && why.length < 3) why.push({ k: 'tema', txt: tx('Staple: n.º {n} do EDHREC', { n: c.er }) })
+    if (staples && edhOk && c.er && c.er <= 300 && why.length < 3) why.push({ k: 'tema', txt: tx('Staple: n.º {n} do EDHREC', { n: c.er }) })
     why.splice(Math.min(1, why.length), 0, ...r.dead.map(d => ({ k: 'tribo', txt: deadTxt(d) }))) // aviso logo a seguir ao 1.º motivo
     // Detalhe completo para o «Porquê?».
     const detail = {
@@ -964,7 +1057,7 @@ export function recommend(data, { seeds, have, ctx, filters, limit = 60, seedTer
       roles: ALL_ROLES.filter(k => c.ro & RB[k]).map(k => ROLE_LABEL[k]),
       near: r.near >= 0 ? name(r.near) : null, simPct: rank(allSem, r.sem), cmdPct: commanders.length ? rank(allCmd, r.cmd) : null,
     }
-    return { c, score: r.score, parts: r.P, why: why.slice(0, 6), hits: r.hits, detail }
+    return { c, score: r.score, parts: r.P, edhRaw: r.edhRaw, onIntent: r.onIntent, why: why.slice(0, 6), hits: r.hits, detail }
   })
 }
 

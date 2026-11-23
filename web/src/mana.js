@@ -1,5 +1,5 @@
 // Base de mana: equilíbrio de terrenos, fontes por cor e terrenos sugeridos pela mecânica do deck.
-import { passes, PAIRS, RB, ROLE_LABEL, deadRefsN, deckReps } from './data.js'
+import { passes, PAIRS, RB, ROLE_LABEL, deadRefsN, deckReps, intentHit, termLabel } from './data.js'
 import { stats } from './deck.js'
 import { landAdvice } from './formats.js'
 import { tx, num } from './i18n.js'
@@ -104,7 +104,7 @@ const LOGR = Math.log(40000)
  * Terrenos sugeridos: corrigem as cores que faltam, entram destapados quando o deck é rápido,
  * e têm mecânica que encaixa no deck (fichas, sacrifício, landfall, cemitério…).
  */
-export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, need = null, limit = 12 }) {
+export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, need = null, limit = 12, terms = [] }) {
   const { cards } = data
   const N = need || manaNeeds(data, deck, fmt)
   const haveIdx = [...deck.commanders, ...Object.keys(deck.main)].map(n => data.byName.get(n)?.i).filter(x => x != null)
@@ -154,6 +154,9 @@ export function recommendLands(data, { deck, fmt, ctx, co = null, meta = null, n
     if (L.fetch && (landfall || gy)) { mech += 0.08; why.push({ k: 'inter', txt: landfall ? tx('Fetch: ativa o landfall de {c}', { c: byRole.landfall.slice(0, 2).map(i => cards[i].n).join(', ') }) : tx('Fetch: ativa o cemitério') }) }
     if (L.util.length) { mech += 0.02 * L.util.length; why.push({ k: 'tema', txt: tx('Utilidade: {u}', { u: L.util.join(', ') }) }) }
     P.mecanica = Math.min(0.2, mech)
+    // o tema pedido (intentTerms): Cavern of Souls, Path of Ancestry e Unclaimed Territory num deck de uma tribo
+    const ih = intentHit(c, terms)
+    if (ih.sw + ih.rw >= 0.5) { P.tema = Math.min(0.3, 0.15 * (ih.sw + ih.rw)); why.unshift({ k: 'semente', txt: tx('Serve o tema pedido: {t}', { t: [...ih.hit, ...ih.ref].map(termLabel).join(', ') }) }) }
     // 4) dados reais
     P.dados = 0
     const e = co?.get(c.i)?.find(x => x.kind === 'commanders')

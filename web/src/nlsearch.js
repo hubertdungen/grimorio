@@ -344,7 +344,8 @@ export function likeTheme(data, text, { types } = {}) {
   for (const t of all) if (t.k === 'kw' && t.v.includes(' ') && plain.includes(` ${t.v.toLowerCase()} `)) hit('kw', t.v)  // «first strike», «living weapon»
   for (const w of (p ? p.rest : strip(left)).split(/\s+/)) {
     if (w.length < 3) continue
-    for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ves$/, 'f'), subOf(w, types)]) if (x) if (hit('sub', x) || hit('kw', x)) break
+    // «shapeshifting» → Shapeshifter, «walling» → Wall: o verbo também diz o tipo
+    for (const x of [w, w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ves$/, 'f'), w.replace(/ing$/, 'er'), w.replace(/ing$/, ''), subOf(w, types)]) if (x) if (hit('sub', x) || hit('kw', x)) break
   }
   const kinds = found.length
   for (const h of fs.hits) { const n = setCount(h.v); if (n) found.push({ k: 'set', v: h.v, n }) }

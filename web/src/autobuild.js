@@ -1,6 +1,6 @@
 // Completar deck: rondas de sugestões sobre um deck simulado, para que cada carta escolhida
 // influencie as seguintes. Ordem: funções em falta → sinergia (com teto na curva) → base de mana.
-import { recommend, fmtBit, TAG_LABEL, detectArchetype, deckCombos, comboProb, comboTurn, deckPlan } from './data.js'
+import { recommend, fmtBit, TAG_LABEL, detectArchetype, deckCombos, comboProb, comboTurn, deckPlan, intentTerms } from './data.js'
 import { stats, count } from './deck.js'
 import { landAdvice, maxCopies, targetsFor } from './formats.js'
 import { manaNeeds, recommendLands, basicsFor } from './mana.js'
@@ -10,9 +10,13 @@ import { tx } from './i18n.js'
 const MAX_MV = { ramp: 3, draw: 5, removal: 4, counter: 3, protection: 3, creature: 6 }
 const LOGR = Math.log(40000)
 // Qualidade numa função: sinergia geral + popularidade + custo baixo + inclusão real nos decks do comandante.
-function roleQuality(r) {
-  const c = r.c
-  return r.score + 0.15 * (c.er ? Math.max(0, 1 - Math.log(c.er) / LOGR) : 0) + (c.cmc <= 1 ? 0.1 : c.cmc <= 2 ? 0.08 : c.cmc <= 3 ? 0.03 : -0.05) + (r.parts?.decksReais || 0) * 0.5
+// O tema pedido (semente) e o plano contam até 0,25: uma muralha que remove entra antes do Path to Exile só se for boa
+// na função; senão, a função fica com a carta forte e o tema com os lugares de sinergia.
+function roleQuality(r, staples = true, edh = true) {
+  const c = r.c, P = r.parts || {}, theme = (P.semente || 0) + (P.plano || 0), mv = /\{X\}/.test(c.mc || '') ? Math.max(2, c.cmc) : c.cmc  // Walking Ballista não custa 0
+  // a popularidade do EDHREC pesa nos decks de 100 cartas; nos de 60 manda o meta, que já está no score
+  return r.score - theme + Math.min(0.25, (P.semente || 0) + 0.5 * (P.plano || 0)) + (staples && edh ? 0.3 : 0) * (c.er ? Math.max(0, 1 - Math.log(c.er) / LOGR) : 0) +
+    (mv <= 1 ? 0.1 : mv <= 2 ? 0.08 : mv <= 3 ? 0.03 : -0.05) + (r.edhRaw ?? P.decksReais ?? 0) * 0.5
 }
 
 export function autoBuild(data, deck, fmt, { ctx, co = null, bracket = null, meta = null, prefs = null, tastes = [] }) {
@@ -24,6 +28,9 @@ export function autoBuild(data, deck, fmt, { ctx, co = null, bracket = null, met
   const current = () => count(sim.main) + sim.commanders.length + (sim.signature ? 1 : 0)
   if (current() >= total) return { adds: [], msg: tx('O deck já tem {n} cartas.', { n: current() }) }
   const bit = fmtBit(data, fmt)
+  // a intenção explícita (temas do «Gosto de…», ★, o que as cartas de partida partilham) vai em todas as pesquisas
+  const seedTerms = intentTerms(data, deck), staples = prefs?.staples !== false
+  if (prefs?.cmdEdh === false) co = null  // sem os decks reais do comandante (também nos terrenos)
   // Sem comandante, escolhe as cores principais pelos símbolos das cartas iniciais: 2, ou 3 se a terceira pesar ≥25%.
   // As cartas iniciais fora dessas cores ficam (são tuas) mas é dito que pedem splash.
   let offColor = []
@@ -73,7 +80,7 @@ export function autoBuild(data, deck, fmt, { ctx, co = null, bracket = null, met
     const needs = Object.fromEntries(Object.entries(targetsFor(fmt, deckPlan(data, have), prefs)).map(([t, n]) => [t, [s.tags[t] || 0, n]]))
     const gcCount = have.filter(i => data.cards[i].gc).length
     const archetype = detectArchetype(meta, have)
-    const recs = recommend(data, { seeds, have, ctx, filters: { noLands: true, ...budget }, limit: 150, commanders: cmdIdx, needs, co, deckStats: s, bracket, gcCount, meta, archetype, prefs, tastes, deckSize, turn })
+    const recs = recommend(data, { seeds, seedTerms, have, ctx, filters: { noLands: true, ...budget }, limit: 150, commanders: cmdIdx, needs, co, deckStats: s, bracket, gcCount, meta, archetype, prefs, tastes, deckSize, turn })
     if (!recs.length) break
     let room = Math.min(spellRoom, fmt.copies === 1 ? 10 : 12)
     const heavyCap = Math.ceil((s.spells + spellRoom) * 0.1)
@@ -93,8 +100,8 @@ export function autoBuild(data, deck, fmt, { ctx, co = null, bracket = null, met
     for (const [t, [h, n]] of Object.entries(needs).sort((a, b) => (b[1][1] - b[1][0]) / b[1][1] - (a[1][1] - a[1][0]) / a[1][1])) {
       let k = fmt.copies === 1 ? Math.min(3, n - h) : Math.min(1, n - h)
       if (k <= 0 || room <= 0) continue
-      const cand = recommend(data, { seeds, have, ctx, filters: { noLands: true, tag: t, cmcMax: MAX_MV[t] ?? '', ...budget }, limit: 40, commanders: cmdIdx, co, deckStats: s, bracket, gcCount, meta, archetype, prefs, tastes, deckSize, turn })
-        .map(r => ({ r, q: roleQuality(r) })).sort((a, b) => b.q - a.q)
+      const cand = recommend(data, { seeds, seedTerms, have, ctx, filters: { noLands: true, tag: t, cmcMax: MAX_MV[t] ?? '', ...budget }, limit: 80, commanders: cmdIdx, co, deckStats: s, bracket, gcCount, meta, archetype, prefs, tastes, deckSize, turn })
+        .map(r => ({ r, q: roleQuality(r, staples, fmt.copies === 1) })).sort((a, b) => b.q - a.q)
       for (const { r } of cand) {
         if (k <= 0 || room <= 0) break
         if (taken.has(r.c.i)) continue
@@ -116,7 +123,7 @@ export function autoBuild(data, deck, fmt, { ctx, co = null, bracket = null, met
     const share = fmt.copies === 1 ? [0.15, 0.15, 0.4, 0.55, 0.6, 0.6][colors.length] : [0.1, 0.1, 0.35, 0.5, 0.55, 0.55][colors.length]
     const nonbasic = Math.round(landsLeft * share)
     let k = 0
-    for (const r of recommendLands(data, { deck: sim, fmt, ctx, co, meta, need, limit: 60 })) {
+    for (const r of recommendLands(data, { deck: sim, fmt, ctx, co, meta, need, limit: 60, terms: seedTerms })) {
       if (k >= nonbasic) break
       if (r.score < 0.05) continue
       const q = put(r.c, fmt.copies === 1 ? 1 : Math.min(4, nonbasic - k), tx('Terrenos'), r.why.slice(0, 2).map(w => w.txt).join(' · ') || tx('Produz as cores do deck'))
