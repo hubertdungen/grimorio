@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Fica abaixo do alvo: {l}": "Fällt unter das Ziel: {l}",
   "escolhe tu o que sai: as tuas que sobram fazem remoção, compra ou ramp, que esta não faz": "du wählst, was rausgeht: deine übrigen machen Entfernung, Kartenziehen oder Ramp, was diese nicht tut",
   "Link": "Link",
   "muito parecido": "sehr ähnlich",

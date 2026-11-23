@@ -139,8 +139,13 @@ export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], ro
       // a que sai só leva funções que a nova também faz, ou de que o deck tem de sobra (acima do alvo; remoção: 2+ acima)
       const covered = x => x.c.tg.filter(t => CORE.includes(t)).every(t => a.c.tg.includes(t) ||
         (cnt[t] ?? 0) - 1 >= (needs[t]?.[1] ?? targets[t] ?? 0) + (t === 'removal' || t === 'wipe' ? 2 : 0))
-      const pick = (same && pool.find(x => x.c.tg.includes(same) && covered(x))) || pool.find(covered)
-      if (pick) { used.add(pick.c.n); cut = { c: pick.c, why: pick.why.slice(0, 2) }; for (const t of pick.c.tg) cnt[t] = (cnt[t] || 0) - 1; for (const t of a.c.tg) cnt[t] = (cnt[t] || 0) + 1 } else if (pool.length) cut = { none: true }  // só sairia uma com função que a nova não faz: escolhes tu
+      const tgtOf = t => needs[t]?.[1] ?? targets[t] ?? 0
+      // sem nenhuma de sobra: a mais fraca que não seja remoção, com o aviso do que fica abaixo do alvo
+      const soft = !pool.some(covered) && pool.find(x => x.c.tg.every(t => a.c.tg.includes(t) || !CORE.includes(t) ||
+        (t !== 'removal' && t !== 'wipe' && (cnt[t] ?? 0) - 1 >= tgtOf(t) - 1)))  // no máximo 1 abaixo do alvo, nunca remoção
+      const pick = (same && pool.find(x => x.c.tg.includes(same) && covered(x))) || pool.find(covered) || soft
+      const warn = pick && pick === soft ? pick.c.tg.filter(t => CORE.includes(t) && !a.c.tg.includes(t)).map(t => `${(TAG_LABEL[t] || t).toLowerCase()} ${(cnt[t] ?? 0) - 1}/${tgtOf(t)}`) : []
+      if (pick) { used.add(pick.c.n); cut = { c: pick.c, why: [...(warn.length ? [tx('Fica abaixo do alvo: {l}', { l: warn.join(', ') })] : []), ...pick.why.slice(0, 2)] }; for (const t of pick.c.tg) cnt[t] = (cnt[t] || 0) - 1; for (const t of a.c.tg) cnt[t] = (cnt[t] || 0) + 1 } else if (pool.length) cut = { none: true }  // só sairia uma com função que a nova não faz: escolhes tu
     }
     out.push({ add: a, cut })
   }
