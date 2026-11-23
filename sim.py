@@ -1,7 +1,7 @@
 """Grimório — laboratório de testes: jogos reais com o motor do Forge (Java, em Docker ou local: RUNTIME).
 
 Um trabalho = uma invocação do Forge (`sim -n jogos`), um de cada vez numa thread
-(a máquina tem pouca RAM: contentor com -m 3g e -Xmx2g). O registo do Forge é
+(a máquina tem pouca RAM: FORGE_MEM e FORGE_XMX). O registo do Forge é
 convertido em eventos compactos + resumo por jogo.
 
 O que o Forge regista (modo sim, en-US): Turn, Mulligan ("kept a hand of N",
@@ -109,6 +109,9 @@ def label():
 RUNTIME = os.environ.get("GRIMORIO_RUNTIME", "").lower() or \
     ("docker" if os.name != "nt" and shutil.which("docker") and not os.environ.get("GRIMORIO_JAVA") else "local")
 JAVA = os.environ.get("GRIMORIO_JAVA") or shutil.which("java") or "java"
+# Memória de cada jogo do Forge (os valores do play.py). Sem swap (--memory-swap = -m): um jogo que cresça demais
+# morre sozinho no contentor em vez de pôr o NAS inteiro a fazer swap (2026-11-23: ficou minutos sem responder).
+FORGE_XMX, FORGE_MEM = "-Xmx1500m", ["-m", "2560m", "--memory-swap", "2560m"]
 PROCS = {}  # jid -> Popen do java (runtime local), para cancelar
 # app Android (GRIMORIO_NO_FORGE): o Forge é Java de computador e não corre no telemóvel. O que precisa dele recusa com
 # este aviso (ValueError: as rotas e os torneios já mostram a mensagem) e /api/health diz forge=false ao ecrã
@@ -1261,13 +1264,13 @@ def run_forge(jid, a):
     # o nosso lançador (build/forge/GrimorioSim.java) quando está compilado: mesmo jogo + eventos exatos e registo ao vivo
     ext = os.path.join(os.path.dirname(a["forge"]), "forge-ext")
     use_ext = os.path.isfile(os.path.join(ext, "GrimorioSim.class"))
-    jvm = ["-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
+    jvm = [FORGE_XMX, "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
     if RUNTIME == "local":  # o mesmo jogo sem contentor: cwd = Forge (lê res/ relativo), home própria por trabalho
         return _play(jid, a, [JAVA, *jvm, f"-Duser.home={os.path.join(a['dir'], 'home')}",
                                    *(["-cp", os.pathsep.join([ext, os.path.join(a["forge"], FORGE_JAR)]), "GrimorioSim"]
                                      if use_ext else ["-jar", os.path.join(a["forge"], FORGE_JAR)])],
                           os.path.join(a["dir"], "decks"), use_ext)
-    cmd = ["docker", "run", "--rm", "--name", name, *label(), "-m", "3g", "--cpus", "2",
+    cmd = ["docker", "run", "--rm", "--name", name, *label(), *FORGE_MEM, "--cpus", "2",
            "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home",
            "-v", f"{a['forge']}:/forge:ro", "-v", f"{a['dir']}:/run", "-w", "/forge"]
     if use_ext and os.path.isdir(os.path.join(ext, "ai")):

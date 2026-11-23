@@ -23,14 +23,14 @@ def _java(data_dir, jdir, args, name):
     if not os.path.isfile(os.path.join(ext, "GrimorioDraft.class")):
         raise ValueError("Falta compilar o GrimorioDraft (build/forge/build.sh).")
     os.makedirs(os.path.join(jdir, "home"), exist_ok=True)
-    jvm = ["-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
+    jvm = [sim.FORGE_XMX, "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
     err = open(os.path.join(jdir, "err.log"), "wb")
     if sim.RUNTIME == "local":
         cmd = [sim.JAVA, *jvm, f"-Duser.home={os.path.join(jdir, 'home')}", "-cp", os.pathsep.join([ext, os.path.join(fdir, sim.FORGE_JAR)]),
                "GrimorioDraft", *args]
         return subprocess.Popen(cmd, cwd=fdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err), None
     container = f"{sim.PREFIX}draft-{name}"
-    cmd = ["docker", "run", "--rm", "-i", "--name", container, *sim.label(), "-m", "3g", "--cpus", "2",
+    cmd = ["docker", "run", "--rm", "-i", "--name", container, *sim.label(), *sim.FORGE_MEM, "--cpus", "2",
            "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home", "-v", f"{fdir}:/forge:ro", "-v", f"{jdir}:/run", "-w", "/forge"]
     for sub, dst in (("ai", "/forge/res/ai"), ("cardsfolder", "/forge/res/cardsfolder")):
         if os.path.isdir(os.path.join(ext, sub)):

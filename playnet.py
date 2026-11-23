@@ -240,7 +240,7 @@ def _spawn(data_dir, deck, opp, args, ai_b, extra=(), gtype="Constructed"):
         txt, _ = sim.to_dck(d, side.upper(), gtype, names, ai=ai_b)
         with open(os.path.join(jdir, f"{side}.dck"), "w", encoding="utf-8") as f:
             f.write(txt)
-    jvm = ["-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
+    jvm = [sim.FORGE_XMX, "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
     container = None
     if sim.RUNTIME == "local":
         cmd = [sim.JAVA, *jvm, f"-Duser.home={os.path.join(jdir, 'home')}", "-cp", os.pathsep.join([ext, os.path.join(fdir, sim.FORGE_JAR)]),
@@ -248,7 +248,7 @@ def _spawn(data_dir, deck, opp, args, ai_b, extra=(), gtype="Constructed"):
         p = subprocess.Popen(cmd, cwd=fdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
     else:
         container = f"{sim.PREFIX}net-{sid}"
-        cmd = ["docker", "run", "--rm", "-i", "--name", container, *sim.label(), "-m", "3g", "--cpus", "2",
+        cmd = ["docker", "run", "--rm", "-i", "--name", container, *sim.label(), *sim.FORGE_MEM, "--cpus", "2",
                "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home",
                "-v", f"{fdir}:/forge:ro", "-v", f"{jdir}:/run", "-w", "/forge"]
         for sub, dst in (("ai", "/forge/res/ai"), ("cardsfolder", "/forge/res/cardsfolder")):
