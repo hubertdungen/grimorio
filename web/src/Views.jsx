@@ -942,7 +942,7 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     if (!strong.length) return [null, soft.map(h => h.v)]
     const v = strong[0].v, f = VOC.fr.get(v)
     const set = { code: v, name: f?.name || VOC.sets.get(v)?.name || v, y: setYear(v), tag: VOC.sets.has(v) ? v.toUpperCase() : setGroup(v).slice(0, 4).map(k => k.toUpperCase()).join(', ') }
-    return [{ set, rest: [rest, ...soft.map(h => h.w)].join(' ').trim(), local: true }, []]
+    return [{ set, rest: [rest, ...soft.map(h => h.w)].join(' ').trim(), local: true, hw: strong[0].w }, []]  // hw: as palavras que deram o universo (não filtram)
   }, [dq, sets, data])
   useEffect(() => { const k = setHit?.set.code; if (k && !setHit.local && !setNames[k]) fetchSetCards(k).then(n => setSetNames(x => ({ ...x, [k]: n }))) }, [setHit]) // eslint-disable-line react-hooks/exhaustive-deps
   // «warhammer», «transformers»: as cartas que nasceram nesse universo (sem os staples reimpressos — Sol Ring, Command
@@ -959,7 +959,8 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     if (!setHit?.local || !setList) return null
     // todas as palavras escritas (também as que são outro nome do universo, como «tyranids» no Warhammer): cada uma filtra só
     // se bater em algumas cartas do universo — as que batem em nenhuma ou em quase todas («warhammer») não contam
-    const ws = [...new Set(unaccent(dq.toLowerCase()).split(/[^a-z0-9']+/).filter(w => w.length >= 3))]
+    const skip = new Set(unaccent(String(setHit.hw || '').toLowerCase()).split(/[^a-z0-9']+/))
+    const ws = [...new Set(unaccent(dq.toLowerCase()).split(/[^a-z0-9']+/).filter(w => w.length >= 3 && !skip.has(w)))]
     const forms = w => { const b = w.replace(/(ies)$/, 'y').replace(/(es|s)$/, ''); return [...new Set([w, b, ...(UNI_SYN[b] || UNI_SYN[w] || [])])] }
     const hay = c => unaccent(`${c.n} ${c.t} ${c.o || ''}`.toLowerCase())
     let pool = [...setList].map(n => data.byName.get(n)).filter(Boolean), used = 0
@@ -982,7 +983,8 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     // o nome ganha só se alguma carta começa pelo que se escreveu («Black Lotus», «Lightning»); «removal» com a Seal of
     // Removal a bater no meio do nome é a função Remoção, não essa carta
     const qf = unaccent(qq.toLowerCase().trim()), nameHit = byName.cards.some(c => (c.f || c.l).startsWith(qf))
-    if (!nl || (byName.total && nameHit && !/[:<>=]/.test(qq))) return { ...byName, nl: null }
+    const typeWord = nl?.f.sub && !nl.rest && !nl.f.type && qq.trim().split(/\s+/).length === 1  // «tyranid», «elves»: o tipo de criatura (as cartas com esse nome também lá estão)
+    if (!nl || (byName.total && nameHit && !/[:<>=]/.test(qq) && !typeWord)) return { ...byName, nl: null }
     const fx = nl.f.fmt ? { ...sctx, bit: data.meta.formats.indexOf(nl.f.fmt) } : sctx  // «em modern»: legais nesse formato
     const r = search(data, nl.rest, { ...dff, ...nl.f }, fx, lim)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
     const out = r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...dff, ...nl.f }, fx), nl: { ...nl, rest: '', skipped: nl.rest } }
