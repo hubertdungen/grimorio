@@ -1064,8 +1064,12 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     const typeWord = nl?.f.sub && !nl.rest && !nl.f.type && qq.trim().split(/\s+/).length === 1  // «tyranid», «elves»: o tipo de criatura (as cartas com esse nome também lá estão)
     if (!nl || (byName.total && nameHit && !/[:<>=]/.test(qq) && !typeWord)) return { ...byName, nl: null }
     const fx = nl.f.fmt ? { ...sctx, bit: data.meta.formats.indexOf(nl.f.fmt) } : sctx  // «em modern»: legais nesse formato
-    const r = search(data, nl.rest, { ...dff, ...nl.f }, fx, lim)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
-    const out = r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', { ...dff, ...nl.f }, fx), nl: { ...nl, rest: '', skipped: nl.rest } }
+    // o tipo escolhido no filtro junta-se ao da frase («saga» + Criaturas = criaturas Saga), em vez de ser trocado por ele
+    const both = { ...dff, ...nl.f }
+    if (dff.type && nl.f.type && dff.type !== nl.f.type) { both.type = dff.type; both.types2 = [...new Set([...(nl.f.types2 || []), nl.f.type])] }
+    if (dff.sub && nl.f.sub && dff.sub !== nl.f.sub) { both.sub = dff.sub; both.subs2 = [...new Set([...(nl.f.subs2 || []), nl.f.sub])] }
+    const r = search(data, nl.rest, both, fx, lim)  // o que sobrou da frase vai para o nome; sem nada, ignora-se
+    const out = r.total || !nl.rest ? { ...r, nl } : { ...search(data, '', both, fx), nl: { ...nl, rest: '', skipped: nl.rest } }
     // vários tipos sem nenhuma carta que os tenha todos («enchantment planeswalker»): um ou outro
     if (!out.total && nl.f.types2?.length) {
       const any = { ...dff, ...nl.f, type: '', types2: undefined, typesAny: [nl.f.type, ...nl.f.types2] }
