@@ -57,6 +57,31 @@ Du willst Grimório auf einem Heimserver für mehrere Geräte betreiben oder dar
 
 ## Auf deinem eigenen Linux-Server (Docker)
 
+Am schnellsten geht es mit dem offiziellen Image, Forge und Java inklusive: jedes Linux mit Docker (ein Mini-PC, ein
+alter Laptop, ein NAS wie Synology, QNAP, Unraid oder TrueNAS), x86-64 oder ARM64, mit ~4 GB freiem RAM für Partien.
+
+```bash
+mkdir grimorio && cd grimorio
+curl -LO https://raw.githubusercontent.com/hubertdungen/grimorio/main/docker-compose.yml
+docker compose up -d
+```
+
+Dann `http://SERVER-IP:8107` öffnen. Beim ersten Start lädt der Container die Kartendaten (~11 MB) in das Volume
+`grimorio`, in dem auch deine Decks, Profile und Partien liegen. Ohne Compose:
+`docker run -d --name grimorio -p 8107:8107 -v grimorio:/data --restart unless-stopped ghcr.io/hubertdungen/grimorio`.
+
+- **Einstellungen** in einer `.env`-Datei neben `docker-compose.yml`: `GRIMORIO_OWNER=deinname` für einen einzigen
+  Nutzer (ohne Profile); `GRIMORIO_PORT=8200` für einen anderen Port; `GRIMORIO_BIND=127.0.0.1` hinter einem
+  Login-Proxy, damit nur der Proxy die App erreicht und der `Remote-User`-Header, den er schickt, jedem Login eigene
+  Decks gibt; `GRIMORIO_TAG=1.13.110`, um bei einer Version zu bleiben.
+- **Aktualisieren:** `docker compose pull && docker compose up -d`. Bevor eine neue Version die Datenbank öffnet,
+  landet eine Kopie in `backups/` im Volume.
+- **Selbst bauen:** dieses Repository klonen und `docker compose up -d --build` ausführen.
+- Kolosseum, Turniere, Arena und Forge Play lassen Forge im Container laufen. Das klassische Forge-Fenster im Browser
+  (noVNC) braucht die Installation aus dem Quellcode unten.
+
+### Aus dem Quellcode (ohne Image)
+
 Betreibe Grimório auf einem Heimserver (Mini-PC, alter Laptop, NAS mit Linux) und öffne es auf allen Handys, Tablets
 und Computern im Haus. Das Kolosseum führt Forge in **Docker** aus, und *Gegen Forge spielen* läuft im Browser. Entwickelt
 auf Ubuntu 24.04 (andere aktuelle Debian/Ubuntu sollten gehen); braucht ~4 GB freien RAM für Spiele und ~3 GB Speicher.

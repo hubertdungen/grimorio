@@ -123,6 +123,21 @@ Tipps:
 **Strg+C** im Terminal (Linux; auch das Schließen des Terminals beendet es). Laufende Forge-Partien werden ebenfalls
 beendet. Deine Decks werden laufend gespeichert: Es geht nichts verloren.
 
+## Docker (auf einem Server oder NAS)
+
+Um Grimório auf einem Heimserver für alle Handys, Tablets und Computer im Haus zu betreiben, nimm das offizielle
+Docker-Image (x86-64 und ARM64; Forge und Java inklusive):
+
+```bash
+mkdir grimorio && cd grimorio
+curl -LO https://raw.githubusercontent.com/hubertdungen/grimorio/main/docker-compose.yml
+docker compose up -d
+```
+
+Öffne `http://SERVER-IP:8107`. Deine Daten liegen im Docker-Volume `grimorio` (`/data` im Container); aktualisieren
+mit `docker compose pull && docker compose up -d`. Einstellungen (ein einziger Nutzer, anderer Port, Login-Proxy):
+[Auf deinem eigenen Linux-Server](../README.de.md#auf-deinem-eigenen-linux-server-docker).
+
 ## Wo deine Daten liegen
 
 | System | Ordner |

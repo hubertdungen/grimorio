@@ -1,0 +1,19 @@
+# Grimório on your own server:  docker compose up -d   ->  http://SERVER-IP:8107
+# Settings go in a .env file next to this one (or in the environment), e.g.  GRIMORIO_OWNER=ana
+services:
+  grimorio:
+    image: ghcr.io/hubertdungen/grimorio:${GRIMORIO_TAG:-latest}
+    build: .  # docker compose up --build: from this checkout instead of the published image
+    restart: unless-stopped
+    ports:
+      # behind a login proxy (Caddy + Authelia, …) set GRIMORIO_BIND=127.0.0.1: only the proxy reaches the app, so the
+      # Remote-User header it sends (one set of decks per login) cannot be forged by anyone else on the network
+      - "${GRIMORIO_BIND:-0.0.0.0}:${GRIMORIO_PORT:-8107}:8107"
+    environment:
+      GRIMORIO_OWNER: ${GRIMORIO_OWNER:-}  # one single user, no «Who's playing?» profiles
+    volumes:
+      - grimorio:/data  # decks, profiles, games, card data
+    mem_limit: ${GRIMORIO_MEM:-4g}  # each Forge game takes up to ~1.5 GB
+
+volumes:
+  grimorio:

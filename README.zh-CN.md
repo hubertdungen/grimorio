@@ -49,6 +49,27 @@ Grimório 是一款免费的套牌构筑工具，支持所有赛制（指挥官 
 
 ## 部署在你自己的 Linux 服务器上（Docker）
 
+最快的方式是使用官方镜像，内含 Forge 和 Java：任何装有 Docker 的 Linux（迷你主机、旧笔记本，或 Synology、QNAP、Unraid、
+TrueNAS 等 NAS），x86-64 或 ARM64 均可，对局需要约 4 GB 空闲内存。
+
+```bash
+mkdir grimorio && cd grimorio
+curl -LO https://raw.githubusercontent.com/hubertdungen/grimorio/main/docker-compose.yml
+docker compose up -d
+```
+
+然后打开 `http://服务器IP:8107`。首次启动时，容器会把卡牌数据（约 11 MB）下载到 `grimorio` 卷中，你的套牌、档案和对局也保存在那里。
+不用 Compose：`docker run -d --name grimorio -p 8107:8107 -v grimorio:/data --restart unless-stopped ghcr.io/hubertdungen/grimorio`。
+
+- **设置**写在 `docker-compose.yml` 旁的 `.env` 文件中：`GRIMORIO_OWNER=你的名字` 表示只有一位用户（不用档案）；
+  `GRIMORIO_PORT=8200` 换一个端口；放在带登录的反向代理后面时设 `GRIMORIO_BIND=127.0.0.1`，这样只有代理能访问应用，
+  它发送的 `Remote-User` 请求头让每个登录用户拥有自己的套牌；`GRIMORIO_TAG=1.13.110` 固定某个版本。
+- **更新：** `docker compose pull && docker compose up -d`。新版本首次打开数据库之前，会在卷内的 `backups/` 中保存一份副本。
+- **自己构建：** 克隆本仓库后运行 `docker compose up -d --build`。
+- 竞技场、锦标赛、Arena 和 Forge Play 都在容器内运行 Forge。浏览器中的 Forge 经典窗口（noVNC）需要下面的源码安装方式。
+
+### 从源码安装（不用镜像）
+
 把 Grimório 装在家里的服务器上（迷你主机、旧笔记本、装 Linux 的 NAS），家里所有手机、平板和电脑都能打开。
 竞技场在 **Docker** 中运行 Forge，*与 Forge 对战* 可直接在浏览器中进行。在 Ubuntu 24.04 上开发（其他较新的 Debian/Ubuntu 应该也可以）；
 对局需要约 4 GB 可用内存和约 3 GB 磁盘。

@@ -107,6 +107,20 @@ Android 应用就是装在手机或平板上的完整 Grimório：卡组、资�
 **关闭 Grimório 窗口**（Windows；如果它是在浏览器中打开的，就在小对话框里点击 **OK**），或在终端中按 **Ctrl+C**
 （Linux；直接关闭终端也会让它停止）。正在进行的 Forge 对局也会随之停止。你的套牌会随时自动保存：不会丢失任何东西。
 
+## Docker（服务器或 NAS）
+
+想在家里的服务器上运行 Grimório、供家中所有手机、平板和电脑使用，请用官方 Docker 镜像（x86-64 和 ARM64；内含 Forge 和 Java）：
+
+```bash
+mkdir grimorio && cd grimorio
+curl -LO https://raw.githubusercontent.com/hubertdungen/grimorio/main/docker-compose.yml
+docker compose up -d
+```
+
+打开 `http://服务器IP:8107`。你的数据保存在 Docker 卷 `grimorio` 中（容器内为 `/data`）；更新用
+`docker compose pull && docker compose up -d`。设置（单一用户、换端口、登录代理）见
+[部署在你自己的 Linux 服务器上](../README.zh-CN.md#部署在你自己的-linux-服务器上docker)。
+
 ## 数据存放位置
 
 | 系统 | 文件夹 |

@@ -116,6 +116,21 @@ Tips:
 in the terminal (Linux; closing the terminal also stops it). Forge games that are being played stop too. Your decks
 are saved as you go: nothing is lost.
 
+## Docker (a server or a NAS)
+
+To run Grimório on a home server for every phone, tablet and computer in the house, use the official Docker image
+(x86-64 and ARM64; Forge and Java inside):
+
+```bash
+mkdir grimorio && cd grimorio
+curl -LO https://raw.githubusercontent.com/hubertdungen/grimorio/main/docker-compose.yml
+docker compose up -d
+```
+
+Open `http://SERVER-IP:8107`. Your data lives in the `grimorio` Docker volume (`/data` in the container); update with
+`docker compose pull && docker compose up -d`. Settings (one single user, another port, a login proxy):
+[Your own Linux server](../README.md#your-own-linux-server-docker).
+
 ## Where your data lives
 
 | System | Folder |
