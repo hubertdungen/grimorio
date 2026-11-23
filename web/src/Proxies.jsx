@@ -18,10 +18,11 @@ const urlOf = (g, size, back = false) => (back ? (g.c.df && !own(g.src) ? img(g.
 
 // cada arte numa imagem com o bleed à volta (300 ppp): preto, uma cor, ou a margem da carta esticada para fora
 // (a cor de fundo é a mediana da margem, para os cantos redondos e as pontas das tiras)
-const DPI = 300
+const DPI = 300  // resolução por omissão das cartas no PDF (o.dpi: 300/450/600)
 const loadImg = url => new Promise((res, rej) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = url })
+const dims = im => [im.naturalWidth || im.width, im.naturalHeight || im.height]  // <img> ou canvas (ampliado)
 function edgeColor(im) {
-  const iw = im.naturalWidth, ih = im.naturalHeight, cv = document.createElement('canvas')
+  const [iw, ih] = dims(im), cv = document.createElement('canvas')
   cv.width = iw; cv.height = ih
   const x = cv.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0)
   const px = [], dx = Math.round(iw * 0.012), dy = Math.round(ih * 0.012)
@@ -29,15 +30,22 @@ function edgeColor(im) {
   const med = k => px.map(p => p[k]).sort((a, b) => a - b)[px.length >> 1]
   return `rgb(${med(0)},${med(1)},${med(2)})`
 }
-async function renderCard(url, o, L) {
-  const im = await loadImg(url)
-  const k = DPI / 25.4, b = Math.round(L.b * k), w = Math.round(L.cw * k), h = Math.round(L.ch * k)
+// o.upAI: a imagem com menos píxeis do que a carta pede na resolução escolhida amplia-se primeiro com o Real-ESRGAN no
+// browser (upscale.js, ×2 ou ×4); senão o canvas estica-a com suavização. onUp(): avisa que esta foi ampliada
+async function renderCard(url, o, L, onUp) {
+  let im = await loadImg(url)
+  const k = (o.dpi || DPI) / 25.4, b = Math.round(L.b * k), w = Math.round(L.cw * k), h = Math.round(L.ch * k)
+  if (o.upAI && im.naturalWidth < w * 0.9) {
+    const { upscale } = await import('./upscale.js')
+    im = await upscale(await createImageBitmap(im), w / im.naturalWidth > 2 ? 4 : 2)
+    onUp?.()
+  }
   const cv = document.createElement('canvas'); cv.width = w + 2 * b; cv.height = h + 2 * b
-  const x = cv.getContext('2d')
+  const x = cv.getContext('2d'); x.imageSmoothingQuality = 'high'
   x.fillStyle = o.bleedFill === 'black' ? '#000' : o.bleedFill === 'color' ? o.bleedColor : edgeColor(im)
   x.fillRect(0, 0, cv.width, cv.height)
   if (o.bleedFill === 'replicate' && b) {
-    const iw = im.naturalWidth, ih = im.naturalHeight, sx = Math.round(iw * 0.012), sy = Math.round(ih * 0.012)
+    const [iw, ih] = dims(im), sx = Math.round(iw * 0.012), sy = Math.round(ih * 0.012)
     x.drawImage(im, 0, sy, iw, 1, b, 0, w, b); x.drawImage(im, 0, ih - 1 - sy, iw, 1, b, b + h, w, b)
     x.drawImage(im, sx, 0, 1, ih, 0, b, b, h); x.drawImage(im, iw - 1 - sx, 0, 1, ih, b + w, b, b, h)
   }
@@ -243,15 +251,16 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
   const makePdf = async () => {
     setErr(''); setWarn('')
     const real = slots.filter(Boolean), urls = [...new Set(real.flatMap(x => (o.duplex ? [x.front, x.back] : [x.front])))], idx = new Map(), images = []
-    let missed = 0
+    let missed = 0, ups = 0
+    const up1 = () => { ups++ }
     try {
       for (const u of urls) {
         setPdfBusy(tx('A preparar as imagens… {a}/{b}', { a: images.length + 1, b: urls.length }))
         let im
-        try { im = await renderCard(fetchable(u), o, L) } catch {
+        try { im = await renderCard(fetchable(u), o, L, up1) } catch {
           const sl = real.find(x => x.front === u), fb = sl && img(sl.g.c, 'png', false, sl.g.fb)  // imagem própria que não vem: a arte normal
           if (!fb || fb === u) throw new Error(tx('Não consegui carregar a imagem de {c}.', { c: sl?.g.c.n || u }))
-          im = await renderCard(fb, o, L); missed++
+          im = await renderCard(fb, o, L, up1); missed++
         }
         idx.set(u, images.length); images.push(im)
       }
@@ -259,7 +268,8 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
       const bytes = pdf(L.W, L.H, pageOps(L, o, slots, (x, side) => idx.get(side === 'back' ? x.back : x.front), labelsOf), images)
       const a = document.createElement('a')
       a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); a.download = `${base} - proxies.pdf`; a.click()
-      if (missed) setWarn(tx('{n} imagem própria não veio e ficou a arte normal.|{n} imagens próprias não vieram e ficou a arte normal.', { n: missed }))
+      if (ups) setWarn(tx('{n} imagem com pouca resolução foi ampliada com IA.|{n} imagens com pouca resolução foram ampliadas com IA.', { n: ups }) + (missed ? ' ' : ''))
+      if (missed) setWarn(w => w + tx('{n} imagem própria não veio e ficou a arte normal.|{n} imagens próprias não vieram e ficou a arte normal.', { n: missed }))
     } catch (e) { setErr(e.message) } finally { setPdfBusy('') }
   }
   const zip = async () => {
@@ -391,6 +401,9 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
               {(o.gap[0] > 0 || o.gap[1] > 0) && <label><span>{tx('Pintar entre cartas')}</span><select value={o.gapFill || 'off'} onChange={e => up({ gapFill: e.target.value })} title={tx('Onde se cruzam os cantos de 4 cartas o bleed esticado de cada uma não combina; uma cor lisa deixa o corte limpo.')}>
                 <option value="off">{tx('Nada')}</option><option value="cross">{tx('Só os cruzamentos (cantos de 4 cartas)')}</option><option value="gaps">{tx('Todo o espaço entre cartas')}</option></select></label>}
               {(o.gap[0] > 0 || o.gap[1] > 0) && (o.gapFill || 'off') !== 'off' && <label><span>{tx('Cor')}</span><input type="color" value={o.gapColor || '#000000'} onChange={e => up({ gapColor: e.target.value })} /></label>}
+              <label><span>{tx('Resolução')}</span><select value={o.dpi || DPI} onChange={e => up({ dpi: +e.target.value })}>
+                {[300, 450, 600].map(d => <option key={d} value={d}>{tx('{d} dpi', { d })}{d === 300 ? ` · ${tx('normal')}` : d === 600 ? ` · ${tx('máxima (PDF ~4× maior)')}` : ''}</option>)}</select></label>
+              <label className="chk small"><input type="checkbox" checked={!!o.upAI} onChange={e => up({ upAI: e.target.checked })} /> {tx('Ampliar com IA as imagens com pouca resolução (Real-ESRGAN no browser; mais lento)')}</label>
               <label className="chk small"><input type="checkbox" checked={o.watermark} onChange={e => up({ watermark: e.target.checked })} /> {tx('Marca de água')}</label>
               {o.watermark && <label><span>{tx('Texto')}</span><input value={o.watermarkText} maxLength={24} onChange={e => up({ watermarkText: e.target.value })} /></label>}
               <label className="chk small"><input type="checkbox" checked={o.duplex} onChange={e => up({ duplex: e.target.checked })} /> {tx('Frente e verso (o verso das cartas de duas faces ou as costas do Magic)')}</label>

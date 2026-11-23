@@ -2202,6 +2202,9 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .padv { display: grid; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
 .padv summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .padv[open] { gap: 8px; } .padv[open] > *:not(summary) { margin-top: 8px; }
+/* o <details> não é grelha em todos os browsers: cada opção na sua linha, o visto nunca encosta ao texto da anterior */
+.padv > label.chk, .pset > label.chk { display: flex; width: 100%; gap: 8px; }
+.padv > label.chk input, .pset > label.chk input { flex: none; }
 .pview { position: sticky; top: 0; display: grid; gap: 8px; justify-items: center; }
 .pprev { width: 100%; max-height: 62vh; border-radius: 4px; box-shadow: 0 6px 24px #000a; background: #fff; }
 @media (max-width: 760px) { .px-print .pgrid { grid-template-columns: 1fr; } .pview { position: static; } }

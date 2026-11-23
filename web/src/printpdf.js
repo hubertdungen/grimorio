@@ -7,7 +7,7 @@ export const UNITS = { mm: 1, cm: 10, in: 25.4 }
 export const PRINT0 = {
   unit: 'cm', paper: 'A4', custom: [210, 297], landscape: false, margins: [5, 5, 5, 5], customMargins: false, center: true,
   card: [63, 88], gap: [0, 0], bleed: 0, guides: 'lines', individual: true, guideColor: '#808080', guideWidth: 0.2,
-  bleedFill: 'replicate', bleedColor: '#000000', fillCorners: true, gapFill: 'off', gapColor: '#000000', watermark: false, watermarkText: 'PROXY', duplex: false, flip: 'side',
+  bleedFill: 'replicate', bleedColor: '#000000', fillCorners: true, gapFill: 'off', gapColor: '#000000', dpi: 300, upAI: false, watermark: false, watermarkText: 'PROXY', duplex: false, flip: 'side',
   newSheet: false, deckNames: true, deckTags: false, share: false,  // vários decks: folha nova por deck, nomes, partilhar cartas
 }
 
