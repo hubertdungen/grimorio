@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "só as cartas novas da edição": "only the set's new cards",
+  "+ reimpressões ({n})": "+ reprints ({n})",
   "Já tens {n} cartas de partida, o máximo: tira alguma (× nas cartas de partida, mais abaixo) ou «Limpar tudo» lá em cima.": "You already have {n} starting cards, the maximum: remove some (× on the starting cards, further down) or «Clear all» at the top.",
   "Mesas com 3 ou mais jogadores": "Tables with 3 or more players",
   "Esferas mais simples (mais leve)": "Simpler orbs (lighter)",

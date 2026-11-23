@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "só as cartas novas da edição": "仅显示该系列的新卡",
+  "+ reimpressões ({n})": "+ 重印卡（{n}）",
   "Já tens {n} cartas de partida, o máximo: tira alguma (× nas cartas de partida, mais abaixo) ou «Limpar tudo» lá em cima.": "你已有 {n} 张起始卡牌（上限）：移除一些（下方起始卡牌上的 ×），或点上方的「全部清除」。",
   "Mesas com 3 ou mais jogadores": "3 名或以上玩家的牌桌",
   "Esferas mais simples (mais leve)": "更简单的生命球（更流畅）",

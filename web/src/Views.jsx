@@ -19,7 +19,7 @@ import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPl
 import { hlProps, pin } from './hl.js'
 import { parseQuery, likeTheme } from './nlsearch.js'
 import { ARCH } from './archetypes.js'
-import { VOC, findSets, setLabel, setYear, setGroup, setMembers, flavorOf } from './vocab.js'
+import { VOC, findSets, setLabel, setYear, setGroup, setMembers, setOriginals, flavorOf } from './vocab.js'
 import { THREATS, hateMatch } from './hate.js'
 import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
 import { useBackClose } from './backnav.js'
@@ -940,7 +940,14 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
     return [{ set, rest: [rest, ...soft.map(h => h.w)].join(' ').trim(), local: true }, []]
   }, [dq, sets, data])
   useEffect(() => { const k = setHit?.set.code; if (k && !setHit.local && !setNames[k]) fetchSetCards(k).then(n => setSetNames(x => ({ ...x, [k]: n }))) }, [setHit]) // eslint-disable-line react-hooks/exhaustive-deps
-  const setList = useMemo(() => (setHit?.local ? new Set([...setMembers(setHit.set.code)].map(i => data.cards[i].n)) : setHit && setNames[setHit.set.code]), [setHit, setNames, data])
+  // «warhammer», «transformers»: as cartas que nasceram nesse universo (sem os staples reimpressos — Sol Ring, Command
+  // Tower…); «+ reimpressões» ou a sintaxe explícita («set:40k», «e:ltr») trazem a edição inteira
+  const [withRep, setWithRep] = useState(false)
+  useEffect(() => setWithRep(false), [setHit?.set.code])
+  const explicitSet = /\b(?:set|e|s|edição|edicao):/i.test(dq)
+  const allRep = withRep || explicitSet
+  const nRep = useMemo(() => (setHit?.local ? setMembers(setHit.set.code).size - setOriginals(setHit.set.code).size : 0), [setHit])
+  const setList = useMemo(() => (setHit?.local ? new Set([...(allRep ? setMembers : setOriginals)(setHit.set.code)].map(i => data.cards[i].n)) : setHit && setNames[setHit.set.code]), [setHit, setNames, data, allRep])
   const qq = setHit ? setHit.rest : dq
   const dff = useMemo(() => (setHit ? { ...df, names: setList || new Set() } : df), [df, setHit, setList])
   const [noVs, setNoVs] = useState('')  // frase em que o utilizador tirou o «contra X» (✕ no chip)
@@ -993,7 +1000,8 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       {res.nl && <p className="nl-got small"><span className="muted">{tx('Entendido como:')}</span>{res.nl.got.map((g, k) => (g.k === 'legendary' ? <span key={k} className="chip">♛ <b>{tx('Lendárias')}</b></span>
         : g.k === 'vs' ? <span key={k} className="chip chip-vs" title={res.nl.f.vsCtr ? tx('Só contra-feitiços que apanham estes feitiços') : tx('Cartas que respondem a isto: as mais diretas primeiro')}>🛡 {NL_L.vs} <b>{THREATS[g.v].label}</b><button onClick={() => setNoVs(qq)} aria-label={tx('Retirar {t}', { t: THREATS[g.v].label })}>×</button></span>
         : <span key={k} className="chip">{NL_L[g.k]} <b>{g.k === 'type' ? TYPE_LABEL[g.v] || g.v : g.k === 'tag' ? TAG_LABEL[g.v] || g.v : g.k === 'arch' ? `♟ ${ARCH[g.v].l}` : g.k === 'fmt' ? FORMAT[g.v]?.name || g.v : g.v}</b></span>))}{res.nl.rest && <span className="chip">{tx('nome')} <b>{res.nl.rest}</b></span>}{res.nl.orTypes && <span className="muted small">{tx('nenhuma carta é {t} ao mesmo tempo: mostro uma ou outra', { t: res.nl.orTypes.map(t => TYPE_LABEL[t] || t).join(' + ') })}</span>}{res.nl.skipped && <span className="muted small" title={tx('Estas palavras não ajudaram a encontrar nada e ficaram de fora')}>{tx('ignorado: «{w}»', { w: res.nl.skipped })}</span>}<button className="link small" onClick={() => setRaw(dq)} title={tx('Procurar a frase só no nome das cartas')}>✕ {tx('procurar pelo nome')}</button></p>}
-      {setHit && <p className="small set-hit">📦 {tx('Edição')}: <b>{setHit.set.name}</b> <span className="muted">({setHit.set.tag || setHit.set.code.toUpperCase()}{setHit.set.y ? ` · ${setHit.set.y}` : ''})</span>{!setList && <span className="muted"> · {tx('a carregar as cartas da edição…')}</span>}</p>}
+      {setHit && <p className="small set-hit">📦 {tx('Edição')}: <b>{setHit.set.name}</b> <span className="muted">({setHit.set.tag || setHit.set.code.toUpperCase()}{setHit.set.y ? ` · ${setHit.set.y}` : ''})</span>{!setList && <span className="muted"> · {tx('a carregar as cartas da edição…')}</span>}
+        {setHit.local && !explicitSet && nRep > 0 && <> · <button className="link small" onClick={() => setWithRep(x => !x)}>{withRep ? tx('só as cartas novas da edição') : tx('+ reimpressões ({n})', { n: nRep })}</button></>}</p>}
       {uniSug.length > 0 && <p className="small set-hit">{tx('Também é o nome de um universo:')} {uniSug.map(v => <button key={v} className="link small" onClick={() => setQ(`e:${v}`)}>🎬 {setLabel(v)}</button>)}</p>}
       <p className="muted small">{tx('{n} cartas', { n: res.total.toLocaleString(LOCALE) })}{ctx.bit >= 0 ? ` ${tx('legais em {f}', { f: fmt.name })}` : ''}{ctx.identity != null ? ` ${tx('na identidade {c}', { c: ctx.identity || tx('incolor') })}` : ''}{res.total > res.cards.length ? ` · ${tx('a mostrar {n}', { n: res.cards.length })}` : ''}</p>
       <div className="grid">

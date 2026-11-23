@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "só as cartas novas da edição": "nur die neuen Karten der Edition",
+  "+ reimpressões ({n})": "+ Nachdrucke ({n})",
   "Já tens {n} cartas de partida, o máximo: tira alguma (× nas cartas de partida, mais abaixo) ou «Limpar tudo» lá em cima.": "Du hast schon {n} Startkarten, das Maximum: entferne welche (× bei den Startkarten weiter unten) oder «Alles löschen» oben.",
   "Mesas com 3 ou mais jogadores": "Tische mit 3 oder mehr Spielern",
   "Esferas mais simples (mais leve)": "Einfachere Kugeln (leichter)",
