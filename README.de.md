@@ -4,6 +4,8 @@
 
 <h1 align="center">Grimório</h1>
 
+<p align="center"><a href="AI-DECLARATION.md"><img src="https://img.shields.io/badge/䷼%20AI--DECLARATION-copilot-fee2e2?labelColor=fee2e2" alt="AI-DECLARATION: copilot"></a></p>
+
 **Baue, teste und lass deine Magic: The Gathering-Decks gegeneinander antreten – mit erklärten Vorschlägen, echten Partien KI gegen KI und Partien, die du selbst gegen Forge spielst.**
 
 Grimório ist ein kostenloser Deckbuilder für alle Formate (Commander, Modern, Pauper, Standard, Legacy, …), der auf

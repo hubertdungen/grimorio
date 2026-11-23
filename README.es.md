@@ -4,6 +4,8 @@
 
 <h1 align="center">Grimório</h1>
 
+<p align="center"><a href="AI-DECLARATION.md"><img src="https://img.shields.io/badge/䷼%20AI--DECLARATION-copilot-fee2e2?labelColor=fee2e2" alt="AI-DECLARATION: copilot"></a></p>
+
 **Construye, prueba y pon a combatir tus mazos de Magic: The Gathering, con sugerencias explicadas, partidas reales de IA contra IA y partidas que juegas tú contra Forge.**
 
 Grimório es un constructor de mazos gratuito para todos los formatos (Commander, Modern, Pauper, Standard, Legacy, …)
