@@ -503,7 +503,7 @@ h2 .mana img { width: 20px; height: 20px; }
 .livepill { color: #ff6b8a; font-weight: 700; font-size: 13px; animation: blink 1.4s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: .45; } }
 /* ---------- tabuleiro do Laboratório ---------- */
-.board { --pa: var(--cyan); --pb: #ff6b8a; --pc: #fbbf24; --pd: #4ade80; --cw: 76px; --ow: 56px; --lw: 44px; }
+.board { --pa: var(--cyan); --pb: #ff6b8a; --pc: #fbbf24; --pd: #4ade80; --pe: #c084fc; --pf: #fb923c; --cw: 76px; --ow: 56px; --lw: 44px; }
 .board .rp-bar, .board .rp-ctrl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
 .rp-speed { min-width: 150px; }
 .rp-time { flex: 1 1 220px; min-width: 160px; display: grid; gap: 2px; }
@@ -892,6 +892,9 @@ input[type=range]:disabled { opacity: .45; cursor: default; }
 
 /* 3–4 jogadores: adversários em colunas em cima, o teu deck (e o parceiro de equipa) em baixo; cada um com a sua cor */
 .p-a { --t: var(--pa, #6ee7f9); } .p-b { --t: var(--pb, #ff6b8a); } .p-c { --t: var(--pc, #fbbf24); } .p-d { --t: var(--pd, #4ade80); }
+.p-e { --t: var(--pe, #c084fc); } .p-f { --t: var(--pf, #fb923c); }  /* Forge Play contra 4–5 bots */
+.stk.e { outline: 2px solid var(--pe, #c084fc); } .stk.f { outline: 2px solid var(--pf, #fb923c); }
+.pc-tgt.t-e { --t: var(--pe, #c084fc); } .pc-tgt.t-f { --t: var(--pf, #fb923c); }
 .tline .tt.c { fill: #fbbf2444; } .tline .tt.d { fill: #4ade8044; }
 .phmark.c { background: var(--pc); } .phmark.d { background: var(--pd); }
 .stk.c { outline: 2px solid var(--pc); } .stk.d { outline: 2px solid var(--pd); }
@@ -3551,6 +3554,19 @@ body.orb-grab, body.orb-grab * { -webkit-user-select: none !important; user-sele
 .fp-blk { display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px 1px 8px; border-radius: 99px; background: #1e3a5f; border: 1px solid #4cc9f0aa; color: #e0f2fe; }
 .fp-blk.planned { background: #3b2a0a; border: 1px dashed #f2b84b; color: #fde68a; }
 .fp-blk i { font-style: normal; opacity: .8; }
+/* mesa de 3+: a quem vão os próximos atacantes (o defensor atual do Forge) */
+.fp-atkto { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 4px 0; font-size: 12px; }
+.fp-atkp { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; background: #2a1620; border: 1px solid color-mix(in srgb, var(--t, #ff6b8a) 55%, transparent); color: #fde2e8; font-size: 12px; cursor: pointer; }
+.fp-atkp i { font-style: normal; opacity: .8; font-size: 11px; }
+.fp-atkp.on { background: color-mix(in srgb, var(--t, #ff6b8a) 30%, #1a0d12); border-color: var(--t, #ff6b8a); box-shadow: 0 0 0 2px color-mix(in srgb, var(--t, #ff6b8a) 45%, transparent), 0 0 12px color-mix(in srgb, var(--t, #ff6b8a) 50%, transparent); font-weight: 700; }
+.fp-atkp.on::before { content: '⚔'; }
+/* mesa de 3+: saíste do jogo, os outros continuam */
+.fp-gone { position: absolute; left: 50%; top: 10px; translate: -50% 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; max-width: calc(100% - 24px);
+  padding: 8px 14px; border-radius: 12px; background: #1b1016ee; border: 1px solid #ff6b8a88; box-shadow: 0 6px 24px #000a; font-size: 13px; }
+.fp-places { display: grid; gap: 3px; margin: 4px 0 8px; padding: 0; list-style: none; text-align: left; }
+.fp-places li { display: flex; gap: 8px; align-items: baseline; } .fp-places li b { min-width: 2.2em; color: var(--gold2); } .fp-places li.me { color: var(--cyan); font-weight: 700; }
+.fp .opps .bside .bname b { cursor: zoom-in; } .fp .opps .bside .bname b:hover { text-decoration: underline; }
+.cmdz.play { cursor: pointer; } .cmdz.play img { animation: fillpulse 1.6s ease-in-out infinite; border-color: #f2b84b; }
 .fp-actbar .fp-blocks { display: flex; margin: 2px 0 0; }
 .pc.planned .pc-pair { outline: 1px dashed #f2b84b; }
 

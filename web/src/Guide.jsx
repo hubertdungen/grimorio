@@ -259,7 +259,7 @@ function guide(P) {
           [tx('Testes anteriores deste deck'), tx('as sessões guardadas: Abrir ou apagar.')],
         ] },
         { g: 'forge', t: tx('Jogar contra o Forge'), go: { col: 'jogar' }, rows: [
-          [tx('✦ Mesa do Grimório'), tx('a mesa no browser: o Forge aplica as regras e joga a IA; conta para os ratings. (Commander só no clássico.)')],
+          [tx('✦ Mesa do Grimório'), tx('a mesa no browser: o Forge aplica as regras e joga a IA; os jogos 1 contra 1 contam para os ratings. Também Commander, contra 1 a 5 bots na mesma mesa.')],
           [tx('🖥 Forge clássico'), tx('a aplicação do Forge numa janela, para Commander e para retomar posições de réplicas.')],
           [tx('Partida Bo1 / Bo3 / Bo5'), tx('numa série trocas cartas com o sideboard entre jogos.')],
           [tx('Adversário'), tx('📊 Meta, 🧙 Meus, 🤝 Amigos, 🌐 Comunidade, 🎲 ao acaso, ⇄ espelho ou 🎲 Casual (decks de todos os formatos).')],

@@ -61,11 +61,17 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   const [fit, setFit] = useState(() => ls('grimorio.jogar.ajustar') === '1')
   const [st, setSt] = useState(null), [sess, setSess] = useState(null), [busy, setBusy] = useState(''), [err, setErr] = useState('')
   const frame = useRef(null)
-  // «grimorio» = a mesa do Grimório (Forge Play nativo, playnet.py); «classico» = o Forge desktop por noVNC. Commander só no clássico.
-  const native = !fmt.cmd
+  // «grimorio» = a mesa do Grimório (Forge Play nativo, playnet.py); «classico» = o Forge desktop por noVNC. Commander nos dois.
+  const native = true
   const [modo, setModoS] = useState(() => ls('grimorio.jogar.modo') || 'grimorio')
   const setModo = v => { setModoS(v); ls('grimorio.jogar.modo', v) }
   const useNative = native && modo === 'grimorio'
+  // mesa do Grimório: 1 a 5 bots na mesma mesa (todos contra todos; no Commander, um pod de 3–4 é o costume). Com mais de
+  // um, os que escolheres (toca nos mosaicos) e o resto ao acaso
+  const [nOpp, setNOppS] = useState(() => Math.max(1, Math.min(5, +ls('grimorio.jogar.nopp') || 1)))
+  const setNOpp = v => { setNOppS(v); ls('grimorio.jogar.nopp', String(v)); setMore(m => m.slice(0, v - 1)) }
+  const [more, setMore] = useState([])  // os outros adversários escolhidos (além de opp)
+  const nBots = useNative ? nOpp : 1
   // série: Bo1/Bo3/Bo5 na mesa do Grimório; entre jogos dá para trocar cartas com o sideboard
   const [bo, setBoS] = useState(() => +ls('grimorio.jogar.bo') || 1)
   const setBo = v => { setBoS(v); ls('grimorio.jogar.bo', String(v)) }
@@ -110,7 +116,21 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   const shown = (lists[src] || []).filter(o => !n || o.name.toLowerCase().includes(n))
     .sort((a, b) => (stars[b.key]?.stars ?? -1) - (stars[a.key]?.stars ?? -1) || (b.share || 0) - (a.share || 0))
   const pool = Object.values(lists).flat()
-  const random = () => { if (pool.length) { const o = pool[Math.floor(Math.random() * pool.length)]; setOpp(o); setSrc(SRC.find(([k]) => lists[k].includes(o))?.[0] || src) } }
+  const random = () => {
+    if (!pool.length) return
+    if (nBots > 1) { const [a, ...r] = fillOpps([]); setOpp(a); setMore(r); return }
+    const o = pool[Math.floor(Math.random() * pool.length)]; setOpp(o); setSrc(SRC.find(([k]) => lists[k].includes(o))?.[0] || src)
+  }
+  // mesa de 3+: os escolhidos e, até chegar a nBots, outros ao acaso (sem repetir)
+  const fillOpps = picked => { const out = [...picked], left = pool.filter(o => !out.some(x => x.key === o.key)).sort(() => Math.random() - 0.5); while (out.length < nBots && left.length) out.push(left.pop()); return out }
+  const pick = o => {
+    if (nBots < 2) return setOpp(o)
+    if (opp?.key === o.key) { setOpp(more[0] || null); setMore(more.slice(1)); return }
+    if (more.some(x => x.key === o.key)) return setMore(more.filter(x => x.key !== o.key))
+    if (!opp) return setOpp(o)
+    setMore(more.length < nBots - 1 ? [...more, o] : [...more.slice(0, -1), o])
+  }
+  const picked = o => opp?.key === o.key || (nBots > 1 && more.some(x => x.key === o.key))
   const mirror = () => setOpp({ kind: 'espelho', id: 'espelho', name: tx('{d} (espelho)', { d: deck.name }), d: deck, key: 'espelho' })
 
   const setFitPref = v => { setFit(v); ls('grimorio.jogar.ajustar', v ? '1' : '0') }
@@ -122,14 +142,16 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   const start = (cur = series) => {
     if (!opp) return
     let ser = cur
-    if (useNative && bo > 1 && (!ser || ser.done)) { ser = { bo, w: [0, 0], d: mineDeck, d0: mineDeck, done: false, id: Math.random().toString(36).slice(2, 12) }; setSeries(ser) }
-    else if (bo === 1 || !useNative) { ser = null; setSeries(null) }
+    if (useNative && bo > 1 && nBots < 2 && (!ser || ser.done)) { ser = { bo, w: [0, 0], d: mineDeck, d0: mineDeck, done: false, id: Math.random().toString(36).slice(2, 12) }; setSeries(ser) }
+    else if (bo === 1 || !useNative || nBots > 1) { ser = null; setSeries(null) }
     const myDeck = ser?.d || mineDeck
-    const opponent = opp.kind === 'meta' ? { id: opp.id } : opp.kind === 'meu' ? { deck_id: opp.id } : { deck: { ...mineDeck, name: opp.name } }  // espelho: sempre a lista original
+    const req = o => (o.kind === 'meta' ? { id: o.id } : o.kind === 'meu' ? { deck_id: o.id } : { deck: { ...mineDeck, name: o.name } })  // espelho: sempre a lista original
+    const opponent = req(opp), rest = nBots > 1 ? fillOpps([opp, ...more]).slice(1) : []
+    if (nBots > 1) setMore(rest)
     if (!useNative) return go(tx('A arrancar o Forge…'), '/api/play/start', { format: fmt.key, difficulty: diff, deck: mineDeck, opponent })
     setErr(''); setBusy(tx('A arrancar o Forge…'))
     // rate_id/format/round/bo: o jogo conta para os ratings
-    j('/api/playnet', { difficulty: diff, deck: myDeck, opponent, casual, name: tx('Tu'), rate_id: deck.id, format: fmt.key, round: ser?.id, bo: ser?.bo || 1, ...(ser?.last && { chooser: ser.last }) })  // jogo 2+: quem perdeu o anterior escolhe (a = eu)
+    j('/api/playnet', { difficulty: diff, deck: myDeck, opponent, casual, name: tx('Tu'), rate_id: deck.id, format: fmt.key, round: ser?.id, bo: ser?.bo || 1, ...(ser?.last && { chooser: ser.last }), ...(rest.length && { more: rest.map(req) }) })  // jogo 2+: quem perdeu o anterior escolhe (a = eu)
       .then(r => setNet(r.id)).catch(e => setErr(e.message)).finally(() => setBusy(''))
   }
   const stopNet = async () => { if (net) await j(`/api/playnet/${net}/stop`, {}).catch(() => {}); setNet(null) }
@@ -141,7 +163,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
   const running = st?.running
   if (net) return (
     <div className="view play fp-view">
-      <div className="row-btns fp-bar"><b>⚔ {deck.name}</b> <span className="muted small">{tx('contra a IA do Forge · {f}', { f: fmt.name })}</span>
+      <div className="row-btns fp-bar"><b>⚔ {deck.name}</b> <span className="muted small">{more.length ? tx('contra {n} bots do Forge · {f}', { n: more.length + 1, f: fmt.name }) : tx('contra a IA do Forge · {f}', { f: fmt.name })}</span>
         <button className="link small" onClick={stopNet}>■ {tx('Parar o jogo')}</button></div>
       <ForgeTable key={net} sid={net} data={data} onClose={() => { stopNet(); setSeries(null) }} series={series} cols={{ a: colorsOf(deck, data).join(''), b: opp?.d ? colorsOf(opp.d, data).join('') : '' }}
         onEnd={won => setSeries(x => { if (!x || won == null) return x; const w = won ? [x.w[0] + 1, x.w[1]] : [x.w[0], x.w[1] + 1]; return { ...x, w, last: won ? 'b' : 'a', done: Math.max(...w) > x.bo / 2 } })}
@@ -182,22 +204,23 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
         </div>
         <b className="pv-x">VS</b>
         <div className={`pv-side opp ${opp ? '' : 'empty'}`}>
-          {opp ? <><Cover d={opp.d} data={data} /><span><small className="muted">{tx('Adversário')}</small><b>{opp.name}</b>
-            <span className="small muted">{FORMAT[opp.of]?.name || ''} {oppCols.length > 0 && <Mana cost={oppCols.map(x => `{${x}}`).join('')} />} {stars[opp.key] && <Stars r={stars[opp.key]} />}</span></span></>
-            : <span className="muted">{tx('Escolhe um adversário em baixo (ou 🎲 ao acaso).')}</span>}
+          {opp ? <><Cover d={opp.d} data={data} /><span><small className="muted">{nBots > 1 ? tx('Adversários ({n} de {t})', { n: 1 + more.length, t: nBots }) : tx('Adversário')}</small><b>{[opp, ...(nBots > 1 ? more : [])].map(o => o.name).join(' · ')}</b>
+            <span className="small muted">{nBots > 1 && more.length < nBots - 1 ? tx('o outro vem ao acaso|os outros {n} vêm ao acaso', { n: nBots - 1 - more.length }) : <>{FORMAT[opp.of]?.name || ''} {oppCols.length > 0 && <Mana cost={oppCols.map(x => `{${x}}`).join('')} />} {stars[opp.key] && <Stars r={stars[opp.key]} />}</>}</span></span></>
+            : <span className="muted">{nBots > 1 ? tx('Escolhe até {n} adversários em baixo (ou 🎲 ao acaso: os que faltarem vêm ao acaso).', { n: nBots }) : tx('Escolhe um adversário em baixo (ou 🎲 ao acaso).')}</span>}
         </div>
       </section>
 
       <section className="card">
         <h3>{tx('Como jogar')}</h3>
         <div className="pv-modes">
-          <button className={useNative ? 'on' : ''} disabled={!native} onClick={() => setModo('grimorio')} title={native ? undefined : tx('O Commander joga-se só no Forge clássico.')}>
-            <b>✦ {tx('Mesa do Grimório')}</b><small>{tx('A mesa do Grimório: as cartas, a pilha e as escolhas aqui mesmo, no PC ou no tablet. O Forge decide as regras e joga pela IA.')}</small></button>
+          <button className={useNative ? 'on' : ''} onClick={() => setModo('grimorio')}>
+            <b>✦ {tx('Mesa do Grimório')}</b><small>{tx('A mesa do Grimório: as cartas, a pilha e as escolhas aqui mesmo, no PC ou no tablet. O Forge decide as regras e joga pela IA — também Commander, contra 1 a 5 bots na mesma mesa.')}</small></button>
           <button className={useNative ? '' : 'on'} onClick={() => setModo('classico')}>
             <b>🖥 {tx('Forge clássico')}</b><small>{tx('O Forge desktop dentro do browser (noVNC), com todos os menus do Forge. Serve para Commander e para retomar posições de repetições.')}</small></button>
         </div>
         <div className="pv-series" style={{ marginTop: 10 }}>
-          {useNative && <label className="small">{tx('Partida')} <span className="seg">{[1, 3, 5].map(b => <button key={b} className={bo === b ? 'on' : ''} onClick={() => setBo(b)} title={b > 1 ? tx('Série: ganha quem chegar primeiro a {k} jogos; entre jogos trocas cartas com o sideboard', { k: Math.ceil(b / 2) }) : undefined}>Bo{b}</button>)}</span></label>}
+          {useNative && <label className="small" title={tx('Quantos bots se sentam à mesa contigo: com mais de um é todos contra todos (no Commander, um pod de 3 ou 4 é o costume)')}>{tx('Adversários')} <span className="seg">{[1, 2, 3, 4, 5].map(n => <button key={n} className={nOpp === n ? 'on' : ''} onClick={() => setNOpp(n)}>{n}</button>)}</span></label>}
+          {useNative && nBots < 2 && <label className="small">{tx('Partida')} <span className="seg">{[1, 3, 5].map(b => <button key={b} className={bo === b ? 'on' : ''} onClick={() => setBo(b)} title={b > 1 ? tx('Série: ganha quem chegar primeiro a {k} jogos; entre jogos trocas cartas com o sideboard', { k: Math.ceil(b / 2) }) : undefined}>Bo{b}</button>)}</span></label>}
           <button onClick={() => { ls('grimorio.torneio.playme', '1'); ls('grimorio.torneio.vista', 'criar'); window.dispatchEvent(new CustomEvent('grimorio:col', { detail: 'torneio' })) }} title={tx('Cria um torneio em que jogas tu os jogos do teu deck, na mesa do Grimório; os outros jogam-nos os bots')}>🏆 {tx('Jogar um torneio')}</button>
         </div>
       </section>
@@ -212,7 +235,7 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
           <button onClick={mirror} className={opp?.kind === 'espelho' ? 'on' : ''}>⇄ {tx('espelho')}</button>
         </div>
         <div className="pv-grid">{shown.map(o => (
-          <button key={o.key} className={`pv-tile ${opp?.key === o.key ? 'on' : ''}`} onClick={() => setOpp(o)} title={o.name}>
+          <button key={o.key} className={`pv-tile ${picked(o) ? 'on' : ''}`} onClick={() => pick(o)} title={o.name}>
             <Cover d={o.d} data={data} />
             <span className="pv-t"><b>{o.name}</b>
               <span className="small muted">{[casual && FORMAT[o.of]?.name, o.share && `${Math.round(o.share * 100)}%`, o.who && `🤝 ${o.who}`].filter(Boolean).join(' · ') || ' '}</span>
@@ -230,10 +253,10 @@ export default function PlayView({ data, deck, fmt, fromState = null }) {
       </section>
 
       <div className="pv-go">
-        <span className="pv-sum"><b>{deck.name}</b> <span className="muted">vs</span> <b>{opp?.name || '—'}</b> <span className="muted small">· {DIFF_INFO[diff]?.label || diff}{useNative && bo > 1 ? ` · Bo${bo}` : ''}{casual ? ` · ${tx('casual')}` : ''} · {useNative ? tx('Mesa do Grimório') : tx('Forge clássico')}</span></span>
+        <span className="pv-sum"><b>{deck.name}</b> <span className="muted">vs</span> <b>{opp?.name || '—'}{nBots > 1 ? ` +${nBots - 1}` : ''}</b> <span className="muted small">· {DIFF_INFO[diff]?.label || diff}{useNative && bo > 1 && nBots < 2 ? ` · Bo${bo}` : ''}{casual ? ` · ${tx('casual')}` : ''} · {useNative ? tx('Mesa do Grimório') : tx('Forge clássico')}</span></span>
         {!useNative && <label className="chk small"><input type="checkbox" checked={fit} onChange={e => setFitPref(e.target.checked)} /> {tx('resolução ajustada à janela (sem escalar)')}</label>}
         {fromState && <button onClick={resume} disabled={!!busy}>▶ {tx('Retomar esta posição (controlas o lado {s})', { s: fromState.control === 'a' ? 'A' : 'B' })}</button>}
-        <button className="primary" onClick={() => start(null)} disabled={!opp || !count || !!busy}>▶ {tx('Jogar contra o Forge')}</button>
+        <button className="primary" onClick={() => start(null)} disabled={!opp || !count || !!busy}>▶ {nBots > 1 ? tx('Jogar contra {n} bots', { n: nBots }) : tx('Jogar contra o Forge')}</button>
         {busy && <span className="muted small">{busy}</span>}
         {err && <span className="small bad-t">{err}</span>}
       </div>

@@ -1,5 +1,5 @@
 // Grimório — Forge Play nativo (Forge 2.0.15, GPL-3.0): joga-se pelo browser, sem a janela do Forge.
-// Arranca um jogo 1 contra 1 (humano contra a IA) e faz de «ecrã» do humano: implementa o IGuiGame (o mesmo papel que o
+// Arranca um jogo do humano contra a IA (1 contra 1, ou contra 2–5 bots numa mesa, Commander incluído) e faz de «ecrã» do humano: implementa o IGuiGame (o mesmo papel que o
 // cliente do jogo em rede do Forge), escreve o que o motor mostra em linhas JSON e recebe as ações do browser.
 //   saída (stdout):  @@GN {"t":"state",...}  estado do jogo (zonas, vida, pilha, fase, combate), no máximo ~7x por segundo
 //                    @@GN {"t":"prompt","msg":...,"buttons":[...],"sel":[ids]}   o que o motor espera agora
@@ -7,7 +7,7 @@
 //                    @@GN {"t":"end","winner":...}
 //   entrada (stdin): {"c":"ok"} {"c":"cancel"} {"c":"card","id":N} {"c":"player","i":N} {"c":"answer","id":N,"v":...}
 //                    {"c":"mana","color":N} {"c":"alpha"} {"c":"concede"} {"c":"undo"}
-// Uso: java -cp forge.jar:forge-ext GrimorioNet humano.dck ia.dck NomeHumano PerfilIA
+// Uso: java -cp forge.jar:forge-ext GrimorioNet humano.dck ia.dck NomeHumano PerfilIA NomeIA [ai|pvp] [a|b|-] [ffa,cmd|2hg|-] [c.dck|nome|perfil ...]
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
@@ -86,6 +86,17 @@ public class GrimorioNet {
     // comandos chegam com "seat"; null = contra a IA do Forge (um Bridge só, sem lugar)
     static Map<String, Bridge> PVP = null;
     static final java.util.concurrent.atomic.AtomicBoolean END_SENT = new java.util.concurrent.atomic.AtomicBoolean(false);
+    static boolean MULTI = false;  // 3+ jogadores (Commander em mesa, todos contra todos): pára menos vezes nos turnos dos outros
+    // quem saiu do jogo, pela ordem (nome -> turno): os lugares no fim (o último a sair fica em 2.º)
+    static final Map<String, Integer> LOST = Collections.synchronizedMap(new LinkedHashMap<>());
+
+    // Commander: os comandantes da secção [Commander] e 40 de vida (RegisteredPlayer.forCommander); sem comandante no
+    // deck joga como os outros, também com 40
+    static RegisteredPlayer reg(Deck d, boolean cmd) {
+        if (!cmd) return new RegisteredPlayer(d);
+        if (d.getCommanders() != null && !d.getCommanders().isEmpty()) return RegisteredPlayer.forCommander(d);
+        RegisteredPlayer r = new RegisteredPlayer(d); r.setStartingLife(40); return r;
+    }
 
     public static void main(String[] a) throws Exception {
         if (System.getProperty("java.awt.headless") == null) System.setProperty("java.awt.headless", "true");
@@ -106,30 +117,37 @@ public class GrimorioNet {
             CoinRandom cr = new CoinRandom(); cr.force = "abcd".indexOf(a[6]);
             forge.util.MyRandom.setRandom(cr);
         }
-        // mesa estrita com 3–4 pessoas: 8.º argumento o modo («ffa» todos contra todos, «2hg» Two-Headed Giant: a+b contra
-        // c+d), 9.º e 10.º os lugares c e d como «caminho.dck|nome»
-        String mode = a.length > 7 ? a[7] : "-";
+        // 3+ jogadores: 8.º argumento o modo, palavras separadas por vírgulas («ffa» todos contra todos, «2hg» Two-Headed
+        // Giant: a+b contra c+d, «cmd» Commander: zona de comando, imposto, 21 de dano de comandante, 40 de vida); do 9.º em
+        // diante os lugares c, d, e, f como «caminho.dck|nome» (mesa estrita: pessoas) ou «caminho.dck|nome|perfil» (contra a
+        // IA: mais bots, cada um com o seu perfil)
+        Set<String> mode = new HashSet<>(Arrays.asList((a.length > 7 ? a[7] : "-").split(",")));
+        boolean cmd = mode.contains("cmd");
         List<String[]> extra = new ArrayList<>();
-        for (int k = 8; k < a.length && k < 10; k++) { String[] x = a[k].split("\\|", 2); if (x.length == 2) extra.add(x); }
+        for (int k = 8; k < a.length && k < 12; k++) { String[] x = a[k].split("\\|", 3); if (x.length >= 2) extra.add(x); }
         LobbyPlayer human = GamePlayerUtil.getGuiPlayer();
         human.setName(a.length > 2 ? a[2] : "Tu");
         LobbyPlayer other = pvp ? new forge.player.LobbyPlayerHuman(a.length > 4 ? a[4] : "Jogador 2", 0, 0)  // a outra pessoa
             : GamePlayerUtil.createAiPlayer(a.length > 4 ? a[4] : "Forge", a.length > 3 ? a[3] : "Default");  // nome (o deck dele), perfil
-        RegisteredPlayer rh = new RegisteredPlayer(dh), ra = new RegisteredPlayer(da);
+        RegisteredPlayer rh = reg(dh, cmd), ra = reg(da, cmd);
         List<RegisteredPlayer> players = new ArrayList<>();
         players.add(rh.setPlayer(human));
         players.add(ra.setPlayer(other));
         List<RegisteredPlayer> more = new ArrayList<>();
-        if (pvp) for (String[] x : extra) {
-            RegisteredPlayer r = new RegisteredPlayer(DeckSerializer.fromFile(new File(x[0])));
-            players.add(r.setPlayer(new forge.player.LobbyPlayerHuman(x[1], 0, 0))); more.add(r);
+        for (String[] x : extra) {
+            RegisteredPlayer r = reg(DeckSerializer.fromFile(new File(x[0])), cmd);
+            players.add(r.setPlayer(pvp ? new forge.player.LobbyPlayerHuman(x[1], 0, 0) : GamePlayerUtil.createAiPlayer(x[1], x.length > 2 ? x[2] : (a.length > 3 ? a[3] : "Default"))));
+            more.add(r);
         }
-        boolean giant = pvp && "2hg".equals(mode) && players.size() == 4;
+        boolean giant = pvp && mode.contains("2hg") && players.size() == 4;
         if (giant) for (int k = 0; k < 4; k++) { players.get(k).setTeamNumber(k < 2 ? 1 : 2); players.get(k).setStartingLife(30); }  // 2HG: a+b contra c+d, 30 de vida
+        MULTI = players.size() > 2;
+        GameType gt = cmd ? GameType.Commander : GameType.Constructed;
+        Set<GameType> vars = cmd ? EnumSet.of(GameType.Commander) : EnumSet.noneOf(GameType.class);
         Bridge gui = new Bridge(pvp ? "a" : null);
         if (pvp) {
             PVP = new HashMap<>(); PVP.put("a", gui); PVP.put("b", new Bridge("b")); gui.pname = human.getName(); PVP.get("b").pname = other.getName();
-            for (int k = 0; k < more.size(); k++) { Bridge b = new Bridge(String.valueOf("cd".charAt(k))); b.pname = extra.get(k)[1]; PVP.put(b.seat, b); }
+            for (int k = 0; k < more.size(); k++) { Bridge b = new Bridge(String.valueOf("cdef".charAt(k))); b.pname = extra.get(k)[1]; PVP.put(b.seat, b); }
         }
         Thread in = new Thread(() -> gui.readCommands(), "grimorio-in");  // um só leitor: na mesa estrita encaminha pelo «seat»
         in.setDaemon(true);
@@ -139,16 +157,16 @@ public class GrimorioNet {
         if (pvp) {
             Map<RegisteredPlayer, IGuiGame> guis = new HashMap<>();
             guis.put(rh, PVP.get("a")); guis.put(ra, PVP.get("b"));
-            for (int k = 0; k < more.size(); k++) guis.put(more.get(k), PVP.get(String.valueOf("cd".charAt(k))));
-            hm.startMatch(GameType.Constructed, EnumSet.noneOf(GameType.class), players, guis);
+            for (int k = 0; k < more.size(); k++) guis.put(more.get(k), PVP.get(String.valueOf("cdef".charAt(k))));
+            hm.startMatch(gt, vars, players, guis);
             if (giant) {  // 2HG: vida e veneno da equipa, perdem juntos, a equipa que começa não compra (GrimorioSim.Giant)
-                Thread gt = new Thread(() -> {
+                Thread gt2 = new Thread(() -> {
                     for (int k = 0; k < 200 && HM.getGame() == null; k++) try { Thread.sleep(50); } catch (InterruptedException e) { return; }
                     if (HM.getGame() != null) HM.getGame().subscribeToEvents(new GrimorioSim.Giant(HM.getGame()));
                 }, "grimorio-2hg");
-                gt.setDaemon(true); gt.start();
+                gt2.setDaemon(true); gt2.start();
             }
-        } else hm.startMatch(GameType.Constructed, EnumSet.noneOf(GameType.class), players, rh, gui);
+        } else hm.startMatch(gt, vars, players, rh, gui);
         // o jogo corre noutras threads; esta espera pelo fim (o Bridge sai do processo em finishGame/afterGameEnd)
         while (true) Thread.sleep(1000);
     }
@@ -197,6 +215,12 @@ public class GrimorioNet {
         void watchdog() {
             forge.game.Game g = HM == null ? null : HM.getGame();
             if (g == null || g.isGameOver() || ended) { deadTicks = 0; return; }
+            try {  // mesa de 3+: quem já saiu (desistiu no próprio turno) ainda tinha um pedido aberto e o jogo dos outros ficava
+                // parado à espera dele; passa-o (OK) para os outros continuarem
+                PlayerView me = getCurrentPlayer();
+                Object c = getGameController();
+                if (me != null && me.getHasLost() && c instanceof forge.player.PlayerControllerHuman h && h.getInputQueue().getInput() != null && asks.isEmpty()) cmds.submit(() -> { try { ctl().selectButtonOk(); } catch (Exception e) { System.err.println("saiu: " + e); } });
+            } catch (Exception e) { System.err.println("saiu: " + e); }
             deadTicks = gameAlive() ? 0 : deadTicks + 1;
             if (deadTicks < 3) return;
             System.err.println("watchdog: a thread do jogo do Forge morreu; o jogo acaba sem vencedor");
@@ -400,6 +424,8 @@ public class GrimorioNet {
                 o.addProperty("name", c.getCurrentState().getName());
                 if (c.isEmblem()) { o.addProperty("emblem", true); try { o.addProperty("text", c.getText()); } catch (Exception e) { /* sem texto */ } }
                 if (room != null) o.addProperty("room", room);
+                if (playable.contains(c.getId())) o.addProperty("play", true);  // o comandante: dá para o lançar agora (com o imposto)
+                if (selectable.contains(c.getId())) o.addProperty("sel", true);
                 a.add(o);
             }
             return a;
@@ -492,6 +518,10 @@ public class GrimorioNet {
                 po.addProperty("life", p.getLife());
                 po.addProperty("ai", p.isAI());
                 po.addProperty("me", me != null && p.getId() == me.getId());
+                if (p.getHasLost()) {  // saiu do jogo (mesa de 3+: o jogo continua entre os outros)
+                    LOST.putIfAbsent(p.getLobbyPlayerName(), gv.getTurn());
+                    po.addProperty("lost", true); po.addProperty("outT", LOST.getOrDefault(p.getLobbyPlayerName(), gv.getTurn()));
+                }
                 if (p.getHasPriority()) po.addProperty("priority", true);
                 po.addProperty("library", p.getLibrary() == null ? 0 : p.getLibrary().size());
                 // o topo da biblioteca quando o posso ver (Courser of Kruphix, Future Sight, Experimental Frenzy revelam; Vizier of
@@ -581,6 +611,15 @@ public class GrimorioNet {
                 }
                 o.add("combat", ca);
             }
+            try {  // a declarar atacantes: quem é o defensor escolhido agora (o próximo clique numa criatura ataca-o)
+                Object c = getGameController();
+                if (c instanceof forge.player.PlayerControllerHuman h && h.getInputQueue().getInput() instanceof forge.gamemodes.match.input.InputAttack ia) {
+                    java.lang.reflect.Field f = forge.gamemodes.match.input.InputAttack.class.getDeclaredField("currentDefender");
+                    f.setAccessible(true);
+                    Object d = f.get(ia);
+                    if (d instanceof forge.game.GameEntity ge) { o.addProperty("atkDef", ge.getId()); if (ge instanceof forge.game.card.Card) o.addProperty("atkDefC", true); }
+                }
+            } catch (Throwable e) { System.err.println("atkDef: " + e); }
             if (gv.isGameOver()) { o.addProperty("over", true); o.addProperty("winner", gv.getWinningPlayerName()); }
             boolean endNow = gv.isGameOver() && !ended;
             // o registo do jogo (o mesmo do painel do Forge): as últimas 40 entradas, com o id da carta de cada uma
@@ -722,6 +761,16 @@ public class GrimorioNet {
                     out.add(x);
                 }
                 o.add("out", out);
+                // os lugares (do 1.º ao último): quem ganhou, quem ainda estava em jogo (empate) e os que saíram, do último
+                // para o primeiro
+                JsonArray pl = new JsonArray(); List<String> seen = new ArrayList<>();
+                for (forge.game.player.Player p : game.getRegisteredPlayers()) if (p.getOutcome() != null && p.getOutcome().hasWon()) { pl.add(p.getName()); seen.add(p.getName()); }
+                for (forge.game.player.Player p : game.getRegisteredPlayers()) if (!seen.contains(p.getName()) && !p.hasLost() && !LOST.containsKey(p.getName())) { pl.add(p.getName()); seen.add(p.getName()); }
+                List<String> gone; synchronized (LOST) { gone = new ArrayList<>(LOST.keySet()); }
+                Collections.reverse(gone);
+                for (String n : gone) if (!seen.contains(n)) { pl.add(n); seen.add(n); }
+                for (forge.game.player.Player p : game.getRegisteredPlayers()) if (!seen.contains(p.getName())) { pl.add(p.getName()); seen.add(p.getName()); }
+                o.add("places", pl);
                 if (game.getOutcome() != null && game.getOutcome().isDraw()) o.addProperty("draw", true);
             } catch (Exception e) { System.err.println("outcome: " + e); }
         }
@@ -730,6 +779,12 @@ public class GrimorioNet {
             // pára só onde costuma haver decisões: as duas fases principais, atacar (no teu turno) e bloquear (no do outro)
             PlayerView me = getCurrentPlayer();
             boolean mine = me != null && turn != null && turn.getId() == me.getId();
+            if (MULTI && !mine) {  // mesa de 3+: no turno dos outros só pára no fim do turno de quem joga antes de ti
+                // (instantâneos, flash) e nos bloqueadores quando te atacam a ti (ou a um planeswalker teu)
+                if (phase == PhaseType.END_OF_TURN) return !beforeMe(turn, me);
+                if (phase == PhaseType.COMBAT_DECLARE_BLOCKERS) return !attacked(me);
+                return true;
+            }
             switch (phase) {
                 case MAIN1: case MAIN2: return false;
                 case COMBAT_DECLARE_ATTACKERS: return !mine;
@@ -737,6 +792,30 @@ public class GrimorioNet {
                 case END_OF_TURN: return mine;  // no fim do turno do adversário dá para lançar instantâneos
                 default: return true;
             }
+        }
+        // quem joga a seguir a `turn` sou eu (a ordem da mesa, sem os que já saíram)
+        boolean beforeMe(PlayerView turn, PlayerView me) {
+            try {
+                forge.game.Game g = HM == null ? null : HM.getGame();
+                if (g == null || turn == null || me == null) return false;
+                forge.game.player.Player t = null;
+                for (forge.game.player.Player x : g.getPlayers()) if (x.getId() == turn.getId()) t = x;
+                if (t == null) return false;
+                forge.game.player.Player nx = g.getNextPlayerAfter(t);
+                return nx != null && nx.getId() == me.getId();
+            } catch (Exception e) { return true; }
+        }
+        boolean attacked(PlayerView me) {
+            try {
+                forge.game.Game g = HM == null ? null : HM.getGame();
+                forge.game.combat.Combat c = g == null ? null : g.getCombat();
+                if (c == null || me == null) return false;
+                for (forge.game.GameEntity d : c.getDefenders()) {
+                    if (d instanceof forge.game.player.Player p && p.getId() == me.getId() && !c.getAttackersOf(d).isEmpty()) return true;
+                    if (d instanceof forge.game.card.Card cd && cd.getController() != null && cd.getController().getId() == me.getId() && !c.getAttackersOf(d).isEmpty()) return true;
+                }
+            } catch (Exception e) { return true; }
+            return false;
         }
         @Override public void setCard(CardView c) { }
         @Override public void setPanelSelection(CardView c) { }

@@ -853,11 +853,13 @@ class H(BaseHTTPRequestHandler):
             return self.json({"erro": str(e)}, 409)
 
     def playnet_route(self, method, as_guest=None):
-        """Forge Play nativo (playnet.py). POST /api/playnet {deck_id|deck, opponent: {id}|{deck_id}|{deck}, difficulty} -> {id};
+        """Forge Play nativo (playnet.py). POST /api/playnet {deck_id|deck, opponent: {id}|{deck_id}|{deck}, difficulty,
+        more?: [{id}|{deck_id}|{deck}, …] (mais bots na mesa, todos contra todos)} -> {id};
         GET /api/playnet -> jogos meus; GET /api/playnet/<id>?since=N (espera até 20 s por novidades);
-        POST /api/playnet/<id>/cmd {c, …}; POST /api/playnet/<id>/stop."""
+        POST /api/playnet/<id>/cmd {c, …}; POST /api/playnet/<id>/stop; POST /api/playnet/<id>/finish (mesa de 3+, depois de
+        saíres: acaba já, os que restam pela vida)."""
         u = urllib.parse.urlsplit(self.path)
-        m = re.fullmatch(r"/api/playnet(?:/([a-f0-9]{12})(?:/(cmd|stop))?)?", u.path)
+        m = re.fullmatch(r"/api/playnet(?:/([a-f0-9]{12})(?:/(cmd|stop|finish))?)?", u.path)
         if not m:
             return self.json({"erro": "rota desconhecida"}, 404)
         sid, act, owner = m.group(1), m.group(2), as_guest or self.owner()  # convidado: as sessões «<dono>~guest:<id>»
@@ -873,11 +875,14 @@ class H(BaseHTTPRequestHandler):
             if not sid:
                 a = self.own_deck(d["deck_id"]) if d.get("deck_id") else d.get("deck")
                 o = d.get("opponent") or {}
-                b = o.get("deck") or (self.own_deck(o["deck_id"]) if o.get("deck_id") else sim.opponent(ARGS.data_dir, str(o.get("id") or "")))
-                if not a or not b:
+                one = lambda o: o.get("deck") or (self.own_deck(o["deck_id"]) if o.get("deck_id") else sim.opponent(ARGS.data_dir, str(o.get("id") or "")))  # noqa: E731
+                b = one(o)
+                more = [one(x) if isinstance(x, dict) else None for x in (d.get("more") or [])[:playnet.MAX_OPPS - 1]]
+                if not a or not b or not all(more):
                     raise ValueError("Falta um dos decks.")
-                if d.get("casual"):  # modo casual: decks de qualquer formato, 1 contra 1; o comandante joga como carta do deck
-                    a, b = ({**x, "main": {**(x.get("main") or {}), **{c: 1 for c in x.get("commanders") or []}}, "commanders": []} for x in (a, b))
+                flat = lambda x: {**x, "main": {**(x.get("main") or {}), **{c: 1 for c in x.get("commanders") or []}}, "commanders": []}  # noqa: E731
+                if d.get("casual") or not a.get("commanders"):  # modo casual: decks de qualquer formato; o comandante joga como carta do deck
+                    a, b, more = flat(a), flat(b), [flat(x) for x in more]
                 prof = self.profile()
                 # ratings: o meu deck guardado (rate_id; o jogo pode levar a lista com trocas do sideboard) contra um deck do
                 # meta ou outro deck meu; o espelho e listas coladas não contam (ratings.from_forgeplay)
@@ -885,7 +890,11 @@ class H(BaseHTTPRequestHandler):
                 okey = f"meta:{o['id']}" if o.get("id") else f"deck:{o['deck_id']}" if o.get("deck_id") else ""
                 rate = {"deck_id": did, "owner": owner, "format": str(d.get("format") or a.get("format") or "")[:40], "casual": bool(d.get("casual")),
                         "opp": str(okey)[:140], "opp_name": b.get("name"), "round": str(d.get("round") or "")[:60] or None, "bo": d.get("bo") or 1} if did and okey else None
-                sid = playnet.start(ARGS.data_dir, owner, a, b, str(d.get("difficulty") or "default"), (prof or {}).get("name") or str(d.get("name") or "")[:30] or "Tu", rate, d.get("chooser") if d.get("chooser") in ("a", "b") else None)
+                if more:  # mesa de 3+: não conta para os ratings (que medem 1 contra 1)
+                    rate = None
+                dif = str(d.get("difficulty") or "default")
+                sid = playnet.start(ARGS.data_dir, owner, a, b, dif, (prof or {}).get("name") or str(d.get("name") or "")[:30] or "Tu", rate,
+                                    d.get("chooser") if d.get("chooser") in ("a", "b") else None, [(x, dif) for x in more])
                 with playnet.COND:
                     if sid in playnet.S:
                         playnet.S[sid]["keep"] = owner  # jogo avulso: fica em «Os meus jogos» quando acabar
@@ -895,6 +904,9 @@ class H(BaseHTTPRequestHandler):
                 return self.json({"ok": True})
             if act == "stop":
                 playnet.stop(sid, owner)
+                return self.json({"ok": True})
+            if act == "finish":
+                playnet.finish(sid, owner)
                 return self.json({"ok": True})
             return self.json({"erro": "rota desconhecida"}, 404)
         except KeyError:
@@ -1684,7 +1696,7 @@ def selfcheck():
         import subprocess
         fake, subs, real_start, real_submit, real_status = {}, [], playnet.start, sim.submit, sim.status
 
-        def fake_start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None, chooser=None):
+        def fake_start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None, chooser=None, more=()):
             sid = f"{len(fake) + 1:012x}"
             fake[sid] = {"owner": owner, "rate": rate, "deck": deck["name"], "opp": opp["name"]}
             with playnet.COND:

@@ -1,9 +1,10 @@
-"""Forge Play nativo: um jogo teu (humano) contra a IA do Forge, jogado no browser com o ecrã do Grimório.
+"""Forge Play nativo: um jogo teu (humano) contra a IA do Forge, jogado no browser com o ecrã do Grimório — 1 contra 1
+ou numa mesa contra 2 a 5 bots (todos contra todos), Commander incluído (zona de comando, imposto, 21 de dano, 40 de vida).
 
 O GrimorioNet (build/forge/GrimorioNet.java) faz de «ecrã» do humano dentro do Forge e fala em linhas JSON
 (@@GN {...}); aqui arranca-se (contentor no servidor ou Java local nos pacotes), guarda-se o último estado, o pedido
 atual e as escolhas pendentes, e o browser lê por pedidos de espera longa (`since`) e manda comandos.
-Sem Commander: só formatos 1 contra 1 construídos (o EDH fica para a app do Júlio).
+A mesa estrita (pessoas entre si) continua 1 contra 1 a 4, sem Commander.
 """
 import json, os, subprocess, threading, time, uuid
 
@@ -16,6 +17,13 @@ IDLE = 2 * 3600             # um jogo parado há mais de 2 h fecha-se
 AFK = 300                   # mesa estrita (pessoa contra pessoa): quem deve uma decisão e não mexe há 5 min desiste
 ON_END = None               # server.py: ON_END(rate, side) quando um jogo acaba com vencedor (ratings, uma vez por jogo)
 ON_KEEP = None              # server.py: ON_KEEP(owner, jogo) quando acaba um jogo avulso contra o Forge (s["keep"]): «Os meus jogos»
+
+
+def _places(s, names):
+    """Nomes do Forge pela ordem dos lugares -> os lados (a, b, c…); quem não vem na lista fica no fim."""
+    by = {n: k for k, n in (s.get("players") or {}).items()}
+    out = [by[n] for n in names if n in by]
+    return out + [k for k in (s.get("players") or {}) if k not in out]
 
 
 def _over(s, winner):
@@ -65,6 +73,8 @@ def _reader(sid, p):
                 s["crash"] = True
             elif k == "end":
                 s["out"], s["draw"] = m.get("out") or s.get("out"), bool(m.get("draw"))  # como perdeu cada um (a esfera rebenta à maneira) e empate
+                if m.get("places"):  # mesa de 3+: os lugares, do 1.º ao último (nomes -> lados)
+                    s["places"] = _places(s, m["places"])
                 rate = _over(s, m.get("winner") or s.get("winner"))
             s["seq"] += 1
             s["ts"] = time.time()
@@ -84,7 +94,8 @@ def _reader(sid, p):
             if s.get("keep") and s.get("snaps") and not s.get("kept"):  # um jogo avulso: guarda-se para rever («Os meus jogos»)
                 s["kept"] = True
                 keep = (s["keep"], {"names": s.get("names"), "players": s.get("players"), "winner": s.get("side"), "turns": (s["state"] or {}).get("turn"),
-                                    "snaps": list(s["snaps"]), "out": s.get("out"), "ts": time.time()})
+                                    "snaps": list(s["snaps"]), "out": s.get("out"), "ts": time.time(),
+                                    **({"places": s["places"]} if s.get("places") else {}), **({"cmd": True} if s.get("cmd") else {})})
     if keep and ON_KEEP:
         try:
             ON_KEEP(*keep)
@@ -129,27 +140,49 @@ def _kill(s):
         subprocess.run(["docker", "kill", s["container"]], capture_output=True)
 
 
-def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None, chooser=None):
+KEYS = "abcdef"  # a = tu; b… = os bots, pela ordem dos lugares
+MAX_OPPS = 5
+
+
+def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None, chooser=None, more=()):
     """deck/opp = {name, main, side, commanders}; devolve o id da sessão. Um jogo de cada vez por dono. rate: para os
-    ratings quando acabar (ratings.from_forgeplay), ou None (não conta)."""
+    ratings quando acabar (ratings.from_forgeplay), ou None (não conta). more: mais adversários numa mesa (todos contra
+    todos), [(deck, dificuldade)] — até 5 bots ao todo. Com comandante no meu deck é um jogo de Commander e todos os
+    decks têm de trazer o seu."""
     sim.need_forge()
     _cleanup()
-    for d in (deck, opp):
+    opps = [(opp, difficulty)] + [(d, dif or difficulty) for d, dif in more or ()]
+    if len(opps) > MAX_OPPS:
+        raise ValueError(f"No máximo {MAX_OPPS} adversários na mesma mesa.")
+    for d in [deck] + [d for d, _ in opps]:
         if not isinstance(d, dict) or not isinstance(d.get("main"), dict) or not d["main"]:
             raise ValueError("Falta um dos decks.")
-        if d.get("commanders"):
-            raise ValueError("O Forge Play é só para formatos 1 contra 1 (sem Commander).")
+    cmd = bool(deck.get("commanders"))
+    if any(bool(d.get("commanders")) != cmd for d, _ in opps):
+        raise ValueError("Num jogo de Commander todos os decks levam comandante (e fora do Commander nenhum).")
     with COND:
         for sid in [k for k, s in S.items() if s["owner"] == owner and not s.get("seats")]:
             _kill(S.pop(sid))
     profs = {i: p for i, p, *_ in sim.DIFFICULTIES}
-    oname = str(opp.get("name") or "Forge")[:40]
-    sid, p, container = _spawn(data_dir, deck, opp, [str(name)[:40] or "Tu", profs.get(difficulty) or "Default", oname] + (["ai", chooser] if chooser in ("a", "b") else []), ai_b=True)
+    nm = {"a": str(name)[:40] or "Tu"}
+    for k, (d, _) in zip(KEYS[1:], opps):  # quem ganhou vem pelo nome: têm de ser todos diferentes
+        n0 = str(d.get("name") or "Forge")[:40]
+        nm[k] = n0 if n0 not in nm.values() else f"{n0[:36]} ({KEYS.index(k) + 1})"
+    extra = [(k, d, f"{nm[k]}|{profs.get(dif) or 'Default'}") for k, (d, dif) in zip(KEYS[2:], opps[1:])]
+    multi = len(opps) > 1 or cmd
+    args = [nm["a"], profs.get(difficulty) or "Default", nm["b"]]
+    if chooser in ("a", "b") or multi:
+        args += ["ai", chooser if chooser in ("a", "b") and not extra else "-"]
+    if multi:
+        args += [",".join(["ffa"] * bool(extra) + ["cmd"] * cmd) or "-"]
+    sid, p, container = _spawn(data_dir, deck, opp, args, ai_b=True, extra=extra, gtype="Commander" if cmd else "Constructed")
+    ks = list(nm)
     with COND:
         S[sid] = {"owner": owner, "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
-                  "ended": False, "winner": None, "ts": time.time(), "names": {"a": deck.get("name"), "b": opp.get("name")},
-                  "players": {"a": str(name)[:40] or "Tu", "b": oname}, "rate": rate, "chooser": chooser in ("a", "b"),  # jogo 2+ de uma série: sem moeda
-                  "arts": {"a": sim.art_map(deck), "b": sim.art_map(opp)}}  # a arte escolhida de cada carta (edição, imagem própria, básicos divididos)
+                  "ended": False, "winner": None, "ts": time.time(), "names": {"a": deck.get("name"), **{k: d.get("name") for k, (d, _) in zip(KEYS[1:], opps)}},
+                  "players": nm, "rate": rate if len(ks) == 2 else None, "chooser": chooser in ("a", "b") and len(ks) == 2,  # jogo 2+ de uma série: sem moeda
+                  "arts": {"a": sim.art_map(deck), **{k: sim.art_map(d) for k, (d, _) in zip(KEYS[1:], opps)}},  # a arte escolhida de cada carta (edição, imagem própria, básicos divididos)
+                  **({"cmd": True} if cmd else {}), **({"multi": True} if len(ks) > 2 else {})}
     threading.Thread(target=_reader, args=(sid, p), daemon=True).start()
     return sid
 
@@ -189,7 +222,7 @@ def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, 
     return sid
 
 
-def _spawn(data_dir, deck, opp, args, ai_b, extra=()):
+def _spawn(data_dir, deck, opp, args, ai_b, extra=(), gtype="Constructed"):
     """Arranca o GrimorioNet (contentor no servidor, Java local nos pacotes) com os dois decks -> (sid, processo, contentor)."""
     fdir = sim.forge_dir(data_dir)
     ext = os.path.join(os.path.dirname(os.path.realpath(fdir)), "forge-ext")  # ao lado do Forge (o build.sh põe-no lá)
@@ -200,11 +233,11 @@ def _spawn(data_dir, deck, opp, args, ai_b, extra=()):
     os.makedirs(os.path.join(jdir, "home"), exist_ok=True)
     names = sim.forge_names(fdir, os.path.join(data_dir, "forge-run"))
     for side, d in (("a", deck), ("b", opp)):
-        txt, _ = sim.to_dck(d, side.upper(), "Constructed", names, ai=ai_b and side == "b")  # o meu deck (a) fica como está; na mesa estrita os dois
+        txt, _ = sim.to_dck(d, side.upper(), gtype, names, ai=ai_b and side == "b")  # o meu deck (a) fica como está; na mesa estrita os dois
         with open(os.path.join(jdir, f"{side}.dck"), "w", encoding="utf-8") as f:
             f.write(txt)
-    for side, d, _ in extra:  # mesa estrita a 3–4: os lugares c e d
-        txt, _ = sim.to_dck(d, side.upper(), "Constructed", names, ai=False)
+    for side, d, _ in extra:  # mesa a 3+: os lugares c, d… (pessoas na mesa estrita, bots contra a IA)
+        txt, _ = sim.to_dck(d, side.upper(), gtype, names, ai=ai_b)
         with open(os.path.join(jdir, f"{side}.dck"), "w", encoding="utf-8") as f:
             f.write(txt)
     jvm = ["-Xmx2g", "-Djava.awt.headless=true", "-Dfile.encoding=UTF-8"]
@@ -273,6 +306,7 @@ def poll(sid, owner, since=0, wait=20.0):
         return {"seq": s["seq"], "state": v["state"], "prompt": v["prompt"], "asks": list(v["asks"].values()), "log": v["log"][-12:],
                 "ended": s["ended"], "winner": s["winner"], "names": sw(s["names"]), "crash": bool(s.get("crash")), "chooser": bool(s.get("chooser")),
                 "arts": sw(s.get("arts")), **({"avs": sw(s["avs"])} if s.get("avs") else {}), "out": sw(out) if isinstance(out, dict) and set(out) <= set("abcd") else out, "draw": s.get("draw", False),
+                **({"places": s["places"]} if s.get("places") and not seat else {}), **({"cut": True} if s.get("cut") else {}), **({"cmd": True} if s.get("cmd") else {}),
                 **({"pvp": {"seat": seat, "afk": s.get("afk", AFK), "clock": s.get("clock")}} if seat else {})}
 
 
@@ -295,13 +329,39 @@ def cmd(sid, owner, c):
 
 
 def result(sid):
-    """Para os torneios: None se o jogo já não existe; senão {ended, side ('a' = tu, 'b' = a IA, None), turns}."""
+    """Para os torneios: None se o jogo já não existe; senão {ended, side ('a' = tu, 'b'… = os bots, None), turns,
+    places (mesa de 3+: os lados do 1.º ao último)}."""
     with COND:
         s = S.get(sid)
         if not s:
             return None
         st = s["state"] or (s.get("pv") or {}).get("a", {}).get("state") or {}
-        return {"ended": s["ended"], "side": s.get("side"), "turns": st.get("turn"), "snaps": list(s.get("snaps") or [])}
+        return {"ended": s["ended"], "side": s.get("side"), "turns": st.get("turn"), "snaps": list(s.get("snaps") or []),
+                **({"places": list(s["places"])} if s.get("places") else {})}
+
+
+def finish(sid, owner):
+    """Mesa de 3+ depois de saíres (eliminado): acaba já, sem esperar que os bots que restam joguem até ao fim. Os lugares
+    de quem ainda estava em jogo vão pela vida (mais vida, melhor lugar); os que já tinham saído ficam pela ordem em que
+    saíram. Conta como um jogo acabado (o torneio regista os lugares)."""
+    with COND:
+        s = _get(sid, owner)
+        st = s["state"] or {}
+        ps = st.get("players") or []
+        if s["ended"] or s.get("seats") or len(ps) < 3 or not any(p.get("me") and p.get("lost") for p in ps):
+            raise ValueError("Só dá para acabar já uma mesa de 3 ou mais depois de saíres do jogo.")
+        alive = sorted((p for p in ps if not p.get("lost")), key=lambda p: -(p.get("life") or 0))
+        gone = sorted((p for p in ps if p.get("lost")), key=lambda p: -(p.get("outT") or 0))
+        s["places"] = _places(s, [p.get("name") for p in alive + gone])
+        winner = s["players"].get(s["places"][0])
+        rate = _over(s, winner)
+        s["cut"] = True  # acabado antes do fim (os lugares dos que restavam vão pela vida)
+        s["seq"] += 1
+        COND.notify_all()
+        p = s["p"]
+    if rate and ON_END:
+        ON_END(*rate)
+    _kill({"p": p, "container": s.get("container")})
 
 
 def stop(sid, owner):
@@ -333,7 +393,8 @@ def running():
 
 def active(owner):
     with COND:
-        return [{"id": k, "ended": s["ended"], "names": s["names"], **({"pvp": True} if s.get("seats") else {})} for k, s in S.items() if s["owner"] == owner or owner in (s.get("seats") or {}).values()]
+        return [{"id": k, "ended": s["ended"], "names": s["names"], **({"pvp": True} if s.get("seats") else {}), **({"cmd": True} if s.get("cmd") else {})}
+                for k, s in S.items() if s["owner"] == owner or owner in (s.get("seats") or {}).values()]
 
 
 def selfcheck():
@@ -398,6 +459,27 @@ def selfcheck():
     assert result("t4")["ended"] and result("t4")["side"] is None and poll("t4", "o", 0, 1)["crash"] and len(got) == 1
     ON_END = None
     S.pop("t2", None), S.pop("t3", None), S.pop("t4", None)
+    # mesa de 4 contra bots: o fim do Forge traz os lugares (nomes -> lados); saíste e «acabar já»: os que restam pela vida
+    fake6 = ("import json\nprint('@@GN '+json.dumps({'t':'end','winner':'C','places':['C','Tu','D','B']}),flush=True)\n")
+    p = subprocess.Popen([sys.executable, "-c", fake6], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    S["t6"] = {"owner": "o", "p": p, "container": None, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [], "ended": False,
+               "winner": None, "ts": time.time(), "names": {}, "players": {"a": "Tu", "b": "B", "c": "C", "d": "D"}, "multi": True}
+    _reader("t6", p)
+    assert result("t6")["side"] == "c" and result("t6")["places"] == ["c", "a", "d", "b"], result("t6")
+    S.pop("t6")
+    p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    st7 = {"players": [{"name": "Tu", "me": True, "lost": True, "outT": 6, "life": 0}, {"name": "B", "life": 12}, {"name": "C", "lost": True, "outT": 4},
+                       {"name": "D", "life": 30}]}
+    S["t7"] = {"prompt": None, "asks": {}, "log": [], "owner": "o", "p": p, "container": None, "seq": 0, "state": st7, "ended": False, "winner": None, "ts": time.time(),
+               "names": {}, "players": {"a": "Tu", "b": "B", "c": "C", "d": "D"}, "multi": True}
+    try:
+        finish("t1", "o")
+        raise AssertionError("1 contra 1 a decorrer não acaba já")
+    except (ValueError, KeyError):
+        pass
+    finish("t7", "o")
+    assert result("t7")["places"] == ["d", "b", "a", "c"] and result("t7")["side"] == "d" and poll("t7", "o", 0, 0)["cut"], result("t7")
+    S.pop("t7")
     # mesa estrita: cada lugar só vê as suas escolhas; o b recebe os nomes trocados; comandos levam o lugar; sair = desistir
     fake5 = ("import sys,json\n"
              "for m in [{'t':'state','s':'a','turn':1,'waitme':False},{'t':'state','s':'b','turn':1,'waitme':True},{'t':'ask','s':'a','id':1,'kind':'choose'}]:\n"

@@ -601,15 +601,20 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   }
   const st = s?.state, players = st?.players || []
   const me = players.find(p => p.me) || players.find(p => !p.ai)
-  // mesa estrita a 3–4: os outros pela ordem dos lugares a seguir a mim (b, c, d); no 2HG o parceiro (mesma equipa) fica ao meu lado
+  // mesa a 3+ (mesa estrita ou contra 2–5 bots): os outros pela ordem dos lugares a seguir a mim (b, c, d, e, f); no 2HG o
+  // parceiro (mesma equipa) fica ao meu lado
   const others = (i => (i < 0 ? players : [...players.slice(i + 1), ...players.slice(0, i)]))(players.indexOf(me)).filter(p => p !== me)
-  const opp = others[0], keyOf = p => (p === me ? 'a' : 'bcd'[others.indexOf(p)] || 'b')
+  const opp = others[0], keyOf = p => (p === me ? 'a' : 'bcdef'[others.indexOf(p)] || 'b'), byKey = k => (k === 'a' ? me : others['bcdef'.indexOf(k)])
+  const sideP = el => { const k = (el?.closest?.('.bside')?.className.match(/\bp-([a-f])\b/) || [])[1]; return k ? byKey(k) : null }  // o jogador do lado (da mesa) onde está este elemento
+  const multi = players.length > 2
+  const sideById = pid => (pid === me?.id ? 'a' : (q => (q ? keyOf(q) : 'b'))(others.find(p => p.id === pid)))  // o lado (a…f) de cada jogador
+  const sideByName = nm => (nm === me?.name ? 'a' : (q => (q ? keyOf(q) : null))(others.find(p => p.name === nm)))
   const mates = players.length > 2 ? others.filter(p => p.team && p.team === me?.team) : [], tops = others.filter(p => !mates.includes(p))
   // o servidor guarda a última mensagem do Forge, que no turno da IA nem sempre é trocada: um «Declare attackers» do teu
   // turno anterior ficava lá (e depois de recarregar a página a meio do combate aparecia «Declara os atacantes» quando
   // eram os bloqueadores). No turno dele, isso é só «à espera».
   const theirTurn = !!st && st.active !== me?.id
-  const pr = theirTurn && ATK_ASK(s?.prompt?.msg) ? { msg: `Waiting for ${opp?.name || ''}`, buttons: [] } : s?.prompt
+  const pr = theirTurn && ATK_ASK(s?.prompt?.msg) ? { msg: `Waiting for ${players.find(p => p.id === st?.active)?.name || opp?.name || ''}`, buttons: [] } : s?.prompt
   const btns = (pr?.buttons || []).filter(b => b.label)
   // impasse do Forge: pede «Click one of the highlighted cards» sem nenhuma carta escolhível e com os dois botões desligados
   // (Calix sem encantamentos não lendários, efeitos «escolhe uma … que controlas» sem nenhuma). O Forge cancela a entrada
@@ -723,7 +728,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     if (logSeen.current == null || n < logSeen.current) { logSeen.current = n; return }
     const fresh = lg.slice(Math.max(0, lg.length - (n - logSeen.current)))
     logSeen.current = n
-    const sideOf = nm => (nm === me?.name ? 'a' : nm === opp?.name ? 'b' : null)
+    const sideOf = sideByName
     const out = fresh.map((e, k) => {
       const msg = (e.m || '').replace(/^(Damage|Life):\s*/, '')
       if (e.y === 'LIFE') {  // vida ganha por uma carta (laço de vida, Spike Feeder…): bolinha verde até ao orbe; sem carta de origem, só o orbe
@@ -915,7 +920,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       // largada em cima de uma permanente (aura, remoção, reforço…): esse é o alvo — a mesa responde ao Forge por ti
       const land = byId.get(id)?.land
       if (pid != null && !land) { aim(pid, perm) }
-      else if (!land && target.closest('.orb')) { const ob = target.closest('.orb'); aim(null, ob, null, players.indexOf(ob.closest('.bside')?.classList.contains('top') ? opp : me)) }  // na esfera: esse jogador
+      else if (!land && target.closest('.orb')) { const ob = target.closest('.orb'); aim(null, ob, null, players.indexOf(sideP(ob) || me)) }  // na esfera: esse jogador
       // largada no teu lado (um terreno, mesmo por cima de outra carta): quando entrar em jogo fica nesse sítio/fila
       putAt(id, (pid == null || land) && whereOn(id, target, x, y))
       castNow(id); send1({ c: 'card', id }); return true
@@ -934,8 +939,8 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     }
     if (!mine && blocking && atts.length === 1 && target.closest('.bside.top')) { send1({ c: 'card', id: atts[0].att }).then(() => send1({ c: 'card', id })); return true }
     if (mine && st.phase === 'COMBAT_DECLARE_ATTACKERS' && target.closest('.bside.top')) {  // largar no lado dele: atacar (quem: onde a largaste)
-      const d = defOf(pid), cur = st.combat?.find(x => x.att === id)
-      if (cur && d && String(cur.def) === String(d.c === 'card' ? d.id : opp?.id)) return true  // já ataca esse: um clique tirava-a do ataque
+      const who = sideP(target) || opp, d = defOf(pid, who), cur = st.combat?.find(x => x.att === id)
+      if (cur && d && String(cur.def) === String(d.c === 'card' ? d.id : who?.id)) return true  // já ataca esse: um clique tirava-a do ataque
       ;(d ? send1(d) : Promise.resolve()).then(() => send1({ c: 'card', id })); return true
     }
     // ainda na fase principal: o gesto diz «ataca com esta» — passa-se ao combate e declara-se sozinho
@@ -943,7 +948,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
       if (byId.get(id)?.sick) { setToast({ title: tx('Esta criatura ainda não pode atacar'), msg: tx('Entrou neste turno (enjoo de invocação).') }); return false }
       const oracle = lookup(data, byId.get(id)?.name)?.o || ''
       if (/^Defender\b/im.test(oracle) || byId.get(id)?.tapped) { setToast({ title: tx('Esta criatura não pode atacar'), msg: byId.get(id)?.tapped ? tx('Está virada.') : tx('Tem a habilidade Defensor.') }); return false }
-      attackIntent.current = { ids: [...(attackIntent.current?.ids || []), id], defs: { ...attackIntent.current?.defs, [id]: defOf(pid) }, until: Date.now() + 15000 }
+      attackIntent.current = { ids: [...(attackIntent.current?.ids || []), id], defs: { ...attackIntent.current?.defs, [id]: defOf(pid, sideP(target) || opp) }, until: Date.now() + 15000 }
       send1({ c: 'ok' }); return true
     }
     const w = whereOn(id, target, x, y)  // no teu lado: arrumar à vontade (numa fila pela posição, ou solta)
@@ -1090,7 +1095,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   useLayoutEffect(() => {  // antes de pintar: a cópia «A resolver» entra no mesmo frame em que a carta sai da pilha (havia um frame com a pilha vazia)
     if (!st) return
     const a = anim.current, now = new Map(), pops = new Map(), gone = []
-    for (const p of st.players || []) for (const c of p.battlefield || []) now.set(c.id, { c, side: p.id === me?.id ? 'a' : 'b' })
+    for (const p of st.players || []) for (const c of p.battlefield || []) now.set(c.id, { c, side: sideById(p.id) })
     for (const [id, { c }] of now) {
       const o = a.perms.get(id)?.c
       if (!o) continue
@@ -1117,7 +1122,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     // a pilha do Forge vem do topo para baixo; o que saiu dela resolveu (ou foi contrariado): fantasma «A resolver»
     const items = [...(st.stack || [])].reverse(), keyOf = x => `${x.card ?? ''}|${x.text}`
     // várias de uma vez (resolveram seguidas entre dois estados): todas saem a desvanecer, não só a primeira
-    const lefts = a.stack.filter(x => !items.some(y => keyOf(y) === keyOf(x))), left = lefts.at(-1), side = x => (x.by === me?.id ? 'a' : 'b')
+    const lefts = a.stack.filter(x => !items.some(y => keyOf(y) === keyOf(x))), left = lefts.at(-1), side = x => sideById(x.by)
     a.perms = now; a.stack = items
     setFxs(f => ({ pops, gone: [...f.gone.filter(g => g.until > Date.now()), ...gone], rev: left ? { k: 'resolve', card: left.name, p: side(left), txt: left.text, more: lefts.slice(0, -1).map(x => ({ card: x.name, p: side(x) })) } : f.rev, ri: left ? f.ri + 1 : f.ri }))
   }, [seqKey]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1253,6 +1258,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const atkKey = [...atkBy].join(), selKey = tops.filter(selOf).map(p => p.id).join()
   useEffect(() => { if (!drawers) return; const t = tops.findIndex(p => atkBy.has(p.id)); if (t >= 0 && !atkBy.has(focusP?.id)) setDFocus(t) }, [atkKey, drawers])  // eslint-disable-line react-hooks/exhaustive-deps -- um adversário ataca-te: a mesa mostra-o
   useEffect(() => { if (!drawers || !selKey || (focusP && selOf(focusP))) return; const t = tops.findIndex(selOf); if (t >= 0) setDFocus(t) }, [selKey, drawers])  // eslint-disable-line react-hooks/exhaustive-deps -- uma escolha noutra mesa: vai para lá
+  useEffect(() => { if (!drawers || !focusP?.lost) return; const t = tops.findIndex(p => !p.lost); if (t >= 0) setDFocus(t) }, [drawers, focusP?.id, focusP?.lost])  // eslint-disable-line react-hooks/exhaustive-deps -- quem já saiu do jogo não fica à vista na gaveta
   const stage = useStage(fitBox, stageWrap, !!st, false, compact, `${drawers}`)
   // a arte escolhida em cada deck ({a: {carta: edição/imagem}, b: …}): estável entre estados para não redesenhar a mesa toda
   const artsKey = JSON.stringify(s?.arts || null), artsCtx = useMemo(() => ({ arts: JSON.parse(artsKey), k: null }), [artsKey])
@@ -1282,18 +1288,20 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     {!clock.stopped && <button type="button" className="fp-stop" onClick={stopClock} title={tx('Parar para pensar: mais {n} s para responder', { n: fpPrefs().clockExtra })}>⏸ {tx('Stop')} <kbd>{fpPrefs().clockKey.toUpperCase()}</kbd></button>}
   </div>
   const actP = players.find(p => p.id === st.active)
-  const bs = { sides: ['a', ...others.map(keyOf)], a: zoneOf(me || {}, st.combat), ...Object.fromEntries(others.map(p => [keyOf(p), zoneOf(p, st.combat)])),
+  const zs = multi ? sideById : undefined  // mesa de 3+: cada atacante sabe que lado ataca
+  const bs = { sides: ['a', ...others.map(keyOf)], a: zoneOf(me || {}, st.combat, zs), ...Object.fromEntries(others.map(p => [keyOf(p), zoneOf(p, st.combat, zs)])),
     active: myTurn ? 'a' : actP ? keyOf(actP) : 'b', i: s.seq, exact: true, dmg }
   for (const x of planned) { const p = bs.a.perms.find(q => q.key === String(x.blk)); if (p && !p.blocking) Object.assign(p, { blocking: String(x.att), planned: true }) }
-  bs.lost = s.ended && s.winner ? (s.winner === me?.name ? 'b' : 'a') : null  // quem perdeu: a esfera dele rebenta (Hud)
+  bs.lost = s.ended && s.winner ? (s.winner === me?.name ? (multi ? null : 'b') : 'a') : null  // quem perdeu: a esfera dele rebenta (Hud)
   // como perdeu cada um (a causa do Forge) e o empate: a esfera rebenta à maneira (vida, veneno, moer, comandante, carta…)
-  bs.out = s.draw ? { a: 'draw', b: 'draw' } : Object.fromEntries((s.out || []).map(x => [x.name === me?.name ? 'a' : 'b', ORB_DEATH[x.r]]).filter(e => e[1]))
-  for (const g of fxs.gone) if (!bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.splice(Math.min(g.idx ?? 1e9, bs[g.side].perms.length), 0, { ...toPerm(g.c), dying: g.to || true })
+  const keyByName = n => sideByName(n) || (multi ? null : 'b')
+  bs.out = s.draw ? Object.fromEntries(bs.sides.map(k => [k, 'draw'])) : Object.fromEntries((s.out || []).map(x => [keyByName(x.name), ORB_DEATH[x.r]]).filter(e => e[0] && e[1]))
+  for (const g of fxs.gone) if (bs[g.side] && !bs[g.side].perms.some(p => p.key === String(g.c.id))) bs[g.side].perms.splice(Math.min(g.idx ?? 1e9, bs[g.side].perms.length), 0, { ...toPerm(g.c), dying: g.to || true })
   const hashN = t => [...String(t)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0
-  const sideOfP = pid => (pid === me?.id ? 'a' : (q => (q ? keyOf(q) : 'b'))(players.find(p => p.id === pid)))  // 3–4 jogadores: o lado certo (c, d)
+  const sideOfP = sideById  // 3+ jogadores: o lado certo (c, d…)
   // a carta-alvo fora do campo (cemitério, exílio, mão, topo da biblioteca): [lado, zona] — a linha da pilha vai a esse monte
   const zoneOfCard = id => { for (const p of players) for (const z of ['graveyard', 'exile', 'hand']) if ((p[z] || []).some(c => c.id === id)) return [keyOf(p), z]; const t = players.find(p => p.top?.id === id); return t ? [keyOf(t), 'library'] : null }
-  bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: x.by === me?.id ? 'a' : 'b', card: x.name, text: x.text, id: x.card,  // o texto do Forge: o que foi mesmo ativado (num feitiço, «Attach to …» de uma aura)
+  bs.stack = [...(st.stack || [])].reverse().map(x => ({ uid: hashN(`${x.card}|${x.text}`), p: sideOfP(x.by), card: x.name, text: x.text, id: x.card,  // o texto do Forge: o que foi mesmo ativado (num feitiço, «Attach to …» de uma aura)
     kind: !x.ability ? 'cast' : isTrigger(x.text) ? 'trigger' : 'activate',
     // alvos: as linhas da pilha (StackLinks) e o «→ alvo» da legenda
     tc: (x.tc || []).map(String), tp: (x.tp || []).map(sideOfP), tcz: (x.tc || []).map(zoneOfCard),
@@ -1307,7 +1315,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     return q.res || q.kind === 'opt' ? { pend: { card: q.src.name, kind, p: 'a', how: 'res' } } : ['target', 'aura'].includes(q.kind) ? { pend: { card: q.src.name, kind, p: 'a', how: 'in' } } : {}
   })(ask ? askRq : rq)
   const att = new Map()
-  for (const p of [...bs.a.perms, ...bs.b.perms]) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
+  for (const p of bs.sides.flatMap(k => bs[k]?.perms || [])) if (p.attachedTo) att.set(p.attachedTo, [...(att.get(p.attachedTo) || []), p])
   const sel = new Set([...byId.values()].filter(c => c.sel).map(c => String(c.id)))
   const picked = [...byId.values()].filter(c => c.picked).map(c => c.id)
   // escolhíveis que não se veem sozinhas na mesa: presas a outra carta (aura, Hopeful Eidolon com bestow), no cemitério,
@@ -1328,7 +1336,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // botões: a carta vem em grande, ao centro, com as duas escolhas por extenso
   const reveal = !ask && pr?.cardName && pr.card != null && !byId.has(pr.card) && btns.filter(b => b.on).length === 2 && btns.some(b => /^(Library|Graveyard|Top|Bottom)$/.test(b.label)) ? pr : null  // só vigiar/vidência (o pagamento também traz a carta e tem de deixar clicar nos terrenos)  // já escolhidas nesta escolha do Forge (sacrificar 2…): moldura dourada
   const fx = { hl: sel, par: 'sel', pops: fxs.pops, life: lifeFx, player: psnFx && { p: psnFx.p, psn: true } }
-  const openZone = (k, z) => setZone({ p: k === 'a' ? me : opp, k: z })
+  const openZone = (k, z) => setZone({ p: byKey(k) || opp, k: z })
   const onClick = e => {  // um clique numa carta da mesa ou da mão = o mesmo que no Forge; no orbe = escolher o jogador
     if (dragged.current) return
     aimCancel()  // um toque teu enquanto o alvo largado pisca: escolhes tu
@@ -1348,9 +1356,13 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     }
     const z = e.target.closest('[data-z]')?.dataset.z
     if (z?.startsWith('k:')) return permClick(+z.slice(2), e.target.closest('[data-z]'))
+    const nm = !drawers && e.target.closest('.opps .bside .bname b')  // mesa de 3+ com todos à vista: o nome de um adversário abre o lado dele em grande (gavetas)
+    if (nm) { const t = tops.indexOf(sideP(nm)); if (t >= 0) { setDFocus(t); setAllView(false) } return }
     if (e.target.closest('.team-orb')) return send({ c: 'player', i: players.indexOf(showMate ? mates[0] : me) })  // a esfera da equipa: quem está em baixo
     const orb = e.target.closest('.orb')
-    if (orb) { const k = (orb.closest('.bside')?.className.match(/\bp-([a-d])\b/) || [])[1], who = k === 'a' ? me : others['bcd'.indexOf(k)] || opp; send({ c: 'player', i: players.indexOf(who) }) }  // a esfera de quem: o alvo/defensor
+    if (orb) { const who = sideP(orb) || opp; send({ c: 'player', i: players.indexOf(who) }) }  // a esfera de quem: o alvo/defensor
+    const cz = e.target.closest('.cmdz[data-cid]')  // o meu comandante na zona de comando: lançá-lo (ou escolhê-lo, se o Forge pede)
+    if (cz && cz.closest('.bside.bottom')) send({ c: 'card', id: +cz.dataset.cid })
   }
   // um clique numa permanente: se o Forge pede uma escolha (alvo, sacrificar…) ou é tua e só dá mana (terreno, Sol Ring),
   // vai direto; se é tua e tem uma habilidade ativada que não é só mana, pergunta primeiro (antes ativava e pagava sozinho)
@@ -1372,10 +1384,11 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   }
   // atacar: largar (ou ter largado) a criatura num planeswalker/batalha do adversário = atacá-lo; noutro sítio do lado dele,
   // com planeswalkers/batalhas à vista, o jogador (o Forge guarda o último defensor escolhido: assim nunca fica no errado)
-  const defOf = pid => {
-    const c = pid != null && (opp?.battlefield || []).find(x => x.id === pid)
+  // mesa de 3+: o jogador do lado onde a largaste (sempre dito ao Forge: o defensor atual pode ser outro)
+  const defOf = (pid, who = opp) => {
+    const c = pid != null && (who?.battlefield || []).find(x => x.id === pid)
     if (c && (c.loyalty != null || c.counters?.DEFENSE != null || /\b(Planeswalker|Battle)\b/.test(typeOf(pid)))) return { c: 'card', id: pid }
-    return (opp?.battlefield || []).some(x => x.loyalty != null || x.counters?.DEFENSE != null) ? { c: 'player', i: players.indexOf(opp) } : null
+    return tops.length > 1 || (who?.battlefield || []).some(x => x.loyalty != null || x.counters?.DEFENSE != null) ? { c: 'player', i: players.indexOf(who) } : null
   }
   const activateAb = d => { if (!act) return; castNow(act.id); send({ c: 'card', id: act.id, ab: d }); setAct(null) }  // a habilidade de lealdade escolhida
   // «Jogar» (toque): o «dá/não dá» vê-se ao vivo — o estado com as jogáveis chega ~150 ms depois do pedido do Forge e um toque
@@ -1432,12 +1445,20 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // desfazer um bloqueio aceite: no Forge um clique no bloqueador só o tira se o atacante «atual» for o que ele bloqueia (senão
   // muda o bloqueio para esse) — primeiro escolhe-se o atacante, depois o bloqueador
   const unblock = async x => { await send({ c: 'card', id: x.att }); await send({ c: 'card', id: x.blk }) }
+  // mesa de 3+, a declarar atacantes: a quem vão os próximos (o Forge guarda um defensor de cada vez, st.atkDef); um toque
+  // num adversário (ou num planeswalker/batalha dele) muda-o, e as criaturas que tocares a seguir atacam esse
+  const atkTargets = declaring && multi ? [...tops.filter(p => !p.lost).map(p => ({ k: keyOf(p), id: p.id, name: p.name, life: p.life, c: { c: 'player', i: players.indexOf(p) } })),
+    ...tops.flatMap(p => (p.battlefield || []).filter(c => c.loyalty != null || c.counters?.DEFENSE != null).map(c => ({ k: keyOf(p), id: c.id, card: true, name: c.name, life: c.loyalty ?? c.counters?.DEFENSE, c: { c: 'card', id: c.id } })))] : []
+  const atkPick = atkTargets.length > 1 && <span className="fp-atkto" role="group" aria-label={tx('Atacar quem')}>
+    <b>{tx('Os próximos atacam')}:</b>{atkTargets.map(x => { const on = x.id === st?.atkDef && !!x.card === !!st?.atkDefC
+      return <button key={`${x.card ? 'c' : 'p'}${x.id}`} type="button" className={`fp-atkp p-${x.k} ${on ? 'on' : ''}`} aria-pressed={on} onClick={e => { e.stopPropagation(); send(x.c) }}
+        title={x.card ? tx('Atacar o planeswalker/batalha {c}', { c: x.name }) : tx('Atacar {n}', { n: x.name })}>{x.card ? '◈ ' : ''}{x.name} <i>{x.card ? x.life : `❤${x.life}`}</i></button> })}</span>
   // a declarar atacantes: a lista «A atacar» com ✕ (no Forge, clicar num atacante tira-o do combate)
   const atkList = !theirTurn && ATK_ASK(pr?.msg) ? (st?.combat || []).map(x => x.att).filter(a => byId.get(a)) : []
-  const atkBox = atkList.length > 0 && <span className="fp-blocks" role="list" aria-label={tx('A atacar')}>
-    <b>⚔ {tx('A atacar')}:</b>{atkList.map(a => <span key={a} role="listitem" className="fp-blk atk">{byId.get(a)?.name || '?'}
+  const atkBox = (atkList.length > 0 || atkPick) && <>{atkPick}{atkList.length > 0 && <span className="fp-blocks" role="list" aria-label={tx('A atacar')}>
+    <b>⚔ {tx('A atacar')}:</b>{atkList.map(a => <span key={a} role="listitem" className="fp-blk atk">{byId.get(a)?.name || '?'}{multi && (x => x && <i> → {x}</i>)((d => d && (players.find(p => p.id === d.def)?.name || d.defc))(st.combat.find(x => x.att === a)))}
       <button type="button" className="link small" title={tx('Tirar do ataque')} onClick={() => send({ c: 'card', id: a })}>✕</button></span>)}
-  </span>
+  </span>}</>
   const zc = zoom && (lookup(data, zoom.name))
   const mana = Object.entries(me?.mana || {})
   const handIn = cs => (lay.hand ? [...cs].sort((x, y) => { const i = lay.hand.indexOf(String(x.id)), k = lay.hand.indexOf(String(y.id)); return (i < 0 ? 1e9 : i) - (k < 0 ? 1e9 : k) }) : cs)
@@ -1448,16 +1469,18 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     el.style.setProperty('--tx', ((e.clientX - q.left) / q.width - 0.5).toFixed(3)); el.style.setProperty('--ty', ((e.clientY - q.top) / q.height - 0.5).toFixed(3))
   }
   const avOf = k => s?.avs?.[k] || null  // a imagem de perfil de quem joga cada lado (mesa estrita; playnet roda-as como os nomes)
-  const oppSide = (p, small) => <Side key={keyOf(p)} k={keyOf(p)} top compact={small} name={p.name} av={avOf(keyOf(p))} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
+  const whoK = multi ? Object.fromEntries([['a', me?.name], ...others.map(p => [keyOf(p), p.name])]) : null  // mesa de 3+: a etiqueta «→ quem» de cada atacante
+  const hitK = new Set(multi ? bs.sides.flatMap(k => bs[k].perms.map(p => p.attacking)).filter(x => bs.sides.includes(x)) : [])
+  const oppSide = (p, small) => <Side key={keyOf(p)} k={keyOf(p)} top compact={small} name={p.name} av={avOf(keyOf(p))} s={bs} data={data} fx={fx} att={att} start={players.some(q => q.cmdrs) ? 40 : 20} openZone={openZone} mat={P.mats ? null : P.mat} who={whoK} hit={hitK.has(keyOf(p))}
     hand={p.hand?.length > 0 && <Hand z={{ hand: p.hand.length, known: p.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />
   const mateSide = (p, small) => <Side key={keyOf(p)} k={keyOf(p)} compact={small} name={`${p.name} 🤝`} av={avOf(keyOf(p))} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mats ? null : P.mat}
     hand={p.hand?.length > 0 && <Hand z={{ hand: p.hand.length, known: p.hand.map(c => (c.hidden ? '?' : c.name)) }} data={data} exact opp hidden quiet />} />
-  const mySide = me && <Side k="a" name={me.name} av={avOf('a')} s={bs} data={data} fx={fx} att={att} start={20} openZone={openZone} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
+  const mySide = me && <Side k="a" name={me.name} av={avOf('a')} s={bs} data={data} fx={fx} att={att} start={players.some(q => q.cmdrs) ? 40 : 20} openZone={openZone} who={whoK} hit={hitK.has('a')} mat={P.mat} place={lay.place} order={lay.order} free={P.place === 'rows' ? null : lay.free}
     hand={<div className="fp-hand">{me.top?.play && <FCard key={`t${me.top.id}`} c={me.top} h={me.top.id} from="library" data={data} big cls={`play libtop-h ${lift === me.top.id ? 'lift' : ''}`} tag={`▲ ${tx('topo da biblioteca')}`} />}{handIn(me.hand || []).map(c => <FCard key={c.id} c={c} h={c.id} data={data} big flip={flipped.has(c.id)} cls={`${c.play ? 'play' : ''} ${lift === c.id ? 'lift' : ''}`} />)}</div>} />
   const teamOrb = drawers && mates.length > 0 && P.teamOrb  // Two-Headed Giant nas gavetas: a esfera da equipa a meio da mesa, no lugar das duas pequenas
-  const chip = (p, on, pick, mine) => <DrawerChip key={p.id} name={p.name} av={avOf(keyOf(p))} life={p.life} poison={p.counters?.POISON} hand={p.hand?.length || 0} perms={p.battlefield?.length || 0} out={p.life <= 0 || p.out} on={on} turn={st.active === p.id} atk={!mine && atkBy.has(p.id)} attn={selOf(p)} onClick={pick} mine={mine} />
+  const chip = (p, on, pick, mine) => <DrawerChip key={p.id} name={p.name} av={avOf(keyOf(p))} life={p.life} poison={p.counters?.POISON} cmd={Math.max(0, ...Object.values(p.cdmg || {}))} hand={p.hand?.length || 0} perms={p.battlefield?.length || 0} out={p.life <= 0 || p.out || p.lost} on={on} turn={st.active === p.id} atk={!mine && atkBy.has(p.id)} attn={selOf(p)} onClick={pick} mine={mine} />
   const drawerTop = drawers && <div className="fp-drawer top" role="group" aria-label={tx('Adversários')}>
-    {tops.map((p, j) => chip(p, p === focusP, () => setDFocus(j)))}
+    {tops.map((p, j) => chip(p, p === focusP, () => { setDFocus(j); if (declaring && !p.lost) send({ c: 'player', i: players.indexOf(p) }) }))}
     {wideNow && <button type="button" className="fs-mini fp-dall" onClick={() => setAllView(true)} title={tx('Ver todos os jogadores ao mesmo tempo')} aria-label={tx('Ver todos os jogadores ao mesmo tempo')}>⊞</button>}</div>
   const drawerBot = drawers && mates.length > 0 && <div className="fp-drawer bottom" role="group" aria-label={tx('A tua equipa')}>
     {[me, ...mates].map(p => chip(p, (p === me) === !showMate, () => setViewMate(p !== me), true))}</div>
@@ -1572,9 +1595,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <p><b>{zone.k === 'graveyard' ? tx('Cemitério de {n}', { n: zone.p.name }) : tx('Exílio de {n}', { n: zone.p.name })}</b> <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>
         <div className="fp-opts">{(players.find(p => p.id === zone.p.id)?.[zone.k] || []).map(c => <FCard key={c.id} c={c} data={data} big onClick={x => { send({ c: 'card', id: x.id }); setZone(null) }} />)}</div></div></div>}
       {toast && <div className={`fp-toast ${toast.out ? 'out' : ''}`} onClick={() => setToast(null)}>{toast.title && <b>{toast.title}</b>} <Syms text={toast.msg} />{toast.list && <ul>{toast.list.map((l, k) => <li key={k}><Syms text={l} /></li>)}</ul>}</div>}
+      {multi && me?.lost && !s.ended && <div className="fp-gone" role="status"><b>{tx('Saíste do jogo: ficas em {p}.º lugar', { p: players.filter(p => p !== me && (!p.lost || (p.outT || 0) > (me.outT || 0))).length + 1 })}</b>
+        <span className="muted">{tx('Os outros continuam a jogar entre si.')}</span>
+        <button type="button" className="primary small" onClick={() => j(`/api/playnet/${sid}/finish`, {}).catch(e => setErr(e.message))} title={tx('Acaba já: os que ainda estão em jogo ficam ordenados pela vida')}>{tx('Acabar já')}</button></div>}
       {s.ended && endShown && <div className="fp-modal"><div className="fp-ask fp-end">
         <h3>{s.draw ? tx('🤝 Empate') : s.winner ? (s.winner === me?.name ? tx('🏆 Ganhaste!') : tx('Ganhou {n}', { n: s.winner })) : s.crash ? tx('O Forge falhou a meio deste jogo') : s.lost ? tx('Este jogo perdeu-se: o servidor foi reiniciado') : tx('Jogo terminado')}</h3>
-        {endWhy(s.out) && <p className="fp-why">{endWhy(s.out)}</p>}
+        {endWhy(s.out) && !multi && <p className="fp-why">{endWhy(s.out)}</p>}
+        {multi && s.places?.length > 0 && <ol className="fp-places">{s.places.map((k, j) => <li key={k} className={k === 'a' ? 'me' : ''}><b>{j + 1}.º</b>{byKey(k)?.name || k}{(x => x && LOSS_TXT[x.r] ? <small className="muted"> — {LOSS_TXT[x.r]}{x.card ? ` (${x.card})` : ''}</small> : null)(j > 0 && (s.out || []).find(x => x.name === byKey(k)?.name))}</li>)}</ol>}
+        {s.cut && <p className="muted small">{tx('Acabado depois de saíres: os bots que ainda estavam em jogo ficaram ordenados pela vida.')}</p>}
         {(s.crash || s.lost) && <p className="muted">{tx('Nada conta: não perdeste nem ganhaste. Num torneio, a partida volta a esperar por ti — abre-a outra vez para recomeçar.')}</p>}
         {series && <p className="fp-series">{series.done ? (series.w[0] > series.w[1] ? tx('🏆 Ganhaste a série {a}–{b}', { a: series.w[0], b: series.w[1] }) : tx('Perdeste a série {a}–{b}', { a: series.w[0], b: series.w[1] })) : tx('Série Bo{n}: {a}–{b}', { n: series.bo, a: series.w[0], b: series.w[1] })}</p>}
         <div className="row-btns">{onAgain && <button className="primary" onClick={onAgain}>▶ {againLabel || (series && !series.done ? tx('Jogo seguinte (sideboard)') : series ? tx('Nova série') : tx('Jogar outra vez'))}</button>}<button onClick={onClose}>{tx('Fechar')}</button></div></div></div>}

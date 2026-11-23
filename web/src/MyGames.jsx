@@ -16,7 +16,7 @@ export default function MyGames({ data }) {
     const [me, ot] = sideOf(game)
     return (
       <section className={`card mygames-replay ${isCompact() ? 'modal rp-sheet' : ''}`}>{/* telemóvel/tablet: a réplica por cima de tudo, com o ecrã todo */}
-        <Replay data={data} game={{ ...game, winner: game.winner || 'draw', opp: game.names?.[ot] || 'Forge', g: 1 }} deckName={game.names?.[me] || tx('O teu deck')} onBack={() => setGame(null)} backLabel={tx('← Os meus jogos')} />
+        <Replay data={data} game={{ ...game, winner: game.winner || 'draw', opp: game.names?.[ot] || 'Forge', g: 1, ...(Object.keys(game.names || {}).length > 2 && !game.ft && { opps: Object.fromEntries(Object.entries(game.names).filter(([k]) => k !== me)), startLife: game.cmd ? 40 : 20 }) }} deckName={game.names?.[me] || tx('O teu deck')} onBack={() => setGame(null)} backLabel={tx('← Os meus jogos')} />
       </section>
     )
   }

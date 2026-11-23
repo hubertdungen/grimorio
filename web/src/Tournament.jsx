@@ -372,10 +372,10 @@ function Create({ data, fmt0, onCreated, deckId, room, onRoom, free, misto }) { 
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
   const has = (s, id) => players.some(p => p.src === s && p.ref === id)
-  const canPlayMe = !room && players.some(p => p.me) && !F.cmd && type !== 'mesas' && type !== 'equipas'  // como tournament.py
+  const canPlayMe = !room && players.some(p => p.me) && type !== 'equipas'  // como tournament.py (mesas de 3–4 e Commander incluídos)
   // porque é que não dá para jogar eu (dito ao lado da opção: o título não se vê no telemóvel)
-  const playMeWhy = room ? '' : type === 'mesas' || type === 'equipas' ? tx('Indisponível em mesas e equipas: o Forge Play é um contra um (num Two-Headed Giant são quatro à mesma mesa).')
-    : F.cmd ? tx('Indisponível em Commander: o Forge Play é um contra um.') : tx('Marca um dos teus decks com ☆ «eu» na lista para o jogares tu.')
+  const playMeWhy = room ? '' : type === 'equipas' ? tx('Indisponível em equipas: no Forge Play jogas sozinho na tua mesa, sem parceiro de equipa (2 contra 2 ou Two-Headed Giant).')
+    : tx('Marca um dos teus decks com ☆ «eu» na lista para o jogares tu.')
   // a escolha de decks um a um: as fontes com quantos há, e a pesquisa por nome
   const LISTS = { meu: mine.filter(o => kindOf(o) === 'meu'), ami: mine.filter(o => kindOf(o) === 'ami'), com: mine.filter(o => kindOf(o) === 'com'), meta }
   const ps = LISTS[pickSrc]?.length ? pickSrc : Object.keys(LISTS).find(k => LISTS[k].length) || 'meu'
@@ -1089,7 +1089,7 @@ function Live({ data, tid, onGone, slot, running = [], open, openTable }) {
           <span className="lv-bar" role="progressbar" aria-valuemin={0} aria-valuemax={pr.total} aria-valuenow={pr.done}><i style={{ width: `${Math.round((100 * pr.done) / Math.max(1, pr.total))}%` }} /></span>
         </div>
         <StartGate t={t} onStart={() => act('start')} />
-        {myGame && <div className="lv-cta"><span>🎮 <b>{myGame.play ? tx('O teu jogo contra {o} está a decorrer', { o: nameOf(myGame.p.find(i => i !== t.me)) }) : tx('É a tua vez: jogo {g} contra {o}', { g: myGame.g.length + 1, o: nameOf(myGame.p.find(i => i !== t.me)) })}</b></span>
+        {myGame && <div className="lv-cta"><span>🎮 <b>{(o => (myGame.play ? tx('O teu jogo contra {o} está a decorrer', { o }) : tx('É a tua vez: jogo {g} contra {o}', { g: myGame.g.length + 1, o })))(myGame.p.filter(i => i !== t.me).map(nameOf).join(', '))}</b></span>
           <button className="primary" disabled={!!myGame.want && !myGame.play} onClick={() => playMine(myGame.id)}>{myGame.play ? tx('▶ Voltar à mesa') : myGame.want ? `⏳ ${tx('Na fila do Forge…')}` : tx('▶ Jogar no Forge Play')}</button></div>}
         {lives.length > 0 && <div className="lv-now">{lives.map(({ L, lm }) => (
           <div key={lm.id} className={`lv-now-c ${L.status === 'queued' ? 'queued' : ''} ${lm.p.includes(t.me) ? 'mine' : ''}`}>
