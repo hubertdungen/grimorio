@@ -345,6 +345,30 @@ export async function fetchThemePrints(items) {
 }
 
 // arte de uma carta no deck: a do site de origem, senão a edição escolhida
+// a edição (set + nº) da imagem que o deck mostra nas cartas sem edição escolhida: para «Copiar lista» levar a arte que se vê.
+// Um pedido /cards/collection por 75 cartas (por id), sem imagens; fica guardado na sessão.
+const SHOWN = new Map()
+export async function shownPrints(data, deck) {
+  const want = []
+  for (const n of [...(deck.commanders || []), ...Object.keys(deck.main || {}), ...Object.keys(deck.side || {}), ...Object.keys(deck.maybe || {})]) {
+    if (deck.prints?.[n]?.set || deck.split?.[n]?.length) continue
+    const c = data.byName.get(n), id = c && (basicShown(n) || c.id)
+    if (id && !SHOWN.has(id)) want.push(id)
+  }
+  for (let k = 0; k < want.length; k += 75) {
+    if (k) await new Promise(ok => setTimeout(ok, 120))
+    const r = await fetch(`${SF}/cards/collection`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ identifiers: want.slice(k, k + 75).map(id => ({ id })) }) })
+    if (!r.ok) throw new Error(`Scryfall ${r.status}`)
+    for (const x of (await r.json()).data || []) SHOWN.set(x.id, { set: x.set, cn: x.collector_number })
+  }
+  const out = {}
+  for (const n of [...(deck.commanders || []), ...Object.keys(deck.main || {}), ...Object.keys(deck.side || {}), ...Object.keys(deck.maybe || {})]) {
+    if (deck.prints?.[n]?.set || deck.split?.[n]?.length) continue
+    const c = data.byName.get(n), id = c && (basicShown(n) || c.id), p = id && SHOWN.get(id)
+    if (p) out[n] = p
+  }
+  return out
+}
 export const pidOf = (deck, n) => deck?.art?.[n] || deck?.prints?.[n]?.id
 // artes de um deck para o tabuleiro (como sim.art_map no servidor): edição escolhida, imagem própria ou cópias divididas
 export const artMapOf = d => (d ? { ...Object.fromEntries(Object.entries(d.prints || {}).filter(([, p]) => p?.id).map(([n, p]) => [n, p.id])), ...(d.art || {}), ...(d.split || {}) } : null)

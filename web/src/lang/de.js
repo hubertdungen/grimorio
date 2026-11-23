@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "A juntar as edições das artes que se veem no deck…": "Hole die Editionen der Bilder, die im Deck zu sehen sind…",
+  "Sem ligação ao Scryfall: as cartas sem edição escolhida vão só com o nome.": "Keine Verbindung zu Scryfall: Karten ohne gewählte Edition gehen nur mit dem Namen.",
   "O browser não deixou copiar; seleciona o texto e copia à mão.": "Der Browser hat das Kopieren nicht erlaubt; markiere den Text und kopiere ihn selbst.",
   "Moxfield, Grimório e afins: secções Commander / Deck / Sideboard / Maybeboard, com a edição de cada carta.": "Moxfield, Grimório u. ä.: Abschnitte Commander / Deck / Sideboard / Maybeboard, mit der Edition jeder Karte.",
   "TappedOut: cola cada bloco na caixa com o mesmo nome (Mainboard, Sideboard, Maybeboard); o comandante vai marcado *CMDR*.": "TappedOut: füge jeden Block in das gleichnamige Feld ein (Mainboard, Sideboard, Maybeboard); der Kommandeur ist mit *CMDR* markiert.",

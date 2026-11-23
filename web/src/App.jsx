@@ -9,7 +9,7 @@ import Rules from './Rules.jsx'
 import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { Suspense, lazy, useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList, deckTribe, deckIdentity, fetchThemePrints } from './data.js'
+import { shownPrints, loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList, deckTribe, deckIdentity, fetchThemePrints } from './data.js'
 import { artThemes, themePlan, applyTheme } from './themeart.js'
 import ThemeArtDialog, { ThemeArtBtn } from './ThemeArt.jsx'
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf, pairOk } from './formats.js'
@@ -769,10 +769,14 @@ export function DemoteSel({ c, act }) {
 }
 
 // «Copiar lista»: o formato de cada site (o TappedOut lia a secção «Commander» como companion)
-function CopyList({ deck, act, onClose }) {
+function CopyList({ deck, data, act, onClose }) {
+  // as cartas sem edição escolhida levam a da imagem que se vê no deck (pergunta-se ao Scryfall o set e o nº)
+  const [shown, setShown] = useState(null), [shownErr, setShownErr] = useState('')
+  useEffect(() => { let on = true; shownPrints(data, deck).then(x => on && setShown(x)).catch(e => on && setShownErr(e.message)); return () => { on = false } }, [data, deck])
+  const deckX = shown ? { ...deck, prints: { ...shown, ...(deck.prints || {}) } } : deck
   const [site, setSite] = useState(() => { try { return localStorage.getItem('grimorio.copySite') || 'grimorio' } catch { return 'grimorio' } })
   useEffect(() => { try { localStorage.setItem('grimorio.copySite', site) } catch { /* sem armazenamento */ } }, [site])
-  const blocks = exportFor(deck, site)
+  const blocks = exportFor(deckX, site)
   const cp = async t => { try { await navigator.clipboard.writeText(t); act.say(tx('Lista copiada.')) } catch { act.say(tx('O browser não deixou copiar; seleciona o texto e copia à mão.')) } }
   const hint = { grimorio: tx('Moxfield, Grimório e afins: secções Commander / Deck / Sideboard / Maybeboard, com a edição de cada carta.'),
     tappedout: tx('TappedOut: cola cada bloco na caixa com o mesmo nome (Mainboard, Sideboard, Maybeboard); o comandante vai marcado *CMDR*.'),
@@ -784,6 +788,8 @@ function CopyList({ deck, act, onClose }) {
       <h3>⧉ {tx('Copiar lista')}</h3>
       <div className="seg">{[['grimorio', 'Moxfield / Grimório'], ['tappedout', 'TappedOut'], ['archidekt', 'Archidekt'], ['nomes', tx('Só nomes (Arena, MTGO…)')]].map(([k, l]) => <button key={k} className={site === k ? 'on' : ''} onClick={() => setSite(k)}>{l}</button>)}</div>
       <p className="muted small">{hint[site]}</p>
+      {!shown && !shownErr && <p className="muted small">{tx('A juntar as edições das artes que se veem no deck…')}</p>}
+      {shownErr && <p className="small bad-t">{tx('Sem ligação ao Scryfall: as cartas sem edição escolhida vão só com o nome.')}</p>}
       {blocks.map(b => <div key={b.label || 'x'} className="cl-block">
         <div className="cl-h">{b.label && <b>{b.label}</b>}<button className="primary" onClick={() => cp(b.text)}>⧉ {b.label ? tx('Copiar {z}', { z: b.label }) : tx('Copiar')}</button></div>
         <textarea readOnly value={b.text} rows={Math.min(12, b.text.split('\n').length)} onFocus={e => e.target.select()} />
@@ -932,7 +938,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
         <button onClick={() => setShowImport(true)}>{tx('Importar')}</button>
         {deck.id && <button onClick={() => setShowRefresh(true)} title={sourceOf(deck) ? tx('Voltar a ler {url}', { url: sourceOf(deck) }) : tx('Ler artes, capa e lista do site de onde veio o deck')}>⟳ {tx('Atualizar do site')}</button>}
         <button onClick={copy}>{tx('Copiar lista')}</button>
-        {copyOpen && <CopyList deck={deck} act={act} onClose={() => setCopyOpen(false)} />}
+        {copyOpen && <CopyList deck={deck} data={data} act={act} onClose={() => setCopyOpen(false)} />}
         <button onClick={download}>{tx('Descarregar')}</button>
         <button onClick={() => setProxies(true)} title={tx('Lista com edições, ZIP com as imagens ou folha para imprimir')}>🖨 {tx('Proxies')}</button>
         {proxies && <ProxyDialog data={data} deck={deck} ctx={ctx} onClose={() => setProxies(false)} />}
