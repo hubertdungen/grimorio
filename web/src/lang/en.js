@@ -3868,6 +3868,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Formato dos decks": "Deck format",
+  "Mostra só os decks deste formato; o rating continua o casual (todos os formatos juntos)": "Shows only this format's decks; the rating stays the casual one (all formats together)",
   "Cruzes nos cantos + margens (gráfica)": "Corner crosses + margins (print shop)",
   "Tamanho das marcas": "Mark size",
   "Cor das linhas de corte": "Cut line colour",

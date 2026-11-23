@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "Formato dos decks": "Formato de los mazos",
+  "Mostra só os decks deste formato; o rating continua o casual (todos os formatos juntos)": "Muestra solo los mazos de este formato; el rating sigue siendo el casual (todos los formatos juntos)",
   "Cruzes nos cantos + margens (gráfica)": "Cruces en las esquinas + márgenes (imprenta)",
   "Tamanho das marcas": "Tamaño de las marcas",
   "Cor das linhas de corte": "Color de las líneas de corte",

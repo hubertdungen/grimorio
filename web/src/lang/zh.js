@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Formato dos decks": "套牌赛制",
+  "Mostra só os decks deste formato; o rating continua o casual (todos os formatos juntos)": "只显示该赛制的套牌；评分仍为休闲评分（所有赛制合并）",
   "Cruzes nos cantos + margens (gráfica)": "角落十字 + 页边（印刷店）",
   "Tamanho das marcas": "标记大小",
   "Cor das linhas de corte": "裁切线颜色",

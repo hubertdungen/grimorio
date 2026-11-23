@@ -167,6 +167,7 @@ function Arena({ data, fmts, onRound }) {
 export default function Ratings({ data, fmt }) {
   const [f, setF] = useState(() => (META_FMTS.includes(fmt.key) ? fmt.key : 'pauper'))
   const [cas, setCas] = useState(false)  // rating casual (um só grupo de todos os formatos)
+  const [cf, setCf] = useState('all')  // no casual: só os decks de um formato (o Elo continua o casual, de todos)
   const [res, setRes] = useState(null)
   const [open, setOpen] = useState(null)
   const [n, setN] = useState(0)
@@ -184,9 +185,11 @@ export default function Ratings({ data, fmt }) {
   }, [f, n, cas])
   const val = r => r[by] ?? -1
   const kindOf = r => (r.friend ? 'ami' : r.community ? 'com' : r.kind === 'meu' ? 'meu' : 'meta')
-  const has = new Set((res?.rows || []).map(kindOf)), only = who.length < 4
+  const cfs = cas ? [...new Set((res?.rows || []).map(r => r.deck_format).filter(Boolean))].sort((a, b) => fmtName(a).localeCompare(fmtName(b))) : []
+  const cfOn = cas && cf !== 'all' && cfs.includes(cf)
+  const has = new Set((res?.rows || []).map(kindOf)), only = who.length < 4 || cfOn
   // com filtro, as posições contam-se só entre os decks que ficam
-  const base = (res?.rows || []).filter(r => who.includes(kindOf(r)))
+  const base = (res?.rows || []).filter(r => who.includes(kindOf(r)) && (!cfOn || r.deck_format === cf))
   const rows = by === 'stars' ? (only ? base.map((r, i) => ({ ...r, rank: i + 1 })) : base) : [...base].sort((a, b) => val(b) - val(a) || b.elo - a.elo).map((r, i) => ({ ...r, rank: i + 1, tier: Math.floor(val(r)) }))
   const tiers = [6, 5, 4, 3, 2, 1, 0, -1].map(t => [t, rows.filter(r => r.tier === t).map((r, i) => (by === 'stars' && !only ? r : { ...r, rank_in_tier: i + 1 }))]).filter(([, rs]) => rs.length)
   // estrelas brancas e número de troféus (só os meus decks ganham troféus)
@@ -202,6 +205,7 @@ export default function Ratings({ data, fmt }) {
         <div className="rt-top">
           <h3 style={{ margin: 0 }}>📊 Ratings</h3>
           <span className="seg">{[[false, tx('Normal')], [true, tx('Casual')]].map(([k, l]) => <button key={l} className={cas === k ? 'on' : ''} onClick={() => { setCas(k); setOpen(null) }}>{l}</button>)}</span>
+          {cas && cfs.length > 1 && <select value={cfOn ? cf : 'all'} onChange={e => { setCf(e.target.value); setOpen(null) }} aria-label={tx('Formato dos decks')} title={tx('Mostra só os decks deste formato; o rating continua o casual (todos os formatos juntos)')}><option value="all">{tx('Todos os formatos')}</option>{cfs.map(x => <option key={x} value={x}>{fmtName(x)}</option>)}</select>}
           {!cas && <select value={f} onChange={e => { setF(e.target.value); setOpen(null) }} aria-label={tx('Formato')}><option value="all">{tx('Todos os formatos')}</option>{fmts.map(x => <option key={x} value={x}>{fmtName(x)}{res?.formats?.includes(x) ? ' ●' : ''}</option>)}</select>}
           <SrcFilter on={who} set={setWho} has={has} />
           <select value={by} onChange={e => setBy(e.target.value)} aria-label={tx('Ordenar por')}>{[['stars', tx('Ordenar: normal')], ['blue', tx('Ordenar: todos os jogos')], ['red', tx('Ordenar: objetivo')]].map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
