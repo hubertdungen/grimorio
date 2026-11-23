@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "escolhe tu o que sai: as tuas que sobram fazem remoção, compra ou ramp, que esta não faz": "elige tú qué sale: las tuyas que quedan hacen remoción, robo o ramp, que esta no hace",
   "Link": "Enlace",
   "muito parecido": "muy parecido",
   "parecido": "parecido",

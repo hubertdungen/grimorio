@@ -138,8 +138,8 @@ export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], ro
       const pool = cuts.filter(x => !used.has(x.c.n) && !isLand(x.c) && !x.c.tg.some(low))
       // a que sai só leva funções que a nova também faz (não sai remoção para entrar um blink)
       const covered = x => x.c.tg.filter(t => CORE.includes(t)).every(t => a.c.tg.includes(t))
-      const pick = (same && pool.find(x => x.c.tg.includes(same) && covered(x))) || pool.find(covered) || pool[0]
-      if (pick) { used.add(pick.c.n); cut = { c: pick.c, why: pick.why.slice(0, 2) } }
+      const pick = (same && pool.find(x => x.c.tg.includes(same) && covered(x))) || pool.find(covered)
+      if (pick) { used.add(pick.c.n); cut = { c: pick.c, why: pick.why.slice(0, 2) } } else if (pool.length) cut = { none: true }  // só sairia uma com função que a nova não faz: escolhes tu
     }
     out.push({ add: a, cut })
   }

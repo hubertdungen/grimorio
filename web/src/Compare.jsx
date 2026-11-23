@@ -160,14 +160,14 @@ function CompareOne({ data, deck, fmt, ctx, act, rq, recs, needs, co, cmdIdx, me
       {plan.swaps.length > 0 && <>
         <h4>{tx('Cartas dele que te podem servir')}</h4>
         <ul className="cutp-list">{plan.swaps.map(({ add: a, cut }) => { const k = 's:' + a.c.n; return (
-          <li key={a.c.n} {...hlProps([{ n: a.c.n, tone: 'in' }, ...(cut ? [{ n: cut.c.n, tone: 'out' }] : [])])}>
-            <div className="cutp-pair"><Card c={a.c} sign={1} /><span className="cutp-arrow">⇄</span>{cut ? <Card c={cut.c} sign={-1} /> : <span className="muted small">{tx('nada sai: o deck tem lugar')}</span>}</div>
-            {(a.fills.length > 0 || cut) && <div className="rfz-why"><ul className="why">
+          <li key={a.c.n} {...hlProps([{ n: a.c.n, tone: 'in' }, ...(cut?.c ? [{ n: cut.c.n, tone: 'out' }] : [])])}>
+            <div className="cutp-pair"><Card c={a.c} sign={1} /><span className="cutp-arrow">⇄</span>{cut?.c ? <Card c={cut.c} sign={-1} /> : <span className="muted small">{cut?.none ? tx('escolhe tu o que sai: as tuas que sobram fazem remoção, compra ou ramp, que esta não faz') : tx('nada sai: o deck tem lugar')}</span>}</div>
+            {(a.fills.length > 0 || cut?.c) && <div className="rfz-why"><ul className="why">
               {a.fills.length > 0 && <li className="tema">{tx('Dá o que te falta: {t}', { t: a.fills.map(t => (TAG_LABEL[t] || t).toLowerCase()).join(', ') })}</li>}
-              {cut?.why.map((w, i) => <li key={i} className="falta">{w}</li>)}</ul></div>}
+              {cut?.why?.map((w, i) => <li key={i} className="falta">{w}</li>)}</ul></div>}
             <div className="row-btns">{done.has(k) ? <span className="good-t small">✓ {tx('feito')}</span> : <>
-              {cut && <button className="primary small" onClick={() => { act.swap(a.c, { out: cut.c.n, q: 1 }); mark(k) }}>⇄ {tx('Trocar')}</button>}
-              {(under || !cut) && <button className={`small ${cut ? '' : 'primary'}`} onClick={() => { act.add(a.c, 'main', 1); mark(k) }}>＋ {cut ? tx('Só juntar') : tx('Juntar')}</button>}
+              {cut?.c && <button className="primary small" onClick={() => { act.swap(a.c, { out: cut.c.n, q: 1 }); mark(k) }}>⇄ {tx('Trocar')}</button>}
+              {(under || !cut || cut.none) && <button className={`small ${cut ? '' : 'primary'}`} onClick={() => { act.add(a.c, 'main', 1); mark(k) }}>＋ {cut?.c ? tx('Só juntar') : tx('Juntar')}</button>}
               <button className="small" onClick={() => { act.add(a.c, 'maybe', 1); mark(k) }}>{tx('Talvez')}</button></>}
             </div>
           </li>) })}</ul>

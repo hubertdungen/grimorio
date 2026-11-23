@@ -3860,6 +3860,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "escolhe tu o que sai: as tuas que sobram fazem remoção, compra ou ramp, que esta não faz": "由你决定移除哪张：你剩下的牌承担移除、抓牌或加速，而这张不具备",
   "Link": "链接",
   "muito parecido": "非常相似",
   "parecido": "相似",

@@ -3868,6 +3868,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "escolhe tu o que sai: as tuas que sobram fazem remoção, compra ou ramp, que esta não faz": "you choose what goes: your remaining ones do removal, draw or ramp, which this one doesn't",
   "Link": "Link",
   "muito parecido": "very similar",
   "parecido": "similar",
