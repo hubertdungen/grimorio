@@ -16,3 +16,25 @@
   .rfz .cutp-card > img { width: 40px; height: 30px; }
   .rfz .cutp-card b { font-size: 13px; }
 }
+
+/* 🔍 Comparar com outros decks */
+.cmpx-url { display: flex; gap: 8px; margin: 4px 0 8px; }
+.cmpx-url input { flex: 1; min-width: 0; }
+.cmpx-list { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; }
+.cmpx-row { width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; padding: 8px 12px; border-radius: 12px; }
+.cmpx-name { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cmpx-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmpx-go { color: var(--accent, #f5c451); font-size: .85em; white-space: nowrap; }
+.cmpx-like { display: inline-grid; place-items: center; min-width: 3.2em; padding: 3px 8px; border-radius: 999px; font-weight: 700; font-size: .85em;
+  background: color-mix(in srgb, currentColor 14%, transparent); }
+.cmpx-like.muito { color: #6fd08c; } .cmpx-like.parecido { color: #f5c451; } .cmpx-like.pouco { color: #9aa0ad; }
+.cmpx-head h4 { display: flex; align-items: center; gap: 8px; margin: 6px 0 2px; }
+.cmpx-tab { border-collapse: collapse; margin: 10px 0; font-size: .9em; }
+.cmpx-tab th, .cmpx-tab td { padding: 3px 14px 3px 0; text-align: right; }
+.cmpx-tab th:first-child, .cmpx-tab td:first-child { text-align: left; }
+.cmpx-tab td.pos { color: #6fd08c; } .cmpx-tab td.neg { color: #e98b8b; }
+.cmpx-tips { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 5px; font-size: .9em; }
+.cmpx-tips li { padding: 6px 10px; border-radius: 10px; background: color-mix(in srgb, currentColor 6%, transparent); }
+.cmpx-tips li.good { border-left: 3px solid #6fd08c; } .cmpx-tips li.warn { border-left: 3px solid #e9b35f; } .cmpx-tips li.syn { border-left: 3px solid #7fb4ff; }
+.cmpx-one > h4 { margin: 14px 0 6px; }
+.cmpx-one .sz-list button.small { margin-left: 6px; }

@@ -216,7 +216,7 @@ def _user_prompt(payload):
     for k, label in (("formato", "Formato e regras"), ("comandante", "Comandante"), ("bracket", "Bracket alvo"),
                      ("plano", "Plano detetado"), ("arquetipo", "Arquétipo (meta)"), ("faltas", "Funções face às metas do formato"),
                      ("mana", "Base de mana"), ("combos", "Combos no deck / a uma carta"), ("validacao", "Problemas de regras"), ("contagem", "Contagem atual"), ("excesso", "CARTAS A MAIS (obrigatório corrigir)"), ("historico", "Histórico com este deck (o que já pediste, disseste e foi aplicado: não repitas o que já foi aplicado; podes construir em cima disso)"),
-                     ("sugestoes", "Candidatas do motor do Grimório (já legais, com o porquê)"), ("lista", "Lista atual")):
+                     ("sugestoes", "Candidatas do motor do Grimório (já legais, com o porquê)"), ("comparar", "Deck para comparar (lista de outro deck: compara funções, mecânicas, sinergias e base de mana com o meu e tira dele as trocas; só cartas legais nas minhas cores)"), ("lista", "Lista atual")):
         v = ctx.get(k)
         if v:
             parts.append(f"## {label}\n{str(v)[:12000]}")

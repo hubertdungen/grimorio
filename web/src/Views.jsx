@@ -16,6 +16,7 @@ import { tx, num, LOCALE } from './i18n.js'
 import { prepareSwaps, cutPlan, landPlan } from './swap.js'
 import { roleState, cutQueue, reinforcePlan } from './reinforce.js'
 import AddOrSwap from './AddSwap.jsx'
+import { ComparePanel } from './Compare.jsx'
 import { regionsOf, perfOf, archetypesOf, rankZone, adjustPlan, sizePlan, fillPlan } from './universe.js'
 import { hlProps, pin } from './hl.js'
 import { parseQuery, likeTheme } from './nlsearch.js'
@@ -1195,6 +1196,7 @@ export function SuggestView({ data, deck, fmt, ctx, act, setDeck, sugTag, setSug
       <PrefsPanel {...{ deck, fmt, act }} />
       <FillPanel {...{ data, deck, fmt, ctx, act, recs: allSug, needs, meta }} />
       <ReinforcePanel {...{ data, deck, fmt, ctx, act, rq, recs: allSug, needs, deckStats, co, cmdIdx, meta, archetype }} />
+      <ComparePanel {...{ data, deck, fmt, ctx, act, rq, recs: allSug, needs, co, cmdIdx, meta, archetype }} />
       <CutPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug, co, cmdIdx, needs, meta, archetype }} />
       <AdjustPanel {...{ data, deck, fmt, ctx, act, needs }} />
       <LandPanel {...{ data, deck, fmt, ctx, act, swaps, recs: allSug, co, meta }} />
@@ -2045,12 +2047,12 @@ export function IASettings({ cfg, setCfg, onDone }) {
 }
 
 const AI_KEEP = new Map()
-export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }) {
+export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose, seed = null }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [cfg, setCfg] = useState(null)
   const [showSet, setShowSet] = useState(false)
-  const [mode, setMode] = useState('sugerir')
-  const [q, setQ] = useState('')
+  const [mode, setMode] = useState(seed?.mode || 'sugerir')
+  const [q, setQ] = useState(seed?.q || '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   // a resposta fica guardada por deck (memória da página): fechar a janela, abrir uma carta ou voltar não a perde
@@ -2087,6 +2089,7 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
       historico: (deck.iaHist || []).slice(-6).map(h => `${new Date(h.ts).toLocaleDateString('pt-PT')} · ${h.mode}${h.q ? ` · pedido: ${h.q}` : ''} → ${h.resumo || ''}${h.applied?.length ? ` · aplicado: ${h.applied.join('; ')}` : ' · nada aplicado'}`).join('\n'),
       sugestoes: recs.slice(0, 30).map(r => `${r.c.n} — ${r.why.slice(0, 2).map(w => w.txt).join('; ')}`).join('\n'),
       lista: exportList(deck, { maybe: false }),
+      ...(seed?.compare ? { comparar: seed.compare } : {}),
     }
     try {
       const r = await postJSON('/api/ia/ask', { mode, question: q, context })

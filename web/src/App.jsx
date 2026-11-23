@@ -241,6 +241,7 @@ export default function App() {
   const [showAuto, setShowAuto] = useState(false)
   const [themeDlg, setThemeDlg] = useState(false)
   const [showAI, setShowAI] = useState(false)
+  const [aiSeed, setAiSeed] = useState(null)  // Comparar → assistente de IA já com o outro deck
   const [showEpic, setShowEpic] = useState(false)
   const [showWizard, setShowWizard] = useState(false)
   // página inicial só na 1.ª abertura da sessão do browser: um F5 volta ao sítio onde se estava
@@ -574,7 +575,7 @@ export default function App() {
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     goDeck: id => goDeck(id), decksChanged: () => api('/api/decks').then(setDecks).catch(() => {}),
     clearGroups: () => { setDeck(d => ({ ...d, groups: [] })); say(tx('Secções removidas: o deck volta a aparecer por tipo.')) },
-    swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
+    swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, ai: seed => { setAiSeed(seed || null); setShowAI(true) }, undo, redo }),
   [add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo, autoThemeArts])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
@@ -738,7 +739,7 @@ export default function App() {
       {scan && data && <CardScan data={data} onPick={c => act.add(c)} onClose={() => setScan(false)} />}
       {showEpic && <Suspense fallback={null}><EpicDialog data={data} decks={[deck]} taken={decks.filter(d => d.id !== deck.id).map(d => d.name)} onClose={() => setShowEpic(false)}
         onApply={async list => { for (const ch of list) setDeck(d => ({ ...d, ...(ch.name ? { name: ch.name } : {}), ...(ch.notes ? { notes: addNotes(d.notes, ch.notes) } : {}) })); say(list.some(c => c.name) ? tx('Nome mudado: {name}', { name: list.find(c => c.name).name }) : tx('Descrição guardada nas notas.')) }} /></Suspense>}
-      {showAI && <AIDialog {...{ data, deck, fmt, ctx, act, setDeck, issues, onClose: () => setShowAI(false) }} />}
+      {showAI && <AIDialog {...{ data, deck, fmt, ctx, act, setDeck, issues, seed: aiSeed, onClose: () => { setShowAI(false); setAiSeed(null) } }} />}
       {showAuto && <AutoBuildDialog {...{ data, deck, fmt, ctx, setDeck, say, act, onClose: () => setShowAuto(false) }} />}
       {showRefresh && <RefreshDialog {...{ data, deck, setDeck, say, onClose: () => setShowRefresh(false) }} />}
       {showImport && <ImportDialog {...{ data, deck, setDeck, say, onClose: () => setShowImport(false), onImported: () => setTab('analise') }} />}
