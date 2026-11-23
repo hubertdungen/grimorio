@@ -532,7 +532,7 @@ export default function App() {
   // imagem própria de uma carta (link ou carregada): fica em deck.art e ganha à edição escolhida; url vazio tira-a
   // cópias divididas por várias artes (ex.: 4 Islands de uma edição, 4 de outra): [{id, q}]; lista vazia volta a uma só arte
   const setSplit = useCallback((n, list) => setDeck(d => { const split = { ...(d.split || {}) }; if (list?.length) split[n] = list; else delete split[n]; return { ...d, split } }), [setDeck])
-  const setArt = useCallback((n, url) => setDeck(d => { const art = { ...(d.art || {}) }; if (url) art[n] = url; else delete art[n]; return { ...d, art } }), [setDeck])
+  const setArt = useCallback((n, url, recipe) => setDeck(d => { const art = { ...(d.art || {}) }; if (url) art[n] = url; else delete art[n]; return { ...d, art, ...(url && recipe && Object.keys(recipe).length ? { artRecipe: { ...(d.artRecipe || {}), [url]: recipe } } : {}) } }), [setDeck])
   // tirar cópias à mão (− e ×): pergunta antes de tirar a última (em formatos de uma cópia só se assim estiver nas Definições)
   const remove = useCallback(async (c, zone, q) => {
     const { deck: d, fmt: f } = now.current, left = (d[zone]?.[c.n] || 0) - q

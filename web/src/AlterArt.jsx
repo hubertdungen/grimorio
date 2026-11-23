@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom'
 import { tx, num } from './i18n.js'
 import { img } from './data.js'
 import { useBackClose } from './backnav.js'
-import { artBox, basePrompt, finalPrompt, costOf, dpiOf, prepareEdit, composite, bitmap, refURL, toBlob, alterHistory, rememberAlter } from './alterart.js'
+import { artBox, basePrompt, finalPrompt, costOf, dpiOf, prepareEdit, composite, bitmap, refURL, toBlob, alterHistory, rememberAlter, pickRecipe, recipeOf } from './alterart.js'
 import { upscale } from './upscale.js'
 
 const lsGet = k => { try { return localStorage.getItem(k) || '' } catch { return '' } }
@@ -109,6 +109,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   const [base, setBase] = useState(() => basePrompt(c, null)), edited = useRef(false)
   const [custom, setCustom] = useState(''), [mode, setMode] = useState('frame'), [aspect, setAspect] = useState('card'), [orig, setOrig] = useState(false)
   const [frame, setFrame] = useState(''), [font, setFont] = useState('')  // modo «carta inteira»: estilo da moldura e da letra
+  const [altName, setAltName] = useState(''), [autoAlt, setAutoAlt] = useState(false)  // nome alternativo (o original fica por baixo)
   const [refs, setRefs] = useState([]), [q, setQ] = useState(''), [n, setN] = useState(2), [quality, setQuality] = useState('medium')
   const [prov, setProv] = useState(() => lsGet('grimorio.alter.prov') || 'chatgpt'), [model, setModel] = useState('')
   const [results, setResults] = useState([]), [busy, setBusy] = useState(''), [err, setErr] = useState(''), [note, setNote] = useState('')
@@ -127,7 +128,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   const P = cfg?.providers?.find(p => p.id === prov)
   const ready = prov === 'chatgpt' || !!P?.hasKey
   const masked = mode === 'frame' && masks(prov)
-  const prompt = finalPrompt({ base, custom, mode, masked, aspect, refs: refs.length, orig: mode === 'art' && orig, frame, font })
+  const prompt = finalPrompt({ base, custom, mode, masked, aspect, refs: refs.length, orig: mode === 'art' && orig, frame, font, altName: mode === 'card' ? altName : '', autoAlt: mode === 'card' && autoAlt, name: c.n })
   const per = costOf(P?.cost, quality, 1)
   const mine = useMemo(() => [...new Set([...alterHistory(), ...Object.values(deck.art || {}).filter(u => u.startsWith('arts/'))])].slice(0, 24), [deck.art])
   const hits = useMemo(() => {
@@ -142,7 +143,10 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   const filt = l => { const s = q.trim().toLowerCase(); return s ? l.filter(n => n.toLowerCase().includes(s)) : l }
   const alterAll = useMemo(() => [...new Set([...mine, ...(others || []).flatMap(d => Object.values(d.art || {}).filter(u => u.startsWith('arts/')))])], [mine, others])
   const odDeck = (others || []).find(x => x.id === od)
-  const addRef = r => { if (refs.length < 3 && !refs.some(x => x.src === r.src)) setRefs([...refs, r]); setQ('') }
+  // ao escolher como referência uma alter art feita aqui, oferece colar o estilo com que foi feita
+  const [rec, setRec] = useState(null)
+  const pasteRec = () => { if (rec.custom != null) setCustom(rec.custom); if (rec.frame != null) setFrame(rec.frame); if (rec.font != null) setFont(rec.font); if (rec.mode) setMode(rec.mode); setRec(null) }
+  const addRef = r => { if (refs.length < 3 && !refs.some(x => x.src === r.src)) setRefs([...refs, r]); setQ(''); const rc = recipeOf(r.src, [deck, ...(others || [])]); setRec(rc && Object.keys(rc).length ? rc : null) }
 
   // resultado (do servidor ou trazido do ChatGPT) → a imagem final, já na moldura
   const withUrl = r => ({ ...r, url: URL.createObjectURL(r.blob), k: Math.random() })
@@ -184,7 +188,7 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   }
   const use = async r => {
     setBusy(tx('A guardar…'))
-    try { const url = await post(r.blob); act.setArt(c.n, url); rememberAlter(c.n, url); act.say(tx('Alter art guardada como imagem própria de {c}.', { c: c.n })); onClose() } catch (e) { setErr(e.message); setBusy('') }
+    try { const url = await post(r.blob), rec = pickRecipe({ custom, frame, font, mode, altName: mode === 'card' ? altName : '' }); act.setArt(c.n, url, rec); rememberAlter(c.n, url, rec); act.say(tx('Alter art guardada como imagem própria de {c}.', { c: c.n })); onClose() } catch (e) { setErr(e.message); setBusy('') }
   }
 
   return createPortal(
@@ -204,6 +208,8 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
             {mode === 'card' && <div className="alter-card-st">
               <label><span className="small">{tx('Estilo da moldura')}</span><input value={frame} onChange={e => setFrame(e.target.value)} placeholder={tx('ex.: art nouveau dourada, gótica com ossos, minimalista…')} /></label>
               <label><span className="small">{tx('Estilo da letra')}</span><input value={font} onChange={e => setFont(e.target.value)} placeholder={tx('ex.: caligrafia medieval, letras gravadas em pedra…')} /></label>
+              <label><span className="small">{tx('Nome alternativo (opcional)')}</span><input value={altName} onChange={e => { setAltName(e.target.value); if (e.target.value) setAutoAlt(false) }} placeholder={tx('ex.: Megatron, Godzilla… o nome original fica por baixo')} /></label>
+              {!altName.trim() && <label className="chk small"><input type="checkbox" checked={autoAlt} onChange={e => setAutoAlt(e.target.checked)} /> ✨ {tx('A IA inventa um nome alternativo')}</label>}
               <p className="muted small">{tx('A IA redesenha a carta toda: o texto pode sair com erros, confere antes de usar.')}</p>
             </div>}
             {!box && <small className="muted">{tx('Esta moldura não tem caixa da arte conhecida (sem margem, arte completa, showcase, planeswalker…): fica a arte completa.')}</small>}
@@ -219,6 +225,8 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
             <input value={custom} onChange={e => setCustom(e.target.value)} placeholder={tx('ex.: ao pôr do sol, aguarela, o elfo é uma criança…')} /></label>
           <div className="alter-refs">
             <span className="small">{tx('Referências de estilo (até 3)')}</span>
+            {rec && <div className="alter-rec small"><span>{tx('Esta alter art foi feita com:')} {[rec.custom && `«${rec.custom}»`, rec.frame && `${tx('moldura')}: ${rec.frame}`, rec.font && `${tx('letra')}: ${rec.font}`].filter(Boolean).join(' · ')}</span>
+              <span className="row-btns"><button className="primary" onClick={pasteRec}>⧉ {tx('Usar o mesmo estilo')}</button><button className="link small" onClick={() => setRec(null)}>{tx('Não')}</button></span></div>}
             <div className="alter-thumbs">{refs.map(r => <button key={r.src} className="alter-thumb on" onClick={() => setRefs(refs.filter(x => x !== r))} title={tx('Tirar')}><img src={fetchable(r.src)} alt="" /><small>{r.label} ×</small></button>)}</div>
             {refs.length < 3 && <>
               <div className="seg alter-src">{[['pesquisa', tx('Pesquisar')], ['deck', tx('Deste deck')], ['alters', tx('Alter arts')], ['outros', tx('Outros decks')]].map(([k, l]) => <button key={k} className={src === k ? 'on' : ''} onClick={() => setSrc(k)}>{l}</button>)}</div>

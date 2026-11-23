@@ -8,7 +8,7 @@ import { tx, num } from './i18n.js'
 import { img } from './data.js'
 import { useBackClose } from './backnav.js'
 import { ask } from './confirm.jsx'
-import { artBox, basePrompt, finalPrompt, costOf, bitmap, rememberAlter } from './alterart.js'
+import { artBox, basePrompt, finalPrompt, costOf, bitmap, rememberAlter, pickRecipe } from './alterart.js'
 import { batchCards, batchCost, newJob, reduce, nextStarts, nextWake, finished, revive, matchFiles, fileName, jobGet, jobPut, jobDel } from './alterbatch.js'
 import { genCard, finishOut, masks, post, fetchable, copyText, useEnlarge, PROV, Dpi } from './AlterArt.jsx'
 import { makeZip } from './zip.js'
@@ -112,7 +112,8 @@ export default function AlterBatch({ names: picked, deck, data, act, onClose }) 
       try {
         const blob = jobRef.current.settings.up2 ? (await enlarge(r.blob, 2)).blob : r.blob
         const url = await post(blob)
-        act.setArt(n, url); rememberAlter(n, url); dispatch({ t: 'use', k, url })
+        const st = jobRef.current.settings, it = jobRef.current.items[k], rc = pickRecipe({ custom: it.custom?.trim() || st.custom, mode: st.mode })
+        act.setArt(n, url, rc); rememberAlter(n, url, rc); dispatch({ t: 'use', k, url })
       } catch (e) { dispatch({ t: 'note', k, err: e.message }) } finally { setSaving(x => { const y = new Set(x); y.delete(k); return y }) }
     })
   }

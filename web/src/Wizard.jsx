@@ -409,7 +409,8 @@ export default function NewDeckWizard({ data, fmtInit, onCancel, onCreate, onImp
             </div>}
             {preview.length > 0 && <>
               <h4>{tx('Cartas deste gosto')} <span className="muted">{tx('toca para as juntar às cartas de partida')}</span></h4>
-              <div className="wz-res">{preview.map(c => <PickCard key={c.i} c={c} on={has(c)} onPick={() => toggle(c)} onBig={setBig} fl={flOf(c)} />)}</div>
+              {picks.length >= maxPicks && <p className="small bad-t wz-full">{tx('Já tens {n} cartas de partida, o máximo: tira alguma (× nas cartas de partida, mais abaixo) ou «Limpar tudo» lá em cima.', { n: picks.length })}</p>}
+              <div className="wz-res">{preview.map(c => <PickCard key={c.i} c={c} on={has(c)} disabled={!has(c) && picks.length >= maxPicks} onPick={() => toggle(c)} onBig={setBig} fl={flOf(c)} />)}</div>
             </>}
             <PrefsPanel deck={{ prefs, id: null }} fmt={fmt} act={fakeAct} compact />
             <button onClick={() => { save(null); const useCmd = cmds.length ? cmds : autoCmd ? [autoCmd] : []; const d = emptyDeck(format); d.name = name.trim() || tx('{name} — novo', { name: useCmd.length ? useCmd.map(c => c.n.split(',')[0]).join(' & ') : fmt.name }); d.commanders = useCmd.map(c => c.n); d.prefs = prefs; d.seedTerms = likeSeedTerms(sel, likeStar); onCreate(withIdeas(d, useCmd), false, 'pesquisa') }} disabled={!sel.terms.length && !sel.arch.length}>✎ {tx('Só os temas, construo eu')}</button>
