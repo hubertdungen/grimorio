@@ -406,7 +406,7 @@ h2 .mana img { width: 20px; height: 20px; }
 .draft-rank { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 8px; }
 .draft-rank > li { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: start; padding: 8px; border-radius: 10px; background: var(--bg2); }
 .draft-rank > li:first-child { outline: 1px solid var(--gold); }
-.draft-rank img { width: 64px; height: 47px; object-fit: cover; border-radius: 6px; }
+.draft-rank > li > img { width: 64px; height: 47px; object-fit: cover; border-radius: 6px; }
 .draft-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 3px; margin: 8px 0; }
 .draft-picks img { cursor: pointer; }
 @media (max-width: 900px) { .draft-grid { grid-template-columns: minmax(0, 1fr); } }
