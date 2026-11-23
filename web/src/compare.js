@@ -63,7 +63,7 @@ const SYN = [
 export function compareTips(A, B, { needs = {}, targets = {}, N = null, scale = 1 }) {
   const out = []
   const tB = t => Math.round((B.tags[t] || 0) * scale), tA = t => A.tags[t] || 0
-  const big = (a, b) => Math.abs(a - b) >= 2 && Math.abs(a - b) >= 0.25 * Math.max(a, b, 1)
+  const big = (a, b, low) => Math.abs(a - b) >= (low ? 2 : 3) && Math.abs(a - b) >= 0.25 * Math.max(a, b, 1)
   const lands = Math.round(B.lands * scale)
   if (Math.abs(lands - A.lands) >= 2) {
     const tgt = N?.target
@@ -78,14 +78,21 @@ export function compareTips(A, B, { needs = {}, targets = {}, N = null, scale = 
   if (big(A.instRemoval, ir)) out.push({ k: 'inst', good: ir > A.instRemoval, txt: ir > A.instRemoval
     ? tx('Ele tem mais respostas instantâneas (remoção/contra-feitiço a instante ou flash: {b} contra {a}): responde no turno dos outros.', { a: A.instRemoval, b: ir })
     : tx('Tens mais respostas instantâneas do que ele ({a} contra {b}).', { a: A.instRemoval, b: ir }) })
+  const synOut = []
+  for (const [src, pay, txt] of SYN) {
+    const n = pay.reduce((s, t) => s + tA(t), 0)
+    const d = src.reduce((s, t) => s + tB(t) - tA(t), 0)
+    if (n >= 3 && d >= 2) synOut.push({ k: 'syn-' + src[0], src, good: true, syn: true, txt: tx(txt, { d, n, t: src.map(t => (TAG_LABEL[t] || t).toLowerCase()).join('/') }) })
+  }
+  const inSyn = new Set(synOut.flatMap(x => x.src))
   for (const t of ROLE_TAGS) {
-    const a = tA(t), b = tB(t)
-    if (!big(a, b)) continue
-    const tgt = needs[t]?.[1] ?? targets[t], L = (TAG_LABEL[t] || t).toLowerCase()
+    const a = tA(t), b = tB(t), tgt0 = needs[t]?.[1] ?? targets[t]
+    if (inSyn.has(t) || !big(a, b, tgt0 != null && a < tgt0)) continue
+    const tgt = tgt0, L = (TAG_LABEL[t] || t).toLowerCase()
     if (b > a) {
       const low = tgt != null && a < tgt
-      if (a <= 1 && b >= 4) out.push({ k: t, good: null, txt: tx('Ele usa uma mecânica que tu quase não tens: {l} ({b} cartas). Vê as cartas abaixo se te interessar.', { l: L, b }) })
-      else out.push({ k: t, good: low ? true : null, txt: low ? tx('Ele tem mais {l} ({b} contra {a}) e tu estás abaixo do alvo ({a}/{t}): boa fonte de ideias.', { l: L, a, b, t: tgt })
+      if (a <= 1 && b >= 4) out.push({ k: t, good: null, more: true, txt: tx('Ele usa uma mecânica que tu quase não tens: {l} ({b} cartas). Vê as cartas abaixo se te interessar.', { l: L, b }) })
+      else out.push({ k: t, good: low ? true : null, more: true, txt: low ? tx('Ele tem mais {l} ({b} contra {a}) e tu estás abaixo do alvo ({a}/{t}): boa fonte de ideias.', { l: L, a, b, t: tgt })
         : tx('Ele tem mais {l} ({b} contra {a}).', { l: L, a, b }) })
     } else {
       const over = tgt != null && a > tgt + 2
@@ -93,20 +100,16 @@ export function compareTips(A, B, { needs = {}, targets = {}, N = null, scale = 
         : tx('Tens mais {l} do que ele ({a} contra {b}).', { l: L, a, b }) })
     }
   }
-  for (const [src, pay, txt] of SYN) {
-    const n = pay.reduce((s, t) => s + tA(t), 0)
-    const d = src.reduce((s, t) => s + tB(t) - tA(t), 0)
-    if (n >= 3 && d >= 2) out.push({ k: 'syn-' + src[0], good: true, syn: true, txt: tx(txt, { d, n, t: src.map(t => (TAG_LABEL[t] || t).toLowerCase()).join('/') }) })
-  }
+  out.push(...synOut)
   // primeiro as sinergias e o que te faz falta, depois o resto
-  const rank = x => (x.syn ? 0 : x.good === true ? 1 : x.good === false ? 2 : 3)
+  const rank = x => (x.syn ? 0 : x.good === true ? 1 : x.good === false ? 2 : x.more ? 3 : 4)
   return out.sort((x, y) => rank(x) - rank(y))
 }
 
 // As cartas dele que te servem (legais e nas tuas cores), primeiro as que dão o que te falta; cada uma com a tua que sai:
 // igual por igual se já tens que chegue dessa função, a tua mais fraca fora do que te falta se não. Cortes: as tuas cartas
 // que ele não joga, da mais fraca para a mais forte (cutQueue). Terrenos trocam por um básico.
-export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], roleQ = null, per = 12 }) {
+export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], roleQ = null, per = 12, more = {} }) {
   const mine = new Set([...Object.keys(deck.main), ...deck.commanders])
   const low = t => needs[t] && needs[t][0] < needs[t][1]
   const adds = []
@@ -114,9 +117,13 @@ export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], ro
     const c = data.byName.get(n)
     if (!c || mine.has(c.n) || BASIC.test(c.n) || !passes(c, null, ctx)) continue
     const fills = c.tg.filter(low)
-    adds.push({ c, fills, score: 2 * fills.length + (roleQ ? roleQ(c) : 0) + (c.er ? Math.max(0, 1 - Math.log(c.er) / 9) : 0) })
+    adds.push({ c, fills, score: fills.reduce((s, t) => s + (t === 'creature' ? 0.4 : 1.5), 0) + c.tg.reduce((s, t) => s + (more[t] > 0 ? Math.min(1, 0.3 * more[t]) : 0), 0) + (roleQ ? roleQ(c) : 0) + (c.er ? Math.max(0, 1 - Math.log(c.er) / 9) : 0) })
   }
   adds.sort((a, b) => b.score - a.score)
+  // variedade: no máximo 4 seguidas da mesma função principal (senão eram 12 criaturas)
+  const seen = {}, picked = [], rest = []
+  for (const a of adds) { const t = a.c.tg.find(t => CORE.includes(t)) || a.c.mt; (seen[t] = (seen[t] || 0) + 1) <= 4 ? picked.push(a) : rest.push(a) }
+  adds.splice(0, adds.length, ...picked, ...rest)
   const cuts = queue.filter(x => !other.has(x.c.n))
   const used = new Set(), out = []
   const basics = Object.keys(deck.main).filter(n => BASIC.test(n)).sort((a, b) => deck.main[b] - deck.main[a])
@@ -129,7 +136,7 @@ export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], ro
     } else {
       const same = !a.fills.length && a.c.tg.find(t => CORE.includes(t))  // função que já tens que chegue: sai uma tua igual
       const pool = cuts.filter(x => !used.has(x.c.n) && !isLand(x.c) && !x.c.tg.some(low))
-      const pick = (same && pool.find(x => x.c.tg.includes(same))) || pool[0]
+      const pick = (same && pool.find(x => x.c.tg.includes(same))) || pool.find(x => !x.c.tg.some(t => CORE.includes(t))) || pool[0]
       if (pick) { used.add(pick.c.n); cut = { c: pick.c, why: pick.why.slice(0, 2) } }
     }
     out.push({ add: a, cut })

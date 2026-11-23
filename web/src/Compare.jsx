@@ -129,7 +129,8 @@ function CompareOne({ data, deck, fmt, ctx, act, rq, recs, needs, co, cmdIdx, me
   const tips = useMemo(() => compareTips(A, B, { needs, targets: fmt.targets || {}, N, scale }), [A, B, needs, fmt, N, scale])
   const queue = useMemo(() => cutQueue(data, deck, { ctx, co, commanders: cmdIdx, needs, recs, meta, archetype }), [data, deck, ctx, co, cmdIdx, needs, recs, meta, archetype])
   const st = rq?.prefs?.staples !== false
-  const plan = useMemo(() => comparePlan(data, deck, x.set, { ctx, needs, queue, roleQ: c => roleQuality({ c, score: 0, parts: {} }, st, !!fmt.cmd) }), [data, deck, x.set, ctx, needs, queue, st, fmt.cmd])
+  const more = useMemo(() => Object.fromEntries(Object.keys(B.tags).map(t => [t, Math.round(B.tags[t] * scale) - (A.tags[t] || 0)])), [A, B, scale])
+  const plan = useMemo(() => comparePlan(data, deck, x.set, { ctx, needs, queue, more, roleQ: c => roleQuality({ c, score: 0, parts: {} }, st, !!fmt.cmd) }), [data, deck, x.set, ctx, needs, queue, more, st, fmt.cmd])
   const total = Object.values(deck.main).reduce((a, q) => a + q, 0) + deck.commanders.length, under = total < fmt.size[0]
   const mark = k => setDone(s => new Set(s).add(k))
   const Card = ({ c, sign }) => (
