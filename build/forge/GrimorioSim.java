@@ -274,7 +274,9 @@ public class GrimorioSim {
         //    param os maiores; as evasões não contam como bloqueáveis);
         // 2) defender: ficam em casa as melhores bloqueadoras até o que os adversários vivos podem atacar de volta (o mais
         //    perigoso inteiro + metade dos outros) ficar abaixo da nossa vida;
-        // 3) o resto mantém o alvo do Forge; se esse já morre com os do passo 1, vai para o adversário vivo mais fraco.
+        // 3) o resto espalha-se pela mesa — jogadores e os planeswalkers deles — para onde rende mais (dano que passa,
+        //    sobreviver aos bloqueios, o que falta para o alvo cair, ameaça do dono; um planeswalker vale por si)
+        //    ; o alvo do Forge desempata.
         // Se o ataque final não for legal (criaturas que têm de atacar, custos…), fica o do Forge.
         @Override
         public void declareAttackers(Player attacker, Combat combat) {
@@ -316,7 +318,7 @@ public class GrimorioSim {
             Map<Card, GameEntity> before = new LinkedHashMap<>(combat.getAttackersAndDefenders());
             List<Card> pool = new ArrayList<>();
             for (Map.Entry<Card, GameEntity> e : before.entrySet()) if (e.getValue() instanceof Player) pool.add(e.getKey());
-            if (pool.size() < 2) return;
+            if (pool.isEmpty()) return;
             Map<Card, GameEntity> plan = new LinkedHashMap<>();
             Set<Player> dead = new HashSet<>();
             // 1) eliminar, do adversário mais perigoso para o menos
@@ -355,14 +357,48 @@ public class GrimorioSim {
                 if (c.hasKeyword(Keyword.VIGILANCE) || !forge.game.combat.CombatUtil.canBlock(c)) continue;
                 stay.add(c); home++;
             }
-            // 3) o resto: o alvo do Forge se continua vivo; se já morre com os do passo 1, o adversário vivo mais fraco
-            for (Card a : free) {
-                if (stay.contains(a)) continue;
-                GameEntity was = before.get(a);
-                if (!dead.contains(was)) { plan.put(a, was); continue; }
-                Player best = null;
-                for (Player o : alive) if (forge.game.combat.CombatUtil.canAttack(a, o) && (best == null || o.getLife() < best.getLife())) best = o;
-                if (best != null) plan.put(a, best); else stay.add(a);  // ninguém mais a atacar: fica a defender
+            // 3) o resto espalha-se pela mesa, um a um (do maior para o menor), para onde rende mais: dano que passa
+            //    (sem bloqueadores capazes, ou com eles já ocupados pelos atacantes anteriores) > ataque em que sobrevive
+            //    aos bloqueadores > ataque em que morre; pesa a vida e a ameaça do adversário; o alvo do Forge desempata.
+            // alvos: os adversários vivos e os planeswalkers deles (atacar um planeswalker obriga o dono a bloquear ou a
+            // perdê-lo); cada um com o que lhe falta para cair (vida/lealdade), para não haver dano desperdiçado
+            List<GameEntity> targets = new ArrayList<>();
+            Map<GameEntity, Player> ownerOf = new HashMap<>();
+            Map<GameEntity, Double> left = new HashMap<>();
+            for (Player o : alive) {
+                targets.add(o); ownerOf.put(o, o); left.put(o, (double) o.getLife());
+                for (Card c : o.getCardsIn(ZoneType.Battlefield))
+                    if (c.isPlaneswalker() && c.getCurrentLoyalty() > 0) { targets.add(c); ownerOf.put(c, o); left.put(c, (double) c.getCurrentLoyalty()); }
+            }
+            Map<Player, Integer> sent = new HashMap<>();
+            List<Card> rest = new ArrayList<>();
+            for (Card a : free) if (!stay.contains(a)) rest.add(a);
+            rest.sort((x, y) -> pw(y) - pw(x));
+            int maxThreat = 1;
+            for (Player o : alive) maxThreat = Math.max(maxThreat, danger(o, 0));
+            for (Card a : rest) {
+                GameEntity best = null;
+                double bs = -1, bexp = 0;
+                for (GameEntity t : targets) {
+                    if (!forge.game.combat.CombatUtil.canAttack(a, t)) continue;
+                    Player o = ownerOf.get(t);
+                    int able = 0, killers = 0;
+                    for (Card bl : o.getCreaturesInPlay()) {
+                        if (!forge.game.combat.CombatUtil.canBlock(bl) || !forge.game.combat.CombatUtil.canBlock(a, bl)) continue;
+                        able++;
+                        if (bl.getNetCombatDamage() >= a.getNetToughness() || bl.hasKeyword(Keyword.DEATHTOUCH)) killers++;
+                    }
+                    int busy = sent.getOrDefault(o, 0);
+                    double pr = able == 0 || busy >= able ? 1.0 : killers == 0 ? 0.6 : 0.15;
+                    double exp = pw(a) * pr, need = left.get(t);
+                    double val = need <= 0 ? 0.1 * exp : exp * (1 + Math.min(1.0, exp / Math.max(1, need)));  // já cai: quase nada
+                    double sc = val + (t instanceof Card ? 1.5 : 0.5 * danger(o, 0) / maxThreat) + (t == before.get(a) ? 0.75 : 0);
+                    if (sc > bs) { bs = sc; best = t; bexp = exp; }
+                }
+                if (best == null) { plan.put(a, before.get(a)); continue; }
+                plan.put(a, best);
+                sent.merge(ownerOf.get(best), 1, Integer::sum);
+                left.merge(best, -bexp, Double::sum);
             }
             boolean same = stay.isEmpty();
             for (Card a : pool) if (same && plan.get(a) != before.get(a)) same = false;
@@ -374,7 +410,7 @@ public class GrimorioSim {
                 for (Card a : pool) combat.addAttacker(a, before.get(a));
                 return;
             }
-            System.err.println("spreadAttack: " + player.getName() + " — " + plan.size() + " atacam (" + dead.size() + " a eliminar), " + stay.size() + " ficam a defender");
+            System.err.println("spreadAttack: " + player.getName() + " — " + plan.size() + " atacam " + new HashSet<>(plan.values()).size() + " alvo(s) (" + dead.size() + " a eliminar), " + stay.size() + " ficam a defender");
         }
 
         // Fetchlands (Polluted Delta, Flooded Strand…): para «Island ou Swamp» o Forge traz o tipo básico com menos cópias

@@ -31,14 +31,17 @@ UA = "Mozilla/5.0 (compatible; Grimorio/1.0; uso pessoal)"
 MAX_BYTES = 5_000_000
 SITES = {"moxfield.com": "moxfield", "archidekt.com": "archidekt", "tappedout.net": "tappedout",
          "mtggoldfish.com": "mtggoldfish", "deckstats.net": "deckstats", "aetherhub.com": "aetherhub",
-         "mtgtop8.com": "mtgtop8", "scryfall.com": "scryfall"}
+         "mtgtop8.com": "mtgtop8", "scryfall.com": "scryfall", "edhrec.com": "edhrec", "tcgplayer.com": "tcgplayer",
+         "infinite.tcgplayer.com": "tcgplayer", "decks.tcgplayer.com": "tcgplayer"}
 LABEL = {"moxfield": "Moxfield", "archidekt": "Archidekt", "tappedout": "TappedOut",
          "mtggoldfish": "MTGGoldfish", "deckstats": "Deckstats", "aetherhub": "AetherHub",
-         "mtgtop8": "MTGTop8", "scryfall": "Scryfall"}
+         "mtgtop8": "MTGTop8", "scryfall": "Scryfall", "edhrec": "EDHREC", "tcgplayer": "TCGplayer"}
 FETCH_HOSTS = {"api2.moxfield.com", "archidekt.com", "www.archidekt.com", "tappedout.net",
-               "www.mtggoldfish.com", "deckstats.net", "www.mtgtop8.com", "mtgtop8.com", "api.scryfall.com"}
+               "www.mtggoldfish.com", "deckstats.net", "www.mtgtop8.com", "mtgtop8.com", "api.scryfall.com",
+               "json.edhrec.com", "infinite-api.tcgplayer.com"}
 UNSUPPORTED = ("Endereço não suportado. Sites aceites: Moxfield, Archidekt, TappedOut, MTGGoldfish, "
-               "Deckstats, AetherHub, MTGTop8 e Scryfall (endereço completo do deck).")
+               "Deckstats, AetherHub, MTGTop8, Scryfall, EDHREC (comandante ou deck médio) e TCGplayer (deck ou "
+               "artigo com deck) — endereço completo.")
 # nomes de formato dos sites -> chaves do Grimório (web/src/formats.js)
 FMT_ALIAS = {"edh": "commander", "cedh": "commander", "duel commander": "duel", "dual commander": "duel",
              "1v1 commander": "duel", "pauper edh": "paupercommander", "pauperedh": "paupercommander",
@@ -158,6 +161,15 @@ def parse_url(url):
     elif site == "scryfall":
         m = re.match(r"^/@[^/]+/decks/([0-9a-f-]{36})", path)
         ids = m and {"id": m.group(1)}
+    elif site == "edhrec":  # página do comandante (com tema/orçamento) ou do deck médio -> o deck médio
+        m = re.match(r"^/(?:commanders|average-decks)/([a-z0-9-]{1,120})(?:/([a-z0-9-]{1,60}))?/?$", path)
+        ids = m and {"slug": m.group(1), "theme": m.group(2) or ""}
+    elif site == "tcgplayer":  # deck (…/deck/<nome>/<id>) ou artigo com deck incorporado (…/article/<…>/<uuid>)
+        m = re.search(r"/deck/(?:[^/]+/)*?(\d{2,10})/?$", path)
+        ids = m and {"deck": m.group(1)}
+        if not m:
+            m = re.search(r"/article/(?:[^/]+/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/?$", path)
+            ids = m and {"article": m.group(1)}
     if not m:
         raise DeckError(f"Não reconheço um deck neste endereço do {LABEL[site]}. Usa o endereço da página do deck.")
     return site, ids
@@ -410,6 +422,32 @@ def search_decks(q="", fmt="", colors="", card="", order="vistos", page=1):
     return {"count": d.get("count") or len(out), "next": bool(d.get("next")), "decks": out}
 
 
+def _edhrec(ids):
+    theme = f"/{ids['theme']}" if ids["theme"] else ""
+    d = json.loads(_get(f"https://json.edhrec.com/pages/average-decks/{ids['slug']}{theme}.json", "edhrec"))["deck"]
+    cmd = [(1, n) for n in d.get("commander") or []]
+    main = [(q, n) for rows in (d.get("cards") or {}).values() for n, q in rows]
+    name = " + ".join(d.get("commander") or []) or ids["slug"]
+    return f"{name} (deck médio EDHREC{' · ' + ids['theme'] if theme else ''})", "commander", _text(cmd, main, [])
+
+
+def _tcgplayer(ids):
+    did = ids.get("deck")
+    if not did:  # artigo: o primeiro deck incorporado (<deck-embed deck-id="…">)
+        a = json.loads(_get(f"https://infinite-api.tcgplayer.com/content/article/{ids['article']}/", "tcgplayer"))["result"]["article"]
+        m = re.search(r'<deck-embed[^>]*deck-id="(\d{1,10})"', a.get("body") or "")
+        if not m:
+            raise DeckError("Este artigo do TCGplayer não tem nenhum deck incorporado.")
+        did = m.group(1)
+    r = json.loads(_get(f"https://infinite-api.tcgplayer.com/deck/magic/{did}/?source=infinite-content&subDecks=true&cards=true", "tcgplayer"))["result"]
+    d, cards = r["deck"], r.get("cards") or {}
+
+    def rows(*zones):
+        return [(e.get("quantity") or 1, (cards.get(str(e.get("cardID"))) or {}).get("name"))
+                for z in zones for e in (d.get("subDecks") or {}).get(z) or []]
+    return d.get("name"), d.get("format"), _text(rows("commandzone", "commander"), rows("maindeck"), rows("sideboard")), r.get("imageURL") or d.get("imageURL")
+
+
 def fetch_deck(url):
     site, ids = parse_url(url)
     try:
@@ -438,6 +476,11 @@ def _selfcheck():
         except DeckError:
             pass
     ok = {"https://www.moxfield.com/decks/oEWXWHM5eEGMmopExLWRCA": ("moxfield", {"id": "oEWXWHM5eEGMmopExLWRCA"}),
+          "https://edhrec.com/commanders/ezio-auditore-da-firenze": ("edhrec", {"slug": "ezio-auditore-da-firenze", "theme": ""}),
+          "https://edhrec.com/average-decks/ezio-auditore-da-firenze/budget": ("edhrec", {"slug": "ezio-auditore-da-firenze", "theme": "budget"}),
+          "https://www.tcgplayer.com/content/article/Commander-MTG-Deck-Guide-Ezio-Auditore-da-Firenze/7c69ef49-4e56-441c-80b8-83504a027276/?srsltid=x":
+              ("tcgplayer", {"article": "7c69ef49-4e56-441c-80b8-83504a027276"}),
+          "https://www.tcgplayer.com/content/magic-the-gathering/deck/Ezio-Auditore-da-Firenze/498880": ("tcgplayer", {"deck": "498880"}),
           "moxfield.com/decks/abc_DEF-12": ("moxfield", {"id": "abc_DEF-12"}),
           "https://archidekt.com/decks/7031486/buffs_by_hans": ("archidekt", {"id": "7031486"}),
           "http://tappedout.net/mtg-decks/the-ur-dragon-1/": ("tappedout", {"slug": "the-ur-dragon-1"}),

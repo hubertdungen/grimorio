@@ -81,7 +81,7 @@ export function ComparePanel({ data, deck, fmt, ctx, act, rq, recs, needs, co, c
   const fromUrl = async () => {
     setErr('')
     const u = url.trim()
-    if (!/^https?:\/\//.test(u)) return setErr(tx('Cola o link de um deck (Archidekt, Moxfield, TappedOut, MTGGoldfish, MTGTop8…).'))
+    if (!/^https?:\/\//.test(u)) return setErr(tx('Cola o link de um deck (Archidekt, Moxfield, TappedOut, EDHREC, TCGplayer, MTGGoldfish, MTGTop8…).'))
     setLoading(n => n + 1)
     LISTS.delete(u)
     const r = await fromImport(data, u, null)
@@ -98,7 +98,7 @@ export function ComparePanel({ data, deck, fmt, ctx, act, rq, recs, needs, co, c
       {open && (
         <div className="cutp-body">
           <div className="cmpx-url">
-            <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && fromUrl()} placeholder={tx('Link de um deck (Archidekt, Moxfield, TappedOut, MTGGoldfish, MTGTop8…)')} />
+            <input value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && fromUrl()} placeholder={tx('Link de um deck ou guia (Archidekt, Moxfield, TappedOut, EDHREC, TCGplayer, MTGGoldfish, MTGTop8…)')} />
             <button className="primary small" onClick={fromUrl} disabled={!url.trim()}>{tx('Comparar')}</button>
           </div>
           {err && <p className="bad-t small">{err}</p>}
