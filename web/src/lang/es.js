@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "Cruzes nos cantos + margens (gráfica)": "Cruces en las esquinas + márgenes (imprenta)",
+  "Tamanho das marcas": "Tamaño de las marcas",
   "Cor das linhas de corte": "Color de las líneas de corte",
   "Espessura das linhas": "Grosor de las líneas",
   "Cor dos cruzamentos": "Color de los cruces",

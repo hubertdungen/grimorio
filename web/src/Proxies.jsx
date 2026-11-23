@@ -78,7 +78,7 @@ function Num({ v, unit, set, label, min = 0 }) {
 
 // pré-visualização da 1.ª folha: cartas (com o bleed que cabe), margens e guias
 function Preview({ L, o, slots, labels }) {
-  const g = guides(L, o.guides, o.individual !== false)
+  const g = guides(L, o.guides, o.individual !== false, o.markLen ?? 3)
   return (
     <svg className="pprev" viewBox={`0 0 ${L.W} ${L.H}`} role="img" aria-label={tx('Pré-visualização da folha')}>
       <rect width={L.W} height={L.H} fill="#fff" />
@@ -411,13 +411,14 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
               <label><span>{tx('Papel')}</span><select value={o.paper} onChange={e => up({ paper: e.target.value })}>{Object.entries(PAPERS).map(([k, [w, h]]) => <option key={k} value={k}>{k} · {+(w / UNITS[o.unit]).toFixed(2)}×{+(h / UNITS[o.unit]).toFixed(2)} {o.unit}</option>)}<option value="custom">{tx('À medida')}</option></select></label>
               {o.paper === 'custom' && <div className="pair"><Num label={tx('Largura')} v={o.custom[0]} unit={o.unit} set={v => up({ custom: [v, o.custom[1]] })} /><Num label={tx('Altura')} v={o.custom[1]} unit={o.unit} set={v => up({ custom: [o.custom[0], v] })} /></div>}
               <label><span>{tx('Orientação')}</span><select value={o.landscape ? 'h' : 'v'} onChange={e => up({ landscape: e.target.value === 'h' })}><option value="v">{tx('Vertical')}</option><option value="h">{tx('Horizontal')}</option></select></label>
-              <label><span>{tx('Guias de corte')}</span><select value={o.guides} onChange={e => up({ guides: e.target.value })}><option value="none">{tx('Nenhuma')}</option><option value="lines">{tx('Linhas a toda a folha')}</option><option value="margins">{tx('Só nas margens da folha')}</option><option value="corners">{tx('Marcas nos cantos')}</option></select></label>
+              <label><span>{tx('Guias de corte')}</span><select value={o.guides} onChange={e => up({ guides: e.target.value })}><option value="none">{tx('Nenhuma')}</option><option value="lines">{tx('Linhas a toda a folha')}</option><option value="margins">{tx('Só nas margens da folha')}</option><option value="corners">{tx('Marcas nos cantos')}</option><option value="crosses">{tx('Cruzes nos cantos + margens (gráfica)')}</option></select></label>
+              {(o.guides === 'corners' || o.guides === 'crosses') && <Num label={tx('Tamanho das marcas')} v={o.markLen ?? 3} unit="mm" set={v => up({ markLen: Math.max(0.5, v) })} />}
               {o.guides !== 'none' && <label><span>{tx('Cor das linhas de corte')}</span><input type="color" value={o.guideColor} onChange={e => up({ guideColor: e.target.value })} /></label>}
               {o.guides !== 'none' && <Num label={tx('Espessura das linhas')} v={o.guideWidth} unit="mm" set={v => up({ guideWidth: Math.max(0.05, v) })} />}
               {o.guides !== 'none' && <label><span>{tx('Contraste das linhas')}</span><select value={o.guideContrast || 'off'} onChange={e => up({ guideContrast: e.target.value })}
                 title={tx('A cor de cada pedaço da linha muda conforme o que está por baixo: o cinzento escolhido fica mais claro sobre o escuro e mais escuro sobre o claro; só onde o cinzento não chega muda de cor.')}>
                 <option value="off">{tx('Desligado (sempre a cor escolhida)')}</option><option value="some">{tx('Algum (cinzentos)')}</option><option value="strong">{tx('Bastante (do preto ao branco)')}</option></select></label>}
-              {(o.guides === 'lines' || o.guides === 'margins') && <label className="chk small"><input type="checkbox" checked={o.individual !== false} onChange={e => up({ individual: e.target.checked })} /> {tx('Corte individual para cada carta (linhas nos dois lados de cada espaço)')}</label>}
+              {(o.guides === 'lines' || o.guides === 'margins' || o.guides === 'crosses') && <label className="chk small"><input type="checkbox" checked={o.individual !== false} onChange={e => up({ individual: e.target.checked })} /> {tx('Corte individual para cada carta (linhas nos dois lados de cada espaço)')}</label>}
               <Num label={tx('Bleed')} v={o.bleed} unit={o.unit} set={v => up({ bleed: v })} />
               {o.bleed > 0 && <label><span>{tx('Bleed com')}</span><select value={o.bleedFill} onChange={e => up({ bleedFill: e.target.value })}><option value="replicate">{tx('A margem da carta esticada (inteligente)')}</option><option value="black">{tx('Preto')}</option><option value="color">{tx('Uma cor à escolha')}</option></select></label>}
               {o.bleed > 0 && o.bleedFill === 'color' && <label><span>{tx('Cor do bleed')}</span><input type="color" value={o.bleedColor} onChange={e => up({ bleedColor: e.target.value })} /></label>}

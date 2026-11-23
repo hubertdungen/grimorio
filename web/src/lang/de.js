@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Cruzes nos cantos + margens (gráfica)": "Kreuze an den Ecken + Ränder (Druckerei)",
+  "Tamanho das marcas": "Markengröße",
   "Cor das linhas de corte": "Farbe der Schnittlinien",
   "Espessura das linhas": "Linienstärke",
   "Cor dos cruzamentos": "Farbe der Kreuzungen",

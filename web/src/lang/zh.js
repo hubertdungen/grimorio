@@ -3860,6 +3860,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Cruzes nos cantos + margens (gráfica)": "角落十字 + 页边（印刷店）",
+  "Tamanho das marcas": "标记大小",
   "Cor das linhas de corte": "裁切线颜色",
   "Espessura das linhas": "线条粗细",
   "Cor dos cruzamentos": "交叉处颜色",

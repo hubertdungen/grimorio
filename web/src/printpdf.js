@@ -7,7 +7,7 @@ export const UNITS = { mm: 1, cm: 10, in: 25.4 }
 export const PRINT0 = {
   unit: 'cm', paper: 'A4', custom: [210, 297], landscape: false, margins: [5, 5, 5, 5], customMargins: false, center: true,
   card: [63, 88], gap: [0, 0], bleed: 0, guides: 'lines', individual: true, guideColor: '#808080', guideWidth: 0.2,
-  bleedFill: 'replicate', bleedColor: '#000000', fillCorners: true, gapFill: 'off', gapColor: '#000000', dpi: 300, upAI: false, guideContrast: 'off', watermark: false, watermarkText: 'PROXY', duplex: false, flip: 'side',
+  bleedFill: 'replicate', bleedColor: '#000000', fillCorners: true, gapFill: 'off', gapColor: '#000000', dpi: 300, upAI: false, guideContrast: 'off', markLen: 3, watermark: false, watermarkText: 'PROXY', duplex: false, flip: 'side',
   newSheet: false, deckNames: true, deckTags: false, share: false,  // vários decks: folha nova por deck, nomes, partilhar cartas
 }
 
@@ -39,20 +39,25 @@ export function layout(o) {
 
 // segmentos das guias de corte, em mm: [x1, y1, x2, y2]
 // individual: cada carta com as suas linhas (duas por espaço); senão uma só a meio do espaço entre cartas
-export function guides(L, mode, individual = true) {
+export function guides(L, mode, individual = true, markLen = 3) {
   if (mode === 'none' || !L.per) return []
   const cut = (v, i, n, size, gap) => (individual ? [v, v + size] : [i ? v - gap / 2 : v, i < n - 1 ? v + size + gap / 2 : v + size])
   const xs = [...new Set(L.cells.filter(k => !k.r).flatMap(k => cut(k.x, k.c, L.cols, L.cw, L.gx)).map(v => +v.toFixed(3)))]
   const ys = [...new Set(L.cells.filter(k => !k.c).flatMap(k => cut(k.y, k.r, L.rows, L.ch, L.gy)).map(v => +v.toFixed(3)))]
   if (mode === 'lines') return [...xs.map(x => [x, 0, x, L.H]), ...ys.map(y => [0, y, L.W, y])]
-  if (mode === 'margins') {  // só fora da grelha (e do bleed de fora), onde a guilhotina se alinha
-    const top = L.y0 - L.b - 1, bot = L.y0 + L.gh + L.b + 1, lef = L.x0 - L.b - 1, rig = L.x0 + L.gw + L.b + 1
-    return [...xs.flatMap(x => [top > 0 && [x, 0, x, top], bot < L.H && [x, bot, x, L.H]]), ...ys.flatMap(y => [lef > 0 && [0, y, lef, y], rig < L.W && [rig, y, L.W, y]])].filter(Boolean)
+  const top = L.y0 - L.b - 1, bot = L.y0 + L.gh + L.b + 1, lef = L.x0 - L.b - 1, rig = L.x0 + L.gw + L.b + 1
+  // só fora da grelha (e do bleed de fora), onde a guilhotina se alinha
+  const margins = () => [...xs.flatMap(x => [top > 0 && [x, 0, x, top], bot < L.H && [x, bot, x, L.H]]), ...ys.flatMap(y => [lef > 0 && [0, y, lef, y], rig < L.W && [rig, y, L.W, y]])].filter(Boolean)
+  if (mode === 'margins') return margins()
+  if (mode === 'crosses') {  // cruz (+) em cada canto de corte, com braços para os dois lados (como nas gráficas), e as margens
+    const m = Math.max(0.5, markLen), out = margins()
+    for (const x of xs) for (const y of ys) out.push([x - m, y, x + m, y], [x, y - m, x, y + m])
+    return out
   }
-  // cantos: marcas de 3 mm para fora de cada canto (por dentro do bleed, que se corta)
+  // cantos: marcas para fora de cada canto (por dentro do bleed, que se corta)
   const out = []
   for (const k of L.cells) {
-    const [l, t, r, bt] = k.clip, len = (a, lim) => Math.min(3, Math.abs(a - lim))
+    const [l, t, r, bt] = k.clip, len = (a, lim) => Math.min(Math.max(0.5, markLen), Math.abs(a - lim))
     for (const [x, y, sx, sy] of [[k.x, k.y, -1, -1], [k.x + L.cw, k.y, 1, -1], [k.x, k.y + L.ch, -1, 1], [k.x + L.cw, k.y + L.ch, 1, 1]]) {
       const lx = len(x, sx < 0 ? l : r), ly = len(y, sy < 0 ? t : bt)
       if (lx > 0.2) out.push([x, y, x + sx * lx, y])
@@ -159,7 +164,7 @@ export function contrastGuides(g, base, level, bgAt, step = 1.5) {
 
 // frente (e verso, com a folha espelhada) de cada página: ops do PDF por página; labelsOf(p) = textos da frente
 export function pageOps(L, o, slots, imgOf, labelsOf, bgAt = null) {  // bgAt(página, x, y) → rgb 0..1 do fundo (contraste das guias)
-  const g = guides(L, o.guides, o.individual !== false), [R, G, B] = [1, 3, 5].map(k => parseInt(o.guideColor.slice(k, k + 2), 16) / 255)
+  const g = guides(L, o.guides, o.individual !== false, o.markLen ?? 3), [R, G, B] = [1, 3, 5].map(k => parseInt(o.guideColor.slice(k, k + 2), 16) / 255)
   const gr = gapRects(L, o), gc = [1, 3, 5].map(k => parseInt((o.gapColor || '#000000').slice(k, k + 2), 16) / 255)
   const pages = []
   for (let p = 0; p * L.per < slots.length || (!slots.length && !p); p++) {
