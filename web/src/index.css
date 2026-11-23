@@ -4697,7 +4697,7 @@ select.demote:hover { border-color: var(--gold); }
 
 /* grelha: o comandante com coroa dourada e brilho; o subcomandante com ♕ prateado que diz o que é ao passar o rato */
 .dg-tile.dg-cmd { position: relative; border-radius: 10px; box-shadow: 0 0 0 2px #e7b84f, 0 0 18px #f2b84b55; }
-.dg-crown { position: absolute; z-index: 2; top: -10px; left: 50%; transform: translateX(-50%); font-size: 18px; line-height: 1; padding: 2px 8px; border-radius: 99px;
+.dg-crown { position: absolute; z-index: 2; top: 6px; left: 50%; transform: translateX(-50%); font-size: 18px; line-height: 1; padding: 2px 8px; border-radius: 99px;
   color: #1b1405; background: linear-gradient(135deg, #fbe39a, #e7b84f 55%, #c9892a); box-shadow: 0 2px 8px #0008; pointer-events: none; }
 .dg-sub { pointer-events: auto !important; cursor: help; border-color: #b9bccb !important; color: #dfe1ea !important; display: inline-flex !important; align-items: center; gap: 4px; overflow: hidden; max-width: 28px; transition: max-width .2s ease; white-space: nowrap; }
 .dg-sub i { font-style: normal; font-size: 11.5px; opacity: 0; transition: opacity .15s; }
