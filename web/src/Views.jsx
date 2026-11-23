@@ -23,6 +23,7 @@ import { VOC, findSets, setLabel, setYear, setGroup, setMembers, setOriginals, f
 import { THREATS, hateMatch } from './hate.js'
 import { Kpis, CurveChart, ColorDonuts, HandOdds, PriceCard, CardsInGames, WinLoseCard, Hint, RatingsCard } from './AnalysisDash.jsx'
 import { useBackClose } from './backnav.js'
+import { ThemeArtBtn } from './ThemeArt.jsx'
 import { isTouch } from './touch.js'
 import './Suggest.css'
 import { alterHistory } from './alterart.js'
@@ -416,6 +417,7 @@ export function PrefsPanel({ deck, fmt, act, compact = false }) {
         {fmt.cmd && <label className="chk small" title={tx('Habilidades, palavras-chave e estratégia tiradas do texto do comandante (semelhança e plano). Desligado, o texto dele deixa de puxar cartas.')}><input type="checkbox" checked={pf.cmdTexto !== false} onChange={e => set({ cmdTexto: e.target.checked })} /> {tx('Usar o resto do texto do comandante')}</label>}
         {fmt.cmd && <label className="chk small" title={tx('A inclusão e a sinergia das cartas nos decks deste comandante no EDHREC («Em 74% dos decks de…»). Desligado, esses números deixam de puxar cartas.')}><input type="checkbox" checked={pf.cmdEdh !== false} onChange={e => set({ cmdEdh: e.target.checked })} /> {tx('Usar os decks reais do comandante (EDHREC)')}</label>}
         <label className="chk small" title={tx('Cartas muito jogadas em qualquer deck (Sol Ring, Arcane Signet…). Desligado, as funções enchem-se com cartas do tema.')}><input type="checkbox" checked={pf.staples !== false} onChange={e => set({ staples: e.target.checked })} /> {tx('Puxar staples genéricos')}</label>
+        <label className="chk small" title={tx('Depois de «Completar deck», se o deck tem tema (o universo do comandante ou do «Gosto de…»), as cartas que têm impressão nesse universo passam a usá-la. Desfaz-se com ↶.')}><input type="checkbox" checked={pf.temaArtes !== false} onChange={e => set({ temaArtes: e.target.checked })} /> {tx('Artes do tema automaticamente')}</label>
       </div>
       {open && (
         <div className="prefs-body">
@@ -700,7 +702,7 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
   const tastes = useTastes(data, deck)
   const [res, setRes] = useState(null)
   const [off, setOff] = useState(() => new Set())
-  const prefsKey = JSON.stringify(deck.prefs || {}) + tastes.length
+  const prefsKey = JSON.stringify({ ...deck.prefs, temaArtes: 0 }) + tastes.length  // as artes do tema não mudam a proposta
   useEffect(() => { setRes(null); setOff(new Set()) }, [prefsKey])
   const [waited, setWaited] = useState(false)
   useEffect(() => { const t = setTimeout(() => setWaited(true), 5000); return () => clearTimeout(t) }, [])
@@ -747,6 +749,7 @@ export function AutoBuildDialog({ data, deck, fmt, ctx, setDeck, say, onClose, a
     })
     say(sn ? tx('Juntei {n} cartas ao deck e {s} ao sideboard.', { n, s: sn }) : tx('Juntei {n} carta ao deck.|Juntei {n} cartas ao deck.', { n }), true)
     onClose()
+    act?.autoThemeArts?.()  // 🎨 com tema detetado, as artes do universo (desliga-se no ⚙ Personalizar)
   }
   const rank = g => (g.startsWith(tx('Função')) ? 0 : g === tx('Sinergia') ? 1 : 2)  // nomes dos grupos vêm do autobuild.js, já traduzidos
   const order = Object.keys(groups).sort((a, b) => rank(a) - rank(b))
@@ -2171,6 +2174,7 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
       )}
       <SelBar s={ds} {...{ deck, data, act }} />
       {!ds.sel && <button className="small" onClick={() => ds.open(null)} title={tx('Alter arts para o deck todo, com filtros (só criaturas, sem terrenos…)')}>✨ {tx('Alter arts do deck')}</button>}
+      {!ds.sel && <ThemeArtBtn className="small" {...{ data, deck, act }} />}
       <FoldAll keys={[...order, ...(sum(deck.side) ? ['side'] : []), ...(sum(deck.maybe || {}) ? ['maybe'] : [])]} f={fold} />
       </div>
       {cmd.length > 0 && (

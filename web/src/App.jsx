@@ -9,7 +9,9 @@ import Rules from './Rules.jsx'
 import { ask, confirmOn, casualAsk } from './confirm.jsx'
 import DeckPicker from './DeckPicker.jsx'
 import { Suspense, lazy, useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList, deckTribe, deckIdentity } from './data.js'
+import { loadData, fmtBit, TYPES, TYPE_LABEL, img, pidOf, importExtras, BASICS, basicList, deckTribe, deckIdentity, fetchThemePrints } from './data.js'
+import { artThemes, themePlan, applyTheme } from './themeart.js'
+import ThemeArtDialog, { ThemeArtBtn } from './ThemeArt.jsx'
 import { FORMATS, FORMAT, validate, maxCopies, canBeCommander, fixFormat, swapCommander, subsOf, pairOk } from './formats.js'
 import { emptyDeck, count, parseList, exportList, sourceOf } from './deck.js'
 import { Logo, Mana, CatHead, FoldAll } from './ui.jsx'
@@ -58,7 +60,7 @@ const SECTIONS = [['construir', tx('Construir')], ['biblioteca', tx('Biblioteca'
 const COL_MODES = [['bots', 'bots', tx('Bots a testar')], ['jogar', 'forge', tx('Jogar contra o Forge')], ['torneio', 'torneio', tx('Torneio')], ['draft', 'draft', tx('Draft')], ['taverna', 'taverna', tx('Taverna')], ['online', 'online', tx('Online')], ['ratings', 'ratings', tx('Ratings')]]
 const ZONE_L = { main: tx('deck'), side: tx('sideboard'), maybe: tx('maybeboard') }
 // Desfazer: só o conteúdo do deck (nome, notas, formato, preferências e sementes ficam de fora)
-const CONTENT = ['main', 'side', 'maybe', 'commanders', 'subs', 'signature', 'prints', 'cover', 'coverImg']
+const CONTENT = ['main', 'side', 'maybe', 'commanders', 'subs', 'signature', 'prints', 'split', 'cover', 'coverImg']
 const snapOf = d => Object.fromEntries(CONTENT.map(k => [k, d[k]]))
 const norm = v => JSON.stringify(v && typeof v === 'object' && !Object.keys(v).length ? null : v ?? null)
 // o que mudou: as cartas com outra quantidade («main:Bolt») e os outros campos; '' = nada
@@ -235,6 +237,7 @@ export default function App() {
   const [sugTag, setSugTag] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [showAuto, setShowAuto] = useState(false)
+  const [themeDlg, setThemeDlg] = useState(false)
   const [showAI, setShowAI] = useState(false)
   const [showEpic, setShowEpic] = useState(false)
   const [showWizard, setShowWizard] = useState(false)
@@ -540,13 +543,37 @@ export default function App() {
       && !(await ask('ultima', { title: tx('Tirar «{c}» do deck?', { c: c.n }), body: tx('Era a última cópia. Podes desfazer com ↶.'), ok: tx('Tirar') }))) return
     add(c, zone, -q)
   }, [add])
+  // 🎨 Artes do tema (themeart.js): pede à Scryfall as impressões do universo e aplica-as ao deck como está quando chegam
+  // (auto = depois do «Completar deck»: calado quando não há nada a mudar)
+  const themeArts = useCallback(async (th, { replace = false, auto = false } = {}) => {
+    const d0 = now.current.deck, { items, skip } = themePlan(data, d0, th, { replace })
+    if (!items.length) { if (!auto) say(skip.chosen ? tx('{n} carta com impressão em {t} tem arte escolhida à mão: marca «Substituir também as escolhidas».|{n} cartas com impressão em {t} têm arte escolhida à mão: marca «Substituir também as escolhidas».', { n: skip.chosen, t: th.name }) : tx('Nenhuma carta do deck muda para {t}.', { t: th.name })); return }
+    const need = items.filter(x => !x.print)
+    let found = new Map()
+    if (need.length) {
+      if (navigator.onLine === false) { say(tx('Sem ligação à internet: as artes de {t} ficam para quando houver rede (🎨 Artes do tema).', { t: th.name })); return }
+      if (!auto) say(tx('🎨 A procurar as artes de {t}…', { t: th.name }))
+      try { found = await fetchThemePrints(need) } catch { say(tx('A Scryfall não respondeu: as artes ficam como estavam. Tenta mais tarde em «🎨 Artes do tema».')); return }
+    }
+    const d1 = now.current.deck
+    if (d0.id && d1.id !== d0.id) return  // abriu-se outro deck entretanto (um deck novo pode ganhar id ao gravar)
+    const r = applyTheme(d1, th, items, found, { replace })
+    if (!r.n) { if (!auto) say(tx('A Scryfall não tem impressões de {t} para estas cartas.', { t: th.name })); return }
+    setDeck(r.deck)
+    say(tx('🎨 Artes de {t} em {n} carta|🎨 Artes de {t} em {n} cartas', { t: th.name, n: r.n }), true)
+  }, [data, setDeck, say])
+  const autoThemeArts = useCallback(() => setTimeout(() => {
+    const d = now.current.deck, th = d.prefs?.temaArtes === false || !data ? null : artThemes(data, d)[0]
+    if (th) themeArts(th, { auto: true })
+  }, 80), [data, themeArts])
   const act = useMemo(() => ({ add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
+    themeArtsOpen: () => setThemeDlg(true), autoThemeArts,
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     goDeck: id => goDeck(id), decksChanged: () => api('/api/decks').then(setDecks).catch(() => {}),
     clearGroups: () => { setDeck(d => ({ ...d, groups: [] })); say(tx('Secções removidas: o deck volta a aparecer por tipo.')) },
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, undo, redo }),
-  [add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo])
+  [add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo, autoThemeArts])
 
   const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const deckRef = useRef(deck); deckRef.current = deck
@@ -704,6 +731,7 @@ export default function App() {
         setDeckView('grelha'); setTab(goTab)
         if (auto) setTimeout(() => setShowAuto(true), 50)
       }} />}
+      {themeDlg && data && <ThemeArtDialog data={data} deck={deck} onClose={() => setThemeDlg(false)} onApply={(th, replace) => { setThemeDlg(false); themeArts(th, { replace }) }} />}
       {artCard && <ArtPicker c={artCard} deck={deck} data={data} act={act} onClose={() => setArtCard(null)} />}
       {scan && data && <CardScan data={data} onPick={c => act.add(c)} onClose={() => setScan(false)} />}
       {showEpic && <Suspense fallback={null}><EpicDialog data={data} decks={[deck]} taken={decks.filter(d => d.id !== deck.id).map(d => d.name)} onClose={() => setShowEpic(false)}
@@ -886,6 +914,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
         <button onClick={() => setProxies(true)} title={tx('Lista com edições, ZIP com as imagens ou folha para imprimir')}>🖨 {tx('Proxies')}</button>
         {proxies && <ProxyDialog data={data} deck={deck} ctx={ctx} onClose={() => setProxies(false)} />}
         {Object.keys(deck.main).length > 0 && <button onClick={() => ds.open(null)} title={tx('Alter arts para o deck todo, com filtros (só criaturas, sem terrenos…)')}>✨ {tx('Alter arts do deck')}</button>}
+        {Object.keys(deck.main).length > 0 && <ThemeArtBtn {...{ data, deck, act }} />}
         {deck.id && <button className="danger" onClick={delDeck}>{tx('Eliminar')}</button>}
       </div>
       <textarea className="notes" placeholder={tx('Notas do deck…')} value={deck.notes} onChange={e => setDeck(d => ({ ...d, notes: e.target.value }))} />

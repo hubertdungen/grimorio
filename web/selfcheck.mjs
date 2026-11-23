@@ -1402,6 +1402,75 @@ import { ptExplain } from './src/game.js'
   assert.equal(rec({ cmdTexto: false }).find(r => r.c.n === 'Hero Pal').parts.comandante, 0, 'sem o texto do comandante, a semelhança com ele não conta')
   console.log('selfcheck intenção explícita (temas, ★, sementes, comandante desligado) ok')
 }
+// 🎨 Artes do tema (themeart.js): o universo do comandante (Marneus Calgar → 40K) ou do «Gosto de…» (Transformers); só
+// as cartas com impressão lá, sem tocar nas artes próprias nem nas escolhidas à mão; pedidos à Scryfall de 75 em 75.
+{ const { prepData, fetchThemePrints } = await import('./src/data.js')
+  const { setVocab } = await import('./src/vocab.js')
+  const { artThemes, themeOptions, themePlan, applyTheme, chunks, bestPrint, findThemes } = await import('./src/themeart.js')
+  const mk = (n, t = 'Artifact') => ({ n, t, o: '', mc: '', cmc: 1, ci: '', co: '', lg: 1 << 6, rs: 0, r: 'r', tg: [], kw: [], er: 10, un: 0 })
+  const names = ['Marneus Calgar', 'Sol Ring', 'Command Tower', 'Arcane Signet', 'Swords to Plowshares', 'Plains', 'Lightning Bolt', 'Optimus Prime, Hero', 'Blightsteel Colossus', 'Atraxa, Praetors\' Voice']
+  const cards = names.map(n => mk(n)), I = n => names.indexOf(n)
+  const delta = ns => ns.map(I).sort((a, b) => a - b).map((x, k, l) => x - (k ? l[k - 1] : 0))
+  const sets = [['40k', 'Warhammer 40,000 Commander', '2022', 'commander', [], delta(['Marneus Calgar', 'Sol Ring', 'Command Tower', 'Arcane Signet', 'Swords to Plowshares', 'Plains'])],
+    ['bot', 'Transformers', '2022', 'eternal', [], delta(['Optimus Prime, Hero'])], ['sld', 'Secret Lair Drop', '2019', 'box', [], delta(['Blightsteel Colossus'])],
+    ['c16', 'Commander 2016', '2016', 'commander', [], delta(['Atraxa, Praetors\' Voice', 'Sol Ring'])], ['lea', 'Limited Edition Alpha', '1993', 'core', [], delta(['Sol Ring', 'Swords to Plowshares', 'Plains', 'Lightning Bolt'])]]
+  const pos = Object.fromEntries(sets.map((s, k) => [s[0], k]))
+  const first = names.map(n => pos[{ 'Marneus Calgar': '40k', 'Optimus Prime, Hero': 'bot', 'Blightsteel Colossus': 'sld', 'Atraxa, Praetors\' Voice': 'c16', 'Command Tower': '40k', 'Arcane Signet': '40k' }[n] || 'lea'])
+  const fr = JSON.parse(readFileSync(new URL('../build/franchises.json', import.meta.url), 'utf8')).franchises
+    .map(f => [f.id, f.name, f.sets.filter(s => pos[s] != null), f.alias, f.id === 'bot' ? [I('Blightsteel Colossus')] : []])
+  const fl = [[I('Blightsteel Colossus'), 'Megatron', 'sld', '1079', 'b1']]
+  const data = prepData({ formats: F }, cards, [], new ArrayBuffer(0), new ArrayBuffer(0))
+  assert.ok(setVocab({ n: cards.length, sets, first, fr, fl, types: {} }, cards))
+  const base = { commanders: [], main: {}, side: {}, maybe: {}, prints: {}, art: {}, split: {}, seedTerms: [] }
+  const mar = { ...base, commanders: ['Marneus Calgar'], main: { 'Sol Ring': 1, 'Command Tower': 1, 'Arcane Signet': 1, 'Swords to Plowshares': 1, Plains: 10, 'Lightning Bolt': 1 } }
+  const th = artThemes(data, mar)
+  assert.deepEqual(th.map(t => [t.v, t.tag, t.from, t.sets]), [['40k', '40K', 'cmd', ['40k']]], 'Marneus Calgar → Warhammer 40,000')
+  assert.equal(th[0].name, 'Warhammer 40,000')
+  assert.deepEqual(artThemes(data, { ...base, commanders: ['Atraxa, Praetors\' Voice'] }), [], 'comandante de uma edição normal: sem tema automático')
+  assert.deepEqual(themeOptions(data, { ...base, commanders: ['Atraxa, Praetors\' Voice'] }).map(t => [t.v, t.from]), [['c16', 'cmdset']], 'mas a edição dele aparece para escolher')
+  const tf = { ...base, commanders: ['Atraxa, Praetors\' Voice'], seedTerms: [{ k: 'sub', v: 'Robot' }, { k: 'set', v: 'bot' }], main: { 'Blightsteel Colossus': 1, 'Optimus Prime, Hero': 1, 'Sol Ring': 1 } }
+  assert.equal(artThemes(data, tf)[0].v, 'bot', '«Gosto de transformers» → Transformers')
+  assert.ok(findThemes('warhammer').some(t => t.v === '40k') && findThemes('40k').some(t => t.v === '40k'), 'pesquisa por nome e por código')
+  // Transformers: o Optimus pede-se à Scryfall; o Blightsteel já tem a impressão Megatron (sem rede)
+  const pt = themePlan(data, tf, artThemes(data, tf)[0])
+  assert.deepEqual(pt.items.map(x => [x.n, x.set || x.print.id]).sort(), [['Blightsteel Colossus', 'b1'], ['Optimus Prime, Hero', 'bot']])
+  // 40K: arte própria fica sempre; impressão escolhida à mão e básicos com as favoritas (split) ficam salvo «substituir»
+  const d40 = { ...mar, art: { 'Swords to Plowshares': 'https://x/own.png' }, prints: { 'Command Tower': { id: 'ct', set: 'CMR', cn: '350' }, 'Arcane Signet': { id: 'as', set: 'BOT', cn: '9', theme: 'bot' } }, split: { Plains: [{ id: 'p1', q: 5 }, { id: 'p2', q: 5 }] } }
+  const p1 = themePlan(data, d40, th[0])
+  assert.deepEqual(p1.items.map(x => x.n).sort(), ['Arcane Signet', 'Marneus Calgar', 'Sol Ring'], 'a de outro tema muda; Bolt não tem impressão 40K')
+  assert.deepEqual(p1.skip, { own: 1, chosen: 2, have: 0 })
+  const p2 = themePlan(data, d40, th[0], { replace: true })
+  assert.deepEqual(p2.items.map(x => x.n).sort(), ['Arcane Signet', 'Command Tower', 'Marneus Calgar', 'Plains', 'Sol Ring'], 'substituir: as escolhidas também, a arte própria não')
+  const pr = (id, style = []) => ({ id, set: '40K', cn: id, style, eur: 1 })
+  const found = new Map([['sol ring', pr('s40')], ['marneus calgar', pr('m40')], ['arcane signet', pr('a40')], ['command tower', pr('c40')], ['plains', pr('pl40')]])
+  const r1 = applyTheme(d40, th[0], p1.items, found)
+  assert.equal(r1.n, 3)
+  assert.deepEqual([r1.deck.prints['Sol Ring'].id, r1.deck.prints['Sol Ring'].theme, r1.deck.prints['Sol Ring'].foil, r1.deck.prints['Command Tower'].id, r1.deck.split.Plains.length], ['s40', '40k', false, 'ct', 2])
+  assert.equal(themePlan(data, r1.deck, th[0]).items.length, 0, 'aplicado: nada mais muda (2.ª vez)')
+  assert.equal(themePlan(data, r1.deck, th[0]).skip.have, 3)
+  // o deck mudou durante o pedido (escolheu-se uma arte à mão): fica a escolhida
+  assert.equal(applyTheme({ ...d40, prints: { ...d40.prints, 'Sol Ring': { id: 'mine', set: 'LEA', cn: '1' } } }, th[0], p1.items, found).deck.prints['Sol Ring'].id, 'mine')
+  const r2 = applyTheme(d40, th[0], p2.items, found, { replace: true })
+  assert.deepEqual([r2.n, r2.deck.prints.Plains.id, r2.deck.split.Plains, r2.deck.prints['Command Tower'].id, r2.deck.prints['Swords to Plowshares']], [5, 'pl40', undefined, 'c40', undefined])
+  assert.equal(bestPrint([pr('b', ['Sem margem']), pr('r')]).id, 'r', 'moldura normal antes de sem margem/showcase')
+  assert.equal(bestPrint([pr('b', ['Showcase'])]).id, 'b', 'só showcase: serve')
+  // pedidos: de 75 em 75 com {name, set}, ~100 ms entre eles; sem rede lança (a app mostra o aviso)
+  assert.deepEqual(chunks([...Array(160).keys()]).map(l => l.length), [75, 75, 10])
+  const sent = [], f0 = globalThis.fetch
+  globalThis.fetch = async (url, o) => { const ids = JSON.parse(o.body).identifiers; sent.push([url, ids.length, Date.now()]); assert.ok(ids.every(x => x.name && x.set && !x.id && !x.name.includes(' // '))); return { ok: true, json: async () => ({ data: ids.map((x, k) => ({ id: `${x.name}-${k}`, name: x.name, set: x.set, collector_number: String(k), prices: {}, digital: false })) }) } }
+  const many = [...Array(159).keys()].map(k => ({ n: `Card ${k}`, set: '40k' })).concat({ n: 'Optimus Prime, Hero // Optimus Prime, Autobot Leader', set: 'bot' })
+  const got = await fetchThemePrints(many)
+  assert.deepEqual(sent.map(s => [s[0], s[1]]), [['https://api.scryfall.com/cards/collection', 75], ['https://api.scryfall.com/cards/collection', 75], ['https://api.scryfall.com/cards/collection', 10]])
+  assert.ok(sent[2][2] - sent[0][2] >= 190, 'espera entre pedidos')
+  assert.equal(got.get('card 7').set, '40K')
+  assert.equal(got.get('optimus prime, hero')?.set, 'BOT', 'dupla face pedida pela face da frente')
+  globalThis.fetch = async () => { throw new TypeError('Failed to fetch') }
+  await assert.rejects(fetchThemePrints([{ n: 'Sol Ring', set: '40k' }]))
+  globalThis.fetch = f0
+  setVocab(null, cards)
+  assert.deepEqual(artThemes(data, mar), [], 'sem vocabulário: sem tema, nada parte')
+  console.log('selfcheck artes do tema (40K pelo comandante, Transformers pelo «Gosto de», escolhidas à mão, lotes de 75) ok')
+}
 // Os casos reais (deckeval.mjs --fast: Invisible Woman + muralhas, Morophon + changelings), quando há dados locais.
 { const { spawnSync } = await import('node:child_process')
   const r = spawnSync(process.execPath, [new URL('./deckeval.mjs', import.meta.url).pathname, '--check', '--fast'], { encoding: 'utf8', timeout: 600000 })

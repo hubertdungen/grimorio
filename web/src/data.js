@@ -7,6 +7,7 @@ import { deckThemes } from './synergy.js'
 import { hateMatch, hateScore } from './hate.js'
 import { setVocab, setOriginals, flavorHit, norm } from './vocab.js'
 import { ARCH, archScore, archRank } from './archetypes.js'
+import { bestPrint, chunks } from './themeart.js'
 
 // funções a mais, tiradas do texto ao carregar (os dados só trazem as 20 do build_data): moer, dano direto, reforço,
 // piscar, devolver à mão, copiar, roubar, drenar, escolher cartas, reduzir custos, desvirar, turno extra, landfall, taxar
@@ -320,6 +321,26 @@ export async function fetchCollection(ids) {
     for (const p of j.data) out.set(`${p.set.toUpperCase()}|${p.collector_number}`, toPrint(p))
     if (k + 75 < ids.length) await new Promise(res => setTimeout(res, 120)) // regra da Scryfall: ≤10 pedidos/s
   }
+  return out
+}
+
+// 🎨 Artes do tema (themeart.js): a impressão de cada carta numa edição, [{ n, set }] → Map nome em minúsculas → impressão.
+// 75 por pedido e ~100 ms entre pedidos (regra da Scryfall); só a API, nenhuma imagem. Sem rede lança o erro.
+export async function fetchThemePrints(items) {
+  const got = new Map()
+  const parts = chunks(items, 75)
+  for (let k = 0; k < parts.length; k++) {
+    if (k) await new Promise(res => setTimeout(res, 100))
+    const r = await fetch(`${SF}/cards/collection`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ identifiers: parts[k].map(x => ({ name: x.n.split(' // ')[0], set: x.set })) }),  // dupla face: só a da frente (a Scryfall não acha «A // B»)
+    })
+    if (!r.ok) throw new Error(`Scryfall HTTP ${r.status}`)
+    const j = await r.json()
+    for (const p of j.data || []) for (const key of new Set([p.name, p.name.split(' // ')[0]].map(s => s.toLowerCase()))) (got.get(key) || got.set(key, []).get(key)).push(toPrint(p))
+  }
+  const out = new Map()
+  for (const [key, l] of got) { const p = bestPrint(l); if (p) out.set(key, p) }
   return out
 }
 
