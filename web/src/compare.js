@@ -136,7 +136,9 @@ export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], ro
     } else {
       const same = !a.fills.length && a.c.tg.find(t => CORE.includes(t))  // função que já tens que chegue: sai uma tua igual
       const pool = cuts.filter(x => !used.has(x.c.n) && !isLand(x.c) && !x.c.tg.some(low))
-      const pick = (same && pool.find(x => x.c.tg.includes(same))) || pool.find(x => !x.c.tg.some(t => CORE.includes(t))) || pool[0]
+      // a que sai só leva funções que a nova também faz (não sai remoção para entrar um blink)
+      const covered = x => x.c.tg.filter(t => CORE.includes(t)).every(t => a.c.tg.includes(t))
+      const pick = (same && pool.find(x => x.c.tg.includes(same) && covered(x))) || pool.find(covered) || pool[0]
       if (pick) { used.add(pick.c.n); cut = { c: pick.c, why: pick.why.slice(0, 2) } }
     }
     out.push({ add: a, cut })
