@@ -885,6 +885,8 @@ export function OrbPick({ onChange }) {
       </div>
       <label className="chk small"><input type="checkbox" checked={p.orb3d} onChange={e => save({ orb3d: e.target.checked })} /> {tx('Esfera da vida em 3D (desligado: esfera plana, mais leve)')}</label>
       {p.orb3d && <label className="chk small" title={p.orb.t !== 'auto' ? tx('Só no estilo automático (pelas cores do deck)') : undefined}><input type="checkbox" checked={p.orbFluid} disabled={p.orb.t !== 'auto'} onChange={e => save({ orbFluid: e.target.checked })} /> {tx('Fluido com as cores das cartas em campo (só no estilo automático)')}</label>}
+      <label className="small">{tx('Mesas com 3 ou mais jogadores')} <select value={p.orbCrowd || 'auto'} onChange={e => save({ orbCrowd: e.target.value })}>
+        <option value="auto">{tx('Esferas mais simples (mais leve)')}</option><option value="full">{tx('Sempre completas')}</option></select></label>
       {p.orb3d && <label className="chk small"><input type="checkbox" checked={p.orbParticles} onChange={e => save({ orbParticles: e.target.checked })} /> {tx('Fluido de partículas com física (desligado: líquido animado, mais leve)')}</label>}
       {p.orb3d && p.orbParticles && <label className="small">{tx('Aspeto das partículas')} <select value={p.orbGrain} onChange={e => save({ orbGrain: e.target.value })}>
         <option value="real">{tx('Realista: grãos com luz própria')}</option><option value="fx">{tx('Estilizado: estrelas, penas e brilhos desenhados')}</option></select></label>}
@@ -901,12 +903,17 @@ export function OrbPick({ onChange }) {
   )
 }
 
+// mesas com muitos jogadores: cada esfera 3D com partículas pesa (WebGL + física); por omissão («auto») com 3–4 jogadores as
+// esferas ficam sem o fluido de partículas e na qualidade leve, e com 5 ou mais ficam as clássicas (sem 3D). «Sempre
+// completas» nas Definições da mesa desliga isto.
+const ORB = { crowd: 2 }
+export const orbLevel = () => (fpPrefs().orbCrowd === 'full' || ORB.crowd <= 2 ? 'full' : ORB.crowd <= 4 ? 'light' : 'flat')
 function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, dmg = 0, look, dead = null, side, env }) {  // dead: a causa da derrota (endOut/ORB_DEATH: dmg, psn, mill, cmd, alt, lose, concede, draw)  // poison: o veneno ao lado da vida (pmax = derrota: 10, ou 15 da equipa no Two-Headed Giant)
   const ref = useRef(null), prev = useRef(life), [mood, setMood] = useState(''), orbRef = useRef(null), [broken, setBroken] = useState(!!dead), [charging, setCharging] = useState(false)
   useOrbPhysics(orbRef)
   // esfera 3D (Definições › padrão da mesa): o mesmo elemento, desenhado pelo orb3d.js; sem WebGL fica a clássica
   const [three, setThree] = useState(false), cvRef = useRef(null), o3 = useRef(null)
-  const want3d = fpPrefs().orb3d
+  const lvl = orbLevel(), want3d = fpPrefs().orb3d && lvl !== 'flat'
   useEffect(() => {  // também quando se liga/desliga a meio do jogo (🎨 tapete)
     if (!want3d) { setThree(false); return }
     let live = true
@@ -984,7 +991,7 @@ function Orb({ life, d, step, hit, fast, start, poison = 0, psnHit, pmax = 10, d
     return () => { clearInterval(iv); if (el) el._beat = null }
   }, [beating, life, side])  // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${beating && !low ? 'beating' : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-w={look?.w} data-pf={fpPrefs().orbParticles ? '1' : undefined} data-pg={fpPrefs().orbGrain === 'fx' ? 'fx' : undefined} data-pq={fpPrefs().orbQuality} data-env={env} data-psn={poison > 0 ? Math.min(1, poison / pmax).toFixed(2) : undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} aria-label={tx('{n} de vida', { n: lifeTxt(life) })}>
+    <div ref={orbRef} data-seed={`${side}|${start}`} data-life={life} className={`orb ${low ? 'low' : ''} ${poison > 0 ? 'psnd' : ''} ${broken ? `dead dead-${dead}` : ''} ${beating && !low ? 'beating' : ''} ${charging ? 'bursting' : ''} ${rich.length ? 'rich' : ''} ${three ? 'has3d' : ''}`} data-cols={look?.cols || undefined} data-w={look?.w} data-pf={fpPrefs().orbParticles && lvl === 'full' ? '1' : undefined} data-pg={fpPrefs().orbGrain === 'fx' ? 'fx' : undefined} data-pq={lvl === 'full' ? fpPrefs().orbQuality : 'leve'} data-env={env} data-psn={poison > 0 ? Math.min(1, poison / pmax).toFixed(2) : undefined} data-rich={rich.join(' ') || undefined} style={rich.length ? { '--ab': ab.toFixed(2) } : undefined} data-mood={mood || undefined} data-t={look?.t} data-a={look?.a} aria-label={tx('{n} de vida', { n: lifeTxt(life) })}>
       {three && <canvas ref={cvRef} className="orb3d" aria-hidden="true" />}
       {rich.includes('god') && <i className="orb-rays" aria-hidden="true" />}
       <span className="orb-in" aria-hidden="true"><i className="orb-smoke" /><i className="orb-smoke s2" /><i className="orb-fx" /></span>
@@ -2366,6 +2373,7 @@ export default function Replay({ data, game: game0, onBack, backLabel = tx('← 
   const actor = s.sides.includes(rev?.p) ? rev.p : null
   // 3–4 jogadores: adversários em colunas em cima; o parceiro de equipa (game.teams) ao lado do teu deck, em baixo
   const S = s.sides, multi = S.length > 2
+  ORB.crowd = S.length  // as esferas simplificam-se nas mesas com mais jogadores (orbLevel)
   const mates = multi && game.teams ? S.filter(k => k !== 'a' && game.teams[k] === game.teams.a) : []
   const tops = S.filter(k => k !== 'a' && !mates.includes(k))
   const hit = new Set(multi ? S.flatMap(k => s[k].perms.map(p => p.attacking)).filter(x => S.includes(x)) : [])
