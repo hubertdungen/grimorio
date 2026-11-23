@@ -106,6 +106,41 @@ export function exportList(deck, { maybe = true } = {}) {  // maybe: junta o may
   return lines.join('\n')
 }
 
+// a lista no formato de cada site: [{label, text}] — um bloco por caixa de texto do site (o TappedOut tem uma caixa por zona)
+export const EXPORT_SITES = ['grimorio', 'tappedout', 'archidekt', 'nomes']
+export function exportFor(deck, site) {
+  const zones = (f) => {
+    const out = []
+    const each = (n, q) => {
+      const pr = deck.prints?.[n], sp = deck.split?.[n]
+      if (!sp?.length) return [[q, pr]]
+      let left = q
+      const r = sp.map(x => { const k = Math.min(x.q, left); left -= k; return [k, x] }).filter(x => x[0])
+      if (left > 0) r.push([left, pr])
+      return r
+    }
+    for (const [z, list] of [['cmd', (deck.commanders || []).map(n => [n, 1])], ['main', Object.entries(deck.main || {}).sort(([a], [b]) => a.localeCompare(b))],
+      ['side', Object.entries(deck.side || {})], ['maybe', Object.entries(deck.maybe || {}).sort(([a], [b]) => a.localeCompare(b))]])
+      for (const [n, q] of list) for (const [k, pr] of each(n, q)) out.push(f(z, n, k, pr))
+    return out
+  }
+  const set = pr => (pr?.set ? ` (${pr.set.toUpperCase()})` : '')
+  if (site === 'tappedout') {  // comandante na caixa principal com *CMDR*; sideboard e maybeboard nas caixas deles; sem n.º de coleção
+    const ls = zones((z, n, q, pr) => ({ z, t: `${q}x ${n}${set(pr)}${pr?.foil ? ' *F*' : ''}${z === 'cmd' ? ' *CMDR*' : ''}` }))
+    return [['Mainboard', ls.filter(x => x.z === 'cmd' || x.z === 'main')], ['Sideboard', ls.filter(x => x.z === 'side')], ['Maybeboard', ls.filter(x => x.z === 'maybe')]]
+      .filter(([, l]) => l.length).map(([label, l]) => ({ label, text: l.map(x => x.t).join('\n') }))
+  }
+  if (site === 'archidekt') {  // uma caixa; a zona vai entre [ ] no fim da linha
+    const tag = { cmd: ' [Commander{top}]', main: '', side: ' [Sideboard]', maybe: ' [Maybeboard{noDeck}{noPrice}]' }
+    return [{ label: 'Archidekt', text: zones((z, n, q, pr) => `${q}x ${n}${pr?.set ? ` (${pr.set.toLowerCase()}) ${pr.cn}` : ''}${pr?.foil ? ' *F*' : ''}${tag[z]}`).join('\n') }]
+  }
+  if (site === 'nomes') {  // só nomes, com as secções (MTG Arena, MTGO, Cockatrice e quase todos os sites)
+    const ls = zones((z, n, q) => ({ z, t: `${q} ${n}` })), sec = (h, zs) => { const l = ls.filter(x => zs.includes(x.z)); return l.length ? [h, ...l.map(x => x.t), ''] : [] }
+    return [{ label: '', text: [...sec('Commander', ['cmd']), ...sec('Deck', ['main']), ...sec('Sideboard', ['side']), ...sec('Maybeboard', ['maybe'])].join('\n').trim() }]
+  }
+  return [{ label: '', text: exportList(deck) }]  // Grimório / Moxfield: secções e (SET) nº *F*
+}
+
 export function sampleHand(deck, size = 7) {
   const pool = []
   for (const [n, q] of Object.entries(deck.main)) for (let k = 0; k < q; k++) pool.push(n)
