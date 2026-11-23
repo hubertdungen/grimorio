@@ -248,7 +248,7 @@ def _spawn(data_dir, deck, opp, args, ai_b, extra=(), gtype="Constructed"):
         p = subprocess.Popen(cmd, cwd=fdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
     else:
         container = f"{sim.PREFIX}net-{sid}"
-        cmd = ["docker", "run", "--rm", "-i", "--name", container, *sim.label(), *sim.FORGE_MEM, "--cpus", "2",
+        cmd = ["docker", "run", "--rm", "-i", "--name", container, *sim.label(), *sim.FORGE_MEM, "--cpus", "2", "--cpu-shares", "64",
                "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home",
                "-v", f"{fdir}:/forge:ro", "-v", f"{jdir}:/run", "-w", "/forge"]
         for sub, dst in (("ai", "/forge/res/ai"), ("cardsfolder", "/forge/res/cardsfolder")):

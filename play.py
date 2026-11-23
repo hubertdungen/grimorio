@@ -113,7 +113,7 @@ def _launch(data_dir, owner, difficulty, args, files, title, warnings):
             src = os.path.join(data_dir, "forge-ext", sub)
             if os.path.isdir(src):
                 fixes += ["-v", f"{src}:{dst}:ro"]
-        r = _docker("run", "-d", "--rm", "--name", NAME, "-m", MEM, "--memory-swap", MEM, "--cpus", "2",
+        r = _docker("run", "-d", "--rm", "--name", NAME, "-m", MEM, "--memory-swap", MEM, "--cpus", "2", "--cpu-shares", "64",
                     "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home", "-e", f"XMX={XMX}",
                     "-e", f"GEOMETRY={GEOMETRY}", "-e", f"FORGE_JAR={sim.FORGE_JAR}",
                     "-v", f"{os.path.join(data_dir, 'forge')}:/forge:ro", "-v", f"{ext}:/ext:ro",
