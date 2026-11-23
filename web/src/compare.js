@@ -109,7 +109,7 @@ export function compareTips(A, B, { needs = {}, targets = {}, N = null, scale = 
 // As cartas dele que te servem (legais e nas tuas cores), primeiro as que dão o que te falta; cada uma com a tua que sai:
 // igual por igual se já tens que chegue dessa função, a tua mais fraca fora do que te falta se não. Cortes: as tuas cartas
 // que ele não joga, da mais fraca para a mais forte (cutQueue). Terrenos trocam por um básico.
-export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], roleQ = null, per = 12, more = {} }) {
+export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], roleQ = null, per = 12, more = {}, have = {}, targets = {} }) {
   const mine = new Set([...Object.keys(deck.main), ...deck.commanders])
   const low = t => needs[t] && needs[t][0] < needs[t][1]
   const adds = []
@@ -125,7 +125,7 @@ export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], ro
   for (const a of adds) { const t = a.c.tg.find(t => CORE.includes(t)) || a.c.mt; (seen[t] = (seen[t] || 0) + 1) <= 4 ? picked.push(a) : rest.push(a) }
   adds.splice(0, adds.length, ...picked, ...rest)
   const cuts = queue.filter(x => !other.has(x.c.n))
-  const used = new Set(), out = []
+  const used = new Set(), out = [], cnt = { ...have }
   const basics = Object.keys(deck.main).filter(n => BASIC.test(n)).sort((a, b) => deck.main[b] - deck.main[a])
   let bi = 0
   for (const a of adds.slice(0, per)) {
@@ -136,10 +136,11 @@ export function comparePlan(data, deck, other, { ctx, needs = {}, queue = [], ro
     } else {
       const same = !a.fills.length && a.c.tg.find(t => CORE.includes(t))  // função que já tens que chegue: sai uma tua igual
       const pool = cuts.filter(x => !used.has(x.c.n) && !isLand(x.c) && !x.c.tg.some(low))
-      // a que sai só leva funções que a nova também faz (não sai remoção para entrar um blink)
-      const covered = x => x.c.tg.filter(t => CORE.includes(t)).every(t => a.c.tg.includes(t))
+      // a que sai só leva funções que a nova também faz, ou de que o deck tem de sobra (acima do alvo; remoção: 2+ acima)
+      const covered = x => x.c.tg.filter(t => CORE.includes(t)).every(t => a.c.tg.includes(t) ||
+        (cnt[t] ?? 0) - 1 >= (needs[t]?.[1] ?? targets[t] ?? 0) + (t === 'removal' || t === 'wipe' ? 2 : 0))
       const pick = (same && pool.find(x => x.c.tg.includes(same) && covered(x))) || pool.find(covered)
-      if (pick) { used.add(pick.c.n); cut = { c: pick.c, why: pick.why.slice(0, 2) } } else if (pool.length) cut = { none: true }  // só sairia uma com função que a nova não faz: escolhes tu
+      if (pick) { used.add(pick.c.n); cut = { c: pick.c, why: pick.why.slice(0, 2) }; for (const t of pick.c.tg) cnt[t] = (cnt[t] || 0) - 1; for (const t of a.c.tg) cnt[t] = (cnt[t] || 0) + 1 } else if (pool.length) cut = { none: true }  // só sairia uma com função que a nova não faz: escolhes tu
     }
     out.push({ add: a, cut })
   }
