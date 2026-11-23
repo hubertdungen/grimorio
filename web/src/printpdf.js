@@ -7,7 +7,7 @@ export const UNITS = { mm: 1, cm: 10, in: 25.4 }
 export const PRINT0 = {
   unit: 'cm', paper: 'A4', custom: [210, 297], landscape: false, margins: [5, 5, 5, 5], customMargins: false, center: true,
   card: [63, 88], gap: [0, 0], bleed: 0, guides: 'lines', individual: true, guideColor: '#808080', guideWidth: 0.2,
-  bleedFill: 'replicate', bleedColor: '#000000', fillCorners: true, gapFill: 'off', gapColor: '#000000', dpi: 300, upAI: false, watermark: false, watermarkText: 'PROXY', duplex: false, flip: 'side',
+  bleedFill: 'replicate', bleedColor: '#000000', fillCorners: true, gapFill: 'off', gapColor: '#000000', dpi: 300, upAI: false, guideContrast: 'off', watermark: false, watermarkText: 'PROXY', duplex: false, flip: 'side',
   newSheet: false, deckNames: true, deckTags: false, share: false,  // vários decks: folha nova por deck, nomes, partilhar cartas
 }
 
@@ -126,8 +126,39 @@ export function gapRects(L, o) {
   return out.filter(([, , w, h]) => w > 0 && h > 0)
 }
 
+// Guias com contraste inteligente: a cor de um pedaço de linha conforme o fundo por baixo (rgb 0..1). Parte do cinza
+// escolhido e afasta-o da luminância do fundo (mais claro sobre escuro, mais escuro sobre claro): 'some' só quando o
+// cinzento não chega a 0,35 de diferença; 'strong' sempre perto do oposto (0,75). Só quando o cinzento não chega (fundo saturado de luminância média) passa a cor: a
+// complementar do fundo, bem clara ou bem escura.
+export function contrastColor(base, bg, level) {
+  const strong = level === 'strong', d = strong ? 0.6 : 0.35, lum = c => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+  const g0 = lum(base), lb = lum(bg)
+  // algum: o cinzento escolhido enquanto já contrasta, senão afasta-se até d; bastante: sempre perto do oposto (±0,75)
+  const g = strong ? (lb >= 0.5 ? Math.max(0, lb - 0.75) : Math.min(1, lb + 0.75))
+    : lb >= 0.5 ? Math.max(0, Math.min(g0, lb - d)) : Math.min(1, Math.max(g0, lb + d))
+  const sat = Math.max(...bg) - Math.min(...bg)
+  if (Math.abs(g - lb) >= d * 0.75 || sat < 0.35) return [g, g, g]
+  const comp = bg.map(v => 1 - v), k = lb >= 0.5 ? 0.35 : 1
+  return comp.map(v => Math.min(1, v * k + (lb < 0.5 ? 0.25 : 0)))
+}
+// segmentos partidos em pedaços (≤ step mm), cada um com a sua cor; agrupados por cor (quantizada) para o PDF
+export function contrastGuides(g, base, level, bgAt, step = 1.5) {
+  const by = new Map()
+  for (const [a, b, c, d] of g) {
+    const len = Math.hypot(c - a, d - b), n = Math.max(1, Math.ceil(len / step))
+    for (let i = 0; i < n; i++) {
+      const t0 = i / n, t1 = (i + 1) / n, mx = a + (c - a) * (t0 + t1) / 2, my = b + (d - b) * (t0 + t1) / 2
+      const col = contrastColor(base, bgAt(mx, my) || [1, 1, 1], level).map(v => Math.round(v * 20) / 20)
+      const k = col.join(',')
+      if (!by.has(k)) by.set(k, [])
+      by.get(k).push([a + (c - a) * t0, b + (d - b) * t0, a + (c - a) * t1, b + (d - b) * t1])
+    }
+  }
+  return [...by].map(([k, segs]) => ({ col: k.split(',').map(Number), segs }))
+}
+
 // frente (e verso, com a folha espelhada) de cada página: ops do PDF por página; labelsOf(p) = textos da frente
-export function pageOps(L, o, slots, imgOf, labelsOf) {
+export function pageOps(L, o, slots, imgOf, labelsOf, bgAt = null) {  // bgAt(página, x, y) → rgb 0..1 do fundo (contraste das guias)
   const g = guides(L, o.guides, o.individual !== false), [R, G, B] = [1, 3, 5].map(k => parseInt(o.guideColor.slice(k, k + 2), 16) / 255)
   const gr = gapRects(L, o), gc = [1, 3, 5].map(k => parseInt((o.gapColor || '#000000').slice(k, k + 2), 16) / 255)
   const pages = []
@@ -149,7 +180,10 @@ export function pageOps(L, o, slots, imgOf, labelsOf) {
         const m = ([x, y, w, h]) => (side === 'back' ? (o.flip === 'top' ? [x, L.H - y - h, w, h] : [L.W - x - w, y, w, h]) : [x, y, w, h])
         s += `q ${gc.map(f).join(' ')} rg ${gr.map(m).map(([x, y, w, h]) => `${f(x * PT)} ${f((L.H - y - h) * PT)} ${f(w * PT)} ${f(h * PT)} re`).join(' ')} f Q\n`
       }
-      if (side === 'front' && g.length) s += `q ${f(R)} ${f(G)} ${f(B)} RG ${f(o.guideWidth * PT)} w ${g.map(([a, b, c, d]) => `${f(a * PT)} ${f((L.H - b) * PT)} m ${f(c * PT)} ${f((L.H - d) * PT)} l`).join(' ')} S Q\n`
+      const seg = ss => ss.map(([a, b, c, d]) => `${f(a * PT)} ${f((L.H - b) * PT)} m ${f(c * PT)} ${f((L.H - d) * PT)} l`).join(' ')
+      if (side === 'front' && g.length && bgAt && (o.guideContrast || 'off') !== 'off')
+        for (const { col, segs } of contrastGuides(g, [R, G, B], o.guideContrast, (x, y) => bgAt(p, x, y))) s += `q ${col.map(f).join(' ')} RG ${f(o.guideWidth * PT)} w ${seg(segs)} S Q\n`
+      else if (side === 'front' && g.length) s += `q ${f(R)} ${f(G)} ${f(B)} RG ${f(o.guideWidth * PT)} w ${g.map(([a, b, c, d]) => `${f(a * PT)} ${f((L.H - b) * PT)} m ${f(c * PT)} ${f((L.H - d) * PT)} l`).join(' ')} S Q\n`
       if (side === 'front' && labelsOf) for (const t of labelsOf(p)) s += `BT /F1 ${f(t.s * PT)} Tf 0.45 g ${f(t.x * PT)} ${f((L.H - t.y) * PT)} Td (${pdfStr(t.t)}) Tj ET\n`
       pages.push(s)
     }

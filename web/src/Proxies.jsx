@@ -10,6 +10,7 @@ import { img, sf, recommend, fmtBit } from './data.js'
 import { FORMAT } from './formats.js'
 import { exportList, proxyGroups, listLine } from './deck.js'
 import { PAPERS, UNITS, PRINT0, layout, guides, gapRects, pageOps, pdf, packDecks, sheetLabels, tagRoom } from './printpdf.js'
+const GRID = [24, 34]  // amostra de cada carta (rgb) para o contraste das guias
 import { tx } from './i18n.js'
 import { useBackClose } from './backnav.js'
 
@@ -57,7 +58,13 @@ async function renderCard(url, o, L, onUp) {
     x.lineWidth = h * 0.006; x.strokeStyle = '#000'; x.fillStyle = '#fff'; x.strokeText(o.watermarkText, 0, 0); x.fillText(o.watermarkText, 0, 0); x.restore()
   }
   const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92))
-  return { w: cv.width, h: cv.height, bytes: new Uint8Array(await blob.arrayBuffer()) }
+  let grid = null
+  if ((o.guideContrast || 'off') !== 'off') {  // a carta em ponto pequeno: a cor por baixo de cada pedaço de guia
+    const sc = document.createElement('canvas'); sc.width = GRID[0]; sc.height = GRID[1]
+    const sx = sc.getContext('2d', { willReadFrequently: true }); sx.drawImage(cv, 0, 0, GRID[0], GRID[1])
+    try { grid = sx.getImageData(0, 0, GRID[0], GRID[1]).data } catch { grid = null }
+  }
+  return { w: cv.width, h: cv.height, bytes: new Uint8Array(await blob.arrayBuffer()), grid }
 }
 const CARD_BACK = sf('https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg')
 const fetchable = u => (u?.startsWith('https:') && !/^https:\/\/(cards|backs)\.scryfall\.io\//.test(u) ? `/api/arts/proxy?url=${encodeURIComponent(u)}` : u)
@@ -265,7 +272,23 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
         idx.set(u, images.length); images.push(im)
       }
       setPdfBusy(tx('A montar o PDF…'))
-      const bytes = pdf(L.W, L.H, pageOps(L, o, slots, (x, side) => idx.get(side === 'back' ? x.back : x.front), labelsOf), images)
+      // o fundo por baixo de um ponto da folha: espaço pintado, a carta (amostra da imagem com o bleed) ou o papel
+      const gr = gapRects(L, o), gcol = [1, 3, 5].map(k => parseInt((o.gapColor || '#000000').slice(k, k + 2), 16) / 255)
+      const bgAt = (p, x, y) => {
+        if (gr.some(([gx, gy, w, h]) => x >= gx && x <= gx + w && y >= gy && y <= gy + h)) return gcol
+        for (let i = 0; i < L.cells.length; i++) {
+          const k = L.cells[i], [l, t, r, b] = k.clip
+          if (x < l || x > r || y < t || y > b) continue
+          const sl = slots[p * L.per + i], im = sl && images[idx.get(sl.front)]
+          if (!im?.grid) return [0.25, 0.25, 0.25]
+          const u = Math.min(GRID[0] - 1, Math.max(0, Math.floor((x - (k.x - L.b)) / (L.cw + 2 * L.b) * GRID[0])))
+          const v = Math.min(GRID[1] - 1, Math.max(0, Math.floor((y - (k.y - L.b)) / (L.ch + 2 * L.b) * GRID[1])))
+          const q = (v * GRID[0] + u) * 4
+          return [im.grid[q] / 255, im.grid[q + 1] / 255, im.grid[q + 2] / 255]
+        }
+        return [1, 1, 1]
+      }
+      const bytes = pdf(L.W, L.H, pageOps(L, o, slots, (x, side) => idx.get(side === 'back' ? x.back : x.front), labelsOf, bgAt), images)
       const a = document.createElement('a')
       a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); a.download = `${base} - proxies.pdf`; a.click()
       if (ups) setWarn(tx('{n} imagem com pouca resolução foi ampliada com IA.|{n} imagens com pouca resolução foram ampliadas com IA.', { n: ups }) + (missed ? ' ' : ''))
@@ -389,10 +412,11 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
               {o.paper === 'custom' && <div className="pair"><Num label={tx('Largura')} v={o.custom[0]} unit={o.unit} set={v => up({ custom: [v, o.custom[1]] })} /><Num label={tx('Altura')} v={o.custom[1]} unit={o.unit} set={v => up({ custom: [o.custom[0], v] })} /></div>}
               <label><span>{tx('Orientação')}</span><select value={o.landscape ? 'h' : 'v'} onChange={e => up({ landscape: e.target.value === 'h' })}><option value="v">{tx('Vertical')}</option><option value="h">{tx('Horizontal')}</option></select></label>
               <label><span>{tx('Guias de corte')}</span><select value={o.guides} onChange={e => up({ guides: e.target.value })}><option value="none">{tx('Nenhuma')}</option><option value="lines">{tx('Linhas a toda a folha')}</option><option value="margins">{tx('Só nas margens da folha')}</option><option value="corners">{tx('Marcas nos cantos')}</option></select></label>
-              {o.guides !== 'none' && <div className="pair">
-                <label><span>{tx('Cor')}</span><input type="color" value={o.guideColor} onChange={e => up({ guideColor: e.target.value })} /></label>
-                <Num label={tx('Espessura')} v={o.guideWidth} unit="mm" set={v => up({ guideWidth: Math.max(0.05, v) })} />
-              </div>}
+              {o.guides !== 'none' && <label><span>{tx('Cor das linhas de corte')}</span><input type="color" value={o.guideColor} onChange={e => up({ guideColor: e.target.value })} /></label>}
+              {o.guides !== 'none' && <Num label={tx('Espessura das linhas')} v={o.guideWidth} unit="mm" set={v => up({ guideWidth: Math.max(0.05, v) })} />}
+              {o.guides !== 'none' && <label><span>{tx('Contraste das linhas')}</span><select value={o.guideContrast || 'off'} onChange={e => up({ guideContrast: e.target.value })}
+                title={tx('A cor de cada pedaço da linha muda conforme o que está por baixo: o cinzento escolhido fica mais claro sobre o escuro e mais escuro sobre o claro; só onde o cinzento não chega muda de cor.')}>
+                <option value="off">{tx('Desligado (sempre a cor escolhida)')}</option><option value="some">{tx('Algum (cinzentos)')}</option><option value="strong">{tx('Bastante (do preto ao branco)')}</option></select></label>}
               {(o.guides === 'lines' || o.guides === 'margins') && <label className="chk small"><input type="checkbox" checked={o.individual !== false} onChange={e => up({ individual: e.target.checked })} /> {tx('Corte individual para cada carta (linhas nos dois lados de cada espaço)')}</label>}
               <Num label={tx('Bleed')} v={o.bleed} unit={o.unit} set={v => up({ bleed: v })} />
               {o.bleed > 0 && <label><span>{tx('Bleed com')}</span><select value={o.bleedFill} onChange={e => up({ bleedFill: e.target.value })}><option value="replicate">{tx('A margem da carta esticada (inteligente)')}</option><option value="black">{tx('Preto')}</option><option value="color">{tx('Uma cor à escolha')}</option></select></label>}
@@ -400,7 +424,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
               <label className="chk small"><input type="checkbox" checked={o.fillCorners} onChange={e => up({ fillCorners: e.target.checked })} /> {tx('Preencher os cantos redondos')}</label>
               {(o.gap[0] > 0 || o.gap[1] > 0) && <label><span>{tx('Pintar entre cartas')}</span><select value={o.gapFill || 'off'} onChange={e => up({ gapFill: e.target.value })} title={tx('Onde se cruzam os cantos de 4 cartas o bleed esticado de cada uma não combina; uma cor lisa deixa o corte limpo.')}>
                 <option value="off">{tx('Nada')}</option><option value="cross">{tx('Só os cruzamentos (cantos de 4 cartas)')}</option><option value="gaps">{tx('Todo o espaço entre cartas')}</option></select></label>}
-              {(o.gap[0] > 0 || o.gap[1] > 0) && (o.gapFill || 'off') !== 'off' && <label><span>{tx('Cor')}</span><input type="color" value={o.gapColor || '#000000'} onChange={e => up({ gapColor: e.target.value })} /></label>}
+              {(o.gap[0] > 0 || o.gap[1] > 0) && (o.gapFill || 'off') !== 'off' && <label><span>{o.gapFill === 'cross' ? tx('Cor dos cruzamentos') : tx('Cor entre cartas')}</span><input type="color" value={o.gapColor || '#000000'} onChange={e => up({ gapColor: e.target.value })} /></label>}
               <label><span>{tx('Resolução')}</span><select value={o.dpi || DPI} onChange={e => up({ dpi: +e.target.value })}>
                 {[300, 450, 600].map(d => <option key={d} value={d}>{tx('{d} dpi', { d })}{d === 300 ? ` · ${tx('normal')}` : d === 600 ? ` · ${tx('máxima (PDF ~4× maior)')}` : ''}</option>)}</select></label>
               <label className="chk small"><input type="checkbox" checked={!!o.upAI} onChange={e => up({ upAI: e.target.checked })} /> {tx('Ampliar com IA as imagens com pouca resolução (Real-ESRGAN no browser; mais lento)')}</label>
