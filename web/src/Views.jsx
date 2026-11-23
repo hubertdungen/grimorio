@@ -1118,7 +1118,14 @@ export function SearchView({ data, deck, fmt, ctx, act }) {
       </div>
       {(hidden > 0 || hidId > 0) && <p className="small fmt-hidden">{[hidden > 0 && tx('{n} carta com este nome não é legal em {f}|{n} cartas com este nome não são legais em {f}', { n: hidden, f: fmt.name }), hidId > 0 && tx('{n} carta com este nome é legal mas fica fora da identidade de cor do comandante ({id})|{n} cartas com este nome são legais mas ficam fora da identidade de cor do comandante ({id})', { n: hidId, id: ctx.identity || tx('incolor') })].filter(Boolean).join(' · ')} <button className="link small" onClick={() => setAnyFmt(true)}>{tx('mostrar mesmo assim')}</button></p>}
       {anyFmt && <p className="small fmt-hidden">{tx('A mostrar cartas de todos os formatos.')} <button className="link small" onClick={() => setAnyFmt(false)}>{tx('só as legais')}</button></p>}
-      {!res.total && <Empty>{tx('Nenhuma carta com estes filtros.')}</Empty>}
+      {!res.total && (() => {
+        // sem resultados com filtros ligados (às vezes esquecidos de outra pesquisa): diz quais e deixa limpá-los
+        const on = [f.colors.length && `${tx('cores')} ${f.colorMode === 'exact' ? tx('exatamente') : f.colorMode === 'within' ? tx('só dentro de') : ''} ${f.colors.join('')}`.replace(/\s+/g, ' '),
+          f.colorless && tx('incolor'), f.type && (TYPE_LABEL[f.type] || f.type), f.legendary && tx('lendárias'), f.tag && (TAG_LABEL[f.tag] || f.tag), f.sub && f.sub,
+          (f.cmcMin !== '' || f.cmcMax !== '') && `MV ${f.cmcMin || 0}–${f.cmcMax || '∞'}`, f.rarity && f.rarity, f.priceMax && `≤ ${f.priceMax} €`].filter(Boolean)
+        const clash = ctx.identity != null && f.colors.some(k => k !== 'C' && !ctx.identity.includes(k))
+        return <Empty>{tx('Nenhuma carta com estes filtros.')}{on.length > 0 && <p className="small">{tx('Filtros ligados: {f}', { f: on.join(' · ') })}{clash ? ` — ${tx('há cores fora da identidade do deck ({id})', { id: ctx.identity || tx('incolor') })}` : ''} <button className="link" onClick={() => setF(x => ({ ...F0, sort: x.sort, inText: x.inText }))}>{tx('Limpar filtros')}</button></p>}</Empty>
+      })()}
       </div>
       <LivePanel {...{ data, deck, fmt, ctx, act }} onSwaps={setSwaps} />
       </div>
