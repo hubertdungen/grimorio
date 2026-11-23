@@ -837,7 +837,7 @@ function Actions({ c, deck, fmt, act, swaps }) {
       <button className={`act seed ${deck.seeds.includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSeed(c)} title={tx('Semente das sugestões')}>★</button>
       <button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte (edições e estilos)')}>🎨</button>
       {fmt.cmd && canBeCommander(c, fmt) && <span className="cmd-acts">  {/* numa linha própria e com nome: o ♛ sozinho passava despercebido no telemóvel */}
-        <button className={`act cmd ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)} title={fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</button>
+        <button className={`act cmd cm-royal ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)} title={fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</button>
         {!deck.commanders.includes(c.n) && <button className={`act sub ${subsOf(deck).includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSub(c)} title={tx('Subcomandante: entra no deck como carta normal, marcada, para trocar depressa com o comandante')}>♕ {tx('Sub')}</button>}
       </span>}
     </>
@@ -1802,7 +1802,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
             <button className="primary" onClick={() => act.add(c)}>+ Deck {inDeck(deck, c.n) ? `(${inDeck(deck, c.n)})` : ''}</button>
             {fmt.side > 0 && <button onClick={() => act.add(c, 'side')}>+ Sideboard</button>}
             <button onClick={() => act.add(c, 'maybe')} title={tx('Guardar para decidir depois: fica fora do deck, das estatísticas e dos testes')}>+ Maybeboard{deck.maybe?.[c.n] ? ` (${deck.maybe[c.n]})` : ''}</button>
-            {fmt.cmd && canBeCommander(c, fmt) && <button onClick={() => act.setCommander(c)}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : tx('Comandante')}</button>}
+            {fmt.cmd && canBeCommander(c, fmt) && <button className={`cm-royal ${deck.commanders.includes(c.n) ? 'on' : ''}`} onClick={() => act.setCommander(c)}>♛ {deck.commanders.includes(c.n) ? tx('Retirar comandante') : tx('Comandante')}</button>}
             {fmt.cmd && canBeCommander(c, fmt) && !deck.commanders.includes(c.n) && <>
               <button className={`sub-btn ${subsOf(deck).includes(c.n) ? 'on' : ''}`} onClick={() => act.toggleSub(c)} title={tx('Entra no deck como carta normal, marcada, para trocar depressa com o comandante')}><span className="sub-badge">♕</span> {subsOf(deck).includes(c.n) ? tx('É subcomandante') : tx('Subcomandante')}</button>
               {deck.commanders.length < 2 ? deck.commanders.length > 0 && <button onClick={() => act.promote(c)} title={tx('Trocar para comandante: o atual fica no deck como subcomandante')}>⇄ {tx('Trocar para comandante')}</button>
@@ -2163,7 +2163,7 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
     <div key={`${zone}:${c.i}:${k}`} className={`dg-tile ${part != null ? 'split' : ''}${ds.sel?.has(c.n) ? ' picked' : ''}`} data-card={c.n} {...badProps(bad, c.n)}>
       <button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))} title={c.n} {...(ds.sel ? {} : pressPeek(c, pid ?? pidOf(deck, c.n)))}><img src={img(c, 'normal', false, pid ?? pidOf(deck, c.n))} alt={c.n} loading="lazy" /></button>
       {ds.sel && <input type="checkbox" className="dg-chk" checked={ds.sel.has(c.n)} onChange={() => ds.toggle(c.n)} aria-label={c.n} />}
-      {zone === 'main' && subsOf(deck).includes(c.n) && <span className="sub-badge dg-sub" title={tx('Subcomandante: carta normal do deck que pode trocar com o comandante')}>♕</span>}
+      {zone === 'main' && subsOf(deck).includes(c.n) && <span className="sub-badge dg-sub" title={tx('Subcomandante: carta normal do deck que pode trocar com o comandante')}>♕<i>{tx('Subcomandante')}</i></span>}
       {(part != null || q > 1) && <span className="dg-q" title={part != null ? tx('{a} de {n} cópias com esta arte', { a: part, n: q }) : undefined}>×{part ?? q}</span>}
       <div className="dg-bar">
         <span className="dg-qty"><button onClick={() => act.remove(c, zone, 1)} aria-label={tx('Menos uma')}>−</button>
@@ -2192,7 +2192,7 @@ export function DeckGrid({ data, deck, fmt, act, ctx }) {
       </div>
       {cmd.length > 0 && (
         <section><h4>{fmt.cmd === 'oathbreaker' ? 'Oathbreaker' : tx('Comandante')}</h4><div className="dg-row">{cmd.map(c => (
-          <div key={c.i} className={`dg-tile${ds.sel?.has(c.n) ? ' picked' : ''}`} {...badProps(bad, c.n)}><button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
+          <div key={c.i} className={`dg-tile dg-cmd${ds.sel?.has(c.n) ? ' picked' : ''}`} {...badProps(bad, c.n)}><span className="dg-crown" title={tx('Comandante')}>♛</span><button className="dg-img" onClick={() => (ds.sel ? ds.toggle(c.n) : act.open(c))}><img src={img(c, 'normal', false, pidOf(deck, c.n))} alt={c.n} /></button>
             {ds.sel && <input type="checkbox" className="dg-chk" checked={ds.sel.has(c.n)} onChange={() => ds.toggle(c.n)} aria-label={c.n} />}
             <div className="dg-bar"><span className="dg-acts"><button className="act art" onClick={() => act.pickArt(c)} title={tx('Escolher arte (edições e estilos)')}>🎨</button><select className="demote" value="" onChange={e => { if (e.target.value) act.demote(c, e.target.value) }} title={tx('Tirar do comando')} aria-label={tx('Tirar do comando')}><option value="">⇩</option><option value="sub">♕ {tx('Passar a subcomandante')}</option><option value="main">＋ {tx('Só no deck')}</option><option value="maybe">→ Maybeboard</option><option value="out">✕ {tx('Tirar do deck')}</option></select><button className="dg-x" onClick={() => act.setCommander(c)} title={tx('Retirar comandante')}>×</button></span></div></div>
         ))}</div></section>
