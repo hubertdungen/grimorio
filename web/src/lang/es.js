@@ -3861,7 +3861,7 @@ export default {
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
   "Fica abaixo do alvo: {l}": "Queda por debajo del objetivo: {l}",
-  "escolhe tu o que sai: as tuas que sobram fazem remoção, compra ou ramp, que esta não faz": "elige tú qué sale: las tuyas que quedan hacen remoción, robo o ramp, que esta no hace",
+  "escolhe tu o que sai (lista abaixo): o deck já está no mínimo das funções principais": "elige tú qué sale (lista abajo): el mazo ya está en el mínimo de sus funciones principales",
   "Link": "Enlace",
   "muito parecido": "muy parecido",
   "parecido": "parecido",

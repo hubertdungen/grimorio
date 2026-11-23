@@ -3869,7 +3869,7 @@ export default {
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
   "Fica abaixo do alvo: {l}": "Goes below target: {l}",
-  "escolhe tu o que sai: as tuas que sobram fazem remoção, compra ou ramp, que esta não faz": "you choose what goes: your remaining ones do removal, draw or ramp, which this one doesn't",
+  "escolhe tu o que sai (lista abaixo): o deck já está no mínimo das funções principais": "you choose what goes (list below): the deck is already at the minimum of its key roles",
   "Link": "Link",
   "muito parecido": "very similar",
   "parecido": "similar",

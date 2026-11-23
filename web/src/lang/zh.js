@@ -3861,7 +3861,7 @@ export default {
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
   "Fica abaixo do alvo: {l}": "低于目标：{l}",
-  "escolhe tu o que sai: as tuas que sobram fazem remoção, compra ou ramp, que esta não faz": "由你决定移除哪张：你剩下的牌承担移除、抓牌或加速，而这张不具备",
+  "escolhe tu o que sai (lista abaixo): o deck já está no mínimo das funções principais": "由你决定移除哪张（见下方列表）：套牌的主要功能已处于最低值",
   "Link": "链接",
   "muito parecido": "非常相似",
   "parecido": "相似",

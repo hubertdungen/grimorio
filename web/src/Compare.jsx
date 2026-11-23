@@ -161,7 +161,7 @@ function CompareOne({ data, deck, fmt, ctx, act, rq, recs, needs, co, cmdIdx, me
         <h4>{tx('Cartas dele que te podem servir')}</h4>
         <ul className="cutp-list">{plan.swaps.map(({ add: a, cut }) => { const k = 's:' + a.c.n; return (
           <li key={a.c.n} {...hlProps([{ n: a.c.n, tone: 'in' }, ...(cut?.c ? [{ n: cut.c.n, tone: 'out' }] : [])])}>
-            <div className="cutp-pair"><Card c={a.c} sign={1} /><span className="cutp-arrow">⇄</span>{cut?.c ? <Card c={cut.c} sign={-1} /> : <span className="muted small">{cut?.none ? tx('escolhe tu o que sai: as tuas que sobram fazem remoção, compra ou ramp, que esta não faz') : tx('nada sai: o deck tem lugar')}</span>}</div>
+            <div className="cutp-pair"><Card c={a.c} sign={1} /><span className="cutp-arrow">⇄</span>{cut?.c ? <Card c={cut.c} sign={-1} /> : <span className="muted small">{cut?.none ? tx('escolhe tu o que sai (lista abaixo): o deck já está no mínimo das funções principais') : tx('nada sai: o deck tem lugar')}</span>}</div>
             {(a.fills.length > 0 || cut?.c) && <div className="rfz-why"><ul className="why">
               {a.fills.length > 0 && <li className="tema">{tx('Dá o que te falta: {t}', { t: a.fills.map(t => (TAG_LABEL[t] || t).toLowerCase()).join(', ') })}</li>}
               {cut?.why?.map((w, i) => <li key={i} className="falta">{w}</li>)}</ul></div>}
