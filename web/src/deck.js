@@ -121,7 +121,7 @@ export function exportFor(deck, site) {
     }
     for (const [z, list] of [['cmd', (deck.commanders || []).map(n => [n, 1])], ['main', Object.entries(deck.main || {}).sort(([a], [b]) => a.localeCompare(b))],
       ['side', Object.entries(deck.side || {})], ['maybe', Object.entries(deck.maybe || {}).sort(([a], [b]) => a.localeCompare(b))]])
-      for (const [n, q] of list) for (const [k, pr] of each(n, q)) out.push(f(z, n, k, pr))
+      for (const [n, q] of list) for (const [k, pr] of each(n, q)) out.push(f(z, site === 'grimorio' ? n : n.split(' // ')[0], k, pr))  // fora do Moxfield, as cartas de duas faces vão pelo nome da frente (o TappedOut não encontra «A // B»)
     return out
   }
   if (site === 'tappedout') {  // comandante na caixa principal com *CMDR*; sideboard e maybeboard nas caixas deles; sem n.º de coleção
