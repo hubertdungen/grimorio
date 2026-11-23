@@ -1270,7 +1270,7 @@ def run_forge(jid, a):
                                    *(["-cp", os.pathsep.join([ext, os.path.join(a["forge"], FORGE_JAR)]), "GrimorioSim"]
                                      if use_ext else ["-jar", os.path.join(a["forge"], FORGE_JAR)])],
                           os.path.join(a["dir"], "decks"), use_ext)
-    cmd = ["docker", "run", "--rm", "--name", name, *label(), *FORGE_MEM, "--cpus", "2",
+    cmd = ["docker", "run", "--rm", "--name", name, *label(), *FORGE_MEM, "--cpus", "2", "--cpu-shares", "64",
            "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home",
            "-v", f"{a['forge']}:/forge:ro", "-v", f"{a['dir']}:/run", "-w", "/forge"]
     if use_ext and os.path.isdir(os.path.join(ext, "ai")):

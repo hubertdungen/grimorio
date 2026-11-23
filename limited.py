@@ -30,7 +30,7 @@ def _java(data_dir, jdir, args, name):
                "GrimorioDraft", *args]
         return subprocess.Popen(cmd, cwd=fdir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=err), None
     container = f"{sim.PREFIX}draft-{name}"
-    cmd = ["docker", "run", "--rm", "-i", "--name", container, *sim.label(), *sim.FORGE_MEM, "--cpus", "2",
+    cmd = ["docker", "run", "--rm", "-i", "--name", container, *sim.label(), *sim.FORGE_MEM, "--cpus", "2", "--cpu-shares", "64",
            "--user", f"{os.getuid()}:{os.getgid()}", "-e", "HOME=/run/home", "-v", f"{fdir}:/forge:ro", "-v", f"{jdir}:/run", "-w", "/forge"]
     for sub, dst in (("ai", "/forge/res/ai"), ("cardsfolder", "/forge/res/cardsfolder")):
         if os.path.isdir(os.path.join(ext, sub)):
