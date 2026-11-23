@@ -688,11 +688,11 @@ export function FsBtn({ className = '' }) {
 }
 // mesas com 3–4 em gavetas (Forge Play, mesa livre): a ficha de cada jogador que não está à vista — vida, mão, cartas na mesa,
 // quem joga (▶), quem te ataca (⚔, a vermelho) e quem tem alguma coisa a escolher agora (a pulsar). Tocar mostra-o na mesa
-export function DrawerChip({ name, life, poison, hand, perms, out, on, turn, atk, attn, onClick, mine, av }) {  // av: a imagem de perfil (avatar.jsx)
+export function DrawerChip({ name, life, poison, cmd, hand, perms, out, on, turn, atk, attn, onClick, mine, av }) {  // cmd: o maior dano de comandante que levou (21 = derrota)  // av: a imagem de perfil (avatar.jsx)
   const seen = el => { const p = el?.parentElement; if (on && p && (el.offsetLeft < p.scrollLeft || el.offsetLeft + el.offsetWidth > p.scrollLeft + p.clientWidth)) p.scrollLeft = el.offsetLeft - 8 }  // a ficha escolhida fica à vista
   return <button type="button" ref={seen} className={`fp-dchip ${on ? 'on' : ''} ${turn ? 'turn' : ''} ${atk ? 'atk' : ''} ${attn ? 'attn' : ''} ${out ? 'out' : ''} ${mine ? 'mine' : ''}`} onClick={onClick} aria-pressed={on}
     title={[name, tx('vida {n}', { n: life }), tx('{n} na mão', { n: hand }), atk ? tx('está a atacar-te') : '', turn ? tx('é a vez dele') : ''].filter(Boolean).join(' · ')}>
-    <i className="fp-dlife">{life}</i>{av && <PAv av={av} name={name} size={18} />}<b>{name}</b><small>✋{hand} ▦{perms}{poison ? ` ☠${poison}` : ''}</small>{atk && <em className="fp-datk">⚔</em>}{turn && <em className="fp-dturn">▶</em>}
+    <i className="fp-dlife">{life}</i>{av && <PAv av={av} name={name} size={18} />}<b>{name}</b><small>✋{hand} ▦{perms}{poison ? ` ☠${poison}` : ''}{cmd ? ` ⚔${cmd}/21` : ''}</small>{atk && <em className="fp-datk">⚔</em>}{turn && <em className="fp-dturn">▶</em>}
   </button>
 }
 // equipas / Two-Headed Giant: uma esfera maior partilhada a meio da mesa (Definições › Mesa) — a vida da equipa (no 2HG é uma só,
@@ -1940,7 +1940,7 @@ export function Hud({ k, z, name, fmt, s, data, fx, fast, start, openZone, top, 
         {z.command.map(c => {
           const cc = lookup(data, c.name) || tokenCard(c.name)  // masmorras (venture/iniciativa) vêm do índice de fichas
           return (
-            <div key={c.name} data-cmd={c.name} className={`cmdz ${c.out ? 'out' : ''}`} title={`${tx('Zona de comando: {c}', { c: short(c.name) })}${c.room ? ` · ${tx('sala: {r}', { r: c.room })}` : ''}${c.casts ? ` · ${tx('lançado {n}× · imposto +{x}', { n: c.casts, x: 2 * c.casts })}` : ''}${c.out ? ` ${tx('(está em jogo ou na pilha)')}` : ''}`} data-z={`n:${c.name}`}>
+            <div key={c.name} data-cmd={c.name} data-cid={c.id != null && !c.out ? c.id : undefined} className={`cmdz ${c.out ? 'out' : ''} ${c.play ? 'play' : ''}`} title={`${tx('Zona de comando: {c}', { c: short(c.name) })}${c.room ? ` · ${tx('sala: {r}', { r: c.room })}` : ''}${c.casts ? ` · ${tx('lançado {n}× · imposto +{x}', { n: c.casts, x: 2 * c.casts })}` : ''}${c.out ? ` ${tx('(está em jogo ou na pilha)')}` : ''}${c.play ? ` · ${tx('toca para o lançar')}` : ''}`} data-z={`n:${c.name}`}>
               {cc ? <img src={im(cc, 'art_crop')} alt={c.name} /> : <span>{short(c.name)}</span>}
               <small>{c.casts ? `+${2 * c.casts}` : c.room ? '⚑' : 'cmd'}</small>
             </div>

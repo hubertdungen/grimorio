@@ -826,8 +826,10 @@ def create(owner, d):
                 st["wait"] = max(0, min(120, int(d.get("wait") or 0)))  # minutos à espera das pessoas; depois joga o bot (0 = sem limite)
             except (TypeError, ValueError):
                 pass
-        elif d.get("play_me") and me is not None and not cmd and t not in ("mesas", "equipas"):
-            st["play_me"] = True  # os meus jogos jogo-os eu no Forge Play; os outros são bot contra bot
+        elif d.get("play_me") and me is not None and t != "equipas":
+            # os meus jogos jogo-os eu no Forge Play (1 contra 1 ou a minha mesa de 3–4, Commander incluído); os outros são
+            # bot contra bot. Equipas (2 contra 2 / Two-Headed Giant) ficam de fora: o Forge Play não tem parceiro de equipa
+            st["play_me"] = True
         st["ranked"] = ranked_rule(st)
         # começo: START_WAIT s para apostar (ou, com hold, só quando o dono carregar em «Começar»)
         st.update(start_at=0 if st.get("free") else time.time() + START_WAIT, **({"hold": True} if d.get("hold") else {}))
@@ -1474,22 +1476,27 @@ def play_room():
 
 
 def start_play(st, m, tid, owner, who, name):
-    """Abre o jogo do Forge Play da pessoa `who` nesta partida (o deck dela contra o bot do outro)."""
+    """Abre o jogo do Forge Play da pessoa `who` nesta partida (o deck dela contra o bot do outro; numa mesa de 3–4,
+    contra os bots dos outros todos, cada um com a sua dificuldade)."""
     h = next(i for i in m["p"] if ctl(st, i) == who)
-    other = next(i for i in m["p"] if i != h)
+    others = [i for i in seats_for(m) if i != h]  # a ordem dos lugares roda a cada jogo, como nas mesas do simulador
+    other = others[0]
     P = st["players"]
-    mine, opp = ({**st["decks"][i], "name": P[i]["name"]} for i in (h, other))
+    mine, *opps = ({**st["decks"][i], "name": P[i]["name"]} for i in [h] + others)
+    opp = opps[0]
     mine.update((st.get("hsb") or {}).get(f"{m['id']}:{who}") or {})  # o sideboard dela para este jogo (side_pick)
-    if st.get("casual"):  # casual: o comandante joga como carta do deck (como no Forge Play)
-        mine, opp = ({**x, "main": {**x["main"], **{c: 1 for c in x.get("commanders") or []}}, "commanders": []} for x in (mine, opp))
+    if st.get("casual") or sim.GAME_TYPE.get(st["format"], "Constructed") == "Constructed":  # casual: o comandante joga como carta do deck
+        mine, *opps = ({**x, "main": {**x["main"], **{c: 1 for c in x.get("commanders") or []}}, "commanders": []} for x in [mine] + opps)
+        opp = opps[0]
     # misto: o jogo conta para os ratings como qualquer jogo do Forge Play (ratings.from_forgeplay): o meu deck guardado
     # contra um deck do meta ou outro deck guardado; o play_me de sempre não conta (mede o deck nas mãos dos bots)
     rate = {"deck_id": P[h]["ref"], "owner": owner, "format": st["format"], "casual": not counts_yellow(st),
             "opp": f"{'meta' if P[other]['src'] == 'meta' else 'deck'}:{P[other]['ref']}", "opp_name": P[other]["name"],
-            "round": f"{tid}:{m['id']}", "bo": st["bo"]} if st.get("misto") and P[h]["src"] == "meus" and P[other]["src"] in ("meus", "meta") else None
+            "round": f"{tid}:{m['id']}", "bo": st["bo"]} if st.get("misto") and P[h]["src"] == "meus" and P[other]["src"] in ("meus", "meta") and not others[1:] else None
     key = owner if who == "host" else f"{owner}~{who}"  # cada convidado tem as suas sessões (playnet: uma por dono)
-    m["play"] = playnet.start(DATA, key, mine, opp, P[other].get("difficulty") or "default", name or "Tu", rate, chooser(m, [h, other]))
-    m["seats"], m["by"] = [h, other], who
+    m["play"] = playnet.start(DATA, key, mine, opp, P[other].get("difficulty") or "default", name or "Tu", rate, chooser(m, [h, other]) if not others[1:] else None,
+                              [(d, P[i].get("difficulty") or "default") for d, i in zip(opps[1:], others[1:])])
+    m["seats"], m["by"] = [h] + others, who
     m.pop("want", None)
 
 
@@ -1590,8 +1597,9 @@ def step():
                 r = playnet.result(m["play"])
                 if r and not r["ended"]:
                     continue
-                if r and r["side"]:  # acabou com vencedor: regista como um jogo do torneio
+                if r and r["side"]:  # acabou com vencedor: regista como um jogo do torneio (mesa de 3–4: com os lugares)
                     g = {"winner": r["side"], "turns": r["turns"], "reason": "Jogado no Forge Play", "events": [], "human": True,
+                         **({"places": r["places"]} if r.get("places") else {}),
                          **({"snaps": r["snaps"]} if r.get("snaps") else {})}  # fotografias do estado: dá para rever o jogo
                     gid = con.execute("INSERT INTO tournament_games (tid, ts, game) VALUES (?,?,?)", (tid, time.time(), zlib.compress(
                         json.dumps({**g, "match": m["id"], "seats": m["seats"]}, ensure_ascii=False).encode(), 6))).lastrowid
@@ -2151,6 +2159,23 @@ def selfcheck():
     finally:
         playnet.start = real
     assert got["mine"]["main"]["Negate"] == 2 and st["decks"][0]["main"]["Opt"] == 4 and "hsb" not in public(("t", 0, "n", "elim", "modern", "running", None, 2, json.dumps(st)))
+    # mesa de 3 (Commander) com «jogo eu»: o meu deck contra os bots dos outros dois, com comandante; os lugares do Forge
+    # Play (a = eu) registam a mesa pela ordem certa
+    pod = {"format": "commander", "type": "mesas", "bo": 1, "play_me": True, "me": 1, "n": 3,
+           "players": [{"name": n, "src": "meta", "ref": n, "difficulty": d} for n, d in (("A", "default"), ("Eu", "default"), ("C", "forte"))],
+           "decks": [{"commanders": [f"Cmd {n}"], "main": {"Forest": 99}, "side": {}} for n in "ABC"]}
+    pm = {"id": "R1-1", "b": "P", "r": 1, "st": "ready", "p": [0, 1, 2], "g": [], "w": [0, 0, 0]}
+    assert how(pod, pm) == "play" and mine_to_play(pod, pm)
+    playnet.start = lambda data, key, mine, opp, dif, name, rate, ch, more=(): got.update(pm=(mine, opp, dif, rate, ch, more)) or "sid3"
+    try:
+        start_play(pod, pm, "t", "o", "host", "Eu")
+    finally:
+        playnet.start = real
+    mine, opp, dif, rate, ch, more = got["pm"]
+    assert mine["commanders"] == ["Cmd B"] and opp["name"] == "A" and dif == "default" and [(d["name"], x) for d, x in more] == [("C", "forte")] and rate is None and ch is None, got["pm"]
+    assert pm["seats"] == [1, 0, 2] and pm["play"] == "sid3"
+    record(pod, pm, {"winner": "b", "places": ["b", "a", "c"]}, 1)
+    assert pm["st"] == "done" and pm["win"] == 0 and pm["pl"] == [0, 1, 2], pm
     real, rl, got = freetable.create, freetable.lists, {}  # mesa livre: o jogo 2+ abre com o sideboard primeiro e as listas da mesa anterior
     freetable.create = lambda con, owner, name, seats, **kw: got.update(kw, seats=seats) or "t2"
     freetable.lists = lambda con, tid: {"0": {"main": {"Island": 56, "Negate": 2}}} if tid == "t1" else None
