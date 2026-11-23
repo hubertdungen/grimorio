@@ -2546,6 +2546,14 @@ button.kpi { cursor: pointer; } button.kpi:hover { border-color: var(--bad, #e05
 .px-join { display: grid; gap: 6px; padding: 10px 12px; border: 1px dashed var(--gold); border-radius: 12px; }
 .px-join ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 240px; overflow-y: auto; }
 .px-join li .chk { padding: 4px 0; overflow-wrap: anywhere; }
+.px-join ul { max-height: 320px; }
+.px-jf { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; }
+@media (max-width: 620px) { .px-jf { grid-template-columns: 1fr 1fr; } .px-jf input { grid-column: 1 / -1; } }
+.px-jw { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.px-jw .seg small { opacity: .65; margin-left: 2px; }
+.px-jn { display: inline-flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.px-jn small { font-size: .75rem; }
+.px-join li .chk { align-items: flex-start; }
 .ppager { display: flex; align-items: center; gap: 10px; } .ppager button { font-size: 20px; padding: 0 10px; }
 .lib-chk { width: 18px; height: 18px; margin: 0; }
 @media (pointer: coarse) { .lib-chk { width: 24px; height: 24px; } }
@@ -4680,10 +4688,23 @@ select.demote:hover { border-color: var(--gold); }
 .tart-list li { display: grid; gap: 3px; } .tart-list button { justify-self: stretch; text-align: left; }
 
 /* Copiar lista: formato por site */
-.modal.copy-list { width: min(680px, 96vw); display: grid; gap: 8px; }
-.cl-block { display: grid; gap: 4px; }
+.modal.copy-list { width: min(720px, 96vw); display: grid; gap: 10px; }
+.cl-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -2px 0 2px; }
+.cl-top h3 { margin: 0; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.cl-top h3 small { font-weight: 400; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal.copy-list .cl-top .close { position: static; flex: none; }
+.cl-sites { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.cl-sites button { display: grid; gap: 2px; text-align: left; padding: 9px 12px; border-radius: 12px; min-height: 54px; align-content: center; }
+.cl-sites button small { font-size: .72rem; color: var(--muted); line-height: 1.25; }
+.cl-sites button.on { border-color: var(--accent, #f5c451); box-shadow: inset 0 0 0 1px var(--accent, #f5c451); background: color-mix(in srgb, var(--accent, #f5c451) 12%, transparent); }
+@media (max-width: 620px) { .cl-sites { grid-template-columns: 1fr 1fr; } }
+.cl-hint, .cl-sum { margin: 0; }
+.cl-block { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, currentColor 4%, transparent); }
 .cl-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.cl-block textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12.5px; resize: vertical; }
+.cl-h button { min-width: 150px; border-radius: 999px; }
+.cl-block textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12.5px; resize: vertical; max-height: 40vh; border-radius: 8px; }
+.cl-foot { justify-content: flex-end; }
+.cl-foot button { border-radius: 999px; }
 
 /* arte da carta: filtro por edição */
 .pr-set { width: 160px; min-width: 0; }
@@ -4706,3 +4727,10 @@ select.demote:hover { border-color: var(--gold); }
 
 /* a ficha da carta abre por cima das outras janelas (assistente de IA, completar deck…) */
 .modal-bg.cm-top { z-index: 72; }
+
+/* Proxies › 🧮 custo estimado */
+.pcalc { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, currentColor 5%, transparent); }
+.pcalc summary { cursor: pointer; font-size: .9rem; }
+.pcalc-f { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; margin: 8px 0 4px; }
+.pcalc-f label { display: grid; gap: 2px; font-size: .8rem; }
+.pcalc-f input { width: 100%; }

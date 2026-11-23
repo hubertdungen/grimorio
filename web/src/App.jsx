@@ -787,18 +787,29 @@ function CopyList({ deck, data, act, onClose }) {
     tappedout: tx('TappedOut: cola cada bloco na caixa com o mesmo nome (Mainboard, Sideboard, Maybeboard); o comandante vai marcado *CMDR*.'),
     archidekt: tx('Archidekt: uma caixa só; a zona de cada carta vai entre [ ] (Commander, Sideboard, Maybeboard).'),
     nomes: tx('Só os nomes, com as secções: MTG Arena, MTGO, Cockatrice e quase todos os sites.') }
+  const SITES = [['grimorio', 'Moxfield / Grimório', tx('secções e edição de cada carta')], ['tappedout', 'TappedOut', tx('um bloco por caixa, *CMDR*')],
+    ['archidekt', 'Archidekt', tx('uma caixa, zona entre [ ]')], ['nomes', tx('Só nomes'), tx('Arena, MTGO, Cockatrice…')]]
+  const nCards = Object.values(deck.main).reduce((a, q) => a + q, 0) + (deck.commanders?.length || 0)
+  const all = blocks.map(b => (b.label && blocks.length > 1 ? `${b.label}\n${b.text}` : b.text)).join('\n\n')
+  const save = () => {
+    const u = URL.createObjectURL(new Blob([all], { type: 'text/plain;charset=utf-8' })), a = document.createElement('a')
+    a.href = u; a.download = `${(deck.name || 'deck').replace(/[\\/:*?"<>|]+/g, ' ').trim()} (${site}).txt`; a.click(); setTimeout(() => URL.revokeObjectURL(u), 2000)
+  }
   return createPortal(<div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
     <div className="modal copy-list" role="dialog" aria-label={tx('Copiar lista')}>
-      <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
-      <h3>⧉ {tx('Copiar lista')}</h3>
-      <div className="seg">{[['grimorio', 'Moxfield / Grimório'], ['tappedout', 'TappedOut'], ['archidekt', 'Archidekt'], ['nomes', tx('Só nomes (Arena, MTGO…)')]].map(([k, l]) => <button key={k} className={site === k ? 'on' : ''} onClick={() => setSite(k)}>{l}</button>)}</div>
-      <p className="muted small">{hint[site]}</p>
-      {!shown && !shownErr && <p className="muted small">{tx('A juntar as edições das artes que se veem no deck…')}</p>}
-      {shownErr && <p className="small bad-t">{tx('Sem ligação ao Scryfall: as cartas sem edição escolhida vão só com o nome.')}</p>}
-      {blocks.map(b => <div key={b.label || 'x'} className="cl-block">
-        <div className="cl-h">{b.label && <b>{b.label}</b>}<button className="primary" onClick={() => cp(b.text)}>⧉ {b.label ? tx('Copiar {z}', { z: b.label }) : tx('Copiar')}</button></div>
-        <textarea readOnly value={b.text} rows={Math.min(12, b.text.split('\n').length)} onFocus={e => e.target.select()} />
-      </div>)}
+      <header className="cl-top"><h3>⧉ {tx('Copiar lista')} <small className="muted">{deck.name}</small></h3><button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button></header>
+      <div className="cl-sites" role="tablist">{SITES.map(([k, l, d]) => (
+        <button key={k} role="tab" aria-selected={site === k} className={site === k ? 'on' : ''} onClick={() => setSite(k)}><b>{l}</b><small>{d}</small></button>
+      ))}</div>
+      <p className="muted small cl-hint">{hint[site]}</p>
+      <p className="small cl-sum">{tx('{n} cartas', { n: nCards })}{!shown && !shownErr ? ` · ${tx('a juntar as edições das artes que se veem no deck…')}` : ''}
+        {shownErr && <span className="bad-t"> · {tx('Sem ligação ao Scryfall: as cartas sem edição escolhida vão só com o nome.')}</span>}</p>
+      {blocks.map(b => <section key={b.label || 'x'} className="cl-block">
+        <div className="cl-h"><b>{b.label || tx('Lista')} <small className="muted">{tx('{n} linhas', { n: b.text.split('\n').filter(x => x.trim()).length })}</small></b>
+          <button className="primary small" onClick={() => cp(b.text)}>⧉ {b.label ? tx('Copiar {z}', { z: b.label }) : tx('Copiar')}</button></div>
+        <textarea readOnly value={b.text} rows={Math.min(10, b.text.split('\n').length)} onFocus={e => e.target.select()} spellCheck={false} />
+      </section>)}
+      <div className="row-btns cl-foot"><button className="small" onClick={save}>⬇ {tx('Descarregar .txt')}</button>{blocks.length > 1 && <button className="small" onClick={() => cp(all)}>⧉ {tx('Copiar tudo')}</button>}<button className="small" onClick={onClose}>{tx('Fechar')}</button></div>
     </div></div>, document.body)
 }
 

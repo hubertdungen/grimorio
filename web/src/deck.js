@@ -87,7 +87,7 @@ export function parseList(text, data) {
 
 // Com estilo escolhido sai "1 Sol Ring (CMR) 263 *F*", que o Moxfield, o Archidekt e o Arena percebem.
 // Cópias divididas por várias artes (deck.split) saem numa linha por arte; as que sobram ficam com a edição principal.
-export const listLine = (n, q, pr) => `${q} ${n}${pr?.set ? ` (${pr.set}) ${pr.cn}` : ''}${pr?.foil ? ' *F*' : ''}`
+export const listLine = (n, q, pr) => `${q} ${n}${pr?.set ? ` (${String(pr.set).toUpperCase()}) ${pr.cn}` : ''}${pr?.foil ? ' *F*' : ''}`  // edição sempre em maiúsculas (j25 → J25)
 export function exportList(deck, { maybe = true } = {}) {  // maybe: junta o maybeboard (secção «Maybeboard», que a importação entende)
   const ln = (n, q) => {
     const pr = deck.prints?.[n], sp = deck.split?.[n]

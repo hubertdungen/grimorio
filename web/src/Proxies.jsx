@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom'
 import { img, sf, recommend, fmtBit } from './data.js'
 import { FORMAT } from './formats.js'
 import { exportList, proxyGroups, listLine } from './deck.js'
-import { PAPERS, UNITS, PRINT0, layout, guides, pageOps, pdf, packDecks, sheetLabels, tagRoom } from './printpdf.js'
+import { PAPERS, UNITS, PRINT0, layout, guides, gapRects, pageOps, pdf, packDecks, sheetLabels, tagRoom } from './printpdf.js'
 import { tx } from './i18n.js'
 import { useBackClose } from './backnav.js'
 
@@ -72,9 +72,38 @@ function Preview({ L, o, slots, labels }) {
           <rect x={l} y={t} width={r - l} height={b - t} fill={o.bleedFill === 'black' ? '#000' : o.bleedFill === 'color' ? o.bleedColor : '#3a3a3a'} />
           {s ? <image href={s.thumb} x={k.x} y={k.y} width={L.cw} height={L.ch} preserveAspectRatio="none" /> : <rect x={k.x} y={k.y} width={L.cw} height={L.ch} fill="#ddd" />}
         </g>) })}
+      {gapRects(L, o).map(([x, y, w, h], i) => <rect key={`g${i}`} x={x} y={y} width={w} height={h} fill={o.gapColor || '#000'} />)}
       {g.map(([a, b, c, d], i) => <line key={i} x1={a} y1={b} x2={c} y2={d} stroke={o.guideColor} strokeWidth={Math.max(o.guideWidth, L.W / 600)} />)}
       {labels.map((t, i) => <text key={`t${i}`} x={t.x} y={t.y} fontSize={t.s} fill="#737373" fontFamily="Helvetica, Arial, sans-serif">{t.t}</text>)}
     </svg>
+  )
+}
+
+// 🧮 Custo estimado da impressão: preço por imagem (à mão), verso opcional, recorte por carta e preço por folha opcionais;
+// os valores ficam neste browser
+const COST0 = { img: '', back: true, cut: '', sheet: '', cur: '€' }
+const numOf = v => { const x = parseFloat(String(v).replace(',', '.')); return Number.isFinite(x) && x >= 0 ? x : 0 }
+function CostCalc({ n, sheets, duplex }) {
+  const [c, setC] = useState(() => { try { return { ...COST0, ...JSON.parse(localStorage.getItem('grimorio.pxcost') || '{}') } } catch { return COST0 } })
+  const up = p => setC(x => { const y = { ...x, ...p }; try { localStorage.setItem('grimorio.pxcost', JSON.stringify(y)) } catch { /* sem armazenamento */ } return y })
+  const imgs = n * (duplex && c.back ? 2 : 1)
+  const money = v => `${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${c.cur}`
+  const parts = [[imgs, numOf(c.img), tx('imagens')], [n, numOf(c.cut), tx('recortes')], [sheets, numOf(c.sheet), tx('folhas')]].filter(([k, v]) => k && v)
+  const total = parts.reduce((a, [k, v]) => a + k * v, 0)
+  const field = (k, label, ph) => <label><span>{label}</span><input inputMode="decimal" value={c[k]} placeholder={ph} onChange={e => up({ [k]: e.target.value })} /></label>
+  return (
+    <details className="pcalc">
+      <summary>🧮 {tx('Calcular o custo')}{total > 0 && <b> · {money(total)}</b>}</summary>
+      <div className="pcalc-f">
+        {field('img', tx('Preço por imagem'), '0,25')}
+        {field('cut', tx('Recorte por carta (opcional)'), '0,05')}
+        {field('sheet', tx('Preço por folha (opcional)'), '0')}
+        <label><span>{tx('Moeda')}</span><input value={c.cur} maxLength={4} onChange={e => up({ cur: e.target.value })} /></label>
+      </div>
+      {duplex && <label className="chk small"><input type="checkbox" checked={c.back} onChange={e => up({ back: e.target.checked })} /> {tx('O verso conta como outra imagem')}</label>}
+      {parts.length ? <p className="small">{parts.map(([k, v, l]) => `${k} ${l} × ${money(v)}`).join(' + ')} = <b>{money(total)}</b>{n ? <span className="muted"> · {tx('{v} por carta', { v: money(total / n) })}</span> : null}</p>
+        : <p className="muted small">{tx('Mete o preço por imagem da gráfica (e, se cobrar, o recorte e a folha) para ver o total de {n} cartas em {s} folhas.', { n, s: sheets })}</p>}
+    </details>
   )
 }
 
@@ -98,21 +127,41 @@ function suggest(data, deck, ctx, n) {
 }
 const fileBase = ds => { const j = ds.map(d => d.name).join(' + '); return (ds.length > 1 && j.length > 60 ? `${ds.length} decks` : j).replace(/[^\w\- +]+/g, '').trim() || 'deck' }
 
-// «＋ Juntar outros decks»: os decks guardados, com pesquisa
+// «＋ Juntar outros decks»: os decks guardados, com filtros (de quem, formato), pesquisa (nome ou comandante) e ordem
+const kindOf = d => (d.friend ? 'amigos' : d.community ? 'comunidade' : 'meus')
 function JoinPicker({ have, onAdd, onClose }) {
   const [list, setList] = useState(null), [q, setQ] = useState(''), [pick, setPick] = useState([]), [busy, setBusy] = useState(false), [err, setErr] = useState('')
+  const [who, setWho] = useState('meus'), [fmt, setFmt] = useState(''), [ord, setOrd] = useState('recentes')
   useEffect(() => { fetch('/api/decks').then(r => (r.ok ? r.json() : Promise.reject(new Error()))).then(setList).catch(() => setErr(tx('Não consegui ler os teus decks.'))) }, [])
-  const shown = (list || []).filter(d => !have.includes(d.id) && d.name.toLowerCase().includes(q.trim().toLowerCase()))
+  const base = (list || []).filter(d => !have.includes(d.id) && !d.deleted)
+  const fmts = [...new Set(base.filter(d => who === 'todos' || kindOf(d) === who).map(d => d.format))].sort((x, y) => (FORMAT[x]?.name || x).localeCompare(FORMAT[y]?.name || y))
+  const qq = q.trim().toLowerCase()
+  const shown = base.filter(d => (who === 'todos' || kindOf(d) === who) && (!fmt || d.format === fmt) &&
+    (!qq || d.name.toLowerCase().includes(qq) || (d.commanders || []).some(c => c.toLowerCase().includes(qq))))
+    .sort((x, y) => (ord === 'nome' ? x.name.localeCompare(y.name) : (y.updated || 0) - (x.updated || 0)))
+  const count = k => base.filter(d => k === 'todos' || kindOf(d) === k).length
   const add = async () => {
     setBusy(true)
     try { onAdd(await Promise.all(pick.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : Promise.reject(new Error())))))) } catch { setErr(tx('Não consegui ler os teus decks.')) } finally { setBusy(false) }
   }
+  const allOn = shown.length > 0 && shown.every(d => pick.includes(d.id))
   return (
     <div className="px-join">
-      <input type="search" placeholder={tx('Procurar deck…')} value={q} onChange={e => setQ(e.target.value)} aria-label={tx('Procurar deck…')} />
+      <div className="px-jf">
+        <input type="search" placeholder={tx('Procurar deck ou comandante…')} value={q} onChange={e => setQ(e.target.value)} aria-label={tx('Procurar deck ou comandante…')} />
+        <select value={fmt} onChange={e => setFmt(e.target.value)} aria-label={tx('Formato')}><option value="">{tx('Todos os formatos')}</option>{fmts.map(f => <option key={f} value={f}>{FORMAT[f]?.name || f}</option>)}</select>
+        <select value={ord} onChange={e => setOrd(e.target.value)} aria-label={tx('Ordenar')}><option value="recentes">{tx('Mais recentes')}</option><option value="nome">{tx('Nome')}</option></select>
+      </div>
+      <div className="px-jw">
+        <div className="seg">{[['meus', tx('Meus')], ['amigos', tx('Amigos')], ['comunidade', tx('Comunidade')], ['todos', tx('Todos')]].map(([k, l]) => (
+          <button key={k} className={who === k ? 'on' : ''} onClick={() => { setWho(k); setFmt('') }}>{l} <small>{count(k)}</small></button>))}</div>
+        {shown.length > 0 && <button className="link small" onClick={() => setPick(p => (allOn ? p.filter(id => !shown.some(d => d.id === id)) : [...new Set([...p, ...shown.map(d => d.id)])]))}>{allOn ? tx('desmarcar estes') : tx('marcar todos ({n})', { n: shown.length })}</button>}
+        {pick.length > 0 && <button className="link small" onClick={() => setPick([])}>{tx('limpar ({n})', { n: pick.length })}</button>}
+      </div>
       {!list && !err && <p className="muted small">{tx('A carregar…')}</p>}
-      {list && !shown.length && <p className="muted small">{tx('Não há mais decks.')}</p>}
-      <ul>{shown.map(d => <li key={d.id}><label className="chk small"><input type="checkbox" checked={pick.includes(d.id)} onChange={() => setPick(p => (p.includes(d.id) ? p.filter(x => x !== d.id) : [...p, d.id]))} /> {d.name} <small className="muted">{tx('{n} carta|{n} cartas', { n: d.count || 0 })}</small></label></li>)}</ul>
+      {list && !shown.length && <p className="muted small">{tx('Nenhum deck com estes filtros.')}</p>}
+      <ul>{shown.map(d => <li key={d.id}><label className="chk small"><input type="checkbox" checked={pick.includes(d.id)} onChange={() => setPick(p => (p.includes(d.id) ? p.filter(x => x !== d.id) : [...p, d.id]))} />
+        <span className="px-jn"><b>{d.name}</b><small className="muted">{FORMAT[d.format]?.name || d.format} · {tx('{n} cartas', { n: d.count })}{d.commanders?.length ? ` · ${d.commanders.join(' + ')}` : ''}{d.friend ? ` · 🤝 ${d.friendName || ''}` : ''}</small></span></label></li>)}</ul>
       {err && <p className="small bad-t">{err}</p>}
       <div className="row-btns"><button className="primary" disabled={!pick.length || busy} onClick={add}>{tx('Juntar {n} deck|Juntar {n} decks', { n: pick.length })}</button><button onClick={onClose}>{tx('Cancelar')}</button></div>
     </div>
@@ -339,6 +388,9 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
               {o.bleed > 0 && <label><span>{tx('Bleed com')}</span><select value={o.bleedFill} onChange={e => up({ bleedFill: e.target.value })}><option value="replicate">{tx('A margem da carta esticada (inteligente)')}</option><option value="black">{tx('Preto')}</option><option value="color">{tx('Uma cor à escolha')}</option></select></label>}
               {o.bleed > 0 && o.bleedFill === 'color' && <label><span>{tx('Cor do bleed')}</span><input type="color" value={o.bleedColor} onChange={e => up({ bleedColor: e.target.value })} /></label>}
               <label className="chk small"><input type="checkbox" checked={o.fillCorners} onChange={e => up({ fillCorners: e.target.checked })} /> {tx('Preencher os cantos redondos')}</label>
+              {(o.gap[0] > 0 || o.gap[1] > 0) && <label><span>{tx('Pintar entre cartas')}</span><select value={o.gapFill || 'off'} onChange={e => up({ gapFill: e.target.value })} title={tx('Onde se cruzam os cantos de 4 cartas o bleed esticado de cada uma não combina; uma cor lisa deixa o corte limpo.')}>
+                <option value="off">{tx('Nada')}</option><option value="cross">{tx('Só os cruzamentos (cantos de 4 cartas)')}</option><option value="gaps">{tx('Todo o espaço entre cartas')}</option></select></label>}
+              {(o.gap[0] > 0 || o.gap[1] > 0) && (o.gapFill || 'off') !== 'off' && <label><span>{tx('Cor')}</span><input type="color" value={o.gapColor || '#000000'} onChange={e => up({ gapColor: e.target.value })} /></label>}
               <label className="chk small"><input type="checkbox" checked={o.watermark} onChange={e => up({ watermark: e.target.checked })} /> {tx('Marca de água')}</label>
               {o.watermark && <label><span>{tx('Texto')}</span><input value={o.watermarkText} maxLength={24} onChange={e => up({ watermarkText: e.target.value })} /></label>}
               <label className="chk small"><input type="checkbox" checked={o.duplex} onChange={e => up({ duplex: e.target.checked })} /> {tx('Frente e verso (o verso das cartas de duas faces ou as costas do Magic)')}</label>
@@ -359,6 +411,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
               <p className="small">{L.per ? tx('{n} por folha ({c}×{r}) · {s} folha|{n} por folha ({c}×{r}) · {s} folhas', { n: L.per, c: L.cols, r: L.rows, s: sheets }) : <span className="bad-t">{tx('A carta não cabe na folha com estas margens.')}</span>}{o.duplex && L.per ? ` · ${tx('frente e verso')}` : ''}</p>
               {L.warn.includes('bleed') && <p className="muted small">{tx('Entre cartas o bleed fica com metade do espaço ({v}), para não tapar a vizinha; por fora fica o bleed inteiro.', { v: `${+(Math.min(o.bleed, Math.min(o.gap[0], o.gap[1]) / 2) / UNITS[o.unit]).toFixed(3)} ${o.unit}` })}</p>}
               <button className="primary" disabled={!!pdfBusy || !L.per || !slots.length} onClick={makePdf}>⬇ {pdfBusy || tx('Gerar PDF')}</button>
+              <CostCalc n={total} sheets={sheets} duplex={o.duplex} />
             </div>
           </div>
         </section>

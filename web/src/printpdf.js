@@ -7,7 +7,7 @@ export const UNITS = { mm: 1, cm: 10, in: 25.4 }
 export const PRINT0 = {
   unit: 'cm', paper: 'A4', custom: [210, 297], landscape: false, margins: [5, 5, 5, 5], customMargins: false, center: true,
   card: [63, 88], gap: [0, 0], bleed: 0, guides: 'lines', individual: true, guideColor: '#808080', guideWidth: 0.2,
-  bleedFill: 'replicate', bleedColor: '#000000', fillCorners: true, watermark: false, watermarkText: 'PROXY', duplex: false, flip: 'side',
+  bleedFill: 'replicate', bleedColor: '#000000', fillCorners: true, gapFill: 'off', gapColor: '#000000', watermark: false, watermarkText: 'PROXY', duplex: false, flip: 'side',
   newSheet: false, deckNames: true, deckTags: false, share: false,  // vários decks: folha nova por deck, nomes, partilhar cartas
 }
 
@@ -105,9 +105,31 @@ export const pdfStr = t => [...t].map(ch => { const c = WIN[ch] ?? ch.charCodeAt
 
 const PT = 72 / 25.4
 const f = v => (+v.toFixed(3)).toString()
+// Espaços entre cartas pintados de uma cor (opcional), em mm [x, y, w, h]: 'cross' = só os cruzamentos (onde se juntam os
+// cantos do bleed de 4 cartas, e onde os espaços chegam ao bleed de fora: o bleed esticado de cada carta não combina ali
+// e o corte ficava feio); 'gaps' = o espaço todo entre cartas (cobre o bleed de dentro). Pinta-se por cima das cartas.
+export function gapRects(L, o) {
+  const mode = o.gapFill || 'off'
+  if (mode === 'off' || (!(L.gx > 0) && !(L.gy > 0)) || !L.per) return []
+  const xs = [], ys = [], out = []
+  for (let c = 0; c < L.cols - 1; c++) xs.push(L.x0 + (c + 1) * L.cw + c * L.gx)
+  for (let r = 0; r < L.rows - 1; r++) ys.push(L.y0 + (r + 1) * L.ch + r * L.gy)
+  const bt = Math.min(L.b, L.y0), bb = Math.min(L.b, L.H - L.y0 - L.gh), bl = Math.min(L.b, L.x0), br = Math.min(L.b, L.W - L.x0 - L.gw)
+  if (mode === 'gaps') {
+    if (L.gx > 0) for (const x of xs) out.push([x, L.y0 - bt, L.gx, L.gh + bt + bb])
+    if (L.gy > 0) for (const y of ys) out.push([L.x0 - bl, y, L.gw + bl + br, L.gy])
+    return out
+  }
+  for (const x of xs) for (const y of ys) out.push([x, y, Math.max(L.gx, 0), Math.max(L.gy, 0)])
+  if (L.gx > 0) for (const x of xs) { if (bt > 0) out.push([x, L.y0 - bt, L.gx, bt]); if (bb > 0) out.push([x, L.y0 + L.gh, L.gx, bb]) }
+  if (L.gy > 0) for (const y of ys) { if (bl > 0) out.push([L.x0 - bl, y, bl, L.gy]); if (br > 0) out.push([L.x0 + L.gw, y, br, L.gy]) }
+  return out.filter(([, , w, h]) => w > 0 && h > 0)
+}
+
 // frente (e verso, com a folha espelhada) de cada página: ops do PDF por página; labelsOf(p) = textos da frente
 export function pageOps(L, o, slots, imgOf, labelsOf) {
   const g = guides(L, o.guides, o.individual !== false), [R, G, B] = [1, 3, 5].map(k => parseInt(o.guideColor.slice(k, k + 2), 16) / 255)
+  const gr = gapRects(L, o), gc = [1, 3, 5].map(k => parseInt((o.gapColor || '#000000').slice(k, k + 2), 16) / 255)
   const pages = []
   for (let p = 0; p * L.per < slots.length || (!slots.length && !p); p++) {
     const page = slots.slice(p * L.per, (p + 1) * L.per)
@@ -123,6 +145,10 @@ export function pageOps(L, o, slots, imgOf, labelsOf) {
         const iw = L.cw + 2 * L.b, ih = L.ch + 2 * L.b
         s += `q ${f(l * PT)} ${f((L.H - b) * PT)} ${f((r - l) * PT)} ${f((b - t) * PT)} re W n ${f(iw * PT)} 0 0 ${f(ih * PT)} ${f((x - L.b) * PT)} ${f((L.H - y - L.ch - L.b) * PT)} cm /Im${im} Do Q\n`
       })
+      if (gr.length) {  // os espaços pintados (no verso, espelhados como as cartas)
+        const m = ([x, y, w, h]) => (side === 'back' ? (o.flip === 'top' ? [x, L.H - y - h, w, h] : [L.W - x - w, y, w, h]) : [x, y, w, h])
+        s += `q ${gc.map(f).join(' ')} rg ${gr.map(m).map(([x, y, w, h]) => `${f(x * PT)} ${f((L.H - y - h) * PT)} ${f(w * PT)} ${f(h * PT)} re`).join(' ')} f Q\n`
+      }
       if (side === 'front' && g.length) s += `q ${f(R)} ${f(G)} ${f(B)} RG ${f(o.guideWidth * PT)} w ${g.map(([a, b, c, d]) => `${f(a * PT)} ${f((L.H - b) * PT)} m ${f(c * PT)} ${f((L.H - d) * PT)} l`).join(' ')} S Q\n`
       if (side === 'front' && labelsOf) for (const t of labelsOf(p)) s += `BT /F1 ${f(t.s * PT)} Tf 0.45 g ${f(t.x * PT)} ${f((L.H - t.y) * PT)} Td (${pdfStr(t.t)}) Tj ET\n`
       pages.push(s)
