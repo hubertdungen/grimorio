@@ -126,7 +126,8 @@ export function sizePlan(data, deck, ev, { min, max = Infinity, maxOf = () => 4,
 // ordem: terrenos até ao alvo (sugestões de terrenos, depois básicos da cor em falta), cartas que cobrem funções em
 // falta, e as melhores sugestões. recs = sugestões (sem terrenos) e lands = recommendLands, já legais e fora do deck.
 // estratégias: equilibrada (terrenos → funções em falta → melhores), plano (terrenos → melhores), interacao (terrenos →
-// remoção/contra-feitiços/proteção → melhores), curva (terrenos → as mais baratas entre as 40 melhores)
+// remoção/contra-feitiços/proteção → melhores), curva (terrenos → as mais baratas entre as 40 melhores). Terrenos: a
+// equilibrada até ao alvo (a 1–2 dele, até metade dos lugares); as outras só com 3+ em falta e até metade dos lugares.
 const INTER = ['removal', 'counter', 'wipe', 'protection', 'hate']
 export function fillPlan(data, deck, { min, recs = [], lands = [], need = null, needs = {}, strategy = 'equilibrada' } = {}) {
   const main = deck.main || {}, total = Object.values(main).reduce((a, q) => a + q, 0) + (deck.commanders?.length || 0)
@@ -136,7 +137,10 @@ export function fillPlan(data, deck, { min, recs = [], lands = [], need = null, 
   const put = (c, k, why) => { const e = items.find(x => x.c === c); if (e) e.k += k; else items.push({ c, k, why }); used.add(c.n) }
   let left = gap
   // 1) terrenos até ao alvo
-  let lg = need ? Math.min(left, Math.max(0, need.target - need.lands)) : 0
+  // a 1–2 do alvo só a equilibrada junta terrenos (até metade); as outras só com 3+ em falta, e no máximo metade dos lugares
+  // (sem isto, com 38 de ~40 terrenos todos os modos davam os mesmos 2 terrenos)
+  const def = need ? Math.max(0, need.target - need.lands) : 0, half = Math.ceil(left / 2)
+  let lg = Math.min(left, def <= 2 ? (strategy === 'equilibrada' ? Math.min(def, half) : 0) : strategy === 'equilibrada' ? def : Math.min(def, half))
   const lw = need ? tx('faltam terrenos: {h} para ~{t}', { h: need.lands, t: need.target }) : ''
   for (const l of lands) { if (lg <= 0) break; if (used.has(l.c.n)) continue; put(l.c, 1, [lw, ...(l.why || []).slice(0, 1).map(w => w.txt || w)]); lg--; left-- }
   const cols = Object.entries(need?.cols || {}).filter(([k]) => BASIC[k]).map(([k, x]) => ({ k, gap: x.full - x.have }))
