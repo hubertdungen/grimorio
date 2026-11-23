@@ -58,6 +58,7 @@ Regras:
 - Usa os dados que o Grimório te dá (funções em falta, base de mana, combos, decks reais, meta) e cita-os no "porque".
 - "porque" curto (1 frase) e específico deste deck: nomeia as cartas com que interage.
 - "trocas": "qtd" = quantas cópias saem e entram (ex.: 4 quando trocas um playset).
+- A CONTA TEM DE FECHAR: no fim, aplicando tudo (adicionar +1 cada, tirar, ajustes de→para; as trocas não mudam o total), o deck fica EXATAMENTE no tamanho do formato. Cada +1 num ajuste ou em "adicionar" tem de ter um −1 noutro sítio; confere a soma antes de responder.
 - "ajustes": mudar o número de cópias de uma carta, de "de" (as que tem agora) para "para" (as que deve ter); "para": 0 tira-a, "de": 0 junta-a. Usa-os SEMPRE que o deck não tiver o tamanho certo (ex.: tem 50 de 60: completa com cópias de cartas boas ou cartas novas, e diz porquê), para equilibrar os terrenos face ao alvo da «Base de mana» (mais ou menos terrenos) e para distribuir os básicos pelas cores que o deck pede. Respeita o limite de cópias do formato.
 - Trocas: propõe TANTAS quantas o deck merecer (normalmente 5 a 12, mais se o deck estiver fraco), ordenadas da mais importante para a menos; não pares em 2 ou 3 se houver cartas claramente fracas, fora do plano ou mal escolhidas para o formato.
 - "grupos" só no modo reorganizar: organiza o deck inteiro em secções com função clara (ex.: "Ramp", "Motor de marcadores", "Remoção", "Finalizadores", "Terrenos"); cada carta do deck numa só secção.

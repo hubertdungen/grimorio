@@ -1848,7 +1848,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
   const combos = useMemo(() => data.combosByCard[c.i].map(k => data.combos[k]).sort((a, b) => (b[5] || 0) - (a[5] || 0)).slice(0, 8), [data, c])
   const F = data.meta.formats
   return (
-    <div className="modal-bg" onClick={onClose}>
+    <div className="modal-bg cm-top" onClick={onClose}>
       <div className="modal cardmodal" onClick={e => e.stopPropagation()}>
         <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
         <div className="cm-img">
@@ -2044,6 +2044,7 @@ export function IASettings({ cfg, setCfg, onDone }) {
   )
 }
 
+const AI_KEEP = new Map()
 export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [cfg, setCfg] = useState(null)
@@ -2052,9 +2053,15 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [res, setRes] = useState(null)
-  const [done, setDone] = useState(() => new Set())
-  const [curH, setCurH] = useState(null)  // a entrada do histórico desta resposta (para guardar o que foi aplicado)
+  // a resposta fica guardada por deck (memória da página): fechar a janela, abrir uma carta ou voltar não a perde
+  const keep = AI_KEEP.get(deck.id || 'novo') || {}
+  const [res, setRes0] = useState(keep.res || null)
+  const [done, setDone0] = useState(() => new Set(keep.done || []))
+  const [curH, setCurH0] = useState(keep.curH || null)  // a entrada do histórico desta resposta (para guardar o que foi aplicado)
+  const save = p => AI_KEEP.set(deck.id || 'novo', { ...(AI_KEEP.get(deck.id || 'novo') || {}), ...p })
+  const setRes = v => { setRes0(v); save({ res: v }) }
+  const setCurH = v => { setCurH0(v); save({ curH: v }) }
+  const setDone = v => setDone0(prev => { const n = typeof v === 'function' ? v(prev) : v; save({ done: [...n] }); return n })
   const { recs, plan, archetype, needs, have } = useDeckRecs(data, deck, fmt, ctx, NOLANDS, 40)
   useEffect(() => { fetch('/api/ia/config').then(r => r.json()).then(c => { setCfg(c); if (c.provider === 'off') setShowSet(true) }).catch(() => setErr(tx('Sem ligação ao servidor.'))) }, [])
   const need = useMemo(() => manaNeeds(data, deck, fmt), [data, deck, fmt])
@@ -2146,6 +2153,13 @@ export function AIDialog({ data, deck, fmt, ctx, act, setDeck, issues, onClose }
         {res && (
           <div className="auto-list ia-res">
             {res.resumo && <p className="ia-sum">{res.resumo}</p>}
+            {(() => {  // a conta do que fica se se aplicar tudo o que é válido (a IA às vezes corta 1 e junta 2)
+              const net = vAdd.filter(x => x.ok).length - vCut.filter(x => x.ok).reduce((n, x) => n + inDeckN(x.c.n), 0) + vAdj.filter(x => x.ok).reduce((n, x) => n + x.to - x.now, 0)
+              const after = mainN + net, t = fmt.size[0], max = fmt.size[1]
+              if (!net && after === t) return null
+              const off = max ? (after > max ? after - max : after < t ? after - t : 0) : (after < t ? after - t : 0)
+              return <p className={`small ${off ? 'bad-t' : 'muted'}`}>{tx('Se aplicares tudo: {n} de {t} cartas.', { n: after, t: max || t })}{off ? ` ${off > 0 ? tx('Sobram {k}: não apliques tudo, ou tira {k} a seguir.', { k: off }) : tx('Faltam {k}: completa depois (Completar deck ou Reforçar).', { k: -off })}` : ''}</p>
+            })()}
             {vSwap.length > 0 && <section><h4>{tx('Trocas')}</h4><ul>{vSwap.map((x, k) => (
               <li key={k} className={`ia-row ${x.ok ? '' : 'off'}`}><div>{x.q > 1 ? `${x.q}× ` : ''}<Name c={x.a} raw={x.sai} /> → {x.q > 1 ? `${x.q}× ` : ''}<Name c={x.b} raw={x.entra} /><small className="muted">{x.porque}</small></div>
                 {x.ok && <button disabled={done.has(`s${k}`)} onClick={() => { act.add(x.a, 'main', -x.q); act.add(x.b, 'main', x.q); mark(`s${k}`) }}>{done.has(`s${k}`) ? '✓' : tx('Trocar')}</button>}</li>

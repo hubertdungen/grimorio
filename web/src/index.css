@@ -4703,3 +4703,6 @@ select.demote:hover { border-color: var(--gold); }
 .dg-sub i { font-style: normal; font-size: 11.5px; opacity: 0; transition: opacity .15s; }
 .dg-sub:hover { max-width: 160px; padding: 0 8px 0 5px; }
 .dg-sub:hover i { opacity: 1; }
+
+/* a ficha da carta abre por cima das outras janelas (assistente de IA, completar deck…) */
+.modal-bg.cm-top { z-index: 72; }
