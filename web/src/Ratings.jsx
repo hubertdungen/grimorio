@@ -44,6 +44,7 @@ function History({ k, format }) {
   const [h, setH] = useState(null)
   useEffect(() => { j(`/api/ratings/deck/${encodeURIComponent(k)}?format=${format}`).then(setH).catch(() => setH({ elo: [], rounds: [] })) }, [k, format])
   if (!h) return <div className="rt-hist muted small">{tx('A carregar…')}</div>
+  if (!h.elo?.length) return <div className="rt-hist muted small">{tx('Ainda sem jogos: testa-o no Laboratório, põe-no num torneio ou liga a Arena automática nos Ratings.')}</div>
   return (
     <div className="rt-hist">
       <div className="muted small">Elo: {Math.round(h.elo[0])} → <b>{Math.round(h.elo.at(-1))}</b> {tx('em {n} jogo|em {n} jogos', { n: h.elo.length - 1 })}</div>
