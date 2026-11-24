@@ -1233,9 +1233,11 @@ class H(BaseHTTPRequestHandler):
         return self.save(d, 200)
 
     def save(self, d, code):
-        ok = lambda x: isinstance(x, dict) and all(type(v) is int and 0 < v <= 250 for v in x.values())  # noqa: E731  (como guests.clean_deck)
-        if not isinstance(d, dict) or not ok(d.get("main", {})) or not ok(d.get("side") or {}):
+        if not isinstance(d, dict) or not isinstance(d.get("main", {}), dict) or not isinstance(d.get("side") or {}, dict):
             return self.json({"erro": "deck inválido"}, 400)
+        for z in ("main", "side"):  # quantidades: só inteiros de 1 a 250 (como guests.clean_deck); o resto sai da lista
+            if isinstance(d.get(z), dict):
+                d[z] = {k: v for k, v in d[z].items() if type(v) is int and 0 < v <= 250}
         d["updated"] = time.time()
         with db() as con:
             r = con.execute("SELECT owner, body FROM decks WHERE id=?", (d["id"],)).fetchone()
@@ -1414,7 +1416,10 @@ def selfcheck():
         assert st == 201 and b["color"] == "#7c5cff" and b["id"] != "local"
         A, B = ck(sa), ck(sb)
         assert call("POST", "/api/decks", {"name": "Deck da Ana", "main": {"Forest": 1}}, A)[0] == 201
-        assert all(call("POST", "/api/decks", {"name": "x", **z}, A)[0] == 400 for z in ({"main": {"Forest": "x"}}, {"main": {"Forest": True}}, {"side": {"Forest": 251}}, {"main": []}))
+        assert call("POST", "/api/decks", {"name": "x", "main": []}, A)[0] == 400
+        st, z, *_ = call("POST", "/api/decks", {"name": "x", "main": {"Forest": "x", "Island": True, "Swamp": 0, "Plains": 2}, "side": {"Mountain": 251}}, A)
+        assert st == 201 and z["main"] == {"Plains": 2} and z["side"] == {}, z
+        call("DELETE", f"/api/decks/{z['id']}", cookie=A)
         assert [d["name"] for d in call("GET", "/api/decks", cookie=A)[1]] == ["Deck da Ana"]
         assert call("GET", "/api/decks", cookie=B)[1] == []  # decks separados por perfil
         assert call("GET", "/api/me", cookie=B)[1] == {"user": "Rui"} and call("GET", "/api/me")[1] == {"user": None}
