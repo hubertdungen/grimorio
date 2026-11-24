@@ -1668,7 +1668,12 @@ export function AnalysisView({ data, deck, fmt, ctx, act, issues }) {
   const advised = landAdvice(fmt, s.avgMv || 3, s.cheapRampDraw)
   const targets = Object.entries(fmt.targets || {})
   const total = s.lands + s.spells
-  const odds = useMemo(() => landOdds(total, s.lands), [s.lands, total])
+  // a mão sai da biblioteca: só o deck principal (sem comandantes nem a assinatura, que começam na zona de comando)
+  const odds = useMemo(() => {
+    let N = 0, L = 0
+    for (const [n, q] of Object.entries(deck.main)) { const c = data.byName.get(n); if (!c) continue; N += q; if (c.mt === 'Land') L += q }
+    return landOdds(N, L)
+  }, [deck.main, data])
   const pcs = usePlanCuts({ data, deck, fmt, ctx, act, issues })
   const valRef = useRef(null)
   return (
