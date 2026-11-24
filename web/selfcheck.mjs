@@ -91,7 +91,7 @@ assert.ok(L('Mishra\'s Factory', 'Land', '{1}: Mishra\'s Factory becomes a 2/2 A
 const b = basicsFor(null, { cols: { G: { have: 10, full: 20 }, U: { have: 2, full: 16 } } }, 6, 'GU')
 assert.ok(b.Island >= 5, JSON.stringify(b))
 console.log('selfcheck ok')
-// Combos: 2 peças num deck de 99 até ao turno 8 (15 cartas vistas) ≈ 2%; com 5 tutores sobe bastante; comandante já é peça.
+// Combos: 2 peças num deck de 99 até ao turno 8 (14 cartas vistas, a jogar primeiro) ≈ 2%; com 5 tutores sobe bastante; comandante já é peça.
 import { comboProb } from './src/data.js'
 const p2 = comboProb({ pieces: 2, deckSize: 99, turn: 8 })
 assert.ok(p2 > 0.015 && p2 < 0.03, String(p2))

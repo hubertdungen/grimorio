@@ -1387,7 +1387,7 @@ const lnC = (n, k) => (k < 0 || k > n ? -Infinity : lnFact(n) - lnFact(k) - lnFa
 const hyper = (N, K, n, x) => Math.exp(lnC(K, x) + lnC(N - K, n - x) - lnC(N, n))
 export function comboProb({ pieces, tutors = 0, deckSize, turn }) {
   if (pieces <= 0) return 1
-  const n = Math.min(deckSize, 7 + turn)
+  const n = Math.min(deckSize, 6 + turn)  // a jogar primeiro (como o landOdds): 7 + T − 1 cartas vistas
   let p = 0
   for (let x = 0; x <= pieces; x++) {
     const need = pieces - x
