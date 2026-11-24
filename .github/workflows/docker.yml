@@ -46,6 +46,6 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Grimório — Magic: The Gathering deck builder with Forge AI games
-            org.opencontainers.image.licenses=GPL-3.0-only
+            org.opencontainers.image.licenses=PolyForm-Noncommercial-1.0.0 AND GPL-3.0-only
           cache-from: type=gha
           cache-to: type=gha,mode=max

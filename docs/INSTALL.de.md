@@ -176,7 +176,7 @@ Kopie im Ordner `backups` im Datenordner; die letzten 3 Kopien werden behalten.
 ## Fehlerbehebung
 
 **„Der Computer wurde durch Windows geschützt“ oder der Virenscanner blockiert `Grimorio.exe`.**
-Grimório ist Open Source und nicht mit einem kostenpflichtigen Zertifikat signiert, deshalb warnen SmartScreen und
+Grimório ist kostenlos, der Quellcode ist öffentlich, und es ist nicht mit einem kostenpflichtigen Zertifikat signiert, deshalb warnen SmartScreen und
 manche Virenscanner davor, vor allem direkt nach der Veröffentlichung einer neuen Version. Klick auf **Weitere
 Informationen › Trotzdem ausführen**. Hat dein Virenscanner eine Datei in die Quarantäne verschoben (oft
 `jre\bin\java.exe`), stell sie wieder her und füge den Ordner Grimorio als Ausnahme hinzu, oder entpacke die ZIP-Datei

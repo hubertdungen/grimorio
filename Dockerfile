@@ -32,6 +32,7 @@ COPY *.py packaging/launcher.py app/
 COPY packaging/docker/entrypoint.sh /entrypoint.sh
 COPY --from=web /src/web/dist app/web/dist
 COPY LICENSE NOTICE ./
+COPY build/forge/LICENSE ./LICENSE-GPL-3.0.txt
 RUN echo "$VERSION" > VERSION && mkdir /data && chown 1000:1000 /data
 ENV GRIMORIO_DATA_DIR=/data GRIMORIO_RUNTIME=local GRIMORIO_JAVA=/opt/java/openjdk/bin/java \
     GRIMORIO_FORGE_DIR=/opt/grimorio/forge GRIMORIO_VERSION=$VERSION PYTHONUNBUFFERED=1
