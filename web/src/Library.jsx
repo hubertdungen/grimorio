@@ -267,7 +267,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
     fetch('/api/decks/trash').then(r => r.json()).then(setTrash).catch(() => {})
   }
   useEffect(() => { reload(); fetch('/api/ratings/stars').then(r => r.json()).then(setRt).catch(() => {}); fetch('/api/me').then(r => r.json()).then(j => setMe(j.user)).catch(() => {}) }, [])
-  useEffect(() => { setMeta([]); fetch(`/api/sim/opponents?format=${mf}`).then(r => r.json()).then(setMeta).catch(() => setMeta([])) }, [mf])
+  useEffect(() => { let on = true; setMeta([]); fetch(`/api/sim/opponents?format=${mf}`).then(r => r.json()).then(l => { if (on) setMeta(l) }).catch(() => { if (on) setMeta([]) }); return () => { on = false } }, [mf])
 
   const post = (url, body) => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) }).then(r => r.json())
   const duplicate = async id => { const d = await (await fetch(`/api/decks/${id}`)).json(); if (!(await ask('duplicar', { title: tx('Duplicar «{name}»?', { name: d.name }), body: tx('Fica uma cópia nova na Biblioteca, com «(cópia)» no nome.'), ok: tx('Duplicar'), danger: false }))) return; const n = await post('/api/decks', { ...d, id: undefined, name: tx('{name} (cópia)', { name: d.name }) }); say(tx('Duplicado: {name}', { name: n.name })); reload() }
