@@ -29,11 +29,17 @@ def norm(s):
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9.\s]", " ", "".join(ch for ch in s if unicodedata.category(ch) != "Mn"))).strip()
 
 
+PT_N = {norm(k): v for k, v in PT.items()}  # para procurar (norm(q)); o PT tal como está vai para o browser (?terms)
+
+
 def ensure(data_dir, max_age=14 * 86400):
     """O ficheiro das regras (descarrega a versão mais recente se faltar ou tiver mais de 14 dias; sem rede usa o que há)."""
     path = os.path.join(data_dir, "data", "rules.txt")
     if os.path.isfile(path) and time.time() - os.path.getmtime(path) < max_age:
         return path
+    if time.time() - _CACHE.get("tried", 0) < 3600:  # a última tentativa falhou há menos de 1 h: não se volta a pedir a cada pesquisa
+        return path if os.path.isfile(path) else None
+    _CACHE["tried"] = time.time()
     try:
         with urllib.request.urlopen(urllib.request.Request(PAGE, headers=UA), timeout=20) as r:
             m = re.search(r"https://media\.wizards\.com/[^\"']+\.txt", r.read().decode("utf-8", "replace"))
@@ -97,7 +103,7 @@ def search(db, q, limit=12):
     qn = norm(q)
     if not qn:
         return []
-    en = PT.get(qn)
+    en = PT_N.get(qn)
     terms = [t for t in {qn, norm(en) if en else None} if t]
     out, seen = [], set()
 
@@ -145,7 +151,7 @@ def route(path, data_dir):
     db = load(data_dir)
     if not db:
         return 503, {"erro": "Ainda não tenho as regras (sem internet para as descarregar)."}
-    return 200, {"translated": PT.get(norm(q)), "results": search(db, q)}
+    return 200, {"translated": PT_N.get(norm(q)), "results": search(db, q)}
 
 
 if __name__ == "__main__":  # verificação com um excerto sintético
@@ -156,4 +162,5 @@ if __name__ == "__main__":  # verificação com um excerto sintético
     assert r[0]["kind"] == "rule" and r[0]["num"] == "702.9" and len(r[0]["rules"]) == 3, r
     assert search(db, "702.9b")[0]["rules"][0][0] == "702.9b"
     assert any(x["kind"] == "gloss" for x in search(db, "Flying"))
+    assert PT_N["videncia"] == "Scry" and PT_N[norm("iniciativa (masmorra)")] == "Initiative"
     print("selfcheck ok")

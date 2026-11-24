@@ -157,7 +157,7 @@ TXT = {
         "browser": "Continuar no browser",
         "inv_box": "Na app Grimório (PC ou telemóvel) entras com os teus decks de lá. No browser, os decks ficam guardados neste Grimório; os da tua app"
                    " trazes com «📥 Trazer os meus decks» (o ficheiro de Biblioteca › Exportar decks).",
-        "room_bad": "Esta sala já não está aberta. Pede outro link a quem te convidou.",
+        "room_bad": "Esta sala já não está aberta. Pede outro link a quem te convidou.", "slow": "Demasiados pedidos: espera um minuto.",
         "strict": "⚖ <b>Mesa estrita · regras do Forge</b><br>Só amigos, sem bots: o Forge faz cumprir as regras (mana, pilha, combate, alvos) e cada um joga no seu ecrã.",
         "free": "🃏 <b>Mesa livre · sem regras</b><br>Só amigos, sem bots: cada um mexe nas suas cartas, como numa mesa a sério (compras, viras, atacas, contas a vida)."
                 " Ninguém valida as jogadas.",
@@ -182,7 +182,7 @@ TXT = {
         "browser": "Continue in the browser",
         "inv_box": "In the Grimório app (PC or phone) you join with your decks from there. In the browser, your decks are kept on this Grimório; bring the"
                    " ones from your app with “📥 Bring my decks” (the file from Library › Export decks).",
-        "room_bad": "This room is no longer open. Ask whoever invited you for a new link.",
+        "room_bad": "This room is no longer open. Ask whoever invited you for a new link.", "slow": "Too many requests: wait a minute.",
         "strict": "⚖ <b>Strict table · Forge rules</b><br>Friends only, no bots: Forge enforces the rules (mana, stack, combat, targets) and everyone plays on their own screen.",
         "free": "🃏 <b>Free table · no rules</b><br>Friends only, no bots: everyone handles their own cards, like at a real table (draw, tap, attack, keep track of life)."
                 " Nobody checks the plays.",
@@ -207,7 +207,7 @@ TXT = {
         "browser": "Seguir en el navegador",
         "inv_box": "En la app Grimório (PC o móvil) entras con tus mazos de allí. En el navegador, los mazos se guardan en este Grimório; los de tu app"
                    " los traes con «📥 Traer mis mazos» (el archivo de Biblioteca › Exportar mazos).",
-        "room_bad": "Esta sala ya no está abierta. Pide otro enlace a quien te invitó.",
+        "room_bad": "Esta sala ya no está abierta. Pide otro enlace a quien te invitó.", "slow": "Demasiadas solicitudes: espera un minuto.",
         "strict": "⚖ <b>Mesa estricta · reglas de Forge</b><br>Solo amigos, sin bots: Forge hace cumplir las reglas (maná, pila, combate, objetivos) y cada uno juega en su pantalla.",
         "free": "🃏 <b>Mesa libre · sin reglas</b><br>Solo amigos, sin bots: cada uno mueve sus cartas, como en una mesa de verdad (robas, giras, atacas, llevas las vidas)."
                 " Nadie valida las jugadas.",
@@ -232,7 +232,7 @@ TXT = {
         "browser": "Im Browser weiter",
         "inv_box": "In der Grimório-App (PC oder Handy) trittst du mit deinen Decks von dort bei. Im Browser werden die Decks auf diesem Grimório gespeichert;"
                    " die aus deiner App bringst du mit „📥 Meine Decks mitbringen“ mit (die Datei aus Bibliothek › Decks exportieren).",
-        "room_bad": "Dieser Raum ist nicht mehr offen. Bitte die Person, die dich eingeladen hat, um einen neuen Link.",
+        "room_bad": "Dieser Raum ist nicht mehr offen. Bitte die Person, die dich eingeladen hat, um einen neuen Link.", "slow": "Zu viele Anfragen: warte eine Minute.",
         "strict": "⚖ <b>Strenger Tisch · Forge-Regeln</b><br>Nur Freunde, keine Bots: Forge setzt die Regeln durch (Mana, Stapel, Kampf, Ziele) und jeder spielt auf seinem eigenen Bildschirm.",
         "free": "🃏 <b>Freier Tisch · ohne Regeln</b><br>Nur Freunde, keine Bots: Jeder bewegt seine eigenen Karten, wie an einem echten Tisch (ziehen, tappen, angreifen,"
                 " Lebenspunkte zählen). Niemand prüft die Spielzüge.",
@@ -256,7 +256,7 @@ TXT = {
         "inv_p": "<b>{n}</b>，你受邀在这个 Grimório 上游戏：和邀请你的人的朋友们一起使用房间、自由牌桌和锦标赛。",
         "browser": "在浏览器中继续",
         "inv_box": "在 Grimório 应用（电脑或手机）中，你会带着那里的套牌加入。在浏览器中，套牌保存在这个 Grimório 上；应用里的套牌可以用“📥 带上我的套牌”带过来（牌库 › 导出套牌 生成的文件）。",
-        "room_bad": "这个房间已不再开放。请向邀请你的人再要一个链接。",
+        "room_bad": "这个房间已不再开放。请向邀请你的人再要一个链接。", "slow": "请求过多：请等一分钟。",
         "strict": "⚖ <b>严格牌桌 · Forge 规则</b><br>只有朋友，没有机器人：Forge 执行规则（法术力、堆叠、战斗、目标），每人在自己的屏幕上游戏。",
         "free": "🃏 <b>自由牌桌 · 无规则</b><br>只有朋友，没有机器人：每人操作自己的牌，就像在真正的牌桌上（抓牌、横置、攻击、记录生命）。没有人校验操作。",
         "bots": "🤖 <b>使用 Forge 机器人</b><br>你报名一副自己的套牌，由 Forge 机器人按完整规则替你对战；你可以实时观看并下注。",
@@ -510,6 +510,8 @@ def room_link(h, con, token, name, me=None, act=""):
                      "if(!r.ok){st.textContent=j.erro||T.failed;return}if(j.go){location.href=j.go;return}"
                      "st.textContent=T.which;j.profiles.forEach(p=>{const b=document.createElement('button');b.textContent=`${p.name} (${p.decks})`;"
                      "b.onclick=()=>go('?perfil='+encodeURIComponent(p.id));st.append(b,' ')})};go('')}</script>", 200, L)
+    if slow(("sala", token)):  # cada nome é um amigo novo
+        return _page(h, f"<p>{t(L, 'slow')}</p>", 429, L)
     init(con)
     fid, tok = secrets.token_hex(6), secrets.token_urlsafe(18)
     con.execute("INSERT INTO friends (id, owner, name, token, created, revoked) VALUES (?,?,?,?,?,NULL)", (fid, owner, f"{name} (sala)", tok, time.time()))
@@ -548,6 +550,8 @@ def room_post(h, con, token, act, me, data_dir):
 
 def _import(h, con, owner, data_dir):
     import backup, tempfile, urllib.parse
+    if slow(("sala-importar", owner), 6):
+        return h.json({"erro": "Demasiados pedidos: espera um minuto."}, 429)
     n = int(h.headers.get("Content-Length") or 0)
     if not 0 < n <= 60_000_000:
         return h.json({"erro": "Escolhe uma cópia .grimorio (até 60 MB)."}, 400)

@@ -12,6 +12,7 @@ OWN_RE = re.compile(r"https://[A-Za-z0-9.-]{1,200}(:\d{1,5})?")
 TOKEN_RE = re.compile(r"[A-Za-z0-9=._+/-]{20,600}")
 REL = "https://github.com/cloudflare/cloudflared/releases/latest/download/"
 URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
+LOCK = threading.Lock()  # ligar/desligar um de cada vez: dois cliques em «Partilhar» não abrem dois cloudflared
 
 
 def _asset():
@@ -115,7 +116,7 @@ def adopt(data_dir):
             sv = json.load(f)
     except (OSError, ValueError):
         return status()
-    if _alive(sv.get("pid")) and URL_RE.fullmatch(sv.get("url") or ""):
+    if _alive(sv.get("pid")) and (URL_RE.fullmatch(sv.get("url") or "") or (CFG["url"] and CFG["token"] and sv.get("url") == CFG["url"])):  # rápido ou com nome
         STATE.update(pid=sv["pid"], url=sv["url"])
     return status()
 
@@ -129,6 +130,11 @@ def status():
 
 
 def start(data_dir, port, host="127.0.0.1"):
+    with LOCK:
+        return _start(data_dir, port, host)
+
+
+def _start(data_dir, port, host):
     if status()["running"]:
         return status()
     STATE.update(url=None, err=None)
@@ -183,6 +189,11 @@ def start(data_dir, port, host="127.0.0.1"):
 
 
 def stop():
+    with LOCK:
+        return _stop()
+
+
+def _stop():
     p = STATE["proc"]
     if p and p.poll() is None:
         p.terminate()

@@ -20,6 +20,7 @@ GO = 4  # segundos de contagem quando estão todos prontos (mesa livre)
 # na contagem) e cada um via a sala ainda «open» — abriam-se várias mesas (na estrita, um Forge de ~1 GB por cada).
 # O primeiro reclama a sala; os outros saltam-na durante CLAIM_S (até lá o primeiro já gravou «started»).
 CLAIM, CLAIM_LOCK, CLAIM_S = {}, threading.Lock(), 60
+LOCKS = {}  # um por sala (route)
 
 
 class Busy(Exception):
@@ -106,10 +107,11 @@ def lobby(con, owner, p, who):
     """O que o lobby 3D mostra de um lugar: quantas cartas (a altura da caixa), as cores e a capa; a lista só se o dono
     deixar ver (ou se o deck é meu)."""
     d = (owner and seat_deck(con, owner, p)) or {}
-    main = d.get("main") or {}
-    out = {"n": sum(int(v) for v in main.values() if str(v).isdigit() or isinstance(v, int)), "cover": d.get("cover") or d.get("coverImg") or None}
+    main = {k: int(v) for k, v in d["main"].items() if type(v) is int or isinstance(v, str) and v.isascii() and v.isdigit()} \
+        if isinstance(d.get("main"), dict) else {}  # só quantidades a sério (um valor estranho num deck não parte a lista das salas)
+    out = {"n": sum(main.values()), "cover": d.get("cover") or d.get("coverImg") or None}
     if p.get("show") or p.get("by") == who:
-        out["list"] = {str(k): int(v) for k, v in list(main.items())[:120]}
+        out["list"] = {str(k): v for k, v in list(main.items())[:120]}
     return out
 
 
@@ -290,6 +292,13 @@ def route(con, method, path, owner, body, guest=None):
         spec["link"] = secrets.token_urlsafe(12)  # /sala/<link>: entra quem não está nos amigos (guests.room_link)
         con.execute("INSERT INTO rooms VALUES (?,?,?,?,?, 'open', NULL)", (rid, owner, time.time(), json.dumps(spec), json.dumps(players)))
         return 201, {"id": rid}
+    with LOCKS.setdefault(rid, threading.Lock()):  # ler, mudar e gravar a sala de uma vez: dois a entrar ao mesmo tempo ficam os dois
+        out = act_room(con, owner, rid, act, body, guest, who)
+        con.commit()
+    return out
+
+
+def act_room(con, owner, rid, act, body, guest, who):
     r = con.execute("SELECT id, ts, spec, players, status, tid FROM rooms WHERE id=? AND owner=?", (rid, owner)).fetchone()
     if not r:
         return 404, {"erro": "Essa sala não existe."}
@@ -369,12 +378,17 @@ def route(con, method, path, owner, body, guest=None):
                 return 409, {"erro": "A mesa já está a abrir."}
             except ValueError as e:
                 return 400, {"erro": str(e)}
+        if not claim(rid):  # dois cliques em «Começar»: um torneio só
+            return 409, {"erro": "O torneio já está a começar."}
         try:
             tid = tournament.create(owner, {**spec, "friends_open": True, "players": [{**{k: p.get(k) for k in ("src", "ref", "difficulty", "cover", "colors", "me", "by", "byName")},
                                                                                        **({"plays": p.get("plays")} if spec.get("misto") else {}),
                                                                                        **({"src": "meus"} if p.get("src") == "lend" else {})} for p in players]})
-        except ValueError as e:
-            return 400, {"erro": str(e)}
+        except BaseException as e:
+            CLAIM.pop(rid, None)  # não começou: pode tentar-se outra vez
+            if isinstance(e, ValueError):
+                return 400, {"erro": str(e)}
+            raise
         con.execute("UPDATE rooms SET status='started', tid=? WHERE id=?", (tid, rid))
         return 200, {"tid": tid}
     else:

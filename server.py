@@ -3,7 +3,7 @@
 Serve a app React compilada (web/dist), os dados gerados por build/build.sh
 (já comprimidos em .gz) e guarda os decks numa SQLite fora do exFAT.
 """
-import argparse, contextlib, functools, gzip, hashlib, http.cookies, json, os, re, secrets, sqlite3, tempfile, threading, time, traceback, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, contextlib, functools, gzip, hashlib, json, os, re, secrets, sqlite3, tempfile, threading, time, traceback, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
@@ -220,13 +220,17 @@ APP_TOKEN = os.environ.get("GRIMORIO_APP_TOKEN") or ""
 IMG_MAX = 8_000_000  # uma imagem de carta pela cache (/sf/, /ext/): as da Scryfall têm até ~2 MB (png)
 
 
+def read_cookie(raw, name):
+    """O valor de um cookie (à mão, como guests.cookie_token: o SimpleCookie parava no primeiro cookie que não percebia)."""
+    for part in (raw or "").split(";"):
+        k, _, v = part.strip().partition("=")
+        if k == name:
+            return v.strip()
+    return ""
+
+
 def app_cookie(raw):
-    c = http.cookies.SimpleCookie()
-    try:
-        c.load(raw or "")
-    except http.cookies.CookieError:
-        return ""
-    return c["grimorio_app"].value if "grimorio_app" in c else ""
+    return read_cookie(raw, "grimorio_app")
 
 
 
@@ -244,17 +248,19 @@ def trash_days(owner):
         return 7
 
 
+JSON_LOCK = threading.Lock()  # ler, mudar e gravar trash.json e remote-keys.json: dois pedidos ao mesmo tempo não se pisam
+
+
 def set_trash_days(owner, days):
     f = os.path.join(ARGS.data_dir, "trash.json")
-    try:
-        with open(f, encoding="utf-8") as h:
-            d = json.load(h)
-    except (OSError, ValueError):
-        d = {}
-    d[owner] = days
-    with open(f + ".tmp", "w", encoding="utf-8") as h:
-        json.dump(d, h)
-    os.replace(f + ".tmp", f)
+    with JSON_LOCK:
+        try:
+            with open(f, encoding="utf-8") as h:
+                d = json.load(h)
+        except (OSError, ValueError):
+            d = {}
+        d[owner] = days
+        write_atomic(f, json.dumps(d).encode())
 
 
 def trash_expired(owner, deleted, now=None):
@@ -271,7 +277,7 @@ class H(BaseHTTPRequestHandler):
         traz o cookie que a própria app pôs na WebView (GRIMORIO_APP_TOKEN, MainActivity)."""
         if not super().parse_request():
             return False
-        if APP_TOKEN and not secrets.compare_digest(app_cookie(self.headers.get("Cookie")), APP_TOKEN):
+        if APP_TOKEN and not secrets.compare_digest(app_cookie(self.headers.get("Cookie")).encode(), APP_TOKEN.encode()):
             self.send_error(403)
             return False
         return True
@@ -369,8 +375,20 @@ class H(BaseHTTPRequestHandler):
         with db() as con:
             return guests.by_token(con, tok)
 
+    def other_site(self):
+        """Pedido que o browser fez a partir de uma página de outro endereço: a Origin não é este Grimório (Host, ou
+        X-Forwarded-Host atrás do Caddy/nginx) e o browser também não diz same-origin (Sec-Fetch-Site)."""
+        o = self.headers.get("Origin")
+        if not o or self.headers.get("Sec-Fetch-Site") in ("same-origin", "none"):
+            return False
+        here = {(v or "").split(",")[0].strip().lower() for v in (self.headers.get("Host"), self.headers.get("X-Forwarded-Host"))}
+        return urllib.parse.urlsplit(o).netloc.lower() not in here - {""}
+
     def _route(self, method, inner):
         p = self.path.split("?")[0]
+        # escritas só a partir das páginas deste Grimório; a app de um amigo e os outros aparelhos vêm com Bearer (sem cookies)
+        if method not in ("GET", "HEAD") and not guests.bearer(self.headers) and self.other_site():
+            return self.json({"erro": "Pedido recusado: não veio deste Grimório."}, 403)
         if devsync.route(self, method, p, ARGS.data_dir, db):  # outro aparelho do dono (pelo código ou pelo token dele: devsync.py)
             return None
         if p.startswith("/avatars/") and method == "GET":  # imagens de perfil: nomes ao acaso, para todos (avatars.serve)
@@ -477,14 +495,15 @@ class H(BaseHTTPRequestHandler):
         decks = [json.loads(b) | {"id": i} for i, b in rows if not isinstance(want, list) or i in want]
         decks = [x for x in decks if not x.get("friend")][:80]
         kf = os.path.join(ARGS.data_dir, "remote-keys.json")
-        try:
-            with open(kf) as f:
-                keys = json.load(f)
-        except (OSError, ValueError):
-            keys = {}
-        if owner not in keys:
-            keys[owner] = secrets.token_urlsafe(32)
-            write_atomic(kf, json.dumps(keys).encode(), 0o600)  # a chave nunca fica legível por outros, nem por um instante
+        with JSON_LOCK:
+            try:
+                with open(kf) as f:
+                    keys = json.load(f)
+            except (OSError, ValueError):
+                keys = {}
+            if owner not in keys:
+                keys[owner] = secrets.token_urlsafe(32)
+                write_atomic(kf, json.dumps(keys).encode(), 0o600)  # a chave nunca fica legível por outros, nem por um instante
         name = ((self.profile() or {}).get("name") if self.mode() == "profiles" else owner) or owner
         with db() as con:
             av = avatars.export(con, avatars.owner_key(owner))  # a minha imagem vai também: lá fica uma cópia, validada
@@ -755,11 +774,14 @@ class H(BaseHTTPRequestHandler):
             with db() as con:
                 r = con.execute("SELECT body FROM decks WHERE id=? AND owner=?", (did, self.owner())).fetchone()
                 return self.json(with_rated(con, did, json.loads(r[0]))) if r else self.json({"erro": "deck não existe"}, 404)
+        root = os.path.realpath(DIST)
+        f = os.path.realpath(os.path.join(root, p.lstrip("/")))
+        if f != root and not f.startswith(root + os.sep):  # só ficheiros dentro de web/dist
+            return self.send(404, b"nao existe", "text/plain")
         if p.startswith("/assets/"):
-            return self.file(os.path.join(DIST, p.lstrip("/")), "public, max-age=31536000, immutable")
-        rel = p.lstrip("/")
-        if rel and os.path.isfile(os.path.join(DIST, rel)):
-            return self.file(os.path.join(DIST, rel), "no-cache")
+            return self.file(f, "public, max-age=31536000, immutable")
+        if p.lstrip("/") and os.path.isfile(f):
+            return self.file(f, "no-cache")
         return self.file(os.path.join(DIST, "index.html"), "no-cache")
 
     def l17(self, what):
@@ -1211,8 +1233,11 @@ class H(BaseHTTPRequestHandler):
         return self.save(d, 200)
 
     def save(self, d, code):
-        if not isinstance(d, dict) or not isinstance(d.get("main", {}), dict):
+        if not isinstance(d, dict) or not isinstance(d.get("main", {}), dict) or not isinstance(d.get("side") or {}, dict):
             return self.json({"erro": "deck inválido"}, 400)
+        for z in ("main", "side"):  # quantidades: só inteiros de 1 a 250 (como guests.clean_deck); o resto sai da lista
+            if isinstance(d.get(z), dict):
+                d[z] = {k: v for k, v in d[z].items() if type(v) is int and 0 < v <= 250}
         d["updated"] = time.time()
         with db() as con:
             r = con.execute("SELECT owner, body FROM decks WHERE id=?", (d["id"],)).fetchone()
@@ -1260,12 +1285,7 @@ class H(BaseHTTPRequestHandler):
         return "login" if (self.headers.get("Remote-User") or "").strip() else "fixed" if ARGS.owner else "profiles"
 
     def profile(self):
-        c = http.cookies.SimpleCookie()
-        try:
-            c.load(self.headers.get("Cookie") or "")
-        except http.cookies.CookieError:
-            return None
-        pid = c["grimorio_profile"].value if "grimorio_profile" in c else ""
+        pid = read_cookie(self.headers.get("Cookie"), "grimorio_profile")[:80]
         with db() as con:
             r = con.execute("SELECT id, name, color FROM profiles WHERE id=?", (pid,)).fetchone() if pid else None
         return r and {"id": r[0], "name": r[1], "color": r[2]}
@@ -1396,6 +1416,10 @@ def selfcheck():
         assert st == 201 and b["color"] == "#7c5cff" and b["id"] != "local"
         A, B = ck(sa), ck(sb)
         assert call("POST", "/api/decks", {"name": "Deck da Ana", "main": {"Forest": 1}}, A)[0] == 201
+        assert call("POST", "/api/decks", {"name": "x", "main": []}, A)[0] == 400
+        st, z, *_ = call("POST", "/api/decks", {"name": "x", "main": {"Forest": "x", "Island": True, "Swamp": 0, "Plains": 2}, "side": {"Mountain": 251}}, A)
+        assert st == 201 and z["main"] == {"Plains": 2} and z["side"] == {}, z
+        call("DELETE", f"/api/decks/{z['id']}", cookie=A)
         assert [d["name"] for d in call("GET", "/api/decks", cookie=A)[1]] == ["Deck da Ana"]
         assert call("GET", "/api/decks", cookie=B)[1] == []  # decks separados por perfil
         assert call("GET", "/api/me", cookie=B)[1] == {"user": "Rui"} and call("GET", "/api/me")[1] == {"user": None}
@@ -1844,6 +1868,13 @@ def selfcheck():
         st, rj, _ = call("POST", "/api/rooms/remote", {"url": f"{base}/convite/{fr['token']}?entrar=1", "decks": []})
         assert st == 200 and rj["go"] == f"{base}/convite/{fr['token']}?entrar=1" and rj["decks"] == 0, rj
         assert call("POST", "/api/rooms/remote", {"url": "https://exemplo.pt/outra/coisa"})[0] == 400 and call("POST", "/api/rooms/remote", ["x"])[0] == 400
+        def orig(o, **hd):  # escritas vindas de páginas de outro endereço: 403 (com Bearer, a app de um amigo, passam)
+            try:
+                return urllib.request.urlopen(urllib.request.Request(base + "/api/rooms/remote", b"{}", {"Origin": o, **hd}, method="POST")).status
+            except urllib.error.HTTPError as e:
+                return e.code
+        assert orig("http://x") == 403 and orig("null") == 403 and orig(base) == 400 and orig("http://x", **{"Sec-Fetch-Site": "same-origin"}) == 400
+        assert orig("https://grimorio.exemplo.pt", **{"X-Forwarded-Host": "grimorio.exemplo.pt"}) == 400
         assert call("POST", "/api/rooms/remote", {"url": f"{base}/convite/{fr['token']}"}, G)[0] in (403, 404)  # convidado: não
         # a Taverna (taverna.py): quem aloja cria; um amigo entra pelo link (browser ou app) e só faz ações de membro
         assert call("GET", "/api/taverna", cookie=G)[1] == {"exists": False, "host": False} and call("POST", "/api/taverna", {"name": "T"}, G)[0] == 403
