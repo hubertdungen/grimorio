@@ -202,7 +202,7 @@ const BASIC = { W: 'Plains', U: 'Island', B: 'Swamp', R: 'Mountain', G: 'Forest'
 export function landPlan(data, deck, fmt, ctx, { fn = null, recs = [], co = null, meta = null } = {}) {
   const N = manaNeeds(data, deck, fmt), get = n => data.byName.get(n)
   const lands = Object.entries(deck.main || {}).map(([n, q]) => [get(n), q]).filter(([c]) => c?.mt === 'Land')
-  const done = N.s.spells + N.s.lands + (deck.commanders?.length || 0) >= N.total * 0.9
+  const done = N.s.spells + N.s.lands >= N.total * 0.9  // os comandantes já vêm em N.s.spells
   // a regra (Karsten) pede terrenos a mais em decks agressivos, que jogam de propósito com menos: aí não se pede «mais»
   const raw = done ? N.lands - N.target : 0, diff = raw >= 3 || (raw <= -3 && N.s.avgMv >= 2.4) ? raw : 0
   const acts = [], used = new Set()

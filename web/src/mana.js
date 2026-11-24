@@ -93,7 +93,7 @@ export function manaNeeds(data, deck, fmt) {
     const need = Math.round(table[Math.max(1, maxPips[k])] * Math.min(1, s.lands / Math.max(1, target)))
     cols[k] = { have: sources[k], need: Math.max(1, need), full: table[Math.max(1, maxPips[k])], pips: s.pips[k], maxPips: maxPips[k] }
   }
-  const progress = Math.min(1, (s.spells + s.lands + deck.commanders.length) / total)
+  const progress = Math.min(1, (s.spells + s.lands) / total)  // o stats() já conta os comandantes (e a assinatura) nas mágicas
   const expectedNow = Math.round(target * progress)
   return { s, total, target, lands: s.lands, expectedNow, deficit: expectedNow - s.lands, cols, tapped, fast: s.spells >= 10 && s.avgMv < 2.6 }
 }
