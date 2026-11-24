@@ -174,8 +174,9 @@ def start(data_dir, owner, kind, codes, human=True, players=8):
     if not set(codes) <= known:
         raise ValueError("Esse set não tem boosters no Forge.")
     with COND:
-        for k in [k for k, s in S.items() if s["owner"] == owner and not s["ended"]]:
-            _kill(S.pop(k))
+        old = [_drop(k) for k in [k for k, s in S.items() if s["owner"] == owner and not s["ended"]]]
+    for s in old:  # o docker kill fora do COND: os outros drafts não ficam à espera
+        _kill(s)
     eid = uuid.uuid4().hex[:12]
     n = 8 if kind == "draft" else max(2, min(16, int(players or 8)))
     args = ["draft", ",".join(codes), "human" if human else "bots"] if kind == "draft" else \
@@ -240,10 +241,21 @@ def _kill(s):
         subprocess.run(["docker", "kill", s["container"]], capture_output=True)
 
 
+def _drop(k):
+    """Tira a sessão (com o COND seguro); a que ainda não acabou fica gravada como interrompida (o _reader já não o faz)."""
+    s = S.pop(k)
+    if not s["ended"]:
+        s["ev"].update(status="error", error="O draft foi interrompido.")
+        if s.get("dir"):
+            save(s["dir"], s["ev"])
+    return s
+
+
 def _cleanup():
     with COND:
-        for k in [k for k, s in S.items() if time.time() - s["ts"] > IDLE or s["ended"] and time.time() - s["ts"] > 600]:
-            _kill(S.pop(k))
+        old = [_drop(k) for k in [k for k, s in S.items() if time.time() - s["ts"] > IDLE or s["ended"] and time.time() - s["ts"] > 600]]
+    for s in old:
+        _kill(s)
 
 
 BASIC_COLOR = {"Plains": "W", "Island": "U", "Swamp": "B", "Mountain": "R", "Forest": "G"}
@@ -304,6 +316,12 @@ def selfcheck():
     assert dk["main"] == {"Plains": 1} and dk["side"] == {"B": 1} and dk["format"] == "limited", dk
     assert events(d, "o")[0]["status"] == "built" and not events(d, "outro")
     assert colors(got, 0) == "W" and deck_of(got, 0)["name"] == "Bot 0 · W (TLA)", deck_of(got, 0)
+    ev2 = {**ev, "id": "ba9876543210"}  # parado há muito: o _cleanup fecha-o e fica gravado como interrompido
+    save(d, ev2)
+    with COND:
+        S[ev2["id"]] = {"owner": "o", "p": None, "container": None, "seq": 0, "pack": None, "ended": False, "error": None, "ts": 0, "ev": ev2, "dir": d}
+    _cleanup()
+    assert ev2["id"] not in S and load(d, ev2["id"], "o")["status"] == "error"
     print("selfcheck ok")
 
 

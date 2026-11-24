@@ -32,7 +32,7 @@ rating casual, casual=True, e também os torneios sem decks meta: só azul e ver
 «O meu deck» (st.me): um dos participantes é «eu»; me_state diz onde está, se caiu e o lugar final. No fim fica o pódio
 (st.podium: lugares 1–3 de ranking(), com empates no 3.º sem jogo de 3.º lugar) para o registo e o hall da fama.
 """
-import itertools, json, math, os, random, re, sqlite3, sys, threading, time, uuid, zlib
+import contextlib, itertools, json, math, os, random, re, sqlite3, sys, threading, time, uuid, zlib
 from collections import Counter
 import avatars
 import freetable
@@ -321,7 +321,7 @@ def balance_teams(fmts, elo, s, by_fmt=True, by_elo=True):
 
 
 def standings(st):
-    T = [{"i": i, "pts": 0, "v": 0, "d": 0, "e": 0, "gw": 0, "gl": 0, "opp": [], "bye": 0} for i in range(st["n"])]
+    T = [{"i": i, "pts": 0, "v": 0, "d": 0, "e": 0, "gw": 0, "gl": 0, "gd": 0, "opp": [], "bye": 0} for i in range(st["n"])]
     for m in st["matches"]:
         if m["st"] != "done" or m.get("skip"):
             continue
@@ -341,12 +341,14 @@ def standings(st):
                 T[m["win"]]["v"] += 1
                 T[m["win"]]["bye"] += 1
             continue
+        gd = sum(1 for x in m.get("g") or [] if x.get("w") is None and not x.get("x"))  # jogos empatados (os falhados não contam)
         for a, b in ((m["p"][0], m["p"][2]), (m["p"][1], m["p"][3])) if m["b"] == "T" else [m["p"]]:  # 2 contra 2: cada um conta como o par
             T[a]["opp"].append(b)
             T[b]["opp"].append(a)
             for k, x in enumerate((a, b)):
                 T[x]["gw"] += m["w"][k]
                 T[x]["gl"] += m["w"][1 - k]
+                T[x]["gd"] += gd
             if m["win"] is None:
                 for x in (a, b):
                     T[x]["pts"] += 1
@@ -359,7 +361,8 @@ def standings(st):
     mwp = lambda t: max(1 / 3, t["pts"] / (3 * (t["v"] + t["d"] + t["e"]))) if t["v"] + t["d"] + t["e"] else 1 / 3
     for t in T:
         t["omw"] = round(sum(mwp(T[o]) for o in t["opp"]) / len(t["opp"]), 4) if t["opp"] else 0
-        t["gwp"] = round(max(1 / 3, t["gw"] / (t["gw"] + t["gl"])), 4) if t["gw"] + t["gl"] else 0
+        ng = t["gw"] + t["gl"] + t["gd"]  # MTR: 3 pontos por jogo ganho, 1 por empate
+        t["gwp"] = round(max(1 / 3, (3 * t["gw"] + t["gd"]) / (3 * ng)), 4) if ng else 0
     key = (lambda t: (-t["pts"], -t["v"], t["i"])) if st["type"] == "mesas" else \
         (lambda t: (-t["pts"], -t["omw"], -t["gwp"], t["i"]))
     if st["type"] == "rei":  # a série mais longa, depois vitórias, depois menos derrotas
@@ -751,7 +754,7 @@ def create(owner, d):
             if cmd and not deck.get("commanders"):
                 raise ValueError(f"«{deck.get('name')}»: falta o comandante.")
             name = str(deck.get("name") or "Deck")[:120]
-            same = sum(1 for p in players if p["name"].split(" (")[0] == name)
+            same = sum(1 for p in players if re.sub(r" \(\d+\)$", "", p["name"]) == name)  # só o sufixo « (n)» posto aqui
             players.append({"name": f"{name} ({same + 1})" if same else name, "src": src, "ref": ref,
                             "difficulty": x.get("difficulty") if x.get("difficulty") in diffs else "default",
                             "format": str(deck.get("format") or (ref.split("-")[0] if src == "meta" else fmt)).lower()[:40]
@@ -794,6 +797,8 @@ def create(owner, d):
             base = {"suico": math.ceil(math.log2(n)), "mesas": 3, "rei": 3 * (n - 1)}[t]
             try:
                 rounds = max(n - 1 if t == "rei" else 1, min(REI_MAX if t == "rei" else base + 3, int(d.get("rounds") or base)))  # rei: todos jogam pelo menos uma vez
+                if t == "suico":  # mais rondas que isto obriga a repetir adversários (ou a dar 2 isenções)
+                    rounds = min(rounds, n - 1 if n % 2 == 0 else n)
             except (TypeError, ValueError):
                 rounds = base
         me = next((i for i, p in enumerate(players) if p.pop("me", None)), None)
@@ -918,9 +923,14 @@ KIND_W = {"grupos": 1.3, "dupla": 1.25, "suico": 1.2, "liga": 1.15, "elim": 1, "
 PERF_K = 10  # desempenho: puxado para a média do campo como se o deck tivesse mais 10 torneios exatamente na média
 
 
+def n_real(st):
+    """Partidas a sério (sem isenções nem as que não se jogaram): a duração do torneio no valor dos troféus."""
+    return sum(1 for m in st["matches"] if not m.get("bye") and not m.get("skip"))
+
+
 def trophy_w(typ, st):
     """Peso do torneio (tudo menos os pontos do lugar): tipo × jogadores × duração × azul × liga dos pódios."""
-    n, m = st["n"], len(st["matches"])
+    n, m = st["n"], n_real(st)
     typical = {"rei": 3 * (n - 1), "suico": math.ceil(math.log2(n)) * (n // 2), "mesas": 3 * math.ceil(n / 4)}.get(typ) if n > 1 else None
     return (KIND_W.get(typ, 1) * min(1.6, max(0.6, math.sqrt(n / 8))) * (min(1.5, max(0.5, math.sqrt(m / typical))) if typical and m else 1)
             * (1 if ranked(st) else 0.5) * (0.6 if st.get("podiums") and not st.get("champions") else 1))
@@ -960,7 +970,7 @@ def trophies(con, owner):
                 continue
             same = round(sims[x["i"]], 3)
             out.setdefault(x["ref"], []).append({
-                "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "m": len(st["matches"]), "casual": not ranked(st),
+                "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "m": n_real(st), "casual": not ranked(st),
                 "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")), "podiums": bool(st.get("podiums")), "friends": bool(st.get("friends")),
                 "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
                 "first": [y["name"] for y in pod if y["place"] == 1 and y["i"] != x["i"]],
@@ -971,6 +981,14 @@ def trophies(con, owner):
         out["_perf"] = {k: {"k": n, "q": round((a + PERF_K * e / n) / (e + PERF_K * e / n), 3), **({"rec": r} if r else {})}
                         for k, (n, a, e, r) in acc.items() if e}
     return out
+
+
+@contextlib.contextmanager
+def locked(con):
+    """O LOCK com o commit lá dentro: o step() (que também o segura) nunca lê um estado por gravar e o escreve por cima."""
+    with LOCK:
+        yield
+        con.commit()
 
 
 def route(method, path, owner, body=None, bettor=None):
@@ -1055,7 +1073,7 @@ def route(method, path, owner, body=None, bettor=None):
             return 200, g
         if method == "POST" and len(parts) == 2 and parts[1] in ("ready", "open", "result"):  # torneio de mesa livre
             who = "host" if bettor == owner else bettor
-            with LOCK:
+            with locked(con):
                 st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
                 m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
                 kind = m and how(st, m)
@@ -1089,7 +1107,7 @@ def route(method, path, owner, body=None, bettor=None):
                 return 200, {"match": m, "you": who}
         if method == "POST" and len(parts) == 2 and parts[1] == "play":  # o meu jogo seguinte no Forge Play {mid}
             who = "host" if bettor == owner else bettor
-            with LOCK:
+            with locked(con):
                 st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
                 m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
                 if not m or how(st, m) != "play" or m["st"] != "ready" or row[5] != "running" or not started(st):
@@ -1118,7 +1136,7 @@ def route(method, path, owner, body=None, bettor=None):
         if method == "POST" and len(parts) == 2 and parts[1] == "bot":  # quem aloja: esta partida joga-a o bot {mid}
             if bettor != owner:
                 return 403, {"erro": "Só quem aloja pode fazer isto."}
-            with LOCK:
+            with locked(con):
                 st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
                 m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
                 if not m or m["st"] != "ready" or how(st, m) == "forge":
@@ -1129,7 +1147,7 @@ def route(method, path, owner, body=None, bettor=None):
         if method == "GET" and len(parts) == 2 and parts[1] == "bets":
             return 200, bets_view(con, bettor, tid, row[5], json.loads(row[8]))
         if method == "POST" and len(parts) == 2 and parts[1] == "bets":
-            with LOCK:  # o step() também segura o LOCK: a janela não fecha a meio da aposta
+            with locked(con):  # o step() também segura o LOCK: a janela não fecha a meio da aposta
                 status, state = con.execute("SELECT status, state FROM tournaments WHERE id=?", (tid,)).fetchone()
                 try:
                     place(con, bettor, tid, status, json.loads(state), body or {})
@@ -1137,15 +1155,16 @@ def route(method, path, owner, body=None, bettor=None):
                     return 400, {"erro": str(e)}
             return 201, bets_view(con, bettor, tid, status, json.loads(state))
         if method == "DELETE" and len(parts) == 1:  # só este torneio, pelo id
-            settle(con, tid, json.loads(row[8]), cancelled=True)
-            stop(con, tid, row[8])
-            import backup  # marca de apagado: os outros aparelhos também o apagam (e repõe-se em Definições › Dados durante 30 dias)
-            backup.tomb(con, "tournament", tid, owner, data=backup.deleted_tournament(con, tid))
-            con.execute("DELETE FROM tournament_games WHERE tid=?", (tid,))
-            con.execute("DELETE FROM tournaments WHERE id=? AND owner=?", (tid, owner))
+            with locked(con):
+                settle(con, tid, json.loads(row[8]), cancelled=True)
+                stop(con, tid, row[8])
+                import backup  # marca de apagado: os outros aparelhos também o apagam (e repõe-se em Definições › Dados durante 30 dias)
+                backup.tomb(con, "tournament", tid, owner, data=backup.deleted_tournament(con, tid))
+                con.execute("DELETE FROM tournament_games WHERE tid=?", (tid,))
+                con.execute("DELETE FROM tournaments WHERE id=? AND owner=?", (tid, owner))
             return 200, {"ok": True}
         if method == "POST" and len(parts) == 2 and parts[1] == "start":  # «Começar» / «Começar já»
-            with LOCK:
+            with locked(con):
                 row = con.execute("SELECT status, state FROM tournaments WHERE id=?", (tid,)).fetchone()
                 st = json.loads(row[1])
                 st.pop("hold", None)
@@ -1153,7 +1172,7 @@ def route(method, path, owner, body=None, bettor=None):
                 con.execute("UPDATE tournaments SET state=? WHERE id=?", (json.dumps(st, ensure_ascii=False), tid))
             return 200, {"status": row[0]}
         if method == "POST" and len(parts) == 2 and parts[1] in ("pause", "resume", "cancel"):
-            with LOCK:
+            with locked(con):
                 status = con.execute("SELECT status FROM tournaments WHERE id=?", (tid,)).fetchone()[0]
                 if status in ("done", "cancelled"):
                     return 409, {"erro": "Este torneio já acabou."}
@@ -1263,13 +1282,14 @@ def match_open(m, status):  # até o 1.º jogo começar (no Forge, no Forge Play
 
 def odds_of(con, tid, st, status):
     sig = (tid, status, tuple((m["st"], bool(m.get("job") or m.get("play") or m.get("table")), len(m["g"])) for m in st["matches"]))
-    if sig not in _ODDS:
+    o = _ODDS.get(sig)  # outro pedido pode limpar a cache entre o teste e a leitura: lê-se uma vez só
+    if o is None:
         elo = elos(con, st)
         if len(_ODDS) > 64:
             _ODDS.clear()
-        _ODDS[sig] = {"champ": [to_odds(p) if p > 0 else None for p in champ_probs(st, elo)] if champ_open(st, status) else None,  # None = já não pode ganhar
-                      "match": {m["id"]: [to_odds(p) for p in win_probs(m, elo)] for m in st["matches"] if match_open(m, status)}}
-    return _ODDS[sig]
+        o = _ODDS[sig] = {"champ": [to_odds(p) if p > 0 else None for p in champ_probs(st, elo)] if champ_open(st, status) else None,  # None = já não pode ganhar
+                          "match": {m["id"]: [to_odds(p) for p in win_probs(m, elo)] for m in st["matches"] if match_open(m, status)}}
+    return o
 
 
 def place(con, owner, tid, status, st, d):
@@ -2106,6 +2126,10 @@ def selfcheck():
     m = {**M("R1-1", "R", 1, [0, 1]), "seats": [0, 1]}
     record({"bo": 3, "type": "liga"}, m, {"winner": "a", "human": True}, 1)
     assert m["g"][0]["h"] == 1  # jogo das pessoas: marcado (rate() deixa-o de fora)
+    m = {**M("R1-1", "R", 1, [0, 1]), "st": "done", "g": [{"w": 0}, {"w": None}, {"w": None, "x": 1}], "w": [1, 0]}  # GW% da MTR: o empate vale 1
+    assert [t["gwp"] for t in sorted(standings({"type": "liga", "n": 2, "matches": [m]}), key=lambda t: t["i"])] == [0.6667, 0.3333]
+    m.update(g=[{"w": None}] * 2, w=[0, 0])
+    assert [t["gwp"] for t in standings({"type": "liga", "n": 2, "matches": [m]})] == [0.3333] * 2  # só empates: não é 0
     # jogo avulso (salas fora de torneio): 2 decks = uma partida Bo-N, 3 = uma mesa; tipo «jogo», sem troféus
     import tempfile
     global DB, DATA
@@ -2114,10 +2138,15 @@ def selfcheck():
         DB, DATA = os.path.join(tmp, "g.db"), tmp
         with db() as c:
             c.execute("CREATE TABLE IF NOT EXISTS decks (id TEXT PRIMARY KEY, name TEXT, format TEXT, body TEXT, updated REAL, owner TEXT, deleted REAL)")
-            for k in "abc":
-                c.execute("INSERT INTO decks VALUES (?,?,?,?,?,?,NULL)", (k, k, "modern", json.dumps({"name": f"D{k}", "format": "modern", "main": {"Island": 60}}), 0, "o"))
+            for k in "abce":
+                c.execute("INSERT INTO decks VALUES (?,?,?,?,?,?,NULL)", (k, k, "modern", json.dumps({"name": "X (Y)" if k == "e" else f"D{k}", "format": "modern", "main": {"Island": 60}}), 0, "o"))
         t2 = create("o", {"type": "jogo", "format": "modern", "bo": 3, "players": [{"src": "meus", "ref": "a"}, {"src": "meus", "ref": "b"}]})
         t3 = create("o", {"type": "jogo", "format": "modern", "players": [{"src": "meus", "ref": k} for k in "abc"]})
+        t4 = create("o", {"type": "suico", "format": "modern", "rounds": 9, "players": [{"src": "meus", "ref": k} for k in "eeab"]})
+        with db() as c:  # suíço de 4: no máximo 3 rondas (mais obrigava a repetir); nomes repetidos com « (» lá dentro
+            s4 = json.loads(c.execute("SELECT state FROM tournaments WHERE id=?", (t4,)).fetchone()[0])
+            assert s4["rounds"] == 3 and sorted(p["name"] for p in s4["players"]) == ["Da", "Db", "X (Y)", "X (Y) (2)"], s4["players"]
+            c.execute("DELETE FROM tournaments WHERE id=?", (t4,))
         with db() as c:
             r2, r3 = (c.execute("SELECT type, name, state FROM tournaments WHERE id=?", (t,)).fetchone() for t in (t2, t3))
             s2, s3 = json.loads(r2[2]), json.loads(r3[2])
@@ -2134,9 +2163,10 @@ def selfcheck():
             pf, e = trophies(c, "o")["_perf"], (100 + 40 + 15 + 15) * trophy_w("elim", st) / 4
             assert set(pf) == {"meus:a", "meus:b", "meta:m"} and pf["meus:a"]["k"] == 1 and pf["meus:a"]["rec"]["t4"][0] == 2 and "rec" in pf["meta:m"], pf
             assert pf["meus:a"]["q"] == round((100 * trophy_w("elim", st) + PERF_K * e) / ((1 + PERF_K) * e), 3) > 1 > pf["meus:b"]["q"] > pf["meta:m"]["q"]
-    assert round(100 * trophy_w("elim", {"n": 8, "matches": [0] * 7, "ranked": True})) == 100  # o mesmo que trophyValue no
-    assert round(100 * trophy_w("rei", {"n": 4, "matches": [0] * 3, "ranked": True})) == 33     # web/selfcheck.mjs
+    assert round(100 * trophy_w("elim", {"n": 8, "matches": [{}] * 7, "ranked": True})) == 100  # o mesmo que trophyValue no
+    assert round(100 * trophy_w("rei", {"n": 4, "matches": [{}] * 3, "ranked": True})) == 33     # web/selfcheck.mjs
     assert round(100 * trophy_w("elim", {"n": 8, "matches": [], "ranked": False})) == 50
+    assert trophy_w("suico", {"n": 5, "matches": [{}] * 4 + [{"bye": 1}] * 2, "ranked": True}) == trophy_w("suico", {"n": 5, "matches": [{}] * 4, "ranked": True})  # isenções não contam
     # sideboard da pessoa antes do jogo 2+ (side_pick): a mesma pilha de cartas, vale para o resto da partida
     st = build("elim", 2, bo=3)
     st.update(players=[{"name": "Eu", "src": "meus", "ref": "a"}, {"name": "Bot", "src": "meta", "ref": "m"}], play_me=True, me=0,
