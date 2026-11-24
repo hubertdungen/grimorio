@@ -918,9 +918,14 @@ KIND_W = {"grupos": 1.3, "dupla": 1.25, "suico": 1.2, "liga": 1.15, "elim": 1, "
 PERF_K = 10  # desempenho: puxado para a média do campo como se o deck tivesse mais 10 torneios exatamente na média
 
 
+def n_real(st):
+    """Partidas a sério (sem isenções nem as que não se jogaram): a duração do torneio no valor dos troféus."""
+    return sum(1 for m in st["matches"] if not m.get("bye") and not m.get("skip"))
+
+
 def trophy_w(typ, st):
     """Peso do torneio (tudo menos os pontos do lugar): tipo × jogadores × duração × azul × liga dos pódios."""
-    n, m = st["n"], len(st["matches"])
+    n, m = st["n"], n_real(st)
     typical = {"rei": 3 * (n - 1), "suico": math.ceil(math.log2(n)) * (n // 2), "mesas": 3 * math.ceil(n / 4)}.get(typ) if n > 1 else None
     return (KIND_W.get(typ, 1) * min(1.6, max(0.6, math.sqrt(n / 8))) * (min(1.5, max(0.5, math.sqrt(m / typical))) if typical and m else 1)
             * (1 if ranked(st) else 0.5) * (0.6 if st.get("podiums") and not st.get("champions") else 1))
@@ -960,7 +965,7 @@ def trophies(con, owner):
                 continue
             same = round(sims[x["i"]], 3)
             out.setdefault(x["ref"], []).append({
-                "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "m": len(st["matches"]), "casual": not ranked(st),
+                "tid": tid, "ts": ts, "name": name, "type": typ, "format": fmt, "n": st["n"], "m": n_real(st), "casual": not ranked(st),
                 "place": x["place"], "platinum": bool(st.get("champions")) and x["place"] == 1, "champions": bool(st.get("champions")), "podiums": bool(st.get("podiums")), "friends": bool(st.get("friends")),
                 "rec": [row.get("v", 0), row.get("d", 0), row.get("e", 0)],
                 "first": [y["name"] for y in pod if y["place"] == 1 and y["i"] != x["i"]],
@@ -2144,9 +2149,10 @@ def selfcheck():
             pf, e = trophies(c, "o")["_perf"], (100 + 40 + 15 + 15) * trophy_w("elim", st) / 4
             assert set(pf) == {"meus:a", "meus:b", "meta:m"} and pf["meus:a"]["k"] == 1 and pf["meus:a"]["rec"]["t4"][0] == 2 and "rec" in pf["meta:m"], pf
             assert pf["meus:a"]["q"] == round((100 * trophy_w("elim", st) + PERF_K * e) / ((1 + PERF_K) * e), 3) > 1 > pf["meus:b"]["q"] > pf["meta:m"]["q"]
-    assert round(100 * trophy_w("elim", {"n": 8, "matches": [0] * 7, "ranked": True})) == 100  # o mesmo que trophyValue no
-    assert round(100 * trophy_w("rei", {"n": 4, "matches": [0] * 3, "ranked": True})) == 33     # web/selfcheck.mjs
+    assert round(100 * trophy_w("elim", {"n": 8, "matches": [{}] * 7, "ranked": True})) == 100  # o mesmo que trophyValue no
+    assert round(100 * trophy_w("rei", {"n": 4, "matches": [{}] * 3, "ranked": True})) == 33     # web/selfcheck.mjs
     assert round(100 * trophy_w("elim", {"n": 8, "matches": [], "ranked": False})) == 50
+    assert trophy_w("suico", {"n": 5, "matches": [{}] * 4 + [{"bye": 1}] * 2, "ranked": True}) == trophy_w("suico", {"n": 5, "matches": [{}] * 4, "ranked": True})  # isenções não contam
     # sideboard da pessoa antes do jogo 2+ (side_pick): a mesma pilha de cartas, vale para o resto da partida
     st = build("elim", 2, bo=3)
     st.update(players=[{"name": "Eu", "src": "meus", "ref": "a"}, {"name": "Bot", "src": "meta", "ref": "m"}], play_me=True, me=0,
