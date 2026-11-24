@@ -315,7 +315,7 @@ by Wizards. Portions of the materials used are property of Wizards of the Coast.
 
 ## 许可证
 
-双重许可。Grimório 自身的代码采用 [PolyForm Noncommercial License 1.0.0](LICENSE)：可以为任何非商业目的免费使用、研究、修改和分享（个人使用、兴趣项目、俱乐部、学校、非营利组织）。出售或用它赚钱需要书面许可。[`build/forge/`](build/forge) 和 [`build/play/`](build/play) 中的 Forge 部分与 Forge 本身一样继续采用 [GPL-3.0](build/forge/LICENSE)。1.13.111 及之前的版本以 GPL-3.0 发布并保留该许可。详见 [NOTICE](NOTICE)。
+双重许可。Grimório 自身的代码采用 [PolyForm Noncommercial License 1.0.0](LICENSE)：可以为任何非商业目的免费使用、研究、修改和分享（个人使用、兴趣项目、俱乐部、学校、非营利组织）。出售或用它赚钱需要书面许可。[`build/forge/`](build/forge) 和 [`build/play/`](build/play) 中的 Forge 部分与 Forge 本身一样继续采用 [GPL-3.0](build/forge/LICENSE)。1.13.115 及之前的版本以 GPL-3.0 发布并保留该许可。详见 [NOTICE](NOTICE)。
 
 
 <p align="center"><a href="https://dlforge.dungenlabs.com"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/branding/dlforge-logo-negative.svg"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></picture></a></p>

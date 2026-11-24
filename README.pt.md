@@ -433,7 +433,7 @@ Não é aprovado/apoiado pela Wizards. Partes dos materiais utilizados são prop
 
 ## Licença
 
-Licença dupla. O código do próprio Grimório está sob a [PolyForm Noncommercial License 1.0.0](LICENSE): podes usá-lo, estudá-lo, alterá-lo e partilhá-lo de graça para qualquer fim não comercial (uso pessoal, projetos de hobby, clubes, escolas, associações). Vendê-lo ou usá-lo para ganhar dinheiro precisa de autorização escrita. As partes do Forge em [`build/forge/`](build/forge) e [`build/play/`](build/play) continuam sob a [GPL-3.0](build/forge/LICENSE), como o próprio Forge. As versões até à 1.13.111 saíram sob a GPL-3.0 e mantêm essa licença. Pormenores no [NOTICE](NOTICE).
+Licença dupla. O código do próprio Grimório está sob a [PolyForm Noncommercial License 1.0.0](LICENSE): podes usá-lo, estudá-lo, alterá-lo e partilhá-lo de graça para qualquer fim não comercial (uso pessoal, projetos de hobby, clubes, escolas, associações). Vendê-lo ou usá-lo para ganhar dinheiro precisa de autorização escrita. As partes do Forge em [`build/forge/`](build/forge) e [`build/play/`](build/play) continuam sob a [GPL-3.0](build/forge/LICENSE), como o próprio Forge. As versões até à 1.13.115 saíram sob a GPL-3.0 e mantêm essa licença. Pormenores no [NOTICE](NOTICE).
 
 
 <p align="center"><a href="https://dlforge.dungenlabs.com"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/branding/dlforge-logo-negative.svg"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></picture></a></p>
