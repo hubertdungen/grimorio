@@ -321,7 +321,7 @@ def balance_teams(fmts, elo, s, by_fmt=True, by_elo=True):
 
 
 def standings(st):
-    T = [{"i": i, "pts": 0, "v": 0, "d": 0, "e": 0, "gw": 0, "gl": 0, "opp": [], "bye": 0} for i in range(st["n"])]
+    T = [{"i": i, "pts": 0, "v": 0, "d": 0, "e": 0, "gw": 0, "gl": 0, "gd": 0, "opp": [], "bye": 0} for i in range(st["n"])]
     for m in st["matches"]:
         if m["st"] != "done" or m.get("skip"):
             continue
@@ -341,12 +341,14 @@ def standings(st):
                 T[m["win"]]["v"] += 1
                 T[m["win"]]["bye"] += 1
             continue
+        gd = sum(1 for x in m.get("g") or [] if x.get("w") is None and not x.get("x"))  # jogos empatados (os falhados não contam)
         for a, b in ((m["p"][0], m["p"][2]), (m["p"][1], m["p"][3])) if m["b"] == "T" else [m["p"]]:  # 2 contra 2: cada um conta como o par
             T[a]["opp"].append(b)
             T[b]["opp"].append(a)
             for k, x in enumerate((a, b)):
                 T[x]["gw"] += m["w"][k]
                 T[x]["gl"] += m["w"][1 - k]
+                T[x]["gd"] += gd
             if m["win"] is None:
                 for x in (a, b):
                     T[x]["pts"] += 1
@@ -359,7 +361,8 @@ def standings(st):
     mwp = lambda t: max(1 / 3, t["pts"] / (3 * (t["v"] + t["d"] + t["e"]))) if t["v"] + t["d"] + t["e"] else 1 / 3
     for t in T:
         t["omw"] = round(sum(mwp(T[o]) for o in t["opp"]) / len(t["opp"]), 4) if t["opp"] else 0
-        t["gwp"] = round(max(1 / 3, t["gw"] / (t["gw"] + t["gl"])), 4) if t["gw"] + t["gl"] else 0
+        ng = t["gw"] + t["gl"] + t["gd"]  # MTR: 3 pontos por jogo ganho, 1 por empate
+        t["gwp"] = round(max(1 / 3, (3 * t["gw"] + t["gd"]) / (3 * ng)), 4) if ng else 0
     key = (lambda t: (-t["pts"], -t["v"], t["i"])) if st["type"] == "mesas" else \
         (lambda t: (-t["pts"], -t["omw"], -t["gwp"], t["i"]))
     if st["type"] == "rei":  # a série mais longa, depois vitórias, depois menos derrotas
@@ -751,7 +754,7 @@ def create(owner, d):
             if cmd and not deck.get("commanders"):
                 raise ValueError(f"«{deck.get('name')}»: falta o comandante.")
             name = str(deck.get("name") or "Deck")[:120]
-            same = sum(1 for p in players if p["name"].split(" (")[0] == name)
+            same = sum(1 for p in players if re.sub(r" \(\d+\)$", "", p["name"]) == name)  # só o sufixo « (n)» posto aqui
             players.append({"name": f"{name} ({same + 1})" if same else name, "src": src, "ref": ref,
                             "difficulty": x.get("difficulty") if x.get("difficulty") in diffs else "default",
                             "format": str(deck.get("format") or (ref.split("-")[0] if src == "meta" else fmt)).lower()[:40]
@@ -794,6 +797,8 @@ def create(owner, d):
             base = {"suico": math.ceil(math.log2(n)), "mesas": 3, "rei": 3 * (n - 1)}[t]
             try:
                 rounds = max(n - 1 if t == "rei" else 1, min(REI_MAX if t == "rei" else base + 3, int(d.get("rounds") or base)))  # rei: todos jogam pelo menos uma vez
+                if t == "suico":  # mais rondas que isto obriga a repetir adversários (ou a dar 2 isenções)
+                    rounds = min(rounds, n - 1 if n % 2 == 0 else n)
             except (TypeError, ValueError):
                 rounds = base
         me = next((i for i, p in enumerate(players) if p.pop("me", None)), None)
@@ -2121,6 +2126,10 @@ def selfcheck():
     m = {**M("R1-1", "R", 1, [0, 1]), "seats": [0, 1]}
     record({"bo": 3, "type": "liga"}, m, {"winner": "a", "human": True}, 1)
     assert m["g"][0]["h"] == 1  # jogo das pessoas: marcado (rate() deixa-o de fora)
+    m = {**M("R1-1", "R", 1, [0, 1]), "st": "done", "g": [{"w": 0}, {"w": None}, {"w": None, "x": 1}], "w": [1, 0]}  # GW% da MTR: o empate vale 1
+    assert [t["gwp"] for t in sorted(standings({"type": "liga", "n": 2, "matches": [m]}), key=lambda t: t["i"])] == [0.6667, 0.3333]
+    m.update(g=[{"w": None}] * 2, w=[0, 0])
+    assert [t["gwp"] for t in standings({"type": "liga", "n": 2, "matches": [m]})] == [0.3333] * 2  # só empates: não é 0
     # jogo avulso (salas fora de torneio): 2 decks = uma partida Bo-N, 3 = uma mesa; tipo «jogo», sem troféus
     import tempfile
     global DB, DATA
@@ -2129,10 +2138,15 @@ def selfcheck():
         DB, DATA = os.path.join(tmp, "g.db"), tmp
         with db() as c:
             c.execute("CREATE TABLE IF NOT EXISTS decks (id TEXT PRIMARY KEY, name TEXT, format TEXT, body TEXT, updated REAL, owner TEXT, deleted REAL)")
-            for k in "abc":
-                c.execute("INSERT INTO decks VALUES (?,?,?,?,?,?,NULL)", (k, k, "modern", json.dumps({"name": f"D{k}", "format": "modern", "main": {"Island": 60}}), 0, "o"))
+            for k in "abce":
+                c.execute("INSERT INTO decks VALUES (?,?,?,?,?,?,NULL)", (k, k, "modern", json.dumps({"name": "X (Y)" if k == "e" else f"D{k}", "format": "modern", "main": {"Island": 60}}), 0, "o"))
         t2 = create("o", {"type": "jogo", "format": "modern", "bo": 3, "players": [{"src": "meus", "ref": "a"}, {"src": "meus", "ref": "b"}]})
         t3 = create("o", {"type": "jogo", "format": "modern", "players": [{"src": "meus", "ref": k} for k in "abc"]})
+        t4 = create("o", {"type": "suico", "format": "modern", "rounds": 9, "players": [{"src": "meus", "ref": k} for k in "eeab"]})
+        with db() as c:  # suíço de 4: no máximo 3 rondas (mais obrigava a repetir); nomes repetidos com « (» lá dentro
+            s4 = json.loads(c.execute("SELECT state FROM tournaments WHERE id=?", (t4,)).fetchone()[0])
+            assert s4["rounds"] == 3 and sorted(p["name"] for p in s4["players"]) == ["Da", "Db", "X (Y)", "X (Y) (2)"], s4["players"]
+            c.execute("DELETE FROM tournaments WHERE id=?", (t4,))
         with db() as c:
             r2, r3 = (c.execute("SELECT type, name, state FROM tournaments WHERE id=?", (t,)).fetchone() for t in (t2, t3))
             s2, s3 = json.loads(r2[2]), json.loads(r3[2])
