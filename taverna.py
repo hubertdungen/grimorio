@@ -758,6 +758,8 @@ def link_page(h, con, token, name, me=None, act=""):
                                 f"<form><p>{guests.t(L, 'tv_p')}</p><input name=nome maxlength=30 required placeholder='{html.escape(guests.t(L, 'name_ph'))}'"
                                 f" style='width:100%;box-sizing:border-box'><p><button class=go>{guests.t(L, 'tv_enter')}</button></p></form>"
                                 f"<div class=box><b>{guests.t(L, 'has_app')}</b><br><small>{guests.t(L, 'tv_app')}</small></div>", 200, L)
+        if guests.slow(("taverna-link", token)):  # cada nome é um amigo novo
+            return guests._page(h, f"<p>{guests.t(L, 'slow')}</p>", 429, L)
         fid, tok = secrets.token_hex(6), secrets.token_urlsafe(18)
         con.execute("INSERT INTO friends (id, owner, name, token, created, revoked) VALUES (?,?,?,?,?,NULL)", (fid, owner, f"{name} (taverna)", tok, time.time()))
         add_member(con, owner, f"guest:{fid}")
