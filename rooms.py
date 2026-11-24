@@ -106,10 +106,11 @@ def lobby(con, owner, p, who):
     """O que o lobby 3D mostra de um lugar: quantas cartas (a altura da caixa), as cores e a capa; a lista só se o dono
     deixar ver (ou se o deck é meu)."""
     d = (owner and seat_deck(con, owner, p)) or {}
-    main = d.get("main") or {}
-    out = {"n": sum(int(v) for v in main.values() if str(v).isdigit() or isinstance(v, int)), "cover": d.get("cover") or d.get("coverImg") or None}
+    main = {k: int(v) for k, v in d["main"].items() if type(v) is int or isinstance(v, str) and v.isascii() and v.isdigit()} \
+        if isinstance(d.get("main"), dict) else {}  # só quantidades a sério (um valor estranho num deck não parte a lista das salas)
+    out = {"n": sum(main.values()), "cover": d.get("cover") or d.get("coverImg") or None}
     if p.get("show") or p.get("by") == who:
-        out["list"] = {str(k): int(v) for k, v in list(main.items())[:120]}
+        out["list"] = {str(k): v for k, v in list(main.items())[:120]}
     return out
 
 

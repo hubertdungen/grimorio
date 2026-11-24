@@ -1230,7 +1230,8 @@ class H(BaseHTTPRequestHandler):
         return self.save(d, 200)
 
     def save(self, d, code):
-        if not isinstance(d, dict) or not isinstance(d.get("main", {}), dict):
+        ok = lambda x: isinstance(x, dict) and all(type(v) is int and 0 < v <= 250 for v in x.values())  # noqa: E731  (como guests.clean_deck)
+        if not isinstance(d, dict) or not ok(d.get("main", {})) or not ok(d.get("side") or {}):
             return self.json({"erro": "deck inválido"}, 400)
         d["updated"] = time.time()
         with db() as con:
@@ -1410,6 +1411,7 @@ def selfcheck():
         assert st == 201 and b["color"] == "#7c5cff" and b["id"] != "local"
         A, B = ck(sa), ck(sb)
         assert call("POST", "/api/decks", {"name": "Deck da Ana", "main": {"Forest": 1}}, A)[0] == 201
+        assert all(call("POST", "/api/decks", {"name": "x", **z}, A)[0] == 400 for z in ({"main": {"Forest": "x"}}, {"main": {"Forest": True}}, {"side": {"Forest": 251}}, {"main": []}))
         assert [d["name"] for d in call("GET", "/api/decks", cookie=A)[1]] == ["Deck da Ana"]
         assert call("GET", "/api/decks", cookie=B)[1] == []  # decks separados por perfil
         assert call("GET", "/api/me", cookie=B)[1] == {"user": "Rui"} and call("GET", "/api/me")[1] == {"user": None}
