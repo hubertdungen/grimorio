@@ -6,7 +6,7 @@ O GrimorioNet (build/forge/GrimorioNet.java) faz de «ecrã» do humano dentro d
 atual e as escolhas pendentes, e o browser lê por pedidos de espera longa (`since`) e manda comandos.
 A mesa estrita (pessoas entre si) continua 1 contra 1 a 4, sem Commander.
 """
-import json, os, subprocess, threading, time, uuid
+import json, os, shutil, subprocess, threading, time, uuid
 
 import sim
 
@@ -86,8 +86,9 @@ def _reader(sid, p):
                 print("playnet: ratings:", e, flush=True)
     with COND:
         s = S.get(sid)
-        keep = None
+        keep = jdir = None
         if s:
+            jdir = s.get("dir")
             s["ended"] = True
             s["seq"] += 1
             COND.notify_all()
@@ -101,6 +102,12 @@ def _reader(sid, p):
             ON_KEEP(*keep)
         except Exception as e:  # guardar a réplica não pode parar nada
             print("playnet: os meus jogos:", e, flush=True)
+    if jdir:  # o processo saiu: a pasta do jogo (decks, home do Forge, err.log) já não serve
+        try:
+            p.wait(timeout=30)
+        except Exception:
+            pass
+        shutil.rmtree(jdir, ignore_errors=True)
 
 
 SNAPS = 400  # fotografias do estado por jogo, no máximo (as do fim ficam: tira-se do meio)
@@ -127,8 +134,29 @@ def _snap(s, m):
 
 def _cleanup():
     with COND:
-        for sid in [k for k, s in S.items() if time.time() - s["ts"] > IDLE]:
-            _kill(S.pop(sid))
+        old = [S.pop(k) for k, s in list(S.items()) if time.time() - s["ts"] > IDLE]
+    for s in old:  # fora do cadeado: o docker kill demora
+        _kill(s)
+
+
+REAPER = []  # a thread que fecha os jogos parados (separador fechado a meio) sem esperar pelo próximo jogo
+
+
+def _reaper():
+    with COND:
+        if REAPER:
+            return
+        REAPER.append(threading.Thread(target=_reap, daemon=True))
+        REAPER[0].start()
+
+
+def _reap():
+    while True:
+        time.sleep(120)
+        try:
+            _cleanup()
+        except Exception as e:
+            print("playnet: limpeza:", e, flush=True)
 
 
 def _kill(s):
@@ -138,6 +166,12 @@ def _kill(s):
         pass
     if s.get("container"):
         subprocess.run(["docker", "kill", s["container"]], capture_output=True)
+    if s.get("dir"):  # depois de morto: a pasta do jogo vai-se
+        try:
+            s["p"].wait(timeout=10)
+        except Exception:
+            pass
+        shutil.rmtree(s["dir"], ignore_errors=True)
 
 
 KEYS = "abcdef"  # a = tu; b… = os bots, pela ordem dos lugares
@@ -151,6 +185,7 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None
     decks têm de trazer o seu."""
     sim.need_forge()
     _cleanup()
+    _reaper()
     opps = [(opp, difficulty)] + [(d, dif or difficulty) for d, dif in more or ()]
     if len(opps) > MAX_OPPS:
         raise ValueError(f"No máximo {MAX_OPPS} adversários na mesma mesa.")
@@ -175,10 +210,10 @@ def start(data_dir, owner, deck, opp, difficulty="default", name="Tu", rate=None
         args += ["ai", chooser if chooser in ("a", "b") and not extra else "-"]
     if multi:
         args += [",".join(["ffa"] * bool(extra) + ["cmd"] * cmd) or "-"]
-    sid, p, container = _spawn(data_dir, deck, opp, args, ai_b=True, extra=extra, gtype="Commander" if cmd else "Constructed")
+    sid, p, container, jdir = _spawn(data_dir, deck, opp, args, ai_b=True, extra=extra, gtype="Commander" if cmd else "Constructed")
     ks = list(nm)
     with COND:
-        S[sid] = {"owner": owner, "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
+        S[sid] = {"owner": owner, "p": p, "container": container, "dir": jdir, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
                   "ended": False, "winner": None, "ts": time.time(), "names": {"a": deck.get("name"), **{k: d.get("name") for k, (d, _) in zip(KEYS[1:], opps)}},
                   "players": nm, "rate": rate if len(ks) == 2 else None, "chooser": chooser in ("a", "b") and len(ks) == 2,  # jogo 2+ de uma série: sem moeda
                   "arts": {"a": sim.art_map(deck), **{k: sim.art_map(d) for k, (d, _) in zip(KEYS[1:], opps)}},  # a arte escolhida de cada carta (edição, imagem própria, básicos divididos)
@@ -193,6 +228,7 @@ def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, 
     mode (3–4 lugares): "ffa" todos contra todos ou "2hg" Two-Headed Giant (a+b contra c+d, só a 4). Devolve o id."""
     sim.need_forge()
     _cleanup()
+    _reaper()
     ks = [k for k in "abcd" if k in seats]
     if ks != list("abcd"[:len(ks)]) or not 2 <= len(ks) <= 4:
         raise ValueError("A mesa estrita leva de 2 a 4 jogadores.")
@@ -210,11 +246,11 @@ def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, 
         nm[k] = n0 if n0 not in nm.values() else f"{n0[:36]} ({'abcd'.index(k) + 1})"
     extra = [(k, decks[k], nm[k]) for k in ks[2:]]
     args = [nm["a"], "Default", nm["b"], "pvp", chooser if chooser in ks else "-"] + ([mode if mode in ("ffa", "2hg") else "ffa"] if extra else [])
-    sid, p, container = _spawn(data_dir, decks["a"], decks["b"], args, ai_b=False, extra=extra)
+    sid, p, container, jdir = _spawn(data_dir, decks["a"], decks["b"], args, ai_b=False, extra=extra)
     blank = lambda: {"state": None, "prompt": None, "asks": {}, "log": [], "since": time.time(), "last": 0}  # noqa: E731
     with COND:
         S[sid] = {"owner": seats["a"], "seats": {k: seats[k] for k in ks}, "pv": {k: blank() for k in ks}, "afk": afk, "clock": clock,
-                  "p": p, "container": container, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
+                  "p": p, "container": container, "dir": jdir, "seq": 0, "state": None, "prompt": None, "asks": {}, "log": [],
                   "ended": False, "winner": None, "ts": time.time(), "names": {k: decks[k].get("name") for k in ks},
                   "players": nm, "rate": None, "arts": {k: sim.art_map(decks[k]) for k in ks}, "chooser": chooser in ks,
                   **({"avs": {k: (avs or {}).get(k) for k in ks}} if any((avs or {}).values()) else {})}  # imagens de perfil (avatars.py)
@@ -223,7 +259,7 @@ def start_pvp(data_dir, seats, decks, names, afk=AFK, clock=None, chooser=None, 
 
 
 def _spawn(data_dir, deck, opp, args, ai_b, extra=(), gtype="Constructed"):
-    """Arranca o GrimorioNet (contentor no servidor, Java local nos pacotes) com os dois decks -> (sid, processo, contentor)."""
+    """Arranca o GrimorioNet (contentor no servidor, Java local nos pacotes) com os dois decks -> (sid, processo, contentor, pasta)."""
     fdir = sim.forge_dir(data_dir)
     ext = os.path.join(os.path.dirname(os.path.realpath(fdir)), "forge-ext")  # ao lado do Forge (o build.sh põe-no lá)
     if not os.path.isfile(os.path.join(ext, "GrimorioNet.class")):
@@ -257,7 +293,7 @@ def _spawn(data_dir, deck, opp, args, ai_b, extra=(), gtype="Constructed"):
         cmd += ["-v", f"{ext}:/ext:ro", sim.IMAGE, "java", *jvm, "-cp", f"/ext:{sim.FORGE_JAR}", "GrimorioNet",
                 "/run/a.dck", "/run/b.dck", *args, *(f"/run/{k}.dck|{n}" for k, _, n in extra)]
         p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=open(os.path.join(jdir, "err.log"), "wb"))
-    return sid, p, container
+    return sid, p, container, jdir
 
 
 def _get(sid, owner):
@@ -360,8 +396,11 @@ def finish(sid, owner):
         COND.notify_all()
         p = s["p"]
     if rate and ON_END:
-        ON_END(*rate)
-    _kill({"p": p, "container": s.get("container")})
+        try:
+            ON_END(*rate)
+        except Exception as e:  # um erro nos ratings não pode deixar o processo vivo
+            print("playnet: ratings:", e, flush=True)
+    _kill({"p": p, "container": s.get("container"), "dir": s.get("dir")})
 
 
 def stop(sid, owner):
@@ -387,6 +426,7 @@ def kill(sid):
 
 def running():
     """Jogos a decorrer (cada um ~1 GB): os torneios contam-nos como lugares do simulador."""
+    _cleanup()  # os parados há mais de IDLE já não contam
     with COND:
         return sum(1 for s in S.values() if not s["ended"])
 
