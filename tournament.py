@@ -32,7 +32,7 @@ rating casual, casual=True, e também os torneios sem decks meta: só azul e ver
 «O meu deck» (st.me): um dos participantes é «eu»; me_state diz onde está, se caiu e o lugar final. No fim fica o pódio
 (st.podium: lugares 1–3 de ranking(), com empates no 3.º sem jogo de 3.º lugar) para o registo e o hall da fama.
 """
-import itertools, json, math, os, random, re, sqlite3, sys, threading, time, uuid, zlib
+import contextlib, itertools, json, math, os, random, re, sqlite3, sys, threading, time, uuid, zlib
 from collections import Counter
 import avatars
 import freetable
@@ -973,6 +973,14 @@ def trophies(con, owner):
     return out
 
 
+@contextlib.contextmanager
+def locked(con):
+    """O LOCK com o commit lá dentro: o step() (que também o segura) nunca lê um estado por gravar e o escreve por cima."""
+    with LOCK:
+        yield
+        con.commit()
+
+
 def route(method, path, owner, body=None, bettor=None):
     """/api/tournaments… -> (código, objeto). `bettor`: de quem é a carteira das apostas (um convidado aposta com a sua)."""
     bettor = bettor or owner
@@ -1055,7 +1063,7 @@ def route(method, path, owner, body=None, bettor=None):
             return 200, g
         if method == "POST" and len(parts) == 2 and parts[1] in ("ready", "open", "result"):  # torneio de mesa livre
             who = "host" if bettor == owner else bettor
-            with LOCK:
+            with locked(con):
                 st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
                 m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
                 kind = m and how(st, m)
@@ -1089,7 +1097,7 @@ def route(method, path, owner, body=None, bettor=None):
                 return 200, {"match": m, "you": who}
         if method == "POST" and len(parts) == 2 and parts[1] == "play":  # o meu jogo seguinte no Forge Play {mid}
             who = "host" if bettor == owner else bettor
-            with LOCK:
+            with locked(con):
                 st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
                 m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
                 if not m or how(st, m) != "play" or m["st"] != "ready" or row[5] != "running" or not started(st):
@@ -1118,7 +1126,7 @@ def route(method, path, owner, body=None, bettor=None):
         if method == "POST" and len(parts) == 2 and parts[1] == "bot":  # quem aloja: esta partida joga-a o bot {mid}
             if bettor != owner:
                 return 403, {"erro": "Só quem aloja pode fazer isto."}
-            with LOCK:
+            with locked(con):
                 st = json.loads(con.execute("SELECT state FROM tournaments WHERE id=?", (tid,)).fetchone()[0])
                 m = next((x for x in st["matches"] if x["id"] == str((body or {}).get("mid"))), None)
                 if not m or m["st"] != "ready" or how(st, m) == "forge":
@@ -1129,7 +1137,7 @@ def route(method, path, owner, body=None, bettor=None):
         if method == "GET" and len(parts) == 2 and parts[1] == "bets":
             return 200, bets_view(con, bettor, tid, row[5], json.loads(row[8]))
         if method == "POST" and len(parts) == 2 and parts[1] == "bets":
-            with LOCK:  # o step() também segura o LOCK: a janela não fecha a meio da aposta
+            with locked(con):  # o step() também segura o LOCK: a janela não fecha a meio da aposta
                 status, state = con.execute("SELECT status, state FROM tournaments WHERE id=?", (tid,)).fetchone()
                 try:
                     place(con, bettor, tid, status, json.loads(state), body or {})
@@ -1137,15 +1145,16 @@ def route(method, path, owner, body=None, bettor=None):
                     return 400, {"erro": str(e)}
             return 201, bets_view(con, bettor, tid, status, json.loads(state))
         if method == "DELETE" and len(parts) == 1:  # só este torneio, pelo id
-            settle(con, tid, json.loads(row[8]), cancelled=True)
-            stop(con, tid, row[8])
-            import backup  # marca de apagado: os outros aparelhos também o apagam (e repõe-se em Definições › Dados durante 30 dias)
-            backup.tomb(con, "tournament", tid, owner, data=backup.deleted_tournament(con, tid))
-            con.execute("DELETE FROM tournament_games WHERE tid=?", (tid,))
-            con.execute("DELETE FROM tournaments WHERE id=? AND owner=?", (tid, owner))
+            with locked(con):
+                settle(con, tid, json.loads(row[8]), cancelled=True)
+                stop(con, tid, row[8])
+                import backup  # marca de apagado: os outros aparelhos também o apagam (e repõe-se em Definições › Dados durante 30 dias)
+                backup.tomb(con, "tournament", tid, owner, data=backup.deleted_tournament(con, tid))
+                con.execute("DELETE FROM tournament_games WHERE tid=?", (tid,))
+                con.execute("DELETE FROM tournaments WHERE id=? AND owner=?", (tid, owner))
             return 200, {"ok": True}
         if method == "POST" and len(parts) == 2 and parts[1] == "start":  # «Começar» / «Começar já»
-            with LOCK:
+            with locked(con):
                 row = con.execute("SELECT status, state FROM tournaments WHERE id=?", (tid,)).fetchone()
                 st = json.loads(row[1])
                 st.pop("hold", None)
@@ -1153,7 +1162,7 @@ def route(method, path, owner, body=None, bettor=None):
                 con.execute("UPDATE tournaments SET state=? WHERE id=?", (json.dumps(st, ensure_ascii=False), tid))
             return 200, {"status": row[0]}
         if method == "POST" and len(parts) == 2 and parts[1] in ("pause", "resume", "cancel"):
-            with LOCK:
+            with locked(con):
                 status = con.execute("SELECT status FROM tournaments WHERE id=?", (tid,)).fetchone()[0]
                 if status in ("done", "cancelled"):
                     return 409, {"erro": "Este torneio já acabou."}
@@ -1263,13 +1272,14 @@ def match_open(m, status):  # até o 1.º jogo começar (no Forge, no Forge Play
 
 def odds_of(con, tid, st, status):
     sig = (tid, status, tuple((m["st"], bool(m.get("job") or m.get("play") or m.get("table")), len(m["g"])) for m in st["matches"]))
-    if sig not in _ODDS:
+    o = _ODDS.get(sig)  # outro pedido pode limpar a cache entre o teste e a leitura: lê-se uma vez só
+    if o is None:
         elo = elos(con, st)
         if len(_ODDS) > 64:
             _ODDS.clear()
-        _ODDS[sig] = {"champ": [to_odds(p) if p > 0 else None for p in champ_probs(st, elo)] if champ_open(st, status) else None,  # None = já não pode ganhar
-                      "match": {m["id"]: [to_odds(p) for p in win_probs(m, elo)] for m in st["matches"] if match_open(m, status)}}
-    return _ODDS[sig]
+        o = _ODDS[sig] = {"champ": [to_odds(p) if p > 0 else None for p in champ_probs(st, elo)] if champ_open(st, status) else None,  # None = já não pode ganhar
+                          "match": {m["id"]: [to_odds(p) for p in win_probs(m, elo)] for m in st["matches"] if match_open(m, status)}}
+    return o
 
 
 def place(con, owner, tid, status, st, d):
