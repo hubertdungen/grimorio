@@ -755,11 +755,14 @@ class H(BaseHTTPRequestHandler):
             with db() as con:
                 r = con.execute("SELECT body FROM decks WHERE id=? AND owner=?", (did, self.owner())).fetchone()
                 return self.json(with_rated(con, did, json.loads(r[0]))) if r else self.json({"erro": "deck não existe"}, 404)
+        root = os.path.realpath(DIST)
+        f = os.path.realpath(os.path.join(root, p.lstrip("/")))
+        if f != root and not f.startswith(root + os.sep):  # só ficheiros dentro de web/dist
+            return self.send(404, b"nao existe", "text/plain")
         if p.startswith("/assets/"):
-            return self.file(os.path.join(DIST, p.lstrip("/")), "public, max-age=31536000, immutable")
-        rel = p.lstrip("/")
-        if rel and os.path.isfile(os.path.join(DIST, rel)):
-            return self.file(os.path.join(DIST, rel), "no-cache")
+            return self.file(f, "public, max-age=31536000, immutable")
+        if p.lstrip("/") and os.path.isfile(f):
+            return self.file(f, "no-cache")
         return self.file(os.path.join(DIST, "index.html"), "no-cache")
 
     def l17(self, what):
