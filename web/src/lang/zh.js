@@ -1330,6 +1330,7 @@ export default {
   "Jogo inválido.": "对局无效。",
   "Jogos e relógio têm de ser números.": "局数和计时必须是数字。",
   "Modo de jogo desconhecido.": "未知对局模式。",
+  "A IA demorou demasiado a responder; tenta outra vez ou escolhe um modelo mais rápido.": "AI 响应时间过长；请重试或选择更快的模型。",
   "Não consegui ligar ao fornecedor de IA.": "无法连接到 AI 提供商。",
   "não existe": "不存在",
   "Número de jogos tem de estar entre 1 e 10.": "局数必须在 1 到 10 之间。",

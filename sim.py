@@ -237,6 +237,8 @@ ID = re.compile(r" \((\d+)\)$")  # só no fim: "Goblin Guide (10)"
 ITEMS = re.compile(r"(.+?) \((\d+)\)(?:, | and |$)")
 REF = re.compile(r"([A-Z][^()\[\]]*?) \((\d+)\)")  # "Elvish Mystic (67)" dentro de um texto
 NOISE = re.compile(r"^\s*at |Exception|^\s*\.\.\. \d+ more|^Caused by|Did not have activator set")
+JUNK = re.compile(r"^\s*at |^\s*\.\.\. \d+ more|Did not have activator set")  # ruído que nem o parse_game nem a deteção de falhas leem
+OUT_MAX = 5_000_000  # caracteres do registo de um trabalho: acima disto o Forge está em ciclo e para-se
 PHASE = {"Untap step": "untap", "Upkeep step": "upkeep", "Draw step": "draw", "Main phase, precombat": "main1",
          "Main phase, postcombat": "main2", "End step": "end", "Cleanup step": "end"}  # o resto são passos de combate
 NUM = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
@@ -1072,6 +1074,7 @@ def cancel(jid):
             j.update(status="error", error="Cancelado.")
             shutil.rmtree(j["_args"]["dir"], ignore_errors=True)
             return
+        j["cancel"] = True  # ainda sem processo (a arrancar): o _play vê-o e não joga
         p = PROCS.get(jid)
     if RUNTIME == "docker":
         subprocess.run(["docker", "kill", PREFIX + jid], capture_output=True)
@@ -1123,11 +1126,16 @@ def worker(data_dir):
 
 def run_job(jid, job):
     try:
-        job["games"] = redo_crashed(jid, job["_args"], run_forge(jid, job["_args"]))
-        job["status"] = "done"
+        games = redo_crashed(jid, job["_args"], run_forge(jid, job["_args"]))
+        with LOCK:
+            if job.get("cancel"):
+                job.update(status="error", error="Cancelado.")
+            else:
+                job.update(games=games, status="done")
     except Exception as e:
-        job["error"] = str(e) if isinstance(e, RuntimeError) else "Falha inesperada no simulador."
-        job["status"] = "error"
+        with LOCK:
+            job["error"] = "Cancelado." if job.get("cancel") else str(e) if isinstance(e, RuntimeError) else "Falha inesperada no simulador."
+            job["status"] = "error"
         print(f"[sim {jid}] {e!r}", file=sys.stderr, flush=True)
     finally:
         shutil.rmtree(job["_args"]["dir"], ignore_errors=True)
@@ -1299,6 +1307,8 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
     timeout = a["clock"] * a["games"] + TIMEOUT_PAD
     home = os.path.join(a["dir"], "home")  # Windows: o Forge guarda o perfil em %APPDATA%\Forge -> um por trabalho
     env = None if container else {**os.environ, "APPDATA": home, "LOCALAPPDATA": home}
+    if (JOBS.get(jid) or {}).get("cancel"):
+        raise RuntimeError("Cancelado.")
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
                              errors="replace", cwd=None if container else a["forge"], env=env)
@@ -1306,7 +1316,6 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
         raise RuntimeError(f"Não consegui arrancar o Forge ({cmd[0]}): {e.strerror or e}. "
                            + ("Instala o Docker ou usa GRIMORIO_RUNTIME=local." if container else
                               "Instala o Java 17 ou indica-o em GRIMORIO_JAVA."))
-    PROCS[jid] = p
     killed = []
 
     def kill():
@@ -1314,21 +1323,39 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
         if container:
             subprocess.run(["docker", "kill", container], capture_output=True)
         p.kill()
+    with LOCK:
+        PROCS[jid] = p
+        stop = (JOBS.get(jid) or {}).get("cancel")
+    if stop:  # cancelado entre o arranque e aqui: o cancel() não tinha processo para matar
+        kill()
+        p.wait()
+        PROCS.pop(jid, None)
+        raise RuntimeError("Cancelado.")
     watchdog = threading.Timer(timeout, kill)
     watchdog.start()
     # Lê a saída à medida que o Forge joga: o jogo em curso fica em job["live"] para o browser ver ao vivo.
-    buf, last = [], 0.0
+    buf, last, size, big = [], 0.0, 0, []
     try:
         for line in p.stdout:
+            if JUNK.search(line) and not line.startswith(("GRIMORIO|", "Game Result:")):
+                continue
             buf.append(line.rstrip("\n"))
+            size += len(line)
+            if size > OUT_MAX and not big:
+                big.append(1)
+                kill()
             if line.startswith("Game Result:") or time.time() - last > 0.5:
                 last = time.time()
                 publish_live(jid, buf, a)
+                if not killed and (JOBS.get(jid) or {}).get("cancel"):  # docker: cancelado antes de o contentor existir
+                    kill()
         p.wait()
     finally:
         watchdog.cancel()
         PROCS.pop(jid, None)
     out = "\n".join(buf)
+    if big:
+        raise RuntimeError("O Forge escreveu demais (registo acima de %d MB) e foi parado." % (OUT_MAX // 1_000_000))
     if killed:
         raise RuntimeError(f"O Forge não terminou em {timeout} s e foi parado.")
     if "Could not load deck" in out:
@@ -1376,10 +1403,11 @@ def parse_mtgo(text):
         if line.lower().startswith("sideboard"):
             cur = side
             continue
-        m = re.match(r"(?:SB:\s*)?(\d+)x?\s+(.+)", line)
+        m = re.match(r"(SB:\s*)?(\d+)x?\s+(.+)", line)
         if m:
-            n = re.sub(r"\s*/{1,2}\s*", " // ", m.group(2).strip())
-            cur[n] = cur.get(n, 0) + int(m.group(1))
+            n = re.sub(r"\s*/{1,2}\s*", " // ", m.group(3).strip())
+            to = side if m.group(1) else cur  # «SB: 2 Duress» é do sideboard mesmo sem o título
+            to[n] = to.get(n, 0) + int(m.group(2))
     return main, side
 
 

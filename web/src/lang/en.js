@@ -1336,6 +1336,7 @@ export default {
   "Jogo inválido.": "Invalid game.",
   "Jogos e relógio têm de ser números.": "Games and clock must be numbers.",
   "Modo de jogo desconhecido.": "Unknown game mode.",
+  "A IA demorou demasiado a responder; tenta outra vez ou escolhe um modelo mais rápido.": "The AI took too long to answer; try again or pick a faster model.",
   "Não consegui ligar ao fornecedor de IA.": "Couldn't connect to the AI provider.",
   "não existe": "doesn't exist",
   "Número de jogos tem de estar entre 1 e 10.": "Number of games must be between 1 and 10.",

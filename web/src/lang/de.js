@@ -1330,6 +1330,7 @@ export default {
   "Jogo inválido.": "Ungültiges Spiel.",
   "Jogos e relógio têm de ser números.": "Spiele und Uhr müssen Zahlen sein.",
   "Modo de jogo desconhecido.": "Unbekannter Spielmodus.",
+  "A IA demorou demasiado a responder; tenta outra vez ou escolhe um modelo mais rápido.": "Die KI hat zu lange für die Antwort gebraucht; versuch es erneut oder wähle ein schnelleres Modell.",
   "Não consegui ligar ao fornecedor de IA.": "Keine Verbindung zum KI-Anbieter möglich.",
   "não existe": "existiert nicht",
   "Número de jogos tem de estar entre 1 e 10.": "Die Anzahl der Spiele muss zwischen 1 und 10 liegen.",

@@ -1330,6 +1330,7 @@ export default {
   "Jogo inválido.": "Partida no válida.",
   "Jogos e relógio têm de ser números.": "Partidas y reloj deben ser números.",
   "Modo de jogo desconhecido.": "Modo de juego desconocido.",
+  "A IA demorou demasiado a responder; tenta outra vez ou escolhe um modelo mais rápido.": "La IA ha tardado demasiado en responder; inténtalo de nuevo o elige un modelo más rápido.",
   "Não consegui ligar ao fornecedor de IA.": "No he podido conectar con el proveedor de IA.",
   "não existe": "no existe",
   "Número de jogos tem de estar entre 1 e 10.": "El número de partidas debe estar entre 1 y 10.",

@@ -917,7 +917,8 @@ def apply(t, me, d):
         seat["out"] = True
         _log(t, me, "concede")
         left = [i for i, s2 in enumerate(t["seats"]) if not s2["out"]]
-        if len(t["seats"]) > 1 and len(left) == 1:  # desistir = perder: sobra um, ganhou
+        tm = t.get("teams")
+        if len(t["seats"]) > 1 and len({tm[i] if tm else i for i in left}) == 1:  # desistir = perder: sobra um (2HG: uma equipa), ganhou
             _decide(t, left[0])
     elif c0 in ("result", "agree", "dispute"):  # resultado combinado entre os jogadores (ou marcado por quem aloja)
         if len(t["seats"]) < 2:

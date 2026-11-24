@@ -80,9 +80,9 @@ def _site_of(host):
 
 class _SameSite(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        u = urllib.parse.urlparse(urllib.parse.urljoin(req.full_url, newurl))
-        if u.scheme != "https" or u.hostname not in FETCH_HOSTS or \
-                _site_of(u.hostname) != _site_of(urllib.parse.urlparse(req.full_url).hostname):
+        u, old = urllib.parse.urlparse(urllib.parse.urljoin(req.full_url, newurl)), urllib.parse.urlparse(req.full_url).hostname
+        site = _site_of(u.hostname)  # None nos hosts de API (api2.moxfield.com…): aí só o mesmo host
+        if u.scheme != "https" or u.hostname not in FETCH_HOSTS or (u.hostname != old and (site is None or site != _site_of(old))):
             raise UpstreamError("O site redireccionou para um endereço não permitido.")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 

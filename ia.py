@@ -223,7 +223,7 @@ def _user_prompt(payload):
     return "\n\n".join(parts)
 
 
-def _complete(data_dir, provider, system, user, schema, max_tokens=16000, timeout=120):
+def _complete(data_dir, provider, system, user, schema, max_tokens=16000, timeout=600):  # 16k tokens sem streaming (modelos que raciocinam, decks grandes) passam dos 2 min
     """Uma resposta do fornecedor ativo (ou de outro com chave): (texto, «fornecedor · modelo»). Erros em pt-PT."""
     c = load(data_dir)
     name = provider if provider in PROVIDERS else c.get("active")  # pode pedir-se a outro fornecedor com chave
@@ -260,7 +260,9 @@ def _complete(data_dir, provider, system, user, schema, max_tokens=16000, timeou
         msg = {401: "Chave inválida.", 403: "A chave não tem acesso a este modelo.", 404: "Modelo não encontrado neste fornecedor.",
                429: "Limite do plano atingido; tenta daqui a pouco."}.get(e.code, f"O fornecedor respondeu com erro {e.code}.")
         raise RuntimeError(msg)
-    except (urllib.error.URLError, TimeoutError, OSError):
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        if isinstance(e, TimeoutError) or isinstance(getattr(e, "reason", None), TimeoutError):
+            raise RuntimeError("A IA demorou demasiado a responder; tenta outra vez ou escolhe um modelo mais rápido.")
         raise RuntimeError("Não consegui ligar ao fornecedor de IA.")
     except (KeyError, IndexError, TypeError):
         raise RuntimeError("A resposta da IA veio num formato inesperado.")
