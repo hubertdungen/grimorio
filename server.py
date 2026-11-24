@@ -248,17 +248,19 @@ def trash_days(owner):
         return 7
 
 
+JSON_LOCK = threading.Lock()  # ler, mudar e gravar trash.json e remote-keys.json: dois pedidos ao mesmo tempo não se pisam
+
+
 def set_trash_days(owner, days):
     f = os.path.join(ARGS.data_dir, "trash.json")
-    try:
-        with open(f, encoding="utf-8") as h:
-            d = json.load(h)
-    except (OSError, ValueError):
-        d = {}
-    d[owner] = days
-    with open(f + ".tmp", "w", encoding="utf-8") as h:
-        json.dump(d, h)
-    os.replace(f + ".tmp", f)
+    with JSON_LOCK:
+        try:
+            with open(f, encoding="utf-8") as h:
+                d = json.load(h)
+        except (OSError, ValueError):
+            d = {}
+        d[owner] = days
+        write_atomic(f, json.dumps(d).encode())
 
 
 def trash_expired(owner, deleted, now=None):
@@ -493,14 +495,15 @@ class H(BaseHTTPRequestHandler):
         decks = [json.loads(b) | {"id": i} for i, b in rows if not isinstance(want, list) or i in want]
         decks = [x for x in decks if not x.get("friend")][:80]
         kf = os.path.join(ARGS.data_dir, "remote-keys.json")
-        try:
-            with open(kf) as f:
-                keys = json.load(f)
-        except (OSError, ValueError):
-            keys = {}
-        if owner not in keys:
-            keys[owner] = secrets.token_urlsafe(32)
-            write_atomic(kf, json.dumps(keys).encode(), 0o600)  # a chave nunca fica legível por outros, nem por um instante
+        with JSON_LOCK:
+            try:
+                with open(kf) as f:
+                    keys = json.load(f)
+            except (OSError, ValueError):
+                keys = {}
+            if owner not in keys:
+                keys[owner] = secrets.token_urlsafe(32)
+                write_atomic(kf, json.dumps(keys).encode(), 0o600)  # a chave nunca fica legível por outros, nem por um instante
         name = ((self.profile() or {}).get("name") if self.mode() == "profiles" else owner) or owner
         with db() as con:
             av = avatars.export(con, avatars.owner_key(owner))  # a minha imagem vai também: lá fica uma cópia, validada
