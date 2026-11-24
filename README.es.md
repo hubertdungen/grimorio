@@ -445,7 +445,7 @@ Coast LLC.*
 
 ## Licencia
 
-Licencia doble. El código propio de Grimório está bajo la [PolyForm Noncommercial License 1.0.0](LICENSE): puedes usarlo, estudiarlo, modificarlo y compartirlo gratis para cualquier fin no comercial (uso personal, proyectos de hobby, clubes, escuelas, asociaciones). Venderlo o usarlo para ganar dinero requiere permiso por escrito. Las partes de Forge en [`build/forge/`](build/forge) y [`build/play/`](build/play) siguen bajo la [GPL-3.0](build/forge/LICENSE), como el propio Forge. Las versiones hasta la 1.13.111 se publicaron bajo la GPL-3.0 y la conservan. Detalles en [NOTICE](NOTICE).
+Licencia doble. El código propio de Grimório está bajo la [PolyForm Noncommercial License 1.0.0](LICENSE): puedes usarlo, estudiarlo, modificarlo y compartirlo gratis para cualquier fin no comercial (uso personal, proyectos de hobby, clubes, escuelas, asociaciones). Venderlo o usarlo para ganar dinero requiere permiso por escrito. Las partes de Forge en [`build/forge/`](build/forge) y [`build/play/`](build/play) siguen bajo la [GPL-3.0](build/forge/LICENSE), como el propio Forge. Las versiones hasta la 1.13.115 se publicaron bajo la GPL-3.0 y la conservan. Detalles en [NOTICE](NOTICE).
 
 
 <p align="center"><a href="https://dlforge.dungenlabs.com"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/branding/dlforge-logo-negative.svg"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></picture></a></p>

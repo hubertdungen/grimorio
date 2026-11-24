@@ -416,7 +416,7 @@ by Wizards. Portions of the materials used are property of Wizards of the Coast.
 
 ## License
 
-Dual license. Grimório's own code is under the [PolyForm Noncommercial License 1.0.0](LICENSE): free to use, study, change and share for any noncommercial purpose (personal use, hobby projects, clubs, schools, nonprofits). Selling it, or using it to make money, needs written permission. The Forge parts in [`build/forge/`](build/forge) and [`build/play/`](build/play) stay under the [GPL-3.0](build/forge/LICENSE), like Forge itself. Releases up to 1.13.111 were published under the GPL-3.0 and keep that license. Details in [NOTICE](NOTICE).
+Dual license. Grimório's own code is under the [PolyForm Noncommercial License 1.0.0](LICENSE): free to use, study, change and share for any noncommercial purpose (personal use, hobby projects, clubs, schools, nonprofits). Selling it, or using it to make money, needs written permission. The Forge parts in [`build/forge/`](build/forge) and [`build/play/`](build/play) stay under the [GPL-3.0](build/forge/LICENSE), like Forge itself. Releases up to 1.13.115 were published under the GPL-3.0 and keep that license. Details in [NOTICE](NOTICE).
 
 
 <p align="center"><a href="https://dlforge.dungenlabs.com"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/branding/dlforge-logo-negative.svg"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></picture></a></p>

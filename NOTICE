@@ -25,7 +25,7 @@ Grimório is dual licensed:
   GNU General Public License v3.0 (see build/forge/LICENSE). Grimório runs
   Forge as a separate program and talks to it over a local connection.
 
-Versions up to and including 1.13.111 were published under the GNU GPL v3.0
+Versions up to and including 1.13.115 were published under the GNU GPL v3.0
 and keep that licence. The dual licence applies from the next release on.
 
 The name "Grimório" and its logo, and the names and logos of DungenLabs and
