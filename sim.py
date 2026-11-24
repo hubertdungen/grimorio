@@ -237,6 +237,8 @@ ID = re.compile(r" \((\d+)\)$")  # só no fim: "Goblin Guide (10)"
 ITEMS = re.compile(r"(.+?) \((\d+)\)(?:, | and |$)")
 REF = re.compile(r"([A-Z][^()\[\]]*?) \((\d+)\)")  # "Elvish Mystic (67)" dentro de um texto
 NOISE = re.compile(r"^\s*at |Exception|^\s*\.\.\. \d+ more|^Caused by|Did not have activator set")
+JUNK = re.compile(r"^\s*at |^\s*\.\.\. \d+ more|Did not have activator set")  # ruído que nem o parse_game nem a deteção de falhas leem
+OUT_MAX = 5_000_000  # caracteres do registo de um trabalho: acima disto o Forge está em ciclo e para-se
 PHASE = {"Untap step": "untap", "Upkeep step": "upkeep", "Draw step": "draw", "Main phase, precombat": "main1",
          "Main phase, postcombat": "main2", "End step": "end", "Cleanup step": "end"}  # o resto são passos de combate
 NUM = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
@@ -1332,10 +1334,16 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
     watchdog = threading.Timer(timeout, kill)
     watchdog.start()
     # Lê a saída à medida que o Forge joga: o jogo em curso fica em job["live"] para o browser ver ao vivo.
-    buf, last = [], 0.0
+    buf, last, size, big = [], 0.0, 0, []
     try:
         for line in p.stdout:
+            if JUNK.search(line) and not line.startswith(("GRIMORIO|", "Game Result:")):
+                continue
             buf.append(line.rstrip("\n"))
+            size += len(line)
+            if size > OUT_MAX and not big:
+                big.append(1)
+                kill()
             if line.startswith("Game Result:") or time.time() - last > 0.5:
                 last = time.time()
                 publish_live(jid, buf, a)
@@ -1346,6 +1354,8 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
         watchdog.cancel()
         PROCS.pop(jid, None)
     out = "\n".join(buf)
+    if big:
+        raise RuntimeError("O Forge escreveu demais (registo acima de %d MB) e foi parado." % (OUT_MAX // 1_000_000))
     if killed:
         raise RuntimeError(f"O Forge não terminou em {timeout} s e foi parado.")
     if "Could not load deck" in out:
