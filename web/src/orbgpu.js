@@ -106,7 +106,7 @@ export class GpuGrains {
     this.mVel = sm(VEL, { ...fu(), posT: { value: null }, velT: { value: null }, dt: { value: 0 }, t: { value: 0 } })
     this.mPos = sm(POS, { ...fu(), posT: { value: null }, velT: { value: null }, dt: { value: 0 }, t: { value: 0 } })
     pass(this.mInit, this.pos[0]); pass(this.mInit, this.pos[1])
-    const zero = sm('void main(){ gl_FragColor = vec4(0.); }', {}); pass(zero, this.vel[0]); pass(zero, this.vel[1])
+    const zero = sm('void main(){ gl_FragColor = vec4(0.); }', {}); pass(zero, this.vel[0]); pass(zero, this.vel[1]); zero.dispose()
     // os pontos: só a referência ao texel (a posição vem da textura)
     const g = new THREE.BufferGeometry(), ref = new Float32Array(this.n * 2)
     for (let i = 0; i < this.n; i++) { ref[i * 2] = ((i % side) + 0.5) / side; ref[i * 2 + 1] = (Math.floor(i / side) + 0.5) / side }
@@ -163,4 +163,13 @@ export class GpuGrains {
     for (const p of this.pts) { p.material.uniforms.posT.value = this.pos[b].texture; p.material.uniforms.velT.value = this.vel[b].texture }
   }
   show(on, zc) { for (const p of this.pts) { p.visible = on; p.material.uniforms.zc.value = zc } }
+  // largar tudo o que é desta esfera (alvos, texturas, materiais, geometria); o `scale` é partilhado e fica
+  dispose() {
+    for (const p of this.pts || []) { p.removeFromParent(); p.material.dispose() }
+    for (const t of [...this.pos, ...this.vel]) t.dispose()
+    for (const t of [this.fV, this.fC, this.fM]) t.dispose()
+    for (const m of [this.mInit, this.mVel, this.mPos]) m.dispose()
+    this.geo.dispose(); this.pts = []
+    globalThis.__orbGpu = Math.max(0, (globalThis.__orbGpu || 1) - 1)
+  }
 }
