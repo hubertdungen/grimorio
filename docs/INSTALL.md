@@ -167,7 +167,7 @@ everything that's already there. Before a new version opens the database for the
 ## Troubleshooting
 
 **"Windows protected your PC" or the antivirus blocks `Grimorio.exe`.**
-Grimório is open source and isn't signed with a paid certificate, so SmartScreen and some antivirus programs warn
+Grimório is free, its source code is public, and it isn't signed with a paid certificate, so SmartScreen and some antivirus programs warn
 about it, especially right after a new version is published. Click **More info › Run anyway**. If your antivirus
 moved a file to quarantine (often `jre\bin\java.exe`), restore it and add the Grimorio folder as an exception, or
 extract the zip again. The source code is public and the packages are built by GitHub from it.

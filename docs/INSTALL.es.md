@@ -175,7 +175,7 @@ Para actualizar a mano (por ejemplo, con *Actualizar solo* desactivado):
 ## Solución de problemas
 
 **«Windows protegió su PC» o el antivirus bloquea `Grimorio.exe`.**
-Grimório es de código abierto y no está firmado con un certificado de pago, así que SmartScreen y algunos antivirus
+Grimório es gratuito, tiene el código público y no está firmado con un certificado de pago, así que SmartScreen y algunos antivirus
 avisan, sobre todo justo después de publicarse una versión nueva. Haz clic en **Más información › Ejecutar de todas
 formas**. Si tu antivirus ha puesto un archivo en cuarentena (a menudo `jre\bin\java.exe`), restáuralo y añade la
 carpeta de Grimorio como excepción, o vuelve a extraer el zip. El código fuente es público y GitHub genera los paquetes

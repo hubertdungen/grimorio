@@ -178,7 +178,7 @@ guarda uma cópia na pasta `backups`, dentro da pasta de dados; ficam as 3 cópi
 ## Resolução de problemas
 
 **«O Windows protegeu o seu PC» ou o antivírus bloqueia o `Grimorio.exe`.**
-O Grimório é de código aberto e não está assinado com um certificado pago, por isso o SmartScreen e alguns antivírus
+O Grimório é gratuito, tem o código público e não está assinado com um certificado pago, por isso o SmartScreen e alguns antivírus
 avisam, sobretudo logo a seguir à publicação de uma nova versão. Clica em **Mais informações › Executar mesmo assim**.
 Se o antivírus mandou algum ficheiro para a quarentena (muitas vezes o `jre\bin\java.exe`), restaura-o e acrescenta a
 pasta Grimorio como exceção, ou volta a extrair o zip. O código-fonte é público e os pacotes são construídos a partir

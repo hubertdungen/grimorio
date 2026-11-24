@@ -108,7 +108,7 @@ def jre(platform, work, dest):
     os.rmdir(tmp)
 
 
-NOTICES = """Grimório is free software under the GNU GPL v3 (LICENSE). Source: https://github.com/hubertdungen/grimorio
+NOTICES = """Grimório is free for noncommercial use under the PolyForm Noncommercial License 1.0.0 (LICENSE). Its Forge parts (GrimorioSim, GrimorioNet, GrimorioDraft, GrimorioPlay and the patched Forge classes) are under the GNU GPL v3. Source: https://github.com/hubertdungen/grimorio
 
 This package also contains, unmodified except where noted:
 - Forge 2.0.15 (forge/) — GNU GPL v3, https://github.com/Card-Forge/forge (source: tag forge-2.0.15).
@@ -155,6 +155,8 @@ def package(platform, work, version, out):
         shutil.copy(f, dst)
     jre(platform, work, os.path.join(root, "jre"))
     shutil.copy(os.path.join(ROOT, "LICENSE"), root)
+    shutil.copy(os.path.join(ROOT, "build", "forge", "LICENSE"), os.path.join(root, "LICENSE-GPL-3.0.txt"))
+    shutil.copy(os.path.join(ROOT, "NOTICE"), root)
     with open(os.path.join(root, "THIRD-PARTY-NOTICES.txt"), "w", encoding="utf-8") as f:
         f.write(NOTICES.format(python="- Python 3 runtime (_internal/) — PSF License, https://python.org; packed with "
                                "PyInstaller (GPL v2 with the bootloader exception)\n" if win else ""))

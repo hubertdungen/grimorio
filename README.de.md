@@ -446,8 +446,7 @@ the Coast LLC.*
 
 ## Lizenz
 
-[GPL-3.0](LICENSE) – frei nutzbar, untersuchbar, veränderbar und weitergebbar; Änderungen, die du weitergibst, müssen
-unter derselben Lizenz offen bleiben.
+Doppellizenz. Der eigene Code von Grimório steht unter der [PolyForm Noncommercial License 1.0.0](LICENSE): kostenlos nutzbar, untersuchbar, veränderbar und weitergebbar für jeden nichtkommerziellen Zweck (privat, Hobbyprojekte, Vereine, Schulen, gemeinnützige Organisationen). Verkauf oder Nutzung zum Geldverdienen braucht eine schriftliche Erlaubnis. Die Forge-Teile in [`build/forge/`](build/forge) und [`build/play/`](build/play) bleiben unter der [GPL-3.0](build/forge/LICENSE), wie Forge selbst. Versionen bis 1.13.111 erschienen unter der GPL-3.0 und behalten sie. Details in [NOTICE](NOTICE).
 
 
 <p align="center"><a href="https://dlforge.dungenlabs.com"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/branding/dlforge-logo-negative.svg"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></picture></a></p>
