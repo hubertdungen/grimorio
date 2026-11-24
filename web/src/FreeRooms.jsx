@@ -140,7 +140,7 @@ export function JoinPanel({ r, data, decks, guest, busy, onJoin, reload }) {
   const tabs = [(decks.length || guest) && 'meus', lend.length && 'lend', 'meta', 'colar', 'varios'].filter(Boolean)
   const [tab, setTab] = useState(decks.length ? tabs[0] : lend.length ? 'lend' : 'meta'), [pick, setPick] = useState(null), [fmt, setFmt] = useState('modern'), [meta, setMeta] = useState(null)
   const [text, setText] = useState(''), [url, setUrl] = useState(''), [name, setName] = useState(''), [err, setErr] = useState(''), [work, setWork] = useState(false)
-  useEffect(() => { if (tab === 'meta') { setMeta(null); j(`/api/sim/opponents?format=${fmt}`).then(l => setMeta(l.map(o => ({ id: o.id, name: o.name, format: fmt, tag: o.share ? `${Math.round(o.share * 100)}%` : tx('meta') })))).catch(() => setMeta([])) } }, [tab, fmt])
+  useEffect(() => { let on = true; if (tab === 'meta') { setMeta(null); j(`/api/sim/opponents?format=${fmt}`).then(l => { if (on) setMeta(l.map(o => ({ id: o.id, name: o.name, format: fmt, tag: o.share ? `${Math.round(o.share * 100)}%` : tx('meta') }))) }).catch(() => { if (on) setMeta([]) }) } return () => { on = false } }, [tab, fmt])
   const L = { meus: tx('🧙 Os meus'), lend: tx('🤝 Emprestados ({n})', { n: lend.length }), meta: tx('📊 Do meta'), colar: tx('📋 Colar lista ou link'), varios: tx('📚 Trazer vários decks') }
   const save = async () => {  // lista colada (ou lida de um link) -> deck teu, e senta-te com ele
     setWork(true); setErr('')

@@ -592,12 +592,22 @@ function stepBody(b, dt, rad = 0.12) {  // gravidade, chão com ressalto e atrit
   if (b.p[1] < FLOOR + rad) { b.p[1] = FLOOR + rad; if (b.v[1] < 0) b.v[1] *= -0.32; b.v[0] *= 0.82; b.v[2] *= 0.82; if (b.w) b.w = b.w.map(x => x * 0.75) }
   if (b.w) for (let k = 0; k < 3; k++) b.r[k] += b.w[k] * dt
 }
+// largar o que é só desta esfera: tirar das cenas e libertar geometrias (e o material do rasto); os materiais
+// partilhados (ptMats, liqMat, os dos grãos) ficam para as outras
+function freeOrb(o) {
+  orbs.delete(o)
+  const drop = p => { p.removeFromParent(); p.geometry.dispose() }
+  if (o.halo) { drop(o.halo.pts); drop(o.halo.trail); o.halo.trail.material.dispose(); o.halo = null }
+  if (o.gpts) { o.gpts.objs.forEach(drop); o.gpts = null }
+  if (o.pts) { o.pts.objs.forEach(drop); o.pts = null }
+  if (o.gg) { o.gg.dispose(); o.gg = null }
+}
 function draw(now) {
   raf = 0
   if (!orbs.size) return
   const r = init(), t = (now - t0) / 1000
   for (const o of orbs) {
-    if (!o.el.isConnected) { orbs.delete(o); continue }
+    if (!o.el.isConnected) { freeOrb(o); continue }
     if (!o.st || now - o.at > 160) read(o)
     const s = o.st, fast = s.anim === 'turbilhao' ? 3 : s.anim === 'calmo' ? 0.45 : 1, u = r.coreU
     // inércia do líquido: mola amortecida movida pela aceleração da esfera (useOrbPhysics expõe el._phys); a água
@@ -914,5 +924,5 @@ export function attachOrb3d(el, cv) {
   }
   orbs.add(o)
   if (!raf) raf = requestAnimationFrame(draw)
-  return () => { orbs.delete(o) }
+  return () => freeOrb(o)
 }

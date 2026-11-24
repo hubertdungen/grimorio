@@ -44,7 +44,9 @@ export default function DraftView({ data, setDeck, act }) {
     if (!code) return
     try { localStorage.setItem('grimorio.draftSet', code) } catch { /* sem storage */ }
     setRows(null)
-    loadSet(code).then(d => setRows(d.map(x => ({ c: data.byName.get(x.name) || data.byLower.get(x.name.toLowerCase()) || data.byLower.get(x.name.split(' // ')[0].toLowerCase()), gih: x.ever_drawn_win_rate, alsa: x.avg_seen, ata: x.avg_pick, games: x.game_count })).filter(x => x.c)))
+    let on = true  // trocar de coleção a meio: a resposta da anterior já não entra
+    loadSet(code).then(d => { if (on) setRows(d.map(x => ({ c: data.byName.get(x.name) || data.byLower.get(x.name.toLowerCase()) || data.byLower.get(x.name.split(' // ')[0].toLowerCase()), gih: x.ever_drawn_win_rate, alsa: x.avg_seen, ata: x.avg_pick, games: x.game_count })).filter(x => x.c)) })
+    return () => { on = false }
   }, [code, data])
 
   const stats = useMemo(() => {

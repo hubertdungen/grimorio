@@ -1,7 +1,7 @@
 // 📖 Regras: pesquisar keywords, regras ou cartas em qualquer língua (📷 também lê a carta) e ver tudo — as regras
 // oficiais (rules.py, Comprehensive Rules), o texto da carta com cada keyword ligada à sua regra, os rulings oficiais
 // (Scryfall) e, se quiseres, a explicação da IA em português.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { img } from './data.js'
 import { Mana, Syms } from './ui.jsx'
 import CardScan from './CardScan.jsx'
@@ -30,9 +30,11 @@ export default function Rules({ data, initial = '' }) {
     const exact = data.byLower.get(n)
     return exact ? [exact] : data.cards.filter(c => c.l.startsWith(n)).slice(0, 6)
   }, [q, data])
+  const goN = useRef(0), cardN = useRef(0)  // o pedido atual: as respostas de cliques anteriores ficam de fora
   const go = async (term = q) => {
     const t = term.trim()
     if (!t) return
+    const n = ++goN.current
     setBusy(true); setErr(''); setAi(null); setQ(t)
     try {
       const r = await j(`/api/rules?q=${encodeURIComponent(t)}`)
@@ -43,15 +45,17 @@ export default function Rules({ data, initial = '' }) {
         const s = await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(t)}+lang%3Aany&unique=cards&order=edhrec`).then(x => (x.ok ? x.json() : null)).catch(() => null)
         cards = (s?.data || []).map(x => data.byName.get(x.name) || data.byLower.get(String(x.name).toLowerCase())).filter(Boolean).slice(0, 6)
       }
+      if (n !== goN.current) return
       setRes({ ...r, cards })
       if (cards.length === 1 && !r.results.length) openCard(cards[0])
-    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+    } catch (e) { if (n === goN.current) setErr(e.message) } finally { if (n === goN.current) setBusy(false) }
   }
   const openCard = async c => {
+    const n = ++cardN.current
     setCard(c); setRulings(null)
     const s = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(c.n)}`).then(x => (x.ok ? x.json() : null)).catch(() => null)
     const r = s?.rulings_uri ? await fetch(s.rulings_uri).then(x => (x.ok ? x.json() : null)).catch(() => null) : null
-    setRulings(r?.data || [])
+    if (n === cardN.current) setRulings(r?.data || [])
   }
   const askAI = async () => {
     setAiBusy(true); setErr('')

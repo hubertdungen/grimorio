@@ -31,10 +31,11 @@ export default function CardScan({ data, onPick, onClose }) {
   const [live, setLive] = useState(false), [busy, setBusy] = useState(''), [res, setRes] = useState(null), [shot, setShot] = useState(''), [added, setAdded] = useState([]), [err, setErr] = useState('')
   useEffect(() => {
     if (!camOk) return
+    let gone = false  // fechou com a pergunta da permissão aberta: a câmara que chegar depois desliga-se logo
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
-      .then(s => { stream.current = s; if (video.current) { video.current.srcObject = s; setLive(true) } })
-      .catch(() => { setLive(false); setCamFail(true) })
-    return () => stream.current?.getTracks().forEach(t => t.stop())
+      .then(s => { if (gone) return s.getTracks().forEach(t => t.stop()); stream.current = s; if (video.current) { video.current.srcObject = s; setLive(true) } })
+      .catch(() => { if (!gone) { setLive(false); setCamFail(true) } })
+    return () => { gone = true; stream.current?.getTracks().forEach(t => t.stop()) }
   }, [camOk])
   // sem câmara ao vivo (http): abre logo a câmara do telemóvel (ainda dentro do toque que abriu o leitor)
   useLayoutEffect(() => { if (!camOk) fileIn.current?.click() }, [camOk])
