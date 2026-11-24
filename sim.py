@@ -1403,10 +1403,11 @@ def parse_mtgo(text):
         if line.lower().startswith("sideboard"):
             cur = side
             continue
-        m = re.match(r"(?:SB:\s*)?(\d+)x?\s+(.+)", line)
+        m = re.match(r"(SB:\s*)?(\d+)x?\s+(.+)", line)
         if m:
-            n = re.sub(r"\s*/{1,2}\s*", " // ", m.group(2).strip())
-            cur[n] = cur.get(n, 0) + int(m.group(1))
+            n = re.sub(r"\s*/{1,2}\s*", " // ", m.group(3).strip())
+            to = side if m.group(1) else cur  # «SB: 2 Duress» é do sideboard mesmo sem o título
+            to[n] = to.get(n, 0) + int(m.group(2))
     return main, side
 
 
