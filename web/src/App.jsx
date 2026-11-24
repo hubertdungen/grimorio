@@ -305,6 +305,7 @@ export default function App() {
   const [deckView, setDeckViewRaw] = useState(() => store.get('grimorio.deckView') || 'grelha')
   const setDeckView = v => { setDeckViewRaw(v); store.set('grimorio.deckView', v) }
   const dirty = useRef(false)
+  const draft = useRef(0)  // muda sempre que outro deck entra (abrir, novo, assistente): a gravação em curso não toca no que veio depois
   // perfis (edições sem login) e Definições (#definicoes: o ⚙ do cabeçalho, a página inicial e o Laboratório abrem-nas)
   const [prof, setProf] = useState(null)
   const [who, setWho] = useState('')  // '' | 'switch' | 'new': «Quem vai jogar?» por cima da app
@@ -399,7 +400,7 @@ export default function App() {
     api('/api/decks').then(list => {
       setDecks(list)
       const last = store.get('grimorio.deck')
-      if (last && list.some(d => d.id === last)) api(`/api/decks/${last}`).then(d => setDeckRaw({ ...emptyDeck(), ...d }))
+      if (last && list.some(d => d.id === last)) api(`/api/decks/${last}`).then(d => { draft.current++; setDeckRaw({ ...emptyDeck(), ...d }) })
     }).catch(() => {})
   }, [])
   useEffect(() => { store.set('grimorio.tab', tab) }, [tab])
@@ -419,25 +420,35 @@ export default function App() {
     }
   }, [chg, say])
 
-  // Gravação automática (cria o deck no servidor à primeira alteração).
+  // Gravação automática (cria o deck no servidor à primeira alteração). Uma de cada vez: a que chegar com outra em curso
+  // espera por ela (senão um deck ainda sem id criava-se duas vezes) e volta a correr no fim, já com o id
+  const saving = useRef(false), saveWait = useRef(false)
+  const [saveAgain, setSaveAgain] = useState(0)
   useEffect(() => {
     if (!dirty.current) return
     if (block) return setSaveState(tx('à espera da tua escolha'))
     setSaveState(tx('a guardar…'))
     const t = setTimeout(async () => {
+      if (saving.current) { saveWait.current = true; return }
+      saving.current = true
+      const sent = deck, g = draft.current
       try {
         const body = JSON.stringify({ ...deck, count: count(deck.main) + deck.commanders.length })
         const saved = deck.id ? await api(`/api/decks/${deck.id}`, { method: 'PUT', body }) : await api('/api/decks', { method: 'POST', body })
-        dirty.current = false
-        if (!deck.id) setDeckRaw(d => ({ ...d, id: saved.id }))
+        api('/api/decks').then(setDecks).catch(() => {})
+        if (draft.current !== g) return  // entretanto abriu-se outro deck: o id e o estado eram deste
+        if (deckRef.current === sent) dirty.current = false  // o que mudou durante o pedido fica por gravar
+        if (!sent.id) setDeckRaw(d => ({ ...d, id: saved.id }))
         if (saved.rated_reset) { setDeckRaw(d => ({ ...d, rated: undefined })); setOkReset(false); say(tx('Os ratings deste deck recomeçaram do zero: a lista mudou mais de 10%.')) }
         store.set('grimorio.deck', saved.id)
-        setSaveState(tx('guardado'))
-        api('/api/decks').then(setDecks).catch(() => {})
-      } catch (e) { setSaveState(tx('erro ao guardar: {e}', { e: e.message })) }
+        if (!dirty.current) setSaveState(tx('guardado'))
+      } catch (e) { if (draft.current === g) setSaveState(tx('erro ao guardar: {e}', { e: e.message })) } finally {
+        saving.current = false
+        if (saveWait.current) { saveWait.current = false; setSaveAgain(n => n + 1) }
+      }
     }, 700)
     return () => clearTimeout(t)
-  }, [deck, block]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deck, block, saveAgain]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Jogos do deck (Laboratório e torneios): entram nas sugestões e nos cortes; o Lab pede para recarregar ao guardar.
   const [tests, setTests] = useState(null)
@@ -578,7 +589,7 @@ export default function App() {
     swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, ai: seed => { setAiSeed(seed || null); setShowAI(true) }, undo, redo }),
   [add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo, autoThemeArts])
 
-  const newDeck = () => { dirty.current = false; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
+  const newDeck = () => { dirty.current = false; draft.current++; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
   const deckRef = useRef(deck); deckRef.current = deck
   // deck novo sem nome com «Nome épico automático»: quando o «Completar deck» fecha (ou logo, se não houve), dá-lhe o 1.º
   // nome épico do gerador (epic.js, sem IA) e tira a marca
@@ -605,7 +616,7 @@ export default function App() {
   const openDeck = async id => {
     if (!id) return setShowWizard(true)
     const d = await api(`/api/decks/${id}`)
-    dirty.current = false
+    dirty.current = false; draft.current++
     setDeckRaw({ ...emptyDeck(), ...d }); store.set('grimorio.deck', id); setSaveState('')
   }
   // «Voltar» (backnav.js): cada mudança de área, separador, modo do Coliseu ou deck é um passo; o deck que acabou de ganhar
@@ -728,9 +739,9 @@ export default function App() {
 
       {open && <CardModal key={open.i} c={open} {...{ data, deck, fmt, ctx, act }} onClose={() => setOpen(null)} />}
       {showWizard && <NewDeckWizard data={data} fmtInit={deck.format} onCancel={() => setShowWizard(false)}
-        onImport={format => { setShowWizard(false); dirty.current = false; setDeckRaw(emptyDeck(format)); setSaveState(''); setShowImport(true) }}
+        onImport={format => { setShowWizard(false); dirty.current = false; draft.current++; setDeckRaw(emptyDeck(format)); setSaveState(''); setShowImport(true) }}
         onCreate={(d, auto, goTab = 'deck') => {
-        setShowWizard(false); dirty.current = true; setDeckRaw(d); setSaveState('')
+        setShowWizard(false); dirty.current = true; draft.current++; setDeckRaw(d); setSaveState('')
         setDeckView('grelha'); setTab(goTab)
         if (auto) setTimeout(() => setShowAuto(true), 50)
       }} />}
