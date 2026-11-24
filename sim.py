@@ -1072,6 +1072,7 @@ def cancel(jid):
             j.update(status="error", error="Cancelado.")
             shutil.rmtree(j["_args"]["dir"], ignore_errors=True)
             return
+        j["cancel"] = True  # ainda sem processo (a arrancar): o _play vê-o e não joga
         p = PROCS.get(jid)
     if RUNTIME == "docker":
         subprocess.run(["docker", "kill", PREFIX + jid], capture_output=True)
@@ -1123,11 +1124,16 @@ def worker(data_dir):
 
 def run_job(jid, job):
     try:
-        job["games"] = redo_crashed(jid, job["_args"], run_forge(jid, job["_args"]))
-        job["status"] = "done"
+        games = redo_crashed(jid, job["_args"], run_forge(jid, job["_args"]))
+        with LOCK:
+            if job.get("cancel"):
+                job.update(status="error", error="Cancelado.")
+            else:
+                job.update(games=games, status="done")
     except Exception as e:
-        job["error"] = str(e) if isinstance(e, RuntimeError) else "Falha inesperada no simulador."
-        job["status"] = "error"
+        with LOCK:
+            job["error"] = "Cancelado." if job.get("cancel") else str(e) if isinstance(e, RuntimeError) else "Falha inesperada no simulador."
+            job["status"] = "error"
         print(f"[sim {jid}] {e!r}", file=sys.stderr, flush=True)
     finally:
         shutil.rmtree(job["_args"]["dir"], ignore_errors=True)
@@ -1299,6 +1305,8 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
     timeout = a["clock"] * a["games"] + TIMEOUT_PAD
     home = os.path.join(a["dir"], "home")  # Windows: o Forge guarda o perfil em %APPDATA%\Forge -> um por trabalho
     env = None if container else {**os.environ, "APPDATA": home, "LOCALAPPDATA": home}
+    if (JOBS.get(jid) or {}).get("cancel"):
+        raise RuntimeError("Cancelado.")
     try:
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
                              errors="replace", cwd=None if container else a["forge"], env=env)
@@ -1306,7 +1314,6 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
         raise RuntimeError(f"Não consegui arrancar o Forge ({cmd[0]}): {e.strerror or e}. "
                            + ("Instala o Docker ou usa GRIMORIO_RUNTIME=local." if container else
                               "Instala o Java 17 ou indica-o em GRIMORIO_JAVA."))
-    PROCS[jid] = p
     killed = []
 
     def kill():
@@ -1314,6 +1321,14 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
         if container:
             subprocess.run(["docker", "kill", container], capture_output=True)
         p.kill()
+    with LOCK:
+        PROCS[jid] = p
+        stop = (JOBS.get(jid) or {}).get("cancel")
+    if stop:  # cancelado entre o arranque e aqui: o cancel() não tinha processo para matar
+        kill()
+        p.wait()
+        PROCS.pop(jid, None)
+        raise RuntimeError("Cancelado.")
     watchdog = threading.Timer(timeout, kill)
     watchdog.start()
     # Lê a saída à medida que o Forge joga: o jogo em curso fica em job["live"] para o browser ver ao vivo.
@@ -1324,6 +1339,8 @@ def _play(jid, a, cmd, decks, use_ext, container=None):
             if line.startswith("Game Result:") or time.time() - last > 0.5:
                 last = time.time()
                 publish_live(jid, buf, a)
+                if not killed and (JOBS.get(jid) or {}).get("cancel"):  # docker: cancelado antes de o contentor existir
+                    kill()
         p.wait()
     finally:
         watchdog.cancel()
