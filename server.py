@@ -373,8 +373,20 @@ class H(BaseHTTPRequestHandler):
         with db() as con:
             return guests.by_token(con, tok)
 
+    def other_site(self):
+        """Pedido que o browser fez a partir de uma página de outro endereço: a Origin não é este Grimório (Host, ou
+        X-Forwarded-Host atrás do Caddy/nginx) e o browser também não diz same-origin (Sec-Fetch-Site)."""
+        o = self.headers.get("Origin")
+        if not o or self.headers.get("Sec-Fetch-Site") in ("same-origin", "none"):
+            return False
+        here = {(v or "").split(",")[0].strip().lower() for v in (self.headers.get("Host"), self.headers.get("X-Forwarded-Host"))}
+        return urllib.parse.urlsplit(o).netloc.lower() not in here - {""}
+
     def _route(self, method, inner):
         p = self.path.split("?")[0]
+        # escritas só a partir das páginas deste Grimório; a app de um amigo e os outros aparelhos vêm com Bearer (sem cookies)
+        if method not in ("GET", "HEAD") and not guests.bearer(self.headers) and self.other_site():
+            return self.json({"erro": "Pedido recusado: não veio deste Grimório."}, 403)
         if devsync.route(self, method, p, ARGS.data_dir, db):  # outro aparelho do dono (pelo código ou pelo token dele: devsync.py)
             return None
         if p.startswith("/avatars/") and method == "GET":  # imagens de perfil: nomes ao acaso, para todos (avatars.serve)
@@ -1846,6 +1858,13 @@ def selfcheck():
         st, rj, _ = call("POST", "/api/rooms/remote", {"url": f"{base}/convite/{fr['token']}?entrar=1", "decks": []})
         assert st == 200 and rj["go"] == f"{base}/convite/{fr['token']}?entrar=1" and rj["decks"] == 0, rj
         assert call("POST", "/api/rooms/remote", {"url": "https://exemplo.pt/outra/coisa"})[0] == 400 and call("POST", "/api/rooms/remote", ["x"])[0] == 400
+        def orig(o, **hd):  # escritas vindas de páginas de outro endereço: 403 (com Bearer, a app de um amigo, passam)
+            try:
+                return urllib.request.urlopen(urllib.request.Request(base + "/api/rooms/remote", b"{}", {"Origin": o, **hd}, method="POST")).status
+            except urllib.error.HTTPError as e:
+                return e.code
+        assert orig("http://x") == 403 and orig("null") == 403 and orig(base) == 400 and orig("http://x", **{"Sec-Fetch-Site": "same-origin"}) == 400
+        assert orig("https://grimorio.exemplo.pt", **{"X-Forwarded-Host": "grimorio.exemplo.pt"}) == 400
         assert call("POST", "/api/rooms/remote", {"url": f"{base}/convite/{fr['token']}"}, G)[0] in (403, 404)  # convidado: não
         # a Taverna (taverna.py): quem aloja cria; um amigo entra pelo link (browser ou app) e só faz ações de membro
         assert call("GET", "/api/taverna", cookie=G)[1] == {"exists": False, "host": False} and call("POST", "/api/taverna", {"name": "T"}, G)[0] == 403
