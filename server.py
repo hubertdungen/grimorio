@@ -3,7 +3,7 @@
 Serve a app React compilada (web/dist), os dados gerados por build/build.sh
 (já comprimidos em .gz) e guarda os decks numa SQLite fora do exFAT.
 """
-import argparse, contextlib, functools, gzip, hashlib, http.cookies, json, os, re, secrets, sqlite3, tempfile, threading, time, traceback, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
+import argparse, contextlib, functools, gzip, hashlib, json, os, re, secrets, sqlite3, tempfile, threading, time, traceback, zipfile, zlib, urllib.error, urllib.parse, urllib.request, uuid
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from deck_import import UpstreamError, fetch_deck, list_profile, search_decks
 import ia
@@ -220,13 +220,17 @@ APP_TOKEN = os.environ.get("GRIMORIO_APP_TOKEN") or ""
 IMG_MAX = 8_000_000  # uma imagem de carta pela cache (/sf/, /ext/): as da Scryfall têm até ~2 MB (png)
 
 
+def read_cookie(raw, name):
+    """O valor de um cookie (à mão, como guests.cookie_token: o SimpleCookie parava no primeiro cookie que não percebia)."""
+    for part in (raw or "").split(";"):
+        k, _, v = part.strip().partition("=")
+        if k == name:
+            return v.strip()
+    return ""
+
+
 def app_cookie(raw):
-    c = http.cookies.SimpleCookie()
-    try:
-        c.load(raw or "")
-    except http.cookies.CookieError:
-        return ""
-    return c["grimorio_app"].value if "grimorio_app" in c else ""
+    return read_cookie(raw, "grimorio_app")
 
 
 
@@ -271,7 +275,7 @@ class H(BaseHTTPRequestHandler):
         traz o cookie que a própria app pôs na WebView (GRIMORIO_APP_TOKEN, MainActivity)."""
         if not super().parse_request():
             return False
-        if APP_TOKEN and not secrets.compare_digest(app_cookie(self.headers.get("Cookie")), APP_TOKEN):
+        if APP_TOKEN and not secrets.compare_digest(app_cookie(self.headers.get("Cookie")).encode(), APP_TOKEN.encode()):
             self.send_error(403)
             return False
         return True
@@ -1263,12 +1267,7 @@ class H(BaseHTTPRequestHandler):
         return "login" if (self.headers.get("Remote-User") or "").strip() else "fixed" if ARGS.owner else "profiles"
 
     def profile(self):
-        c = http.cookies.SimpleCookie()
-        try:
-            c.load(self.headers.get("Cookie") or "")
-        except http.cookies.CookieError:
-            return None
-        pid = c["grimorio_profile"].value if "grimorio_profile" in c else ""
+        pid = read_cookie(self.headers.get("Cookie"), "grimorio_profile")[:80]
         with db() as con:
             r = con.execute("SELECT id, name, color FROM profiles WHERE id=?", (pid,)).fetchone() if pid else None
         return r and {"id": r[0], "name": r[1], "color": r[2]}
