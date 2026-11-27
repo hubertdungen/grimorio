@@ -6151,4 +6151,11 @@ export default {
   "Nome (A–Z)": "Name (A–Z)",
   "com par (Partner…)": "with a pair (Partner…)",
   "Limpar filtros": "Clear filters",
+  "Escolhe o jogador que começa.": "Choose the starting player.",
+  "Começa {n}": "{n} starts",
+  "Dados de abertura · ronda {n}": "Starting rolls · round {n}",
+  "Empate no maior valor: só os empatados voltam a lançar.": "Highest roll tied: only the tied players roll again.",
+  "{n} ganhou e escolhe quem começa.": "{n} won and chooses who starts.",
+  "Dados de abertura (d20)": "Starting rolls (d20)",
+  "Ronda {n}": "Round {n}",
 }

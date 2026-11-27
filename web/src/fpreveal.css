@@ -22,3 +22,13 @@
   background: radial-gradient(ellipse at center, #05040b99, #05040be6 70%); animation: fp-fade .25s ease-out; }
 .fp-coin-intro b { font-size: clamp(18px, 2.4vw, 28px); color: var(--gold2); text-shadow: 0 2px 10px #000; }
 .fp-coin-intro small { color: var(--muted); }
+
+.fp-start-choices { flex-wrap: wrap; gap: 6px; }
+.fp-start-choices button { white-space: normal; overflow-wrap: anywhere; }
+.fp-start-roll { margin: 10px 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; font-size: .85em; overflow-wrap: anywhere; }
+.fp-start-roll p { margin: 6px 0; }
+.fp-coin-intro > div { max-width: min(90vw, 600px); text-align: center; padding: 12px; }
+.fp-coin-intro > div p { margin: 6px 0; }
+
+.fp.compact .fp-actbar .fp-start-choices { flex: 1 0 100%; flex-wrap: wrap; width: 100%; min-width: 0; max-height: 35vh; overflow: auto; }
+.fp.compact .fp-actbar .fp-start-choices button { flex: 1 1 140px; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; font-size: 12px; }

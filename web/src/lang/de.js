@@ -6143,4 +6143,11 @@ export default {
   "Nome (A–Z)": "Name (A–Z)",
   "com par (Partner…)": "mit Partner (Partner…)",
   "Limpar filtros": "Filter löschen",
+  "Escolhe o jogador que começa.": "Wähle den Startspieler.",
+  "Começa {n}": "{n} beginnt",
+  "Dados de abertura · ronda {n}": "Startwürfe · Runde {n}",
+  "Empate no maior valor: só os empatados voltam a lançar.": "Höchster Wurf gleich: Nur diese Spieler würfeln erneut.",
+  "{n} ganhou e escolhe quem começa.": "{n} hat gewonnen und wählt, wer beginnt.",
+  "Dados de abertura (d20)": "Startwürfe (W20)",
+  "Ronda {n}": "Runde {n}",
 }

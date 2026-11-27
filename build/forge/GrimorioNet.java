@@ -61,11 +61,39 @@ public class GrimorioNet {
     // cada processo novo, «atira a moeda» (Aggregates.random → MyRandom.nextInt) e quem a ganha escolhe com
     // chooseStartingPlayer: a moeda cai sempre em quem perdeu, e os textos da moeda dizem «perdeu o jogo anterior»
     static String CHOOSER = null;
+    static volatile JsonObject START_ROLL = null;
+    // All players roll; only the tied leaders take part in the following round.
+    static JsonObject startingRoll(List<String> names, java.util.Random rng) {
+        List<Integer> contenders = new ArrayList<>();
+        for (int i = 0; i < names.size(); i++) contenders.add(i);
+        JsonArray rounds = new JsonArray();
+        while (contenders.size() > 1) {
+            JsonArray round = new JsonArray(); List<Integer> leaders = new ArrayList<>(); int high = 0;
+            for (int i : contenders) {
+                int value = rng.nextInt(20) + 1;
+                JsonObject r = new JsonObject(); r.addProperty("name", names.get(i)); r.addProperty("v", value); round.add(r);
+                if (value > high) { high = value; leaders.clear(); }
+                if (value == high) leaders.add(i);
+            }
+            rounds.add(round); contenders = leaders;
+        }
+        JsonObject result = new JsonObject(); result.add("rounds", rounds);
+        result.addProperty("winner", names.get(contenders.get(0))); result.addProperty("index", contenders.get(0));
+        return result;
+    }
     static class CoinRandom extends java.util.Random {
         volatile int force = -1;
         @Override public int nextInt(int bound) {
-            if (force >= 0 && force < bound) for (StackTraceElement f : Thread.currentThread().getStackTrace())
-                if ("determineFirstTurnPlayer".equals(f.getMethodName())) { int r = force; force = -1; return r; }
+            if ((force >= 0 || (MULTI && START_ROLL == null)) && HM != null && HM.getGame() != null
+                    && bound == HM.getGame().getPlayers().size()) for (StackTraceElement f : Thread.currentThread().getStackTrace())
+                if ("determineFirstTurnPlayer".equals(f.getMethodName())) {
+                    if (force >= 0 && force < bound) { int r = force; force = -1; return r; }
+                    List<String> names = new ArrayList<>();
+                    for (forge.game.player.Player p : HM.getGame().getPlayers()) names.add(p.getName());
+                    // Separate RNG avoids re-entering this hook for each d20.
+                    START_ROLL = startingRoll(names, new java.util.Random(super.nextLong()));
+                    return START_ROLL.get("index").getAsInt();
+                }
             return super.nextInt(bound);
         }
     }
@@ -75,6 +103,8 @@ public class GrimorioNet {
                 String m = o.get("msg").getAsString();
                 if (m.contains("won the coin toss")) o.addProperty("msg", m.replace("have won the coin toss", "lost the last game").replace("has won the coin toss", "lost the last game"));
             }
+            if (MULTI && CHOOSER == null && o.has("msg") && o.get("msg").isJsonPrimitive())
+                o.addProperty("msg", o.get("msg").getAsString().replace("won the coin toss", "won the starting roll"));
             if (o.has("t") && ("msg".equals(o.get("t").getAsString()) || "flash".equals(o.get("t").getAsString()))) o.addProperty("n", ++logN);
             System.out.println("@@GN " + G.toJson(o));
             System.out.flush();
@@ -142,6 +172,7 @@ public class GrimorioNet {
         boolean giant = pvp && mode.contains("2hg") && players.size() == 4;
         if (giant) for (int k = 0; k < 4; k++) { players.get(k).setTeamNumber(k < 2 ? 1 : 2); players.get(k).setStartingLife(30); }  // 2HG: a+b contra c+d, 30 de vida
         MULTI = players.size() > 2;
+        if (MULTI && CHOOSER == null) forge.util.MyRandom.setRandom(new CoinRandom());
         GameType gt = cmd ? GameType.Commander : GameType.Constructed;
         Set<GameType> vars = cmd ? EnumSet.of(GameType.Commander) : EnumSet.noneOf(GameType.class);
         Bridge gui = new Bridge(pvp ? "a" : null);
@@ -506,6 +537,7 @@ public class GrimorioNet {
             o.addProperty("t", "state");
             if (pfail) o.addProperty("pfail", true);
             o.addProperty("turn", gv.getTurn());
+            if (START_ROLL != null) o.add("startRoll", START_ROLL);
             if (seat != null) o.addProperty("waitme", waitingForOther());
             if (gv.getPhase() != null) o.addProperty("phase", gv.getPhase().name());
             if (gv.getPlayerTurn() != null) o.addProperty("active", gv.getPlayerTurn().getId());
