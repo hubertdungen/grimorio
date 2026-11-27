@@ -6143,4 +6143,11 @@ export default {
   "Nome (A–Z)": "Nombre (A–Z)",
   "com par (Partner…)": "con pareja (Partner…)",
   "Limpar filtros": "Quitar filtros",
+  "Escolhe o jogador que começa.": "Elige quién empieza.",
+  "Começa {n}": "Empieza {n}",
+  "Dados de abertura · ronda {n}": "Dados iniciales · ronda {n}",
+  "Empate no maior valor: só os empatados voltam a lançar.": "Empate en el valor más alto: solo los empatados repiten.",
+  "{n} ganhou e escolhe quem começa.": "{n} ganó y elige quién empieza.",
+  "Dados de abertura (d20)": "Dados iniciales (d20)",
+  "Ronda {n}": "Ronda {n}",
 }

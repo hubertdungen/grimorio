@@ -64,6 +64,7 @@ function promptText(msg, st, me, short, rq) {  // short: a barra da mesa compact
   const sv = m.match(/Put (.+?) on the top of library or graveyard/i), sc = m.match(/Put (.+?) on (?:the )?top or bottom of (?:your )?library/i)
   if (sv) return tx('Vigiar: {c} fica no topo da biblioteca ou vai para o cemitério?', { c: sv[1] })
   if (sc) return tx('Vidência: {c} fica no topo ou vai para o fundo da biblioteca?', { c: sc[1] })
+  if (/won the (coin toss|starting roll)/i.test(m) && st?.players?.length > 2) return tx('Escolhe o jogador que começa.')
   if (/you have won the coin toss/i.test(m)) return tx('Ganhaste a moeda ao ar: jogas primeiro ou vais em segundo?')
   if (/you lost the last game/i.test(m)) return tx('Perdeste o jogo anterior: escolhes tu — jogas primeiro ou vais em segundo?')
   if (/lost the last game/i.test(m)) return tx('{p} perdeu o jogo anterior: escolhe quem começa.', { p: m.split(/ lost the last/i)[0].trim() || tx('o adversário') })
@@ -621,8 +622,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   // mesmo com o botão desligado: mostra-se «continuar» e, ao fim de 2,5 s, segue sozinho (o efeito fica sem escolha)
   // selc (GrimorioNet): as escolhíveis de todas as zonas — também as que a mesa não desenha à parte (a aura presa, o Hopeful
   // Eidolon com bestow, cartas da biblioteca/zona de comando). Com alguma, não é impasse: aparecem como botões no pedido
+  const startingPick = players.length > 2 && (st?.turn || 0) === 0 && /won the (coin toss|starting roll)|who would you like to start/i.test(pr?.msg || '') && !/^Waiting for/.test(pr?.msg || '')
+  const startChoices = startingPick && <div className="row-btns fp-start-choices">{players.map((p, i) => <button type="button" key={p.id} className={p.me ? 'primary' : ''} onClick={() => send({ c: 'player', i })}>{tx('Começa {n}', { n: p.name })}</button>)}</div>
   const anySel = !!st?.selc?.length || players.some(q => q.sel || ['battlefield', 'hand', 'graveyard', 'exile'].some(z => (q[z] || []).some(c => c.sel)))
-  const idle = !!pr?.msg && !/^(Priority:|Waiting for)/.test(pr.msg) && !s?.asks?.length && !btns.some(b => b.on) && !anySel && !s?.ended
+  const idle = !!pr?.msg && !/^(Priority:|Waiting for)/.test(pr.msg) && !s?.asks?.length && !btns.some(b => b.on) && !anySel && !startingPick && !s?.ended
   const stuck = idle && /highlighted|Choose (a|an|one|up to)/i.test(pr.msg)
   const stuckKey = stuck ? `${pr.msg}|${s?.seq}` : ''
   // rede de segurança para qualquer outro pedido sem botão ligado e sem nada para escolher: ao fim de 1,5 s aparece um
@@ -1183,13 +1186,14 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
   const [intro, setIntro] = useState(null), coinToast = useRef(null)  // {won}; coinToast: o aviso de quem ganhou, para depois da moeda
   useEffect(() => { if (!intro && coinToast.current) { setToast(coinToast.current); coinToast.current = null } }, [intro])
   useEffect(() => {
-    if (!intro) return
+    if (!intro || intro.roll) return
     const t = setTimeout(() => setIntro(null), dice.res?.items ? 1600 : 7000)  // depois de cair: 1,6 s para ler; sem cair (sem WebGL…): 7 s no máximo
     return () => clearTimeout(t)
   }, [intro, !!dice.res?.items])  // eslint-disable-line react-hooks/exhaustive-deps
   const coinFace = (p, side) => ({ n: String(p?.name || '?').replace(/\(.*?\)/g, '').trim().split(/\s+/).slice(0, 2).join(' ').slice(0, 12) || '?',
     c: (document.querySelector(`.bside.${side} .orb:not(.orb-proxy)`)?.dataset.cols || '').replace(/[^WUBRGC]/g, '') })
   const toss = won => {
+    if ((live?.state?.players || players).length > 2) return
     if (tossed.current) return  // já lançada (o aviso e o temporizador de reserva chamam as duas)
     if (live?.chooser) { setHeld(null); return }  // chooser: jogo 2+ de uma série (também nos torneios e na mesa estrita) — escolhe quem perdeu, sem moeda
     tossed.current = true
@@ -1238,6 +1242,23 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
     const next = series && (series.w?.[0] || 0) + (series.w?.[1] || 0) > 0
     if (!done && !next && !live.chooser && !live.ended && (live.state.turn || 0) <= 1) { holdAt.current = Date.now(); setHeld(live) }
   }, [live])  // eslint-disable-line react-hooks/exhaustive-deps
+  const rollSkipped = useRef(false)
+  const startRoll = live?.state?.startRoll
+  useEffect(() => {
+    if (!startRoll || tossed.current) return
+    tossed.current = true
+    const key = `grimorio.fp.toss.${sid}`
+    try { if (sessionStorage.getItem(key)) { setHeld(null); return } sessionStorage.setItem(key, '1') } catch { /* storage optional */ }
+    if ((live?.state?.turn || 0) > 1) { setHeld(null); return }
+    const timers = []
+    startRoll.rounds.forEach((round, i) => timers.push(setTimeout(() => {
+      if (rollSkipped.current) return
+      setIntro({ roll: startRoll, round: i })
+      dice.roll(round.map(() => 'd20'), round.map(x => x.v))
+    }, i * 3500)))
+    timers.push(setTimeout(() => setIntro(null), startRoll.rounds.length * 3500))
+    return () => timers.forEach(clearTimeout)
+  }, [JSON.stringify(startRoll)]) // eslint-disable-line react-hooks/exhaustive-deps
   const introSeen = useRef(false)
   useEffect(() => { if (intro) introSeen.current = true; else if (introSeen.current) setHeld(null) }, [intro])
   useEffect(() => { if (!held) return; const t = setTimeout(() => setHeld(null), 12000); return () => clearTimeout(t) }, [held])
@@ -1511,8 +1532,10 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <DamageFx hits={hits} data={data} />
         {bs && <ZoneFx s={bs} data={data} />}
       </div>
-      </div>{intro && <div className="fp-coin-intro" onClick={() => setIntro(null)} role="status">
-        <b>{dice.res?.items ? (intro.won ? tx('Ganhaste a moeda ao ar') : tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') })) : tx('Moeda ao ar: quem começa?')}</b>
+      </div>{intro && <div className="fp-coin-intro" onClick={() => { rollSkipped.current = true; setIntro(null) }} role="status">
+        {intro.roll ? <div><b>{tx('Dados de abertura · ronda {n}', { n: intro.round + 1 })}</b>
+          {intro.roll.rounds[intro.round].map(x => <p key={x.name}>{x.name}: <strong>{x.v}</strong></p>)}
+          <p>{intro.round < intro.roll.rounds.length - 1 ? tx('Empate no maior valor: só os empatados voltam a lançar.') : tx('{n} ganhou e escolhe quem começa.', { n: intro.roll.winner })}</p></div> : <b>{dice.res?.items ? (intro.won ? tx('Ganhaste a moeda ao ar') : tx('Moeda: ganhou {p}', { p: opp?.name || tx('o adversário') })) : tx('Moeda ao ar: quem começa?')}</b>}
         <small>{tx('toca para continuar')}</small></div>}
       <div className="fp-dice" ref={diceBox} /></div>
       {drawerBot}
@@ -1520,9 +1543,9 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         {compact && <GameMenuBtns chrome={chrome} setChrome={setChrome} side={sideOpen} setSide={setSideOpen} />}
         <p className={`${promptOpen || blockBox || atkBox ? 'open' : ''} ${/^Priority:/.test(pr?.msg || '') && !st.stack?.length && !blockBox && !atkBox ? 'routine' : ''}`} onClick={() => setPromptOpen(x => !x)}><Syms text={promptText(pr?.msg, st, me, compact, rq)} />{blockBox}{atkBox}</p>
         {promptOpen && <ForWhat rq={rq} data={data} />}
-        {unstick}{selPick}
+        {startChoices}{unstick}{selPick}
         {mana.length > 0 && <span className="fp-pool">{mana.map(([k, n]) => <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} />)}</span>}
-        <span className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
+        <span className="row-btns">{!startingPick && btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label}</button>)}</span>
         {clockUi}
         <FsBtn />
       </div>}
@@ -1535,11 +1558,15 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
           <p><Syms text={promptText(pr?.msg, st, me, false, rq)} /></p>
           {blockBox}{atkBox}
           {clockUi}
+          {startChoices}
           {unstick}
           {selPick}
-          <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={isTouch() ? undefined : k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
+          <div className="row-btns">{!startingPick && btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)} title={isTouch() ? undefined : k === 0 ? 'Enter' : b.label === 'End Turn' ? 'Shift+Enter' : 'Esc'}>{BTN[b.label] || b.label} <kbd>{k === 0 ? '⏎' : b.label === 'End Turn' ? '⇧⏎' : 'Esc'}</kbd></button>)}</div>
           {mana.length > 0 && <span className="fp-pool" title={tx('Reserva de mana: clica para a usar')}>{mana.map(([k, n]) => (
             <ManaOrb key={k} k={k} n={n} onClick={() => send({ c: 'mana', color: k })} title={tx('Usar esta mana')} />))}</span>}
+          {startRoll && (st?.turn || 0) <= 1 && <details className="fp-start-roll" open><summary>{tx('Dados de abertura (d20)')}</summary>
+            {startRoll.rounds.map((round, i) => <p key={i}>{tx('Ronda {n}', { n: i + 1 })}: {round.map(x => `${x.name}: ${x.v}`).join(' · ')}</p>)}
+            <p>{tx('{n} ganhou e escolhe quem começa.', { n: startRoll.winner })}</p></details>}
           <RulesQuick />
           <p className="small muted fp-tip">{tx('Arrasta uma carta da mão para a mesa para a jogar. No combate, arrasta uma criatura tua para o lado do adversário (atacar) ou para cima de um atacante (bloquear). Arruma o teu lado e a mão como quiseres: larga uma carta por cima de outra ou numa fila.')} {isTouch() ? tx('Toca duas vezes numa carta tua na mesa para abrir as ações dela, em qualquer fase (também a atacar e a bloquear).') : tx('Duplo clique numa carta tua na mesa abre as ações dela, em qualquer fase (também a atacar e a bloquear).')}</p>
           <div className="fp-dicebar"><span className="muted small">🎲</span>
@@ -1589,7 +1616,7 @@ export default function ForgeTable({ sid, data, onClose, onAgain, againLabel, se
         <p>{btns.some(b => b.label === 'Graveyard') ? tx('Vigiar: {c} fica no topo da biblioteca ou vai para o cemitério?', { c: reveal.cardName })
           : btns.some(b => b.label === 'Bottom') ? tx('Vidência: {c} fica no topo ou vai para o fundo da biblioteca?', { c: reveal.cardName }) : <Syms text={reveal.msg} />}</p>
         <div className="fp-opts fp-reveal-c"><FCard c={{ id: reveal.card, name: reveal.cardName }} data={data} big /></div>
-        <div className="row-btns">{btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label} <kbd>{k ? 'Esc' : '⏎'}</kbd></button>)}</div>
+        <div className="row-btns">{!startingPick && btns.map((b, k) => <button key={k} className={k ? '' : 'primary'} disabled={!b.on} onClick={() => pressBtn(b)}>{BTN[b.label] || b.label} <kbd>{k ? 'Esc' : '⏎'}</kbd></button>)}</div>
       </div></div>}
       {zone && <div className="fp-modal zone" onClick={() => setZone(null)}><div className="fp-ask" onClick={e => e.stopPropagation()} onPointerDown={e => { swipe.current = e.clientY }} onPointerUp={e => { if (e.pointerType !== 'mouse' && e.clientY - swipe.current > 90) setZone(null) }}>
         <p><b>{zone.k === 'graveyard' ? tx('Cemitério de {n}', { n: zone.p.name }) : tx('Exílio de {n}', { n: zone.p.name })}</b> <button className="link small" onClick={() => setZone(null)}>{tx('fechar')}</button></p>

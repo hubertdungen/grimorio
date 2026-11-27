@@ -6143,4 +6143,11 @@ export default {
   "Nome (A–Z)": "名称（A–Z）",
   "com par (Partner…)": "可配对（Partner…）",
   "Limpar filtros": "清除筛选",
+  "Escolhe o jogador que começa.": "选择先手玩家。",
+  "Começa {n}": "{n}先手",
+  "Dados de abertura · ronda {n}": "先手掷骰 · 第{n}轮",
+  "Empate no maior valor: só os empatados voltam a lançar.": "最高点数平局：仅平局玩家重掷。",
+  "{n} ganhou e escolhe quem começa.": "{n}获胜并选择先手。",
+  "Dados de abertura (d20)": "先手掷骰（d20）",
+  "Ronda {n}": "第{n}轮",
 }
