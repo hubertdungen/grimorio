@@ -9,6 +9,7 @@ import { img } from './data.js'
 import { useBackClose } from './backnav.js'
 import { artBox, basePrompt, finalPrompt, costOf, dpiOf, prepareEdit, composite, bitmap, refURL, toBlob, alterHistory, rememberAlter, pickRecipe, recipeOf } from './alterart.js'
 import { upscale } from './upscale.js'
+import { startUpscale, useUpJobs } from './upjobs.js'
 
 const lsGet = k => { try { return localStorage.getItem(k) || '' } catch { return '' } }
 const lsSet = (k, v) => { try { localStorage.setItem(k, v) } catch { /* sem armazenamento */ } }
@@ -36,24 +37,33 @@ export function useEnlarge() {
   return [run, view, !!st]
 }
 
-// Na «Imagem própria» da carta: tamanho, dpi para imprimir e ⤢ ampliar (guarda a ampliada no lugar da atual)
-export function UpscaleArt({ src, onSaved }) {
-  const [dim, setDim] = useState(null), [err, setErr] = useState('')
-  const [run, view, busy] = useEnlarge()
+// Na «Imagem própria» da carta: tamanho, dpi para imprimir e ⤢ ampliar (guarda a ampliada no lugar da atual). A ampliação
+// corre em segundo plano (upjobs.js): fechar a janela não a para, e no fim vai para esta carta deste deck (onSaved)
+export function UpscaleArt({ src, onSaved, jobKey, label }) {
+  const [dim, setDim] = useState(null)
+  const job = useUpJobs().find(j => j.key === jobKey)
+  const busy = !!job && !job.done && !job.err
   useEffect(() => { const im = new Image(); im.onload = () => setDim({ w: im.naturalWidth, h: im.naturalHeight }); im.src = fetchable(src) }, [src])
-  const go = async k => {
-    setErr('')
-    try { const r = await run(await (await fetch(fetchable(src))).blob(), k); onSaved(await post(r.blob)) } catch (e) { setErr(e.message) }
-  }
+  const go = k => startUpscale({
+    key: jobKey, label, scale: k, onDone: onSaved,
+    work: async prog => {
+      try {
+        const cv = await upscale(await (await fetch(fetchable(src))).blob(), k, prog)
+        return await post(await toBlob(cv))
+      } catch (e) { throw new Error(e.message === 'grande' ? tx('A imagem ficaria grande demais; experimenta ×2.') : tx('Não consegui ampliar: {e}', { e: e.message })) }
+    },
+  })
   return (
     <div className="row-btns alter-up">
       {dim && <Dpi {...dim} />}
       <button className="small" disabled={busy} onClick={() => go(2)} title={tx('Ampliar com Real-ESRGAN, no teu browser (grátis)')}>⤢ ×2</button>
       <button className="small" disabled={busy} onClick={() => go(4)}>⤢ ×4</button>
-      {view}{err && <small className="bad-t">{err}</small>}
+      {busy && <small className="muted"><span className="spin-dot" /> {job.ep ? tx('A ampliar… {p}% ({m})', { p: Math.round(job.f * 100), m: job.ep === 'webgpu' ? 'GPU' : 'CPU' }) : tx('A carregar o ampliador…')} · {tx('podes fechar: continua em segundo plano')}</small>}
+      {job?.err && <small className="bad-t">{job.err}</small>}
     </div>
   )
 }
+
 
 export const PROV = () => ({ chatgpt: tx('ChatGPT (o teu plano, sem API)'), openai: tx('OpenAI (chave da API)'), gemini: tx('Google Gemini (chave da API)'), local: tx('Gerador local (A1111/Forge ou ComfyUI)'), mock: tx('Teste (imagens falsas)') })
 

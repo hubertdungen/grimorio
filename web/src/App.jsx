@@ -4,6 +4,7 @@ import { Icon } from './icons.jsx'
 import KwPeek from './KwPeek.jsx'
 import Mesa from './Mesa.jsx'
 import ProxyDialog from './Proxies.jsx'
+import UpscaleJobs from './UpJobs.jsx'
 import CardScan from './CardScan.jsx'
 import Rules from './Rules.jsx'
 import { ask, confirmOn, casualAsk } from './confirm.jsx'
@@ -586,7 +587,15 @@ export default function App() {
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
     goDeck: id => goDeck(id), decksChanged: () => api('/api/decks').then(setDecks).catch(() => {}),
     clearGroups: () => { setDeck(d => ({ ...d, groups: [] })); say(tx('Secções removidas: o deck volta a aparecer por tipo.')) },
-    swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) }, ai: seed => { setAiSeed(seed || null); setShowAI(true) }, undo, redo }),
+    swap: (c, o) => { setDeck(d => applySwap(d, c.n, o.out, o.q)); say(tx('Trocado {a} por {b}', { a: `${o.q}× ${o.out}`, b: c.n }), true) },
+    // a arte de uma carta num deck que pode já não ser o aberto (ampliação em segundo plano): o aberto muda já; outro grava-se
+    setArtIn: async (id, n, url) => {
+      if (!id || deckRef.current.id === id) { setArt(n, url); say(tx('Arte ampliada: {c}', { c: n })); return }
+      const d = await api(`/api/decks/${id}`)
+      await api(`/api/decks/${id}`, { method: 'PUT', body: JSON.stringify({ ...d, art: { ...(d.art || {}), [n]: url } }) })
+      say(tx('Arte ampliada: {c} (no deck «{d}»)', { c: n, d: d.name }))
+    },
+    ai: seed => { setAiSeed(seed || null); setShowAI(true) }, undo, redo }),
   [add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, say, setDeck, undo, redo, autoThemeArts])
 
   const newDeck = () => { dirty.current = false; draft.current++; setDeckRaw(emptyDeck(deck.format)); store.set('grimorio.deck', ''); setSaveState('') }
@@ -763,6 +772,7 @@ export default function App() {
           </div>
         </div>
       )}
+      <UpscaleJobs />
       {toast && <div className="toast">{toast.msg}{toast.undo && histN[0] > 0 && <button className="link toast-undo" onClick={undo}>↶ {tx('Desfazer')}</button>}</div>}
       {data && <KwPeek data={data} />}
       <LiveBar guest={guest} data={data} go={m => { setColMode(m); setSection('coliseu') }} />

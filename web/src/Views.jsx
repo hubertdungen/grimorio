@@ -2406,7 +2406,7 @@ function OwnArt({ c, deck, act }) {
         <label className="dbox-up">⬆ {tx('Carregar imagem')}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={e => { const f = e.target.files?.[0]; if (f) up(f) }} /></label>
       </form>
       {own && <button className="link small" onClick={() => act.setArt(c.n, null)}>{tx('tirar a imagem própria')}</button>}
-      {own && <Suspense fallback={null}><UpscaleArt src={own} onSaved={url => act.setArt(c.n, url)} /></Suspense>}
+      {own && <Suspense fallback={null}><UpscaleArt src={own} jobKey={`${deck.id || 'novo'}:${c.n}`} label={c.n} onSaved={url => act.setArtIn(deck.id, c.n, url)} /></Suspense>}
       {mine.length > 0 && <div className="alter-thumbs"><span className="small muted">{tx('As tuas alter arts')}</span>{mine.map(u => <button key={u} className={`alter-thumb ${u === own ? 'on' : ''}`} onClick={() => act.setArt(c.n, u)}><img src={u} alt="" loading="lazy" /></button>)}</div>}
       {err && <p className="small bad-t">{err}</p>}
       <details className="ownart-many"><summary className="small">{tx('Uma pasta de imagens (para o deck todo)')}</summary><ArtFolder deck={deck} act={act} /></details>
