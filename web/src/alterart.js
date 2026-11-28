@@ -55,15 +55,15 @@ export function finalPrompt({ base, custom, mode, masked, aspect = 'card', refs 
     return [`Edit the attached image (a custom trading card illustration). Make ONLY this change: ${String(custom || '').trim()}.`,
       'Keep everything else exactly as it is: the composition, pose, character, style, colours, lighting, frame, title, all text and symbols. Return the whole image at the same aspect ratio.'].join('\n\n')
   }
-  const out = mode === 'fullart' ? [] : [String(base || '').trim()]
+  const out = [String(base || '').trim()]
   if (custom?.trim()) out.push(`Personal direction from the user: ${custom.trim()}`)
   const att = []
-  if (mode === 'fullart') {  // ⚡ full-art: a ilustração que já lá está, estendida à carta toda (o texto vai por cima depois)
-    att.push(masked ? 'the card illustration to extend' : 'the original card (its illustration is what to extend)')
-    out.unshift([masked
-      ? 'Outpaint: keep the existing illustration in the unmasked area exactly as it is and continue the same scene seamlessly into the masked (transparent) area, so the artwork fills the whole portrait 2:3 image edge to edge.'
-      : 'Extend the illustration of the attached card into a FULL-ART version: the same scene, subject, style, palette and lighting, continued seamlessly beyond the original art box so it fills the whole portrait 2:3 image edge to edge.',
-    'Only the illustration: no card frame, no borders, no title, no text box, no letters, no symbols, no logos, no watermark.'].join(' '))
+  if (mode === 'fullart') {  // ⚡ full-art: a «Carta inteira» já pedida como full-art; a carta original só inspira
+    att.push('the original card (inspiration for the subject and the exact wording only; do not copy its frame or layout)')
+    out.push(['Redesign the WHOLE trading card as a FULL-ART (borderless) version, portrait 2:3: a new illustration of the same subject that fills the entire card edge to edge, with no frame and no borders.',
+      'The title bar, the mana cost, the type line, the rules text box and the power/toughness sit on top of the art as slim, semi-transparent overlays, like official full-art and borderless cards, so the art shows around and behind them.',
+      'Keep every word exactly as on the original card and spell it correctly: the title, the mana cost, the type line, the rules text and the power/toughness, in the usual positions.',
+      `Lettering style: ${font.trim() || 'clear, readable fantasy lettering'}.`].join(' '))
   } else if (mode === 'card') {  // carta inteira: ilustração, moldura e letra novas; o texto da carta tem de ficar certo
     att.push('the original card (reference for its exact wording and layout only)')
     out.push(['Redesign the WHOLE trading card: a new original illustration, a new frame and new lettering, portrait 2:3 card proportions.',
@@ -82,8 +82,8 @@ export function finalPrompt({ base, custom, mode, masked, aspect = 'card', refs 
     out.push(`Create only the illustration, ${aspect === 'box' ? 'landscape, about 4:3' : 'portrait 2:3, filling the whole image'}: no card frame, no border, no text, no letters, no logos, no watermark, no signature.`)
   }
   for (let k = 0; k < refs; k++) att.push('a style reference (use it only for style, palette and mood; do not copy its subject, composition or any text)')
-  if (att.length > 1 || (att.length === 1 && mode !== 'frame' && !(mode === 'fullart' && masked))) out.push(`Attached images, in order: ${att.map((a, k) => `${k + 1}) ${a}`).join('; ')}.`)
-  if (mode !== 'fullart') out.push('It must be an original work.')
+  if (att.length > 1 || (att.length === 1 && mode !== 'frame')) out.push(`Attached images, in order: ${att.map((a, k) => `${k + 1}) ${a}`).join('; ')}.`)
+  out.push('It must be an original work.')
   return out.join('\n\n')
 }
 
@@ -131,34 +131,6 @@ export function prepareEdit(card, box, kind) {
   mg.fillStyle = '#000'; mg.fillRect(0, 0, W, H)
   if (kind === 'a1111') { mg.fillStyle = '#fff'; mg.fillRect(...hole) } else mg.clearRect(...hole)
   return { image: toDataURL(img), mask: toDataURL(m), geo: { W, H, rect } }
-}
-
-// ⚡ Full-art: no quadro 1024×1536 só a arte da carta (na caixa dela); a máscara deixa pintar tudo o resto
-export function prepareOutpaint(card, box, kind) {
-  const W = 1024, H = 1536, w = W, h = Math.round((W * card.height) / card.width), rect = { x: 0, y: Math.round((H - h) / 2), w, h }
-  const [bx, by, bw, bh] = box, keep = [rect.x + bx * w, rect.y + by * h, bw * w, bh * h]
-  const img = canvas(W, H), g = img.getContext('2d')
-  if (kind !== 'comfy') { g.fillStyle = '#7f7f7f'; g.fillRect(0, 0, W, H) }
-  g.drawImage(card, bx * card.width, by * card.height, bw * card.width, bh * card.height, ...keep)
-  if (kind === 'comfy') return { image: toDataURL(img), mask: null, geo: { W, H, rect } }
-  const m = canvas(W, H), mg = m.getContext('2d')
-  if (kind === 'a1111') { mg.fillStyle = '#fff'; mg.fillRect(0, 0, W, H); mg.fillStyle = '#000'; mg.fillRect(...keep) } else { mg.fillStyle = '#000'; mg.fillRect(...keep) }
-  return { image: toDataURL(img), mask: toDataURL(m), geo: { W, H, rect } }
-}
-
-// ⚡ Full-art: a ilustração estendida a cobrir a carta toda e, por cima, o título e a parte de baixo (tipo, texto,
-// poder/resistência) da carta original, sem a borda de fora — como as full-art impressas
-export function compositeFullArt(card, out, { box, geo }) {
-  const r = mapRect(out.width, out.height, geo), FW = Math.min(2 * CARD_W, Math.max(CARD_W, r.w)), FH = (FW * card.height) / card.width
-  const cv = canvas(FW, FH), g = cv.getContext('2d')
-  g.imageSmoothingQuality = 'high'
-  g.drawImage(out, r.x, r.y, r.w, r.h, 0, 0, FW, FH)
-  const [, by, , bh] = box, ix = 0.05, top = 0.042, bot = 0.939  // só a barra do título e o bloco tipo/texto/P-T, sem a moldura preta
-  const part = (y0, y1, a) => { g.globalAlpha = a; g.drawImage(card, ix * card.width, y0 * card.height, (1 - 2 * ix) * card.width, (y1 - y0) * card.height, ix * FW, y0 * FH, (1 - 2 * ix) * FW, (y1 - y0) * FH) }
-  part(top, by - 0.004, 0.96)
-  part(by + bh, bot, 0.9)
-  g.globalAlpha = 1
-  return cv
 }
 
 // Imagem final a guardar. mode 'frame' ou 'art' + aspect 'box': a arte do resultado entra na caixa da carta original;

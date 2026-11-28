@@ -8,7 +8,7 @@ import { tx, num } from './i18n.js'
 import { img } from './data.js'
 import { useBackClose } from './backnav.js'
 import { VOC } from './vocab.js'
-import { neutralPrompt, prepareOutpaint, compositeFullArt, artBox, basePrompt, finalPrompt, costOf, dpiOf, prepareEdit, composite, bitmap, refURL, toBlob, alterHistory, rememberAlter, pickRecipe, recipeOf } from './alterart.js'
+import { neutralPrompt, artBox, basePrompt, finalPrompt, costOf, dpiOf, prepareEdit, composite, bitmap, refURL, toBlob, alterHistory, rememberAlter, pickRecipe, recipeOf } from './alterart.js'
 import { upscale } from './upscale.js'
 import { startUpscale, useUpJobs } from './upjobs.js'
 
@@ -82,12 +82,12 @@ export async function genCard({ c, pid, box, mode, aspect, orig, prov, localKind
   const cardSrc = img(c, 'png', false, pid)
   let image = null, mask = null, geo = null
   if (mode === 'edit' && own) image = await refURL(fetchable(own))  // ✏️ a imagem própria, tal como está, para corrigir
-  if (mode === 'frame' || mode === 'fullart') {
-    const cd = await card(), prep = mode === 'frame' ? prepareEdit : prepareOutpaint
-    if (masks(prov)) ({ image, mask, geo } = prep(cd, box, prov === 'local' ? localKind : 'openai'))
-    else { image = await refURL(cardSrc); geo = mode === 'frame' ? { W: cd.width, H: cd.height, rect: { x: 0, y: 0, w: cd.width, h: cd.height } } : null }
+  if (mode === 'frame') {
+    const cd = await card()
+    if (masks(prov)) ({ image, mask, geo } = prepareEdit(cd, box, prov === 'local' ? localKind : 'openai'))
+    else { image = await refURL(cardSrc); geo = { W: cd.width, H: cd.height, rect: { x: 0, y: 0, w: cd.width, h: cd.height } } }
   }
-  const rs = await Promise.all([...(mode === 'card' ? [cardSrc] : []), ...(mode === 'art' && orig ? [img(c, 'art_crop', false, pid)] : []), ...refs.map(r => (typeof r === 'string' ? fetchable(r) : r))].map(refURL))
+  const rs = await Promise.all([...(mode === 'card' || mode === 'fullart' ? [cardSrc] : []), ...(mode === 'art' && orig ? [img(c, 'art_crop', false, pid)] : []), ...refs.map(r => (typeof r === 'string' ? fetchable(r) : r))].map(refURL))
   // em segundo plano: o servidor arranca a geração e responde logo; pergunta-se de 2 em 2 s (a Cloudflare corta aos 100 s)
   const r = await fetch('/api/ia/image', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ provider: prov, prompt, n, quality, model: model?.trim() || undefined, image, mask, refs: rs, size: mode === 'art' && aspect === 'box' ? '1536x1024' : '1024x1536', async: true }) })
@@ -110,8 +110,7 @@ export async function genCard({ c, pid, box, mode, aspect, orig, prov, localKind
 // resultado (do servidor ou trazido do ChatGPT) → a imagem final, já na moldura; card() = a carta original (bitmap)
 export async function finishOut(out, geo, { mode, aspect, box, card }) {
   if (mode === 'edit') { const cv = composite(null, out, { mode: 'art', aspect: 'card' }); return { blob: await toBlob(cv), w: cv.width, h: cv.height } }
-  if (mode === 'fullart') { const cv = compositeFullArt(await card(), out, { box, geo }); return { blob: await toBlob(cv), w: cv.width, h: cv.height } }
-  const full = mode === 'card' || (mode === 'art' && aspect === 'card')  // carta inteira ou ilustração no formato da carta: sem a moldura original por cima
+  const full = mode === 'card' || mode === 'fullart' || (mode === 'art' && aspect === 'card')  // carta inteira ou ilustração no formato da carta: sem a moldura original por cima
   const cv = composite(full ? null : await card(), out, { mode: full ? 'art' : mode, aspect: full ? 'card' : aspect, box, geo })
   return { blob: await toBlob(cv), w: cv.width, h: cv.height }
 }
@@ -136,7 +135,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
     fetch('/api/ia/image').then(r => r.json()).then(setCfg).catch(() => setCfg({ providers: [], local: {} }))
   }, [c, pid])
   const box = artBox(c, pr)
-  useEffect(() => { if ((!box && (mode === 'frame' || mode === 'fullart')) || (mode === 'edit' && !own)) setMode('art') }, [box, mode, own])
+  useEffect(() => { if ((!box && mode === 'frame') || (mode === 'edit' && !own)) setMode('art') }, [box, mode, own])
   useEffect(() => { setModel(lsGet(`grimorio.alter.model.${prov}`)); lsSet('grimorio.alter.prov', prov) }, [prov])
 
   const P = cfg?.providers?.find(p => p.id === prov)
@@ -190,7 +189,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
   })
   const copy = async () => setNote(await copyText(prompt) ? tx('Pedido copiado.') : tx('Não consegui copiar: seleciona o pedido em baixo e copia à mão.'))
   const download = async () => {
-    const list = [...(mode === 'edit' && own ? [[fetchable(own), 'imagem-a-corrigir']] : mode === 'frame' ? [[cardSrc, 'carta']] : mode === 'art' && orig ? [[img(c, 'art_crop', false, pid), 'arte-original']] : []), ...refs.map((r, k) => [fetchable(r.src), `estilo-${k + 1}`])]
+    const list = [...(mode === 'edit' && own ? [[fetchable(own), 'imagem-a-corrigir']] : mode === 'frame' || mode === 'card' || mode === 'fullart' ? [[cardSrc, 'carta']] : mode === 'art' && orig ? [[img(c, 'art_crop', false, pid), 'arte-original']] : []), ...refs.map((r, k) => [fetchable(r.src), `estilo-${k + 1}`])]
     for (const [u, name] of list) {
       try {
         const b = await (await fetch(u)).blob(), a = document.createElement('a')
@@ -223,7 +222,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
             <label className="chk"><input type="radio" checked={mode === 'art'} onChange={() => setMode('art')} /> {tx('Arte completa (só a ilustração)')}</label>
             <label className="chk"><input type="radio" checked={mode === 'card'} onChange={() => setMode('card')} /> {tx('Carta inteira (moldura e letra novas)')}</label>
             {own && <label className="chk" title={tx('Envia a tua imagem própria tal como está e só a correção que escreveres; o resto fica igual')}><input type="radio" checked={mode === 'edit'} onChange={() => setMode('edit')} /> ✏️ {tx('Corrigir a imagem atual')}</label>}
-            <label className="chk" title={tx('A ilustração original estendida à carta toda, com o texto da carta por cima, como as versões full-art')}><input type="radio" checked={mode === 'fullart'} disabled={!box} onChange={() => setMode('fullart')} /> ⚡ {tx('Full-art (estende a arte original à carta toda)')}</label>
+            <label className="chk" title={tx('A carta inteira refeita como full-art: a arte de ponta a ponta e o texto por cima; a carta original só serve de inspiração')}><input type="radio" checked={mode === 'fullart'} onChange={() => setMode('fullart')} /> ⚡ {tx('Full-art (a carta inteira refeita como full-art, a original só inspira)')}</label>
             {mode === 'card' && <div className="alter-card-st">
               <label><span className="small">{tx('Estilo da moldura')}</span><input value={frame} onChange={e => setFrame(e.target.value)} placeholder={tx('ex.: art nouveau dourada, gótica com ossos, minimalista…')} /></label>
               <label><span className="small">{tx('Estilo da letra')}</span><input value={font} onChange={e => setFont(e.target.value)} placeholder={tx('ex.: caligrafia medieval, letras gravadas em pedra…')} /></label>
