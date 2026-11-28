@@ -3861,6 +3861,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "Artes extra do comandante": "Artes extra del comandante",
+  "Não há outras artes desta carta.": "No hay otras artes de esta carta.",
   "Arte ampliada: {c}": "Arte ampliada: {c}",
   "Arte ampliada: {c} (no deck «{d}»)": "Arte ampliada: {c} (en el mazo «{d}»)",
   "podes fechar: continua em segundo plano": "puedes cerrar: sigue en segundo plano",

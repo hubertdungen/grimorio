@@ -3861,6 +3861,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Artes extra do comandante": "Zusätzliche Kommandeur-Bilder",
+  "Não há outras artes desta carta.": "Keine weiteren Bilder für diese Karte.",
   "Arte ampliada: {c}": "Bild hochskaliert: {c}",
   "Arte ampliada: {c} (no deck «{d}»)": "Bild hochskaliert: {c} (im Deck «{d}»)",
   "podes fechar: continua em segundo plano": "du kannst schließen: es läuft im Hintergrund weiter",

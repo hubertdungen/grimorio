@@ -6,7 +6,9 @@
 // nomes dos decks na folha e cartas partilhadas entre decks (printpdf.packDecks).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { img, sf, recommend, fmtBit } from './data.js'
+import { img, sf, recommend, fmtBit, fetchPrints } from './data.js'
+import { subsOf } from './formats.js'
+import { alterHistory } from './alterart.js'
 import { FORMAT } from './formats.js'
 import { exportList, proxyGroups, listLine } from './deck.js'
 import { PAPERS, UNITS, PRINT0, layout, guides, gapRects, pageOps, pdf, packDecks, sheetLabels, tagRoom } from './printpdf.js'
@@ -122,13 +124,46 @@ function CostCalc({ n, sheets, duplex }) {
   )
 }
 
+// 👑 Artes extra do comandante e dos sub-comandantes: as impressões da carta (Scryfall), a imagem própria e as alter arts
+// deste aparelho; cada uma marcada sai como mais uma cópia nos proxies (a arte do deck já vai)
+function CmdAlts({ data, d, alts, setAlts }) {
+  const names = [...new Set([...(d.commanders || []), ...subsOf(d)])].filter(n => data.byName.get(n))
+  const [open, setOpen] = useState(null), [prints, setPrints] = useState({})
+  useEffect(() => {
+    if (!open || prints[open]) return
+    fetchPrints(open).then(l => setPrints(m => ({ ...m, [open]: l }))).catch(() => setPrints(m => ({ ...m, [open]: [] })))
+  }, [open, prints])
+  if (!names.length) return null
+  const cur = n => d.art?.[n] || d.prints?.[n]?.id || null
+  const opts = n => {
+    const c = data.byName.get(n), mine = [...new Set([d.art?.[n], ...alterHistory(n)].filter(Boolean))]
+    return [...mine.map(u => ({ src: u, label: tx('Imagem própria') })), ...(prints[n] || []).map(p => ({ src: p.id, label: `${String(p.set || '').toUpperCase()} ${p.cn || ''}` }))]
+      .filter(x => x.src !== cur(n)).map(x => ({ ...x, url: img(c, 'small', false, x.src) }))
+  }
+  const toggle = (n, src) => setAlts({ ...alts, [n]: (alts[n] || []).includes(src) ? alts[n].filter(x => x !== src) : [...(alts[n] || []), src] })
+  return (
+    <div className="px-alts">
+      <span className="small muted">👑 {tx('Artes extra do comandante')}:</span>
+      {names.map(n => <button key={n} className={`small ${open === n ? 'on' : ''}`} onClick={() => setOpen(open === n ? null : n)}>{n.split(' // ')[0].split(',')[0]}{alts[n]?.length ? ` +${alts[n].length}` : ''}</button>)}
+      {open && <div className="px-alt-grid">
+        {!prints[open] && <span className="muted small">{tx('A carregar…')}</span>}
+        {opts(open).map(x => (
+          <button key={x.src} className={`px-alt ${(alts[open] || []).includes(x.src) ? 'on' : ''}`} onClick={() => toggle(open, x.src)} title={x.label}>
+            <img src={x.url} alt="" loading="lazy" /><small>{x.label}</small>
+          </button>))}
+        {prints[open] && !opts(open).length && <span className="muted small">{tx('Não há outras artes desta carta.')}</span>}
+      </div>}
+    </div>
+  )
+}
+
 // quantos tokens uma carta cria de cada vez («create two …», X conta como 3)
 const NUMW = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, x: 3 }
 const madeBy = c => { const m = /\bcreates? (a|an|one|two|three|four|five|six|x|\d+)\b/i.exec(c?.o || ''); return m ? NUMW[m[1].toLowerCase()] || +m[1] || 1 : 1 }
 
 
 // vários decks: cada um com as suas opções; o aberto usa o contexto do App, os outros o mesmo cálculo sem os testes
-const OPT0 = { on: true, main: true, side: true, maybe: false, tok: false, sug: false, sugN: 10 }  // o que entra de cada deck
+const OPT0 = { on: true, main: true, side: true, maybe: false, tok: false, sug: false, sugN: 10, alts: {} }  // o que entra de cada deck; alts: {carta: [artes extra]}
 const keyOf = d => d.id || 'cur'
 const ctxOf = (data, d) => {
   const fmt = FORMAT[d.format] || FORMAT.casual, cmd = (d.commanders || []).map(n => data.byName.get(n)).filter(Boolean)
@@ -219,6 +254,8 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
     const k = keyOf(d), r = { ...OPT0, ...opts[k] }, tk = r.tok && toks[k] ? toks[k].filter(t => t.q > 0) : [], sg = sugs[k] || []
     return { d, k, r, tk, sg, groups: [
       ...proxyGroups(d, data, { side: r.side, main: r.main, maybe: r.maybe }).map(g => ({ ...g, key: `${g.c.n}|${g.src || ''}`, fb: d.prints?.[g.c.n]?.id })),
+      // artes extra do comandante e dos sub-comandantes: uma cópia de cada, além da do deck
+      ...(r.main ? Object.entries(r.alts || {}).flatMap(([n, l]) => { const c = data.byName.get(n); return c ? l.map(src => ({ c, q: 1, src, key: `${n}|${src}|alt`, alt: true })) : [] }) : []),
       ...tk.map(t => ({ c: { n: t.name, id: t.id, df: false }, q: t.q, src: null, token: true, key: `tok|${t.id}` })),
       ...sg.map(c => ({ c, q: 1, src: null, sug: true, key: `${c.n}|` }))] }
   }), [all, opts, toks, sugs, data])
@@ -346,6 +383,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
           <label className="chk small"><input type="checkbox" checked={r0.tok} onChange={e => { setOpt(k0, { tok: e.target.checked }); setTokErr('') }} /> {tx('Incluir os tokens que o deck cria')}</label>
           {tokList(k0)}
           {tokErr && <p className="small bad-t">{tokErr}</p>}
+          {r0.main && <CmdAlts data={data} d={all[0]} alts={r0.alts || {}} setAlts={a => setOpt(k0, { alts: a })} />}
           {(ctx || !deck) && <label className="chk small"><input type="checkbox" checked={r0.sug} onChange={e => setOpt(k0, { sug: e.target.checked })} /> {tx('Incluir sugestões do Grimório para testar')} {r0.sug && sugN(k0, r0)}</label>}
           {sugNames(k0)}
         </> : <>
@@ -364,6 +402,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
                   <label className="chk small"><input type="checkbox" checked={r.tok} onChange={e => { setOpt(k, { tok: e.target.checked }); setTokErr('') }} /> {tx('Tokens')}</label>
                   <label className="chk small"><input type="checkbox" checked={r.sug} onChange={e => setOpt(k, { sug: e.target.checked })} /> {tx('Sugestões')} {r.sug && sugN(k, r)}</label>
                 </div>}
+                {r.on && r.main && <CmdAlts data={data} d={d} alts={r.alts || {}} setAlts={a => setOpt(k, { alts: a })} />}
                 {r.on && tokList(k)}
                 {r.on && sugNames(k)}
               </li>)

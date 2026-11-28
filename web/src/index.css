@@ -4748,3 +4748,12 @@ select.demote:hover { border-color: var(--gold); }
 .upjobs > div b { margin-left: 4px; color: var(--accent, #f5c451); }
 .upjobs > div i { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent, #f5c451); transition: width .3s; }
 .upjobs > div.ok { color: #6fd08c; } .upjobs > div.bad { color: #e98b8b; white-space: normal; }
+
+/* Proxies › 👑 artes extra do comandante */
+.px-alts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; }
+.px-alts > button.on { border-color: var(--accent, #f5c451); }
+.px-alt-grid { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 6px; max-height: 280px; overflow-y: auto; padding: 4px 0; }
+.px-alt { display: grid; gap: 2px; padding: 3px; border-radius: 8px; text-align: center; }
+.px-alt img { width: 100%; aspect-ratio: 63 / 88; object-fit: cover; border-radius: 5px; }
+.px-alt small { font-size: 10px; color: var(--muted); }
+.px-alt.on { box-shadow: 0 0 0 2px var(--accent, #f5c451); background: color-mix(in srgb, var(--accent, #f5c451) 14%, transparent); }
