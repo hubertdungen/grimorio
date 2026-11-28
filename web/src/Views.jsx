@@ -1900,6 +1900,11 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
             <button onClick={() => act.toggleSeed(c)}>{deck.seeds.includes(c.n) ? `★ ${tx('É semente')}` : `☆ ${tx('Semente')}`}</button>
             <button onClick={() => act.showOnMap(c)}>{tx('Ver no universo')}</button>
             <button className={od ? 'on' : ''} onClick={() => setOd(x => !x)}>＋ {tx('Outro deck…')}</button>
+            {(inDeck(deck, c.n) > 0 || deck.commanders.includes(c.n) || deck.side?.[c.n] || deck.maybe?.[c.n]) && <span className="cm-artbtns">
+              <button onClick={() => act.pickArt(c)} title={tx('Outras edições, imagem própria e alter arts desta carta no deck')}>🎨 {tx('Arte')}</button>
+              <button onClick={() => act.pickArt(c, true)} title={tx('Uma ilustração nova para esta carta, gerada por IA a partir do texto dela')}>✨ {tx('Alter art')}</button>
+              <button onClick={() => act.pickArt(c, 'fullart')} title={tx('A ilustração original estendida à carta toda, com o texto da carta por cima, como as versões full-art')}>⚡ {tx('Full-art')}</button>
+            </span>}
             {(deck.main[c.n] || deck.side[c.n]) && <button className={`subs-btn ${subs ? 'on' : ''}`} onClick={() => setSubs(!subs)}>🔁 {tx('Sugerir substituto')}</button>}
           </div>
           {subs && <Subs c={c} data={data} deck={deck} fmt={fmt} ctx={ctx} act={act} />}
@@ -2419,10 +2424,10 @@ function OwnArt({ c, deck, act }) {
   )
 }
 
-export function ArtPicker({ c, deck, data, act, onClose }) {
+export function ArtPicker({ c, deck, data, act, onClose, initAlter = false }) {
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [preview, setPreview] = useState(null)
-  const [hoverPid, setHoverPid] = useState(null), [alter, setAlter] = useState(false)
+  const [hoverPid, setHoverPid] = useState(null), [alter, setAlter] = useState(initAlter)  // initAlter: abre já o «Criar alter art» (true) ou o ⚡ Full-art
   const pid = hoverPid || preview || pidOf(deck, c.n)
   const onPreview = (id, hover) => (hover ? setHoverPid(id) : (setPreview(id), setHoverPid(null)))
   // terrenos básicos: as cópias podem ser divididas por várias artes (deck.split); clicar numa edição junta-a à divisão

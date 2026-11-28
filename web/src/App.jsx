@@ -581,7 +581,7 @@ export default function App() {
     const d = now.current.deck, th = d.prefs?.temaArtes === false || !data ? null : artThemes(data, d)[0]
     if (th) themeArts(th, { auto: true })
   }, 80), [data, themeArts])
-  const act = useMemo(() => ({ add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: setArtCard, scan: () => setScan(true),
+  const act = useMemo(() => ({ add, remove, move, setCommander, demote, toggleSub, promote, toggleSeed, toggleSeedTerm, setSignature, setPrint, setArt, setSplit, setPrefs, open: setOpen, say, pickArt: (c, alter = false) => { setArtCard(c ? { c, alter } : null); setOpen(null) }, scan: () => setScan(true),
     themeArtsOpen: () => setThemeDlg(true), autoThemeArts,
     showOnMap: c => { setFocus(c.i); setTab('universo'); setOpen(null) },
     suggestFor: t => { setSugTag(t); setTab('sugestoes') }, refreshTests: () => setTestsN(n => n + 1),
@@ -755,7 +755,7 @@ export default function App() {
         if (auto) setTimeout(() => setShowAuto(true), 50)
       }} />}
       {themeDlg && data && <ThemeArtDialog data={data} deck={deck} onClose={() => setThemeDlg(false)} onApply={(th, replace) => { setThemeDlg(false); themeArts(th, { replace }) }} />}
-      {artCard && <ArtPicker c={artCard} deck={deck} data={data} act={act} onClose={() => setArtCard(null)} />}
+      {artCard && <ArtPicker c={artCard.c || artCard} initAlter={artCard.alter || false} deck={deck} data={data} act={act} onClose={() => setArtCard(null)} />}
       {scan && data && <CardScan data={data} onPick={c => act.add(c)} onClose={() => setScan(false)} />}
       {showEpic && <Suspense fallback={null}><EpicDialog data={data} decks={[deck]} taken={decks.filter(d => d.id !== deck.id).map(d => d.name)} onClose={() => setShowEpic(false)}
         onApply={async list => { for (const ch of list) setDeck(d => ({ ...d, ...(ch.name ? { name: ch.name } : {}), ...(ch.notes ? { notes: addNotes(d.notes, ch.notes) } : {}) })); say(list.some(c => c.name) ? tx('Nome mudado: {name}', { name: list.find(c => c.name).name }) : tx('Descrição guardada nas notas.')) }} /></Suspense>}
