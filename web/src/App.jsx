@@ -3,7 +3,7 @@ import Home from './Home.jsx'
 import { Icon } from './icons.jsx'
 import KwPeek from './KwPeek.jsx'
 import Mesa from './Mesa.jsx'
-import ProxyDialog from './Proxies.jsx'
+import ProxyDialog, { pxSaved } from './Proxies.jsx'
 import UpscaleJobs from './UpJobs.jsx'
 import CardScan from './CardScan.jsx'
 import Rules from './Rules.jsx'
@@ -251,7 +251,7 @@ export default function App() {
   useEffect(() => { if (!home) try { sessionStorage.setItem('grimorio.dentro', '1') } catch { /* sem armazenamento */ } }, [home])
   // contador de vida e dados (ecrã próprio, aberto do início); o F5 volta a ele
   const [tool, setToolS] = useState(() => { try { return sessionStorage.getItem('grimorio.mesa') || null } catch { return null } })
-  const [homePx, setHomePx] = useState(false)  // o quadrado «Proxies» do início
+  const [homePx, setHomePx] = useState(() => pxSaved()?.where === 'home')  // o quadrado «Proxies» do início (reabre depois de um reload)
   const setTool = t => { setToolS(t); try { if (t) sessionStorage.setItem('grimorio.mesa', t); else sessionStorage.removeItem('grimorio.mesa') } catch { /* sem armazenamento */ } }
   const [showRefresh, setShowRefresh] = useState(false)
   // sentado numa mesa livre (o separador guarda-a na sessão): ao recarregar volta direto à mesa, também para convidados
@@ -664,7 +664,7 @@ export default function App() {
   if (remoteRoom) return remoteRoom.kind === 'taverna' ? <RemoteTaverna data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} /> : <RemoteRoom data={data} room={remoteRoom} onClose={() => setRemoteRoom(null)} />
   const levarEl = levar != null && !guest && <FriendRoomModal data={data} link={levar} onClose={closeLevar} onRemote={r => { closeLevar(); setRemoteRoom(r) }} />
   if (tool) return <Mesa tool={tool} setTool={setTool} deck={deck} decks={decks} onHome={() => { setTool(null); setHome(true) }} onApp={() => { setTool(null); setHome(false) }} />
-  if (home) return <>{levarEl}{homePx && <ProxyDialog data={data} decks={[]} onClose={() => setHomePx(false)} />}<Home friend={!guest} deck={deck} decks={decks} onTool={setTool} onProxies={data ? () => setHomePx(true) : null} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }} onScan={() => { setHome(false); setSection('construir'); setScan(true) }}
+  if (home) return <>{levarEl}{homePx && <ProxyDialog data={data} decks={[]} where="home" onClose={() => setHomePx(false)} />}<Home friend={!guest} deck={deck} decks={decks} onTool={setTool} onProxies={data ? () => setHomePx(true) : null} onNew={() => { setHome(false); setSection('construir'); setShowWizard(true) }} onScan={() => { setHome(false); setSection('construir'); setScan(true) }}
     onGo={(sec, mode) => { setHome(false); setSection(sec); if (mode) setColMode(mode) }} /></>
   return (
     <div className={`app tab-${tab} sec-${section}`}>
@@ -837,7 +837,7 @@ function CopyList({ deck, data, act, onClose }) {
 function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, delDeck, setShowImport, setShowAuto, setShowAI, setShowRefresh, setShowEpic, hist }) {
   const bad = useContext(BadCards)
   const [viewBy, setViewBy] = useState(deck.groups?.length ? 'grupos' : 'tipo')
-  const [proxies, setProxies] = useState(false), ds = useDeckSel()
+  const [proxies, setProxies] = useState(() => pxSaved()?.where === 'deck'), ds = useDeckSel()  // reabre depois de um reload
   const fold = useFolded()
   const bySec = viewBy === 'grupos' && deck.groups?.length
   const secOf = new Map()
@@ -978,7 +978,7 @@ function DeckPanel({ data, deck, setDeck, fmt, ctx, act, issues, errors, total, 
         {copyOpen && <CopyList deck={deck} data={data} act={act} onClose={() => setCopyOpen(false)} />}
         <button onClick={download}>{tx('Descarregar')}</button>
         <button onClick={() => setProxies(true)} title={tx('Lista com edições, ZIP com as imagens ou folha para imprimir')}>🖨 {tx('Proxies')}</button>
-        {proxies && <ProxyDialog data={data} deck={deck} ctx={ctx} onClose={() => setProxies(false)} />}
+        {proxies && <ProxyDialog data={data} deck={deck} ctx={ctx} where="deck" onClose={() => setProxies(false)} />}
         {Object.keys(deck.main).length > 0 && <button onClick={() => ds.open(null)} title={tx('Alter arts para o deck todo, com filtros (só criaturas, sem terrenos…)')}>✨ {tx('Alter arts do deck')}</button>}
         {Object.keys(deck.main).length > 0 && <ThemeArtBtn {...{ data, deck, act }} />}
         {deck.id && <button className="danger" onClick={delDeck}>{tx('Eliminar')}</button>}

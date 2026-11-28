@@ -124,6 +124,34 @@ function CostCalc({ n, sheets, duplex }) {
   )
 }
 
+// ✎ Escolher as cartas de um deck: só as das zonas marcadas, já com as cópias do deck; − / + por carta, todas, nenhuma
+const ZL = () => ({ main: tx('Mainboard'), side: 'Sideboard', maybe: 'Maybeboard', alt: tx('Arte extra'), tok: tx('Token'), sug: tx('Sugestão') })
+function CardPick({ sec, setQty, onClose }) {
+  const [q, setQ] = useState('')
+  const qty = sec.r.qty || {}, cur = g => (g.qk in qty ? qty[g.qk] : g.q0)
+  const set = (g, v) => { const n = { ...qty }; v = Math.max(0, Math.min(99, v)); if (v === g.q0) delete n[g.qk]; else n[g.qk] = v; setQty(n) }
+  const all0 = () => setQty({}), none = () => setQty(Object.fromEntries(sec.base.map(g => [g.qk, 0])))
+  const qq = q.trim().toLowerCase(), rows = sec.base.filter(g => !qq || g.c.n.toLowerCase().includes(qq))
+  const total = sec.base.reduce((a, g) => a + cur(g), 0), zl = ZL()
+  return createPortal(
+    <div className="modal-bg px-pick-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal px-pick" role="dialog" aria-label={tx('Cartas a imprimir')}>
+        <header className="cl-top"><h3>✎ {tx('Cartas a imprimir')} <small className="muted">{sec.d.name}</small></h3><button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button></header>
+        <div className="px-pick-bar">
+          <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={tx('Procurar carta…')} aria-label={tx('Procurar carta…')} />
+          <button className="small" onClick={all0}>{tx('Todas (como no deck)')}</button><button className="small" onClick={none}>{tx('Nenhuma')}</button>
+          <b className="small">{tx('{n} cartas', { n: total })}</b>
+        </div>
+        <ul className="px-pick-list">{rows.map(g => { const v = cur(g); return (
+          <li key={g.qk} className={v === 0 ? 'off' : v !== g.q0 ? 'chg' : ''}>
+            <span className="px-pick-n">{g.c.n}<small className="muted"> · {zl[g.zone]}{v !== g.q0 ? ` · ${tx('no deck: {n}', { n: g.q0 })}` : ''}</small></span>
+            <span className="px-pick-q"><button className="small" onClick={() => set(g, v - 1)} disabled={!v} aria-label="−">−</button><b>{v}</b><button className="small" onClick={() => set(g, v + 1)} aria-label="+">+</button></span>
+          </li>) })}</ul>
+        <div className="row-btns cl-foot"><button className="primary small" onClick={onClose}>{tx('Feito')}</button></div>
+      </div>
+    </div>, document.body)
+}
+
 // 👑 Artes extra do comandante e dos sub-comandantes: as impressões da carta (Scryfall), a imagem própria e as alter arts
 // deste aparelho; cada uma marcada sai como mais uma cópia nos proxies (a arte do deck já vai)
 function CmdAlts({ data, d, alts, setAlts }) {
@@ -163,7 +191,7 @@ const madeBy = c => { const m = /\bcreates? (a|an|one|two|three|four|five|six|x|
 
 
 // vários decks: cada um com as suas opções; o aberto usa o contexto do App, os outros o mesmo cálculo sem os testes
-const OPT0 = { on: true, main: true, side: true, maybe: false, tok: false, sug: false, sugN: 10, alts: {} }  // o que entra de cada deck; alts: {carta: [artes extra]}
+const OPT0 = { on: true, main: true, side: true, maybe: false, tok: false, sug: false, sugN: 10, alts: {}, qty: {} }  // qty: {zona|carta|arte: cópias} escolhidas à mão  // o que entra de cada deck; alts: {carta: [artes extra]}
 const keyOf = d => d.id || 'cur'
 const ctxOf = (data, d) => {
   const fmt = FORMAT[d.format] || FORMAT.casual, cmd = (d.commanders || []).map(n => data.byName.get(n)).filter(Boolean)
@@ -219,12 +247,28 @@ function JoinPicker({ have, onAdd, onClose }) {
 }
 
 // deck = o deck aberto (com ctx); decks = outros decks inteiros (da Biblioteca ou de «Juntar outros decks")
-export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
+// a janela sobrevive a um reload (atualização, F5): aberta e com que decks fica nesta sessão do separador; as opções
+// de cada deck (zonas, artes extra, cópias à mão) ficam neste browser, por deck
+const PXK = 'grimorio.px.open', PXO = 'grimorio.px.opts'
+export const pxSaved = () => { try { return JSON.parse(sessionStorage.getItem(PXK) || 'null') } catch { return null } }
+const pxOpts = () => { try { return JSON.parse(localStorage.getItem(PXO) || '{}') } catch { return {} } }
+
+export default function ProxyDialog({ data, deck, decks, ctx, onClose: close0, where = 'deck' }) {
+  const onClose = () => { try { sessionStorage.removeItem(PXK) } catch { /* sem armazenamento */ } close0() }
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const [extra, setExtra] = useState(() => decks || []), [joining, setJoining] = useState(false)
   const all = useMemo(() => (deck ? [deck, ...extra.filter(d => !deck.id || d.id !== deck.id)] : extra), [deck, extra])
   const multi = all.length > 1
-  const [opts, setOpts] = useState({}), [perCopy, setPerCopy] = useState(false)
+  const [opts, setOpts] = useState(pxOpts), [perCopy, setPerCopy] = useState(false), [picking, setPicking] = useState(null)
+  useEffect(() => { try { localStorage.setItem(PXO, JSON.stringify(opts)) } catch { /* sem armazenamento */ } }, [opts])
+  useEffect(() => { try { sessionStorage.setItem(PXK, JSON.stringify({ where, ids: extra.map(d => d.id).filter(Boolean) })) } catch { /* sem armazenamento */ } }, [where, extra])
+  useEffect(() => {  // depois de um reload: os decks que se tinham juntado voltam
+    const sv = pxSaved(), have = new Set([deck?.id, ...extra.map(d => d.id)].filter(Boolean))
+    const miss = sv?.where === where ? (sv.ids || []).filter(id => !have.has(id)) : []
+    if (!miss.length) return
+    Promise.all(miss.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : null)).catch(() => null)))
+      .then(ds => setExtra(x => [...x, ...ds.filter(d => d && !x.some(y => y.id === d.id))]))
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
   const optOf = k => ({ ...OPT0, ...opts[k] }), setOpt = (k, p) => setOpts(m => ({ ...m, [k]: { ...OPT0, ...m[k], ...p } }))
   // extras: os tokens que as cartas de cada deck criam (Scryfall, pelo servidor) e as sugestões do Grimório para testar
   const [toks, setToks] = useState({}), [tokErr, setTokErr] = useState('')  // toks[k]: null = a procurar
@@ -252,12 +296,16 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
   })), [all, opts, data, deck, ctx])
   const secs = useMemo(() => all.filter(d => ({ ...OPT0, ...opts[keyOf(d)] }).on).map(d => {
     const k = keyOf(d), r = { ...OPT0, ...opts[k] }, tk = r.tok && toks[k] ? toks[k].filter(t => t.q > 0) : [], sg = sugs[k] || []
-    return { d, k, r, tk, sg, groups: [
-      ...proxyGroups(d, data, { side: r.side, main: r.main, maybe: r.maybe }).map(g => ({ ...g, key: `${g.c.n}|${g.src || ''}`, fb: d.prints?.[g.c.n]?.id })),
+    // zona a zona (a mesma carta pode estar no mainboard e no sideboard): a chave de cada linha para as quantidades à mão
+    const zone = (z, o) => proxyGroups(d, data, { main: false, side: false, maybe: false, ...o }).map(g => ({ ...g, zone: z, key: `${g.c.n}|${g.src || ''}`, fb: d.prints?.[g.c.n]?.id }))
+    const base = [
+      ...(r.main ? zone('main', { main: true }) : []), ...(r.side ? zone('side', { side: true }) : []), ...(r.maybe ? zone('maybe', { maybe: true }) : []),
       // artes extra do comandante e dos sub-comandantes: uma cópia de cada, além da do deck
-      ...(r.main ? Object.entries(r.alts || {}).flatMap(([n, l]) => { const c = data.byName.get(n); return c ? l.map(src => ({ c, q: 1, src, key: `${n}|${src}|alt`, alt: true })) : [] }) : []),
-      ...tk.map(t => ({ c: { n: t.name, id: t.id, df: false }, q: t.q, src: null, token: true, key: `tok|${t.id}` })),
-      ...sg.map(c => ({ c, q: 1, src: null, sug: true, key: `${c.n}|` }))] }
+      ...(r.main ? Object.entries(r.alts || {}).flatMap(([n, l]) => { const c = data.byName.get(n); return c ? l.map(src => ({ c, q: 1, src, zone: 'alt', key: `${n}|${src}|alt`, alt: true })) : [] }) : []),
+      ...tk.map(t => ({ c: { n: t.name, id: t.id, df: false }, q: t.q, src: null, zone: 'tok', token: true, key: `tok|${t.id}` })),
+      ...sg.map(c => ({ c, q: 1, src: null, zone: 'sug', sug: true, key: `${c.n}|` }))].map(g => ({ ...g, qk: `${g.zone}|${g.key}`, q0: g.q }))
+    const qty = r.qty || {}
+    return { d, k, r, tk, sg, base, picked: Object.keys(qty).length > 0, groups: base.map(g => (g.qk in qty ? { ...g, q: qty[g.qk] } : g)).filter(g => g.q > 0) }
   }), [all, opts, toks, sugs, data])
   const [o, setO] = useState(loadPrint), [pdfBusy, setPdfBusy] = useState('')
   const up = p => setO(x => { const n = { ...x, ...p }; try { localStorage.setItem('grimorio.print', JSON.stringify(n)) } catch { /* sem armazenamento */ } return n })
@@ -274,14 +322,17 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
     const extras = (tk, sg) => [...(tk.length ? [`\n// ${tx('Tokens')}`, ...tk.map(t => `${t.q} ${t.name}`)] : []), ...(sg.length ? [`\n// ${tx('Sugestões do Grimório')}`, ...sg.map(c => `1 ${c.n}`)] : [])]
     const full = s => [...(s.r.main || s.r.side ? [exportList({ ...s.d, ...(s.r.main ? {} : { main: {}, commanders: [], signature: null }), side: s.r.side ? s.d.side || {} : {} }, { maybe: false })] : []),
       ...(s.r.maybe && Object.keys(s.d.maybe || {}).length ? [`\n// Maybeboard`, ...Object.entries(s.d.maybe).map(([n, q]) => listLine(n, q, s.d.prints?.[n]))] : []), ...extras(s.tk, s.sg)]
-    if (!multi) return secs[0] ? full(secs[0]).join('\n') : ''
+    const pickedList = s => [...s.groups.filter(g => !g.token && !g.sug).map(g => listLine(g.c.n, g.q, g.pr)), ...extras(s.groups.filter(g => g.token).map(g => ({ q: g.q, name: g.c.n })), s.groups.filter(g => g.sug).map(g => g.c))]
+    const full0 = full
+    const fullP = s => (s.picked ? pickedList(s) : full0(s))
+    if (!multi) return secs[0] ? fullP(secs[0]).join('\n') : ''
     const shared = i => {  // só as cópias que os decks de cima ainda não têm
       const mine = pack.items.filter(it => it.deck === i), by = f => mine.filter(it => f(it.g))
       const out = [...by(g => !g.token && !g.sug).map(it => listLine(it.g.c.n, it.q, it.g.pr)), ...extras(by(g => g.token).map(it => ({ q: it.q, name: it.g.c.n })), by(g => g.sug).map(it => it.g.c))]
       return out.length ? out : [`// ${tx('(já está tudo nos decks de cima)')}`]
     }
     return [...(share ? [`// ${tx('Cartas partilhadas: cada deck só traz as cópias que os de cima ainda não têm')}`] : []),
-      ...secs.map((s, i) => [`// ${s.d.name}`, ...(share ? shared(i) : full(s))].join('\n'))].join('\n\n')
+      ...secs.map((s, i) => [`// ${s.d.name}`, ...(share ? shared(i) : fullP(s))].join('\n'))].join('\n\n')
   }, [secs, multi, share, pack])
   const total = slots.filter(Boolean).length, owned = pack.items.filter(it => own(it.g.src)).reduce((a, it) => a + it.q, 0)
   const sum = secs.reduce((a, s) => a + s.groups.reduce((b, g) => b + g.q, 0), 0)
@@ -377,12 +428,13 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
         <h3>🖨 {multi ? tx('Proxies de {n} decks', { n: all.length }) : tx('Proxies de «{name}»', { name: all[0]?.name })}</h3>
         <p className="muted small">{multi ? tx('{n} cartas de {d} decks', { n: total, d: secs.length }) : tx('{n} cartas com as artes que escolheste', { n: total })}{share && sum > total ? ` · ${tx('{n} a menos por partilhar', { n: sum - total })}` : ''}{owned ? ` · ${tx('{n} com imagem própria', { n: owned })}` : ''}</p>
         {!multi ? <>
-          <label className="chk small"><input type="checkbox" checked={r0.main} onChange={e => setOpt(k0, { main: e.target.checked })} /> {tx('Incluir o deck (comandante e principal)')}</label>
+          <label className="chk small"><input type="checkbox" checked={r0.main} onChange={e => setOpt(k0, { main: e.target.checked })} /> {tx('Incluir o mainboard (comandante e principal)')}</label>
           <label className="chk small"><input type="checkbox" checked={r0.side} onChange={e => setOpt(k0, { side: e.target.checked })} /> {tx('Incluir o sideboard')}</label>
           {Object.keys(all[0]?.maybe || {}).length > 0 && <label className="chk small"><input type="checkbox" checked={r0.maybe} onChange={e => setOpt(k0, { maybe: e.target.checked })} /> {tx('Incluir o maybeboard ({n})', { n: Object.values(all[0].maybe).reduce((a, b) => a + b, 0) })}</label>}
           <label className="chk small"><input type="checkbox" checked={r0.tok} onChange={e => { setOpt(k0, { tok: e.target.checked }); setTokErr('') }} /> {tx('Incluir os tokens que o deck cria')}</label>
           {tokList(k0)}
           {tokErr && <p className="small bad-t">{tokErr}</p>}
+          {secs[0] && <div className="row-btns"><button className="small" onClick={() => setPicking(k0)}>✎ {tx('Escolher as cartas')}{secs[0].picked ? ` · ${tx('à mão')}` : ''}</button></div>}
           {r0.main && <CmdAlts data={data} d={all[0]} alts={r0.alts || {}} setAlts={a => setOpt(k0, { alts: a })} />}
           {(ctx || !deck) && <label className="chk small"><input type="checkbox" checked={r0.sug} onChange={e => setOpt(k0, { sug: e.target.checked })} /> {tx('Incluir sugestões do Grimório para testar')} {r0.sug && sugN(k0, r0)}</label>}
           {sugNames(k0)}
@@ -396,11 +448,12 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
                   {s && <small className="muted">{tx('{n} carta|{n} cartas', { n: s.groups.reduce((a, g) => a + g.q, 0) })}</small>}
                 </div>
                 {r.on && <div className="px-dopts">
-                  <label className="chk small"><input type="checkbox" checked={r.main} onChange={e => setOpt(k, { main: e.target.checked })} /> {tx('Deck')}</label>
+                  <label className="chk small"><input type="checkbox" checked={r.main} onChange={e => setOpt(k, { main: e.target.checked })} /> {tx('Mainboard')}</label>
                   <label className="chk small"><input type="checkbox" checked={r.side} onChange={e => setOpt(k, { side: e.target.checked })} /> {tx('Sideboard')}</label>
                   {Object.keys(d.maybe || {}).length > 0 && <label className="chk small"><input type="checkbox" checked={r.maybe} onChange={e => setOpt(k, { maybe: e.target.checked })} /> Maybeboard</label>}
                   <label className="chk small"><input type="checkbox" checked={r.tok} onChange={e => { setOpt(k, { tok: e.target.checked }); setTokErr('') }} /> {tx('Tokens')}</label>
                   <label className="chk small"><input type="checkbox" checked={r.sug} onChange={e => setOpt(k, { sug: e.target.checked })} /> {tx('Sugestões')} {r.sug && sugN(k, r)}</label>
+                  {s && <button className={`small px-pickbtn ${s.picked ? 'on' : ''}`} onClick={() => setPicking(k)} title={tx('Escolher as cartas e as cópias a imprimir')}>✎ {tx('Cartas')}{s.picked ? ' ✓' : ''}</button>}
                 </div>}
                 {r.on && r.main && <CmdAlts data={data} d={d} alts={r.alts || {}} setAlts={a => setOpt(k, { alts: a })} />}
                 {r.on && tokList(k)}
@@ -492,6 +545,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose }) {
             </div>
           </div>
         </section>
+        {picking && secs.find(x => x.k === picking) && <CardPick sec={secs.find(x => x.k === picking)} setQty={q => setOpt(picking, { qty: q })} onClose={() => setPicking(null)} />}
         {warn && <p className="small warn-t">{warn}</p>}
         {err && <p className="small bad-t">{err}</p>}
       </div>

@@ -4757,3 +4757,19 @@ select.demote:hover { border-color: var(--gold); }
 .px-alt img { width: 100%; aspect-ratio: 63 / 88; object-fit: cover; border-radius: 5px; }
 .px-alt small { font-size: 10px; color: var(--muted); }
 .px-alt.on { box-shadow: 0 0 0 2px var(--accent, #f5c451); background: color-mix(in srgb, var(--accent, #f5c451) 14%, transparent); }
+
+/* Proxies › ✎ escolher as cartas de um deck */
+.px-pick-bg { z-index: 74; }
+.modal.px-pick { width: min(620px, 96vw); display: grid; gap: 10px; max-height: 86vh; }
+.px-pick-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.px-pick-bar input { flex: 1; min-width: 160px; }
+.px-pick-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; max-height: 60vh; display: grid; gap: 2px; }
+.px-pick-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border-radius: 8px; }
+.px-pick-list li:nth-child(odd) { background: color-mix(in srgb, currentColor 4%, transparent); }
+.px-pick-list li.off .px-pick-n { opacity: .45; text-decoration: line-through; }
+.px-pick-list li.chg b { color: var(--accent, #f5c451); }
+.px-pick-n { min-width: 0; overflow-wrap: anywhere; }
+.px-pick-q { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.px-pick-q b { min-width: 1.6em; text-align: center; }
+.px-pickbtn { margin-left: auto; }
+.px-pickbtn.on { border-color: var(--accent, #f5c451); }

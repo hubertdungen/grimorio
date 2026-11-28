@@ -14,7 +14,7 @@ import { trophyValue, deckSplit, deckPoints, perfOf, trophyStars, pointStars } f
 import { SyncHint } from './Settings.jsx'
 import { useBackClose } from './backnav.js'
 import DeckIO from './DeckIO.jsx'
-import ProxyDialog from './Proxies.jsx'
+import ProxyDialog, { pxSaved } from './Proxies.jsx'
 import { addNotes } from './epic.js'
 const EpicDialog = lazy(() => import('./Epic.jsx'))
 
@@ -204,6 +204,11 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const [view, setView] = useState(() => ls('grimorio.lib.view') || 'grelha')
   const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false), [px, setPx] = useState(null)  // px = decks inteiros para os proxies
+  useEffect(() => {  // os proxies estavam abertos antes de um reload: voltam com os mesmos decks
+    const sv = pxSaved()
+    if (sv?.where !== 'lib' || !sv.ids?.length) return
+    Promise.all(sv.ids.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : null)).catch(() => null))).then(ds => { const l = ds.filter(Boolean); if (l.length) setPx(l) })
+  }, [])
   const proxiesSel = async () => { try { setPx(await Promise.all(sel.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : Promise.reject(new Error())))))) } catch { say(tx('Não consegui ler os teus decks.')) } }
   const toggleSel = id => setSel(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]))
   // ✨ Epificar nomes (Epic.jsx): os decks inteiros; o que está aberto no construtor vai pelo setDeck da app (gravação automática)
@@ -386,7 +391,7 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
           </span>
           <button className="link small" onClick={() => setSel([])}>{tx('limpar')}</button>
         </div>}
-        {px && <ProxyDialog data={data} decks={px} onClose={() => setPx(null)} />}
+        {px && <ProxyDialog data={data} decks={px} where="lib" onClose={() => setPx(null)} />}
         {ep && <Suspense fallback={null}><EpicDialog data={data} decks={ep} taken={mine.filter(d => !sel.includes(d.id)).map(d => d.name)} onApply={applyEpic} onClose={() => setEp(null)} /></Suspense>}
         {bulkLand && <BasicArtPicker title={tx('Arte dos terrenos básicos em {n} decks', { n: sel.length })} applyLabel={tx('Aplicar a {n} decks', { n: sel.length })} onClose={() => setBulkLand(false)} onApply={landsSel} />}
         {bulkDel && <div className="modal-bg" onClick={() => setBulkDel(false)}><div className="modal" onClick={e => e.stopPropagation()}>
