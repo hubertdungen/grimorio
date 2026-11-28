@@ -34,6 +34,19 @@ export function basePrompt(c, pr) {
     `Show what the card is about (its name, type and text) as a detailed, dramatic painted fantasy scene with a strong focal point and clear lighting${cols.length ? `, with a palette that leans ${cols.join(' and ')}` : ''}.`].join('\n')
 }
 
+// Pedido «neutro» para quando o fornecedor recusa por segurança: os filtros de imagem barram personagens e marcas com
+// direitos (Marneus Calgar, Warhammer 40k, Astartes…). Sai o nome da carta (fica «the hero»), a linha da edição e as
+// palavras de todos os universos (build/franchises.json); o resto do pedido (o que a carta faz, cores, modo) fica.
+export function neutralPrompt(text, c, words = []) {
+  let t = String(text || '')
+  const names = [...new Set([c?.n, c?.n?.split(' // ')[0], c?.n?.split(',')[0]].filter(x => x && x.length >= 3))].sort((a, b) => b.length - a.length)
+  for (const n of names) t = t.split(n).join('the hero')
+  t = t.replace(/\bSet: [^.\n]*\.?/g, '').replace(/\b40,?000\b|\b40k\b/gi, '')
+  for (const w of [...new Set(words)].filter(w => w.length >= 4).sort((a, b) => b.length - a.length))
+    t = t.replace(new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), '')
+  return t.replace(/[ \t]{2,}/g, ' ').replace(/ ([,.;:])/g, '$1').trim()
+}
+
 // O pedido final: base + toque pessoal + instruções do modo e das imagens anexadas (pela ordem em que vão).
 // mode: 'frame' (arte nova na moldura) | 'art' (só a ilustração); masked: o fornecedor recebe máscara (OpenAI, local);
 // aspect: 'card' | 'box' (modo arte); refs: quantas referências de estilo; orig: a arte original vai como referência.

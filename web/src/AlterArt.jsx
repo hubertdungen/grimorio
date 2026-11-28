@@ -7,7 +7,8 @@ import { createPortal } from 'react-dom'
 import { tx, num } from './i18n.js'
 import { img } from './data.js'
 import { useBackClose } from './backnav.js'
-import { artBox, basePrompt, finalPrompt, costOf, dpiOf, prepareEdit, composite, bitmap, refURL, toBlob, alterHistory, rememberAlter, pickRecipe, recipeOf } from './alterart.js'
+import { VOC } from './vocab.js'
+import { neutralPrompt, artBox, basePrompt, finalPrompt, costOf, dpiOf, prepareEdit, composite, bitmap, refURL, toBlob, alterHistory, rememberAlter, pickRecipe, recipeOf } from './alterart.js'
 import { upscale } from './upscale.js'
 import { startUpscale, useUpJobs } from './upjobs.js'
 
@@ -161,10 +162,13 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
   // resultado (do servidor ou trazido do ChatGPT) → a imagem final, já na moldura
   const withUrl = r => ({ ...r, url: URL.createObjectURL(r.blob), k: Math.random() })
   const finish = async (out, geo) => withUrl(await finishOut(out, geo, { mode, aspect, box, card: getCard }))
-  const gen = async () => {
+  // neutral: depois de uma recusa por segurança, sem nomes de personagens/marcas nem a arte original (neutralPrompt)
+  const gen = async (neutral = false) => {
     setErr(''); setNote(''); setBusy(tx('A gerar… pode demorar um minuto.'))
+    const words = neutral ? [...VOC.fr.values()].flatMap(f => f.alias) : []
     try {
-      const j = await genCard({ c, pid, box, mode, aspect, orig, prov, localKind: cfg?.local?.kind, prompt, n, quality, model, refs: refs.map(r => r.src), card: getCard })
+      const j = await genCard({ c, pid, box, mode, aspect, orig: neutral ? false : orig, prov, localKind: cfg?.local?.kind,
+        prompt: neutral ? neutralPrompt(prompt, c, words) : prompt, n, quality, model, refs: refs.map(r => r.src), card: getCard })
       setResults(x => [...j.images.map(withUrl), ...x])
       setNote(`${j.model}${j.cost ? ` · ≈ US$ ${num(j.cost, 3)}` : ''}`)
     } catch (e) { setErr(e.message) } finally { setBusy('') }
@@ -274,6 +278,10 @@ export default function AlterArt({ c, deck, data, act, onClose }) {
           {busy && <p className="small"><span className="spin-dot" /> {busy}</p>}
           {note && <p className="small muted">{note}</p>}
           {err && <p className="small bad-t">{err}</p>}
+          {err && /seguran|safety/i.test(err) && <div className="alter-safe">
+            <p className="small muted">{tx('Os filtros dos geradores costumam barrar personagens e marcas com direitos de autor (nomes, edição, arte oficial como referência).')}</p>
+            <button className="small" disabled={!!busy} onClick={() => gen(true)}>↻ {tx('Tentar de forma neutra (sem nomes, sem a arte original)')}</button>
+          </div>}
           {results.length > 0 && <div className="alter-res">{results.map((r, k) => (
             <figure key={r.k}>
               <img src={r.url} alt="" />

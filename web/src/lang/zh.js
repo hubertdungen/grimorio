@@ -3861,6 +3861,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "Os filtros dos geradores costumam barrar personagens e marcas com direitos de autor (nomes, edição, arte oficial como referência).": "图像生成器的过滤器常会拦截受版权保护的角色和品牌（名称、系列、作为参考的官方卡图）。",
+  "Tentar de forma neutra (sem nomes, sem a arte original)": "以中性方式重试（不含名称和原图）",
   "Artes extra do comandante": "指挥官的额外卡图",
   "Não há outras artes desta carta.": "这张牌没有其他卡图。",
   "Arte ampliada: {c}": "卡图已放大：{c}",

@@ -3861,6 +3861,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "Os filtros dos geradores costumam barrar personagens e marcas com direitos de autor (nomes, edição, arte oficial como referência).": "Los filtros de los generadores suelen bloquear personajes y marcas con derechos de autor (nombres, edición, arte oficial como referencia).",
+  "Tentar de forma neutra (sem nomes, sem a arte original)": "Probar de forma neutra (sin nombres ni el arte original)",
   "Artes extra do comandante": "Artes extra del comandante",
   "Não há outras artes desta carta.": "No hay otras artes de esta carta.",
   "Arte ampliada: {c}": "Arte ampliada: {c}",

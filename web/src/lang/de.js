@@ -3861,6 +3861,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "Os filtros dos geradores costumam barrar personagens e marcas com direitos de autor (nomes, edição, arte oficial como referência).": "Die Filter der Bildgeneratoren blockieren oft urheberrechtlich geschützte Figuren und Marken (Namen, Edition, offizielles Bild als Referenz).",
+  "Tentar de forma neutra (sem nomes, sem a arte original)": "Neutral versuchen (ohne Namen, ohne Originalbild)",
   "Artes extra do comandante": "Zusätzliche Kommandeur-Bilder",
   "Não há outras artes desta carta.": "Keine weiteren Bilder für diese Karte.",
   "Arte ampliada: {c}": "Bild hochskaliert: {c}",

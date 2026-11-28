@@ -3869,6 +3869,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "Os filtros dos geradores costumam barrar personagens e marcas com direitos de autor (nomes, edição, arte oficial como referência).": "Image generators' filters often block copyrighted characters and brands (names, set, official art as a reference).",
+  "Tentar de forma neutra (sem nomes, sem a arte original)": "Try a neutral version (no names, no original art)",
   "Artes extra do comandante": "Extra commander arts",
   "Não há outras artes desta carta.": "No other arts for this card.",
   "Arte ampliada: {c}": "Art upscaled: {c}",
