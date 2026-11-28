@@ -65,16 +65,19 @@ export function themePlan(data, deck, th, { replace = false } = {}) {
   for (const n of deckNames(deck)) {
     const c = data.byName.get(n)
     if (!c) continue
-    const set = th.sets.find(k => VOC.sets.get(k)?.m.has(c.i)), fl = set ? null : flavorOf(c, th.v)
+    // a edição do universo; senão a impressão do Secret Lair desse universo; senão a do nome alternativo (Megatron)
+    const set = th.sets.find(k => VOC.sets.get(k)?.m.has(c.i)), lair = set ? null : VOC.up.get(th.v)?.get(c.i)
+    const fl = set || lair ? null : flavorOf(c, th.v)
     const land = /\bLand\b/.test(c.t)
-    if (land) { lands.deck++; if (set || fl) lands.theme++ }  // o universo pode não ter terrenos impressos (Transformers)
-    if (!set && !fl) continue
+    if (land) { lands.deck++; if (set || lair || fl) lands.theme++ }  // o universo pode não ter terrenos impressos
+    if (!set && !lair && !fl) continue
     const cur = deck.prints?.[n]
     if (deck.art?.[n]) { skip.own++; continue }
     if (cur && (cur.theme === th.v || (cur.theme && mine.has(String(cur.set).toLowerCase())))) { skip.have++; continue }
     if (!replace && deck.split?.[n]?.length && /\bBasic\b/.test(c.t)) { skip.favs.push(n); continue }  // as artes favoritas dos básicos
     if (!replace && ((cur && !cur.theme) || deck.split?.[n]?.length)) { skip.chosen++; continue }
-    items.push(set ? { n, set } : { n, print: { id: fl.id, set: fl.set.toUpperCase(), cn: fl.cn, style: [], foil: false } })
+    const pr = lair || fl
+    items.push(set ? { n, set } : { n, print: { id: pr.id, set: pr.set.toUpperCase(), cn: pr.cn, style: [], foil: false } })
   }
   return { items, skip, lands }
 }

@@ -90,6 +90,53 @@ def type_words(path, ctypes):
     return {f: e for f, e in sorted(out.items()) if f not in lower or f == e.lower()}
 
 
+LAIR_GENERIC = {"assassin", "assassins", "avatar", "airbender", "marvel", "transformer", "transformers"}
+
+
+def lair_drops(lair, fr):
+    """Drops do Secret Lair (Universes Beyond) por universo. Um drop = números seguidos com a mesma data; é de um universo se
+    alguma carta o diz (nome alternativo ou texto de ambiente com as palavras dele: «Autobot», «Decepticon»…) e nenhuma diz
+    outro. -> {id do universo: [[índice da carta, número, id da impressão], …]} (uma impressão por carta e universo)."""
+    # texto de ambiente e nomes alternativos: as palavras do universo e as «lair»; o nome da própria carta só com as «lair» e
+    # as palavras compridas que não são nomes de cartas comuns («Royal Assassin», «Avatar of…» não são de nenhum universo)
+    words = {f["id"]: [f" {wnorm(a)} " for a in [*f["alias"], *f.get("lair", ())] if len(wnorm(a)) >= 4] for f in fr if f["id"] != "ub"}
+    names = {f["id"]: [f" {wnorm(a)} " for a in [*f.get("lair", ()), *(a for a in f["alias"] if len(wnorm(a)) >= 5 and wnorm(a) not in LAIR_GENERIC)]]
+             for f in fr if f["id"] != "ub"}
+    lair = sorted(lair)
+    runs, cur = [], []
+    for row in lair:
+        if cur and (row[0] - cur[-1][0] > 1 or row[1] != cur[-1][1]):
+            runs.append(cur)
+            cur = []
+        cur.append(row)
+    if cur:
+        runs.append(cur)
+    out = collections.defaultdict(list)
+    for run in runs:
+        hit = {u for u, ws in words.items() for r in run if any(w in f" {wnorm(r[5])} " for w in ws)} | \
+              {u for u, ws in names.items() for r in run if any(w in f" {wnorm(r[6])} " for w in ws)}
+        if len(hit) != 1:  # nenhum universo, ou dois no mesmo bloco: não se adivinha
+            continue
+        u, seen = hit.pop(), set()
+        # dois drops podem calhar seguidos com a mesma data (superdrops): uma ponta de 6+ cartas sem nada do universo e sem
+        # terrenos é outro drop e sai (os básicos de um drop vêm no fim dele e ficam: Transformers, Star Trek)
+        said = [k for k, r in enumerate(run) if any(w in f" {wnorm(r[5])} " for w in words[u]) or any(w in f" {wnorm(r[6])} " for w in names[u])]
+        lo, hi = 0, len(run) - 1
+        if min(said) >= 6 and not any(r[7] for r in run[:min(said)]):
+            lo = min(said)
+            while lo > 0 and run[lo - 1][8] == run[lo][8]:  # as do mesmo artista, seguidas, são do mesmo drop
+                lo -= 1
+        if len(run) - 1 - max(said) >= 6 and not any(r[7] for r in run[max(said) + 1:]):
+            hi = max(said)
+            while hi < len(run) - 1 and run[hi + 1][8] == run[hi][8]:
+                hi += 1
+        for n, _, i, cn, pid, *_ in run[lo:hi + 1]:
+            if i not in seen:
+                seen.add(i)
+                out[u].append([i, cn, pid])
+    return out
+
+
 def main(raw, out_dir, src):
     with open(os.path.join(out_dir, "cards.json"), encoding="utf-8") as f:
         cards = json.load(f)
@@ -113,7 +160,7 @@ def main(raw, out_dir, src):
             code = S[code].get("parent_set_code")
         return None
 
-    mem, first, flavor = collections.defaultdict(set), {}, []
+    mem, first, flavor, lair = collections.defaultdict(set), {}, [], []
     with gzip.open(os.path.join(raw, "default.jsonl.gz"), "rt", encoding="utf-8") as fh:
         for line in fh:
             c = json.loads(line)
@@ -125,6 +172,14 @@ def main(raw, out_dir, src):
             fl = c.get("flavor_name") or " // ".join(dict.fromkeys(f["flavor_name"] for f in c.get("card_faces") or [] if f.get("flavor_name")))
             if fl and c.get("lang") == "en" and not any(x[0] == i and x[1] == fl for x in flavor):
                 flavor.append([i, fl, c["set"], c.get("collector_number", ""), c["id"]])
+            # Secret Lair de outro universo (Universes Beyond): fica para os drops (lair_drops) — os básicos e as cartas
+            # sem nome alternativo do drop também são do universo (Transformers: os 5 básicos de Cybertron, SLD 1088–1092)
+            cn = re.match(r"\d+", c.get("collector_number") or "")
+            if c.get("set") == "sld" and cn and c.get("lang") == "en" and "universesbeyond" in (c.get("promo_types") or []):
+                faces = c.get("card_faces") or []
+                txt = " ".join([c.get("flavor_text") or "", fl or ""] + [f.get("flavor_text") or "" for f in faces])
+                lair.append((int(cn.group(0)), c.get("released_at") or "", i, c["collector_number"], c["id"], txt, n,
+                             "Land" in (c.get("type_line") or ""), c.get("artist") or ""))
             k = fold(c.get("set"))
             if not k:
                 continue
@@ -149,6 +204,7 @@ def main(raw, out_dir, src):
             prev = i
         s = S[k]
         sets.append([k, s["name"], (s.get("released_at") or "")[:4], s["set_type"], sorted(kids[k], key=pos.get), d])
+    up = lair_drops(lair, fr)  # {universo: [[índice da carta, cn, id], …]} — as cartas dos drops do Secret Lair desse universo
     franchises = []
     for f in fr:
         got, todo = [], [s for s in f["sets"] if s in mem]
@@ -161,7 +217,7 @@ def main(raw, out_dir, src):
         # (Godzilla: IKO e as promos) ou o nome tem uma das palavras («Megatron» na Secret Lair → Transformers)
         words = [f" {wnorm(a)} " for a in f["alias"] if len(wnorm(a)) >= 4]
         extra = sorted({x[0] for x in flavor if fold(x[2]) in got or x[2] in f.get("flavor", ())
-                        or any(w in f" {wnorm(x[1])} " for w in words)})
+                        or any(w in f" {wnorm(x[1])} " for w in words)} | {x[0] for x in up.get(f["id"], ())})
         if got or extra:
             franchises.append([f["id"], f["name"], got, f["alias"], extra])
         else:
@@ -173,7 +229,7 @@ def main(raw, out_dir, src):
         print(f"vocab: tipos traduzidos de fora ({e!r})", flush=True)
         types = {}
     out = {"n": len(cards), "sets": sets, "first": [pos[first[i][2]] if i in first else -1 for i in range(len(cards))],
-           "fr": franchises, "fl": sorted(flavor), "types": types}
+           "fr": franchises, "fl": sorted(flavor), "types": types, "up": {k: sorted(v) for k, v in up.items() if v}}
     p = os.path.join(out_dir, "vocab.json")
     with open(p, "w", encoding="utf-8") as f:
         json.dump(out, f, separators=(",", ":"), ensure_ascii=False)

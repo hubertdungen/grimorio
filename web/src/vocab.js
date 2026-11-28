@@ -8,11 +8,11 @@ export const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(
   .replace(/[^a-z0-9㐀-鿿]+/g, ' ').trim()
 const CJK = /[㐀-鿿]/
 
-export const VOC = { on: false, sets: new Map(), fr: new Map(), first: [], types: new Map(), zh: [], phrases: [] }
+export const VOC = { on: false, sets: new Map(), fr: new Map(), first: [], types: new Map(), zh: [], phrases: [], up: new Map() }
 const memo = new Map()
 
 export function setVocab(j, cards) {
-  Object.assign(VOC, { on: false, sets: new Map(), fr: new Map(), first: [], types: new Map(), zh: [], phrases: [] })
+  Object.assign(VOC, { on: false, sets: new Map(), fr: new Map(), first: [], types: new Map(), zh: [], phrases: [], up: new Map() })
   memo.clear()
   if (!j?.sets || j.n !== cards.length) return false  // de outra versão do cards.json: os índices não batem
   for (const [code, name, y, t, kids, d] of j.sets) {
@@ -23,6 +23,9 @@ export function setVocab(j, cards) {
   }
   VOC.first = j.first.map(p => j.sets[p]?.[0] || '')
   for (const [id, name, sets, alias, extra] of j.fr || []) VOC.fr.set(id, { id, name, sets, alias, extra: extra || [] })
+  // os drops do Secret Lair de cada universo (build/vocab.py lair_drops): a impressão exata de cada carta (os 5 básicos de
+  // Cybertron nos Transformers, a Command Tower da Avengers Tower…) — {universo: Map(índice → {set, cn, id})}
+  for (const [u, rows] of Object.entries(j.up || {})) VOC.up.set(u, new Map(rows.map(([i, cn, id]) => [i, { set: 'sld', cn, id }])))
   // nomes alternativos (flavor_name) na própria carta: c.fl = [{ n: 'Megatron', f: 'megatron', set: 'sld', cn, id }]
   for (const c of cards) delete c.fl
   for (const [i, n, set, cn, id] of j.fl || []) if (cards[i]) (cards[i].fl ||= []).push({ n, f: norm(n), set, cn, id })
