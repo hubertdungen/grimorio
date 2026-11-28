@@ -59,21 +59,24 @@ const deckNames = d => [...new Set([...(d.commanders || []), ...Object.keys(d.ma
 // que cartas mudam: items = [{ n, set }] (para pedir à Scryfall) ou [{ n, print }] (impressão com nome do universo, já
 // conhecida pelo vocabulário: o Megatron da Secret Lair); skip = quantas ficaram (arte própria, escolhida à mão)
 export function themePlan(data, deck, th, { replace = false } = {}) {
-  const items = [], skip = { own: 0, chosen: 0, have: 0 }
-  if (!th) return { items, skip }
+  const items = [], skip = { own: 0, chosen: 0, have: 0, favs: [] }, lands = { deck: 0, theme: 0 }
+  if (!th) return { items, skip, lands }
   const mine = new Set(th.sets)
   for (const n of deckNames(deck)) {
     const c = data.byName.get(n)
     if (!c) continue
     const set = th.sets.find(k => VOC.sets.get(k)?.m.has(c.i)), fl = set ? null : flavorOf(c, th.v)
+    const land = /\bLand\b/.test(c.t)
+    if (land) { lands.deck++; if (set || fl) lands.theme++ }  // o universo pode não ter terrenos impressos (Transformers)
     if (!set && !fl) continue
     const cur = deck.prints?.[n]
     if (deck.art?.[n]) { skip.own++; continue }
     if (cur && (cur.theme === th.v || (cur.theme && mine.has(String(cur.set).toLowerCase())))) { skip.have++; continue }
+    if (!replace && deck.split?.[n]?.length && /\bBasic\b/.test(c.t)) { skip.favs.push(n); continue }  // as artes favoritas dos básicos
     if (!replace && ((cur && !cur.theme) || deck.split?.[n]?.length)) { skip.chosen++; continue }
     items.push(set ? { n, set } : { n, print: { id: fl.id, set: fl.set.toUpperCase(), cn: fl.cn, style: [], foil: false } })
   }
-  return { items, skip }
+  return { items, skip, lands }
 }
 
 export const chunks = (l, k = 75) => { const out = []; for (let i = 0; i < l.length; i += k) out.push(l.slice(i, i + k)); return out }

@@ -1500,7 +1500,7 @@ import { ptExplain } from './src/game.js'
   const d40 = { ...mar, art: { 'Swords to Plowshares': 'https://x/own.png' }, prints: { 'Command Tower': { id: 'ct', set: 'CMR', cn: '350' }, 'Arcane Signet': { id: 'as', set: 'BOT', cn: '9', theme: 'bot' } }, split: { Plains: [{ id: 'p1', q: 5 }, { id: 'p2', q: 5 }] } }
   const p1 = themePlan(data, d40, th[0])
   assert.deepEqual(p1.items.map(x => x.n).sort(), ['Arcane Signet', 'Marneus Calgar', 'Sol Ring'], 'a de outro tema muda; Bolt não tem impressão 40K')
-  assert.deepEqual(p1.skip, { own: 1, chosen: 2, have: 0 })
+  assert.deepEqual(p1.skip, { own: 1, chosen: 2, have: 0, favs: [] })
   const p2 = themePlan(data, d40, th[0], { replace: true })
   assert.deepEqual(p2.items.map(x => x.n).sort(), ['Arcane Signet', 'Command Tower', 'Marneus Calgar', 'Plains', 'Sol Ring'], 'substituir: as escolhidas também, a arte própria não')
   const pr = (id, style = []) => ({ id, set: '40K', cn: id, style, eur: 1 })
