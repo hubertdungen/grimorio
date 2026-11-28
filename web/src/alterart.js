@@ -51,6 +51,10 @@ export function neutralPrompt(text, c, words = []) {
 // mode: 'frame' (arte nova na moldura) | 'art' (só a ilustração); masked: o fornecedor recebe máscara (OpenAI, local);
 // aspect: 'card' | 'box' (modo arte); refs: quantas referências de estilo; orig: a arte original vai como referência.
 export function finalPrompt({ base, custom, mode, masked, aspect = 'card', refs = 0, orig = false, frame = '', font = '', altName = '', autoAlt = false, name = '' }) {
+  if (mode === 'edit') {  // ✏️ corrigir a imagem própria: só a correção pedida, o resto igual
+    return [`Edit the attached image (a custom trading card illustration). Make ONLY this change: ${String(custom || '').trim()}.`,
+      'Keep everything else exactly as it is: the composition, pose, character, style, colours, lighting, frame, title, all text and symbols. Return the whole image at the same aspect ratio.'].join('\n\n')
+  }
   const out = mode === 'fullart' ? [] : [String(base || '').trim()]
   if (custom?.trim()) out.push(`Personal direction from the user: ${custom.trim()}`)
   const att = []

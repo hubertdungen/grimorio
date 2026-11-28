@@ -1904,6 +1904,7 @@ export function CardModal({ c, data, deck, fmt, ctx, act, onClose }) {
               <button onClick={() => act.pickArt(c)} title={tx('Outras edições, imagem própria e alter arts desta carta no deck')}>🎨 {tx('Arte')}</button>
               <button onClick={() => act.pickArt(c, true)} title={tx('Uma ilustração nova para esta carta, gerada por IA a partir do texto dela')}>✨ {tx('Alter art')}</button>
               <button onClick={() => act.pickArt(c, 'fullart')} title={tx('A ilustração original estendida à carta toda, com o texto da carta por cima, como as versões full-art')}>⚡ {tx('Full-art')}</button>
+              {deck.art?.[c.n] && <button onClick={() => act.pickArt(c, 'edit')} title={tx('Envia a tua imagem própria tal como está e só a correção que escreveres; o resto fica igual')}>✏️ {tx('Corrigir a arte')}</button>}
             </span>}
             {(deck.main[c.n] || deck.side[c.n]) && <button className={`subs-btn ${subs ? 'on' : ''}`} onClick={() => setSubs(!subs)}>🔁 {tx('Sugerir substituto')}</button>}
           </div>
@@ -2459,7 +2460,7 @@ export function ArtPicker({ c, deck, data, act, onClose, initAlter = false }) {
         <div className="ap-list">
           <h3>{tx('Arte de {c}', { c: c.n })}</h3>
           <p className="muted small">{isTouch() ? tx('Toca e mantém para ver; toca para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).') : tx('Passa o rato para ver; clica para escolher. A arte escolhida aparece no deck e na exportação («(SET) nº *F*»).')}</p>
-          {alter && <Suspense fallback={null}><AlterArt c={c} deck={deck} data={data} act={act2} initMode={alter === 'fullart' ? 'fullart' : 'frame'} onClose={() => setAlter(false)} /></Suspense>}
+          {alter && <Suspense fallback={null}><AlterArt c={c} deck={deck} data={data} act={act2} initMode={typeof alter === 'string' ? alter : 'frame'} onClose={() => setAlter(false)} /></Suspense>}
           {favs.length > 0 && <div className="row-btns"><button onClick={useFavs} title={tx('Divide as cópias pelas artes favoritas de {c} (Definições › Terrenos básicos)', { c: c.n })}>★ {tx('Assumir as preferidas das definições')}</button></div>}
           {canSplit && <div className="split-box">
             <label className="chk"><input type="checkbox" checked={splitOn} onChange={e => { setSplitOn(e.target.checked); if (!e.target.checked) act.setSplit(c.n, null) }} /> {tx('Dividir as {n} cópias por várias artes', { n: total })}</label>

@@ -78,9 +78,10 @@ export async function copyText(t) {
 export const masks = prov => ['openai', 'local', 'mock'].includes(prov)
 // Uma carta → as imagens finais já compostas ({blob, w, h}), pelo servidor. O mesmo caminho para uma carta e para o lote.
 // mode 'frame': a carta (com máscara da caixa da arte para OpenAI/local) vai para editar; refs: srcs ou blobs de estilo.
-export async function genCard({ c, pid, box, mode, aspect, orig, prov, localKind, prompt, n, quality, model, refs = [], card }) {
+export async function genCard({ c, pid, box, mode, aspect, orig, prov, localKind, prompt, n, quality, model, refs = [], card, own = null }) {
   const cardSrc = img(c, 'png', false, pid)
   let image = null, mask = null, geo = null
+  if (mode === 'edit' && own) image = await refURL(fetchable(own))  // ✏️ a imagem própria, tal como está, para corrigir
   if (mode === 'frame' || mode === 'fullart') {
     const cd = await card(), prep = mode === 'frame' ? prepareEdit : prepareOutpaint
     if (masks(prov)) ({ image, mask, geo } = prep(cd, box, prov === 'local' ? localKind : 'openai'))
@@ -108,6 +109,7 @@ export async function genCard({ c, pid, box, mode, aspect, orig, prov, localKind
 }
 // resultado (do servidor ou trazido do ChatGPT) → a imagem final, já na moldura; card() = a carta original (bitmap)
 export async function finishOut(out, geo, { mode, aspect, box, card }) {
+  if (mode === 'edit') { const cv = composite(null, out, { mode: 'art', aspect: 'card' }); return { blob: await toBlob(cv), w: cv.width, h: cv.height } }
   if (mode === 'fullart') { const cv = compositeFullArt(await card(), out, { box, geo }); return { blob: await toBlob(cv), w: cv.width, h: cv.height } }
   const full = mode === 'card' || (mode === 'art' && aspect === 'card')  // carta inteira ou ilustração no formato da carta: sem a moldura original por cima
   const cv = composite(full ? null : await card(), out, { mode: full ? 'art' : mode, aspect: full ? 'card' : aspect, box, geo })
@@ -116,7 +118,7 @@ export async function finishOut(out, geo, { mode, aspect, box, card }) {
 
 export default function AlterArt({ c, deck, data, act, onClose, initMode = 'frame' }) {
   useBackClose(true, onClose)
-  const pid = deck.prints?.[c.n]?.id || null, cardSrc = img(c, 'png', false, pid)
+  const pid = deck.prints?.[c.n]?.id || null, own = deck.art?.[c.n] || null, cardSrc = img(c, 'png', false, pid)
   const [pr, setPr] = useState(null), [cfg, setCfg] = useState(null)
   const [base, setBase] = useState(() => basePrompt(c, null)), edited = useRef(false)
   const [custom, setCustom] = useState(''), [mode, setMode] = useState(initMode), [aspect, setAspect] = useState('card'), [orig, setOrig] = useState(false)
@@ -134,7 +136,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
     fetch('/api/ia/image').then(r => r.json()).then(setCfg).catch(() => setCfg({ providers: [], local: {} }))
   }, [c, pid])
   const box = artBox(c, pr)
-  useEffect(() => { if (!box && (mode === 'frame' || mode === 'fullart')) setMode('art') }, [box, mode])
+  useEffect(() => { if ((!box && (mode === 'frame' || mode === 'fullart')) || (mode === 'edit' && !own)) setMode('art') }, [box, mode, own])
   useEffect(() => { setModel(lsGet(`grimorio.alter.model.${prov}`)); lsSet('grimorio.alter.prov', prov) }, [prov])
 
   const P = cfg?.providers?.find(p => p.id === prov)
@@ -168,7 +170,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
     setErr(''); setNote(''); setBusy(tx('A gerar… pode demorar um minuto.'))
     const words = neutral ? [...VOC.fr.values()].flatMap(f => f.alias) : []
     try {
-      const j = await genCard({ c, pid, box, mode, aspect, orig: neutral ? false : orig, prov, localKind: cfg?.local?.kind,
+      const j = await genCard({ c, pid, box, mode, aspect, orig: neutral ? false : orig, prov, localKind: cfg?.local?.kind, own,
         prompt: neutral ? neutralPrompt(prompt, c, words) : prompt, n, quality, model, refs: refs.map(r => r.src), card: getCard })
       setResults(x => [...j.images.map(withUrl), ...x])
       setNote(`${j.model}${j.cost ? ` · ≈ US$ ${num(j.cost, 3)}` : ''}`)
@@ -188,7 +190,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
   })
   const copy = async () => setNote(await copyText(prompt) ? tx('Pedido copiado.') : tx('Não consegui copiar: seleciona o pedido em baixo e copia à mão.'))
   const download = async () => {
-    const list = [...(mode === 'frame' ? [[cardSrc, 'carta']] : mode === 'art' && orig ? [[img(c, 'art_crop', false, pid), 'arte-original']] : []), ...refs.map((r, k) => [fetchable(r.src), `estilo-${k + 1}`])]
+    const list = [...(mode === 'edit' && own ? [[fetchable(own), 'imagem-a-corrigir']] : mode === 'frame' ? [[cardSrc, 'carta']] : mode === 'art' && orig ? [[img(c, 'art_crop', false, pid), 'arte-original']] : []), ...refs.map((r, k) => [fetchable(r.src), `estilo-${k + 1}`])]
     for (const [u, name] of list) {
       try {
         const b = await (await fetch(u)).blob(), a = document.createElement('a')
@@ -211,7 +213,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
       <div className="modal alter" onClick={e => e.stopPropagation()} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); bring(e.dataTransfer.files) }}>
         <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
         <div className="alter-card">
-          <img src={cardSrc} alt={c.n} />
+          <img src={mode === 'edit' && own ? fetchable(own) : cardSrc} alt={c.n} />
           {pr && <small className="muted">{pr.set_name} · {tx('ilustração de {a}', { a: pr.artist || '?' })}</small>}
         </div>
         <div className="alter-form">
@@ -220,6 +222,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
             <label className="chk"><input type="radio" checked={mode === 'frame'} disabled={!box} onChange={() => setMode('frame')} /> {tx('Nova arte na moldura original')}</label>
             <label className="chk"><input type="radio" checked={mode === 'art'} onChange={() => setMode('art')} /> {tx('Arte completa (só a ilustração)')}</label>
             <label className="chk"><input type="radio" checked={mode === 'card'} onChange={() => setMode('card')} /> {tx('Carta inteira (moldura e letra novas)')}</label>
+            {own && <label className="chk" title={tx('Envia a tua imagem própria tal como está e só a correção que escreveres; o resto fica igual')}><input type="radio" checked={mode === 'edit'} onChange={() => setMode('edit')} /> ✏️ {tx('Corrigir a imagem atual')}</label>}
             <label className="chk" title={tx('A ilustração original estendida à carta toda, com o texto da carta por cima, como as versões full-art')}><input type="radio" checked={mode === 'fullart'} disabled={!box} onChange={() => setMode('fullart')} /> ⚡ {tx('Full-art (estende a arte original à carta toda)')}</label>
             {mode === 'card' && <div className="alter-card-st">
               <label><span className="small">{tx('Estilo da moldura')}</span><input value={frame} onChange={e => setFrame(e.target.value)} placeholder={tx('ex.: art nouveau dourada, gótica com ossos, minimalista…')} /></label>
@@ -238,7 +241,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
           <label className="small">{tx('Pedido base (o texto da carta; vai em inglês, que os modelos entendem melhor)')}
             <textarea rows={6} value={base} onChange={e => { edited.current = true; setBase(e.target.value) }} /></label>
           <label className="small">{tx('Personalizar (podes escrever na tua língua)')}
-            <input value={custom} onChange={e => setCustom(e.target.value)} placeholder={tx('ex.: ao pôr do sol, aguarela, o elfo é uma criança…')} /></label>
+            <input value={custom} onChange={e => setCustom(e.target.value)} placeholder={mode === 'edit' ? tx('O que corrigir, ex.: dá-lhe o olho biónico do lado esquerdo') : tx('ex.: ao pôr do sol, aguarela, o elfo é uma criança…')} /></label>
           <div className="alter-refs">
             <span className="small">{tx('Referências de estilo (até 3)')}</span>
             {rec && <div className="alter-rec small"><span>{tx('Esta alter art foi feita com:')} {[rec.custom && `«${rec.custom}»`, rec.frame && `${tx('moldura')}: ${rec.frame}`, rec.font && `${tx('letra')}: ${rec.font}`].filter(Boolean).join(' · ')}</span>
@@ -275,7 +278,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
               <li><a className="btn" href="https://chatgpt.com/" target="_blank" rel="noreferrer">{tx('Abrir o ChatGPT ↗')}</a> {tx('cola o pedido e junta as imagens descarregadas.')}</li>
               <li>{tx('Traz a imagem: arrasta-a para aqui, cola-a (Ctrl+V) ou')} <label className="dbox-up">⬆ {tx('escolhe o ficheiro')}<input type="file" accept="image/*" multiple onChange={e => bring(e.target.files || [])} /></label></li>
             </ol>
-          </div> : <button className="primary" disabled={!ready || !!busy || !prompt.trim()} onClick={gen}>✨ {tx('Gerar')}</button>}
+          </div> : <button className="primary" disabled={!ready || !!busy || !prompt.trim() || (mode === 'edit' && !custom.trim())} onClick={() => gen()}>✨ {tx('Gerar')}</button>}
           <details><summary className="small">{tx('Ver o pedido final')}</summary><textarea readOnly rows={8} value={prompt} onFocus={e => e.target.select()} /></details>
           {busy && <p className="small"><span className="spin-dot" /> {busy}</p>}
           {note && <p className="small muted">{note}</p>}
