@@ -727,7 +727,8 @@ class H(BaseHTTPRequestHandler):
                     continue  # convidado: só os decks dele
                 out.append({"id": r[0], "name": r[1], "format": r[2], "updated": r[3], "deleted": r[5], "count": d.get("count", 0), "created": d.get("created") or r[3], "community": bool(d.get("community")), **({"friend": d["friend"], "friendName": d.get("friendName")} if d.get("friend") else {}),
                             "cover": d.get("cover"), "coverImg": d.get("coverImg"), "fav": bool(d.get("fav")), "casual": bool(d.get("casual")), "commanders": d.get("commanders") or [], "seeds": (d.get("seeds") or [])[:3],
-                            "main": d.get("main") or {}, **({"art": d["art"]} if d.get("art") else {}), **({"artRecipe": d["artRecipe"]} if d.get("artRecipe") else {})})  # artes próprias (capa) e como foram feitas
+                            "main": d.get("main") or {}, **({"art": d["art"]} if d.get("art") else {}), **({"artRecipe": d["artRecipe"]} if d.get("artRecipe") else {}),
+                            **cover_prints(d)})  # artes próprias (capa) e como foram feitas; a edição escolhida das cartas que fazem a capa
             return self.json(out)
         if p == "/api/decks/export":  # «Exportar decks»: os meus decks inteiros num ficheiro, para levar ao Grimório de um amigo
             with db() as con:
@@ -2103,6 +2104,15 @@ def selfcheck():
         srv.shutdown()
         import shutil
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def cover_prints(d):
+    """A edição escolhida (deck.prints) das cartas que podem ser a capa na Biblioteca: a capa marcada, os comandantes e
+    a 1.ª semente. Sem isto a capa só seguia as imagens próprias e ignorava uma arte de outra edição."""
+    pr = d.get("prints") if isinstance(d.get("prints"), dict) else {}
+    keep = {n: {"id": pr[n]["id"]} for n in [d.get("cover"), *(d.get("commanders") or []), *(d.get("seeds") or [])[:1]]
+            if n and isinstance(pr.get(n), dict) and pr[n].get("id")}
+    return {"prints": keep} if keep else {}
 
 
 def rated_list(d):
