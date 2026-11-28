@@ -266,7 +266,8 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose: close0, w
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
   const sk = where === 'deck' ? `deck:${deck?.id || 'cur'}` : 'livre'
   const [extra, setExtra] = useState(() => decks || []), [joining, setJoining] = useState(false)
-  const [saved0] = useState(() => (pxSets()[sk] || []).filter(id => id !== deck?.id && !(decks || []).some(d => d.id === id)))
+  // (pxSaved().ids: a lista que a versão anterior guardava só no separador; aproveita-se uma vez)
+  const [saved0] = useState(() => [...new Set([...(pxSets()[sk] || []), ...(pxSaved()?.where === where ? pxSaved().ids || [] : [])])].filter(id => id !== deck?.id && !(decks || []).some(d => d.id === id)))
   const [restoring, setRestoring] = useState(saved0.length > 0)
   const all = useMemo(() => (deck ? [deck, ...extra.filter(d => !deck.id || d.id !== deck.id)] : extra), [deck, extra])
   const multi = all.length > 1
