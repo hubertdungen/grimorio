@@ -204,10 +204,8 @@ export default function Library({ data, openDeck, goTab, say, importLinks = '', 
   useEffect(() => { fetch('/api/tournaments/trophies').then(r => (r.ok ? r.json() : {})).then(setTro).catch(() => {}) }, [])
   const [view, setView] = useState(() => ls('grimorio.lib.view') || 'grelha')
   const [sel, setSel] = useState([]), [cmp, setCmp] = useState(false), [px, setPx] = useState(null)  // px = decks inteiros para os proxies
-  useEffect(() => {  // os proxies estavam abertos antes de um reload: voltam com os mesmos decks
-    const sv = pxSaved()
-    if (sv?.where !== 'lib' || !sv.ids?.length) return
-    Promise.all(sv.ids.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : null)).catch(() => null))).then(ds => { const l = ds.filter(Boolean); if (l.length) setPx(l) })
+  useEffect(() => {  // os proxies estavam abertos antes de um reload: reabrem
+    if (pxSaved()?.where === 'lib') setPx([])  // a janela recupera sozinha os decks juntados
   }, [])
   const proxiesSel = async () => { try { setPx(await Promise.all(sel.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : Promise.reject(new Error())))))) } catch { say(tx('Não consegui ler os teus decks.')) } }
   const toggleSel = id => setSel(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]))

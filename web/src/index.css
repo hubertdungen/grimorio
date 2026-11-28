@@ -4760,10 +4760,13 @@ select.demote:hover { border-color: var(--gold); }
 
 /* Proxies › ✎ escolher as cartas de um deck */
 .px-pick-bg { z-index: 74; }
-.modal.px-pick { width: min(620px, 96vw); display: grid; gap: 10px; max-height: 86vh; }
+.modal.px-pick { width: min(620px, 96vw); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 10px; max-height: 86vh; padding: 18px 20px 16px; overflow: hidden; box-sizing: border-box; }
+.px-pick .cl-top { padding-right: 30px; } .px-pick .cl-top h3 { flex-wrap: wrap; row-gap: 2px; }
+.px-pick-bar b { margin-left: auto; white-space: nowrap; }
+.px-pick-n { cursor: default; }
 .px-pick-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .px-pick-bar input { flex: 1; min-width: 160px; }
-.px-pick-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; max-height: 60vh; display: grid; gap: 2px; }
+.px-pick-list { list-style: none; margin: 0; padding: 0 4px 0 0; overflow-y: auto; min-height: 0; display: grid; gap: 2px; }
 .px-pick-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border-radius: 8px; }
 .px-pick-list li:nth-child(odd) { background: color-mix(in srgb, currentColor 4%, transparent); }
 .px-pick-list li.off .px-pick-n { opacity: .45; text-decoration: line-through; }
@@ -4773,3 +4776,4 @@ select.demote:hover { border-color: var(--gold); }
 .px-pick-q b { min-width: 1.6em; text-align: center; }
 .px-pickbtn { margin-left: auto; }
 .px-pickbtn.on { border-color: var(--accent, #f5c451); }
+.px-drop { margin-left: auto; padding: 0 6px; opacity: .65; } .px-drop:hover { opacity: 1; }

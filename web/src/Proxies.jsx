@@ -5,6 +5,8 @@
 // Vários decks de uma vez (Biblioteca › selecionar, ou «＋ Juntar outros decks»): folhas seguidas ou uma por deck,
 // nomes dos decks na folha e cartas partilhadas entre decks (printpdf.packDecks).
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ask } from './confirm.jsx'
+import { showCardPeek, hideCardPeek } from './deckview.js'
 import { createPortal } from 'react-dom'
 import { img, sf, recommend, fmtBit, fetchPrints } from './data.js'
 import { subsOf } from './formats.js'
@@ -126,7 +128,9 @@ function CostCalc({ n, sheets, duplex }) {
 
 // ✎ Escolher as cartas de um deck: só as das zonas marcadas, já com as cópias do deck; − / + por carta, todas, nenhuma
 const ZL = () => ({ main: tx('Mainboard'), side: 'Sideboard', maybe: 'Maybeboard', alt: tx('Arte extra'), tok: tx('Token'), sug: tx('Sugestão') })
-function CardPick({ sec, setQty, onClose }) {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+function CardPick({ sec, setQty, onClose: close0 }) {
+  const onClose = () => { hideCardPeek(); close0() }
   const [q, setQ] = useState('')
   const qty = sec.r.qty || {}, cur = g => (g.qk in qty ? qty[g.qk] : g.q0)
   const set = (g, v) => { const n = { ...qty }; v = Math.max(0, Math.min(99, v)); if (v === g.q0) delete n[g.qk]; else n[g.qk] = v; setQty(n) }
@@ -144,7 +148,7 @@ function CardPick({ sec, setQty, onClose }) {
         </div>
         <ul className="px-pick-list">{rows.map(g => { const v = cur(g); return (
           <li key={g.qk} className={v === 0 ? 'off' : v !== g.q0 ? 'chg' : ''}>
-            <span className="px-pick-n">{g.c.n}<small className="muted"> · {zl[g.zone]}{v !== g.q0 ? ` · ${tx('no deck: {n}', { n: g.q0 })}` : ''}</small></span>
+            <span className="px-pick-n" onMouseEnter={e => showCardPeek(e, g.c, UUID.test(g.src || '') ? g.src : g.fb)} onMouseLeave={hideCardPeek}>{g.c.n}<small className="muted"> · {zl[g.zone]}{v !== g.q0 ? ` · ${tx('no deck: {n}', { n: g.q0 })}` : ''}</small></span>
             <span className="px-pick-q"><button className="small" onClick={() => set(g, v - 1)} disabled={!v} aria-label="−">−</button><b>{v}</b><button className="small" onClick={() => set(g, v + 1)} aria-label="+">+</button></span>
           </li>) })}</ul>
         <div className="row-btns cl-foot"><button className="primary small" onClick={onClose}>{tx('Feito')}</button></div>
@@ -249,26 +253,38 @@ function JoinPicker({ have, onAdd, onClose }) {
 // deck = o deck aberto (com ctx); decks = outros decks inteiros (da Biblioteca ou de «Juntar outros decks")
 // a janela sobrevive a um reload (atualização, F5): aberta e com que decks fica nesta sessão do separador; as opções
 // de cada deck (zonas, artes extra, cópias à mão) ficam neste browser, por deck
-const PXK = 'grimorio.px.open', PXO = 'grimorio.px.opts'
+// a janela aberta (sessionStorage: reabre depois de um reload) e os decks juntados (localStorage: ficam mesmo depois de
+// fechar; um conjunto para o Início e a Biblioteca, outro por cada deck aberto no construtor). ↺ Recomeçar limpa tudo.
+const PXK = 'grimorio.px.open', PXO = 'grimorio.px.opts', PXS = 'grimorio.px.sets'
 export const pxSaved = () => { try { return JSON.parse(sessionStorage.getItem(PXK) || 'null') } catch { return null } }
 const pxOpts = () => { try { return JSON.parse(localStorage.getItem(PXO) || '{}') } catch { return {} } }
+const pxSets = () => { try { return JSON.parse(localStorage.getItem(PXS) || '{}') } catch { return {} } }
+const savePxSet = (k, ids) => { try { const m = pxSets(); if (ids.length) m[k] = ids; else delete m[k]; localStorage.setItem(PXS, JSON.stringify(m)) } catch { /* sem armazenamento */ } }
 
 export default function ProxyDialog({ data, deck, decks, ctx, onClose: close0, where = 'deck' }) {
   const onClose = () => { try { sessionStorage.removeItem(PXK) } catch { /* sem armazenamento */ } close0() }
   useBackClose(true, onClose)  // «voltar» do telemóvel fecha esta janela
+  const sk = where === 'deck' ? `deck:${deck?.id || 'cur'}` : 'livre'
   const [extra, setExtra] = useState(() => decks || []), [joining, setJoining] = useState(false)
+  const [saved0] = useState(() => (pxSets()[sk] || []).filter(id => id !== deck?.id && !(decks || []).some(d => d.id === id)))
+  const [restoring, setRestoring] = useState(saved0.length > 0)
   const all = useMemo(() => (deck ? [deck, ...extra.filter(d => !deck.id || d.id !== deck.id)] : extra), [deck, extra])
   const multi = all.length > 1
   const [opts, setOpts] = useState(pxOpts), [perCopy, setPerCopy] = useState(false), [picking, setPicking] = useState(null)
   useEffect(() => { try { localStorage.setItem(PXO, JSON.stringify(opts)) } catch { /* sem armazenamento */ } }, [opts])
-  useEffect(() => { try { sessionStorage.setItem(PXK, JSON.stringify({ where, ids: extra.map(d => d.id).filter(Boolean) })) } catch { /* sem armazenamento */ } }, [where, extra])
-  useEffect(() => {  // depois de um reload: os decks que se tinham juntado voltam
-    const sv = pxSaved(), have = new Set([deck?.id, ...extra.map(d => d.id)].filter(Boolean))
-    const miss = sv?.where === where ? (sv.ids || []).filter(id => !have.has(id)) : []
-    if (!miss.length) return
-    Promise.all(miss.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : null)).catch(() => null)))
-      .then(ds => setExtra(x => [...x, ...ds.filter(d => d && !x.some(y => y.id === d.id))]))
+  useEffect(() => { try { sessionStorage.setItem(PXK, JSON.stringify({ where })) } catch { /* sem armazenamento */ } }, [where])
+  useEffect(() => { if (!restoring) savePxSet(sk, extra.map(d => d.id).filter(id => id && id !== deck?.id)) }, [sk, extra, restoring, deck?.id])
+  useEffect(() => {  // os decks que se tinham juntado da última vez (ou antes de um reload) voltam, à frente dos novos
+    if (!saved0.length) return
+    Promise.all(saved0.map(id => fetch(`/api/decks/${id}`).then(r => (r.ok ? r.json() : null)).catch(() => null)))
+      .then(ds => { setExtra(x => [...ds.filter(d => d && !x.some(y => y.id === d.id)), ...x]); setRestoring(false) })
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  const reset = async () => {
+    if (!await ask('proxies', { title: tx('Recomeçar os proxies do zero?'), body: tx('Tira os decks juntados e volta a pôr as zonas, as artes extra, as cartas e as cópias de cada deck como vêm. As definições da folha de impressão ficam.'), ok: tx('Recomeçar') })) return
+    setOpts(m => { const n = { ...m }; all.forEach(d => delete n[keyOf(d)]); return n })
+    setExtra([]); setPicking(null); setJoining(false)
+  }
+  const drop = d => setExtra(x => x.filter(y => y !== d))
   const optOf = k => ({ ...OPT0, ...opts[k] }), setOpt = (k, p) => setOpts(m => ({ ...m, [k]: { ...OPT0, ...m[k], ...p } }))
   // extras: os tokens que as cartas de cada deck criam (Scryfall, pelo servidor) e as sugestões do Grimório para testar
   const [toks, setToks] = useState({}), [tokErr, setTokErr] = useState('')  // toks[k]: null = a procurar
@@ -411,6 +427,13 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose: close0, w
   const sugNames = k => (optOf(k).sug && sugs[k]?.length > 0 ? <p className="muted small">{sugs[k].map(c => c.n).join(' · ')}</p> : null)
   const sugN = (k, r) => <input className="px-n" type="number" min="1" max="40" value={r.sugN} onChange={e => setOpt(k, { sugN: Math.max(1, Math.min(40, +e.target.value || 1)) })} aria-label={tx('Quantas sugestões')} />
   const k0 = all[0] && keyOf(all[0]), r0 = optOf(k0)
+  if (restoring && !all.length) return createPortal(
+    <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal proxies" role="dialog" aria-label={tx('Proxies')}>
+        <button className="close" onClick={onClose} aria-label={tx('Fechar')}>×</button>
+        <h3>🖨 {tx('Proxies')}</h3><p className="muted small">{tx('A carregar…')}</p>
+      </div>
+    </div>, document.body)
   // sem deck nenhum (o quadrado «Proxies» do início): começa por escolher os decks
   if (!all.length) return createPortal(
     <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -446,6 +469,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose: close0, w
                 <div className="px-drow">
                   <label className="chk"><input type="checkbox" checked={r.on} onChange={e => setOpt(k, { on: e.target.checked })} /> <b>{d.name}</b></label>
                   {s && <small className="muted">{tx('{n} carta|{n} cartas', { n: s.groups.reduce((a, g) => a + g.q, 0) })}</small>}
+                  {d !== deck && <button className="link small px-drop" onClick={() => drop(d)} title={tx('Tirar este deck dos proxies')} aria-label={tx('Tirar este deck dos proxies')}>✕</button>}
                 </div>
                 {r.on && <div className="px-dopts">
                   <label className="chk small"><input type="checkbox" checked={r.main} onChange={e => setOpt(k, { main: e.target.checked })} /> {tx('Mainboard')}</label>
@@ -462,7 +486,7 @@ export default function ProxyDialog({ data, deck, decks, ctx, onClose: close0, w
           })}</ul>
           {tokErr && <p className="small bad-t">{tokErr}</p>}
         </>}
-        <div className="row-btns"><button className="link small" onClick={() => setJoining(j => !j)}>＋ {tx('Juntar outros decks')}</button></div>
+        <div className="row-btns"><button className="link small" onClick={() => setJoining(j => !j)}>＋ {tx('Juntar outros decks')}</button><button className="link small" onClick={reset} title={tx('Tira os decks juntados e as escolhas de cartas e cópias')}>↺ {tx('Recomeçar do zero')}</button></div>
         {joining && <JoinPicker have={all.map(d => d.id).filter(Boolean)} onAdd={ds => { setExtra(x => [...x, ...ds]); setJoining(false) }} onClose={() => setJoining(false)} />}
 
         {multi && <section className="px-opt px-multi">

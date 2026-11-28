@@ -16,6 +16,7 @@ export const CONFIRMS = [
   ['teste', tx('Apagar um teste guardado')],
   ['registo', tx('Limpar os registos da mesa (vida e dados)')],
   ['copia', tx('Substituir tudo por uma cópia de segurança')],
+  ['proxies', tx('Recomeçar os proxies do zero')],
   ['basicos', tx('Repor a arte dos terrenos básicos em todos os decks')],
   ['carteira', tx('Recomeçar a carteira das apostas')],
   ['amigo', tx('Revogar ou tirar um amigo')],
