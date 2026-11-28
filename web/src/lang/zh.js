@@ -3861,6 +3861,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
+  "A tua impressão não tem caixa de arte (extended art, showcase…): usa a moldura da edição normal da carta": "你的版本没有画框（扩画、特殊框…）：改用此牌普通版本的边框",
+  "moldura da edição normal": "普通版本边框",
   "Envia a tua imagem própria tal como está e só a correção que escreveres; o resto fica igual": "发送你的自定义图片原样，只附上你写的修改；其余保持不变",
   "Corrigir a imagem atual": "修改当前图片",
   "O que corrigir, ex.: dá-lhe o olho biónico do lado esquerdo": "要修改什么，例如：给他左侧加上仿生眼",

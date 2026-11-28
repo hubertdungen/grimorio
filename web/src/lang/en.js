@@ -3869,6 +3869,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
+  "A tua impressão não tem caixa de arte (extended art, showcase…): usa a moldura da edição normal da carta": "Your printing has no art box (extended art, showcase…): uses the frame of the card's regular printing",
+  "moldura da edição normal": "regular printing's frame",
   "Envia a tua imagem própria tal como está e só a correção que escreveres; o resto fica igual": "Sends your custom image as it is plus only the correction you write; everything else stays the same",
   "Corrigir a imagem atual": "Fix the current image",
   "O que corrigir, ex.: dá-lhe o olho biónico do lado esquerdo": "What to fix, e.g. give him the bionic eye on the left side",

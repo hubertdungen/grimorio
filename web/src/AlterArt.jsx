@@ -127,14 +127,24 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
   const [prov, setProv] = useState(() => lsGet('grimorio.alter.prov') || 'chatgpt'), [model, setModel] = useState('')
   const [results, setResults] = useState([]), [busy, setBusy] = useState(''), [err, setErr] = useState(''), [note, setNote] = useState('')
   const [run, enlView, enlBusy] = useEnlarge()
-  const cardP = useRef(null), getCard = () => (cardP.current ??= bitmap(cardSrc).catch(e => { cardP.current = null; throw e }))
+  // a carta (bitmap) para compor; com a moldura da edição normal (abaixo) é essa que se usa — cache por imagem
+  const cardP = useRef({}), cardFor = src => (cardP.current[src] ??= bitmap(src).catch(e => { delete cardP.current[src]; throw e }))
 
   useEffect(() => {  // a impressão escolhida: moldura, texto de ambiente e edição (sem rede: só os dados locais)
     fetch(`https://api.scryfall.com/cards/${pid || c.id}`, { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null))
       .then(j => { if (!j) return; setPr(j); if (!edited.current) setBase(basePrompt(c, j)) }).catch(() => {})
     fetch('/api/ia/image').then(r => r.json()).then(setCfg).catch(() => setCfg({ providers: [], local: {} }))
   }, [c, pid])
-  const box = artBox(c, pr)
+  // a impressão escolhida sem caixa de arte (extended art, showcase, borderless): a «moldura original» passa a ser a da
+  // edição normal da carta (c.id), em vez de desligar o modo
+  const boxOwn = artBox(c, pr), [prDef, setPrDef] = useState(null)
+  useEffect(() => {
+    if (boxOwn || !pr || !pid || pid === c.id || prDef) return
+    fetch(`https://api.scryfall.com/cards/${c.id}`, { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null)).then(j => j && setPrDef(j)).catch(() => {})
+  }, [boxOwn, pr, pid, c, prDef])
+  const boxDef = !boxOwn && prDef ? artBox(c, prDef) : null, fallback = !boxOwn && !!boxDef
+  const box = boxOwn || boxDef, pidF = fallback ? c.id : pid
+  const getCard = () => cardFor(img(c, 'png', false, pidF))
   useEffect(() => { if ((!box && mode === 'frame') || (mode === 'edit' && !own)) setMode('art') }, [box, mode, own])
   useEffect(() => { setModel(lsGet(`grimorio.alter.model.${prov}`)); lsSet('grimorio.alter.prov', prov) }, [prov])
 
@@ -169,7 +179,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
     setErr(''); setNote(''); setBusy(tx('A gerar… pode demorar um minuto.'))
     const words = neutral ? [...VOC.fr.values()].flatMap(f => f.alias) : []
     try {
-      const j = await genCard({ c, pid, box, mode, aspect, orig: neutral ? false : orig, prov, localKind: cfg?.local?.kind, own,
+      const j = await genCard({ c, pid: mode === 'frame' ? pidF : pid, box, mode, aspect, orig: neutral ? false : orig, prov, localKind: cfg?.local?.kind, own,
         prompt: neutral ? neutralPrompt(prompt, c, words) : prompt, n, quality, model, refs: refs.map(r => r.src), card: getCard })
       setResults(x => [...j.images.map(withUrl), ...x])
       setNote(`${j.model}${j.cost ? ` · ≈ US$ ${num(j.cost, 3)}` : ''}`)
@@ -218,7 +228,7 @@ export default function AlterArt({ c, deck, data, act, onClose, initMode = 'fram
         <div className="alter-form">
           <h3>✨ {tx('Criar alter art de {c}', { c: c.n })}</h3>
           <fieldset className="alter-opts"><legend className="small">{tx('Modo')}</legend>
-            <label className="chk"><input type="radio" checked={mode === 'frame'} disabled={!box} onChange={() => setMode('frame')} /> {tx('Nova arte na moldura original')}</label>
+            <label className="chk" title={fallback ? tx('A tua impressão não tem caixa de arte (extended art, showcase…): usa a moldura da edição normal da carta') : undefined}><input type="radio" checked={mode === 'frame'} disabled={!box} onChange={() => setMode('frame')} /> {tx('Nova arte na moldura original')}{fallback ? ` (${tx('moldura da edição normal')})` : ''}</label>
             <label className="chk"><input type="radio" checked={mode === 'art'} onChange={() => setMode('art')} /> {tx('Arte completa (só a ilustração)')}</label>
             <label className="chk"><input type="radio" checked={mode === 'card'} onChange={() => setMode('card')} /> {tx('Carta inteira (moldura e letra novas)')}</label>
             {own && <label className="chk" title={tx('Envia a tua imagem própria tal como está e só a correção que escreveres; o resto fica igual')}><input type="radio" checked={mode === 'edit'} onChange={() => setMode('edit')} /> ✏️ {tx('Corrigir a imagem atual')}</label>}

@@ -3861,6 +3861,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
+  "A tua impressão não tem caixa de arte (extended art, showcase…): usa a moldura da edição normal da carta": "Dein Druck hat keinen Bildrahmen (Extended Art, Showcase…): nutzt den Rahmen des normalen Drucks",
+  "moldura da edição normal": "Rahmen des normalen Drucks",
   "Envia a tua imagem própria tal como está e só a correção que escreveres; o resto fica igual": "Sendet dein eigenes Bild unverändert plus nur die Korrektur, die du schreibst; der Rest bleibt gleich",
   "Corrigir a imagem atual": "Aktuelles Bild korrigieren",
   "O que corrigir, ex.: dá-lhe o olho biónico do lado esquerdo": "Was korrigieren, z. B.: gib ihm das bionische Auge links",

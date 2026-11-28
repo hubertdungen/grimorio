@@ -3861,6 +3861,8 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
+  "A tua impressão não tem caixa de arte (extended art, showcase…): usa a moldura da edição normal da carta": "Tu impresión no tiene caja de arte (extended art, showcase…): usa el marco de la edición normal de la carta",
+  "moldura da edição normal": "marco de la edición normal",
   "Envia a tua imagem própria tal como está e só a correção que escreveres; o resto fica igual": "Envía tu imagen propia tal cual y solo la corrección que escribas; el resto queda igual",
   "Corrigir a imagem atual": "Corregir la imagen actual",
   "O que corrigir, ex.: dá-lhe o olho biónico do lado esquerdo": "Qué corregir, p. ej.: ponle el ojo biónico en el lado izquierdo",
