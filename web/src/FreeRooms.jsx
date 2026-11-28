@@ -21,7 +21,7 @@ const META_FMT = ['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'pauper'
 
 // a capa de um deck (imagem própria ou a carta da capa), como nos mosaicos do Jogar contra o Forge
 export function DeckArt({ d, data }) {
-  const c = d && !coverImgOf(d) && coverOf(d, data), src = coverImgOf(d) || (c ? img(c, 'art_crop') : null)
+  const c = d && !coverImgOf(d) && coverOf(d, data), src = coverImgOf(d) || (c ? img(c, 'art_crop', false, d.art?.[c.n] || d.prints?.[c.n]?.id) : null)
   return <span className="pv-art">{src ? <img src={src} alt="" loading="lazy" /> : <i>✦</i>}</span>
 }
 

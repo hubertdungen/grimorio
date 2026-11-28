@@ -24,7 +24,7 @@ export function PeekCard({ d, p, x, y, data }) {
   const key = Object.entries(d.main || {}).map(([n, q]) => ({ n, q, c: data.byName.get(n) })).filter(o => o.c && o.c.mt !== 'Land').sort((a, b) => b.q - a.q || (a.c.er || 1e9) - (b.c.er || 1e9)).slice(0, 6)
   return (
     <div className="dpeek" style={{ left: Math.max(8, x), top: y }} role="tooltip">
-      {c && <img src={img(c, 'art_crop')} alt="" />}
+      {c && <img src={img(c, 'art_crop', false, d.art?.[c.n] || d.prints?.[c.n]?.id)} alt="" />}
       <b>{d.name}</b>
       <small className="muted">{f ? `${f} · ` : ''}{tx('{n} cartas', { n: count(d) })} {cols.length > 0 && <Mana cost={cols.map(k => `{${k}}`).join('')} />}</small>
       {d.commanders?.length > 0 && <small>👑 {d.commanders.join(', ')}</small>}
@@ -54,7 +54,7 @@ export function DeckView({ p, data, onClose, onOpen, extra }) {
     <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal dview" role="dialog" aria-label={d?.name || p.name}>
         <header className="dv-head">
-          {cover && <img src={img(cover, 'art_crop')} alt="" />}
+          {cover && <img src={img(cover, 'art_crop', false, d?.art?.[cover.n] || d?.prints?.[cover.n]?.id)} alt="" />}
           <span className="dv-t"><b>{d?.name || p.name}</b>
             {d && <small className="muted">{[FORMAT[d.format || p.format]?.name || d.format || p.format, tx('{n} cartas', { n: count(d) })].filter(Boolean).join(' · ')} {cols.length > 0 && <Mana cost={cols.map(k => `{${k}}`).join('')} />}</small>}
             {p.src === 'taverna' ? <small className="muted">📚 {tx('na prateleira da Taverna · de {n}', { n: p.by || '?' })}</small>
