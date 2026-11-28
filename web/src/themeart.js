@@ -74,10 +74,12 @@ export function themePlan(data, deck, th, { replace = false } = {}) {
     const cur = deck.prints?.[n]
     if (deck.art?.[n]) { skip.own++; continue }
     if (cur && (cur.theme === th.v || (cur.theme && mine.has(String(cur.set).toLowerCase())))) { skip.have++; continue }
-    if (!replace && deck.split?.[n]?.length && /\bBasic\b/.test(c.t)) { skip.favs.push(n); continue }  // as artes favoritas dos básicos
-    if (!replace && ((cur && !cur.theme) || deck.split?.[n]?.length)) { skip.chosen++; continue }
+    // básicos com as tuas artes favoritas (deck.split): as cópias favoritas ficam, as outras passam ao tema
+    const keepSplit = !replace && deck.split?.[n]?.length && /\bBasic\b/.test(c.t) && (!cur || cur.theme)
+    if (keepSplit) skip.favs.push(n)
+    if (!keepSplit && !replace && ((cur && !cur.theme) || deck.split?.[n]?.length)) { skip.chosen++; continue }
     const pr = lair || fl
-    items.push(set ? { n, set } : { n, print: { id: pr.id, set: pr.set.toUpperCase(), cn: pr.cn, style: [], foil: false } })
+    items.push({ ...(set ? { n, set } : { n, print: { id: pr.id, set: pr.set.toUpperCase(), cn: pr.cn, style: [], foil: false } }), ...(keepSplit ? { keepSplit: true } : {}) })
   }
   return { items, skip, lands }
 }
@@ -97,9 +99,9 @@ export function applyTheme(deck, th, items, found, { replace = false } = {}) {
     const p = it.print || found.get(it.n.toLowerCase()) || found.get(it.n.split(' // ')[0].toLowerCase())
     if (!p || deck.art?.[it.n]) continue
     const cur = prints[it.n]
-    if (!replace && ((cur && !cur.theme) || split[it.n]?.length)) continue
+    if (!replace && ((cur && !cur.theme) || (split[it.n]?.length && !it.keepSplit))) continue
     prints[it.n] = { id: p.id, set: p.set, cn: p.cn, eur: p.eur ?? null, eurFoil: p.eurFoil ?? null, style: p.style || [], foil: false, theme: th.v }
-    delete split[it.n]
+    if (!it.keepSplit) delete split[it.n]  // básicos com favoritas: essas cópias ficam, o resto usa a impressão do tema
     n++
   }
   return n ? { deck: { ...deck, prints, split }, n } : { deck, n: 0 }

@@ -3861,7 +3861,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge verlangte eine Auswahl ohne gültige Option: es ging ohne weiter.",
   "Sem cartas para escolher — continuar": "Keine Karten zur Auswahl — weiter",
   "Aspeto das partículas": "Aussehen der Partikel",
-  "{l}: ficam com as tuas artes favoritas de básicos; marca «Substituir também as escolhidas» para usar as do tema.": "{l}: behalten deine Lieblings-Standardland-Bilder; wähle «Auch gewählte ersetzen», um die des Themas zu nehmen.",
+  "{l}: as cópias com a tua arte favorita de básico ficam, as outras passam ao tema; marca «Substituir também as escolhidas» para mudar todas.": "{l}: die Kopien mit deinem Lieblingsbild bleiben, die anderen bekommen das Thema; wähle «Auch gewählte ersetzen», um alle zu ändern.",
   "Os terrenos ficam como estão: {u} não tem terrenos impressos (nem básicos).": "Länder bleiben, wie sie sind: {u} hat keine gedruckten Länder (auch keine Standardländer).",
   "Formato dos decks": "Deck-Format",
   "Mostra só os decks deste formato; o rating continua o casual (todos os formatos juntos)": "Zeigt nur Decks dieses Formats; das Rating bleibt das casual (alle Formate zusammen)",

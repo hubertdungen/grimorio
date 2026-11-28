@@ -3861,7 +3861,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge 要求选择，但没有任何有效选项：已跳过。",
   "Sem cartas para escolher — continuar": "没有可选择的牌 — 继续",
   "Aspeto das partículas": "粒子外观",
-  "{l}: ficam com as tuas artes favoritas de básicos; marca «Substituir também as escolhidas» para usar as do tema.": "{l}：保留你最喜欢的基本地卡图；勾选「也替换手动选择的」即可使用主题卡图。",
+  "{l}: as cópias com a tua arte favorita de básico ficam, as outras passam ao tema; marca «Substituir também as escolhidas» para mudar todas.": "{l}：使用你最喜欢的基本地卡图的那几张保留，其余换成主题卡图；勾选「也替换手动选择的」可全部更换。",
   "Os terrenos ficam como estão: {u} não tem terrenos impressos (nem básicos).": "地牌保持不变：{u} 没有印制过地牌（包括基本地）。",
   "Formato dos decks": "套牌赛制",
   "Mostra só os decks deste formato; o rating continua o casual (todos os formatos juntos)": "只显示该赛制的套牌；评分仍为休闲评分（所有赛制合并）",

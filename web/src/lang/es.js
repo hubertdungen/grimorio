@@ -3861,7 +3861,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge pedía una elección sin ninguna opción válida: siguió sin ella.",
   "Sem cartas para escolher — continuar": "No hay cartas para elegir — continuar",
   "Aspeto das partículas": "Aspecto de las partículas",
-  "{l}: ficam com as tuas artes favoritas de básicos; marca «Substituir também as escolhidas» para usar as do tema.": "{l}: se quedan con tus artes favoritas de básicas; marca «Sustituir también las elegidas» para usar las del tema.",
+  "{l}: as cópias com a tua arte favorita de básico ficam, as outras passam ao tema; marca «Substituir também as escolhidas» para mudar todas.": "{l}: las copias con tu arte favorito de básica se quedan, las demás pasan al tema; marca «Sustituir también las elegidas» para cambiarlas todas.",
   "Os terrenos ficam como estão: {u} não tem terrenos impressos (nem básicos).": "Las tierras se quedan como están: {u} no tiene tierras impresas (ni básicas).",
   "Formato dos decks": "Formato de los mazos",
   "Mostra só os decks deste formato; o rating continua o casual (todos os formatos juntos)": "Muestra solo los mazos de este formato; el rating sigue siendo el casual (todos los formatos juntos)",

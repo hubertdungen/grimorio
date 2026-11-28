@@ -3869,7 +3869,7 @@ export default {
   "O Forge pedia uma escolha sem nenhuma opção válida: seguiu sem ela.": "Forge asked for a choice with no valid option: it went on without it.",
   "Sem cartas para escolher — continuar": "No cards to choose — continue",
   "Aspeto das partículas": "Particle look",
-  "{l}: ficam com as tuas artes favoritas de básicos; marca «Substituir também as escolhidas» para usar as do tema.": "{l}: keep your favourite basic land arts; tick «Replace hand-picked ones too» to use the theme's.",
+  "{l}: as cópias com a tua arte favorita de básico ficam, as outras passam ao tema; marca «Substituir também as escolhidas» para mudar todas.": "{l}: the copies with your favourite basic art stay, the others take the theme's; tick «Replace hand-picked ones too» to change them all.",
   "Os terrenos ficam como estão: {u} não tem terrenos impressos (nem básicos).": "Lands stay as they are: {u} has no lands printed (not even basics).",
   "Formato dos decks": "Deck format",
   "Mostra só os decks deste formato; o rating continua o casual (todos os formatos juntos)": "Shows only this format's decks; the rating stays the casual one (all formats together)",

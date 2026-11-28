@@ -37,7 +37,7 @@ export default function ThemeArtDialog({ data, deck, onApply, onClose }) {
                   plan.skip.chosen ? tx('{n} escolhida à mão fica|{n} escolhidas à mão ficam', { n: plan.skip.chosen }) : '',
                   plan.skip.own ? tx('{n} com arte própria', { n: plan.skip.own }) : ''].filter(Boolean).join(' · ')}
               </small>
-              {plan.skip.favs.length > 0 && <small className="tart-note">{tx('{l}: ficam com as tuas artes favoritas de básicos; marca «Substituir também as escolhidas» para usar as do tema.', { l: plan.skip.favs.join(', ') })}</small>}
+              {plan.skip.favs.length > 0 && <small className="tart-note">{tx('{l}: as cópias com a tua arte favorita de básico ficam, as outras passam ao tema; marca «Substituir também as escolhidas» para mudar todas.', { l: plan.skip.favs.join(', ') })}</small>}
               {plan.lands.deck > 0 && !plan.lands.theme && <small className="tart-note">{tx('Os terrenos ficam como estão: {u} não tem terrenos impressos (nem básicos).', { u: th.name })}</small>}
             </li>
           ))}</ul>
